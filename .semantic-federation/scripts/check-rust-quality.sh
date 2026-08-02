@@ -8,6 +8,18 @@ minimum_regions=${RUST_COVERAGE_MIN_REGIONS:-94}
 minimum_functions=${RUST_COVERAGE_MIN_FUNCTIONS:-70}
 deny_config=${RUST_DENY_CONFIG:-quality/deny.toml}
 
+# cargo-mutants builds each mutant in a copy of the crate directory, where the
+# `../..` these build scripts fall back to is the scratch parent rather than
+# the repository. The fallback only survived because the build scripts were not
+# re-running; any edit under .semantic-federation makes them re-run and the
+# whole gate then dies in an unmutated baseline with "read Chronicle product
+# plan: No such file or directory". Pin the roots the build scripts already
+# accept so a sandboxed build resolves them.
+repository_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)
+export CHRONICLE_REPOSITORY_ROOT="$repository_root"
+export CHRONICLE_SEMANTIC_ROOT="$repository_root/.semantic-federation/semantic"
+export CHRONICLE_DEPENDENCY_CERTIFICATE="$repository_root/.semantic-federation/proofs/dependency-certificate.json"
+
 case "$mode" in
   coverage|mutation|supply-chain) ;;
   *) echo "usage: $0 coverage|mutation|supply-chain" >&2; exit 2 ;;
@@ -24,33 +36,28 @@ while IFS= read -r entry || [[ -n "$entry" ]]; do
   entry=${entry#"${entry%%[![:space:]]*}"}
   entry=${entry%"${entry##*[![:space:]]}"}
   [[ -z "$entry" ]] && continue
-  # Tab-delimited: exclusion regexes contain `|` alternation, so `|` can never
-  # be the field separator (it silently fed regex fragments to --fail-under-*).
-  # Tab is IFS whitespace, under which `read` collapses consecutive delimiters
-  # and drops empty fields, so split manually.
-  fields=()
-  rest=$entry
-  while [[ "$rest" == *$'\t'* ]]; do
-    fields+=("${rest%%$'\t'*}")
-    rest=${rest#*$'\t'}
-  done
-  fields+=("$rest")
-  manifest=${fields[0]:-}
-  exclude_re=${fields[1]:-}
-  entry_lines=${fields[2]:-}
-  entry_regions=${fields[3]:-}
-  entry_functions=${fields[4]:-}
-  features=${fields[5]:-}
-  no_default_features=${fields[6]:-}
+  IFS='|' read -r manifest exclude_re entry_lines entry_regions entry_functions features no_default_features <<< "$entry"
+  # The entry is split on '|' and its exclusion field on ',', so neither
+  # character can appear inside an exclusion expression: a regex carrying one
+  # is silently truncated into an unclosed group. An expression list that needs
+  # them — alternation, a repetition bound — lives in its own file instead,
+  # named here as `@<file>` relative to the manifest list, one expression per
+  # line with '#' comments.
+  exclude_file=""
+  if [[ "$exclude_re" == @* ]]; then
+    exclude_file="$(dirname "$manifest_list")/${exclude_re#@}"
+    if [[ ! -f "$exclude_file" ]]; then
+      echo "Configured mutation exclusion file does not exist: $exclude_file" >&2
+      exit 2
+    fi
+    exclude_re=""
+  elif [[ "$exclude_re" == *'('* || "$exclude_re" == *'{'* ]]; then
+    echo "Inline exclusion expressions cannot contain '(' or '{': the entry is split on '|' and ',', so a group or a repetition bound is cut in half. Move them to an @file: $manifest" >&2
+    exit 2
+  fi
   coverage_lines=${entry_lines:-$minimum_lines}
   coverage_regions=${entry_regions:-$minimum_regions}
   coverage_functions=${entry_functions:-$minimum_functions}
-  for threshold in "$coverage_lines" "$coverage_regions" "$coverage_functions"; do
-    if [[ ! "$threshold" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
-      echo "Malformed coverage threshold '$threshold' for $manifest in $manifest_list (fields must be tab-separated)" >&2
-      exit 2
-    fi
-  done
   if [[ ! -f "$manifest" ]]; then
     echo "Configured Rust authority manifest does not exist: $manifest" >&2
     exit 2
@@ -76,6 +83,19 @@ while IFS= read -r entry || [[ -n "$entry" ]]; do
         for pattern in "${exclude_patterns[@]}"; do
           args+=(-E "$pattern")
         done
+      fi
+      if [[ -n "$exclude_file" ]]; then
+        excluded=0
+        while IFS= read -r pattern || [[ -n "$pattern" ]]; do
+          [[ "$pattern" =~ ^[[:space:]]*(#.*)?$ ]] && continue
+          args+=(-E "$pattern")
+          excluded=$((excluded + 1))
+        done < "$exclude_file"
+        if (( excluded == 0 )); then
+          echo "Mutation exclusion file has no expressions: $exclude_file" >&2
+          exit 2
+        fi
+        echo "rust_authority_mutation_exclusions manifest=$manifest file=$exclude_file expressions=$excluded"
       fi
       [[ "$no_default_features" == "no-default-features" ]] && args+=(--no-default-features)
       [[ -n "$features" ]] && args+=(--features "$features")

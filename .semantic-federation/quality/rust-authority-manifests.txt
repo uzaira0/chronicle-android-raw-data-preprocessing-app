@@ -1,23 +1,29 @@
 # Product-owned crates that carry semantic/computational authority.
 # The adapter's cfg(wasm)-only facade is target-incompatible with native
 # cargo-mutants; its delegate is unit-tested and its export is browser-tested.
-# The runtime exclusions match exactly two equivalent `&&` mutants. With the
-# enforced one-workspace cache bound, the requested workspace is absent from
-# both the map and LRU before eviction. With accepted materialization, a role
-# assignment's stable ID and selected role are a single inseparable identity.
-# Four exact loop-counter mutants are also excluded: cargo-mutants already
-# detected them by timeout, but reports any timeout as a failed gate. Exact
-# output tests retain the ordinary decrement mutations. `cargo mutants --list`
-# proves no other runtime mutant matches these file/column/operator expressions.
-# Multiple exact exclusion expressions are comma-separated.
-# Fields are TAB-separated: exclusion regexes legitimately contain `|`
-# (alternation), which corrupted the original `|`-delimited format — the
-# coverage gate then read a regex fragment as its --fail-under-lines value
-# and aborted before ever reaching the kernel entry.
+# Multiple exact inline exclusion expressions are comma-separated, and the
+# entry's own fields are '|'-separated, so an inline expression can contain
+# neither character: a regex carrying one is split in half and cargo-mutants
+# rejects the unclosed group. The runtime and matcher entries each shipped
+# such a regex and their mutation gate could not start; both are now written
+# as separate expressions, which match exactly the same mutants.
 # The kernel's contract-export binary is exercised by the contract drift gate;
 # cargo test cannot call its `main` in a mutant sandbox. The matcher's optional
-# Python-only facade is outside the browser product and creates 703,742 bogus
-# tuple-return mutants; its Rust core remains fully in scope.
+# Python-only facade is outside the browser product and creates the bulk of the
+# crate's 704,021 mutants as combinatorial tuple-return replacements — 702,769
+# for `match_app_usage_update_arrays` alone. The ` in <function>` expressions
+# below only ever matched operator mutants *inside* a function body: a
+# function-replacement mutant is named `replace <fn> -> <type> with <value>`
+# and carries no ` in `, so they excluded 35 of 704,021 and the entry could
+# never finish. `PyResult<` and `PyErr` name the facade by its return types,
+# which appear nowhere above the crate's `#[cfg(feature = "python")]` block,
+# and leave the 245 binding-agnostic core mutants in scope. They are written
+# without the `->`: an exclusion expression may not begin with `-`, which
+# cargo-mutants' argument parser reads as a flag.
+# That core currently has 34 survivors — comparison boundaries in
+# split_overlapping_sessions, both proximity matchers, and SparseOpenStarts.
+# They are recorded in docs/validation/KERNEL_MUTATION.md and are a campaign of
+# their own; this entry is left honest and red rather than blanket-excluded.
 # Optional fields after the exclusion regex ratchet line, region, and function
 # coverage for an established authority below the shared new-code defaults.
 # The final field lists product features required by both coverage and mutation;
@@ -25,8 +31,15 @@
 # kernel build instead of the production 55-step query engine.
 # A seventh `no-default-features` field keeps a gate on the exact feature set
 # linked into the browser when a crate's defaults only expose another product.
-../rust/chronicle_preprocessing_semantic_adapter/Cargo.toml	wasm::
-../rust/chronicle_preprocessing_runtime_wasm/Cargo.toml	src/lib\.rs:[0-9]+:1[37]: replace && with,replace \+= with .* in (physical_data_row_count|duplicate_safe_headers)
+#
+# The kernel's and runtime's exclusion sets are too large and too regex-heavy
+# for the inline field, so they name a file instead:
+# @kernel-mutation-exclusions.txt and @runtime-mutation-exclusions.txt, one
+# expression per line, grouped under the reason each class is equivalent. Such
+# a file is also the only place an expression may contain a ',' or a '|'.
+#
+../rust/chronicle_preprocessing_semantic_adapter/Cargo.toml|wasm::
+../rust/chronicle_preprocessing_runtime_wasm/Cargo.toml|@runtime-mutation-exclusions.txt
 ../rust/chronicle_semantic_index_wasm/Cargo.toml
-../rust/chronicle_chrono_kernel_wasm/Cargo.toml	src/bin/	90	89	85	incremental-v2
-../rust/chronicle_app_usage_matcher/Cargo.toml	 in (to_py_error|match_app_usage(_update_(indices|arrays)|_arrays)?|split_overlapping_sessions_py|_rust_app_usage_matcher)	93	93	90		no-default-features
+../rust/chronicle_chrono_kernel_wasm/Cargo.toml|@kernel-mutation-exclusions.txt|90|89|85|incremental-v2
+../rust/chronicle_app_usage_matcher/Cargo.toml|PyResult<,PyErr, in to_py_error, in match_app_usage, in split_overlapping_sessions_py, in _rust_app_usage_matcher|93|93|90||no-default-features

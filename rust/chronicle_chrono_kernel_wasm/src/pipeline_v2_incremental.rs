@@ -33,6 +33,20 @@ pub(super) fn csv_parse(csv_bytes: &[u8]) -> Vec<RawRow> {
     let mut reader = CsvReader::new();
     let mut field_buf = vec![0u8; 1024];
     let mut input = csv_bytes;
+    // csv-core consumes the input it wrote before reporting OutputFull, so the
+    // bytes already in `field_buf` are the only copy of the front of a long
+    // cell. Carry them across the resize; dropping them truncated every raw
+    // value longer than the buffer to its tail.
+    let mut carried: Vec<u8> = Vec::new();
+    fn take_field(carried: &mut Vec<u8>, field_buf: &[u8]) -> String {
+        if carried.is_empty() {
+            return String::from_utf8_lossy(field_buf).into_owned();
+        }
+        carried.extend_from_slice(field_buf);
+        let value = String::from_utf8_lossy(carried).into_owned();
+        carried.clear();
+        value
+    }
 
     let mut headers = Vec::new();
     loop {
@@ -41,14 +55,11 @@ pub(super) fn csv_parse(csv_bytes: &[u8]) -> Vec<RawRow> {
         match result {
             ReadFieldResult::InputEmpty => continue,
             ReadFieldResult::OutputFull => {
+                carried.extend_from_slice(&field_buf[..produced]);
                 field_buf.resize(field_buf.len() * 2, 0);
             }
             ReadFieldResult::Field { record_end } => {
-                headers.push(
-                    std::str::from_utf8(&field_buf[..produced])
-                        .unwrap_or("")
-                        .to_string(),
-                );
+                headers.push(take_field(&mut carried, &field_buf[..produced]));
                 if record_end {
                     break;
                 }
@@ -84,13 +95,14 @@ pub(super) fn csv_parse(csv_bytes: &[u8]) -> Vec<RawRow> {
         match result {
             ReadFieldResult::InputEmpty => continue,
             ReadFieldResult::OutputFull => {
+                carried.extend_from_slice(&field_buf[..produced]);
                 field_buf.resize(field_buf.len() * 2, 0);
             }
             ReadFieldResult::Field { record_end } => {
+                let value = take_field(&mut carried, &field_buf[..produced]);
                 if column_index < row_values.len() {
-                    let value = std::str::from_utf8(&field_buf[..produced]).unwrap_or("");
                     row_values[column_index].clear();
-                    row_values[column_index].push_str(value);
+                    row_values[column_index].push_str(&value);
                 }
                 column_index += 1;
                 if record_end {
@@ -450,7 +462,7 @@ pub(super) fn junk_blind_fold(mut rows: Vec<Row>) -> Vec<Row> {
     rows
 }
 
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct MatcherInput {
     pub app_codes: Vec<i32>,
@@ -1761,6 +1773,721 @@ pub(super) fn build_classified_sessions(
     sessions
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Canonical rows from `(interaction type, package, seconds after
+    /// 2026-03-07 10:00:00 America/Chicago)` triples, in the order given.
+    fn rows(events: &[(&str, &str, i64)]) -> Vec<Row> {
+        let stamps = events
+            .iter()
+            .map(|(_, _, second)| {
+                format!(
+                    "2026-03-07 {:02}:{:02}:{:02}",
+                    10 + second / 3_600,
+                    (second / 60) % 60,
+                    second % 60,
+                )
+            })
+            .collect::<Vec<_>>();
+        let built = events
+            .iter()
+            .zip(&stamps)
+            .map(|((interaction, package, _), stamp)| (stamp.as_str(), *interaction, *package))
+            .collect::<Vec<_>>();
+        crate::pipeline_v2::tests::rows_from_events(&built)
+    }
+
+    fn kinds(rows: &[Row]) -> Vec<&str> {
+        rows.iter()
+            .map(|row| row.interaction_type.as_str())
+            .collect()
+    }
+
+    /// A remap entry renames one interaction type to another, so both halves
+    /// have to be present: an entry that names no source, or no replacement,
+    /// installs nothing rather than a rename from or to an empty type.
+    #[test]
+    fn an_interaction_remap_entry_needs_a_source_and_a_replacement() {
+        let entries = [
+            "  Activity Resumed  =>  Custom Resumed  ".to_string(),
+            "=>Custom Paused".to_string(),
+            "Activity Paused=>".to_string(),
+            "   =>   ".to_string(),
+            "Activity Stopped".to_string(),
+        ];
+        assert_eq!(
+            parse_remap_config(&entries),
+            BTreeMap::from([(
+                "Activity Resumed".to_string(),
+                "Custom Resumed".to_string(),
+            )]),
+        );
+    }
+
+    /// The two order predicates decide whether a sort or a de-duplication pass
+    /// can be skipped. Event order is the full sort key — timestamp, then the
+    /// original row index — while the strict-increase check exists to catch the
+    /// one case that key allows and a per-timestamp lookup cannot resolve: a
+    /// tie.
+    #[test]
+    fn the_row_order_predicates_answer_for_the_whole_sort_key() {
+        assert!(rows_are_event_ordered(&[]));
+        assert!(rows_have_strictly_increasing_timestamps(&[]));
+
+        let mut ascending = rows(&[
+            ("Activity Resumed", "com.example.chat", 0),
+            ("Activity Paused", "com.example.chat", 1),
+        ]);
+        assert!(rows_are_event_ordered(&ascending));
+        assert!(rows_have_strictly_increasing_timestamps(&ascending));
+        ascending.swap(0, 1);
+        assert!(
+            !rows_are_event_ordered(&ascending),
+            "a later event placed first is out of order",
+        );
+        assert!(!rows_have_strictly_increasing_timestamps(&ascending));
+
+        let mut tied = rows(&[
+            ("Activity Resumed", "com.example.chat", 0),
+            ("Activity Paused", "com.example.chat", 0),
+        ]);
+        assert!(
+            rows_are_event_ordered(&tied),
+            "a tie in ascending index order is ordered",
+        );
+        assert!(
+            !rows_have_strictly_increasing_timestamps(&tied),
+            "a tie is not a strict increase",
+        );
+        tied.swap(0, 1);
+        assert!(
+            !rows_are_event_ordered(&tied),
+            "a tie in descending index order is not ordered",
+        );
+    }
+
+    /// The dominant timezone is the one the most rows were recorded in. Rows
+    /// with no timezone cell do not get a vote, and an exact tie keeps the zone
+    /// that reached the count first rather than handing it to the later zone.
+    #[test]
+    fn the_dominant_timezone_is_the_most_recorded_one_and_a_tie_keeps_the_incumbent() {
+        let zoned = |zones: &[&str]| {
+            let mut built = rows(&zones
+                .iter()
+                .enumerate()
+                .map(|(index, _)| ("Activity Resumed", "com.example.chat", index as i64))
+                .collect::<Vec<_>>());
+            for (row, zone) in built.iter_mut().zip(zones) {
+                row.edit_temporal().timezone = (*zone).into();
+            }
+            compute_dominant_timezone(&built)
+        };
+
+        assert_eq!(compute_dominant_timezone(&[]), "UTC");
+        assert_eq!(zoned(&["", ""]), "UTC", "a blank cell is not a vote");
+        assert_eq!(zoned(&["", "Europe/Berlin"]), "Europe/Berlin");
+        assert_eq!(
+            zoned(&["America/Chicago", "Europe/Berlin"]),
+            "America/Chicago",
+            "one row each keeps the zone that got there first",
+        );
+        assert_eq!(
+            zoned(&["America/Chicago", "Europe/Berlin", "Europe/Berlin"]),
+            "Europe/Berlin",
+        );
+    }
+
+    /// Filtering to a timezone keeps exactly the rows recorded in that zone and
+    /// drops the rest — including the case where no row carries the target zone
+    /// at all, which has to empty the table rather than quietly keep every row.
+    #[test]
+    fn timezone_filtering_keeps_only_the_rows_recorded_in_the_target_zone() {
+        let mixed = || {
+            let mut built = rows(&[
+                ("Activity Resumed", "com.example.chat", 0),
+                ("Activity Paused", "com.example.chat", 1),
+                ("Activity Resumed", "com.example.chat", 2),
+            ]);
+            built[1].edit_temporal().timezone = "Europe/Berlin".into();
+            Arc::new(built)
+        };
+
+        let primary = select_timezone_strategy(mixed(), "", "primary-filter", "America/Chicago")
+            .expect("primary filter");
+        assert_eq!(primary.target_timezone, "America/Chicago");
+        assert_eq!(primary.action, "filtered_to_primary");
+        assert_eq!(primary.rows.len(), 2);
+        assert!(primary
+            .rows
+            .iter()
+            .all(|row| row.timezone == "America/Chicago"));
+
+        let absent = select_timezone_strategy(mixed(), "", "primary-filter", "Asia/Tokyo")
+            .expect("primary filter");
+        assert!(
+            absent.rows.is_empty(),
+            "filtering to a zone no row carries removes every row",
+        );
+
+        let selected =
+            select_timezone_strategy(mixed(), "Europe/Berlin", "selected-filter", "America/Chicago")
+                .expect("selected filter");
+        assert_eq!(selected.rows.len(), 1);
+        assert_eq!(selected.rows[0].timezone, "Europe/Berlin");
+
+        let converted =
+            select_timezone_strategy(mixed(), "", "primary-convert", "America/Chicago")
+                .expect("primary convert");
+        assert_eq!(
+            converted.rows.len(),
+            3,
+            "converting keeps every row, whatever zone it was recorded in",
+        );
+    }
+
+    /// Restamping moves the whole table into one zone: a row already recorded
+    /// there is left alone, and every other row takes the target zone with its
+    /// local calendar columns recomputed for it.
+    #[test]
+    fn restamping_rewrites_every_row_that_is_not_already_in_the_target_zone() {
+        let mut built = rows(&[
+            ("Activity Resumed", "com.example.chat", 0),
+            ("Activity Paused", "com.example.chat", 60),
+        ]);
+        // Same instant, mislabelled: the row claims UTC, so restamping to
+        // America/Chicago has to relabel it and recompute its local hour.
+        built[1].edit_temporal().timezone = "UTC".into();
+        built[1].edit_temporal().hour = 16;
+
+        let restamped = restamp_rows(built, "America/Chicago").expect("restamp");
+        assert!(restamped
+            .iter()
+            .all(|row| row.timezone == "America/Chicago"));
+        assert_eq!(
+            (restamped[0].hour, restamped[1].hour),
+            (4, 4),
+            "both instants read as the 4 a.m. hour in Chicago",
+        );
+        assert_eq!(restamped[1].date.as_str(), "2026-03-07");
+    }
+
+    /// Blind-folding hands the matcher ordinary activity events by undoing the
+    /// "Filtered" prefix the junk pass applied. Every filtered type has to map
+    /// back to its unfiltered counterpart, and a type that was never filtered
+    /// is left exactly as it is.
+    #[test]
+    fn blind_folding_restores_every_filtered_activity_type() {
+        let mut built = rows(&[
+            ("Activity Resumed", "com.example.chat", 0),
+            ("Activity Resumed", "com.example.chat", 1),
+            ("Activity Resumed", "com.example.chat", 2),
+            ("Activity Resumed", "com.example.chat", 3),
+            ("Activity Resumed", "com.example.chat", 4),
+        ]);
+        for (row, kind) in built.iter_mut().zip([
+            FILTERED_RESUMED,
+            FILTERED_PAUSED,
+            FILTERED_STOPPED,
+            "Filtered App Destroyed",
+            SCREEN_USAGE,
+        ]) {
+            row.edit_classification().interaction_type = kind.into();
+        }
+
+        assert_eq!(
+            kinds(&junk_blind_fold(built)),
+            vec![
+                ACTIVITY_RESUMED,
+                ACTIVITY_PAUSED,
+                ACTIVITY_STOPPED,
+                "Activity Destroyed",
+                SCREEN_USAGE,
+            ],
+        );
+    }
+
+    /// The matcher pairs resumes with pauses, so a stream carrying neither is a
+    /// study period with no app usage in it and has to be reported as such
+    /// instead of producing an empty match.
+    #[test]
+    fn the_matcher_input_refuses_a_stream_with_no_resume_and_no_pause() {
+        let background = AHashSet::from(["com.example.player".to_string()]);
+        let stop_types = ["Activity Stopped".to_string()];
+
+        let error = build_matcher_input(
+            &rows(&[("Activity Stopped", "com.example.chat", 0)]),
+            &stop_types,
+            &[],
+            &AHashSet::new(),
+            false,
+        )
+        .expect_err("a stopped-only stream has no usage");
+        assert_eq!(error, "No valid app usage data during the study period");
+
+        let paused = build_matcher_input(
+            &rows(&[
+                ("Activity Paused", "com.example.chat", 0),
+                ("Activity Stopped", "com.example.player", 1),
+            ]),
+            &stop_types,
+            &[],
+            &background,
+            false,
+        )
+        .expect("a pause is app usage");
+        assert_eq!(paused.background, vec![false, true]);
+        assert_eq!(
+            paused.stopped,
+            vec![false, false],
+            "a background app's stop is not a foreground stop",
+        );
+        assert_eq!(paused.app_codes, vec![0, 1]);
+    }
+
+    /// Once a package is filtered, its usage row keeps its place in the table
+    /// but stops counting: a background app's usage is marked as filtered
+    /// background usage, ordinary filtered usage loses its duration, and any
+    /// other event of that package is stripped of timing entirely.
+    #[test]
+    fn marking_filtered_packages_downgrades_each_kind_of_row_differently() {
+        let filtered = BTreeSet::from([
+            "com.example.player".to_string(),
+            "com.example.chat".to_string(),
+        ]);
+        let background = AHashSet::from(["com.example.player".to_string()]);
+
+        let mut built = rows(&[
+            (APP_USAGE, "com.example.player", 0),
+            (APP_USAGE, "com.example.chat", 1),
+            (ACTIVITY_STOPPED, "com.example.chat", 2),
+            (APP_USAGE, "com.example.kept", 3),
+        ]);
+        for row in built.iter_mut() {
+            let temporal = row.edit_temporal();
+            temporal.start_timestamp_ns = Some(0);
+            temporal.stop_timestamp_ns = Some(60_000_000_000);
+            temporal.duration_seconds = Some(60.0);
+            temporal.duration_minutes = Some(1.0);
+        }
+
+        let marked = junk_downstream_mark(built, &filtered, &background);
+        assert_eq!(
+            kinds(&marked),
+            vec![
+                FILTERED_APP_BACKGROUND_USAGE,
+                FILTERED_APP_USAGE,
+                FILTERED_STOPPED,
+                APP_USAGE,
+            ],
+        );
+        assert_eq!(
+            marked[0].duration_minutes,
+            Some(1.0),
+            "filtered background usage keeps the minutes it accrued",
+        );
+        assert_eq!(marked[1].duration_minutes, None);
+        assert_eq!(
+            marked[1].start_timestamp_ns,
+            Some(0),
+            "filtered foreground usage keeps its interval and loses only the duration",
+        );
+        assert_eq!(marked[2].start_timestamp_ns, None);
+        assert_eq!(marked[2].duration_minutes, None);
+        assert_eq!(marked[3].duration_minutes, Some(1.0));
+    }
+
+    /// Dropping interaction types is a display choice, but the long-data-gap
+    /// flag is evidence about the recording itself: a row of a dropped type
+    /// still has to survive when its own gap reaches the smallest configured
+    /// threshold, and a row of a kept type is never dropped for a short gap.
+    #[test]
+    fn dropping_interaction_types_spares_the_rows_that_carry_a_long_data_gap() {
+        let build = || {
+            let mut built = rows(&[
+                (ACTIVITY_STOPPED, "com.example.chat", 0),
+                (ACTIVITY_STOPPED, "com.example.chat", 1),
+                (APP_USAGE, "com.example.chat", 2),
+            ]);
+            for (row, gap) in built.iter_mut().zip([0.5_f64, 9.0, 0.5]) {
+                row.edit_temporal().data_time_gap_hours = gap;
+            }
+            built
+        };
+
+        let removed = [ACTIVITY_STOPPED.to_string()];
+        let kept = drop_selected_types(build(), &removed, &[6.0, 12.0]);
+        assert_eq!(
+            kinds(&kept),
+            vec![ACTIVITY_STOPPED, APP_USAGE],
+            "the 9-hour gap row survives its type being dropped; the 0.5-hour one does not",
+        );
+        assert_eq!(kept[0].data_time_gap_hours, 9.0);
+
+        assert_eq!(
+            drop_selected_types(build(), &[], &[6.0]).len(),
+            3,
+            "no types to remove leaves the table alone",
+        );
+    }
+
+    /// A zero-length app-usage session is a matcher artefact, not usage, so the
+    /// opt-in drop removes it. It is scoped to app usage — a screen or activity
+    /// row that happens to carry no duration is a different kind of record and
+    /// stays — and with the option off nothing is removed at all.
+    #[test]
+    fn dropping_zero_duration_rows_touches_only_app_usage_and_only_when_enabled() {
+        let build = || {
+            let mut built = rows(&[
+                (APP_USAGE, "com.example.chat", 0),
+                (APP_USAGE, "com.example.chat", 1),
+                (SCREEN_USAGE, "com.example.chat", 2),
+                (APP_USAGE, "com.example.chat", 3),
+            ]);
+            for (row, duration) in built
+                .iter_mut()
+                .zip([Some(0.0), Some(60.0), Some(0.0), None])
+            {
+                row.edit_temporal().duration_seconds = duration;
+            }
+            built
+        };
+
+        let dropped = drop_zero_duration(build(), true);
+        assert_eq!(
+            dropped
+                .iter()
+                .map(|row| (row.interaction_type.as_str(), row.duration_seconds))
+                .collect::<Vec<_>>(),
+            vec![
+                (APP_USAGE, Some(60.0)),
+                (SCREEN_USAGE, Some(0.0)),
+                (APP_USAGE, None),
+            ],
+        );
+        assert_eq!(
+            drop_zero_duration(build(), false).len(),
+            4,
+            "with the option off the zero-duration session stays",
+        );
+    }
+
+    /// Day coverage reports one row per day of the participant's study window:
+    /// a day with usage, a day the export recorded but nothing was used, and a
+    /// day with no data at all. Data recorded outside the window is not part of
+    /// that report and must not be treated as a day the spine failed to cover.
+    #[test]
+    fn day_coverage_reports_the_study_window_and_ignores_data_outside_it() {
+        let mut usage = rows(&[(APP_USAGE, "com.example.chat", 0)]);
+        {
+            let data = usage[0].edit_all();
+            data.date = "2026-03-03".into();
+            data.duration_minutes = Some(5.0);
+        }
+        let raw_dates = BTreeMap::from([(
+            "P01".to_string(),
+            BTreeSet::from([
+                "2026-03-01".to_string(),
+                "2026-03-02".to_string(),
+                "2026-03-03".to_string(),
+                "2026-03-05".to_string(),
+            ]),
+        )]);
+        let windows = [StudyWindow {
+            participant_id: "P01".to_string(),
+            start_date: "2026-03-02".to_string(),
+            end_date: "2026-03-04".to_string(),
+        }];
+
+        let coverage = build_coverage(&usage, &raw_dates, &windows)
+            .expect("data outside the window is not a coverage failure");
+        assert_eq!(
+            coverage
+                .report
+                .coverage
+                .iter()
+                .map(|day| (day.date.as_str(), day.status.as_str()))
+                .collect::<Vec<_>>(),
+            vec![
+                ("2026-03-02", "no_activity"),
+                ("2026-03-03", "usage"),
+                ("2026-03-04", "no_data"),
+            ],
+        );
+        assert_eq!(
+            (
+                coverage.report.usage_days,
+                coverage.report.no_activity_days,
+                coverage.report.no_data_days,
+            ),
+            (1, 1, 1),
+        );
+
+        let unwindowed =
+            build_coverage(&usage, &raw_dates, &[]).expect("coverage without a study window");
+        assert_eq!(
+            unwindowed
+                .report
+                .coverage
+                .iter()
+                .map(|day| day.date.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                "2026-03-01",
+                "2026-03-02",
+                "2026-03-03",
+                "2026-03-04",
+                "2026-03-05",
+            ],
+            "with no window the spine runs from the first observed day to the last",
+        );
+    }
+
+    const SECOND_NS: i64 = 1_000_000_000;
+
+    /// The event instant `second` seconds after the fixture's 10:00:00 origin.
+    fn instant(second: i64) -> i64 {
+        rows(&[("Activity Resumed", "com.example.chat", second)])[0].event_timestamp_ns
+    }
+
+    /// App-usage sessions from `(start second, stop second)` pairs.
+    fn app_sessions(sessions: &[(i64, i64)]) -> Vec<Row> {
+        let mut built = rows(
+            &sessions
+                .iter()
+                .map(|(start, _)| (APP_USAGE, "com.example.chat", *start))
+                .collect::<Vec<_>>(),
+        );
+        for (row, (start, stop)) in built.iter_mut().zip(sessions) {
+            let temporal = row.edit_temporal();
+            temporal.start_timestamp_ns = Some(instant(*start));
+            temporal.stop_timestamp_ns = Some(instant(*stop));
+            temporal.duration_seconds = Some((stop - start) as f64);
+            temporal.duration_minutes = Some((stop - start) as f64 / 60.0);
+        }
+        built
+    }
+
+    struct CreditRun {
+        /// Credited intervals in seconds after the fixture origin.
+        intervals: Vec<(i64, i64)>,
+        counts: CreditEmissionCounts,
+        incapable: Vec<String>,
+    }
+
+    /// Run the whole screen-credit lane over one participant: `witnesses` are
+    /// the raw events the export recorded, `sessions` the app usage to credit.
+    fn run_credit(
+        witnesses: &[(&str, i64)],
+        sessions: &[(i64, i64)],
+        cap_minutes: f64,
+        tolerance_minutes: f64,
+        bridge_seconds: f64,
+        min_day_apps: u32,
+    ) -> CreditRun {
+        let raw = rows(
+            &witnesses
+                .iter()
+                .map(|(kind, second)| (*kind, "com.example.screen", *second))
+                .collect::<Vec<_>>(),
+        );
+        let substrate = build_liveness_substrate(&raw).expect("liveness substrate");
+        let app = app_sessions(sessions);
+        let partition = partition_credit_sessions(&app, None).expect("credit partition");
+        let day_apps = count_day_apps(&partition);
+        let decisions = credit_sessions(
+            &partition,
+            &substrate,
+            &day_apps,
+            cap_minutes,
+            tolerance_minutes,
+            bridge_seconds,
+            min_day_apps,
+        );
+        let emission = emit_credited_rows(&partition, &decisions, &substrate, tolerance_minutes);
+        let origin = instant(0);
+        CreditRun {
+            intervals: emission
+                .credited
+                .iter()
+                .map(|row| {
+                    (
+                        (row.start_timestamp_ns.expect("credited start") - origin) / SECOND_NS,
+                        (row.stop_timestamp_ns.expect("credited stop") - origin) / SECOND_NS,
+                    )
+                })
+                .collect(),
+            counts: emission.counts,
+            incapable: screen_incapable_participants(&partition, &substrate),
+        }
+    }
+
+    /// Screen gating needs a screen the export actually witnessed: both an
+    /// interactive and a non-interactive event have to appear, because a stream
+    /// that only ever reports one of them never shows the screen changing. A
+    /// participant who fails that test is reported once, however many sessions
+    /// they have, and their usage is credited in full rather than gated away.
+    #[test]
+    fn screen_credit_reports_and_passes_through_participants_with_no_screen_witness() {
+        let sessions = [(0, 60), (120, 180)];
+
+        let witnessed = run_credit(
+            &[("Screen Interactive", 0), ("Screen Non-Interactive", 300)],
+            &sessions,
+            360.0,
+            120.0,
+            120.0,
+            1,
+        );
+        assert!(witnessed.incapable.is_empty());
+
+        let one_sided = run_credit(&[("Screen Interactive", 0)], &sessions, 360.0, 120.0, 120.0, 1);
+        assert_eq!(
+            one_sided.incapable,
+            vec!["P01".to_string()],
+            "one screen state is never a witness, and the participant is named once",
+        );
+        assert_eq!(
+            one_sided.intervals,
+            vec![(0, 60), (120, 180)],
+            "usage that cannot be gated is credited exactly as recorded",
+        );
+
+        let unwitnessed = run_credit(&[], &sessions, 360.0, 120.0, 120.0, 1);
+        assert_eq!(unwitnessed.incapable, vec!["P01".to_string()]);
+        assert_eq!(unwitnessed.intervals, vec![(0, 60), (120, 180)]);
+    }
+
+    /// A session that starts before any screen event needs deciding twice over:
+    /// if the screen is witnessed inside the session it is gated normally, and
+    /// only when there is no witness anywhere in the session does the fallback
+    /// credit device-alive time — and then only for a day busy enough to meet
+    /// the minimum app count.
+    #[test]
+    fn screen_credit_separates_a_witnessed_session_from_one_with_no_witness_at_all() {
+        let inside_the_session = run_credit(
+            &[("Screen Interactive", 30), ("Screen Non-Interactive", 200)],
+            &[(10, 70)],
+            360.0,
+            120.0,
+            120.0,
+            1,
+        );
+        assert_eq!(
+            inside_the_session.intervals,
+            vec![(30, 70)],
+            "credit starts when the screen was first witnessed on",
+        );
+        assert_eq!(
+            inside_the_session.counts.no_witness_fallbacks, 0,
+            "a screen event inside the session is a witness, not a fallback",
+        );
+
+        let unwitnessed = [
+            ("Activity Resumed", 20),
+            ("Screen Interactive", 1000),
+            ("Screen Non-Interactive", 1100),
+        ];
+
+        let no_witness = run_credit(&unwitnessed, &[(10, 70)], 360.0, 120.0, 120.0, 1);
+        assert_eq!(
+            no_witness.counts.no_witness_fallbacks, 1,
+            "no screen event covers the session, so the fallback decides it",
+        );
+        assert_eq!(
+            no_witness.intervals,
+            vec![(20, 70)],
+            "the fallback credits the part of the session the device was alive for",
+        );
+
+        let too_quiet = run_credit(&unwitnessed, &[(10, 70)], 360.0, 120.0, 120.0, 2);
+        assert_eq!(
+            too_quiet.counts.no_witness_fallbacks, 0,
+            "one app on the day does not meet a two-app minimum",
+        );
+        assert!(
+            too_quiet.intervals.is_empty(),
+            "without the fallback an unwitnessed session earns no credit",
+        );
+    }
+
+    /// Credit is truncated at the cap measured from the session start, never
+    /// zeroed, and every truncated session is counted so the run can report how
+    /// often it happened.
+    #[test]
+    fn screen_credit_truncates_a_session_at_the_cap_and_counts_it() {
+        let witnesses = [
+            ("Screen Interactive", 0),
+            ("Activity Resumed", 300),
+            ("Screen Non-Interactive", 900),
+        ];
+
+        let capped = run_credit(&witnesses, &[(0, 600)], 5.0, 120.0, 120.0, 1);
+        assert_eq!(capped.intervals, vec![(0, 300)]);
+        assert_eq!(capped.counts.truncated_sessions, 1);
+
+        let uncapped = run_credit(&witnesses, &[(0, 600)], 60.0, 120.0, 120.0, 1);
+        assert_eq!(uncapped.intervals, vec![(0, 600)]);
+        assert_eq!(uncapped.counts.truncated_sessions, 0);
+    }
+
+    /// A screen-off blip shorter than the device's auto-lock cannot be a real
+    /// lock, so credit bridges across it and the session stays one interval.
+    /// A blip longer than the bridge splits the session in two.
+    #[test]
+    fn screen_credit_bridges_an_off_blip_shorter_than_the_auto_lock() {
+        let witnesses = [
+            ("Screen Interactive", 0),
+            ("Screen Non-Interactive", 100),
+            ("Screen Interactive", 130),
+            ("Activity Resumed", 200),
+        ];
+
+        let bridged = run_credit(&witnesses, &[(0, 200)], 360.0, 120.0, 120.0, 1);
+        assert_eq!(
+            bridged.intervals,
+            vec![(0, 200)],
+            "a 30-second gap under a 120-second auto-lock is not a lock",
+        );
+
+        let split = run_credit(&witnesses, &[(0, 200)], 360.0, 120.0, 10.0, 1);
+        assert_eq!(
+            split.intervals,
+            vec![(0, 100), (130, 200)],
+            "a 30-second gap over a 10-second auto-lock is a real lock",
+        );
+    }
+
+    /// Credit also requires the device to have been demonstrably alive. A
+    /// silence longer than the liveness tolerance breaks the alive chain, and
+    /// the part of the session inside that silence earns nothing even though
+    /// the screen was last witnessed on.
+    #[test]
+    fn screen_credit_stops_at_a_silence_longer_than_the_liveness_tolerance() {
+        let witnesses = [
+            ("Screen Interactive", 0),
+            ("Activity Resumed", 100),
+            ("Activity Resumed", 300),
+            ("Screen Non-Interactive", 400),
+        ];
+
+        let tolerant = run_credit(&witnesses, &[(0, 300)], 360.0, 5.0, 120.0, 1);
+        assert_eq!(
+            tolerant.intervals,
+            vec![(0, 300)],
+            "a 200-second silence inside a 5-minute tolerance keeps the device alive",
+        );
+
+        let broken = run_credit(&witnesses, &[(0, 300)], 360.0, 2.0, 120.0, 1);
+        assert_eq!(
+            broken.intervals,
+            vec![(0, 100)],
+            "a 200-second silence past a 2-minute tolerance ends the alive span",
+        );
+    }
+}
+
 #[cfg(feature = "incremental-v2")]
 mod tracked {
     use super::*;
@@ -1894,6 +2621,7 @@ mod tracked {
         app_policy_checkpoint: [u8; 32],
     }
 
+    #[derive(Debug)]
     struct VerifiedReviewBaseHeader {
         input_key: [u8; 32],
         app_policy_checkpoint: [u8; 32],
@@ -2900,6 +3628,7 @@ mod tracked {
             .expect("32-byte reconstruction-base input key"))
     }
 
+    #[derive(Debug)]
     struct VerifiedReconstructionBaseHeader {
         input_key: [u8; 32],
         payload_digest: [u8; 32],
@@ -9208,6 +9937,102 @@ mod tracked {
             options
         }
 
+        /// A persisted resume base is read back from browser storage, so its
+        /// header is the only thing standing between a corrupt or hostile
+        /// object and the decoder. The header size the runtime is told to
+        /// reserve has to be the size the parser skips, the magic and the
+        /// payload digest have to be checked, and the declared payload size is
+        /// refused only once it is past the cap - a base declaring exactly the
+        /// cap is still a base the decoder must accept.
+        #[test]
+        fn a_persisted_base_header_is_checked_against_its_own_declared_payload() {
+            let review = {
+                let mut bytes = vec![0_u8; super::super::review_base_header_bytes()];
+                bytes[..REVIEW_BASE_MAGIC.len()].copy_from_slice(REVIEW_BASE_MAGIC);
+                let digest = *blake3::hash(&[]).as_bytes();
+                let size_offset = REVIEW_BASE_MAGIC.len();
+                let digest_offset = size_offset + 4;
+                bytes[digest_offset..digest_offset + 32].copy_from_slice(&digest);
+                let declare = |bytes: &mut Vec<u8>, value: u32| {
+                    bytes[size_offset..digest_offset].copy_from_slice(&value.to_le_bytes());
+                };
+                declare(&mut bytes, MAX_REVIEW_BASE_UNCOMPRESSED_BYTES as u32);
+                let header = verify_review_base_payload(&bytes)
+                    .expect("a review base declaring exactly the cap");
+                assert_eq!(header.declared_bytes, MAX_REVIEW_BASE_UNCOMPRESSED_BYTES);
+                assert_eq!(header.payload_digest, digest);
+
+                declare(&mut bytes, MAX_REVIEW_BASE_UNCOMPRESSED_BYTES as u32 + 1);
+                let over = verify_review_base_payload(&bytes)
+                    .expect_err("a review base past the cap");
+                assert!(over.contains("exceeding"), "{over}");
+
+                declare(&mut bytes, 0);
+                bytes
+            };
+            let truncated = verify_review_base_payload(&review[..review.len() - 1])
+                .expect_err("a truncated review base");
+            assert!(truncated.contains("truncated"), "{truncated}");
+            let mut wrong_magic = review.clone();
+            wrong_magic[0] = b'X';
+            let invalid = verify_review_base_payload(&wrong_magic)
+                .expect_err("a review base with foreign magic");
+            assert!(invalid.contains("invalid header"), "{invalid}");
+            let mut wrong_digest = review.clone();
+            wrong_digest[REVIEW_BASE_MAGIC.len() + 4] ^= 0xff;
+            let mismatch = verify_review_base_payload(&wrong_digest)
+                .expect_err("a review base whose payload does not match its digest");
+            assert!(mismatch.contains("digest mismatch"), "{mismatch}");
+
+            let reconstruction = {
+                let mut bytes = vec![0_u8; super::super::reconstruction_base_header_bytes()];
+                bytes[..RECONSTRUCTION_BASE_MAGIC.len()]
+                    .copy_from_slice(RECONSTRUCTION_BASE_MAGIC);
+                let digest = *blake3::hash(&[]).as_bytes();
+                let size_offset = RECONSTRUCTION_BASE_MAGIC.len();
+                let digest_offset = size_offset + 4;
+                bytes[digest_offset..digest_offset + 32].copy_from_slice(&digest);
+                let declare = |bytes: &mut Vec<u8>, value: u32| {
+                    bytes[size_offset..digest_offset].copy_from_slice(&value.to_le_bytes());
+                };
+                declare(
+                    &mut bytes,
+                    MAX_RECONSTRUCTION_BASE_UNCOMPRESSED_BYTES as u32,
+                );
+                let header = verify_reconstruction_base_payload(&bytes)
+                    .expect("a reconstruction base declaring exactly the cap");
+                assert_eq!(
+                    header.declared_bytes,
+                    MAX_RECONSTRUCTION_BASE_UNCOMPRESSED_BYTES
+                );
+                assert_eq!(header.payload_digest, digest);
+
+                declare(
+                    &mut bytes,
+                    MAX_RECONSTRUCTION_BASE_UNCOMPRESSED_BYTES as u32 + 1,
+                );
+                let over = verify_reconstruction_base_payload(&bytes)
+                    .expect_err("a reconstruction base past the cap");
+                assert!(over.contains("exceeding"), "{over}");
+
+                declare(&mut bytes, 0);
+                bytes
+            };
+            let truncated = verify_reconstruction_base_payload(&reconstruction[..reconstruction.len() - 1])
+                .expect_err("a truncated reconstruction base");
+            assert!(truncated.contains("truncated"), "{truncated}");
+            let mut wrong_magic = reconstruction.clone();
+            wrong_magic[0] = b'X';
+            let invalid = verify_reconstruction_base_payload(&wrong_magic)
+                .expect_err("a reconstruction base with foreign magic");
+            assert!(invalid.contains("invalid header"), "{invalid}");
+            let mut wrong_digest = reconstruction.clone();
+            wrong_digest[RECONSTRUCTION_BASE_MAGIC.len() + 4] ^= 0xff;
+            let mismatch = verify_reconstruction_base_payload(&wrong_digest)
+                .expect_err("a reconstruction base whose payload does not match its digest");
+            assert!(mismatch.contains("digest mismatch"), "{mismatch}");
+        }
+
         #[test]
         fn sixteen_tracked_steps_match_the_sequential_oracle_and_reuse_exactly() {
             let mut db = EarlyDatabase::default();
@@ -9678,6 +10503,12 @@ mod tracked {
                 reused.result.review_summary_json_bytes,
                 expected.result.review_summary_json_bytes
             );
+            let oracle = run_pipeline_v2_with_supports(&csv(), &changed, support)
+                .expect("sequential oracle for a minimum-only change");
+            assert_eq!(
+                reused.result.review_summary_json_bytes, oracle.review_summary_json_bytes,
+                "reusing rows across a minimum-only change drifted from the sequential path",
+            );
 
             changed.apply_minimum_usage_duration_to_concurrent_subintervals = true;
             let affected = engine.execute(&csv(), &changed, support, false).unwrap();
@@ -9777,6 +10608,17 @@ mod tracked {
                 &second.result,
                 &expected.result,
                 second_edit.usage_session_mode,
+            );
+
+            // Both engines above run the same query graph, so they agree even
+            // when that graph reuses the wrong rows. The sequential path
+            // computes the same steps through separate code and is the only
+            // check here that a review shortcut dropped work it owed.
+            let oracle = run_pipeline_v2_with_supports(&csv(), &second_edit, support)
+                .expect("sequential oracle for a repeated floor edit");
+            assert_eq!(
+                second.result.review_summary_json_bytes, oracle.review_summary_json_bytes,
+                "repeated floor edits drifted from the sequential path",
             );
         }
 
@@ -10543,6 +11385,779 @@ mod tracked {
             );
         }
 
+        fn checkpoint_rows() -> Vec<Row> {
+            let raw = super::super::csv_parse(&csv());
+            let model = super::super::detect_device_model(&raw);
+            super::super::build_canonical_rows(&raw, "America/Chicago", &BTreeMap::new(), &model)
+                .expect("canonical rows")
+        }
+
+        /// `same_row_state` is what lets a step hand its consumers the upstream
+        /// row allocation instead of a copy. Answering yes when any one of the
+        /// six checkpoint components disagrees would publish rows that do not
+        /// match the checkpoint describing them, so every component has to be
+        /// able to say no on its own.
+        #[test]
+        fn same_row_state_needs_every_checkpoint_component_to_agree() {
+            let rows = checkpoint_rows();
+            let checkpoint = logical_stage_rows_checkpoint("probe", &rows);
+            assert!(
+                same_row_state(&checkpoint, &checkpoint.clone()),
+                "a checkpoint has to describe the same row state as itself",
+            );
+
+            let components: [(&str, fn(&mut LogicalStageCheckpoint)); 6] = [
+                ("row_membership_digest", |checkpoint| {
+                    checkpoint.row_membership_digest.push('x')
+                }),
+                ("row_order_digest", |checkpoint| {
+                    checkpoint.row_order_digest.push('x')
+                }),
+                ("temporal_state_digest", |checkpoint| {
+                    checkpoint.temporal_state_digest.push('x')
+                }),
+                ("classification_digest", |checkpoint| {
+                    checkpoint.classification_digest.push('x')
+                }),
+                ("payload_digest", |checkpoint| {
+                    checkpoint.payload_digest.push('x')
+                }),
+                ("schema_digest", |checkpoint| {
+                    checkpoint.schema_digest.push('x')
+                }),
+            ];
+            for (component, disturb) in components {
+                let mut other = checkpoint.clone();
+                disturb(&mut other);
+                assert!(
+                    !same_row_state(&checkpoint, &other),
+                    "a checkpoint differing only in {component} was called the same row state",
+                );
+                assert!(
+                    !same_row_state(&other, &checkpoint),
+                    "{component} disagreement has to be symmetric",
+                );
+            }
+        }
+
+        /// Persisted bases are keyed by the configuration that produced them.
+        /// A review that arrives with bases exported under a different app
+        /// policy has to ignore them and recompute, rather than splice their
+        /// recorded checkpoints into the key it is about to use.
+        #[test]
+        fn bases_exported_under_a_different_app_policy_are_ignored() {
+            let filter = b"app_package_name\ncom.example.chat\n".to_vec();
+            let support = PipelineV2SupportFiles {
+                filter_csv: &filter,
+                ..PipelineV2SupportFiles::default()
+            };
+            let mut produced = pipeline_options();
+            produced.use_filter_file = false;
+
+            let mut producer = TrackedEngine::default();
+            producer
+                .execute(&csv(), &produced, support, true)
+                .expect("produce bases without the filter file");
+            let review_base = producer.export_review_base().expect("review base");
+            let reconstruction_base = producer
+                .export_reconstruction_base()
+                .expect("reconstruction base");
+
+            let mut scanned = produced.clone();
+            scanned.use_filter_file = true;
+
+            let mut engine = TrackedEngine::default();
+            let resumed = engine
+                .execute_with_review_bases(
+                    &csv(),
+                    &review_base,
+                    &reconstruction_base,
+                    &scanned,
+                    support,
+                    false,
+                )
+                .expect("review with foreign bases");
+            assert!(
+                !resumed
+                    .internal_executed_queries
+                    .iter()
+                    .any(|query| query == "restore_review_base"),
+                "a base exported under another app policy was restored: {:?}",
+                resumed.internal_executed_queries
+            );
+
+            let oracle = run_pipeline_v2_with_supports(&csv(), &scanned, support)
+                .expect("sequential oracle for a foreign-base review");
+            assert_eq!(
+                resumed.result.review_summary_json_bytes, oracle.review_summary_json_bytes,
+                "a foreign base changed the answer",
+            );
+        }
+
+        /// `IncrementalPipelineV2Engine` is the engine the runtime crate
+        /// actually drives, and the whole persisted-resume path goes through
+        /// it: it says whether the raw input it already holds matches a digest,
+        /// hands out the two persisted bases, re-enters from a live input, and
+        /// re-enters from the bases in a fresh engine. Drive that public
+        /// surface directly, so a delegation that quietly hands back nothing —
+        /// or accepts the wrong input — fails.
+        #[test]
+        fn the_public_engine_reports_its_verified_input_and_hands_out_usable_bases() {
+            let raw = csv();
+            let input_sha256 = sha256_bytes(raw.as_slice());
+            let foreign_sha256 = sha256_bytes(b"not this participant's export");
+            let options = pipeline_options();
+            let support = PipelineV2SupportFiles::default();
+
+            let mut engine = super::super::IncrementalPipelineV2Engine::default();
+            assert!(
+                !engine.has_verified_input(&input_sha256),
+                "a fresh engine cannot already hold a verified input",
+            );
+
+            let cold = engine
+                .execute_review(raw.as_slice(), &options, support)
+                .expect("cold review through the public engine");
+            assert!(
+                engine.has_verified_input(&input_sha256),
+                "the engine did not recognise the input it just processed",
+            );
+            assert!(
+                !engine.has_verified_input(&foreign_sha256),
+                "the engine claimed to hold an input it never saw",
+            );
+
+            let review_base = engine.export_review_base().expect("export a review base");
+            let reconstruction_base = engine
+                .export_reconstruction_base()
+                .expect("export a reconstruction base");
+
+            let warm = engine
+                .execute_review_with_warm_verified_input(input_sha256.clone(), &options, support)
+                .expect("warm review on the live input");
+            assert_eq!(
+                warm.result.review_summary_json_bytes, cold.result.review_summary_json_bytes,
+                "the warm review answered differently from the cold one",
+            );
+            assert!(
+                engine
+                    .execute_review_with_warm_verified_input(
+                        foreign_sha256.clone(),
+                        &options,
+                        support,
+                    )
+                    .is_err(),
+                "a foreign digest was served from the live input",
+            );
+
+            // The later checkpoint wins when both are offered, so each base has
+            // to be resumed on its own to prove it carries anything.
+            for (label, bases, expected) in [
+                (
+                    "both bases",
+                    (review_base.as_slice(), reconstruction_base.as_slice()),
+                    "restore_reconstruction_base",
+                ),
+                (
+                    "the review base alone",
+                    (review_base.as_slice(), [].as_slice()),
+                    "restore_review_base",
+                ),
+            ] {
+                let mut resumed_engine = super::super::IncrementalPipelineV2Engine::default();
+                let resumed = resumed_engine
+                    .execute_review_with_bases(
+                        raw.as_slice(),
+                        bases.0,
+                        bases.1,
+                        &options,
+                        support,
+                    )
+                    .unwrap_or_else(|error| panic!("resume from {label}: {error}"));
+                assert!(
+                    resumed
+                        .internal_executed_queries
+                        .iter()
+                        .any(|executed| executed == expected),
+                    "{label} did not carry {expected}: {:?}",
+                    resumed.internal_executed_queries,
+                );
+                assert_eq!(
+                    resumed.result.review_summary_json_bytes,
+                    cold.result.review_summary_json_bytes,
+                    "resuming from {label} changed the answer",
+                );
+            }
+        }
+
+        /// The review cone reaches its annotations by two different routes.
+        /// With concurrent modelling off and no background apps it overlays a
+        /// threshold-independent static table; otherwise it annotates the
+        /// reconstructed rows inline. Either way the review performs the same
+        /// annotation and cleaning steps, so both routes have to report them —
+        /// a route that runs a step without reporting it makes the step's
+        /// status invented rather than observed.
+        #[test]
+        fn a_review_reports_its_annotation_steps_on_both_annotation_paths() {
+            for concurrent in [false, true] {
+                let mut options = pipeline_options();
+                options.model_concurrent_usage = concurrent;
+                let mut engine = TrackedEngine::default();
+                let review = engine
+                    .execute(&csv(), &options, PipelineV2SupportFiles::default(), false)
+                    .expect("cold review");
+                for step in [
+                    "codebook_join",
+                    "derive_broad_category",
+                    "collapse_genre",
+                    "engagement_walk",
+                    "flag_and_retain",
+                    "blank_junk_timing",
+                    "drop_selected_types",
+                ] {
+                    assert!(
+                        review.executed_steps.iter().any(|reported| reported == step),
+                        "review with concurrent={concurrent} never reported {step}: {:?}",
+                        review.executed_steps,
+                    );
+                }
+                assert_eq!(
+                    review.executed_steps.len(),
+                    review.executed_steps.iter().collect::<BTreeSet<_>>().len(),
+                    "review with concurrent={concurrent} reported a step twice: {:?}",
+                    review.executed_steps,
+                );
+            }
+        }
+
+        /// A session whose app is on the filter file is emitted as filtered app
+        /// usage with its timing blanked, so it contributes no minutes to the
+        /// review's per-app totals. The fused annotation pass that does the
+        /// blanking only runs on the inline route, so check both routes against
+        /// the sequential path, and prove the filter is doing something by
+        /// comparing against the same review without it.
+        #[test]
+        fn a_review_blanks_filtered_usage_timing_on_both_annotation_paths() {
+            // One filtered app and one ordinary app on the same day: the
+            // ordinary session is what puts the day in the summary at all, and
+            // the filtered session is the one whose minutes must not appear
+            // beside it.
+            let raw = concat!(
+                "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+                "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago\n",
+                "Study,P01,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 10:05:00,America/Chicago\n",
+                "Study,P01,Target Child,Music,Activity Resumed,com.example.music,2026-03-07 10:10:00,America/Chicago\n",
+                "Study,P01,Target Child,Music,Activity Paused,com.example.music,2026-03-07 10:20:00,America/Chicago\n",
+            )
+            .as_bytes();
+            let filter = b"app_package_name\ncom.example.chat\n".to_vec();
+            let study_dates =
+                b"participant_id,start_date,end_date\nP01,2026-03-07,2026-03-07\n".to_vec();
+            let device_sharing = b"participant_id,sharing_status\nP01,Non-Shared\n".to_vec();
+            let enrolled_devices = b"participant_id,device_count\nP01,1\n".to_vec();
+            let support = PipelineV2SupportFiles {
+                filter_csv: &filter,
+                study_dates_csv: &study_dates,
+                device_sharing_csv: &device_sharing,
+                enrolled_devices_csv: &enrolled_devices,
+                ..PipelineV2SupportFiles::default()
+            };
+
+            for concurrent in [false, true] {
+                let mut filtered = pipeline_options();
+                filtered.usage_session_mode = UsageSessionMode::AppUsage;
+                filtered.model_concurrent_usage = concurrent;
+                filtered.use_filter_file = true;
+                let mut unfiltered = filtered.clone();
+                unfiltered.use_filter_file = false;
+
+                let mut engine = TrackedEngine::default();
+                let review = engine
+                    .execute(raw, &filtered, support, false)
+                    .expect("review with the filter file");
+                let plain = engine
+                    .execute(raw, &unfiltered, support, false)
+                    .expect("review without the filter file");
+                assert_ne!(
+                    review.result.review_summary_json_bytes,
+                    plain.result.review_summary_json_bytes,
+                    "the filter file has to change the summary or this proves nothing \
+                     (concurrent={concurrent})",
+                );
+
+                let summary =
+                    String::from_utf8_lossy(&review.result.review_summary_json_bytes).into_owned();
+                assert!(
+                    summary.contains("com.example.music"),
+                    "the ordinary session has to reach the summary (concurrent={concurrent}): \
+                     {summary}",
+                );
+                assert!(
+                    !summary.contains("com.example.chat"),
+                    "the filtered session kept its minutes (concurrent={concurrent}): {summary}",
+                );
+
+                let oracle = run_pipeline_v2_with_supports(raw, &filtered, support)
+                    .expect("sequential oracle for a filtered review");
+                assert_eq!(
+                    review.result.review_summary_json_bytes, oracle.review_summary_json_bytes,
+                    "filtered usage timing survived into the review summary \
+                     (concurrent={concurrent})",
+                );
+            }
+        }
+
+        /// A matcher-option edit can change the session a row belongs to. With
+        /// concurrent modelling off, review annotations are carried on the
+        /// pre-floor row table rather than rebuilt from reconstructed
+        /// intervals, so that table has to be recognised as changed. If it is
+        /// not, the annotations overlaid on the rebuilt rows are the ones the
+        /// previous option produced.
+        #[test]
+        fn a_matcher_edit_that_changes_the_session_reaches_the_review_annotations() {
+            let raw = concat!(
+                "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+                "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 08:00:00,America/Chicago\n",
+                "Study,P01,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 18:00:00,America/Chicago\n",
+            )
+            .as_bytes();
+            let codebook = b"app_package_name,application_label,bcm_play_store_genreId,bcm_play_store_broad_app_category,dataset\ncom.example.chat,Chat,Social,Communication,test\n".to_vec();
+            let support = PipelineV2SupportFiles {
+                codebook_csv: &codebook,
+                ..PipelineV2SupportFiles::default()
+            };
+
+            let mut baseline = pipeline_options();
+            baseline.usage_session_mode = UsageSessionMode::AppUsage;
+            baseline.model_concurrent_usage = false;
+            baseline.use_app_codebook = true;
+            baseline.include_category_column = true;
+            // Twelve hours: the ten-hour session below is a normal session.
+            baseline.long_duration_threshold_ns = 43_200_000_000_000;
+            let mut shortened = baseline.clone();
+            // Six hours: the same session is now too long to have an observed
+            // end, so the matcher reports it as end-of-usage-missing.
+            shortened.long_duration_threshold_ns = 21_600_000_000_000;
+
+            let mut engine = TrackedEngine::default();
+            let long_threshold = engine
+                .execute(raw, &baseline, support, false)
+                .expect("review with the long threshold");
+            let short_threshold = engine
+                .execute(raw, &shortened, support, false)
+                .expect("review with the short threshold");
+            assert_ne!(
+                long_threshold.result.review_summary_json_bytes,
+                short_threshold.result.review_summary_json_bytes,
+                "the threshold edit has to change the matcher result or it proves nothing",
+            );
+
+            let oracle = run_pipeline_v2_with_supports(raw, &shortened, support)
+                .expect("sequential oracle for the shortened threshold");
+            assert_eq!(
+                short_threshold.result.review_summary_json_bytes, oracle.review_summary_json_bytes,
+                "the review cone kept annotations from the previous threshold",
+            );
+        }
+
+        /// A review base exported while screen processing was on carries the
+        /// classified screen sessions, so a resumed review reuses them instead
+        /// of walking the screen state machine again. That reuse is only
+        /// allowed while the settings that shaped those sessions are
+        /// unchanged; after a screen-settings edit the sessions have to be
+        /// rebuilt, and either way the answer has to match the sequential path.
+        #[test]
+        fn a_resumed_review_reuses_screen_sessions_only_while_their_settings_hold() {
+            let support = PipelineV2SupportFiles::default();
+            let mut baseline = pipeline_options();
+            baseline.usage_session_mode = UsageSessionMode::AppAndScreenUsage;
+            baseline.include_screen_output = true;
+
+            let mut producer = TrackedEngine::default();
+            producer
+                .execute(&csv(), &baseline, support, true)
+                .expect("produce a screen-bearing review base");
+            let review_base = producer.export_review_base().expect("review base");
+
+            let mut engine = TrackedEngine::default();
+            let resumed = engine
+                .execute_with_review_base(&csv(), &review_base, &baseline, support, false)
+                .expect("resume from the review base");
+            assert!(
+                resumed
+                    .internal_executed_queries
+                    .iter()
+                    .any(|query| query == "restore_review_screen"),
+                "the exported base carried no reusable screen sessions: {:?}",
+                resumed.internal_executed_queries
+            );
+            for step in [
+                "build_classified_sessions",
+                "walk_screen_state_machine",
+                "collect_keyguard_timestamps",
+            ] {
+                assert!(
+                    !resumed.executed_steps.iter().any(|executed| executed == step),
+                    "restored screen sessions were rebuilt anyway through {step}: {:?}",
+                    resumed.executed_steps
+                );
+            }
+
+            let mut edited = baseline.clone();
+            edited.screen_auto_lock_timeout_seconds = 60.0;
+            let rebuilt = engine
+                .execute_with_review_base(&csv(), &review_base, &edited, support, false)
+                .expect("resume after a screen-settings edit");
+            assert!(
+                rebuilt
+                    .executed_steps
+                    .iter()
+                    .any(|step| step == "build_classified_sessions"),
+                "a screen-settings edit reused sessions built under the old settings: {:?}",
+                rebuilt.executed_steps
+            );
+
+            let oracle = run_pipeline_v2_with_supports(&csv(), &edited, support)
+                .expect("sequential oracle for an edited screen resume");
+            assert_eq!(
+                rebuilt.result.review_summary_json_bytes, oracle.review_summary_json_bytes,
+                "a resumed review drifted from the sequential path after a screen edit",
+            );
+
+            // Materializing the full outputs re-checks the same screen key in a
+            // second place, so the saved sessions have to be accepted and
+            // rejected there on exactly the same terms.
+            for (label, options, expect_reuse) in [
+                ("the settings that built them", &baseline, true),
+                ("edited screen settings", &edited, false),
+            ] {
+                let mut full_engine = TrackedEngine::default();
+                let full = full_engine
+                    .execute_with_review_base(&csv(), &review_base, options, support, true)
+                    .unwrap_or_else(|error| panic!("full run under {label}: {error}"));
+                assert_eq!(
+                    full.executed_steps
+                        .iter()
+                        .any(|step| step == "build_classified_sessions"),
+                    !expect_reuse,
+                    "full run under {label} reported {:?}",
+                    full.executed_steps,
+                );
+                let full_oracle = run_pipeline_v2_with_supports(&csv(), options, support)
+                    .unwrap_or_else(|error| panic!("sequential oracle under {label}: {error}"));
+                assert_eq!(
+                    full.result.screen_csv_bytes, full_oracle.screen_csv_bytes,
+                    "a full run under {label} drifted from the sequential screen output",
+                );
+            }
+        }
+
+        /// A warm engine reuses the digest it already verified for the raw
+        /// bytes it holds. That shortcut is only sound while those really are
+        /// the bytes in hand: reviewing a second file on the same engine has to
+        /// re-identify it, or the second file is offered the first file's
+        /// persisted bases and answered with the first file's rows.
+        #[test]
+        fn a_warm_engine_re_identifies_a_different_file_before_selecting_a_base() {
+            let support = PipelineV2SupportFiles::default();
+            let options = pipeline_options();
+            let longer = {
+                let mut bytes = csv().as_ref().clone();
+                bytes.extend_from_slice(
+                    b"Study,P01,Target Child,Mail,Activity Resumed,com.example.mail,2026-03-07 10:02:00,America/Chicago\n",
+                );
+                bytes.extend_from_slice(
+                    b"Study,P01,Target Child,Mail,Activity Paused,com.example.mail,2026-03-07 10:03:00,America/Chicago\n",
+                );
+                bytes
+            };
+
+            let mut engine = TrackedEngine::default();
+            engine
+                .execute(&csv(), &options, support, true)
+                .expect("process the first file");
+            let review_base = engine.export_review_base().expect("review base");
+            let reconstruction_base = engine
+                .export_reconstruction_base()
+                .expect("reconstruction base");
+
+            let second = engine
+                .execute_with_review_bases(
+                    &longer,
+                    &review_base,
+                    &reconstruction_base,
+                    &options,
+                    support,
+                    false,
+                )
+                .expect("review a second file on the warm engine");
+            for query in ["restore_review_base", "restore_reconstruction_base"] {
+                assert!(
+                    !second
+                        .internal_executed_queries
+                        .iter()
+                        .any(|executed| executed == query),
+                    "a second file was served the first file's base through {query}: {:?}",
+                    second.internal_executed_queries,
+                );
+            }
+            let oracle = run_pipeline_v2_with_supports(&longer, &options, support)
+                .expect("sequential oracle for the second file");
+            assert_eq!(
+                second.result.review_summary_json_bytes, oracle.review_summary_json_bytes,
+                "the warm engine answered the second file with the first file's rows",
+            );
+        }
+
+        /// The app CSV's codebook alias columns are decided by the codebook
+        /// settings alone. Cover every combination that can move that decision
+        /// — codebook off, codebook on with nothing in it, codebook on with a
+        /// match, and the category column either way — against the sequential
+        /// path, so the incremental output path cannot decide the header
+        /// differently from the engine that defines it.
+        #[test]
+        fn a_full_run_writes_the_same_app_columns_as_the_sequential_path() {
+            let header = "app_package_name,application_label,bcm_play_store_genreId,bcm_play_store_broad_app_category,dataset\n";
+            let populated_codebook =
+                format!("{header}com.example.chat,Chat,Social,Communication,test\n").into_bytes();
+            let empty_codebook = header.as_bytes().to_vec();
+
+            for use_app_codebook in [false, true] {
+                for include_category_column in [false, true] {
+                    for populated in [false, true] {
+                        let codebook: &[u8] = if populated {
+                            &populated_codebook
+                        } else {
+                            &empty_codebook
+                        };
+                        let support = PipelineV2SupportFiles {
+                            codebook_csv: codebook,
+                            ..PipelineV2SupportFiles::default()
+                        };
+                        let mut options = pipeline_options();
+                        options.usage_session_mode = UsageSessionMode::AppUsage;
+                        options.include_app_output = true;
+                        options.use_app_codebook = use_app_codebook;
+                        options.include_category_column = include_category_column;
+
+                        let mut engine = TrackedEngine::default();
+                        let tracked = engine
+                            .execute(&csv(), &options, support, true)
+                            .expect("full run");
+                        let oracle = run_pipeline_v2_with_supports(&csv(), &options, support)
+                            .expect("sequential oracle for the app output");
+                        assert_eq!(
+                            tracked.result.app_csv_bytes, oracle.app_csv_bytes,
+                            "app output drifted with codebook={use_app_codebook} \
+                             category={include_category_column} populated={populated}",
+                        );
+                    }
+                }
+            }
+        }
+
+        /// Each persisted base has a one-entry decode cache. Reviewing a
+        /// second file right after a first one is the ordinary browser
+        /// sequence, so a decode request for a different base has to return
+        /// that base — never the rows still sitting in the cache.
+        #[test]
+        fn a_base_decode_never_returns_the_previous_file() {
+            let support = PipelineV2SupportFiles::default();
+            let options = pipeline_options();
+            let longer = {
+                let mut bytes = csv().as_ref().clone();
+                bytes.extend_from_slice(
+                    b"Study,P01,Target Child,Mail,Activity Resumed,com.example.mail,2026-03-07 10:02:00,America/Chicago\n",
+                );
+                bytes.extend_from_slice(
+                    b"Study,P01,Target Child,Mail,Activity Paused,com.example.mail,2026-03-07 10:03:00,America/Chicago\n",
+                );
+                Arc::new(bytes)
+            };
+
+            let export = |raw: &[u8]| {
+                let mut engine = TrackedEngine::default();
+                engine
+                    .execute(raw, &options, support, true)
+                    .expect("export execute");
+                (
+                    engine.export_review_base().expect("review base"),
+                    engine
+                        .export_reconstruction_base()
+                        .expect("reconstruction base"),
+                )
+            };
+            let (short_review, short_reconstruction) = export(&csv());
+            let (long_review, long_reconstruction) = export(&longer);
+
+            REVIEW_BASE_DECODE_CACHE.with(|cache| cache.borrow_mut().take());
+            let short_rows = decode_review_base_cached(&short_review).unwrap().rows.len();
+            let long_rows = decode_review_base_cached(&long_review).unwrap().rows.len();
+            assert!(
+                long_rows > short_rows,
+                "the two fixtures have to produce different review bases",
+            );
+            assert_eq!(
+                decode_review_base_cached(&short_review).unwrap().rows.len(),
+                short_rows,
+                "the review-base decode came back with the other file's rows",
+            );
+
+            RECONSTRUCTION_BASE_DECODE_CACHE.with(|cache| cache.borrow_mut().take());
+            let short_rows = decode_reconstruction_base_cached(&short_reconstruction)
+                .unwrap()
+                .rows
+                .len();
+            let long_rows = decode_reconstruction_base_cached(&long_reconstruction)
+                .unwrap()
+                .rows
+                .len();
+            assert!(
+                long_rows > short_rows,
+                "the two fixtures have to produce different reconstruction bases",
+            );
+            assert_eq!(
+                decode_reconstruction_base_cached(&short_reconstruction)
+                    .unwrap()
+                    .rows
+                    .len(),
+                short_rows,
+                "the reconstruction-base decode came back with the other file's rows",
+            );
+        }
+
+        /// Both row-removing options are reported as product counts. A raw
+        /// export that carries an exact duplicate row and a session that opens
+        /// and closes at the same instant has to keep or lose those rows
+        /// exactly as the two options say, in either direction.
+        #[test]
+        fn the_row_removing_options_decide_whether_a_row_survives() {
+            let raw = concat!(
+                "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+                "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago\n",
+                "Study,P01,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 10:00:00,America/Chicago\n",
+                "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:02:00,America/Chicago\n",
+                "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:02:00,America/Chicago\n",
+                "Study,P01,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 10:04:00,America/Chicago\n",
+            )
+            .as_bytes();
+            let support = PipelineV2SupportFiles::default();
+            let mut options = pipeline_options();
+            options.usage_session_mode = UsageSessionMode::AppUsage;
+            options.include_app_output = true;
+            // Nudging tied timestamps apart would give the paired session a
+            // one-nanosecond duration, which is not a zero-duration session.
+            options.correct_duplicate_event_timestamps = false;
+
+            let run = |deduplicate: bool, drop_zero: bool| {
+                let mut options = options.clone();
+                options.deduplicate_exact_rows = deduplicate;
+                options.filter_zero_duration_sessions = drop_zero;
+                TrackedEngine::default()
+                    .execute(raw, &options, support, true)
+                    .expect("row-removing options execute")
+                    .result
+            };
+
+            let kept = run(false, false);
+            assert_eq!(
+                kept.exact_duplicate_rows_removed, 0,
+                "dedupe was off and still removed rows",
+            );
+
+            let deduped = run(true, false);
+            assert_eq!(
+                deduped.exact_duplicate_rows_removed, 1,
+                "the repeated Activity Resumed row was not recognised as an exact duplicate",
+            );
+            assert_eq!(
+                deduped.processed_row_count + 1,
+                kept.processed_row_count,
+                "dedupe reported a removal it did not make",
+            );
+
+            let dropped = run(true, true);
+            assert_eq!(
+                dropped.app_row_count + 1,
+                deduped.app_row_count,
+                "the session that opened and closed at one instant survived the zero-duration filter",
+            );
+        }
+
+        /// `rows_step_reusing` may hand a step's consumers the upstream row
+        /// allocation, but only when the step left every row alone. A step
+        /// that drops rows publishes a shorter table, and handing back the
+        /// upstream table would silently undo the drop while still reporting
+        /// a checkpoint that claims nothing changed.
+        #[test]
+        fn a_step_that_drops_rows_never_publishes_the_upstream_table() {
+            let rows = checkpoint_rows();
+            assert!(rows.len() >= 3, "the fixture must have rows to drop");
+            let upstream = StepValue {
+                value: Arc::new(rows.clone()),
+                checkpoint: logical_stage_rows_checkpoint("upstream", &rows),
+                logical_checkpoint: None,
+            };
+
+            let unchanged = rows_step_reusing("probe", &upstream, rows.clone());
+            assert!(
+                Arc::ptr_eq(&unchanged.value, &upstream.value),
+                "a step that changed nothing has to reuse the upstream rows",
+            );
+
+            // Drop the last row. Every surviving row is still the same `Arc`,
+            // so the row count is the only thing saying the step did anything.
+            let mut shorter = rows.clone();
+            shorter.pop();
+            let dropped = rows_step_reusing("probe", &upstream, shorter.clone());
+            assert_eq!(
+                dropped.value.len(),
+                shorter.len(),
+                "the dropped row came back in the published table",
+            );
+            assert_eq!(
+                dropped.checkpoint,
+                logical_stage_rows_checkpoint("probe", &shorter),
+                "a shorter table has to carry the checkpoint of that table",
+            );
+        }
+
+        /// A threshold edit moves the temporal columns of a handful of rows and
+        /// leaves identity and classification alone, so the temporal digest is
+        /// patched in place rather than rebuilt from every row. The patched
+        /// value is only usable because it is the same digest an ordinary full
+        /// checkpoint of those rows produces.
+        #[test]
+        fn patching_changed_rows_reproduces_a_full_temporal_checkpoint() {
+            let mut rows = checkpoint_rows();
+            assert!(rows.len() >= 4, "the fixture must have rows to patch");
+            let order = canonical_row_order(&rows);
+            let base = canonical_temporal_sequence_with_order(&rows, &order);
+            let unpatched = temporal_digest_with_changed_rows(&base, &rows, &[]);
+            assert_eq!(
+                unpatched,
+                logical_stage_rows_checkpoint("probe", &rows).temporal_state_digest,
+                "patching nothing has to reproduce the digest the sequence was built from",
+            );
+
+            let changed: Vec<u32> = vec![1, 3];
+            for &row_index in &changed {
+                let data = rows[row_index as usize].edit_temporal();
+                data.duration_seconds = Some(data.duration_seconds.unwrap_or_default() + 5.0);
+                data.duration_minutes = Some(data.duration_minutes.unwrap_or_default() + 0.0834);
+            }
+            let patched = temporal_digest_with_changed_rows(&base, &rows, &changed);
+            assert_ne!(
+                patched, unpatched,
+                "a temporal edit has to move the temporal digest",
+            );
+            assert_eq!(
+                patched,
+                logical_stage_rows_checkpoint("probe", &rows).temporal_state_digest,
+                "the patched digest has to equal a full checkpoint of the same rows",
+            );
+        }
+
         fn assert_result_parity(
             actual: &PipelineV2Result,
             expected: &PipelineV2Result,
@@ -10707,6 +12322,746 @@ mod tracked {
                 let mut engine = TrackedEngine::default();
                 let actual = engine.execute(&csv(), &options, support, true).unwrap();
                 assert_result_parity(&actual.result, &expected, mode);
+            }
+        }
+
+        /// The warm engine reuses a tracked value whenever the value's own
+        /// equality says nothing consumers can see has changed. Two failures
+        /// hide behind that: an equality that is too permissive keeps a stale
+        /// value after a real edit, and one that is too strict throws away work
+        /// that was still valid. Both are invisible to a single-run test.
+        ///
+        /// This drives one engine through every option a researcher can move,
+        /// and after each move checks the two properties that pin the equality
+        /// from both sides:
+        ///
+        /// 1. the warm result is byte-identical to a cold engine's, so no stale
+        ///    value survived the edit; and
+        /// 2. repeating the same request executes nothing at all, so nothing
+        ///    valid was discarded.
+        ///
+        /// Each edit is then reverted and checked the same way, because
+        /// returning to a value the engine has already seen is exactly where a
+        /// backdating decision is made.
+        #[test]
+        fn every_option_edit_keeps_warm_results_exact_and_repeat_requests_free() {
+            let study_dates =
+                b"participant_id,start_date,end_date\nP01,2026-03-07,2026-03-07\n".to_vec();
+            let device_sharing = b"participant_id,sharing_status\nP01,Shared\n".to_vec();
+            let survey_attribution =
+                b"participant_id,event_timestamp,users\nP01,2026-03-07 10:00:00,Target Child\n"
+                    .to_vec();
+            let enrolled_devices = b"participant_id,device_count\nP01,1\n".to_vec();
+            let filter = b"app_package_name\ncom.example.chat\n".to_vec();
+            let apps_forcing = b"package_name\ncom.example.chat\n".to_vec();
+            let background_apps = b"app_package_name\ncom.example.chat\n".to_vec();
+            let codebook = b"app_package_name,application_label,bcm_play_store_genreId,bcm_play_store_broad_app_category,dataset\ncom.example.chat,Chat,Social,Communication,test\n".to_vec();
+            let support = PipelineV2SupportFiles {
+                filter_csv: &filter,
+                apps_forcing_csv: &apps_forcing,
+                background_apps_csv: &background_apps,
+                codebook_csv: &codebook,
+                study_dates_csv: &study_dates,
+                device_sharing_csv: &device_sharing,
+                survey_attribution_csv: &survey_attribution,
+                enrolled_devices_csv: &enrolled_devices,
+            };
+
+            let mut baseline = late_pipeline_options();
+            baseline.use_filter_file = true;
+            baseline.use_apps_forcing_screen_open = true;
+            baseline.use_background_apps_file = true;
+            baseline.use_app_codebook = true;
+            baseline.include_app_output = true;
+            baseline.include_screen_output = true;
+            baseline.include_category_column = true;
+            baseline.enable_aggregates = true;
+            baseline.model_concurrent_usage = true;
+            baseline.minimum_usage_duration = 30.0;
+            let baseline = baseline;
+
+            type Edit = (&'static str, Box<dyn Fn(&mut PipelineV2Options)>);
+            let edits: Vec<Edit> = vec![
+                (
+                    "study_name",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.study_name = "Edited study".into()
+                    }),
+                ),
+                (
+                    "timezone",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.timezone = "America/New_York".into()
+                    }),
+                ),
+                (
+                    "timezone_handling",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.timezone_handling = "primary-convert".into()
+                    }),
+                ),
+                (
+                    "usage_session_mode",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.usage_session_mode = UsageSessionMode::AppUsage
+                    }),
+                ),
+                (
+                    "include_screen_output",
+                    Box::new(|options: &mut PipelineV2Options| options.include_screen_output = false),
+                ),
+                (
+                    "use_filter_file",
+                    Box::new(|options: &mut PipelineV2Options| options.use_filter_file = false),
+                ),
+                (
+                    "use_apps_forcing_screen_open",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.use_apps_forcing_screen_open = false
+                    }),
+                ),
+                (
+                    "use_background_apps_file",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.use_background_apps_file = false
+                    }),
+                ),
+                (
+                    "use_app_codebook",
+                    Box::new(|options: &mut PipelineV2Options| options.use_app_codebook = false),
+                ),
+                (
+                    "include_category_column",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.include_category_column = false
+                    }),
+                ),
+                (
+                    "deduplicate_exact_rows",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.deduplicate_exact_rows = false
+                    }),
+                ),
+                (
+                    "interaction_type_remap",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.interaction_type_remap =
+                            vec!["User Interaction=Activity Resumed".into()]
+                    }),
+                ),
+                (
+                    "correct_duplicate_event_timestamps",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.correct_duplicate_event_timestamps = false
+                    }),
+                ),
+                (
+                    "allow_stop_event_reuse",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.allow_stop_event_reuse = true
+                    }),
+                ),
+                (
+                    "use_activity_stopped_as_fallback",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.use_activity_stopped_as_fallback = false
+                    }),
+                ),
+                (
+                    "apply_threshold_to_fallback",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.apply_threshold_to_fallback = false
+                    }),
+                ),
+                (
+                    "long_duration_threshold_ns",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.long_duration_threshold_ns = 21_600_000_000_000
+                    }),
+                ),
+                (
+                    "proximity_interval_ns",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.proximity_interval_ns = 2_000_000_000
+                    }),
+                ),
+                (
+                    "same_app_stop_types",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.same_app_stop_types = vec!["Activity Paused".into()]
+                    }),
+                ),
+                (
+                    "other_stop_types",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.other_stop_types = vec!["Device Shutdown".into()]
+                    }),
+                ),
+                (
+                    "interaction_types_to_remove",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.interaction_types_to_remove = vec!["User Interaction".into()]
+                    }),
+                ),
+                (
+                    "custom_app_engagement_duration",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.custom_app_engagement_duration = 45.0
+                    }),
+                ),
+                (
+                    "long_data_time_gap_thresholds",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.long_data_time_gap_thresholds = vec![0.25, 2.0]
+                    }),
+                ),
+                (
+                    "long_usage_duration_thresholds",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.long_usage_duration_thresholds = vec![0.5]
+                    }),
+                ),
+                (
+                    "model_concurrent_usage",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.model_concurrent_usage = false
+                    }),
+                ),
+                (
+                    "minimum_usage_duration",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.minimum_usage_duration = 90.0
+                    }),
+                ),
+                (
+                    "apply_minimum_usage_duration_to_concurrent_subintervals",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.apply_minimum_usage_duration_to_concurrent_subintervals = true
+                    }),
+                ),
+                (
+                    "filter_zero_duration_sessions",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.filter_zero_duration_sessions = true
+                    }),
+                ),
+                (
+                    "screen_auto_lock_timeout_seconds",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.screen_auto_lock_timeout_seconds = 45.0
+                    }),
+                ),
+                (
+                    "screen_auto_lock_tolerance_seconds",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.screen_auto_lock_tolerance_seconds = 5.0
+                    }),
+                ),
+                (
+                    "screen_manual_lock_max_tail_seconds",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.screen_manual_lock_max_tail_seconds = 5.0
+                    }),
+                ),
+                (
+                    "screen_keyguard_near_stop_seconds",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.screen_keyguard_near_stop_seconds = 10.0
+                    }),
+                ),
+                (
+                    "enable_screen_gated_crediting",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.enable_screen_gated_crediting = false
+                    }),
+                ),
+                (
+                    "credited_session_cap_minutes",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.credited_session_cap_minutes = 5.0
+                    }),
+                ),
+                (
+                    "device_liveness_gap_tolerance_minutes",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.device_liveness_gap_tolerance_minutes = 1.0
+                    }),
+                ),
+                (
+                    "auto_lock_bridge_seconds",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.auto_lock_bridge_seconds = 5.0
+                    }),
+                ),
+                (
+                    "no_witness_min_day_apps",
+                    Box::new(|options: &mut PipelineV2Options| options.no_witness_min_day_apps = 1),
+                ),
+                (
+                    "enable_study_window_filter",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.enable_study_window_filter = false
+                    }),
+                ),
+                (
+                    "enable_person_attribution",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.enable_person_attribution = false
+                    }),
+                ),
+                (
+                    "add_no_activity_placeholder_days",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.add_no_activity_placeholder_days = false
+                    }),
+                ),
+                (
+                    "enable_day_coverage",
+                    Box::new(|options: &mut PipelineV2Options| options.enable_day_coverage = false),
+                ),
+                (
+                    "enable_compliance_scoring",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.enable_compliance_scoring = false
+                    }),
+                ),
+                (
+                    "compliance_threshold_percent",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.compliance_threshold_percent = 20.0
+                    }),
+                ),
+                (
+                    "enable_aggregates",
+                    Box::new(|options: &mut PipelineV2Options| options.enable_aggregates = false),
+                ),
+                (
+                    "aggregate_shape",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.aggregate_shape = "long".into()
+                    }),
+                ),
+                (
+                    "materialize_visualization_data",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.materialize_visualization_data = false
+                    }),
+                ),
+                (
+                    "datetime_of_preprocessing",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.datetime_of_preprocessing = "2026-07-24 00:00:00 UTC".into()
+                    }),
+                ),
+            ];
+
+            let check = |engine: &mut TrackedEngine,
+                         options: &PipelineV2Options,
+                         full: bool,
+                         label: &str| {
+                let warm = engine.execute(&csv(), options, support, full).unwrap();
+                let mut cold = TrackedEngine::default();
+                let expected = cold.execute(&csv(), options, support, full).unwrap();
+                assert_result_parity(&warm.result, &expected.result, options.usage_session_mode);
+
+                // Two engines running the same query graph agree even when the
+                // graph is wrong, so the full-output result is also checked
+                // against the sequential path, which computes the same 55 steps
+                // through separate code.
+                let oracle = run_pipeline_v2_with_supports(&csv(), options, support)
+                    .unwrap_or_else(|error| panic!("{label}: sequential oracle: {error}"));
+                if full {
+                    assert_result_parity(&warm.result, &oracle, options.usage_session_mode);
+                } else {
+                    // Review mode is a different cone that produces one artifact:
+                    // the summary. That is what the sequential path is compared
+                    // against, so a review-only value that goes stale is caught.
+                    assert_eq!(
+                        warm.result.review_summary_json_bytes,
+                        oracle.review_summary_json_bytes,
+                        "{label}: review summary differs from the sequential path",
+                    );
+                }
+
+                let repeat = engine.execute(&csv(), options, support, full).unwrap();
+                assert!(
+                    repeat.executed_steps.is_empty()
+                        && repeat.internal_executed_queries.is_empty(),
+                    "{label}: repeating an unchanged request reran {:?} / {:?}",
+                    repeat.executed_steps,
+                    repeat.internal_executed_queries,
+                );
+                assert_result_parity(&repeat.result, &expected.result, options.usage_session_mode);
+            };
+
+            // Full output and review are different physical cones: review runs
+            // the fused annotation/reconstruction path and its content-committing
+            // checkpoints, which the full path never touches. Concurrent
+            // modelling splits the review cone again: with it off, annotation
+            // columns are carried on the prepared row table instead of being
+            // rebuilt from reconstructed intervals. Every combination has to
+            // hold the same two properties, so the sweep runs over all four.
+            for concurrent in [true, false] {
+                let mut baseline = baseline.clone();
+                baseline.model_concurrent_usage = concurrent;
+                let baseline = baseline;
+                for full in [true, false] {
+                    let mut engine = TrackedEngine::default();
+                    let suffix = format!("full={full} concurrent={concurrent}");
+                    check(&mut engine, &baseline, full, &format!("baseline {suffix}"));
+                    for (label, edit) in &edits {
+                        let mut changed = baseline.clone();
+                        edit(&mut changed);
+                        check(&mut engine, &changed, full, &format!("{label} {suffix}"));
+                        check(
+                            &mut engine,
+                            &baseline,
+                            full,
+                            &format!("{label} reverted {suffix}"),
+                        );
+                    }
+                }
+            }
+        }
+
+        /// Salsa backdates: when a re-executed query produces a value equal to
+        /// the one it produced last revision, its dependents keep their cached
+        /// results. That is the entire job of the review cone's `PartialEq`
+        /// implementations, and an equality that reports "changed" for an equal
+        /// value is invisible to any result comparison — the value it forces to
+        /// be recomputed is correct. It shows up only as work the engine did
+        /// not need to do.
+        ///
+        /// Every option moved below belongs to the full-output cone: the
+        /// aggregate tables, day coverage, compliance scoring, the
+        /// visualisation payload, the optional output column and the two output
+        /// toggles. A review run produces one artifact, the summary, and none
+        /// of them can reach it — so moving one has to leave the whole review
+        /// cone cached, not merely produce the same bytes again.
+        #[test]
+        fn a_review_holds_its_cone_across_options_its_summary_cannot_depend_on() {
+            let study_dates =
+                b"participant_id,start_date,end_date\nP01,2026-03-07,2026-03-07\n".to_vec();
+            let device_sharing = b"participant_id,sharing_status\nP01,Shared\n".to_vec();
+            let survey_attribution =
+                b"participant_id,event_timestamp,users\nP01,2026-03-07 10:00:00,Target Child\n"
+                    .to_vec();
+            let enrolled_devices = b"participant_id,device_count\nP01,1\n".to_vec();
+            let filter = b"app_package_name\ncom.example.chat\n".to_vec();
+            let apps_forcing = b"package_name\ncom.example.chat\n".to_vec();
+            let background_apps = b"app_package_name\ncom.example.chat\n".to_vec();
+            let codebook = b"app_package_name,application_label,bcm_play_store_genreId,bcm_play_store_broad_app_category,dataset\ncom.example.chat,Chat,Social,Communication,test\n".to_vec();
+            let support = PipelineV2SupportFiles {
+                filter_csv: &filter,
+                apps_forcing_csv: &apps_forcing,
+                background_apps_csv: &background_apps,
+                codebook_csv: &codebook,
+                study_dates_csv: &study_dates,
+                device_sharing_csv: &device_sharing,
+                survey_attribution_csv: &survey_attribution,
+                enrolled_devices_csv: &enrolled_devices,
+            };
+
+            // (label, edit, the steps the edit's own query may recompute)
+            type Edit = (
+                &'static str,
+                Box<dyn Fn(&mut PipelineV2Options)>,
+                &'static [&'static str],
+            );
+            let edits: Vec<Edit> = vec![
+                (
+                    "enable_aggregates",
+                    Box::new(|options: &mut PipelineV2Options| options.enable_aggregates = false),
+                    &[],
+                ),
+                (
+                    "aggregate_shape",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.aggregate_shape = "long".into()
+                    }),
+                    &[],
+                ),
+                (
+                    "enable_day_coverage",
+                    Box::new(|options: &mut PipelineV2Options| options.enable_day_coverage = false),
+                    &[],
+                ),
+                (
+                    "enable_compliance_scoring",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.enable_compliance_scoring = false
+                    }),
+                    &[],
+                ),
+                (
+                    "compliance_threshold_percent",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.compliance_threshold_percent = 20.0
+                    }),
+                    &[],
+                ),
+                (
+                    "materialize_visualization_data",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.materialize_visualization_data = false
+                    }),
+                    &[],
+                ),
+                (
+                    "include_category_column",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.include_category_column = false
+                    }),
+                    &[],
+                ),
+                (
+                    "include_app_output",
+                    Box::new(|options: &mut PipelineV2Options| options.include_app_output = false),
+                    &[],
+                ),
+                (
+                    "include_screen_output",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.include_screen_output = false
+                    }),
+                    &[],
+                ),
+                // These four the review cone does read. This data makes every
+                // move inert: no session comes near a thirty-second floor or a
+                // multi-hour cap, and the engagement and threshold lists only
+                // label rows the summary never reports. A cone step that
+                // re-runs here produced a value equal to the one it already
+                // had and failed to say so.
+                (
+                    "minimum_usage_duration",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.minimum_usage_duration = 31.0
+                    }),
+                    &["relabel_usage_with_floor", "junk_downstream_mark", "sort_episodes"],
+                ),
+                (
+                    "long_duration_threshold_ns",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.long_duration_threshold_ns = 13 * 3_600_000_000_000
+                    }),
+                    &["run_matcher"],
+                ),
+                (
+                    "custom_app_engagement_duration",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.custom_app_engagement_duration = 900.0
+                    }),
+                    &[
+                        "codebook_join",
+                        "derive_broad_category",
+                        "collapse_genre",
+                        "engagement_walk",
+                        "flag_and_retain",
+                        "blank_junk_timing",
+                        "drop_selected_types",
+                        "resolve_participant_windows",
+                        "filter_rows_to_window",
+                    ],
+                ),
+                (
+                    "long_usage_duration_thresholds",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.long_usage_duration_thresholds = vec![7.0, 9.0]
+                    }),
+                    &[
+                        "codebook_join",
+                        "derive_broad_category",
+                        "collapse_genre",
+                        "engagement_walk",
+                        "flag_and_retain",
+                        "blank_junk_timing",
+                        "drop_selected_types",
+                        "resolve_participant_windows",
+                        "filter_rows_to_window",
+                    ],
+                ),
+            ];
+
+            // `assemble_result` reads the option record itself to decide which
+            // artifacts to hand back, so it re-runs for any option at all. It
+            // is the one step that legitimately does; everything upstream of it
+            // is the cone this test is about.
+            fn cone_work(steps: &[String]) -> Vec<&str> {
+                steps
+                    .iter()
+                    .map(String::as_str)
+                    .filter(|step| *step != "assemble_result")
+                    .collect()
+            }
+
+            for concurrent in [false, true] {
+                let mut baseline = late_pipeline_options();
+                baseline.use_filter_file = true;
+                baseline.use_apps_forcing_screen_open = true;
+                baseline.use_background_apps_file = true;
+                baseline.use_app_codebook = true;
+                baseline.include_app_output = true;
+                baseline.include_screen_output = true;
+                baseline.include_category_column = true;
+                baseline.enable_aggregates = true;
+                baseline.model_concurrent_usage = concurrent;
+                baseline.minimum_usage_duration = 30.0;
+                let baseline = baseline;
+
+                let mut engine = TrackedEngine::default();
+                let cold = engine
+                    .execute(&csv(), &baseline, support, false)
+                    .expect("cold review");
+                let summary = cold.result.review_summary_json_bytes.clone();
+                assert!(
+                    !cold.executed_steps.is_empty(),
+                    "concurrent={concurrent}: the cold review executed nothing"
+                );
+
+                for (label, edit, recomputes) in &edits {
+                    let mut changed = baseline.clone();
+                    edit(&mut changed);
+                    let warm = engine
+                        .execute(&csv(), &changed, support, false)
+                        .expect("warm review");
+                    assert_eq!(
+                        warm.result.review_summary_json_bytes, summary,
+                        "{label} concurrent={concurrent}: a full-output option changed the \
+                         review summary, so it is not review-irrelevant after all"
+                    );
+                    assert_eq!(
+                        cone_work(&warm.executed_steps),
+                        recomputes.to_vec(),
+                        "{label} concurrent={concurrent}: moving the option recomputed a \
+                         different part of the review cone than the option itself reaches"
+                    );
+
+                    let reverted = engine
+                        .execute(&csv(), &baseline, support, false)
+                        .expect("reverted review");
+                    assert_eq!(reverted.result.review_summary_json_bytes, summary);
+                    // Reverting can recompute less than the edit did, because
+                    // the baseline values are still cached from the revision
+                    // before the edit. It must never recompute more.
+                    let reverted_work = cone_work(&reverted.executed_steps);
+                    assert!(
+                        reverted_work.iter().all(|step| recomputes.contains(step)),
+                        "{label} concurrent={concurrent}: reverting the option recomputed \
+                         {reverted_work:?}. which reaches past {recomputes:?}"
+                    );
+                }
+            }
+        }
+
+        /// The same two properties for edits to the inputs rather than the
+        /// options: a changed raw export and a changed support file.
+        #[test]
+        fn input_edits_keep_warm_results_exact_and_repeat_requests_free() {
+            let mut options = pipeline_options();
+            options.include_app_output = true;
+            options.include_screen_output = true;
+            options.use_filter_file = true;
+            options.use_app_codebook = true;
+            let options = options;
+
+            let filter = b"app_package_name\ncom.example.chat\n".to_vec();
+            let other_filter = b"app_package_name\ncom.example.other\n".to_vec();
+            let codebook = b"app_package_name,application_label,bcm_play_store_genreId,bcm_play_store_broad_app_category,dataset\ncom.example.chat,Chat,Social,Communication,test\n".to_vec();
+            let other_codebook = b"app_package_name,application_label,bcm_play_store_genreId,bcm_play_store_broad_app_category,dataset\ncom.example.chat,Chat,Games,Entertainment,test\n".to_vec();
+            let base_support = PipelineV2SupportFiles {
+                filter_csv: &filter,
+                codebook_csv: &codebook,
+                ..PipelineV2SupportFiles::default()
+            };
+
+            let extended_csv = {
+                let mut bytes = csv().as_ref().clone();
+                bytes.extend_from_slice(
+                    b"Study,P01,Target Child,Music,Activity Resumed,com.example.music,2026-03-07 10:02:00,America/Chicago\n",
+                );
+                bytes.extend_from_slice(
+                    b"Study,P01,Target Child,Music,Activity Paused,com.example.music,2026-03-07 10:09:00,America/Chicago\n",
+                );
+                Arc::new(bytes)
+            };
+
+            let cases: Vec<(&str, Arc<Vec<u8>>, PipelineV2SupportFiles<'_>)> = vec![
+                ("baseline", csv(), base_support),
+                (
+                    "extra raw rows",
+                    Arc::clone(&extended_csv),
+                    base_support,
+                ),
+                (
+                    "different filter file",
+                    csv(),
+                    PipelineV2SupportFiles {
+                        filter_csv: &other_filter,
+                        ..base_support
+                    },
+                ),
+                (
+                    "different codebook",
+                    csv(),
+                    PipelineV2SupportFiles {
+                        codebook_csv: &other_codebook,
+                        ..base_support
+                    },
+                ),
+                ("back to baseline", csv(), base_support),
+                (
+                    "extra raw rows again",
+                    Arc::clone(&extended_csv),
+                    base_support,
+                ),
+            ];
+
+            // Review is the mode where the fused annotation and reconstruction
+            // values live, and an input edit is the only thing that moves them,
+            // so both cones see every edit.
+            for full in [true, false] {
+                let mut engine = TrackedEngine::default();
+                for (label, bytes, support) in &cases {
+                    let warm = engine.execute(bytes, &options, *support, full).unwrap();
+                    let mut cold = TrackedEngine::default();
+                    let expected = cold.execute(bytes, &options, *support, full).unwrap();
+                    assert_result_parity(
+                        &warm.result,
+                        &expected.result,
+                        options.usage_session_mode,
+                    );
+
+                    // Both engines run the same query graph, so they agree even
+                    // when it is wrong. The sequential path computes the same 55
+                    // steps through separate code and settles it.
+                    let oracle = run_pipeline_v2_with_supports(bytes, &options, *support)
+                        .unwrap_or_else(|error| {
+                            panic!("{label} full={full}: sequential oracle: {error}")
+                        });
+                    if full {
+                        assert_result_parity(&warm.result, &oracle, options.usage_session_mode);
+                    } else {
+                        assert_eq!(
+                            warm.result.review_summary_json_bytes,
+                            oracle.review_summary_json_bytes,
+                            "{label} full={full}: review summary differs from the sequential path",
+                        );
+                    }
+
+                    let repeat = engine.execute(bytes, &options, *support, full).unwrap();
+                    assert!(
+                        repeat.executed_steps.is_empty()
+                            && repeat.internal_executed_queries.is_empty(),
+                        "{label} full={full}: repeating an unchanged request reran {:?} / {:?}",
+                        repeat.executed_steps,
+                        repeat.internal_executed_queries,
+                    );
+                    assert_result_parity(
+                        &repeat.result,
+                        &expected.result,
+                        options.usage_session_mode,
+                    );
+                }
             }
         }
 
