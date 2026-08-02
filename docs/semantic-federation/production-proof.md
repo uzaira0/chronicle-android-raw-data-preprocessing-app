@@ -3,21 +3,31 @@
 This repository is the first full implementation target for the generalized
 semantic federation. It already proves the shared profile, qualification,
 storage, provenance, browser, and product-ownership boundaries described below.
-The kernel now proves minimal reuse for unchanged and output-only changes across
+The kernel proves minimal reuse for unchanged and output-only changes across
 55 real tracked Rust computations, plus complete parity in all four usage
-modes. It does **not** yet prove the full production requirement across browser
-reload, every configuration/support/binding intervention, runtime provenance,
-and the existing large empirical campaigns.
+modes. Browser reload and worker replacement, the configuration/support/binding
+intervention campaigns, and runtime provenance from actual query events are now
+implemented and checked on `main`. What it does **not** yet prove is listed in
+"Remaining production blockers or bounded debt" in the
+[final review matrix](final-review-matrix.md); those items are open, not
+softened.
 
-The current branch contains 55 Salsa-tracked Rust product computations and a
+`main` at `3c598ee` contains 55 Salsa-tracked Rust product computations and a
 stateful engine that produces complete `PipelineV2Result` values. Two internal
 derived-cache queries are observable separately and are not product steps.
 Runtime computation and step reporting consume actual executed-step IDs. There is no second
 TypeScript scheduler: Rust groups the 55 step events into 15 readable UI
-sections after execution. The generated empirical evidence is still
-stale and must be rebuilt. The authoritative live status and remaining checks are in the
-[55-step incremental Rust plan](55-step-incremental-rust-plan.md). Until those
-checks pass, this document must not be read as a completed production claim.
+sections after execution. The generated empirical evidence is no longer stale:
+all six implementation-bound dependency ledgers and the dependency certificate
+were regenerated with `make dependency-evidence` and landed in `3c598ee`
+(PR #88), and `cargo test --locked --manifest-path
+rust/chronicle_preprocessing_runtime_wasm/Cargo.toml` now passes 60 tests with
+zero stale-receipt failures. The authoritative live status and remaining checks
+are in the [55-step incremental Rust plan](55-step-incremental-rust-plan.md).
+This document is still not a completed production claim: the open blockers
+below — exact raw-field/support-record contribution, cross-browser durability,
+chrono-kernel mutation and coverage debt, streaming archive export/import, and
+large-file memory/crash injection — remain unproven.
 
 ## Reusable authority layers
 
@@ -129,8 +139,9 @@ recalculates from it. No opaque query cache can hide a required computation.
   [the product-trial report](../perf/SALSA_PRODUCT_TRIAL.md). Salsa `0.28.1` is selected
   and all 55 real step queries now pass native complete-result parity, exact
   unchanged reuse, output-only invalidation, Clippy, and browser-WASM compile
-  checks. Production cutover still requires the broader actual-read campaigns,
-  runtime event/view truth, persistence safety, memory, and bundle checks. The
+  checks. The broader actual-read campaigns, runtime event truth, and the
+  step-16/step-28 persistence-safety checks have run and are checked in;
+  cross-browser durability and large-file memory/crash injection have not. The
   comparison with the other researched Rust incremental libraries is closed in
   the [authoritative plan](55-step-incremental-rust-plan.md#existing-software-decision).
   If a
@@ -204,11 +215,13 @@ empirical result into a permanent anti-staleness contract rather than a manual
 observation. All 1,380 transitions compare all 15 logical checkpoints with an
 independent cold target and compare the observed invalidation set with the
 deterministically predicted semantic percolation cluster. Both mismatch counts
-are zero. This proves logical minimality for the recorded pre-cutover scope.
-The checked ledger must be regenerated before it can claim current physical
-execution. In the current implementation, actual Salsa `WillExecute` events,
-not the old 15-stage cache projection, are the only source for physical
-`cached` versus `recomputed` status.
+are zero. This proves logical minimality for the recorded scope. The checked
+ledger was regenerated against the physical query executor with
+`make dependency-evidence` and landed in `3c598ee`; it now carries the current
+implementation receipt rather than a pre-cutover one. In the current
+implementation, actual Salsa `WillExecute` events, not the old 15-stage cache
+projection, are the only source for physical `cached` versus `recomputed`
+status.
 
 Code and contract changes are also explicit intervention dimensions. Every
 logical node input key commits independently to (1) the production Rust source,
@@ -373,14 +386,19 @@ From this repository:
 
 ```sh
 # Local production rails require cargo-deny, cargo-llvm-cov and cargo-mutants.
-pnpm --dir web run build:wasm
+# The web package is npm-locked (web/package-lock.json). Run `npm ci` in web/
+# once per checkout: `make gate-truth` asserts that a seeded defect makes each
+# gate exit non-zero, so in a checkout with no web/node_modules every probe
+# exits non-zero for the wrong reason (`spawn vite-node ENOENT`) and the whole
+# suite prints the same all-green report it prints when the gates really work.
+cd web && npm ci && npm run build:wasm && cd ..
 make all SEM_PROF_BIN=/Users/u/semantic-profile-toolchain/target/debug/semprof
 make coverage-all
 make cargo-deny
 make combinatorial
 make gate-truth
 make mutation
-pnpm --dir web run lint
+cd web && npm run lint && cd ..
 ```
 
 Reusable authorities:
@@ -398,11 +416,33 @@ contract tests, semantic lock/binding/closure verification, real-browser smoke,
 offline workspace recovery/import/corruption rejection, and deploy-artifact and
 bundle-budget validation.
 
-The production Rust quality rails currently enforce at least 95% line, 94%
-region, and 70% function coverage on each new semantic authority crate. The
-measured proof is stronger: semantic adapter 97.98% lines/97.46% regions,
-product runtime 96.94%/95.88%, semantic index 97.06%/96.15%, and the new
-product runtime 98.54%/99.43%. The semantic-layer mutation runs
+The production Rust quality rails enforce at least 95% line, 94% region, and
+70% function coverage on each new semantic authority crate, with two
+established authorities ratcheted lower in
+`.semantic-federation/quality/rust-authority-manifests.txt`. Measured on `main`
+at `3c598ee` with `rustup run stable cargo llvm-cov --manifest-path <crate>
+--summary-only [--features/--no-default-features per manifest entry]`:
+
+| Authority crate | Lines | Regions | Functions | Enforced floor (L/R/F) | Result |
+|---|---:|---:|---:|---|---|
+| `chronicle_preprocessing_semantic_adapter` | 99.16% | 98.33% | 96.84% | 95/94/70 | pass |
+| `chronicle_preprocessing_runtime_wasm` | 95.19% | 94.12% | 75.00% | 95/94/70 | pass |
+| `chronicle_semantic_index_wasm` | 97.07% | 96.65% | 82.22% | 95/94/70 | pass |
+| `chronicle_app_usage_matcher` (`--no-default-features`) | 94.69% | 94.10% | 90.09% | 93/93/90 | pass |
+| `chronicle_chrono_kernel_wasm` (`--features incremental-v2`) | 89.78% | 89.36% | 84.30% | 90/89/85 | **fails lines and functions** |
+
+Two facts about that table are release-blocking and must not be rounded away.
+First, the chrono kernel is below its own declared ratchet: the same command
+with only `--fail-under-regions 89` exits 0, while `--fail-under-lines 90` and
+`--fail-under-functions 85` each exit 1. Second, `make coverage-rust` does not
+currently reach the kernel at all. `.semantic-federation/scripts/check-rust-quality.sh`
+splits each manifest line with `IFS='|'`, and the second entry's mutation
+exclusion regex contains a `|` alternation
+(`(physical_data_row_count|duplicate_safe_headers)`), so `duplicate_safe_headers)`
+is passed to `--fail-under-lines` and cargo-llvm-cov aborts the whole loop with
+`error: invalid float literal`. The gate therefore reports only the first
+crate's result today; the four figures after it come from the direct
+per-crate invocations above. The semantic-layer mutation runs
 have zero survivors and zero timeouts: adapter 76 killed/25 compiler-rejected,
 product runtime 194 killed/21 compiler-rejected, and semantic index 31 killed.
 The adapter's target-incompatible `cfg(wasm)` facade exclusion is declared in
@@ -412,5 +452,12 @@ a separate UI/oracle boundary measurement, not a substitute for Rust authority
 coverage. The broader chrono-kernel mutation debt remains explicit in the final
 review matrix; it is not hidden by the clean semantic-layer result.
 
-Production deployment, `main`, research-pipeline, GitOps, homelab provisioning
-and CI runner infrastructure are intentionally not part of this proof.
+This work now lives on `main`: PR #81 (`121e7b5`) landed the 55-step Rust/WASM
+single-engine cutover and PR #88 (`3c598ee`) landed the source-result influence
+witness, both as squash merges. Landing on `main` is not a deployment.
+`web-pwa-deploy.yml` is `workflow_dispatch` only since PR #85 (`b315858`), the
+live GitHub Pages app still serves the manually dispatched
+`rollback/2026-06-27-build` artifact from 2026-07-29, and the `research-pipeline`
+consumer remains pinned to the `last-python-engine` tag. Production deployment,
+research-pipeline, GitOps, homelab provisioning and CI runner infrastructure are
+intentionally not part of this proof.
