@@ -13,8 +13,10 @@ implemented and checked on `main`. What it does **not** yet prove is listed in
 softened.
 
 `main` at `3c598ee` contains 55 Salsa-tracked Rust product computations and a
-stateful engine that produces complete `PipelineV2Result` values. Two internal
-derived-cache queries are observable separately and are not product steps.
+stateful engine that produces complete `PipelineV2Result` values. Twenty-four
+internal derived-cache queries are observable separately and are not product
+steps; `pipeline_v2_incremental.rs` therefore holds 79 `#[salsa::tracked]`
+functions of which exactly 55 are product transformations.
 Runtime computation and step reporting consume actual executed-step IDs. There is no second
 TypeScript scheduler: Rust groups the 55 step events into 15 readable UI
 sections after execution. The generated empirical evidence is no longer stale:
