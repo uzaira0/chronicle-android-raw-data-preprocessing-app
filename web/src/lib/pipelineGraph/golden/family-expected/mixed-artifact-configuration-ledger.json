@@ -3,10 +3,10 @@
   "claimBoundary": "Aggregate of nine independently recycled exhaustive role/value shards. Each shard selects one empirically branch-activating intervention for its source role, crosses it with every valid alternate value of all 46 computational axes, executes both transition orders, and compares every final logical checkpoint, output artifact, and canonical output cell with an independent cold Rust/WASM target. Field/record interactions beyond the selected representative remain outside this claim.",
   "implementationReceipt": {
     "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
-    "implementationDigest": "sha256:0604cadca6c5b46bfcf23696f9618688dfb48f5f96cc266b297acfba2f5307c9",
+    "implementationDigest": "sha256:5f4da93b03acc308721648c17337a1dfa751581f9370aff6b2a12b18d579338e",
     "planDigest": "sha256:e6acec3530cef7f3e67443077affb86632db8485d771c3fa9a754dc810ff8e20",
-    "profileDigest": "sha256:80397f23291f79d791215138f965779312b2c22ebcdaf65186b8d724b3f8380b",
-    "profileLockDigest": "sha256:0e011b2cd1167a9aee0f1c5cfc26e5e52f9cb70b393b974305288cfeeedb22a2",
+    "profileDigest": "sha256:098832851047bb4f4d5c52ebad0cc1db427bc4147311592a35dc8802a947e997",
+    "profileLockDigest": "sha256:45d33ce58be4451926e44878c71135ec83572e4c55ff64695306edd1daff05b7",
     "runtimeAuthorityDigest": "sha256:7598af2d710ac32563dd8e0bff49a9447e7f450c618c4689004025fbb6826ed4",
     "productContractDigest": "sha256:3855791ad25992d95e055d5c672253cb06ac3e4320463bc46f984b7bc8f05f95"
   },
@@ -28,7 +28,7 @@
     {
       "roleId": "raw_chronicle_csv",
       "path": "mixed-artifact-configuration-raw_chronicle_csv.json",
-      "contentDigest": "sha256:dcdf5c40770c08ba860f15e8d9ab5ab423d957e7efaad3aae5e039f3aeaccea8",
+      "contentDigest": "sha256:f6e6135253746da93476c5aec7c736c9a80cb6fedc062a801c2f5f0b1a3722f4",
       "representative": {
         "corpusId": "catalog-random",
         "seed": 12648430,
@@ -53,7 +53,7 @@
     {
       "roleId": "filter_file",
       "path": "mixed-artifact-configuration-filter_file.json",
-      "contentDigest": "sha256:c4edc01827f981208bd950ba9fcd34d788f2dd227d91f48af801276fe239b2b3",
+      "contentDigest": "sha256:64e84c2f872c440fd85a48df9319709e33d54f4eab9f2a4fb25b502d9c537f5a",
       "representative": {
         "corpusId": "catalog-random",
         "seed": 12648430,
@@ -78,7 +78,7 @@
     {
       "roleId": "apps_forcing_screen_open_file",
       "path": "mixed-artifact-configuration-apps_forcing_screen_open_file.json",
-      "contentDigest": "sha256:af57b86c6e5e1620e5d71d5a2e23adfc4913830a1962a44added7bb50d5418d3",
+      "contentDigest": "sha256:1cdc3c32135d22f0b85ede078b914d2c1b1fbbf075f366e2bff388cd18fc43c4",
       "representative": {
         "corpusId": "support-intersections",
         "seed": 1369957802,
@@ -105,7 +105,7 @@
     {
       "roleId": "background_apps_file",
       "path": "mixed-artifact-configuration-background_apps_file.json",
-      "contentDigest": "sha256:d405c8618eff1fb24865caec50fdb77b9c4613d4fa1dec9cf74fcd40fe7f48b4",
+      "contentDigest": "sha256:ab114cc12140f44df2c5f9cdbda354cbbdae4a371d3c857996046e650b0d838e",
       "representative": {
         "corpusId": "catalog-random",
         "seed": 12648430,
@@ -130,7 +130,7 @@
     {
       "roleId": "app_codebook_file",
       "path": "mixed-artifact-configuration-app_codebook_file.json",
-      "contentDigest": "sha256:9aa5f8dc5d6170c07d5b92aec63f29c3f827f3f80dc8d3c0b248776713cb488c",
+      "contentDigest": "sha256:09797bdcb4e3ccd2aaf0f91c02a1338af7771852f444b51711fab8a180ae5e9b",
       "representative": {
         "corpusId": "catalog-random",
         "seed": 12648430,
@@ -155,7 +155,7 @@
     {
       "roleId": "study_dates_file",
       "path": "mixed-artifact-configuration-study_dates_file.json",
-      "contentDigest": "sha256:27ab84fe81b3a48165f460316cac8b3c35de586aa371a901477555aa8206c29e",
+      "contentDigest": "sha256:6ddd9681be715b897a41c6ab920a68a96dce1cd8276e561317d135d9cbe0b437",
       "representative": {
         "corpusId": "catalog-random",
         "seed": 12648430,
@@ -181,7 +181,7 @@
     {
       "roleId": "device_sharing_file",
       "path": "mixed-artifact-configuration-device_sharing_file.json",
-      "contentDigest": "sha256:a088e2590a792826d702d1f7a4776c99a652ac1b15363bb2f2854d6448644add",
+      "contentDigest": "sha256:5574d5952b0f7083d5409cd8b311ad9deebc6c200951a9aeb293157278f38bb7",
       "representative": {
         "corpusId": "catalog-random",
         "seed": 12648430,
@@ -206,7 +206,7 @@
     {
       "roleId": "survey_attribution_file",
       "path": "mixed-artifact-configuration-survey_attribution_file.json",
-      "contentDigest": "sha256:2afdcb1585727ee86a41d4cd49b2b59424cc288322d758176358de11e1c99749",
+      "contentDigest": "sha256:3c5b6070df7b1479d96480a30728ad92011002ee6d188954d3350070e5a016de",
       "representative": {
         "corpusId": "catalog-random",
         "seed": 12648430,
@@ -231,7 +231,7 @@
     {
       "roleId": "enrolled_devices_file",
       "path": "mixed-artifact-configuration-enrolled_devices_file.json",
-      "contentDigest": "sha256:c8e3b113af8603c8fdff7dd8be0dab2e7dae51fe58bf354d403d952d20e810ce",
+      "contentDigest": "sha256:dfe57e4d29048c1812df228049ac329966d5b85fed31a87ed871a5995b10b049",
       "representative": {
         "corpusId": "catalog-random",
         "seed": 12648430,
