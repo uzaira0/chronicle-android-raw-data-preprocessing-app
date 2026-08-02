@@ -432,6 +432,20 @@ fn parse_csv_to_records_with_physical_rows(bytes: &[u8]) -> Vec<(u32, HashMap<St
     let mut rdr = CsvReader::new();
     let mut field_buf = vec![0u8; 1024];
     let mut input = bytes;
+    // csv-core consumes the input it wrote before reporting OutputFull, so the
+    // bytes already in `field_buf` are the only copy of the front of a long
+    // cell. Carry them here across the resize; dropping them silently
+    // truncated every support-file value longer than the buffer to its tail.
+    let mut carried: Vec<u8> = Vec::new();
+    let take_field = |carried: &mut Vec<u8>, field_buf: &[u8]| -> String {
+        if carried.is_empty() {
+            return String::from_utf8_lossy(field_buf).into_owned();
+        }
+        carried.extend_from_slice(field_buf);
+        let value = String::from_utf8_lossy(carried).into_owned();
+        carried.clear();
+        value
+    };
 
     let mut headers: Vec<String> = Vec::new();
     loop {
@@ -444,12 +458,12 @@ fn parse_csv_to_records_with_physical_rows(bytes: &[u8]) -> Vec<(u32, HashMap<St
                 continue;
             }
             ReadFieldResult::OutputFull => {
+                carried.extend_from_slice(&field_buf[..n_out]);
                 field_buf.resize(field_buf.len() * 2, 0);
                 continue;
             }
             ReadFieldResult::Field { record_end } => {
-                let s = std::str::from_utf8(&field_buf[..n_out])
-                    .unwrap_or("")
+                let s = take_field(&mut carried, &field_buf[..n_out])
                     .trim()
                     .to_string();
                 headers.push(s);
@@ -477,14 +491,15 @@ fn parse_csv_to_records_with_physical_rows(bytes: &[u8]) -> Vec<(u32, HashMap<St
                 continue;
             }
             ReadFieldResult::OutputFull => {
+                carried.extend_from_slice(&field_buf[..n_out]);
                 field_buf.resize(field_buf.len() * 2, 0);
                 continue;
             }
             ReadFieldResult::Field { record_end } => {
+                let s = take_field(&mut carried, &field_buf[..n_out]);
                 if col_idx < row_vals.len() {
-                    let s = std::str::from_utf8(&field_buf[..n_out]).unwrap_or("");
                     row_vals[col_idx].clear();
-                    row_vals[col_idx].push_str(s);
+                    row_vals[col_idx].push_str(&s);
                     if !s.is_empty() {
                         any_nonempty = true;
                     }
@@ -7746,6 +7761,291 @@ mod tests {
         )
         .unwrap_err()
         .contains("before it starts"));
+    }
+
+    #[test]
+    fn every_support_role_enforces_its_own_required_columns() {
+        // One accepted and one rejected file per role, so no role's schema
+        // check can be dropped without failing here. A correctly named CSV
+        // with unrelated columns used to qualify and then behave like an empty
+        // lookup, which is the defect this validation exists to stop.
+        let cases: &[(&str, &[u8], &[u8], &str)] = &[
+            (
+                "filter_file",
+                b"app_package_name\ncom.example.chat\n",
+                b"unrelated\ncom.example.chat\n",
+                "requires one of columns",
+            ),
+            (
+                "apps_forcing_screen_open_file",
+                b"package_name\ncom.example.video\n",
+                b"unrelated\ncom.example.video\n",
+                "requires one of columns",
+            ),
+            (
+                "background_apps_file",
+                b"app_package_name\ncom.example.sync\n",
+                b"unrelated\ncom.example.sync\n",
+                "requires one of columns",
+            ),
+            (
+                "app_codebook_file",
+                b"app_package_name,bcm_play_store_broad_app_category\ncom.example.chat,Social\n",
+                b"package_name,bcm_play_store_broad_app_category\ncom.example.chat,Social\n",
+                "missing required column(s) app_package_name",
+            ),
+            (
+                "study_dates_file",
+                b"participant_id,start_date,end_date\nP01,2026-03-07,2026-03-08\n",
+                b"participant_id,start_date\nP01,2026-03-07\n",
+                "missing required column(s) end_date",
+            ),
+            (
+                "device_sharing_file",
+                b"participant_id,sharing_status\nP01,Non-Shared\n",
+                b"participant_id\nP01\n",
+                "missing required column(s) sharing_status",
+            ),
+            (
+                "survey_attribution_file",
+                b"participant_id,event_timestamp,users\nP01,2026-03-07 10:00:00,Target Child\n",
+                b"participant_id,event_timestamp\nP01,2026-03-07 10:00:00\n",
+                "missing required column(s) users",
+            ),
+            (
+                "enrolled_devices_file",
+                b"participant_id,device_count\nP01,1\n",
+                b"participant_id\nP01\n",
+                "missing required column(s) device_count",
+            ),
+        ];
+        for (role, accepted, rejected, expected_error) in cases {
+            validate_support_csv(role, accepted)
+                .unwrap_or_else(|error| panic!("{role} must accept its own schema: {error}"));
+            let error = validate_support_csv(role, rejected)
+                .expect_err("a file that cannot satisfy the role must be rejected");
+            assert!(
+                error.starts_with(&format!("{role}: ")) && error.contains(expected_error),
+                "{role} produced the wrong rejection: {error}",
+            );
+        }
+        assert!(validate_support_csv("not_a_role", b"anything\n")
+            .unwrap_err()
+            .contains("unsupported support role"));
+    }
+
+    #[test]
+    fn study_dates_validation_requires_at_least_one_usable_participant_window() {
+        // The row counter and the parsed-window check are separate gates: an
+        // all-blank data row counts as no rows, and a header-only file has no
+        // windows. Either one alone must reject the file.
+        assert_eq!(
+            validate_support_csv(
+                "study_dates_file",
+                b"participant_id,start_date,end_date\n,,\n",
+            )
+            .unwrap_err(),
+            "study_dates_file: no participant study windows found",
+        );
+        assert_eq!(
+            validate_support_csv("study_dates_file", b"participant_id,start_date,end_date\n")
+                .unwrap_err(),
+            "study_dates_file: no participant study windows found",
+        );
+        validate_support_csv(
+            "study_dates_file",
+            b"participant_id,start_date,end_date\n,,\nP01,2026-03-07,2026-03-08\n",
+        )
+        .expect("one usable window is enough");
+    }
+
+    #[test]
+    fn filter_file_parsing_scopes_relabeling_to_the_listed_labels() {
+        let parsed = parse_filter_csv(
+            concat!(
+                "app_package_name,known_application_labels\n",
+                "com.example.chat,\" Chat , Chat Beta ,\"\n",
+                "com.example.any,\n",
+                ",Orphan\n",
+            )
+            .as_bytes(),
+        );
+        assert_eq!(parsed.len(), 2, "a blank package must not create an entry");
+        assert_eq!(
+            parsed["com.example.chat"]
+                .iter()
+                .cloned()
+                .collect::<BTreeSet<_>>(),
+            BTreeSet::from(["Chat".to_string(), "Chat Beta".to_string()]),
+            "each listed label is trimmed and kept; empty segments are dropped",
+        );
+        assert!(
+            parsed["com.example.any"].is_empty(),
+            "an empty label list means the package matches every label",
+        );
+    }
+
+    #[test]
+    fn filter_relabeling_respects_the_label_scope_and_the_stop_event_vocabulary() {
+        // Same package, two labels: only the listed one may be relabeled, and
+        // only the four session-bearing interaction types are rewritten.
+        let filter_map = parse_filter_csv(
+            b"app_package_name,known_application_labels\ncom.example.chat,Chat\n",
+        );
+        let rows = |interaction: &str, label: &str| {
+            let csv = format!(
+                concat!(
+                    "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+                    "Study,P01,Target Child,{},{},com.example.chat,2026-03-07 10:00:00,UTC\n",
+                ),
+                label, interaction,
+            );
+            let raw = incremental::csv_parse(csv.as_bytes());
+            let model = incremental::detect_device_model(&raw);
+            let rows = incremental::build_canonical_rows(&raw, "UTC", &BTreeMap::new(), &model)
+                .expect("canonical rows");
+            label_filtered_apps(rows, &filter_map)
+        };
+
+        for (interaction, relabeled) in [
+            ("Activity Resumed", FILTERED_RESUMED),
+            ("Activity Paused", FILTERED_PAUSED),
+            ("Activity Stopped", FILTERED_STOPPED),
+            ("Activity Destroyed", "Filtered App Destroyed"),
+        ] {
+            assert_eq!(
+                rows(interaction, "Chat")[0].interaction_type.as_str(),
+                relabeled,
+                "{interaction} for a listed label must be relabeled",
+            );
+            assert_eq!(
+                rows(interaction, "Other")[0].interaction_type.as_str(),
+                interaction,
+                "{interaction} for an unlisted label must be left alone",
+            );
+        }
+        assert_eq!(
+            rows("User Interaction", "Chat")[0].interaction_type.as_str(),
+            "User Interaction",
+            "a non-session interaction type is never relabeled",
+        );
+    }
+
+    #[test]
+    fn apps_forcing_and_background_files_accept_both_column_spellings_and_skip_comments() {
+        let forcing = parse_apps_forcing_csv(
+            concat!(
+                "package_name,label_or_note\n",
+                "com.example.video, Video \n",
+                "#com.example.commented,Ignored\n",
+                ",Orphan\n",
+            )
+            .as_bytes(),
+        );
+        assert_eq!(
+            forcing,
+            HashMap::from([("com.example.video".to_string(), "Video".to_string())]),
+        );
+        // The alternate spelling of both columns is accepted.
+        assert_eq!(
+            parse_apps_forcing_csv(
+                b"app_package_name,application_label\ncom.example.video,Video\n"
+            ),
+            forcing,
+        );
+
+        let background = parse_background_apps_csv(
+            concat!(
+                "app_package_name\n",
+                " com.example.sync \n",
+                "#com.example.commented\n",
+                "\n",
+            )
+            .as_bytes(),
+        );
+        assert_eq!(
+            background,
+            AHashSet::from_iter(["com.example.sync".to_string()]),
+        );
+        assert_eq!(
+            parse_background_apps_csv(b"package_name\ncom.example.sync\n"),
+            background,
+        );
+    }
+
+    #[test]
+    fn codebook_parsing_keeps_the_first_row_per_package_and_drops_blank_cells() {
+        let parsed = parse_codebook_csv(
+            concat!(
+                "app_package_name,bcm_play_store_broad_app_category\n",
+                "com.example.chat,Social\n",
+                "com.example.chat,Games\n",
+                ",Orphan\n",
+                "com.example.blank, \n",
+            )
+            .as_bytes(),
+        );
+        assert_eq!(parsed.len(), 2, "blank packages never become codebook keys");
+        let category = CODEBOOK_RENAME_PAIRS
+            .iter()
+            .position(|(source, _)| *source == "bcm_play_store_broad_app_category")
+            .expect("the broad category column is a declared codebook field");
+        assert_eq!(
+            parsed["com.example.chat"].fields[category].as_deref(),
+            Some("Social"),
+            "the first codebook row for a package wins",
+        );
+        assert_eq!(
+            parsed["com.example.blank"].fields[category], None,
+            "a whitespace-only cell is absent, not an empty string",
+        );
+    }
+
+    #[test]
+    fn support_record_parsing_survives_long_cells_and_ragged_rows() {
+        // A support cell longer than the reader's initial 1 KiB field buffer
+        // must round trip: the reader grows the buffer instead of truncating a
+        // researcher's label.
+        let long_label = "L".repeat(5_000);
+        let csv =
+            format!("app_package_name,known_application_labels\ncom.example.chat,{long_label}\n");
+        let parsed = parse_filter_csv(csv.as_bytes());
+        assert_eq!(
+            parsed["com.example.chat"]
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>(),
+            vec![long_label],
+        );
+
+        // Real exports contain records with more cells than the header
+        // declares. The extra cells are dropped and the declared columns still
+        // parse; indexing past the header would panic instead.
+        let ragged = parse_csv_to_records_with_physical_rows(
+            b"app_package_name,known_application_labels\ncom.example.chat,Chat,extra,cells\n",
+        );
+        assert_eq!(ragged.len(), 1);
+        assert_eq!(ragged[0].0, 1);
+        assert_eq!(ragged[0].1["app_package_name"], "com.example.chat");
+        assert_eq!(ragged[0].1["known_application_labels"], "Chat");
+
+        // Physical data-row numbers count every record, including the all-empty
+        // ones this parser drops, so support-file errors name the row a
+        // researcher sees in their spreadsheet. A bare blank line carries no
+        // field and is not a record; a record whose cells are all empty is.
+        let numbered = parse_csv_to_records_with_physical_rows(
+            b"app_package_name,label\ncom.example.first,First\n,\ncom.example.third,Third\n",
+        );
+        assert_eq!(
+            numbered
+                .iter()
+                .map(|(row, record)| (*row, record["app_package_name"].clone()))
+                .collect::<Vec<_>>(),
+            vec![
+                (1, "com.example.first".to_string()),
+                (3, "com.example.third".to_string()),
+            ],
+        );
     }
 
     #[test]
