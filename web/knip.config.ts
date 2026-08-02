@@ -11,7 +11,12 @@ const config: KnipConfig = {
   // Generated contract surface and test-support fixtures export a declared API
   // that generators/tests consume selectively; unused-export findings there are
   // by design, not dead code.
-  ignore: ["src/lib/generatedContract.ts", "src/lib/types.ts", "src/testSupport/**"],
+  ignore: [
+    "src/lib/generatedContract.ts",
+    "src/lib/generatedRuntimeBoundary.ts",
+    "src/lib/types.ts",
+    "src/testSupport/**",
+  ],
 };
 
 export default config;

@@ -8,6 +8,8 @@
     "build": "npm run build:wasm && npm run typecheck && node scripts/run-clean-env.mjs vite build",
     "build:app": "npm run typecheck && node scripts/run-clean-env.mjs vite build",
     "generate:contract": "node scripts/run-clean-env.mjs vite-node scripts/generate_contract_artifacts.mts",
+    "generate:boundary": "node scripts/run-clean-env.mjs vite-node scripts/generate_runtime_boundary_artifacts.mts",
+    "check:boundary": "node scripts/run-clean-env.mjs vite-node scripts/generate_runtime_boundary_artifacts.mts --check",
     "preview": "node scripts/run-clean-env.mjs vite preview --host 127.0.0.1 --port 4173",
     "host:local": "npm run build && npm run preview",
     "prepare:github-pages": "node scripts/run-clean-env.mjs vite-node scripts/prepare_github_pages_artifact.mts",
