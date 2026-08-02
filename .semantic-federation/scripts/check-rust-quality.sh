@@ -24,10 +24,33 @@ while IFS= read -r entry || [[ -n "$entry" ]]; do
   entry=${entry#"${entry%%[![:space:]]*}"}
   entry=${entry%"${entry##*[![:space:]]}"}
   [[ -z "$entry" ]] && continue
-  IFS='|' read -r manifest exclude_re entry_lines entry_regions entry_functions features no_default_features <<< "$entry"
+  # Tab-delimited: exclusion regexes contain `|` alternation, so `|` can never
+  # be the field separator (it silently fed regex fragments to --fail-under-*).
+  # Tab is IFS whitespace, under which `read` collapses consecutive delimiters
+  # and drops empty fields, so split manually.
+  fields=()
+  rest=$entry
+  while [[ "$rest" == *$'\t'* ]]; do
+    fields+=("${rest%%$'\t'*}")
+    rest=${rest#*$'\t'}
+  done
+  fields+=("$rest")
+  manifest=${fields[0]:-}
+  exclude_re=${fields[1]:-}
+  entry_lines=${fields[2]:-}
+  entry_regions=${fields[3]:-}
+  entry_functions=${fields[4]:-}
+  features=${fields[5]:-}
+  no_default_features=${fields[6]:-}
   coverage_lines=${entry_lines:-$minimum_lines}
   coverage_regions=${entry_regions:-$minimum_regions}
   coverage_functions=${entry_functions:-$minimum_functions}
+  for threshold in "$coverage_lines" "$coverage_regions" "$coverage_functions"; do
+    if [[ ! "$threshold" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+      echo "Malformed coverage threshold '$threshold' for $manifest in $manifest_list (fields must be tab-separated)" >&2
+      exit 2
+    fi
+  done
   if [[ ! -f "$manifest" ]]; then
     echo "Configured Rust authority manifest does not exist: $manifest" >&2
     exit 2
