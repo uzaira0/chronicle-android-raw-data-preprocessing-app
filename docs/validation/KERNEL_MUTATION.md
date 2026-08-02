@@ -86,17 +86,71 @@ Applied to the sweep's 2947 names the 113 expressions match **176** mutants:
 the 175 survivors plus `pipeline_v2_incremental.rs:2533:13: replace
 tracked::QueryTimer::start -> Self with Default::default()`, which is
 **unviable** and sits in the already-justified diagnostics class. No mutant the
-suite kills is excluded.
+suite kills is excluded. On the merged integration tree the crate lists 3177
+mutants and the same 113 expressions match **178** of them, still with no
+expression matching zero — measured with the exclusion gate's own matching, and
+agreeing expression for expression with an independent `ripgrep` pass over the
+list.
 
 The full reason for each class, and the tests that pin the invariant making it
 equivalent, are written above the expressions in
 `.semantic-federation/quality/kernel-mutation-exclusions.txt`. Each expression
-was checked against `cargo mutants --list`: it matches at least one surviving
-mutant and **no** mutant the suite kills. Four carry a line number, because the
-three review-cone helpers each hold several `if !...` guards at the same column
-and only some are equivalent; a drifted line number is loud rather than silent,
-because the mutant it stops matching returns as a missed mutant and fails the
-gate.
+matches at least one surviving mutant and **no** mutant the suite kills. The
+exclusion gate below now establishes both by execution on every run, instead of
+by hand once. Four carry a line number, because the three review-cone
+helpers each hold several `if !...` guards at the same column and only some are
+equivalent; a drifted line number now fails the gate outright as a zero-match
+expression, rather than returning its mutant to the campaign as a miss.
+
+### The exclusion gate
+
+Until this branch, nothing executed that paragraph. `cargo mutants` treats a
+`-E` expression matching zero mutants as a silent no-op, and
+`check-rust-quality.sh` counted the *text lines* of an exclusion file and
+printed the count as `expressions=N`, so a file whose anchors had all rotted
+still reported a full set. That defect was live here: the integration merge
+moved code in `chronicle_preprocessing_runtime_wasm` and left five of that
+crate's twelve expressions — the `execute_incremental_pipeline`, `source_scopes`
+(x2), `state_for` and `execute_prepared_workspace` entries — matching nothing,
+returning the seven mutants they justify to the gate as misses while the script
+still printed `expressions=12`.
+
+`check-rust-quality.sh mutation` now, for every entry that has exclusions and
+before its campaign starts:
+
+1. lists the crate's mutants with `cargo mutants --list` and matches each
+   expression against that list with `cargo mutants --list --re`, so the
+   matching is cargo-mutants' own;
+2. **fails**, naming the manifest and the expression, if any expression matches
+   zero mutants;
+3. prints `expressions=N matched=M of=T unfilterable=U` — expressions written,
+   mutants they actually remove, mutants in the crate — instead of a bare line
+   count;
+4. runs the excluded mutants themselves (`-F` selects exactly the set `-E`
+   removes) and **fails** if any of them is caught, naming the caught mutant and
+   the expression that covered it. An exclusion set larger than
+   `RUST_MUTATION_EXCLUSION_AUDIT_MAX` (400) — the matcher's PyO3 facade is
+   703,742 mutants — is audited one mutant per distinct mutation site instead,
+   and the mode is printed.
+
+`unfilterable` allows for a cargo-mutants limitation the gate had to be built
+around. cargo-mutants
+27.1.0 applies neither `--re` nor `--exclude-re` to its `delete field <f> from
+struct <S> expression in <fn>` mutants: they are listed whatever the regex says,
+and `-E` cannot remove them. The kernel has seven, the seven `run_pipeline_v2*`
+support-file field deletions, and they are caught. Without allowing for them
+every `cargo mutants --list --re` on that crate returns at least seven names,
+step 2 could never fire there, and the audit in step 4 would have reported those
+seven caught mutants as excluded kills. The gate measures the set once per crate
+with a regex that matches nothing and subtracts it, so the check works on the
+kernel and becomes a no-op the day cargo-mutants filters them.
+
+The runtime crate's expressions are also anchored on the mutation's column,
+description and function rather than its line, so an insertion above them
+cannot rot them. One cannot be: `EnvelopeTimer::start`'s
+`cfg(not(query-timing))` twin has a character-for-character identical mutant
+name at the same column, so only the line separates the equivalent mutant from
+the caught one. It stays line-anchored, and a drift now fails the gate.
 
 The two largest classes are the review cone. A review run produces one product
 artifact, the summary, and `build_review_summary` reads only identity, date,
@@ -118,9 +172,16 @@ That first run left **15** survivors.
 Anchoring the three over-broad expressions it inherited put **18** more
 mutants under test for the first time: 3 of them survive, 4 time out, and 11
 are caught. So **22** entries needed a resolution — the 15, the 3 further
-survivors, and the 4 timeouts — and each has one. On the current tree the
-crate has **660** mutants, **14** are excluded, and the remaining **646** are
-tested with no misses and no timeouts.
+survivors, and the 4 timeouts — and each has one. On the merged integration
+tree the crate has **675** mutants, **14** are excluded, and the remaining
+**661** are tested: 599 caught, 60 unviable, 0 timeouts and **2 missed**. The
+two are `lib.rs:4487:25` and `:4487:60`, both `||` → `&&` in the
+`if !include || !(options.enable_parquet_export || options.enable_spss_export)`
+guard of `append_binary_exports`, which arrived with `8ceddd1` (the shared
+export-CSV parse). Nothing exercises "include off with an export format on" or
+"exactly one of Parquet and SPSS on", so neither flip changes an assertion.
+They are **not** excluded and are not this lane's to resolve; they are the
+runtime entry's open item.
 
 **5 killed by tests written in this campaign:**
 
@@ -146,11 +207,13 @@ longer exist.
 | A precondition its callers already enforce | 3 | every disjunct of the warm-review guard in `execute_incremental_pipeline` is forced false by `PreparedReviewWorkspace::execute_selected_base_native`; the only other caller passes `false` |
 | Source scopes the product cannot produce | 2 | `coordinate_media_type` is a literal at every construction site and `application/json` appears only where `role_id` is literally `processing_options`; the options document is never a JSON array |
 | State cache at a capacity of one | 1 | `state_for` removes the revisited id from the LRU before the admission check, so `pop_front` evicts nothing either way while `MAX_INCREMENTAL_RUNTIME_STATES` is 1 |
-| **Not an equivalence — a bound the suite cannot cross** | 1 | `execute_prepared_workspace:3113` guards a 32 MiB cache bound; both operands are pinned separately but cannot be driven apart from a request |
+| **Not an equivalence — a bound the suite cannot cross** | 1 | the `&&` at column 17 in `execute_prepared_workspace` guards a 32 MiB cache bound; both operands are pinned separately but cannot be driven apart from a request |
 
-Every expression is anchored to one mutant (the precondition entry to three)
-and was checked against `cargo mutants --list` to match no mutant the suite
-kills.
+Every expression is anchored to one mutant (the precondition entry to three).
+They were line-anchored, and the integration merge rotted five of the twelve;
+they are now anchored on the mutation's column, description and function, and
+the exclusion gate above proves per run that each matches at least one mutant
+and that none of the 14 is caught.
 
 ### A stale bound-input key, found by a test written for a mutant
 
@@ -187,18 +250,26 @@ the mutants it justifies.
 
 ## Gate status, per entry
 
-`make mutation-rust` runs five entries. Measured on this branch:
+`make mutation-rust` runs five entries. The adapter, runtime and matcher rows
+are measured on the merged integration tree with the exclusion gate in place;
+the index and kernel rows are the last full sweep's and the kernel's exclusion
+set was re-checked against the merged tree by listing only (113 expressions,
+178 mutants, none matching zero):
 
 | crate | tested | caught | unviable | missed | timeout | exit |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | `chronicle_preprocessing_semantic_adapter` | 150 | 122 | 28 | 0 | 0 | 0 |
-| `chronicle_preprocessing_runtime_wasm` | 646 | 586 | 60 | 0 | 0 | 0 |
+| `chronicle_preprocessing_runtime_wasm` | 661 | 599 | 60 | 2 | 0 | 2 |
 | `chronicle_semantic_index_wasm` | 75 | 74 | 1 | 0 | 0 | 0 |
 | `chronicle_chrono_kernel_wasm` | 2771 | 2069 | 702 | 0 | 0 | 0 |
-| `chronicle_app_usage_matcher` | 245 | 176 | 35 | 27 | 7 | 3 |
+| `chronicle_app_usage_matcher` | 279 | 200 | 35 | 37 | 7 | 3 |
 
-The kernel run took 54 min at `--jobs 8 --timeout 90`. The aggregate exit is
-the matcher's, for the reason in the next section.
+The kernel run took 54 min at `--jobs 8 --timeout 90`; the runtime entry takes
+31 min and the matcher 9. Two entries are now red: the matcher for the reason
+in the next section, and the runtime for the two `append_binary_exports`
+mutants above. Every entry's exclusions pass the gate — adapter
+`mode=every-mutant audited=4 caught=0`, runtime `mode=every-mutant audited=14
+caught=0`, matcher `mode=one-per-site audited=8 caught=0`.
 
 ## The matcher's campaign: measurable now, not finished
 
@@ -213,27 +284,63 @@ function-replacement mutant is named `replace <fn> -> <type> with <value>` and
 carries no ` in `, so the four expressions excluded **35 of 704,021** and the
 gate sat on a run that cannot finish. Naming the facade by its return types
 instead — `PyResult<` and `PyErr`, neither of which appears above the crate's
-`#[cfg(feature = "python")]` block — leaves the **245** binding-agnostic core
-mutants, which run in 2 minutes.
+`#[cfg(feature = "python")]` block — removes 703,741 of the 704,021 mutants.
 
-They do not pass: **176 caught, 35 unviable, 27 missed, 7 timeouts**.
+Keeping the ` in <function>` fragments beside them was a scope defect, and it
+is corrected here. ` in to_py_error` and ` in _rust_app_usage_matcher` matched
+**no mutant at all** — both functions produce only function-replacement
+mutants, which carry no ` in `. ` in split_overlapping_sessions_py` matched
+exactly one real facade mutant, `src/lib.rs:1433:35: replace == with !=`, and
+is kept anchored as ` in split_overlapping_sessions_py$`. ` in
+match_app_usage` matched **34** mutants and **not one of them was in the PyO3
+`match_app_usage`**, whose body holds no operator mutant at all: all 34 sit in
+`match_app_usage_core`, `match_app_usage_update_indices_core` and
+`match_app_usage_update_indices_with_proximity_core`, above the crate's first
+`#[cfg(feature = "python")]` item at `src/lib.rs:1246`. That is binding-agnostic
+core — the sweep-line comparisons and the open/stop compatibility predicates —
+in the crate `CLAUDE.md` names as the single source of truth for session
+matching. **24 of the 34 are caught by the suite**, so the fragment was also
+deleting real kills from the score, including `709:27: replace > with >=`,
+`703:8: delete !`, `704:30: replace - with +`, the `||`/`&&` flips at 663, 667
+and 680, and all three `<` replacements at `1203:21`.
+
+With the fragment gone the entry tests **279** mutants — the 280 outside the
+facade, less the one operator mutant inside `split_overlapping_sessions_py` —
+in 4 minutes.
+
+They do not pass: **200 caught, 35 unviable, 37 missed, 7 timeouts**.
 
 | function | survivors |
 | --- | ---: |
-| `match_sorted_app_usage_update_indices_with_proximity` | 10 |
 | `split_overlapping_sessions` | 14 (7 missed, 7 timeout) |
+| `match_sorted_app_usage_update_indices_with_proximity` | 10 |
+| `match_app_usage_update_indices_core` | 8 |
 | `match_legacy_app_usage_update_indices_with_proximity` | 5 |
 | `SparseOpenStarts::close_matching_global` | 3 |
 | `SparseOpenStarts::prune_global_head` | 1 |
+| `match_app_usage_core` | 1 |
+| `match_app_usage_update_indices_with_proximity_core` | 1 |
 | `is_compatible_open_start_for_stop` | 1 |
-| **total** | **34** |
+| **total** | **44** |
+
+The 10 added by putting the core back in scope are `664:47: replace && with
+||` in `match_app_usage_core`; `786:74`, `801:56`, `801:71`, `801:74`,
+`835:52`, `835:67`, `835:70` and `854:12` in
+`match_app_usage_update_indices_core`; and `1219:51: replace <= with >` in
+`match_app_usage_update_indices_with_proximity_core`.
 
 They are comparison boundaries (`<` vs `<=`, `>` vs `>=`), `&&`/`||` in the
 proximity compatibility predicates, and whole-method replacements in the
 open-start bookkeeping — the exact places an off-by-one in session matching
-would live. This is a campaign of its own and is left **red and honest**: no
-blanket expression is added to make the entry green, because that is what hid
-it in the first place.
+would live. This is a campaign of its own and is left **red and honest**. It
+was not honest as first committed: ` in match_app_usage` was exactly the
+blanket expression this paragraph disclaimed, and it took the entry from 279
+mutants to 245 by removing core logic and 24 of the suite's own kills. No
+blanket expression remains, and no test was added to chase these 44 survivors —
+they are reported, not hidden. `check-rust-quality.sh mutation` now refuses to
+start a campaign whose exclusion expressions match zero mutants, and audits the
+excluded mutants themselves so an expression that covers a caught mutant fails
+the gate instead of inflating its score.
 
 ## Three defects found outside the mutant list
 
