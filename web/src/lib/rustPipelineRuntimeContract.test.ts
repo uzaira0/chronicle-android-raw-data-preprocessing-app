@@ -2082,7 +2082,11 @@ describe("Rust/WASM runtime manifest contract firewall", () => {
     expect(metadata?.size).toBeLessThanOrEqual(raw.byteLength * 3 + 65_536);
     expect(influenceMetadata).toBeDefined();
     expect(influenceBytes).toBeDefined();
-    expect(influenceMetadata?.rowCount).toBe(686);
+    // v2 of the witness adds the three field-level precision classes on top of
+    // the v1 scope/checkpoint and row-lineage rows: exact single-source field
+    // contributions, conservative lineage-search windows, and declared column
+    // scope for the output kinds that have no row lineage.
+    expect(influenceMetadata?.rowCount).toBe(986);
     expect(influenceMetadata?.size).toBe(influenceBytes?.byteLength);
     expect(influenceMetadata?.size).toBeLessThanOrEqual(262_144);
     expect(influenceMetadata?.derivedFrom).toEqual(
