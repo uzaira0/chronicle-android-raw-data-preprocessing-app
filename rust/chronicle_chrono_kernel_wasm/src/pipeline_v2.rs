@@ -12787,6 +12787,21 @@ mod tests {
             "exactly a tenth of a second is inside it",
         );
 
+        // The search narrows to whole nanoseconds and rounds the bound up so
+        // it can never drop a candidate, but the tolerance itself is exact:
+        // an event inside the rounded-up window and outside the tolerance is
+        // still not near the screen-off.
+        assert_eq!(
+            before(1, 1.5e-9),
+            vec!["probable_manual_lock".to_string()],
+            "one nanosecond is inside a one-and-a-half nanosecond tolerance",
+        );
+        assert_eq!(
+            before(2, 1.5e-9),
+            vec!["extended_idle_or_unknown".to_string()],
+            "the nanosecond the search window rounds up to is outside it",
+        );
+
         // The phone locked, then woke two seconds later straight into the lock
         // screen: the keyguard that explains the screen-off is recorded after
         // it, in the session that follows.
