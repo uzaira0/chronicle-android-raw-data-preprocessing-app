@@ -439,6 +439,20 @@ fn parse_csv_to_records_with_physical_rows(bytes: &[u8]) -> Vec<(u32, HashMap<St
     let mut rdr = CsvReader::new();
     let mut field_buf = vec![0u8; 1024];
     let mut input = bytes;
+    // csv-core consumes the input it wrote before reporting OutputFull, so the
+    // bytes already in `field_buf` are the only copy of the front of a long
+    // cell. Carry them here across the resize; dropping them silently
+    // truncated every support-file value longer than the buffer to its tail.
+    let mut carried: Vec<u8> = Vec::new();
+    let take_field = |carried: &mut Vec<u8>, field_buf: &[u8]| -> String {
+        if carried.is_empty() {
+            return String::from_utf8_lossy(field_buf).into_owned();
+        }
+        carried.extend_from_slice(field_buf);
+        let value = String::from_utf8_lossy(carried).into_owned();
+        carried.clear();
+        value
+    };
 
     let mut headers: Vec<String> = Vec::new();
     loop {
@@ -451,12 +465,12 @@ fn parse_csv_to_records_with_physical_rows(bytes: &[u8]) -> Vec<(u32, HashMap<St
                 continue;
             }
             ReadFieldResult::OutputFull => {
+                carried.extend_from_slice(&field_buf[..n_out]);
                 field_buf.resize(field_buf.len() * 2, 0);
                 continue;
             }
             ReadFieldResult::Field { record_end } => {
-                let s = std::str::from_utf8(&field_buf[..n_out])
-                    .unwrap_or("")
+                let s = take_field(&mut carried, &field_buf[..n_out])
                     .trim()
                     .to_string();
                 headers.push(s);
@@ -484,14 +498,15 @@ fn parse_csv_to_records_with_physical_rows(bytes: &[u8]) -> Vec<(u32, HashMap<St
                 continue;
             }
             ReadFieldResult::OutputFull => {
+                carried.extend_from_slice(&field_buf[..n_out]);
                 field_buf.resize(field_buf.len() * 2, 0);
                 continue;
             }
             ReadFieldResult::Field { record_end } => {
+                let s = take_field(&mut carried, &field_buf[..n_out]);
                 if col_idx < row_vals.len() {
-                    let s = std::str::from_utf8(&field_buf[..n_out]).unwrap_or("");
                     row_vals[col_idx].clear();
-                    row_vals[col_idx].push_str(s);
+                    row_vals[col_idx].push_str(&s);
                     if !s.is_empty() {
                         any_nonempty = true;
                     }
@@ -563,12 +578,6 @@ impl std::fmt::Display for SharedString {
     }
 }
 
-impl AsRef<str> for SharedString {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
 impl std::borrow::Borrow<str> for SharedString {
     fn borrow(&self) -> &str {
         self.as_str()
@@ -584,12 +593,6 @@ impl From<String> for SharedString {
 impl From<&str> for SharedString {
     fn from(value: &str) -> Self {
         Self(Arc::new(value.to_owned()))
-    }
-}
-
-impl PartialEq<str> for SharedString {
-    fn eq(&self, other: &str) -> bool {
-        self.as_str() == other
     }
 }
 
@@ -1726,10 +1729,10 @@ fn ecma_to_precision(value: f64, precision: u32) -> String {
         return "NaN".to_string();
     }
     if value.is_infinite() {
-        return if value > 0.0 {
-            "Infinity".to_string()
-        } else {
+        return if value.is_sign_negative() {
             "-Infinity".to_string()
+        } else {
+            "Infinity".to_string()
         };
     }
     if value == 0.0 {
@@ -1739,7 +1742,8 @@ fn ecma_to_precision(value: f64, precision: u32) -> String {
             format!("0.{}", "0".repeat(precision as usize - 1))
         };
     }
-    let neg = value < 0.0;
+    // Zero and NaN are already handled, so the sign bit is the sign.
+    let neg = value.is_sign_negative();
     let abs_v = value.abs();
     // Render with high precision to inspect.
     let high = format!("{:.30e}", abs_v);
@@ -1792,8 +1796,7 @@ fn precision_format_output(neg: bool, digits: &str, exp: i32, precision: usize) 
     let p = precision;
     if exp < -6 || (exp as i64) >= p as i64 {
         // d.dddd...e±N
-        let head = &digits[..1];
-        let tail = if digits.len() > 1 { &digits[1..] } else { "" };
+        let (head, tail) = digits.split_at(1);
         // Strip trailing zeros from tail to match parseFloat-back behavior?
         // No — toPrecision keeps trailing zeros. parseFloat then strips them.
         // Since we always go through parseFloat, we can keep them; parseFloat
@@ -1869,13 +1872,10 @@ fn decimal_to_exponential(s: &str) -> String {
     let Some(first_nonzero) = first_nonzero else {
         return format!("{sign}0e+0");
     };
-    // Exponent = (int_len - 1) - first_nonzero  if first_nonzero < int_len
-    //          = -(first_nonzero - int_len + 1) otherwise
-    let exp: i32 = if first_nonzero < int_len {
-        (int_len as i32 - 1) - first_nonzero as i32
-    } else {
-        -((first_nonzero as i32 - int_len as i32) + 1)
-    };
+    // Exponent = (int_len - 1) - first_nonzero, whether the first significant
+    // digit sits in the integer part or past the decimal point: the "0.000ddd"
+    // form -(first_nonzero - int_len + 1) is the same expression rearranged.
+    let exp: i32 = (int_len as i32 - 1) - first_nonzero as i32;
     // Mantissa: digit at first_nonzero, then optional ".rest"
     let mantissa_digits: String = combined.chars().skip(first_nonzero).collect();
     let trimmed = mantissa_digits.trim_end_matches('0');
@@ -4057,12 +4057,12 @@ fn build_review_summary(app_rows: &[Row], screen_rows: &[Row]) -> ReviewSummary 
             .map(SharedString::as_str)
             .unwrap_or_default();
         let mut per_day = Vec::new();
-        if let (Ok(mut cursor), Ok(end)) = (
+        if let (Ok(start), Ok(end)) = (
             NaiveDate::parse_from_str(first, "%Y-%m-%d"),
             NaiveDate::parse_from_str(last, "%Y-%m-%d"),
         ) {
-            while cursor <= end {
-                let date = cursor.format("%Y-%m-%d").to_string();
+            for day in start.iter_days().take_while(|day| *day <= end) {
+                let date = day.format("%Y-%m-%d").to_string();
                 per_day.push(observed_days.get(date.as_str()).cloned().unwrap_or(
                     ReviewDayMetrics {
                         date: SharedString::from(date),
@@ -4074,7 +4074,6 @@ fn build_review_summary(app_rows: &[Row], screen_rows: &[Row]) -> ReviewSummary 
                         flags: vec!["no_usage_day".into()],
                     },
                 ));
-                cursor += Duration::days(1);
             }
         }
 
@@ -7095,7 +7094,9 @@ pub fn run_pipeline_v2_with_supports(
     );
 
     // 4. filter labeling
-    let filter_map = if opts.use_filter_file && !support.filter_csv.is_empty() {
+    // Parsing an empty filter file already yields an empty map, so the file's
+    // emptiness is not a second condition.
+    let filter_map = if opts.use_filter_file {
         parse_filter_csv(support.filter_csv)
     } else {
         HashMap::new()
@@ -7717,6 +7718,189 @@ pub fn run_pipeline_v2_with_supports(
 mod tests {
     use super::*;
 
+    /// Both hash sinks batch small writes so per-call overhead cannot dominate.
+    /// Batching is only allowed to change *where* the byte stream is split
+    /// across `update` calls; the digest has to stay the digest of the
+    /// concatenation. This is the property that makes every flush-schedule
+    /// change in `BufferedCheckpointHasher::checkpoint_update` and
+    /// `FingerprintSink::write`/`flush` unobservable, and it is what would
+    /// break if a buffered byte were ever dropped, duplicated, or reordered.
+    #[test]
+    fn the_buffered_checkpoint_hasher_digests_the_concatenation_whatever_the_chunking() {
+        let sizes = [
+            0,
+            1,
+            7,
+            CHECKPOINT_HASH_BUFFER_BYTES - 1,
+            3,
+            CHECKPOINT_HASH_BUFFER_BYTES,
+            5,
+            CHECKPOINT_HASH_BUFFER_BYTES + 1,
+            2 * CHECKPOINT_HASH_BUFFER_BYTES,
+            11,
+        ];
+        let mut buffered = BufferedCheckpointHasher::new();
+        let mut flat = Vec::new();
+        for (chunk_index, size) in sizes.iter().enumerate() {
+            let chunk: Vec<u8> = (0..*size)
+                .map(|offset| (offset.wrapping_mul(31).wrapping_add(chunk_index)) as u8)
+                .collect();
+            buffered.checkpoint_update(&chunk);
+            flat.extend_from_slice(&chunk);
+        }
+        let mut unbuffered = Xxh3::new();
+        unbuffered.update(&flat);
+        assert_eq!(
+            buffered.finalize128(),
+            unbuffered.digest128(),
+            "buffering changed the checkpoint digest of a {}-byte stream",
+            flat.len()
+        );
+    }
+
+    #[test]
+    fn the_fingerprint_sink_digests_the_concatenation_whatever_the_chunking() {
+        let buffer_bytes = FingerprintSink::new().buffer.len();
+        let sizes = [
+            0,
+            1,
+            9,
+            buffer_bytes - 1,
+            2,
+            buffer_bytes,
+            4,
+            buffer_bytes + 1,
+            2 * buffer_bytes,
+            13,
+        ];
+        let mut sink = FingerprintSink::new();
+        let mut flat = Vec::new();
+        for (chunk_index, size) in sizes.iter().enumerate() {
+            let chunk: Vec<u8> = (0..*size)
+                .map(|offset| (offset.wrapping_mul(17).wrapping_add(chunk_index)) as u8)
+                .collect();
+            sink.write(&chunk);
+            flat.extend_from_slice(&chunk);
+        }
+        let mut unbuffered = Xxh3::new();
+        unbuffered.update(&flat);
+        assert_eq!(
+            sink.finish(),
+            unbuffered.digest128(),
+            "buffering changed the fingerprint of a {}-byte stream",
+            flat.len()
+        );
+    }
+
+    /// The fingerprint protocol tags every value it serializes. A value that
+    /// contributed no bytes at all would fingerprint as the empty stream and
+    /// so collide with every other such value, which is exactly the collision
+    /// the tags exist to prevent.
+    #[test]
+    fn every_serialized_value_contributes_bytes_to_its_fingerprint() {
+        let empty_stream = FingerprintSink::new().finish().to_le_bytes();
+        for (label, fingerprint) in [
+            ("a unit", value_fingerprint(&()).expect("fingerprint a unit")),
+            (
+                "an empty string",
+                value_fingerprint("").expect("fingerprint an empty string"),
+            ),
+            (
+                "an empty vector",
+                value_fingerprint(&Vec::<u8>::new()).expect("fingerprint an empty vector"),
+            ),
+            (
+                "an absent option",
+                value_fingerprint(&None::<u8>).expect("fingerprint an absent option"),
+            ),
+        ] {
+            assert_ne!(
+                fingerprint, empty_stream,
+                "{label} fingerprinted as an empty protocol stream"
+            );
+        }
+    }
+
+    /// `emit_csv_i32` short-circuits the two most common values. The fast path
+    /// is only sound while it renders byte-for-byte what the general path
+    /// would have written.
+    #[test]
+    fn the_small_integer_csv_fast_path_renders_exactly_like_the_general_path() {
+        for value in [i32::MIN, -24, -1, 0, 1, 2, 23, 24, i32::MAX] {
+            let mut fast = Vec::new();
+            let mut fast_first = true;
+            emit_csv_i32(&mut fast, value, &mut fast_first);
+
+            let mut general = Vec::new();
+            let mut general_first = true;
+            begin_csv_field(&mut general, &mut general_first);
+            append_csv_field(&mut general, &value.to_string());
+
+            assert_eq!(
+                fast, general,
+                "the CSV fast path rendered {value} differently from the general path"
+            );
+            assert_eq!(fast_first, general_first);
+        }
+    }
+
+    /// JS `parseFloat(value.toPrecision(n))` returns the input unchanged for
+    /// the non-finite and zero cases, including the sign of a negative zero —
+    /// which the CSV writer would otherwise render as `-0` instead of `0`.
+    #[test]
+    fn rounding_to_significant_digits_keeps_the_javascript_edge_cases() {
+        assert!(
+            round_to_precision(-0.0, 4).is_sign_negative(),
+            "rounding lost the sign of a negative zero"
+        );
+        assert!(round_to_precision(0.0, 4).is_sign_positive());
+        assert!(round_to_precision(f64::NAN, 4).is_nan());
+        assert_eq!(round_to_precision(f64::INFINITY, 4), f64::INFINITY);
+        assert_eq!(round_to_precision(f64::NEG_INFINITY, 4), f64::NEG_INFINITY);
+        assert_eq!(round_to_precision(1.0 / 3.0, 4), 0.3333);
+        assert_eq!(round_to_precision(-1.0 / 3.0, 4), -0.3333);
+    }
+
+    /// `ecma_round_fixed_f64` decodes subnormals through a separate exponent
+    /// branch, whose exponent is at most `-1074`. The scaled mantissa is a
+    /// `u128`, so it is below `2^128` and the right shift by more than 128
+    /// bits drives every subnormal to zero — at every precision the `u128`
+    /// scale can represent, and for any exponent within a hundred-odd bits of
+    /// the real one.
+    #[test]
+    fn subnormals_round_to_zero_at_every_precision_the_scale_admits() {
+        for value in [
+            f64::from_bits(1),
+            f64::from_bits(1 << 26),
+            f64::MIN_POSITIVE / 2.0,
+            -f64::MIN_POSITIVE / 2.0,
+        ] {
+            for frac_digits in [0_u32, 2, 9, 22] {
+                let rounded = ecma_round_fixed_f64(value, frac_digits);
+                assert_eq!(
+                    rounded, 0.0,
+                    "subnormal {value:e} did not round to zero at {frac_digits} digits"
+                );
+            }
+        }
+    }
+
+    /// A span that only touches the window edge contributes no credited time,
+    /// so whether the scan stops before or after it cannot change the result.
+    #[test]
+    fn clipping_alive_spans_drops_the_spans_that_only_touch_the_window_edges() {
+        let spans: Vec<CreditInterval> = vec![(0, 5), (5, 10), (10, 20), (20, 30), (30, 40)];
+        assert_eq!(
+            clip_alive_spans(&spans, 10, 20),
+            vec![(10, 20)],
+            "a span ending at the window start or starting at the window end was credited"
+        );
+        assert_eq!(clip_alive_spans(&spans, 12, 18), vec![(12, 18)]);
+        assert_eq!(clip_alive_spans(&spans, 5, 10), vec![(5, 10)]);
+        assert!(clip_alive_spans(&spans, 40, 50).is_empty());
+        assert!(clip_alive_spans(&[], 0, 10).is_empty());
+    }
+
     #[test]
     fn support_role_validation_uses_real_headers_and_value_parsers() {
         assert!(validate_support_csv(
@@ -7753,6 +7937,567 @@ mod tests {
         )
         .unwrap_err()
         .contains("before it starts"));
+    }
+
+    #[test]
+    fn every_support_role_enforces_its_own_required_columns() {
+        // One accepted and one rejected file per role, so no role's schema
+        // check can be dropped without failing here. A correctly named CSV
+        // with unrelated columns used to qualify and then behave like an empty
+        // lookup, which is the defect this validation exists to stop.
+        let cases: &[(&str, &[u8], &[u8], &str)] = &[
+            (
+                "filter_file",
+                b"app_package_name\ncom.example.chat\n",
+                b"unrelated\ncom.example.chat\n",
+                "requires one of columns",
+            ),
+            (
+                "apps_forcing_screen_open_file",
+                b"package_name\ncom.example.video\n",
+                b"unrelated\ncom.example.video\n",
+                "requires one of columns",
+            ),
+            (
+                "background_apps_file",
+                b"app_package_name\ncom.example.sync\n",
+                b"unrelated\ncom.example.sync\n",
+                "requires one of columns",
+            ),
+            (
+                "app_codebook_file",
+                b"app_package_name,bcm_play_store_broad_app_category\ncom.example.chat,Social\n",
+                b"package_name,bcm_play_store_broad_app_category\ncom.example.chat,Social\n",
+                "missing required column(s) app_package_name",
+            ),
+            (
+                "study_dates_file",
+                b"participant_id,start_date,end_date\nP01,2026-03-07,2026-03-08\n",
+                b"participant_id,start_date\nP01,2026-03-07\n",
+                "missing required column(s) end_date",
+            ),
+            (
+                "device_sharing_file",
+                b"participant_id,sharing_status\nP01,Non-Shared\n",
+                b"participant_id\nP01\n",
+                "missing required column(s) sharing_status",
+            ),
+            (
+                "survey_attribution_file",
+                b"participant_id,event_timestamp,users\nP01,2026-03-07 10:00:00,Target Child\n",
+                b"participant_id,event_timestamp\nP01,2026-03-07 10:00:00\n",
+                "missing required column(s) users",
+            ),
+            (
+                "enrolled_devices_file",
+                b"participant_id,device_count\nP01,1\n",
+                b"participant_id\nP01\n",
+                "missing required column(s) device_count",
+            ),
+        ];
+        for (role, accepted, rejected, expected_error) in cases {
+            validate_support_csv(role, accepted)
+                .unwrap_or_else(|error| panic!("{role} must accept its own schema: {error}"));
+            let error = validate_support_csv(role, rejected)
+                .expect_err("a file that cannot satisfy the role must be rejected");
+            assert!(
+                error.starts_with(&format!("{role}: ")) && error.contains(expected_error),
+                "{role} produced the wrong rejection: {error}",
+            );
+        }
+        assert!(validate_support_csv("not_a_role", b"anything\n")
+            .unwrap_err()
+            .contains("unsupported support role"));
+    }
+
+    /// The device-sharing and survey files are read again during processing,
+    /// not just at upload time, and each parser is the last chance to catch a
+    /// file that qualified on its header but cannot be used. Sharing status is
+    /// written several ways by hand, timestamps arrive in seconds,
+    /// milliseconds, nanoseconds or as text, and a row with no answer must be
+    /// dropped rather than recorded as an empty user.
+    #[test]
+    fn support_parsers_reject_unusable_files_and_accept_every_written_form() {
+        let sharing = parse_device_sharing(
+            concat!(
+                "participant_id,sharing_status\n",
+                "P01,Shared\n",
+                "P02,Non-Shared\n",
+                "P03,nonshared\n",
+                "P04,not shared\n",
+                "P05,SHARED\n",
+                " ,Shared\n",
+            )
+            .as_bytes(),
+        )
+        .expect("every written sharing status parses");
+        assert_eq!(
+            sharing
+                .iter()
+                .map(|entry| (entry.participant_id.as_str(), entry.status))
+                .collect::<Vec<_>>(),
+            vec![
+                ("P01", SharingStatus::Shared),
+                ("P02", SharingStatus::NonShared),
+                ("P03", SharingStatus::NonShared),
+                ("P04", SharingStatus::NonShared),
+                ("P05", SharingStatus::Shared),
+            ],
+            "a blank participant is skipped and every spelling maps to a status",
+        );
+        let unknown = parse_device_sharing(b"participant_id,sharing_status\nP01,maybe\n")
+            .expect_err("an unknown status must not be guessed");
+        assert!(unknown.contains("unknown sharing_status for P01"), "{unknown}");
+        let missing = parse_device_sharing(b"participant_id\nP01\n")
+            .expect_err("a file without sharing_status cannot be used");
+        assert_eq!(
+            missing,
+            "Device sharing file: missing required column(s) sharing_status",
+        );
+
+        // Ten digits are seconds, thirteen are milliseconds, nineteen are
+        // nanoseconds, and anything else goes through the Chronicle timestamp
+        // parser. All four describe the same instant here.
+        let expected = 1_772_000_000_000_000_000_i64;
+        assert_eq!(parse_survey_timestamp_ns("1772000000").expect("seconds"), expected);
+        assert_eq!(
+            parse_survey_timestamp_ns("1772000000000").expect("milliseconds"),
+            expected,
+        );
+        assert_eq!(
+            parse_survey_timestamp_ns(" 1772000000000000000 ").expect("nanoseconds"),
+            expected,
+        );
+        assert!(parse_survey_timestamp_ns("123456789").is_err(), "nine digits is not a timestamp");
+        assert!(parse_survey_timestamp_ns("not a timestamp").is_err());
+
+        let lookup = parse_survey_lookup(
+            concat!(
+                "participant_id,event_timestamp,users\n",
+                "P01,1772000000,\"{Target Child}\"\n",
+                "P02,1772000000000,Parent\n",
+                "P03,1772000000,\n",
+                ",1772000000,Target Child\n",
+                "P04,,Target Child\n",
+            )
+            .as_bytes(),
+        )
+        .expect("survey rows parse");
+        assert_eq!(
+            lookup,
+            BTreeMap::from([
+                (("P01".to_string(), expected), "Target Child".to_string()),
+                (("P02".to_string(), expected), "Parent".to_string()),
+            ]),
+            "a row missing any of the three values is dropped, not stored blank",
+        );
+        assert!(parse_survey_lookup(b"").expect("no file at all").is_empty());
+        let missing = parse_survey_lookup(b"participant_id,event_timestamp\nP01,1772000000\n")
+            .expect_err("a file without users cannot attribute anything");
+        assert_eq!(
+            missing,
+            "Survey attribution file: missing required column(s) users",
+        );
+        let unparseable = parse_survey_lookup(
+            b"participant_id,event_timestamp,users\nP01,not a timestamp,Target Child\n",
+        )
+        .expect_err("an unparseable timestamp is named by participant");
+        assert!(unparseable.contains("(participant P01)"), "{unparseable}");
+        assert!(!unparseable.contains("not a timestamp"), "{unparseable}");
+    }
+
+    #[test]
+    fn study_dates_validation_requires_at_least_one_usable_participant_window() {
+        // The row counter and the parsed-window check are separate gates: an
+        // all-blank data row counts as no rows, and a header-only file has no
+        // windows. Either one alone must reject the file.
+        assert_eq!(
+            validate_support_csv(
+                "study_dates_file",
+                b"participant_id,start_date,end_date\n,,\n",
+            )
+            .unwrap_err(),
+            "study_dates_file: no participant study windows found",
+        );
+        assert_eq!(
+            validate_support_csv("study_dates_file", b"participant_id,start_date,end_date\n")
+                .unwrap_err(),
+            "study_dates_file: no participant study windows found",
+        );
+        // A row with dates but no participant is a real data row that still
+        // produces no window, so the two gates have to be checked separately.
+        assert_eq!(
+            validate_support_csv(
+                "study_dates_file",
+                b"participant_id,start_date,end_date\n,2026-03-07,2026-03-08\n",
+            )
+            .unwrap_err(),
+            "study_dates_file: no participant study windows found",
+        );
+        validate_support_csv(
+            "study_dates_file",
+            b"participant_id,start_date,end_date\n,,\nP01,2026-03-07,2026-03-08\n",
+        )
+        .expect("one usable window is enough");
+    }
+
+    /// Study-dates files arrive with either ISO or US dates, and their
+    /// participant IDs rarely match the raw data exactly - a tablet exports
+    /// `TECH-1042-D2` where the study file says `1042`. The numerical fallback
+    /// is what links them, so it has to accept a real ID run and refuse a
+    /// coincidental pair of digits.
+    #[test]
+    fn support_dates_and_participant_ids_are_read_the_way_study_files_write_them() {
+        assert_eq!(
+            normalize_support_date("2026-03-07T08:00:00Z").expect("ISO prefix"),
+            "2026-03-07",
+        );
+        assert_eq!(normalize_support_date(" 3/7/2026 ").expect("US date"), "2026-03-07");
+        // Ten characters are not a date on their own: both separators have to
+        // be in place before the prefix is trusted.
+        assert!(normalize_support_date("2026-03/07").is_err());
+        assert!(normalize_support_date("2026/03-07").is_err());
+        // A slash date needs all three parts, and none of the errors may echo
+        // the cell.
+        for value in ["03/07", "03/07/2026/01", "March 7 2026", ""] {
+            let error = normalize_support_date(value).expect_err("not a date");
+            assert_eq!(error, "unparseable date value");
+        }
+
+        // A numerical ID is a run of at least three digits, anywhere in the
+        // string, including at its end.
+        assert_eq!(numerical_id("TECH-1042-D2"), Some("1042"));
+        assert_eq!(numerical_id("participant 1042"), Some("1042"));
+        assert_eq!(numerical_id("1042"), Some("1042"));
+        assert_eq!(numerical_id("P01-D2"), None);
+        assert_eq!(numerical_id("ab12cd"), None);
+        assert_eq!(numerical_id("ab12"), None);
+        assert_eq!(numerical_id("no digits"), None);
+
+        let windows = vec![
+            StudyWindow {
+                participant_id: "1042".to_string(),
+                start_date: "2026-03-01".to_string(),
+                end_date: "2026-03-31".to_string(),
+            },
+            StudyWindow {
+                participant_id: "TECH-2001-D1".to_string(),
+                start_date: "2026-04-01".to_string(),
+                end_date: "2026-04-30".to_string(),
+            },
+        ];
+        assert_eq!(
+            window_for("TECH-1042-D2", &windows).map(|window| window.start_date.as_str()),
+            Some("2026-03-01"),
+            "a device-suffixed ID falls back to its numerical run",
+        );
+        assert_eq!(
+            window_for("TECH-2001-D1", &windows).map(|window| window.start_date.as_str()),
+            Some("2026-04-01"),
+            "an exact ID match wins",
+        );
+        assert!(
+            window_for("TECH-9999-D1", &windows).is_none(),
+            "an unrelated numerical run must not borrow another participant's window",
+        );
+        assert!(window_for("P01", &windows).is_none());
+
+        // The per-participant resolution the study-window step runs walks the
+        // rows once and applies the same rule, so it is checked on rows.
+        let mut rows = rows_from_events(&[
+            (
+                "2026-03-07 10:00:00",
+                "Activity Resumed",
+                "com.example.chat",
+            ),
+            (
+                "2026-03-07 10:01:00",
+                "Activity Resumed",
+                "com.example.chat",
+            ),
+            (
+                "2026-03-07 10:02:00",
+                "Activity Resumed",
+                "com.example.chat",
+            ),
+        ]);
+        for (row, participant) in rows
+            .iter_mut()
+            .zip(["TECH-1042-D2", "TECH-9999-D1", "TECH-1042-D2"])
+        {
+            row.edit_all().participant_id = participant.into();
+        }
+        assert_eq!(
+            resolve_participant_windows(&rows, &windows)
+                .iter()
+                .map(|entry| (
+                    entry.participant_id.as_str(),
+                    entry
+                        .window
+                        .as_ref()
+                        .map(|window| window.start_date.as_str()),
+                ))
+                .collect::<Vec<_>>(),
+            vec![
+                ("TECH-1042-D2", Some("2026-03-01")),
+                ("TECH-9999-D1", None),
+            ],
+            "each participant is resolved once, by exact ID then numerical run",
+        );
+    }
+
+    #[test]
+    fn filter_file_parsing_scopes_relabeling_to_the_listed_labels() {
+        let parsed = parse_filter_csv(
+            concat!(
+                "app_package_name,known_application_labels\n",
+                "com.example.chat,\" Chat , Chat Beta ,\"\n",
+                "com.example.any,\n",
+                ",Orphan\n",
+            )
+            .as_bytes(),
+        );
+        assert_eq!(parsed.len(), 2, "a blank package must not create an entry");
+        assert_eq!(
+            parsed["com.example.chat"]
+                .iter()
+                .cloned()
+                .collect::<BTreeSet<_>>(),
+            BTreeSet::from(["Chat".to_string(), "Chat Beta".to_string()]),
+            "each listed label is trimmed and kept; empty segments are dropped",
+        );
+        assert!(
+            parsed["com.example.any"].is_empty(),
+            "an empty label list means the package matches every label",
+        );
+    }
+
+    #[test]
+    fn filter_relabeling_respects_the_label_scope_and_the_stop_event_vocabulary() {
+        // Same package, two labels: only the listed one may be relabeled, and
+        // only the four session-bearing interaction types are rewritten.
+        let filter_map = parse_filter_csv(
+            b"app_package_name,known_application_labels\ncom.example.chat,Chat\n",
+        );
+        let rows = |interaction: &str, label: &str| {
+            let csv = format!(
+                concat!(
+                    "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+                    "Study,P01,Target Child,{},{},com.example.chat,2026-03-07 10:00:00,UTC\n",
+                ),
+                label, interaction,
+            );
+            let raw = incremental::csv_parse(csv.as_bytes());
+            let model = incremental::detect_device_model(&raw);
+            let rows = incremental::build_canonical_rows(&raw, "UTC", &BTreeMap::new(), &model)
+                .expect("canonical rows");
+            label_filtered_apps(rows, &filter_map)
+        };
+
+        for (interaction, relabeled) in [
+            ("Activity Resumed", FILTERED_RESUMED),
+            ("Activity Paused", FILTERED_PAUSED),
+            ("Activity Stopped", FILTERED_STOPPED),
+            ("Activity Destroyed", "Filtered App Destroyed"),
+        ] {
+            assert_eq!(
+                rows(interaction, "Chat")[0].interaction_type.as_str(),
+                relabeled,
+                "{interaction} for a listed label must be relabeled",
+            );
+            assert_eq!(
+                rows(interaction, "Other")[0].interaction_type.as_str(),
+                interaction,
+                "{interaction} for an unlisted label must be left alone",
+            );
+        }
+        assert_eq!(
+            rows("User Interaction", "Chat")[0].interaction_type.as_str(),
+            "User Interaction",
+            "a non-session interaction type is never relabeled",
+        );
+    }
+
+    #[test]
+    fn apps_forcing_and_background_files_accept_both_column_spellings_and_skip_comments() {
+        let forcing = parse_apps_forcing_csv(
+            concat!(
+                "package_name,label_or_note\n",
+                "com.example.video, Video \n",
+                "#com.example.commented,Ignored\n",
+                ",Orphan\n",
+            )
+            .as_bytes(),
+        );
+        assert_eq!(
+            forcing,
+            HashMap::from([("com.example.video".to_string(), "Video".to_string())]),
+        );
+        // The alternate spelling of both columns is accepted.
+        assert_eq!(
+            parse_apps_forcing_csv(
+                b"app_package_name,application_label\ncom.example.video,Video\n"
+            ),
+            forcing,
+        );
+
+        let background = parse_background_apps_csv(
+            concat!(
+                "app_package_name\n",
+                " com.example.sync \n",
+                "#com.example.commented\n",
+                "\n",
+            )
+            .as_bytes(),
+        );
+        assert_eq!(
+            background,
+            AHashSet::from_iter(["com.example.sync".to_string()]),
+        );
+        assert_eq!(
+            parse_background_apps_csv(b"package_name\ncom.example.sync\n"),
+            background,
+        );
+    }
+
+    #[test]
+    fn codebook_parsing_keeps_the_first_row_per_package_and_drops_blank_cells() {
+        let parsed = parse_codebook_csv(
+            concat!(
+                "app_package_name,bcm_play_store_broad_app_category\n",
+                "com.example.chat,Social\n",
+                "com.example.chat,Games\n",
+                ",Orphan\n",
+                "com.example.blank, \n",
+            )
+            .as_bytes(),
+        );
+        assert_eq!(parsed.len(), 2, "blank packages never become codebook keys");
+        let category = CODEBOOK_RENAME_PAIRS
+            .iter()
+            .position(|(source, _)| *source == "bcm_play_store_broad_app_category")
+            .expect("the broad category column is a declared codebook field");
+        assert_eq!(
+            parsed["com.example.chat"].fields[category].as_deref(),
+            Some("Social"),
+            "the first codebook row for a package wins",
+        );
+        assert_eq!(
+            parsed["com.example.blank"].fields[category], None,
+            "a whitespace-only cell is absent, not an empty string",
+        );
+    }
+
+    #[test]
+    fn support_record_parsing_survives_long_cells_and_ragged_rows() {
+        // A support cell longer than the reader's initial 1 KiB field buffer
+        // must round trip: the reader grows the buffer instead of truncating a
+        // researcher's label.
+        let long_label = "L".repeat(5_000);
+        let csv =
+            format!("app_package_name,known_application_labels\ncom.example.chat,{long_label}\n");
+        let parsed = parse_filter_csv(csv.as_bytes());
+        assert_eq!(
+            parsed["com.example.chat"]
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>(),
+            vec![long_label],
+        );
+
+        // The record parser grows the same buffer in both of its passes, so a
+        // column name and a cell that each exceed it have to round trip too.
+        let long_header = "H".repeat(5_000);
+        let long_value = "V".repeat(5_000);
+        let wide = format!("app_package_name,{long_header}\ncom.example.chat,{long_value}\n");
+        let wide = parse_csv_to_records_with_physical_rows(wide.as_bytes());
+        assert_eq!(wide.len(), 1);
+        assert_eq!(wide[0].1[long_header.as_str()], long_value);
+        assert_eq!(wide[0].1["app_package_name"], "com.example.chat");
+
+        // Real exports contain records with more cells than the header
+        // declares. The extra cells are dropped and the declared columns still
+        // parse; indexing past the header would panic instead.
+        let ragged = parse_csv_to_records_with_physical_rows(
+            b"app_package_name,known_application_labels\ncom.example.chat,Chat,extra,cells\n",
+        );
+        assert_eq!(ragged.len(), 1);
+        assert_eq!(ragged[0].0, 1);
+        assert_eq!(ragged[0].1["app_package_name"], "com.example.chat");
+        assert_eq!(ragged[0].1["known_application_labels"], "Chat");
+
+        // Physical data-row numbers count every record, including the all-empty
+        // ones this parser drops, so support-file errors name the row a
+        // researcher sees in their spreadsheet. A bare blank line carries no
+        // field and is not a record; a record whose cells are all empty is.
+        let numbered = parse_csv_to_records_with_physical_rows(
+            b"app_package_name,label\ncom.example.first,First\n,\ncom.example.third,Third\n",
+        );
+        assert_eq!(
+            numbered
+                .iter()
+                .map(|(row, record)| (*row, record["app_package_name"].clone()))
+                .collect::<Vec<_>>(),
+            vec![
+                (1, "com.example.first".to_string()),
+                (3, "com.example.third".to_string()),
+            ],
+        );
+    }
+
+    /// The raw Chronicle export goes through its own reader, and the same
+    /// buffer-growth, ragged-row and degenerate-input cases apply there. A
+    /// truncated `application_label` here would silently rename an app in every
+    /// output file.
+    #[test]
+    fn raw_export_parsing_survives_long_cells_ragged_rows_and_empty_input() {
+        let long_label = "L".repeat(5_000);
+        let quoted_long_label = format!("Chat, {}", "Q".repeat(5_000));
+        let csv = format!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n\
+             Study,P01,Target Child,{long_label},Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago\n\
+             Study,P01,Target Child,\"{quoted_long_label}\",Activity Paused,com.example.chat,2026-03-07 10:01:00,America/Chicago\n"
+        );
+        let parsed = incremental::csv_parse(csv.as_bytes());
+        assert_eq!(parsed.len(), 2);
+        assert_eq!(parsed[0].application_label, long_label);
+        assert_eq!(parsed[1].application_label, quoted_long_label);
+        assert_eq!(parsed[0].app_package_name, "com.example.chat");
+        assert_eq!(parsed[1].interaction_type, "Activity Paused");
+
+        // A header longer than the field buffer must survive too, or the
+        // column it names becomes unfindable and every value in it is lost.
+        let long_header = "h".repeat(3_000);
+        let wide = format!(
+            "{long_header},participant_id,event_timestamp\nignored,P01,2026-03-07 10:00:00\n"
+        );
+        let wide_parsed = incremental::csv_parse(wide.as_bytes());
+        assert_eq!(wide_parsed.len(), 1);
+        assert_eq!(wide_parsed[0].participant_id, "P01");
+        assert_eq!(wide_parsed[0].event_timestamp, "2026-03-07 10:00:00");
+
+        // More cells than the header declares: the extras are dropped, the
+        // declared columns still parse, and the row number keeps counting.
+        let ragged = incremental::csv_parse(
+            b"participant_id,event_timestamp\nP01,2026-03-07 10:00:00,extra,cells\nP02,2026-03-07 10:05:00\n",
+        );
+        assert_eq!(
+            ragged
+                .iter()
+                .map(|row| (row.source_data_row, row.participant_id.as_str()))
+                .collect::<Vec<_>>(),
+            vec![(1, "P01"), (2, "P02")]
+        );
+
+        // Degenerate inputs: no bytes at all, and a final record with no
+        // trailing newline, which the reader has to terminate itself.
+        assert!(incremental::csv_parse(b"").is_empty());
+        assert!(incremental::csv_parse(b"participant_id,event_timestamp\n").is_empty());
+        let unterminated =
+            incremental::csv_parse(b"participant_id,event_timestamp\nP01,2026-03-07 10:00:00");
+        assert_eq!(unterminated.len(), 1);
+        assert_eq!(unterminated[0].participant_id, "P01");
+        assert_eq!(unterminated[0].event_timestamp, "2026-03-07 10:00:00");
     }
 
     #[test]
@@ -7837,6 +8582,656 @@ mod tests {
         assert!(postcard::to_allocvec(&SharedString::from("unscoped")).is_err());
     }
 
+    /// JSON text reaches serde through three different entry points depending
+    /// on how the document arrives: an in-memory document borrows its bytes, a
+    /// streamed one is copied through a scratch buffer, and a pre-parsed value
+    /// hands over an owned `String`. All three have to produce the same text.
+    /// Interning is what keeps a long run's memory flat, so the sharing rules
+    /// are checked too: repeated values inside one row table share a single
+    /// allocation, the fixed lineage vocabulary reuses one process-wide
+    /// allocation across tables, and anything else stays private.
+    #[test]
+    fn json_strings_decode_the_same_text_through_every_serde_entry_point() {
+        #[derive(Debug, serde::Deserialize)]
+        struct SharedField {
+            text: SharedString,
+        }
+
+        #[derive(Debug, serde::Deserialize)]
+        struct ArcField {
+            #[serde(deserialize_with = "deserialize_shared_arc_string")]
+            text: Arc<String>,
+        }
+
+        fn document(text: &str) -> String {
+            format!(r#"{{"text":"{text}"}}"#)
+        }
+
+        let borrowed = document("selected-qualifying-stop");
+        let owned = serde_json::json!({ "text": "selected-qualifying-stop" });
+
+        for text in [
+            serde_json::from_str::<SharedField>(&borrowed)
+                .expect("borrowed shared string")
+                .text,
+            serde_json::from_reader::<_, SharedField>(borrowed.as_bytes())
+                .expect("copied shared string")
+                .text,
+            serde_json::from_value::<SharedField>(owned.clone())
+                .expect("owned shared string")
+                .text,
+        ] {
+            assert_eq!(text.as_str(), "selected-qualifying-stop");
+        }
+
+        for text in [
+            serde_json::from_str::<ArcField>(&borrowed)
+                .expect("borrowed lineage string")
+                .text,
+            serde_json::from_reader::<_, ArcField>(borrowed.as_bytes())
+                .expect("copied lineage string")
+                .text,
+            serde_json::from_value::<ArcField>(owned)
+                .expect("owned lineage string")
+                .text,
+        ] {
+            assert_eq!(text.as_str(), "selected-qualifying-stop");
+        }
+
+        // Every lineage constant is a fixed vocabulary word, so two decodes
+        // outside any row table still hand back one allocation.
+        for text in [
+            "chronicle-lineage-search/v1",
+            "selected-qualifying-stop",
+            "no-qualifying-stop",
+            "screen-credit-liveness-window",
+            "pipeline-event-order",
+            "participant-source-event-order",
+        ] {
+            let document = document(text);
+            let first = serde_json::from_str::<ArcField>(&document)
+                .expect("first lineage decode")
+                .text;
+            let second = serde_json::from_str::<ArcField>(&document)
+                .expect("second lineage decode")
+                .text;
+            assert_eq!(first.as_str(), text);
+            assert_eq!(second.as_str(), text);
+            assert!(
+                Arc::ptr_eq(&first, &second),
+                "lineage constant {text} allocated a private copy"
+            );
+        }
+
+        // A raw-data value is not part of that vocabulary and must not be
+        // retained process-wide once its row table is gone.
+        let package = document("com.example.app");
+        let loose_first = serde_json::from_str::<ArcField>(&package)
+            .expect("first package decode")
+            .text;
+        let loose_second = serde_json::from_str::<ArcField>(&package)
+            .expect("second package decode")
+            .text;
+        assert!(!Arc::ptr_eq(&loose_first, &loose_second));
+
+        // Within one row table both entry points intern, so a package name
+        // repeated across rows costs one allocation.
+        let pooled: Vec<SharedString> = with_deserialized_row_string_pool(|| {
+            vec![
+                serde_json::from_str::<SharedField>(&package)
+                    .expect("pooled borrowed")
+                    .text,
+                serde_json::from_str::<SharedField>(&package)
+                    .expect("pooled borrowed again")
+                    .text,
+                serde_json::from_value::<SharedField>(
+                    serde_json::json!({ "text": "com.example.app" }),
+                )
+                .expect("pooled owned")
+                .text,
+            ]
+        });
+        for value in &pooled {
+            assert_eq!(value.as_str(), "com.example.app");
+        }
+        assert!(Arc::ptr_eq(&pooled[0].0, &pooled[1].0));
+        assert!(Arc::ptr_eq(&pooled[1].0, &pooled[2].0));
+
+        // A corrupt persisted row names what it wanted instead of the value it
+        // rejected, so the message can be shown without leaking raw data.
+        for error in [
+            serde_json::from_str::<SharedField>(r#"{"text":5}"#)
+                .expect_err("a number is not a shared string")
+                .to_string(),
+            serde_json::from_str::<ArcField>(r#"{"text":5}"#)
+                .expect_err("a number is not a lineage string")
+                .to_string(),
+        ] {
+            assert!(error.contains("a UTF-8 string"), "{error}");
+        }
+    }
+
+    /// The Arrow evidence export writes the raw 32 digest bytes while the
+    /// human-readable views write `blake3:<hex>`. Both come off the same value,
+    /// so they have to describe the same digest.
+    #[test]
+    fn lineage_search_digest_keeps_its_bytes_and_text_in_step() {
+        const TEXT: &str =
+            "blake3:000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
+        let digest = LineageSearchDigest::parse(TEXT).expect("parse a blake3 digest");
+        let expected: [u8; 32] = std::array::from_fn(|index| index as u8);
+        assert_eq!(digest.as_bytes(), &expected);
+        assert_eq!(digest.to_string(), TEXT);
+    }
+
+    /// A persisted row carries three hand-written codecs. Each has to name the
+    /// shape it wants when a stored row is corrupt, and the codebook codec has
+    /// to keep the exact field vector it was handed: the shared all-none vector
+    /// is an allocation shortcut for the one length that is entirely empty,
+    /// never a substitute for a row that carries real codebook values.
+    #[test]
+    fn row_payload_codecs_keep_their_values_and_name_what_they_expect() {
+        #[derive(Debug, serde::Deserialize)]
+        struct Codebook {
+            #[serde(deserialize_with = "deserialize_codebook_fields")]
+            fields: Arc<Vec<Option<String>>>,
+        }
+
+        #[derive(Debug, serde::Deserialize)]
+        struct Searches {
+            #[serde(deserialize_with = "deserialize_lineage_searches")]
+            searches: Arc<SmallVec<[LineageSearchEvidence; 1]>>,
+        }
+
+        fn codebook(fields: &[Option<String>]) -> Arc<Vec<Option<String>>> {
+            let encoded = serde_json::to_string(fields).expect("encode codebook fields");
+            serde_json::from_str::<Codebook>(&format!(r#"{{"fields":{encoded}}}"#))
+                .expect("decode codebook fields")
+                .fields
+        }
+
+        let width = CODEBOOK_RENAME_PAIRS.len();
+        let blank = vec![None; width];
+        assert!(
+            Arc::ptr_eq(&codebook(&blank), empty_codebook_fields_ref()),
+            "a row with no codebook values shares the one empty vector",
+        );
+
+        let mut populated = blank.clone();
+        populated[0] = Some("Social".to_string());
+        assert_eq!(
+            codebook(&populated).as_ref(),
+            &populated,
+            "a populated codebook field survives the round trip",
+        );
+
+        let short = vec![None; 2];
+        assert_eq!(
+            codebook(&short).as_ref(),
+            &short,
+            "a field vector of another length keeps its own length",
+        );
+
+        let empty_searches = |label: &str| {
+            serde_json::from_str::<Searches>(r#"{"searches":[]}"#)
+                .unwrap_or_else(|error| panic!("{label}: {error}"))
+                .searches
+        };
+        assert!(
+            Arc::ptr_eq(&empty_searches("first"), &empty_searches("second")),
+            "a row with no lineage searches shares the one empty list",
+        );
+
+        for (document, wanted) in [
+            (
+                r#"{"fields":5}"#,
+                "the fixed Chronicle codebook field sequence",
+            ),
+            (r#"{"searches":5}"#, "a sequence of lineage-search records"),
+        ] {
+            let error = if document.contains("fields") {
+                serde_json::from_str::<Codebook>(document).unwrap_err()
+            } else {
+                serde_json::from_str::<Searches>(document).unwrap_err()
+            };
+            assert!(error.to_string().contains(wanted), "{error}");
+        }
+        let ranges = serde_json::from_str::<SourceDataRows>("5")
+            .expect_err("a number is not a source-row range list");
+        assert!(
+            ranges
+                .to_string()
+                .contains("a sequence of source-data row ranges"),
+            "{ranges}",
+        );
+    }
+
+    /// The checkpoint fingerprint streams serde events into xxh3 through two
+    /// internal buffers: a 4 KiB sink buffer and a 64-byte stack buffer for
+    /// `Display` values. Where a payload happens to land in those buffers must
+    /// not change the fingerprint, and no payload length may push either buffer
+    /// past its end, so the sweep walks every length across both boundaries and
+    /// checks that the same content always fingerprints the same way.
+    ///
+    /// A string tail always occupies at least nine bytes, so it can never start
+    /// on the sink buffer's last free slot. A `u8` is the smallest write the
+    /// sink accepts, and the sweep pairs one with every payload length so the
+    /// single-byte landing on that last slot is covered too.
+    #[test]
+    fn the_checkpoint_fingerprint_follows_content_and_not_buffer_alignment() {
+        let mut seen = std::collections::BTreeSet::new();
+        for length in 0..=4200_usize {
+            let text = "x".repeat(length);
+            let owned = vec![text.clone(), "tail".to_owned()];
+            let borrowed = vec![text.as_str(), "tail"];
+            let fingerprint = value_fingerprint(&owned).expect("fingerprint an owned payload");
+            assert_eq!(
+                fingerprint,
+                value_fingerprint(&borrowed).expect("fingerprint a borrowed payload"),
+                "payload of {length} bytes fingerprinted differently when borrowed"
+            );
+            assert!(
+                seen.insert(fingerprint),
+                "payload of {length} bytes reused an earlier fingerprint"
+            );
+
+            let single_byte_tail = (text.as_str(), 7_u8);
+            let tail_fingerprint =
+                value_fingerprint(&single_byte_tail).expect("fingerprint a one-byte tail");
+            assert_eq!(
+                tail_fingerprint,
+                value_fingerprint(&(text.clone(), 7_u8))
+                    .expect("fingerprint an owned one-byte tail"),
+                "payload of {length} bytes with a one-byte tail fingerprinted differently \
+                 when borrowed"
+            );
+            assert!(
+                seen.insert(tail_fingerprint),
+                "payload of {length} bytes with a one-byte tail reused an earlier fingerprint"
+            );
+        }
+    }
+
+    /// Every serde shape the fingerprint accepts has to stay separable: two
+    /// values that differ anywhere - in a number, a name, a variant index, or a
+    /// payload - must not share a fingerprint, or a changed step value would be
+    /// reported as unchanged. Values only reachable through `Display` take a
+    /// different route into the sink and have to land on the same bytes as the
+    /// string they print.
+    #[test]
+    fn the_checkpoint_fingerprint_separates_every_serde_shape_it_accepts() {
+        enum Shape {
+            Bool(bool),
+            I8(i8),
+            I16(i16),
+            I32(i32),
+            I64(i64),
+            I128(i128),
+            U8(u8),
+            U16(u16),
+            U32(u32),
+            U64(u64),
+            U128(u128),
+            F32(f32),
+            F64(f64),
+            Char(char),
+            Str(String),
+            Bytes(Vec<u8>),
+            Nothing,
+            Something(i64),
+            Unit,
+            UnitStruct(&'static str),
+            UnitVariant(&'static str, u32),
+            NewtypeStruct(&'static str, i64),
+            NewtypeVariant(&'static str, u32, i64),
+            Printed(String, u32),
+            Sequence(Vec<Shape>),
+            Refusing,
+        }
+
+        struct Printer<'a>(&'a str, u32);
+
+        impl std::fmt::Display for Printer<'_> {
+            fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                for _ in 0..self.1 {
+                    formatter.write_str(self.0)?;
+                }
+                Ok(())
+            }
+        }
+
+        impl serde::Serialize for Shape {
+            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: serde::Serializer,
+            {
+                match self {
+                    Shape::Bool(value) => serializer.serialize_bool(*value),
+                    Shape::I8(value) => serializer.serialize_i8(*value),
+                    Shape::I16(value) => serializer.serialize_i16(*value),
+                    Shape::I32(value) => serializer.serialize_i32(*value),
+                    Shape::I64(value) => serializer.serialize_i64(*value),
+                    Shape::I128(value) => serializer.serialize_i128(*value),
+                    Shape::U8(value) => serializer.serialize_u8(*value),
+                    Shape::U16(value) => serializer.serialize_u16(*value),
+                    Shape::U32(value) => serializer.serialize_u32(*value),
+                    Shape::U64(value) => serializer.serialize_u64(*value),
+                    Shape::U128(value) => serializer.serialize_u128(*value),
+                    Shape::F32(value) => serializer.serialize_f32(*value),
+                    Shape::F64(value) => serializer.serialize_f64(*value),
+                    Shape::Char(value) => serializer.serialize_char(*value),
+                    Shape::Str(value) => serializer.serialize_str(value),
+                    Shape::Bytes(value) => serializer.serialize_bytes(value),
+                    Shape::Nothing => serializer.serialize_none(),
+                    Shape::Something(value) => serializer.serialize_some(value),
+                    Shape::Unit => serializer.serialize_unit(),
+                    Shape::UnitStruct(name) => serializer.serialize_unit_struct(name),
+                    Shape::UnitVariant(name, index) => {
+                        serializer.serialize_unit_variant(name, *index, "variant")
+                    }
+                    Shape::NewtypeStruct(name, value) => {
+                        serializer.serialize_newtype_struct(name, value)
+                    }
+                    Shape::NewtypeVariant(name, index, value) => {
+                        serializer.serialize_newtype_variant(name, *index, "variant", value)
+                    }
+                    Shape::Printed(text, repeats) => {
+                        serializer.collect_str(&Printer(text, *repeats))
+                    }
+                    Shape::Sequence(values) => serializer.collect_seq(values),
+                    Shape::Refusing => {
+                        Err(serde::ser::Error::custom("probe refused to serialize"))
+                    }
+                }
+            }
+        }
+
+        fn fingerprint(shape: &Shape) -> [u8; 16] {
+            value_fingerprint(shape).expect("fingerprint a probe shape")
+        }
+
+        let shapes = [
+            Shape::Bool(false),
+            Shape::Bool(true),
+            Shape::I8(0),
+            Shape::I8(1),
+            Shape::I16(0),
+            Shape::I16(1),
+            Shape::I32(0),
+            Shape::I32(1),
+            Shape::I64(0),
+            Shape::I64(1),
+            Shape::I128(0),
+            Shape::I128(1),
+            Shape::U8(0),
+            Shape::U8(1),
+            Shape::U16(0),
+            Shape::U16(1),
+            Shape::U32(0),
+            Shape::U32(1),
+            Shape::U64(0),
+            Shape::U64(1),
+            Shape::U128(0),
+            Shape::U128(1),
+            Shape::F32(0.0),
+            Shape::F32(1.0),
+            Shape::F64(0.0),
+            Shape::F64(1.0),
+            Shape::Char('a'),
+            Shape::Char('b'),
+            Shape::Str("a".to_owned()),
+            Shape::Str("b".to_owned()),
+            Shape::Bytes(vec![1]),
+            Shape::Bytes(vec![2]),
+            Shape::Nothing,
+            Shape::Something(0),
+            Shape::Something(1),
+            Shape::Unit,
+            Shape::UnitStruct("First"),
+            Shape::UnitStruct("Second"),
+            Shape::UnitVariant("First", 0),
+            Shape::UnitVariant("First", 1),
+            Shape::UnitVariant("Second", 0),
+            Shape::NewtypeStruct("First", 0),
+            Shape::NewtypeStruct("First", 1),
+            Shape::NewtypeStruct("Second", 0),
+            Shape::NewtypeVariant("First", 0, 0),
+            Shape::NewtypeVariant("First", 0, 1),
+            Shape::NewtypeVariant("First", 1, 0),
+            Shape::NewtypeVariant("Second", 0, 0),
+            // A unit inside a sequence is a value, not an absence: dropping it
+            // must not make the sequence read as the shorter one.
+            Shape::Sequence(vec![Shape::U8(1)]),
+            Shape::Sequence(vec![Shape::Unit, Shape::U8(1)]),
+            Shape::Sequence(vec![Shape::U8(1), Shape::Unit]),
+        ];
+        let mut seen = std::collections::BTreeSet::new();
+        for (index, shape) in shapes.iter().enumerate() {
+            assert!(
+                seen.insert(fingerprint(shape)),
+                "probe shape {index} reused an earlier fingerprint"
+            );
+        }
+
+        // A `Display` value has to fingerprint as the string it prints, both
+        // when it fits the stack buffer and when it spills to the heap.
+        // The last two cases overflow the 64-byte stack buffer: once in many
+        // small writes, once in a single write larger than the buffer itself.
+        for (piece, repeats) in [
+            ("ab", 3_u32),
+            ("0123456789", 12),
+            ("z", 0),
+            (
+                "0123456789012345678901234567890123456789012345678901234567890123456789",
+                1,
+            ),
+        ] {
+            let printed = Shape::Printed(piece.to_owned(), repeats);
+            let written = Shape::Str(piece.repeat(repeats as usize));
+            assert_eq!(
+                fingerprint(&printed),
+                fingerprint(&written),
+                "{piece} repeated {repeats} times fingerprinted differently through Display"
+            );
+        }
+
+        // A value that refuses to serialize names its own reason, so a failure
+        // reaches the caller as something it can act on.
+        let refused = value_fingerprint(&Shape::Refusing)
+            .expect_err("a refusing probe must not fingerprint");
+        assert!(refused.contains("probe refused to serialize"), "{refused}");
+    }
+
+    /// The engagement columns describe how a session relates to the one before
+    /// it: whether more than thirty seconds (or the study's own threshold)
+    /// passed, whether the app changed, and how long the gap was in hours. The
+    /// `valid_*` columns look back only at unfiltered sessions while the
+    /// `any_*` columns look back at filtered ones too, so a filtered session in
+    /// between has to move one pair and not the other.
+    ///
+    /// The walk also decides which cached row-checkpoint components to discard.
+    /// Getting that wrong leaves a digest that describes values the row no
+    /// longer holds, so every row is checked against a freshly hashed copy of
+    /// its own data.
+    #[test]
+    fn engagement_columns_measure_the_gap_to_the_previous_session_of_each_kind() {
+        const SECOND: i64 = 1_000_000_000;
+        let custom_duration = 300.0;
+
+        let sessions: &[(&str, &str, i64, i64)] = &[
+            // (interaction, package, start seconds, stop seconds)
+            (APP_USAGE, "com.example.chat", 0, 60),
+            // Exactly thirty seconds later: the thirty-second flag is strict.
+            (APP_USAGE, "com.example.chat", 90, 150),
+            // Exactly the study threshold later, and a different app.
+            (APP_USAGE, "com.example.video", 450, 500),
+            // A filtered session moves the any_* baseline but not valid_*.
+            (FILTERED_APP_USAGE, "com.example.secret", 531, 560),
+            (APP_USAGE, "com.example.chat", 600, 660),
+        ];
+        // The event timestamps only have to be distinct and parseable; the walk
+        // reads the session start and stop set below.
+        let mut rows = rows_from_events(
+            &sessions
+                .iter()
+                .enumerate()
+                .map(|(index, (_, package, _, _))| {
+                    (
+                        [
+                            "2026-03-07 10:00:00",
+                            "2026-03-07 10:01:00",
+                            "2026-03-07 10:02:00",
+                            "2026-03-07 10:03:00",
+                            "2026-03-07 10:04:00",
+                        ][index],
+                        "Activity Resumed",
+                        *package,
+                    )
+                })
+                .collect::<Vec<_>>(),
+        );
+        for (row, (interaction, _, start, stop)) in rows.iter_mut().zip(sessions) {
+            let data = row.edit_all();
+            data.interaction_type = (*interaction).into();
+            data.start_timestamp_ns = Some(*start * SECOND);
+            data.stop_timestamp_ns = Some(*stop * SECOND);
+        }
+
+        // Hash every row before the walk, so a cache the walk fails to discard
+        // is still holding the pre-walk value afterwards.
+        let mut scratch = RowCheckpointScratch::default();
+        for row in &rows {
+            row_checkpoint_parts(row, &mut scratch);
+        }
+
+        add_app_usage_detail_columns(&mut rows, custom_duration);
+
+        let observed: Vec<(i32, i32, i32, f64, i32, i32, i32, f64)> = rows
+            .iter()
+            .map(|row| {
+                (
+                    row.valid_app_new_engage_30s,
+                    row.valid_app_new_engage_custom,
+                    row.valid_app_switched_app,
+                    row.valid_app_usage_time_gap_hours,
+                    row.any_app_new_engage_30s,
+                    row.any_app_new_engage_custom,
+                    row.any_app_switched_app,
+                    row.any_app_usage_time_gap_hours,
+                )
+            })
+            .collect();
+        assert_eq!(
+            observed,
+            vec![
+                // No previous session at all: both flags fire, nothing switched.
+                (1, 1, 0, 0.0, 1, 1, 0, 0.0),
+                // Exactly thirty seconds is not "more than thirty seconds".
+                (0, 0, 0, 30.0 / 3600.0, 0, 0, 0, 30.0 / 3600.0),
+                // Exactly the study threshold is not "more than" it either, but
+                // three hundred seconds is more than thirty, and the app moved.
+                (1, 0, 1, 300.0 / 3600.0, 1, 0, 1, 300.0 / 3600.0),
+                // A filtered session leaves the valid_* columns untouched at
+                // their defaults and takes only the any_* measurement.
+                (0, 0, 0, 0.0, 1, 0, 1, 31.0 / 3600.0),
+                // The next real session measures back past the filtered one for
+                // valid_* (a hundred seconds, from the video session) and back
+                // to it for any_* (forty seconds).
+                (1, 0, 1, 100.0 / 3600.0, 1, 0, 1, 40.0 / 3600.0),
+            ]
+        );
+
+        for (index, row) in rows.iter().enumerate() {
+            let cached = row_checkpoint_parts(row, &mut scratch);
+            let fresh = row_checkpoint_parts(&Row::new(row.0.data.clone()), &mut scratch);
+            assert_eq!(
+                cached, fresh,
+                "row {index} kept a checkpoint component the walk changed",
+            );
+        }
+
+        // Re-running the walk over rows that already carry engagement columns —
+        // which is what happens whenever an upstream step re-emits a row — has
+        // to restore any column that disagrees with the measurement *and*
+        // discard the checkpoint component that described the old value. Each
+        // column is disturbed on its own, so exactly one of the four change
+        // tests, and exactly one term inside it, is the reason the row is
+        // rewritten. A term that stops contributing therefore leaves either a
+        // stale column or a stale digest.
+        fn engagement(data: &RowData) -> (i32, i32, i32, u64, i32, i32, i32, u64) {
+            (
+                data.valid_app_new_engage_30s,
+                data.valid_app_new_engage_custom,
+                data.valid_app_switched_app,
+                data.valid_app_usage_time_gap_hours.to_bits(),
+                data.any_app_new_engage_30s,
+                data.any_app_new_engage_custom,
+                data.any_app_switched_app,
+                data.any_app_usage_time_gap_hours.to_bits(),
+            )
+        }
+
+        const ENGAGEMENT_COLUMNS: [&str; 8] = [
+            "any_app_new_engage_30s",
+            "any_app_new_engage_custom",
+            "any_app_switched_app",
+            "any_app_usage_time_gap_hours",
+            "valid_app_new_engage_30s",
+            "valid_app_new_engage_custom",
+            "valid_app_switched_app",
+            "valid_app_usage_time_gap_hours",
+        ];
+        // No measurement can produce these, so any column left holding one was
+        // never rewritten.
+        const WRONG_FLAG: i32 = -7;
+        const WRONG_HOURS: f64 = -7.0;
+
+        let settled: Vec<RowData> = rows.iter().map(|row| row.0.data.clone()).collect();
+        for (column, name) in ENGAGEMENT_COLUMNS.iter().enumerate() {
+            for target in 0..settled.len() {
+                // The walk only owns the valid_* columns of unfiltered
+                // sessions; a filtered row keeps whatever it was handed.
+                if column >= 4 && settled[target].interaction_type != APP_USAGE {
+                    continue;
+                }
+                let mut perturbed: Vec<Row> = settled.iter().cloned().map(Row::new).collect();
+                let data = perturbed[target].edit_all();
+                match column {
+                    0 => data.any_app_new_engage_30s = WRONG_FLAG,
+                    1 => data.any_app_new_engage_custom = WRONG_FLAG,
+                    2 => data.any_app_switched_app = WRONG_FLAG,
+                    3 => data.any_app_usage_time_gap_hours = WRONG_HOURS,
+                    4 => data.valid_app_new_engage_30s = WRONG_FLAG,
+                    5 => data.valid_app_new_engage_custom = WRONG_FLAG,
+                    6 => data.valid_app_switched_app = WRONG_FLAG,
+                    _ => data.valid_app_usage_time_gap_hours = WRONG_HOURS,
+                }
+                // Hash the disturbed state, so a component the walk fails to
+                // discard is still describing the wrong value afterwards.
+                for row in &perturbed {
+                    row_checkpoint_parts(row, &mut scratch);
+                }
+
+                add_app_usage_detail_columns(&mut perturbed, custom_duration);
+
+                for (index, (row, expected)) in perturbed.iter().zip(&settled).enumerate() {
+                    assert_eq!(
+                        engagement(row),
+                        engagement(expected),
+                        "row {index} after {name} was disturbed on row {target}",
+                    );
+                    let cached = row_checkpoint_parts(row, &mut scratch);
+                    let fresh = row_checkpoint_parts(&Row::new(row.0.data.clone()), &mut scratch);
+                    assert_eq!(
+                        cached, fresh,
+                        "row {index} kept a checkpoint component describing the \
+                         old {name} disturbed on row {target}",
+                    );
+                }
+            }
+        }
+    }
+
     #[test]
     fn cached_row_checkpoint_invalidates_only_the_edited_component() {
         let csv = concat!(
@@ -7885,6 +9280,248 @@ mod tests {
         assert!(row.0.checkpoint_parts.identity.get().is_none());
         assert!(row.0.checkpoint_parts.temporal.get().is_none());
         assert!(row.0.checkpoint_parts.classification.get().is_none());
+    }
+
+    /// The browser sends option JSON carrying only the settings it means to
+    /// state, so every field with a serde default is a published product
+    /// default: omitting it has to produce exactly this value. The four
+    /// screen-gated crediting defaults and the compliance threshold are the
+    /// researcher-facing ones. `usage_session_mode` also has a documented
+    /// fallback, and `materialize_visualization_data`, when omitted, follows
+    /// whether either view surface is on.
+    #[test]
+    fn omitted_option_fields_take_their_published_defaults() {
+        let minimal = serde_json::json!({
+            "study_name": "Study",
+            "timezone": "UTC",
+            "usage_session_mode": "app_usage",
+            "include_app_output": true,
+            "include_screen_output": true,
+            "use_filter_file": false,
+            "use_apps_forcing_screen_open": false,
+            "use_app_codebook": false,
+            "correct_duplicate_event_timestamps": true,
+            "allow_stop_event_reuse": false,
+            "use_activity_stopped_as_fallback": true,
+            "apply_threshold_to_fallback": true,
+            "long_duration_threshold_ns": 43_200_000_000_000_i64,
+            "custom_app_engagement_duration": 300.0,
+            "long_data_time_gap_thresholds": [1.0],
+            "long_usage_duration_thresholds": [1.0],
+            "same_app_stop_types": ["Activity Paused"],
+            "other_stop_types": ["Activity Resumed"],
+            "interaction_types_to_remove": [],
+            "screen_auto_lock_timeout_seconds": 120.0,
+            "screen_auto_lock_tolerance_seconds": 30.0,
+            "screen_manual_lock_max_tail_seconds": 30.0,
+            "screen_keyguard_near_stop_seconds": 2.0,
+            "datetime_of_preprocessing": "2026-07-21 12:00:00 UTC",
+        });
+        let parsed: PipelineV2OptionsJson =
+            serde_json::from_value(minimal.clone()).expect("the minimal request parses");
+
+        assert_eq!(parsed.timezone_handling, "selected-convert");
+        assert_eq!(parsed.aggregate_shape, "wide");
+        assert_eq!(parsed.compliance_threshold_percent, 70.0);
+        assert_eq!(parsed.credited_session_cap_minutes, 360.0);
+        assert_eq!(parsed.device_liveness_gap_tolerance_minutes, 120.0);
+        assert_eq!(parsed.auto_lock_bridge_seconds, 120.0);
+        assert_eq!(parsed.no_witness_min_day_apps, 2);
+        assert_eq!(parsed.proximity_interval_ns, 0);
+        assert_eq!(parsed.minimum_usage_duration, 0.0);
+        assert_eq!(parsed.materialize_visualization_data, None);
+        assert!(parsed.interaction_type_remap.is_empty());
+        for (field, on) in [
+            ("deduplicate_exact_rows", parsed.deduplicate_exact_rows),
+            ("enable_plotting", parsed.enable_plotting),
+        ] {
+            assert!(on, "{field} defaults on");
+        }
+        for (field, on) in [
+            ("use_background_apps_file", parsed.use_background_apps_file),
+            ("include_category_column", parsed.include_category_column),
+            ("model_concurrent_usage", parsed.model_concurrent_usage),
+            (
+                "apply_minimum_usage_duration_to_concurrent_subintervals",
+                parsed.apply_minimum_usage_duration_to_concurrent_subintervals,
+            ),
+            (
+                "filter_zero_duration_sessions",
+                parsed.filter_zero_duration_sessions,
+            ),
+            (
+                "add_no_activity_placeholder_days",
+                parsed.add_no_activity_placeholder_days,
+            ),
+            (
+                "enable_study_window_filter",
+                parsed.enable_study_window_filter,
+            ),
+            ("enable_person_attribution", parsed.enable_person_attribution),
+            ("enable_day_coverage", parsed.enable_day_coverage),
+            ("enable_compliance_scoring", parsed.enable_compliance_scoring),
+            (
+                "enable_screen_gated_crediting",
+                parsed.enable_screen_gated_crediting,
+            ),
+            ("enable_aggregates", parsed.enable_aggregates),
+            ("enable_activity_heatmap", parsed.enable_activity_heatmap),
+            ("export_plots_as_svg", parsed.export_plots_as_svg),
+            (
+                "enable_interactive_timeline",
+                parsed.enable_interactive_timeline,
+            ),
+            (
+                "include_filtered_app_usage_in_plots",
+                parsed.include_filtered_app_usage_in_plots,
+            ),
+        ] {
+            assert!(!on, "{field} defaults off");
+        }
+
+        for (spelling, expected) in [
+            ("no_usage", UsageSessionMode::NoUsage),
+            ("screen_usage", UsageSessionMode::ScreenUsage),
+            ("app_and_screen_usage", UsageSessionMode::AppAndScreenUsage),
+            ("app_usage", UsageSessionMode::AppUsage),
+            ("something else entirely", UsageSessionMode::AppUsage),
+        ] {
+            let mut request = minimal.clone();
+            request["usage_session_mode"] = spelling.into();
+            let options = serde_json::from_value::<PipelineV2OptionsJson>(request)
+                .expect("the request parses")
+                .into_pipeline_options();
+            assert_eq!(
+                options.usage_session_mode, expected,
+                "usage_session_mode {spelling}",
+            );
+        }
+
+        for (plotting, timeline, expected) in [
+            (false, false, false),
+            (true, false, true),
+            (false, true, true),
+            (true, true, true),
+        ] {
+            let mut request = minimal.clone();
+            request["enable_plotting"] = plotting.into();
+            request["enable_interactive_timeline"] = timeline.into();
+            let options = serde_json::from_value::<PipelineV2OptionsJson>(request)
+                .expect("the request parses")
+                .into_pipeline_options();
+            assert_eq!(
+                options.materialize_visualization_data, expected,
+                "plotting={plotting} timeline={timeline}",
+            );
+        }
+
+        let mut request = minimal;
+        request["enable_plotting"] = true.into();
+        request["materialize_visualization_data"] = false.into();
+        let options = serde_json::from_value::<PipelineV2OptionsJson>(request)
+            .expect("the request parses")
+            .into_pipeline_options();
+        assert!(
+            !options.materialize_visualization_data,
+            "an explicit materialize_visualization_data has to win over the view settings",
+        );
+    }
+
+    /// Two ways of asking the same question: which parts of the previous
+    /// step's checkpoint may be carried into this one. One compares cached
+    /// checkpoint parts on both sides, the other re-derives the previous side
+    /// from the rows themselves. Carrying a component that actually moved
+    /// publishes a digest describing values the rows no longer hold, so each
+    /// component has to be able to say no on its own — and the two ways have
+    /// to give the same answer.
+    #[test]
+    fn component_reuse_says_no_for_exactly_the_parts_that_moved() {
+        let rows = rows_from_events(&[
+            (
+                "2026-03-07 10:00:00",
+                "Activity Resumed",
+                "com.example.chat",
+            ),
+            (
+                "2026-03-07 10:01:00",
+                "Activity Paused",
+                "com.example.chat",
+            ),
+            (
+                "2026-03-07 10:02:00",
+                "Activity Resumed",
+                "com.example.video",
+            ),
+        ]);
+        let parts = row_checkpoint_parts_for_rows(&rows);
+        assert_eq!(
+            reusable_row_components_from_parts(&parts, &parts),
+            (true, true, true, true),
+            "unchanged rows share every component",
+        );
+        assert_eq!(
+            reusable_row_components_from_rows(&parts, &rows),
+            (true, true, true, true),
+            "unchanged rows share every component",
+        );
+
+        type Disturb = fn(&mut Row);
+        let cases: [(&str, Disturb, (bool, bool, bool, bool)); 3] = [
+            (
+                "identity",
+                |row| row.edit_identity().source_data_rows = SourceDataRows::single(9_999),
+                (false, false, false, false),
+            ),
+            (
+                "temporal",
+                |row| {
+                    let data = row.edit_temporal();
+                    data.duration_seconds = Some(data.duration_seconds.unwrap_or_default() + 1.0);
+                },
+                (true, true, false, true),
+            ),
+            (
+                "classification",
+                |row| row.edit_classification().application_label = "Moved".into(),
+                (true, true, true, false),
+            ),
+        ];
+        for (component, disturb, expected) in cases {
+            let mut changed = rows.clone();
+            disturb(&mut changed[0]);
+            let changed_parts = row_checkpoint_parts_for_rows(&changed);
+            assert_eq!(
+                reusable_row_components_from_parts(&changed_parts, &parts),
+                expected,
+                "a {component} change was answered wrongly from cached parts",
+            );
+            assert_eq!(
+                reusable_row_components_from_rows(&changed_parts, &rows),
+                expected,
+                "a {component} change was answered wrongly from the previous rows",
+            );
+        }
+
+        // A step that added or dropped rows shares nothing, whichever row
+        // count the two sides happen to have.
+        let shorter = rows[..rows.len() - 1].to_vec();
+        let shorter_parts = row_checkpoint_parts_for_rows(&shorter);
+        assert_eq!(
+            reusable_row_components_from_parts(&shorter_parts, &parts),
+            (false, false, false, false),
+        );
+        assert_eq!(
+            reusable_row_components_from_rows(&shorter_parts, &rows),
+            (false, false, false, false),
+        );
+        assert_eq!(
+            reusable_row_components_from_parts(&parts, &shorter_parts),
+            (false, false, false, false),
+        );
+        assert_eq!(
+            reusable_row_components_from_rows(&parts, &shorter),
+            (false, false, false, false),
+        );
     }
 
     #[test]
@@ -8923,6 +10560,248 @@ mod tests {
         assert_eq!(normalize_float_string(v), "5e-8");
     }
 
+    /// Every expectation below is the value V8 prints, produced by
+    /// `node -e "console.log((<value>).toPrecision(<p>))"`. `ecma_to_precision`
+    /// declares itself an implementation of `Number.prototype.toPrecision`, and
+    /// `normalize_float_string` renders it into researcher-facing CSV cells, so
+    /// the JS output is the specification, not an incidental detail.
+    #[test]
+    fn ecma_to_precision_matches_javascript_to_precision() {
+        let cases: &[(f64, u32, &str)] = &[
+            // Zero takes its own branch: one digit, then a padded fraction.
+            (0.0, 1, "0"),
+            (0.0, 3, "0.00"),
+            (0.0, 17, "0.0000000000000000"),
+            // exp >= 0 and exp == precision - 1: every digit sits left of the
+            // point and the integer is padded, never truncated.
+            (5.0, 1, "5"),
+            (999.999, 6, "999.999"),
+            // exp >= 0 and exp < precision - 1: the point splits the digits.
+            (1.5, 3, "1.50"),
+            (1234.5678, 6, "1234.57"),
+            (999.999, 7, "999.9990"),
+            (999.999, 17, "999.99900000000002"),
+            // -6 <= exp < 0: leading zeros before the significant digits, and
+            // 1e-6 is the last magnitude that stays in positional form.
+            (0.1, 2, "0.10"),
+            (0.3333333333333333, 3, "0.333"),
+            (0.30000000000000004, 17, "0.30000000000000004"),
+            (0.000001, 1, "0.000001"),
+            (0.000001, 15, "0.00000100000000000000"),
+            // exp >= precision: exponential form.
+            (123456789.0, 3, "1.23e+8"),
+            (1e21, 3, "1.00e+21"),
+            // exp < -6: exponential form, including three-digit exponents.
+            (5e-8, 1, "5e-8"),
+            (5e-8, 15, "5.00000000000000e-8"),
+            (5e-8, 17, "4.9999999999999998e-8"),
+            (-5e-8, 3, "-5.00e-8"),
+            (1e-7, 17, "9.9999999999999995e-8"),
+            (0.000001, 17, "9.9999999999999995e-7"),
+            (1e-100, 3, "1.00e-100"),
+            (1.2345678901234567e-9, 15, "1.23456789012346e-9"),
+            // Rounding is decided on the true binary value, not the literal:
+            // 9.95 is stored as 9.9499999..., so it rounds down.
+            (9.95, 2, "9.9"),
+            (9.95, 21, "9.94999999999999928946"),
+            (0.1, 21, "0.100000000000000005551"),
+            // Carry out of the leading digit raises the exponent and drops the
+            // digit that fell off the end.
+            (999.999, 1, "1e+3"),
+            (999.999, 2, "1.0e+3"),
+            (999.999, 3, "1.00e+3"),
+        ];
+        for (value, precision, expected) in cases {
+            assert_eq!(
+                ecma_to_precision(*value, *precision),
+                *expected,
+                "({value}).toPrecision({precision})",
+            );
+        }
+        assert_eq!(ecma_to_precision(f64::NAN, 3), "NaN");
+        assert_eq!(ecma_to_precision(f64::INFINITY, 3), "Infinity");
+        assert_eq!(ecma_to_precision(f64::NEG_INFINITY, 3), "-Infinity");
+
+        // JS accepts up to 100 significant digits. Past the digits the
+        // high-precision render supplies, the rest are zeros - checked on
+        // values that are exact in binary so the expectation is unambiguous.
+        for (value, expected) in [
+            (1.0_f64, format!("1.{}", "0".repeat(34))),
+            (0.5, format!("0.5{}", "0".repeat(34))),
+            (1024.0, format!("1024.{}", "0".repeat(31))),
+        ] {
+            assert_eq!(
+                ecma_to_precision(value, 35),
+                expected,
+                "({value}).toPrecision(35)",
+            );
+        }
+    }
+
+    /// Rows are written in timestamp order and overwhelmingly share a local
+    /// date, so the date string is memoized. The memo has to answer for the
+    /// date it was asked about: a year, month, or day change all have to miss.
+    #[test]
+    fn the_local_date_memo_answers_only_for_the_date_it_was_asked_about() {
+        let mut memo = LocalDateMemo::default();
+        for (year, month, day, expected) in [
+            (2026, 3, 7, "2026-03-07"),
+            (2026, 3, 7, "2026-03-07"),
+            (2025, 3, 7, "2025-03-07"),
+            (2025, 4, 7, "2025-04-07"),
+            (2025, 4, 8, "2025-04-08"),
+            (2026, 3, 7, "2026-03-07"),
+        ] {
+            assert_eq!(memo.date_string(year, month, day).as_str(), expected);
+        }
+    }
+
+    /// Expectations are `node -e "console.log((<value>).toExponential())"`.
+    #[test]
+    fn to_exponential_matches_javascript_to_exponential() {
+        let cases: &[(f64, &str)] = &[
+            (0.0, "0e+0"),
+            (1.0, "1e+0"),
+            (-1.0, "-1e+0"),
+            (0.5, "5e-1"),
+            (1.5, "1.5e+0"),
+            (21.625, "2.1625e+1"),
+            (123456789.0, "1.23456789e+8"),
+            (1e20, "1e+20"),
+            (1e21, "1e+21"),
+            (0.1, "1e-1"),
+            (0.30000000000000004, "3.0000000000000004e-1"),
+            (0.3333333333333333, "3.333333333333333e-1"),
+            (-0.3333333333333333, "-3.333333333333333e-1"),
+            (1234.5678, "1.2345678e+3"),
+            (999.999, "9.99999e+2"),
+            (1e-4, "1e-4"),
+            (9.9999e-5, "9.9999e-5"),
+            (1e-6, "1e-6"),
+            (9.999999e-7, "9.999999e-7"),
+            (5e-8, "5e-8"),
+            (-5e-8, "-5e-8"),
+            (1e-10, "1e-10"),
+            (1e-100, "1e-100"),
+            (1.2345678901234567e-9, "1.2345678901234566e-9"),
+        ];
+        for (value, expected) in cases {
+            assert_eq!(
+                to_exponential(*value),
+                *expected,
+                "({value}).toExponential()",
+            );
+        }
+
+        // decimal_to_exponential is the branch to_exponential takes when
+        // ryu_js chose positional form, so drive it directly across the
+        // integer/fraction boundary it has to locate.
+        assert_eq!(decimal_to_exponential("0"), "0e+0");
+        assert_eq!(decimal_to_exponential("-0.000"), "-0e+0");
+        assert_eq!(decimal_to_exponential("7"), "7e+0");
+        assert_eq!(decimal_to_exponential("70"), "7e+1");
+        assert_eq!(decimal_to_exponential("700.0"), "7e+2");
+        assert_eq!(decimal_to_exponential("1234.5678"), "1.2345678e+3");
+        assert_eq!(decimal_to_exponential("-1234.5678"), "-1.2345678e+3");
+        assert_eq!(decimal_to_exponential("0.5"), "5e-1");
+        assert_eq!(decimal_to_exponential("0.0005"), "5e-4");
+        assert_eq!(decimal_to_exponential("0.00050020"), "5.002e-4");
+    }
+
+    /// The two string rewrites `normalize_float_string` applies after
+    /// `to_exponential`, documented in place as the JS regexes
+    /// `/\.0+e/ -> "e"` and `/e([+-])0+/ -> "e$1"`.
+    #[test]
+    fn exponential_mantissa_and_exponent_are_trimmed_exactly() {
+        // Only an all-zero fraction collapses, and only the fraction.
+        assert_eq!(collapse_zero_mantissa("5.0e-8"), "5e-8");
+        assert_eq!(collapse_zero_mantissa("5.000e-8"), "5e-8");
+        assert_eq!(collapse_zero_mantissa("-1.0e-100"), "-1e-100");
+        assert_eq!(collapse_zero_mantissa("5.01e-8"), "5.01e-8");
+        assert_eq!(collapse_zero_mantissa("5.10e-8"), "5.10e-8");
+        assert_eq!(collapse_zero_mantissa("5e-8"), "5e-8");
+        // No exponent at all: the value passes through untouched, otherwise a
+        // plain decimal would lose its fraction.
+        assert_eq!(collapse_zero_mantissa("5.0"), "5.0");
+        assert_eq!(collapse_zero_mantissa("100.0"), "100.0");
+
+        // Leading zeros in the exponent go, the sign stays, and a lone zero
+        // exponent keeps one digit rather than becoming a bare sign.
+        assert_eq!(strip_exp_leading_zeros("1e-08"), "1e-8");
+        assert_eq!(strip_exp_leading_zeros("1e+05"), "1e+5");
+        assert_eq!(strip_exp_leading_zeros("1.25e-0010"), "1.25e-10");
+        assert_eq!(strip_exp_leading_zeros("1e-8"), "1e-8");
+        assert_eq!(strip_exp_leading_zeros("1e+0"), "1e+0");
+        assert_eq!(strip_exp_leading_zeros("1e-000"), "1e-0");
+        // An unsigned or absent exponent is left alone.
+        assert_eq!(strip_exp_leading_zeros("1e8"), "1e8");
+        assert_eq!(strip_exp_leading_zeros("100.0"), "100.0");
+    }
+
+    /// `normalize_float_string` is what writes a float into a CSV cell, so pin
+    /// the rendering end to end. Expectations come from the documented
+    /// JavaScript original: `parseFloat(v.toPrecision(15)).toExponential()`
+    /// with the two regex rewrites below 1e-4, and
+    /// `String(parseFloat(v.toPrecision(17)))` with a forced `.0` above it.
+    #[test]
+    fn normalize_float_string_matches_the_javascript_renderer() {
+        let cases: &[(f64, &str)] = &[
+            // At or above 1e-4: positional, and an integral value keeps a
+            // trailing ".0" so a duration column never turns into an integer.
+            (0.0, "0.0"),
+            (-0.0, "0.0"),
+            (1.0, "1.0"),
+            (-1.0, "-1.0"),
+            (60.0, "60.0"),
+            (123456789.0, "123456789.0"),
+            (1e20, "100000000000000000000.0"),
+            (1e21, "1e+21"),
+            (-1e21, "-1e+21"),
+            (0.5, "0.5"),
+            (-0.5, "-0.5"),
+            (21.625, "21.625"),
+            (1234.5678, "1234.5678"),
+            (0.001, "0.001"),
+            (1e-4, "0.0001"),
+            (-1e-4, "-0.0001"),
+            (0.0833333, "0.0833333"),
+            // toPrecision(17) keeps the seventeen significant digits that make
+            // these values distinguishable from their neighbours.
+            (0.1 + 0.2, "0.30000000000000004"),
+            (1.0 / 3.0, "0.3333333333333333"),
+            (-1.0 / 3.0, "-0.3333333333333333"),
+            (1.0 / 7.0, "0.14285714285714285"),
+            (1.0000000000000002, "1.0000000000000002"),
+            // Below 1e-4: exponential, mantissa and exponent trimmed.
+            (9.9999e-5, "9.9999e-5"),
+            (1e-5, "1e-5"),
+            (1e-7, "1e-7"),
+            (1.5e-7, "1.5e-7"),
+            (5e-8, "5e-8"),
+            (-5e-8, "-5e-8"),
+            (1e-10, "1e-10"),
+            (1.25e-10, "1.25e-10"),
+            (1e-100, "1e-100"),
+            (-1e-100, "-1e-100"),
+            (1e-323, "1e-323"),
+            (f64::from_bits(1), "5e-324"),
+            // toPrecision(15) rounds away the digits that only exist because
+            // the division was inexact.
+            (3e-6 / 60.0, "5e-8"),
+            (1.2345678901234567e-9, "1.23456789012346e-9"),
+        ];
+        for (value, expected) in cases {
+            assert_eq!(
+                normalize_float_string(*value),
+                *expected,
+                "normalize_float_string({value})",
+            );
+        }
+        assert_eq!(normalize_float_string(f64::NAN), "NaN");
+        assert_eq!(normalize_float_string(f64::INFINITY), "Infinity");
+        assert_eq!(normalize_float_string(f64::NEG_INFINITY), "-Infinity");
+    }
+
     #[test]
     fn ecma_to_fixed_half_away() {
         assert_eq!(ecma_to_fixed(0.045, 2), "0.04"); // V8 prints 0.04 because 0.045 is actually 0.0449999...
@@ -8936,9 +10815,30 @@ mod tests {
     fn allocation_free_fixed_rounding_matches_the_decimal_reference() {
         let reference = |value: f64| ecma_to_fixed(value, 2).parse::<f64>().unwrap();
         for value in [
-            -21.625, -0.045, -0.025, 0.0, 0.025, 0.045, 0.05, 0.0833333, 2.675, 21.625,
+            -21.625,
+            -0.045,
+            -0.025,
+            0.0,
+            0.025,
+            0.045,
+            0.05,
+            0.0833333,
+            2.675,
+            21.625,
+            // Values below the smallest normal f64 carry a different exponent
+            // encoding. toFixed(2) still reports them as zero, and the
+            // allocation-free path has to agree there too.
+            f64::MIN_POSITIVE,
+            -f64::MIN_POSITIVE,
+            f64::MIN_POSITIVE / 2.0,
+            f64::from_bits(1),
+            -f64::from_bits(1),
         ] {
-            assert_eq!(ecma_round_fixed_f64(value, 2), reference(value));
+            assert_eq!(
+                ecma_round_fixed_f64(value, 2),
+                reference(value),
+                "allocation-free rounding disagrees for {value:e}",
+            );
         }
 
         // Exercise the exact nanosecond values immediately around every
@@ -8964,6 +10864,25 @@ mod tests {
             let value = delta_ns as f64 / 3_600_000_000_000.0;
             assert_eq!(ecma_round_fixed_f64(value, 2), reference(value));
         }
+
+        // JS `toFixed` hands these back untouched rather than rounding them.
+        assert!(ecma_round_fixed_f64(f64::NAN, 2).is_nan());
+        assert_eq!(ecma_round_fixed_f64(f64::INFINITY, 2), f64::INFINITY);
+        assert_eq!(
+            ecma_round_fixed_f64(f64::NEG_INFINITY, 2),
+            f64::NEG_INFINITY,
+        );
+        for huge in [1e21, -1e21, 1e300] {
+            assert_eq!(ecma_round_fixed_f64(huge, 2), huge);
+        }
+
+        // A subnormal has no implicit leading mantissa bit and a fixed
+        // exponent, and sits far below any scale a caller asks for, so it
+        // rounds to zero at both a small and a large number of digits.
+        let smallest = f64::from_bits(1);
+        assert_eq!(ecma_round_fixed_f64(smallest, 2), 0.0);
+        assert_eq!(ecma_round_fixed_f64(smallest, 20), 0.0);
+        assert_eq!(ecma_round_fixed_f64(-smallest, 20), 0.0);
     }
 
     #[test]
@@ -8971,6 +10890,1957 @@ mod tests {
         let v: f64 = 5.0000000000000004e-8;
         let p = round_to_precision(v, 15);
         assert_eq!(p, 5e-8);
+    }
+
+    /// Build real canonical rows from raw events, so tests operate on the same
+    /// values the pipeline does rather than on hand-assembled structs.
+    pub(super) fn rows_from_events(events: &[(&str, &str, &str)]) -> Vec<Row> {
+        let mut csv = String::from(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+        );
+        for (timestamp, interaction, package) in events {
+            csv.push_str(&format!(
+                "Study,P01,Target Child,Label,{interaction},{package},{timestamp},America/Chicago\n"
+            ));
+        }
+        let raw = incremental::csv_parse(csv.as_bytes());
+        incremental::build_canonical_rows(&raw, "America/Chicago", &BTreeMap::new(), "test-device")
+            .expect("canonical rows")
+    }
+
+    /// `duplicateTimestampsCorrected` in the review summary is this count: how
+    /// many rows had to be moved because they shared a timestamp with an
+    /// earlier row. Each tied group of n rows contributes n - 1.
+    #[test]
+    fn duplicate_timestamp_counting_reports_every_extra_row_in_a_tied_group() {
+        let count = |timestamps: &[&str]| {
+            let events: Vec<(&str, &str, &str)> = timestamps
+                .iter()
+                .map(|timestamp| (*timestamp, "Activity Resumed", "com.example.chat"))
+                .collect();
+            count_duplicate_groups(&rows_from_events(&events))
+        };
+        assert_eq!(count(&[]), 0);
+        assert_eq!(count(&["2026-03-07 10:00:00"]), 0);
+        assert_eq!(count(&["2026-03-07 10:00:00", "2026-03-07 10:00:01"]), 0);
+        assert_eq!(count(&["2026-03-07 10:00:00", "2026-03-07 10:00:00"]), 1);
+        assert_eq!(
+            count(&[
+                "2026-03-07 10:00:00",
+                "2026-03-07 10:00:00",
+                "2026-03-07 10:00:00"
+            ]),
+            2
+        );
+        // A group in the middle and a group that runs to the end of the file
+        // both count; the trailing group is handled after the loop, so it needs
+        // its own case.
+        assert_eq!(
+            count(&[
+                "2026-03-07 10:00:00",
+                "2026-03-07 10:00:00",
+                "2026-03-07 10:00:01",
+                "2026-03-07 10:00:02",
+                "2026-03-07 10:00:02",
+                "2026-03-07 10:00:02"
+            ]),
+            3
+        );
+        assert_eq!(
+            count(&[
+                "2026-03-07 10:00:00",
+                "2026-03-07 10:00:01",
+                "2026-03-07 10:00:01"
+            ]),
+            1
+        );
+    }
+
+    /// Chronicle exports several events on the same second, and the matcher
+    /// pairs events in timestamp order, so a tie has to be broken the same way
+    /// every run: the start of a usage episode first, ordinary events next, and
+    /// the events that can close an episode last. The nudged rows are placed
+    /// one microsecond apart immediately before the shared timestamp, so no
+    /// nudged row can overtake an event that genuinely came earlier.
+    #[test]
+    fn duplicate_timestamps_are_nudged_apart_with_resumed_first_and_stops_last() {
+        let same_app_stop_types = vec!["Activity Paused".to_string()];
+        let other_stop_types = vec!["Device Shutdown".to_string()];
+        let shared = parse_chronicle_timestamp_ns("2026-03-07 16:00:00")
+            .expect("the fixture timestamp parses");
+
+        let nudged = unalign_duplicate_timestamps(
+            rows_from_events(&[
+                ("2026-03-07 10:00:00", "Activity Paused", "com.example.chat"),
+                ("2026-03-07 10:00:00", "User Interaction", "com.example.chat"),
+                ("2026-03-07 10:00:00", "Activity Resumed", "com.example.chat"),
+            ]),
+            &same_app_stop_types,
+            &other_stop_types,
+        );
+        let observed: Vec<(&str, i64)> = nudged
+            .iter()
+            .map(|row| (row.interaction_type.as_str(), row.event_timestamp_ns))
+            .collect();
+        let base = parse_chronicle_timestamp_ns("2026-03-07 10:00:00").expect("fixture timestamp");
+        assert_eq!(
+            observed,
+            vec![
+                ("Activity Resumed", base - 3_000),
+                ("User Interaction", base - 2_000),
+                ("Activity Paused", base - 1_000),
+            ]
+        );
+
+        // Ties among equal-priority events keep file order, so a re-run of the
+        // same export produces the same episodes.
+        let stable = unalign_duplicate_timestamps(
+            rows_from_events(&[
+                ("2026-03-07 16:00:00", "User Interaction", "com.example.a"),
+                ("2026-03-07 16:00:00", "User Interaction", "com.example.b"),
+            ]),
+            &same_app_stop_types,
+            &other_stop_types,
+        );
+        assert_eq!(
+            stable
+                .iter()
+                .map(|row| (row.app_package_name.as_str(), row.event_timestamp_ns))
+                .collect::<Vec<_>>(),
+            vec![
+                ("com.example.a", shared - 2_000),
+                ("com.example.b", shared - 1_000),
+            ]
+        );
+
+        // Both stop lists feed one priority class, and the alternate spelling
+        // of Screen Non-Interactive is normalized before the lookup.
+        let mixed = unalign_duplicate_timestamps(
+            rows_from_events(&[
+                ("2026-03-07 16:00:00", "Device Shutdown", "com.example.chat"),
+                (
+                    "2026-03-07 16:00:00",
+                    "Screen Non-interactive",
+                    "com.example.chat",
+                ),
+                ("2026-03-07 16:00:00", "Activity Paused", "com.example.chat"),
+            ]),
+            &same_app_stop_types,
+            &vec![
+                "Device Shutdown".to_string(),
+                "Screen Non-Interactive".to_string(),
+            ],
+        );
+        assert_eq!(
+            mixed
+                .iter()
+                .map(|row| row.interaction_type.as_str())
+                .collect::<Vec<_>>(),
+            vec!["Device Shutdown", "Screen Non-interactive", "Activity Paused"],
+            "every stop spelling shares one priority, so file order decides"
+        );
+
+        // Rows that are already distinct are returned untouched: the pipeline
+        // must not shift timestamps it did not need to shift.
+        let untouched = rows_from_events(&[
+            ("2026-03-07 10:00:00", "Activity Resumed", "com.example.chat"),
+            ("2026-03-07 10:00:01", "Activity Paused", "com.example.chat"),
+        ]);
+        let expected: Vec<i64> = untouched
+            .iter()
+            .map(|row| row.event_timestamp_ns)
+            .collect();
+        let unchanged =
+            unalign_duplicate_timestamps(untouched, &same_app_stop_types, &other_stop_types);
+        assert_eq!(
+            unchanged
+                .iter()
+                .map(|row| row.event_timestamp_ns)
+                .collect::<Vec<_>>(),
+            expected
+        );
+
+        // A single row, and no rows at all, take the early return.
+        assert_eq!(
+            unalign_duplicate_timestamps(Vec::new(), &same_app_stop_types, &other_stop_types).len(),
+            0
+        );
+        assert_eq!(
+            unalign_duplicate_timestamps(
+                rows_from_events(&[(
+                    "2026-03-07 10:00:00",
+                    "Activity Resumed",
+                    "com.example.chat"
+                )]),
+                &same_app_stop_types,
+                &other_stop_types,
+            )[0]
+            .event_timestamp_ns,
+            parse_chronicle_timestamp_ns("2026-03-07 10:00:00").expect("fixture timestamp")
+        );
+    }
+
+    /// Every screen session carries an end reason and a confidence into the
+    /// screen-usage CSV, and the ladder that assigns them is the only
+    /// explanation a researcher gets for why a session ended when it did.
+    #[test]
+    fn screen_sessions_are_classified_by_the_documented_end_reason_ladder() {
+        fn classify(
+            events: &[(&str, &str, &str)],
+            apps_forcing: &[(&str, &str)],
+        ) -> Vec<(String, f64, u8, Option<f64>)> {
+            let rows = rows_from_events(events);
+            let closes = incremental::walk_screen_state_machine(&rows);
+            let keyguard = incremental::collect_keyguard_timestamps(&rows);
+            let forcing: HashMap<String, String> = apps_forcing
+                .iter()
+                .map(|(package, label)| (package.to_string(), label.to_string()))
+                .collect();
+            incremental::build_classified_sessions(
+                &rows,
+                &closes,
+                &keyguard,
+                &forcing,
+                incremental::ScreenClassificationSettings {
+                    auto_lock_timeout_seconds: 120.0,
+                    auto_lock_tolerance_seconds: 30.0,
+                    manual_lock_max_tail_seconds: 30.0,
+                    keyguard_near_stop_seconds: 2.0,
+                },
+            )
+            .iter()
+            .map(|session| {
+                (
+                    session
+                        .screen_usage_end_reason
+                        .as_ref()
+                        .map(|reason| reason.to_string())
+                        .unwrap_or_default(),
+                    session.screen_usage_end_reason_confidence.unwrap_or(-1.0),
+                    session.screen_usage_lock_screen_only.unwrap_or(255),
+                    session.screen_usage_tail_gap_seconds,
+                )
+            })
+            .collect()
+        }
+
+        // The screen never went off before the export ended: there is no stop
+        // event to explain, and the session has no duration.
+        assert_eq!(
+            classify(
+                &[
+                    ("2026-03-07 10:00:00", "Screen Interactive", ""),
+                    ("2026-03-07 10:00:01", "Activity Resumed", "com.example.chat"),
+                ],
+                &[]
+            ),
+            vec![("missing_stop".to_string(), 1.0, 0, None)]
+        );
+
+        // Woken straight into the lock screen and never unlocked: no app was
+        // ever in the foreground, so this is not real screen usage.
+        assert_eq!(
+            classify(
+                &[
+                    (
+                        "2026-03-07 10:00:00",
+                        "Screen Interactive/Keyguard Shown",
+                        ""
+                    ),
+                    ("2026-03-07 10:00:10", "Screen Non-Interactive", ""),
+                ],
+                &[]
+            ),
+            vec![("lock_screen_only".to_string(), 0.95, 1, None)]
+        );
+
+        // A video app on the forces-screen-open list held the screen awake far
+        // past the auto-lock timeout.
+        assert_eq!(
+            classify(
+                &[
+                    ("2026-03-07 10:00:00", "Screen Interactive", ""),
+                    (
+                        "2026-03-07 10:00:01",
+                        "Activity Resumed",
+                        "com.example.video"
+                    ),
+                    ("2026-03-07 10:05:00", "Screen Non-Interactive", ""),
+                ],
+                &[("com.example.video", "video")]
+            ),
+            vec![(
+                "app_kept_awake_or_extended".to_string(),
+                0.9,
+                0,
+                Some(299.0)
+            )]
+        );
+
+        // A forcing app that let the screen go at exactly the auto-lock timeout
+        // did not keep it awake: the timeout is where an ordinary auto-lock
+        // lands, so only a tail past it is evidence the app extended anything.
+        assert_eq!(
+            classify(
+                &[
+                    ("2026-03-07 10:00:00", "Screen Interactive", ""),
+                    (
+                        "2026-03-07 10:00:01",
+                        "Activity Resumed",
+                        "com.example.video"
+                    ),
+                    ("2026-03-07 10:02:01", "Screen Non-Interactive", ""),
+                ],
+                &[("com.example.video", "video")]
+            ),
+            vec![("probable_auto_lock".to_string(), 0.9, 0, Some(120.0))]
+        );
+
+        // The screen went off within the manual-lock tail, so the person almost
+        // certainly pressed the button.
+        assert_eq!(
+            classify(
+                &[
+                    ("2026-03-07 10:00:00", "Screen Interactive", ""),
+                    ("2026-03-07 10:00:01", "Activity Resumed", "com.example.chat"),
+                    ("2026-03-07 10:00:11", "Screen Non-Interactive", ""),
+                ],
+                &[]
+            ),
+            vec![("probable_manual_lock".to_string(), 0.85, 0, Some(10.0))]
+        );
+        // The manual-lock tail is inclusive at its edge.
+        assert_eq!(
+            classify(
+                &[
+                    ("2026-03-07 10:00:00", "Screen Interactive", ""),
+                    ("2026-03-07 10:00:01", "Activity Resumed", "com.example.chat"),
+                    ("2026-03-07 10:00:31", "Screen Non-Interactive", ""),
+                ],
+                &[]
+            ),
+            vec![("probable_manual_lock".to_string(), 0.85, 0, Some(30.0))]
+        );
+
+        // Idle for about the auto-lock timeout, inside the tolerance.
+        for (stop, gap) in [
+            ("2026-03-07 10:02:01", 120.0),
+            ("2026-03-07 10:01:31", 90.0),
+            ("2026-03-07 10:02:31", 150.0),
+        ] {
+            assert_eq!(
+                classify(
+                    &[
+                        ("2026-03-07 10:00:00", "Screen Interactive", ""),
+                        ("2026-03-07 10:00:01", "Activity Resumed", "com.example.chat"),
+                        (stop, "Screen Non-Interactive", ""),
+                    ],
+                    &[]
+                ),
+                vec![("probable_auto_lock".to_string(), 0.9, 0, Some(gap))],
+                "a {gap}s tail is within the auto-lock tolerance"
+            );
+        }
+
+        // One second past the tolerance there is no explanation left except a
+        // long idle.
+        assert_eq!(
+            classify(
+                &[
+                    ("2026-03-07 10:00:00", "Screen Interactive", ""),
+                    ("2026-03-07 10:00:01", "Activity Resumed", "com.example.chat"),
+                    ("2026-03-07 10:02:32", "Screen Non-Interactive", ""),
+                ],
+                &[]
+            ),
+            vec![("extended_idle_or_unknown".to_string(), 0.5, 0, Some(151.0))]
+        );
+
+        // A long tail, but the keyguard appeared right before the screen went
+        // off, so the lock is still the better explanation - at lower
+        // confidence than an observed short tail.
+        assert_eq!(
+            classify(
+                &[
+                    ("2026-03-07 10:00:00", "Screen Interactive", ""),
+                    ("2026-03-07 10:00:01", "Activity Resumed", "com.example.chat"),
+                    ("2026-03-07 10:03:20", "Keyguard Shown", ""),
+                    ("2026-03-07 10:03:21", "Screen Non-Interactive", ""),
+                ],
+                &[]
+            ),
+            vec![("probable_manual_lock".to_string(), 0.7, 0, Some(200.0))]
+        );
+        // Three seconds is outside the keyguard window.
+        assert_eq!(
+            classify(
+                &[
+                    ("2026-03-07 10:00:00", "Screen Interactive", ""),
+                    ("2026-03-07 10:00:01", "Activity Resumed", "com.example.chat"),
+                    ("2026-03-07 10:03:18", "Keyguard Shown", ""),
+                    ("2026-03-07 10:03:21", "Screen Non-Interactive", ""),
+                ],
+                &[]
+            ),
+            vec![(
+                "extended_idle_or_unknown".to_string(),
+                0.5,
+                0,
+                Some(200.0)
+            )]
+        );
+
+        // The screen went on and off with nothing in between, so there is no
+        // last activity to measure a tail from.
+        assert_eq!(
+            classify(
+                &[
+                    ("2026-03-07 10:00:00", "Screen Interactive", ""),
+                    ("2026-03-07 10:00:10", "Screen Non-Interactive", ""),
+                ],
+                &[]
+            ),
+            vec![("unknown".to_string(), 0.25, 0, None)]
+        );
+    }
+
+    /// The classified session is a synthetic row: it takes its identity from
+    /// the screen-on event, its span from the state machine, and it must not
+    /// carry the app fields of the row it was cloned from.
+    #[test]
+    fn a_classified_screen_session_reports_its_own_span_and_foreground_app() {
+        let rows = rows_from_events(&[
+            ("2026-03-07 10:00:00", "Screen Interactive", ""),
+            ("2026-03-07 10:00:30", "Activity Resumed", "com.example.chat"),
+            ("2026-03-07 10:00:50", "Screen Non-Interactive", ""),
+        ]);
+        let closes = incremental::walk_screen_state_machine(&rows);
+        let keyguard = incremental::collect_keyguard_timestamps(&rows);
+        let sessions = incremental::build_classified_sessions(
+            &rows,
+            &closes,
+            &keyguard,
+            &HashMap::new(),
+            incremental::ScreenClassificationSettings {
+                auto_lock_timeout_seconds: 120.0,
+                auto_lock_tolerance_seconds: 30.0,
+                manual_lock_max_tail_seconds: 30.0,
+                keyguard_near_stop_seconds: 2.0,
+            },
+        );
+        assert_eq!(sessions.len(), 1);
+        let session = &sessions[0];
+        let start = parse_chronicle_timestamp_ns("2026-03-07 10:00:00").expect("fixture timestamp");
+        let stop = parse_chronicle_timestamp_ns("2026-03-07 10:00:50").expect("fixture timestamp");
+        assert_eq!(session.interaction_type.as_str(), SCREEN_USAGE);
+        assert_eq!(session.event_timestamp_ns, start);
+        assert_eq!(session.start_timestamp_ns, Some(start));
+        assert_eq!(session.stop_timestamp_ns, Some(stop));
+        assert_eq!(session.duration_seconds, Some(50.0));
+        assert_eq!(session.duration_minutes, Some(50.0 / 60.0));
+        assert_eq!(session.data_time_gap_hours, 0.0);
+        assert!(session.application_label.is_empty());
+        assert_eq!(session.app_package_name.as_str(), "com.example.chat");
+        assert_eq!(
+            session
+                .screen_usage_foreground_app_package
+                .as_ref()
+                .map(|package| package.to_string()),
+            Some("com.example.chat".to_string())
+        );
+        assert_eq!(
+            session
+                .screen_usage_stop_event_type
+                .as_ref()
+                .map(|value| value.to_string()),
+            Some("Screen Non-Interactive".to_string())
+        );
+        assert_eq!(
+            session.screen_usage_last_activity_timestamp_ns,
+            Some(parse_chronicle_timestamp_ns("2026-03-07 10:00:30").expect("fixture timestamp"))
+        );
+        // The synthetic row is pushed past every raw row so ordering is stable.
+        assert_eq!(session.index, rows[0].index + 1_000_000);
+    }
+
+    /// Build usage rows for the analysis stages, which read only the
+    /// participant, date, username, interaction type and duration.
+    fn usage_rows(rows: &[(&str, &str, &str, &str, Option<f64>)]) -> Vec<Row> {
+        let mut built = rows_from_events(
+            &rows
+                .iter()
+                .enumerate()
+                .map(|(index, _)| {
+                    (
+                        [
+                            "2026-03-07 10:00:00",
+                            "2026-03-07 10:01:00",
+                            "2026-03-07 10:02:00",
+                            "2026-03-07 10:03:00",
+                            "2026-03-07 10:04:00",
+                            "2026-03-07 10:05:00",
+                            "2026-03-07 10:06:00",
+                            "2026-03-07 10:07:00",
+                        ][index],
+                        "Activity Resumed",
+                        "com.example.chat",
+                    )
+                })
+                .collect::<Vec<_>>(),
+        );
+        for (row, (participant, date, username, interaction, minutes)) in built.iter_mut().zip(rows)
+        {
+            let data = row.edit_all();
+            data.participant_id = (*participant).into();
+            data.date = (*date).into();
+            data.username = (*username).into();
+            data.interaction_type = (*interaction).into();
+            data.duration_minutes = *minutes;
+        }
+        built
+    }
+
+    /// Split a written CSV into rows of fields, honouring RFC 4180 quoting so a
+    /// value that legitimately contains a comma is not counted as two fields.
+    fn csv_lines(bytes: &[u8]) -> Vec<Vec<String>> {
+        let text = String::from_utf8(bytes.to_vec()).expect("csv output is utf-8");
+        text.lines()
+            .map(|line| {
+                let mut fields = vec![String::new()];
+                let mut quoted = false;
+                let mut characters = line.chars().peekable();
+                while let Some(character) = characters.next() {
+                    match character {
+                        '"' if quoted && characters.peek() == Some(&'"') => {
+                            characters.next();
+                            fields.last_mut().expect("a field is open").push('"');
+                        }
+                        '"' => quoted = !quoted,
+                        ',' if !quoted => fields.push(String::new()),
+                        _ => fields.last_mut().expect("a field is open").push(character),
+                    }
+                }
+                fields
+            })
+            .collect()
+    }
+
+    fn app_csv_rows() -> Vec<Row> {
+        let mut rows = rows_from_events(&[
+            (
+                "2026-03-07 10:00:00",
+                "Activity Resumed",
+                "com.example.chat",
+            ),
+            (
+                "2026-03-07 10:05:00",
+                "Activity Resumed",
+                "com.example.video",
+            ),
+        ]);
+        for row in rows.iter_mut() {
+            let data = row.edit_all();
+            data.interaction_type = APP_USAGE.into();
+            data.start_timestamp_ns = Some(0);
+            data.stop_timestamp_ns = Some(60_000_000_000);
+            data.duration_seconds = Some(60.0);
+            data.duration_minutes = Some(1.0);
+            data.usage_layer = Some("primary".into());
+            data.genre_id_scraped = Some("Social".into());
+            data.broad_app_category = Some("COMMUNICATION".into());
+            data.codebook_fields = Arc::new(
+                (0..CODEBOOK_RENAME_PAIRS.len())
+                    .map(|index| Some(format!("field{index}")))
+                    .collect(),
+            );
+        }
+        rows
+    }
+
+    /// A reader lines an exported row up against the header by position. The
+    /// header and the row body are built in two different places from the same
+    /// options, so an option that adds or removes a column has to move both or
+    /// every column after it shifts. This walks the options that change the
+    /// column set and checks the header against the declared contract and every
+    /// row against the header.
+    #[test]
+    fn app_and_screen_csv_rows_line_up_with_their_declared_header() {
+        let rows = app_csv_rows();
+        for use_app_codebook in [false, true] {
+            for include_aliases in [false, true] {
+                for model_concurrent_usage in [false, true] {
+                    for use_background_apps_file in [false, true] {
+                        let mut opts = test_options();
+                        opts.use_app_codebook = use_app_codebook;
+                        opts.model_concurrent_usage = model_concurrent_usage;
+                        opts.use_background_apps_file = use_background_apps_file;
+                        let label = format!(
+                            "codebook={use_app_codebook} aliases={include_aliases} \
+                             concurrent={model_concurrent_usage} \
+                             background={use_background_apps_file}"
+                        );
+
+                        let written = write_app_csv_from_iter(
+                            rows.iter(),
+                            rows.len(),
+                            &opts,
+                            include_aliases,
+                        );
+                        let lines = csv_lines(&written);
+                        let declared = declared_app_output_columns(
+                            use_app_codebook,
+                            include_aliases,
+                            model_concurrent_usage || use_background_apps_file,
+                            opts.custom_app_engagement_duration,
+                        );
+                        assert_eq!(lines[0], declared, "app header for {label}");
+                        assert_eq!(lines.len(), rows.len() + 1, "app row count for {label}");
+                        for (index, line) in lines.iter().enumerate().skip(1) {
+                            assert_eq!(
+                                line.len(),
+                                declared.len(),
+                                "app row {index} field count for {label}",
+                            );
+                        }
+
+                        let written = write_screen_csv(&rows, &opts);
+                        let lines = csv_lines(&written);
+                        assert_eq!(
+                            lines[0],
+                            declared_screen_output_columns(),
+                            "screen header for {label}",
+                        );
+                        assert_eq!(lines.len(), rows.len() + 1, "screen row count for {label}");
+                        for (index, line) in lines.iter().enumerate().skip(1) {
+                            assert_eq!(
+                                line.len(),
+                                lines[0].len(),
+                                "screen row {index} field count for {label}",
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Two things a row carries on its own, rather than taking from the run's
+    /// settings: the timezone its timestamps are rendered in, and whether its
+    /// genre columns were collapsed. A row keeps its own recorded timezone even
+    /// when the run selected a different one, and the four collapsed-genre
+    /// columns are blanked only on rows that actually had them collapsed.
+    #[test]
+    fn exported_rows_use_their_own_timezone_and_collapse_only_where_marked() {
+        let mut rows = app_csv_rows();
+        // The same instant in two zones, so the exported local timestamps can
+        // only differ if each row is rendered in its own timezone.
+        let instant = rows[0].event_timestamp_ns;
+        rows[0].edit_all().timezone = "UTC".into();
+        let collapsed = {
+            let data = rows[1].edit_all();
+            data.timezone = "America/New_York".into();
+            data.event_timestamp_ns = instant;
+            data.codebook_genre_fields_cleared = true;
+            true
+        };
+        assert!(collapsed);
+
+        let mut opts = test_options();
+        opts.timezone = "UTC".into();
+        opts.use_app_codebook = true;
+        let written = write_app_csv_from_iter(rows.iter(), rows.len(), &opts, false);
+        let lines = csv_lines(&written);
+        let column = |name: &str| {
+            lines[0]
+                .iter()
+                .position(|header| header == name)
+                .unwrap_or_else(|| panic!("{name} is not an exported column"))
+        };
+
+        let timestamp = column("event_timestamp");
+        assert_ne!(
+            lines[1][timestamp], lines[2][timestamp],
+            "two rows recorded at the same instant in different timezones \
+             rendered the same local timestamp",
+        );
+        assert_eq!(lines[1][column("timezone")], "UTC");
+        assert_eq!(lines[2][column("timezone")], "America/New_York");
+
+        for (index, (_, exported)) in CODEBOOK_RENAME_PAIRS.iter().enumerate() {
+            let value = column(exported);
+            assert_eq!(
+                lines[1][value],
+                format!("field{index}"),
+                "a row with no collapsed genre columns lost {exported}",
+            );
+            let expected = if COLLAPSED_GENRE_FIELD_INDICES.contains(&index) {
+                String::new()
+            } else {
+                format!("field{index}")
+            };
+            assert_eq!(
+                lines[2][value], expected,
+                "a row with collapsed genre columns exported {exported} wrongly",
+            );
+        }
+
+        // The screen export is a separate writer carrying the same per-row
+        // timezone rule, so the same two rows are checked through it.
+        let screen = csv_lines(&write_screen_csv(&rows, &opts));
+        let screen_timestamp = screen[0]
+            .iter()
+            .position(|header| header == "event_timestamp")
+            .expect("event_timestamp is a screen column");
+        assert_ne!(
+            screen[1][screen_timestamp], screen[2][screen_timestamp],
+            "the screen export rendered two timezones as the same local timestamp",
+        );
+    }
+
+    /// Screen-gated crediting can only witness a device that reports both
+    /// screen states: with one alone there is no way to tell a lit screen from
+    /// a dark one, so the participant has no usable witness and falls to the
+    /// no-witness rules instead of being credited from a half-signal.
+    #[test]
+    fn screen_credit_capability_needs_both_screen_states() {
+        let capable = |kinds: &[&str]| {
+            let stamps = [
+                "2026-03-07 10:00:00",
+                "2026-03-07 10:01:00",
+                "2026-03-07 10:02:00",
+            ];
+            let events: Vec<(&str, &str, &str)> = kinds
+                .iter()
+                .enumerate()
+                .map(|(index, kind)| (stamps[index], *kind, "com.example.chat"))
+                .collect();
+            let rows = rows_from_events(&events);
+            build_screen_credit_substrate(&rows)
+                .expect("screen credit substrate")
+                .capable
+                .contains("P01")
+        };
+        assert!(capable(&["Screen Interactive", "Screen Non-Interactive"]));
+        assert!(!capable(&["Screen Interactive", "Screen Interactive"]));
+        assert!(!capable(&[
+            "Screen Non-Interactive",
+            "Screen Non-Interactive",
+        ]));
+        assert!(!capable(&["Activity Resumed", "Activity Paused"]));
+    }
+
+    /// A filtered app-usage row keeps its label but must not keep its timing:
+    /// a start, stop, or duration left behind would let a filtered row be
+    /// counted as usage downstream. Any one of the four fields being present is
+    /// enough to require the clear, and an unfiltered row keeps everything.
+    #[test]
+    fn filtered_app_usage_rows_lose_every_timing_field() {
+        type Timing = (Option<i64>, Option<i64>, Option<f64>, Option<f64>);
+        const EMPTY: Timing = (None, None, None, None);
+
+        let base = rows_from_events(&[(
+            "2026-03-07 10:00:00",
+            "Activity Resumed",
+            "com.example.chat",
+        )]);
+        let timing = |row: &Row| {
+            (
+                row.start_timestamp_ns,
+                row.stop_timestamp_ns,
+                row.duration_seconds,
+                row.duration_minutes,
+            )
+        };
+        let build = |interaction: &str, fields: Timing| {
+            let mut row = base[0].clone();
+            let data = row.edit_all();
+            data.interaction_type = interaction.into();
+            data.start_timestamp_ns = fields.0;
+            data.stop_timestamp_ns = fields.1;
+            data.duration_seconds = fields.2;
+            data.duration_minutes = fields.3;
+            row
+        };
+
+        for present in [
+            (Some(1), None, None, None),
+            (None, Some(2), None, None),
+            (None, None, Some(3.0), None),
+            (None, None, None, Some(4.0)),
+            (Some(1), Some(2), Some(3.0), Some(4.0)),
+        ] {
+            let mut rows = vec![
+                build(FILTERED_APP_USAGE, present),
+                build(APP_USAGE, present),
+            ];
+            clear_filtered_usage_timing(&mut rows);
+            assert_eq!(timing(&rows[0]), EMPTY, "filtered timing survived {present:?}");
+            assert_eq!(
+                timing(&rows[1]),
+                present,
+                "an unfiltered row lost its timing",
+            );
+        }
+
+        // The review pass folds the same clear into the single walk that also
+        // fills the engagement columns, so both effects are checked together.
+        let mut second = build(
+            APP_USAGE,
+            (
+                Some(7_200_000_000_000),
+                Some(7_260_000_000_000),
+                Some(60.0),
+                Some(1.0),
+            ),
+        );
+        second.edit_all().app_package_name = "com.example.other".into();
+        let mut rows = vec![
+            build(
+                APP_USAGE,
+                (Some(0), Some(3_600_000_000_000), Some(3600.0), Some(60.0)),
+            ),
+            build(FILTERED_APP_USAGE, (Some(1), Some(2), Some(3.0), Some(4.0))),
+            second,
+        ];
+        apply_review_annotations_one_pass(&mut rows, 300.0, &[1.0], &[0.5]);
+        assert_eq!(timing(&rows[1]), EMPTY, "the review pass skipped the clear");
+        assert_eq!(
+            rows[0].any_app_usage_flags.as_str(),
+            "['>0.5-HR APP USAGE']",
+            "the review pass skipped the usage flags",
+        );
+        assert_eq!(
+            rows[2].any_app_switched_app, 1,
+            "the review pass skipped the engagement columns",
+        );
+    }
+
+    /// A day with raw events but no app usage gets one "No Activity"
+    /// placeholder built from that day's first raw event, so the day is
+    /// visible without inventing usage. The placeholder is emitted after any
+    /// real row recorded at the same instant.
+    #[test]
+    fn no_activity_placeholders_come_from_the_first_raw_event_of_a_silent_day() {
+        let raw = rows_from_events(&[
+            // 2026-03-07 has usage, so it gets no placeholder.
+            (
+                "2026-03-07 09:00:00",
+                "Activity Resumed",
+                "com.example.chat",
+            ),
+            // 2026-03-08 is silent. Its first event is the tie at 08:00:00,
+            // and the placeholder must be built from the earlier-listed row.
+            (
+                "2026-03-08 08:00:00",
+                "Activity Resumed",
+                "com.example.first",
+            ),
+            (
+                "2026-03-08 08:00:00",
+                "Activity Resumed",
+                "com.example.tie",
+            ),
+            (
+                "2026-03-08 09:00:00",
+                "Activity Resumed",
+                "com.example.later",
+            ),
+        ]);
+        let mut app_rows = vec![raw[0].clone(), raw[1].clone()];
+        {
+            let data = app_rows[0].edit_all();
+            data.interaction_type = APP_USAGE.into();
+        }
+        {
+            // A filtered row does not make 2026-03-08 a usage day, but it is a
+            // real row sharing the placeholder's instant.
+            let data = app_rows[1].edit_all();
+            data.interaction_type = FILTERED_APP_USAGE.into();
+        }
+
+        let result = add_no_activity_placeholder_rows(app_rows, &raw);
+        let placeholders = result
+            .iter()
+            .filter(|row| row.app_package_name.as_str() == "com.placeholder.noactivity")
+            .collect::<Vec<_>>();
+        assert_eq!(placeholders.len(), 1, "exactly one silent day needs a placeholder");
+        let placeholder = placeholders[0];
+        assert_eq!(placeholder.date.as_str(), "2026-03-08");
+        assert_eq!(placeholder.application_label.as_str(), "No Activity");
+        assert_eq!(placeholder.interaction_type.as_str(), APP_USAGE);
+        assert_eq!(placeholder.duration_minutes, Some(0.0));
+        assert_eq!(
+            placeholder.event_timestamp_ns, raw[1].event_timestamp_ns,
+            "the placeholder must copy the day's first raw event",
+        );
+        assert_eq!(
+            placeholder.index,
+            raw[1].index + 2_000_000,
+            "a tie at the first instant keeps the earlier row, and the \
+             placeholder's index is pushed past every real row",
+        );
+
+        let position = |package: &str| {
+            result
+                .iter()
+                .position(|row| row.app_package_name.as_str() == package)
+                .unwrap_or_else(|| panic!("{package} is not in the output"))
+        };
+        assert!(
+            position("com.example.first") < position("com.placeholder.noactivity"),
+            "the placeholder displaced a real row recorded at the same instant",
+        );
+    }
+
+    /// Four codebook columns can each carry a genre and they collapse into the
+    /// one derived `genre_id_scraped`: agreement keeps that genre and marks the
+    /// source columns as consumed so the export blanks them, disagreement means
+    /// no genre at all, and a row with nothing to collapse is Unknown. The
+    /// collapse runs over rows that may already carry an answer from an earlier
+    /// pass, so it also has to correct a stale one rather than leave it.
+    #[test]
+    fn genre_columns_collapse_to_one_answer_and_correct_a_stale_one() {
+        let indices = [
+            codebook_col_index("babyemu_genreId_scraped").expect("scraped genre column"),
+            codebook_col_index("babyemu_genreId_manual").expect("manual genre column"),
+            codebook_col_index("bcm_play_store_genreId").expect("play store genre column"),
+            codebook_col_index("usc_genreId").expect("usc genre column"),
+        ];
+        let collapse = |values: [Option<&str>; 4], genre: Option<&str>, cleared: bool| {
+            let mut row = app_csv_rows().remove(0);
+            {
+                let data = row.edit_all();
+                let mut fields = vec![None; CODEBOOK_RENAME_PAIRS.len()];
+                for (slot, value) in indices.iter().zip(values) {
+                    fields[*slot] = value.map(str::to_owned);
+                }
+                data.codebook_fields = Arc::new(fields);
+                data.genre_id_scraped = genre.map(SharedString::from);
+                data.codebook_genre_fields_cleared = cleared;
+            }
+            collapse_genre_row(&mut row, indices);
+            (
+                row.genre_id_scraped
+                    .as_ref()
+                    .map(|genre| genre.as_str().to_owned()),
+                row.codebook_genre_fields_cleared,
+            )
+        };
+
+        let cases: &[([Option<&str>; 4], Option<&str>, bool, Option<&str>, bool)] = &[
+            // (columns, genre before, cleared before, genre after, cleared after)
+            ([None, None, None, None], None, false, Some("Unknown"), false),
+            ([Some(" "), None, Some(""), None], None, false, Some("Unknown"), false),
+            (
+                [None, Some("Social"), None, None],
+                None,
+                false,
+                Some("Social"),
+                true,
+            ),
+            (
+                [Some("Social"), Some("Social"), None, Some("Social")],
+                None,
+                false,
+                Some("Social"),
+                true,
+            ),
+            (
+                [Some("Social"), Some("Games"), None, None],
+                None,
+                false,
+                None,
+                false,
+            ),
+            // A stale answer from an earlier pass has to be corrected in both
+            // directions, and a row that already names the right genre still
+            // has to be marked as having consumed its source columns.
+            (
+                [Some("Games"), Some("Games"), None, None],
+                Some("Social"),
+                true,
+                Some("Games"),
+                true,
+            ),
+            (
+                [Some("Games"), None, None, None],
+                Some("Games"),
+                false,
+                Some("Games"),
+                true,
+            ),
+            (
+                [Some("Social"), Some("Games"), None, None],
+                Some("Social"),
+                true,
+                None,
+                false,
+            ),
+            // Disagreement has to withdraw a stale answer whichever half of it
+            // is stale: the genre without the consumed mark, or the mark
+            // without the genre.
+            (
+                [Some("Social"), Some("Games"), None, None],
+                Some("Social"),
+                false,
+                None,
+                false,
+            ),
+            (
+                [Some("Social"), Some("Games"), None, None],
+                None,
+                true,
+                None,
+                false,
+            ),
+        ];
+        for (columns, genre_before, cleared_before, genre_after, cleared_after) in cases {
+            assert_eq!(
+                collapse(*columns, *genre_before, *cleared_before),
+                (genre_after.map(str::to_owned), *cleared_after),
+                "collapsing {columns:?} over {genre_before:?}/{cleared_before}",
+            );
+        }
+    }
+
+    /// `days_with_usage` is what tells a researcher how many of a participant's
+    /// days actually carried data. A day counts when it holds a completed
+    /// session of either kind, and it also counts when it holds only background
+    /// minutes and no foreground session at all. Days that only exist because
+    /// the per-day spine fills a hole in the observed span do not count.
+    #[test]
+    fn review_summary_counts_used_days_by_sessions_or_background_minutes_alone() {
+        const MINUTE: i64 = 60_000_000_000;
+        // (date, usage layer, start minute, stop minute)
+        let sessions: &[(&str, Option<&str>, i64, i64)] = &[
+            ("2026-03-01", None, 0, 10),
+            ("2026-03-04", Some("secondary"), 0, 5),
+        ];
+        let mut rows = rows_from_events(&[
+            (
+                "2026-03-01 10:00:00",
+                "Activity Resumed",
+                "com.example.chat",
+            ),
+            (
+                "2026-03-04 10:00:00",
+                "Activity Resumed",
+                "com.example.chat",
+            ),
+            (
+                "2026-03-05 10:00:00",
+                "Activity Resumed",
+                "com.example.chat",
+            ),
+            (
+                "2026-03-06 10:00:00",
+                "Activity Resumed",
+                "com.example.chat",
+            ),
+        ]);
+        for (row, (date, layer, start, stop)) in rows.iter_mut().zip(sessions) {
+            let data = row.edit_all();
+            data.study_id = "Study".into();
+            data.participant_id = "P01".into();
+            data.interaction_type = APP_USAGE.into();
+            data.date = (*date).into();
+            data.usage_layer = (*layer).map(SharedString::from);
+            data.start_timestamp_ns = Some(*start * MINUTE);
+            data.stop_timestamp_ns = Some(*stop * MINUTE);
+            data.duration_minutes = Some((*stop - *start) as f64);
+        }
+        // Neither of the last two rows is a completed app-usage session, so
+        // neither may open a day: one is a screen session that happens to sit
+        // in the app rows, the other an app session that never got a stop.
+        {
+            let data = rows[2].edit_all();
+            data.study_id = "Study".into();
+            data.participant_id = "P01".into();
+            data.interaction_type = SCREEN_USAGE.into();
+            data.date = "2026-03-05".into();
+            data.start_timestamp_ns = Some(0);
+            data.stop_timestamp_ns = Some(7 * MINUTE);
+            data.duration_minutes = Some(7.0);
+        }
+        {
+            let data = rows[3].edit_all();
+            data.study_id = "Study".into();
+            data.participant_id = "P01".into();
+            data.interaction_type = APP_USAGE.into();
+            data.date = "2026-03-06".into();
+            data.start_timestamp_ns = Some(0);
+            data.stop_timestamp_ns = None;
+            data.duration_minutes = None;
+        }
+
+        let summary = build_review_summary(&rows, &[]);
+        assert_eq!(summary.participants.len(), 1);
+        let participant = &summary.participants[0];
+        assert_eq!(
+            participant
+                .per_day
+                .iter()
+                .map(|day| (
+                    day.date.as_str(),
+                    day.app_usage_minutes,
+                    day.background_app_usage_minutes,
+                    day.app_session_count,
+                    day.screen_session_count,
+                ))
+                .collect::<Vec<_>>(),
+            vec![
+                ("2026-03-01", 10.0, 0.0, 1, 0),
+                ("2026-03-02", 0.0, 0.0, 0, 0),
+                ("2026-03-03", 0.0, 0.0, 0, 0),
+                ("2026-03-04", 0.0, 5.0, 0, 0),
+            ],
+            "the spine fills the hole between the two observed days",
+        );
+        assert_eq!(participant.totals.total_days, 4);
+        assert_eq!(
+            participant.totals.days_with_usage, 2,
+            "only the session day and the background-only day carried data",
+        );
+    }
+
+    /// The day-coverage table tells a researcher, for every day of a
+    /// participant's study window, whether the device produced usage, produced
+    /// raw events but no usage, or went silent. The spine is the study window
+    /// when one exists and the observed span otherwise.
+    #[test]
+    fn day_coverage_labels_every_day_of_the_spine_and_refuses_data_outside_it() {
+        let rows = usage_rows(&[
+            ("P01", "2026-03-07", "Target Child", APP_USAGE, Some(5.0)),
+            // A zero-length session is not usage, so its day is not a usage day.
+            ("P01", "2026-03-09", "Target Child", APP_USAGE, Some(0.0)),
+            // A screen row is not app usage either.
+            ("P01", "2026-03-10", "Target Child", SCREEN_USAGE, Some(9.0)),
+        ]);
+        let raw_dates = BTreeMap::from([(
+            "P01".to_string(),
+            BTreeSet::from([
+                "2026-03-07".to_string(),
+                "2026-03-09".to_string(),
+                "2026-03-10".to_string(),
+            ]),
+        )]);
+
+        let coverage = incremental::build_coverage(&rows, &raw_dates, &[]).expect("coverage");
+        assert_eq!(
+            String::from_utf8(coverage.csv_bytes.clone()).expect("coverage csv is UTF-8"),
+            concat!(
+                "participant_id,date,status\n",
+                "P01,2026-03-07,usage\n",
+                "P01,2026-03-08,no_data\n",
+                "P01,2026-03-09,no_activity\n",
+                "P01,2026-03-10,no_activity",
+            )
+        );
+        assert_eq!(
+            (
+                coverage.report.usage_days,
+                coverage.report.no_activity_days,
+                coverage.report.no_data_days
+            ),
+            (1, 2, 1)
+        );
+
+        // A study window replaces the observed span as the spine, so days
+        // before the first event and after the last one are still reported.
+        let windows = vec![StudyWindow {
+            participant_id: "P01".to_string(),
+            start_date: "2026-03-06".to_string(),
+            end_date: "2026-03-11".to_string(),
+        }];
+        let windowed =
+            incremental::build_coverage(&rows, &raw_dates, &windows).expect("windowed coverage");
+        assert_eq!(
+            String::from_utf8(windowed.csv_bytes).expect("coverage csv is UTF-8"),
+            concat!(
+                "participant_id,date,status\n",
+                "P01,2026-03-06,no_data\n",
+                "P01,2026-03-07,usage\n",
+                "P01,2026-03-08,no_data\n",
+                "P01,2026-03-09,no_activity\n",
+                "P01,2026-03-10,no_activity\n",
+                "P01,2026-03-11,no_data",
+            )
+        );
+
+        // Data outside the window is deliberately ignored rather than treated
+        // as a spine hole...
+        let narrow = vec![StudyWindow {
+            participant_id: "P01".to_string(),
+            start_date: "2026-03-09".to_string(),
+            end_date: "2026-03-10".to_string(),
+        }];
+        let clipped =
+            incremental::build_coverage(&rows, &raw_dates, &narrow).expect("clipped coverage");
+        assert_eq!(
+            String::from_utf8(clipped.csv_bytes).expect("coverage csv is UTF-8"),
+            concat!(
+                "participant_id,date,status\n",
+                "P01,2026-03-09,no_activity\n",
+                "P01,2026-03-10,no_activity",
+            )
+        );
+
+        // ...but a participant with no window at all must never have data the
+        // spine misses, so a bad spine is an error rather than a silent drop.
+        let other_window = vec![StudyWindow {
+            participant_id: "P02".to_string(),
+            start_date: "2026-03-09".to_string(),
+            end_date: "2026-03-10".to_string(),
+        }];
+        assert!(incremental::build_coverage(&rows, &raw_dates, &other_window)
+            .is_ok_and(|coverage| String::from_utf8(coverage.csv_bytes)
+                .expect("coverage csv is UTF-8")
+                .contains("P01,2026-03-07,usage")));
+    }
+
+    /// Compliance scoring splits each participant-day's minutes into time a
+    /// named person is responsible for and time nobody is, then reports what
+    /// share of the day was attributable. Only shared devices can fail.
+    #[test]
+    fn compliance_scoring_splits_known_from_unknown_minutes_per_participant_day() {
+        let rows = usage_rows(&[
+            ("P01", "2026-03-07", "Target Child", APP_USAGE, Some(30.0)),
+            ("P01", "2026-03-07", "", APP_USAGE, Some(10.0)),
+            ("P01", "2026-03-07", "None", APP_USAGE, Some(5.0)),
+            ("P01", "2026-03-07", "nan", APP_USAGE, Some(5.0)),
+            (
+                "P01",
+                "2026-03-07",
+                "Sibling",
+                NON_TARGET_CHILD_APP_USAGE,
+                Some(10.0),
+            ),
+            // A non-usage row still marks the day as seen but contributes no
+            // minutes, which is how a zero-usage day is reported at all.
+            ("P01", "2026-03-08", "Target Child", SCREEN_USAGE, Some(9.0)),
+            ("P02", "2026-03-07", "", APP_USAGE, Some(12.0)),
+        ]);
+
+        let minutes = incremental::accumulate_minutes(&rows);
+        assert_eq!(
+            minutes.participants_seen,
+            BTreeMap::from([
+                (
+                    "P01".to_string(),
+                    BTreeSet::from(["2026-03-07".to_string(), "2026-03-08".to_string()])
+                ),
+                (
+                    "P02".to_string(),
+                    BTreeSet::from(["2026-03-07".to_string()])
+                ),
+            ])
+        );
+        assert_eq!(
+            minutes.buckets,
+            BTreeMap::from([
+                (
+                    ("P01".to_string(), "2026-03-07".to_string()),
+                    (40.0, 20.0)
+                ),
+                (("P02".to_string(), "2026-03-07".to_string()), (0.0, 12.0)),
+            ]),
+            "a named user's minutes are known; empty, None and nan are not",
+        );
+
+        let shared = BTreeSet::from(["P01".to_string()]);
+        let scored = incremental::score_attribution_days(&minutes, &shared, 70.0);
+        let observed: Vec<(&str, &str, &str, f64, f64, f64, bool, bool)> = scored
+            .days
+            .iter()
+            .map(|day| {
+                (
+                    day.participant_id.as_str(),
+                    day.date.as_str(),
+                    day.sharing_status.as_str(),
+                    day.known_minutes,
+                    day.unknown_minutes,
+                    day.compliance_percent,
+                    day.zero_real_usage,
+                    day.is_valid,
+                )
+            })
+            .collect();
+        assert_eq!(
+            observed,
+            vec![
+                // 40 of 60 minutes are attributable: 66.67%, under the 70%
+                // threshold, so the day does not count.
+                (
+                    "P01",
+                    "2026-03-07",
+                    "Shared",
+                    40.0,
+                    20.0,
+                    66.67,
+                    false,
+                    false
+                ),
+                // A day with no usage at all on a shared device is scored 100%
+                // rather than divided by zero, and is flagged as zero usage.
+                ("P01", "2026-03-08", "Shared", 0.0, 0.0, 100.0, true, true),
+                // A non-shared device is always fully attributable.
+                (
+                    "P02",
+                    "2026-03-07",
+                    "Non-Shared",
+                    0.0,
+                    12.0,
+                    100.0,
+                    false,
+                    true
+                ),
+            ]
+        );
+        assert_eq!(
+            (
+                scored.valid_days,
+                scored.invalid_days,
+                scored.zero_usage_days
+            ),
+            (2, 1, 1)
+        );
+
+        // The threshold is inclusive at its edge.
+        let at_threshold = incremental::score_attribution_days(&minutes, &shared, 66.67);
+        assert!(at_threshold.days[0].is_valid);
+        let above_threshold = incremental::score_attribution_days(&minutes, &shared, 66.68);
+        assert!(!above_threshold.days[0].is_valid);
+    }
+
+    /// On a shared device, usage the study cannot attribute to the target child
+    /// is retyped so it does not count as the child's screen time. The counts
+    /// in the attribution report are what tells a researcher how much of their
+    /// data that decision moved.
+    #[test]
+    fn person_attribution_names_every_row_and_counts_what_it_changed() {
+        let mut rows = usage_rows(&[
+            // Non-shared device: a blank username is the target child.
+            ("P01", "2026-03-07", "", APP_USAGE, Some(5.0)),
+            ("P01", "2026-03-07", "nan", APP_USAGE, Some(5.0)),
+            // ...and an already-named user is left alone.
+            ("P01", "2026-03-07", "Parent", APP_USAGE, Some(5.0)),
+            // Shared device: a blank username becomes nobody...
+            ("P02", "2026-03-07", "", APP_USAGE, Some(5.0)),
+            // ...unless the app is a kids shell, which only the child uses.
+            ("P02", "2026-03-07", "", APP_USAGE, Some(5.0)),
+            // A named non-child on a shared device is retyped.
+            ("P02", "2026-03-07", "Parent", APP_USAGE, Some(5.0)),
+            // A named target child on a shared device keeps App Usage.
+            ("P02", "2026-03-07", "Target Child", APP_USAGE, Some(5.0)),
+            // A screen row is never retyped whatever the username says.
+            ("P02", "2026-03-07", "Parent", SCREEN_USAGE, Some(5.0)),
+        ]);
+        rows[4].edit_identity().app_package_name = "com.amazon.tahoe".into();
+        let survey_timestamp = rows[5].event_timestamp_ns;
+
+        let resolution = SharingResolution {
+            status_by_participant: BTreeMap::from([
+                ("P01".to_string(), SharingStatus::NonShared),
+                ("P02".to_string(), SharingStatus::Shared),
+            ]),
+            shared_participants: vec!["P02".to_string()],
+            non_shared_participants: vec!["P01".to_string()],
+        };
+        let survey = BTreeMap::from([(
+            ("P02".to_string(), survey_timestamp),
+            "Target Child".to_string(),
+        )]);
+
+        let (attributed, report) =
+            attribute_person(rows, &resolution, &survey).expect("attribution resolves");
+        assert_eq!(
+            attributed
+                .iter()
+                .map(|row| (
+                    row.username.as_str().to_string(),
+                    row.interaction_type.as_str().to_string()
+                ))
+                .collect::<Vec<_>>(),
+            vec![
+                ("Target Child".to_string(), APP_USAGE.to_string()),
+                ("Target Child".to_string(), APP_USAGE.to_string()),
+                ("Parent".to_string(), APP_USAGE.to_string()),
+                ("None".to_string(), NON_TARGET_CHILD_APP_USAGE.to_string()),
+                ("Target Child".to_string(), APP_USAGE.to_string()),
+                // The survey names this row's user, which also rescues it from
+                // being retyped.
+                (
+                    "Target Child (From Survey)".to_string(),
+                    APP_USAGE.to_string()
+                ),
+                ("Target Child".to_string(), APP_USAGE.to_string()),
+                ("Parent".to_string(), SCREEN_USAGE.to_string()),
+            ]
+        );
+        assert_eq!(
+            (
+                report.null_usernames_filled,
+                report.kids_shell_attributions,
+                report.survey_relabels,
+                report.non_target_rows,
+            ),
+            (4, 1, 1, 1)
+        );
+        assert_eq!(report.shared_participants, vec!["P02".to_string()]);
+        assert_eq!(report.non_shared_participants, vec!["P01".to_string()]);
+
+        // A participant with no resolved sharing status is an error, not a
+        // silently unattributed row.
+        let orphan = usage_rows(&[("P99", "2026-03-07", "", APP_USAGE, Some(5.0))]);
+        let error = match attribute_person(orphan, &resolution, &survey) {
+            Ok(_) => panic!("an unresolved participant must not be attributed"),
+            Err(error) => error,
+        };
+        assert!(error.contains("unresolved sharing status"), "{error}");
+    }
+
+    /// Observation-window filtering drops the days a participant was not
+    /// enrolled for. Both edges are inclusive, and a participant the study
+    /// dates file never mentions keeps every row rather than losing all of
+    /// them.
+    #[test]
+    fn the_study_window_keeps_both_edges_and_never_silently_empties_a_participant() {
+        let rows = usage_rows(&[
+            ("P01", "2026-03-05", "Target Child", APP_USAGE, Some(5.0)),
+            ("P01", "2026-03-06", "Target Child", APP_USAGE, Some(5.0)),
+            ("P01", "2026-03-07", "Target Child", APP_USAGE, Some(5.0)),
+            ("P01", "2026-03-08", "Target Child", APP_USAGE, Some(5.0)),
+            ("P01", "2026-03-09", "Target Child", APP_USAGE, Some(5.0)),
+            ("P02", "2026-03-01", "Target Child", APP_USAGE, Some(5.0)),
+        ]);
+        let windows = vec![StudyWindow {
+            participant_id: "P01".to_string(),
+            start_date: "2026-03-06".to_string(),
+            end_date: "2026-03-08".to_string(),
+        }];
+
+        let resolved = resolve_participant_windows(&rows, &windows);
+        assert_eq!(
+            resolved
+                .iter()
+                .map(|entry| (
+                    entry.participant_id.as_str(),
+                    entry.window.as_ref().map(|window| window.start_date.as_str())
+                ))
+                .collect::<Vec<_>>(),
+            vec![("P01", Some("2026-03-06")), ("P02", None)]
+        );
+
+        let (kept, dropped, without_window) = apply_study_window(rows, &resolved);
+        assert_eq!(
+            kept.iter()
+                .map(|row| (row.participant_id.to_string(), row.date.to_string()))
+                .collect::<Vec<_>>(),
+            vec![
+                ("P01".to_string(), "2026-03-06".to_string()),
+                ("P01".to_string(), "2026-03-07".to_string()),
+                ("P01".to_string(), "2026-03-08".to_string()),
+                ("P02".to_string(), "2026-03-01".to_string()),
+            ],
+            "the window is inclusive at both edges, and an unmatched participant is untouched",
+        );
+        assert_eq!(dropped, 2);
+        assert_eq!(without_window, vec!["P02".to_string()]);
+    }
+
+    /// Build paired episode rows for the reconstruction stages: an interaction
+    /// type, a package, and the matched start/stop the matcher produced.
+    fn episode_rows(rows: &[(&str, &str, Option<i64>, Option<i64>)]) -> Vec<Row> {
+        let mut built = rows_from_events(
+            &rows
+                .iter()
+                .enumerate()
+                .map(|(index, (_, package, _, _))| {
+                    (
+                        [
+                            "2026-03-07 10:00:00",
+                            "2026-03-07 10:01:00",
+                            "2026-03-07 10:02:00",
+                            "2026-03-07 10:03:00",
+                            "2026-03-07 10:04:00",
+                            "2026-03-07 10:05:00",
+                        ][index],
+                        "Activity Resumed",
+                        *package,
+                    )
+                })
+                .collect::<Vec<_>>(),
+        );
+        for (row, (interaction, _, start, stop)) in built.iter_mut().zip(rows) {
+            let data = row.edit_all();
+            data.interaction_type = (*interaction).into();
+            data.start_timestamp_ns = *start;
+            data.stop_timestamp_ns = *stop;
+        }
+        built
+    }
+
+    /// The minimum-usage floor blanks the duration of a session that is too
+    /// short to count, without removing the session. The same pass retypes a
+    /// paired Activity Resumed into App Usage, drops the spent Activity Paused
+    /// rows, and drops a start that never found its stop.
+    #[test]
+    fn the_minimum_usage_floor_blanks_short_sessions_without_dropping_them() {
+        const SECOND: i64 = 1_000_000_000;
+        let filtered = BTreeSet::from(["com.example.secret".to_string()]);
+
+        let rows = episode_rows(&[
+            // Exactly at the floor: kept, because the floor is "shorter than".
+            (
+                "Activity Resumed",
+                "com.example.chat",
+                Some(0),
+                Some(60 * SECOND),
+            ),
+            // One second under the floor: retyped, but its duration is blanked.
+            (
+                "Activity Resumed",
+                "com.example.chat",
+                Some(100 * SECOND),
+                Some(159 * SECOND),
+            ),
+            // A filtered package loses its timing whatever its length.
+            (
+                "Activity Resumed",
+                "com.example.secret",
+                Some(200 * SECOND),
+                Some(500 * SECOND),
+            ),
+            // A start with no stop is not an episode at all.
+            ("Activity Resumed", "com.example.chat", Some(600 * SECOND), None),
+            // A stop with no start likewise.
+            ("Activity Resumed", "com.example.chat", None, Some(700 * SECOND)),
+            // Spent stop events do not survive the pass.
+            ("Activity Paused", "com.example.chat", None, None),
+        ]);
+
+        let observed = |rows: Vec<Row>| -> Vec<(String, String, Option<f64>)> {
+            rows.iter()
+                .map(|row| {
+                    (
+                        row.interaction_type.to_string(),
+                        row.app_package_name.to_string(),
+                        row.duration_seconds,
+                    )
+                })
+                .collect()
+        };
+
+        assert_eq!(
+            observed(incremental::relabel_usage_with_floor(
+                rows.clone(),
+                &filtered,
+                60.0
+            )),
+            vec![
+                (APP_USAGE.to_string(), "com.example.chat".to_string(), Some(60.0)),
+                (APP_USAGE.to_string(), "com.example.chat".to_string(), None),
+                (
+                    FILTERED_APP_USAGE.to_string(),
+                    "com.example.secret".to_string(),
+                    None
+                ),
+            ]
+        );
+
+        // With no floor at all every paired session keeps its duration.
+        assert_eq!(
+            observed(incremental::relabel_usage_with_floor(rows, &filtered, 0.0)),
+            vec![
+                (APP_USAGE.to_string(), "com.example.chat".to_string(), Some(60.0)),
+                (APP_USAGE.to_string(), "com.example.chat".to_string(), Some(59.0)),
+                (
+                    FILTERED_APP_USAGE.to_string(),
+                    "com.example.secret".to_string(),
+                    None
+                ),
+            ]
+        );
+    }
+
+    /// Concurrent-usage modelling splits overlapping sessions into a primary
+    /// and a secondary layer so the same minute is not counted twice. It runs
+    /// when the option is on *or* when background apps are declared, because a
+    /// background app can hold a session open underneath another one.
+    #[test]
+    fn concurrent_modelling_runs_whenever_either_reason_to_run_is_present() {
+        const SECOND: i64 = 1_000_000_000;
+        let filtered = BTreeSet::new();
+        let no_background = AHashSet::new();
+        let background: AHashSet<String> =
+            std::iter::once("com.example.music".to_string()).collect();
+
+        // Two overlapping sessions: chat 0..100 and music 50..150.
+        let rows = episode_rows(&[
+            (APP_USAGE, "com.example.chat", Some(0), Some(100 * SECOND)),
+            (
+                APP_USAGE,
+                "com.example.music",
+                Some(50 * SECOND),
+                Some(150 * SECOND),
+            ),
+        ]);
+
+        let layers = |rows: Vec<Row>| -> Vec<(String, Option<String>, Option<f64>)> {
+            rows.iter()
+                .map(|row| {
+                    (
+                        row.app_package_name.to_string(),
+                        row.usage_layer.as_ref().map(|layer| layer.to_string()),
+                        row.duration_seconds,
+                    )
+                })
+                .collect()
+        };
+
+        // Neither reason present: the rows are only sorted.
+        assert_eq!(
+            layers(
+                incremental::split_concurrent(
+                    rows.clone(),
+                    &filtered,
+                    &no_background,
+                    false,
+                    0.0,
+                    false
+                )
+                .expect("no split requested")
+            ),
+            vec![
+                ("com.example.chat".to_string(), None, None),
+                ("com.example.music".to_string(), None, None),
+            ]
+        );
+
+        // The option alone is enough, with no background apps declared.
+        let by_option = layers(
+            incremental::split_concurrent(rows.clone(), &filtered, &no_background, true, 0.0, false)
+                .expect("split by option"),
+        );
+        assert_eq!(
+            by_option,
+            vec![
+                (
+                    "com.example.chat".to_string(),
+                    Some("primary".to_string()),
+                    Some(50.0)
+                ),
+                (
+                    "com.example.chat".to_string(),
+                    Some("secondary".to_string()),
+                    Some(50.0)
+                ),
+                (
+                    "com.example.music".to_string(),
+                    Some("primary".to_string()),
+                    Some(100.0)
+                ),
+            ],
+            "the app that started last owns the overlapping minutes; the app it \
+             covered keeps them on the secondary layer",
+        );
+
+        // A declared background app alone is enough, with the option off.
+        assert_eq!(
+            layers(
+                incremental::split_concurrent(
+                    rows.clone(),
+                    &filtered,
+                    &background,
+                    false,
+                    0.0,
+                    false
+                )
+                .expect("split by background apps")
+            ),
+            by_option
+        );
+
+        // The floor reaches the sub-intervals only when it is asked to.
+        assert_eq!(
+            layers(
+                incremental::split_concurrent(
+                    rows.clone(),
+                    &filtered,
+                    &no_background,
+                    true,
+                    50.0,
+                    true
+                )
+                .expect("split with a sub-interval floor")
+            )
+            .iter()
+            .map(|(_, _, duration)| *duration)
+            .collect::<Vec<_>>(),
+            vec![Some(50.0), Some(50.0), Some(100.0)],
+            "a sub-interval exactly at the floor is not shorter than the floor",
+        );
+        assert_eq!(
+            layers(
+                incremental::split_concurrent(rows, &filtered, &no_background, true, 51.0, true)
+                    .expect("split with a sub-interval floor")
+            )
+            .iter()
+            .map(|(_, _, duration)| *duration)
+            .collect::<Vec<_>>(),
+            vec![None, None, Some(100.0)],
+            "only the sub-intervals under the floor lose their duration",
+        );
+    }
+
+    fn credit_point(timestamp_ns: i64, state: ScreenCreditState) -> ScreenChangePoint {
+        ScreenChangePoint {
+            timestamp_ns,
+            state,
+            source_data_rows: SourceDataRows::default(),
+        }
+    }
+
+    /// `creditable_intervals` decides how much of an app session the
+    /// screen-gated credit layer pays for. The auto-lock bridge is the
+    /// researcher-facing rule: a screen-OFF blip shorter than the device's
+    /// auto-lock cannot be a real lock, so credit continues across it, while an
+    /// OFF stretch at or beyond the auto-lock ends the credited interval.
+    #[test]
+    fn screen_credit_pays_for_lit_time_and_bridges_only_sub_auto_lock_blips() {
+        use ScreenCreditState::{Off, On};
+        let bridge = 10;
+
+        // No screen witness at all: nothing is creditable, which is what makes
+        // the no-witness fallback options necessary.
+        assert_eq!(creditable_intervals(&[], 0, 100, bridge), Vec::new());
+        // A screen state established before the session covers the session.
+        assert_eq!(
+            creditable_intervals(&[credit_point(-5, On)], 0, 100, bridge),
+            vec![(0, 100)]
+        );
+        assert_eq!(
+            creditable_intervals(&[credit_point(-5, Off)], 0, 100, bridge),
+            Vec::new()
+        );
+        // Screen turns on mid-session: only the lit tail is credited.
+        assert_eq!(
+            creditable_intervals(&[credit_point(20, On)], 0, 100, bridge),
+            vec![(20, 100)]
+        );
+        // A lock at or past the auto-lock closes the interval.
+        assert_eq!(
+            creditable_intervals(&[credit_point(0, On), credit_point(50, Off)], 0, 100, bridge),
+            vec![(0, 50)]
+        );
+        assert_eq!(
+            creditable_intervals(
+                &[
+                    credit_point(0, On),
+                    credit_point(50, Off),
+                    credit_point(60, On)
+                ],
+                0,
+                100,
+                bridge
+            ),
+            vec![(0, 50), (60, 100)],
+            "an OFF span exactly as long as the auto-lock is a real lock"
+        );
+        // A shorter blip is bridged, and the bridged time itself is credited.
+        assert_eq!(
+            creditable_intervals(
+                &[
+                    credit_point(0, On),
+                    credit_point(50, Off),
+                    credit_point(59, On)
+                ],
+                0,
+                100,
+                bridge
+            ),
+            vec![(0, 100)]
+        );
+        // Two blips inside one session stay inside one credited interval.
+        assert_eq!(
+            creditable_intervals(
+                &[
+                    credit_point(0, On),
+                    credit_point(20, Off),
+                    credit_point(25, On),
+                    credit_point(40, Off),
+                    credit_point(48, On)
+                ],
+                0,
+                100,
+                bridge
+            ),
+            vec![(0, 100)]
+        );
+        // The session window clips both ends, and a point beyond the end is
+        // never consulted.
+        assert_eq!(
+            creditable_intervals(&[credit_point(0, On), credit_point(50, Off)], 0, 40, bridge),
+            vec![(0, 40)]
+        );
+        assert_eq!(
+            creditable_intervals(&[credit_point(0, On), credit_point(50, Off)], 20, 40, bridge),
+            vec![(20, 40)]
+        );
+        // A trailing blip shorter than the auto-lock keeps the interval open to
+        // the end of the session rather than truncating at the blip.
+        assert_eq!(
+            creditable_intervals(&[credit_point(0, On), credit_point(95, Off)], 0, 100, bridge),
+            vec![(0, 100)]
+        );
+        // A zero-length window credits nothing whatever the screen was doing.
+        assert_eq!(
+            creditable_intervals(&[credit_point(0, On)], 50, 50, bridge),
+            Vec::new()
+        );
+        // With no bridge allowance every OFF span is a lock.
+        assert_eq!(
+            creditable_intervals(
+                &[
+                    credit_point(0, On),
+                    credit_point(50, Off),
+                    credit_point(51, On)
+                ],
+                0,
+                100,
+                0
+            ),
+            vec![(0, 50), (51, 100)]
+        );
+        // Two screen records at the same instant leave no time between them. An
+        // OFF that lasts zero nanoseconds is not a lock, so the credited
+        // interval runs straight through it even with no bridge allowance.
+        assert_eq!(
+            creditable_intervals(
+                &[
+                    credit_point(0, On),
+                    credit_point(50, Off),
+                    credit_point(50, On)
+                ],
+                0,
+                100,
+                0
+            ),
+            vec![(0, 100)]
+        );
+    }
+
+    /// Credit is paid only where the screen was lit *and* the device was
+    /// demonstrably alive, so the two interval lists are intersected. The
+    /// sweep is linear; check it against the obvious quadratic definition.
+    #[test]
+    fn interval_intersection_matches_the_all_pairs_definition() {
+        fn reference(left: &[CreditInterval], right: &[CreditInterval]) -> Vec<CreditInterval> {
+            let mut output = Vec::new();
+            for (a_start, a_end) in left {
+                for (b_start, b_end) in right {
+                    let lower = *a_start.max(b_start);
+                    let upper = *a_end.min(b_end);
+                    if upper > lower {
+                        output.push((lower, upper));
+                    }
+                }
+            }
+            output.sort_unstable();
+            output
+        }
+
+        // Touching intervals share no positive-length time.
+        assert_eq!(intersect_intervals(&[(0, 10)], &[(10, 20)]), Vec::new());
+        assert_eq!(intersect_intervals(&[(0, 10)], &[(9, 20)]), vec![(9, 10)]);
+        assert_eq!(intersect_intervals(&[], &[(0, 10)]), Vec::new());
+        assert_eq!(intersect_intervals(&[(0, 10)], &[]), Vec::new());
+        // One long interval can be cut into several pieces by the other list.
+        assert_eq!(
+            intersect_intervals(&[(0, 100)], &[(10, 20), (30, 40), (90, 200)]),
+            vec![(10, 20), (30, 40), (90, 100)]
+        );
+        // Advancing the list that ends first is what keeps this linear; a
+        // shared right edge must not drop the following interval.
+        assert_eq!(
+            intersect_intervals(&[(0, 10), (10, 30)], &[(5, 10), (12, 40)]),
+            vec![(5, 10), (12, 30)]
+        );
+
+        fn next(state: &mut u64) -> u64 {
+            *state ^= *state << 13;
+            *state ^= *state >> 7;
+            *state ^= *state << 17;
+            *state
+        }
+        fn build(state: &mut u64, count: usize) -> Vec<CreditInterval> {
+            let mut intervals: Vec<CreditInterval> = Vec::new();
+            let mut cursor = 0i64;
+            for _ in 0..count {
+                cursor += (next(state) % 7) as i64;
+                let width = 1 + (next(state) % 11) as i64;
+                intervals.push((cursor, cursor + width));
+                cursor += width;
+            }
+            intervals
+        }
+
+        let mut state = 0x2545_f491_4f6c_dd1d_u64;
+        for _ in 0..2_000 {
+            let left_count = 1 + (next(&mut state) % 6) as usize;
+            let left = build(&mut state, left_count);
+            let right_count = 1 + (next(&mut state) % 6) as usize;
+            let right = build(&mut state, right_count);
+            assert_eq!(
+                intersect_intervals(&left, &right),
+                reference(&left, &right),
+                "left={left:?} right={right:?}"
+            );
+        }
+    }
+
+    /// Only a completed, positive-duration App Usage session is a credit
+    /// candidate. Screen rows, placeholders and zero-length rows pass through
+    /// the credit layer untouched.
+    #[test]
+    fn credit_candidates_are_exactly_positive_duration_app_usage_rows() {
+        let raw = incremental::csv_parse(
+            b"study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n\
+              Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago\n",
+        );
+        let mut row = incremental::build_canonical_rows(
+            &raw,
+            "America/Chicago",
+            &BTreeMap::new(),
+            "test-device",
+        )
+        .expect("canonical rows")
+        .remove(0);
+
+        let set = |row: &mut Row, interaction: &str, duration: Option<f64>| {
+            let data = row.edit_all();
+            data.interaction_type = interaction.into();
+            data.duration_minutes = duration;
+        };
+
+        set(&mut row, APP_USAGE, Some(1.5));
+        assert!(is_credit_session(&row));
+
+        // A completed session with no time in it has nothing to credit, and a
+        // session with no duration at all was never closed.
+        set(&mut row, APP_USAGE, Some(0.0));
+        assert!(!is_credit_session(&row));
+        set(&mut row, APP_USAGE, Some(-1.0));
+        assert!(!is_credit_session(&row));
+        set(&mut row, APP_USAGE, None);
+        assert!(!is_credit_session(&row));
+
+        // Screen rows and raw interaction rows travel through the credit layer
+        // untouched; only the reconstructed App Usage episodes are candidates.
+        set(&mut row, SCREEN_USAGE, Some(1.5));
+        assert!(!is_credit_session(&row));
+        set(&mut row, "Activity Resumed", Some(1.5));
+        assert!(!is_credit_session(&row));
     }
 
     #[test]
@@ -9047,6 +12917,855 @@ mod tests {
         assert_eq!(
             inline_lineage_search_range_digest(&inline, 0, 1),
             lineage_search_range_digest(&strings, 0, 1),
+        );
+    }
+
+    /// Explaining a screen-off by a nearby keyguard is a two-step search: first
+    /// narrow to the keyguard events around the screen-off, then measure each
+    /// one against the configured tolerance. Both edges of the window count as
+    /// near — including a keyguard recorded just after the screen went off,
+    /// which is the phone waking straight back into the lock screen. The
+    /// narrowing rounds the tolerance up to whole nanoseconds, so it can hand
+    /// back an event that is outside the tolerance, and the measurement is what
+    /// actually decides.
+    #[test]
+    fn the_keyguard_near_stop_search_measures_every_event_it_narrows_to() {
+        fn reasons(
+            rows: &[Row],
+            keyguard_near_stop_seconds: f64,
+        ) -> Vec<String> {
+            let closes = incremental::walk_screen_state_machine(rows);
+            let keyguard = incremental::collect_keyguard_timestamps(rows);
+            incremental::build_classified_sessions(
+                rows,
+                &closes,
+                &keyguard,
+                &HashMap::new(),
+                incremental::ScreenClassificationSettings {
+                    auto_lock_timeout_seconds: 120.0,
+                    auto_lock_tolerance_seconds: 30.0,
+                    manual_lock_max_tail_seconds: 30.0,
+                    keyguard_near_stop_seconds,
+                },
+            )
+            .iter()
+            .map(|session| {
+                session
+                    .screen_usage_end_reason
+                    .as_ref()
+                    .map(|reason| reason.to_string())
+                    .unwrap_or_default()
+            })
+            .collect()
+        }
+
+        // One screen session with a 200-second idle tail, ended by a keyguard
+        // recorded an exact number of nanoseconds before the screen went off.
+        let before = |offset_ns: i64, near_stop_seconds: f64| {
+            let mut rows = rows_from_events(&[
+                ("2026-03-07 10:00:00", "Screen Interactive", ""),
+                ("2026-03-07 10:00:01", "Activity Resumed", "com.example.chat"),
+                ("2026-03-07 10:03:20", "Keyguard Shown", ""),
+                ("2026-03-07 10:03:21", "Screen Non-Interactive", ""),
+            ]);
+            let stop = rows[3].event_timestamp_ns;
+            rows[2].edit_temporal().event_timestamp_ns = stop - offset_ns;
+            reasons(&rows, near_stop_seconds)
+        };
+
+        assert_eq!(
+            before(2_000_000_000, 2.0),
+            vec!["probable_manual_lock".to_string()],
+            "a keyguard exactly one tolerance before the screen-off is near it",
+        );
+        assert_eq!(
+            before(2_000_000_001, 2.0),
+            vec!["extended_idle_or_unknown".to_string()],
+            "one nanosecond further out is not",
+        );
+        assert_eq!(
+            before(500_000_000, 2.0),
+            vec!["probable_manual_lock".to_string()],
+            "a fraction of a second before the screen-off is near it",
+        );
+        assert_eq!(
+            before(100_000_001, 0.1),
+            vec!["extended_idle_or_unknown".to_string()],
+            "a tenth of a second plus a nanosecond is outside a tenth-second tolerance",
+        );
+        assert_eq!(
+            before(100_000_000, 0.1),
+            vec!["probable_manual_lock".to_string()],
+            "exactly a tenth of a second is inside it",
+        );
+
+        // The search narrows to whole nanoseconds and rounds the bound up so
+        // it can never drop a candidate, but the tolerance itself is exact:
+        // an event inside the rounded-up window and outside the tolerance is
+        // still not near the screen-off.
+        assert_eq!(
+            before(1, 1.5e-9),
+            vec!["probable_manual_lock".to_string()],
+            "one nanosecond is inside a one-and-a-half nanosecond tolerance",
+        );
+        assert_eq!(
+            before(2, 1.5e-9),
+            vec!["extended_idle_or_unknown".to_string()],
+            "the nanosecond the search window rounds up to is outside it",
+        );
+
+        // The phone locked, then woke two seconds later straight into the lock
+        // screen: the keyguard that explains the screen-off is recorded after
+        // it, in the session that follows.
+        let woke_back_up = rows_from_events(&[
+            ("2026-03-07 10:00:00", "Screen Interactive", ""),
+            ("2026-03-07 10:00:01", "Keyguard Shown", ""),
+            ("2026-03-07 10:00:02", "Activity Resumed", "com.example.chat"),
+            ("2026-03-07 10:03:21", "Screen Non-Interactive", ""),
+            ("2026-03-07 10:03:23", "Screen Interactive", ""),
+            ("2026-03-07 10:03:23", "Keyguard Shown", ""),
+        ]);
+        assert_eq!(
+            reasons(&woke_back_up, 2.0),
+            vec![
+                "probable_manual_lock".to_string(),
+                "missing_stop".to_string(),
+            ],
+            "a keyguard two seconds after the screen-off still explains it",
+        );
+    }
+
+    fn empty_step_recorder<'a>(
+        digests: &'a mut BTreeMap<String, String>,
+        checkpoints: &'a mut BTreeMap<String, LogicalStageCheckpoint>,
+    ) -> StepCheckpointRecorder<'a> {
+        StepCheckpointRecorder {
+            digests,
+            checkpoints,
+            next_step_index: 0,
+            error: None,
+            last_row_parts: None,
+            last_row_checkpoint: None,
+        }
+    }
+
+    /// The step checkpoints are the pipeline's claim about what it executed, so
+    /// they are bound to the declared step sequence: each one has to be the next
+    /// step the contract names, a step may not be recorded twice, and a run that
+    /// stops early is reported rather than passed off as a complete set.
+    #[test]
+    fn the_step_recorder_binds_every_checkpoint_to_the_declared_step_sequence() {
+        let record = |steps: &[&str]| {
+            let mut digests = BTreeMap::new();
+            let mut checkpoints = BTreeMap::new();
+            let mut recorder = empty_step_recorder(&mut digests, &mut checkpoints);
+            for step in steps {
+                recorder.state(step, "state");
+            }
+            recorder.finish()
+        };
+
+        let declared = crate::step_contract::PIPELINE_STEPS
+            .iter()
+            .map(|step| step.id)
+            .collect::<Vec<_>>();
+        let total = declared.len();
+
+        assert_eq!(record(&declared), Ok(()));
+        assert_eq!(
+            record(&[]),
+            Err(format!(
+                "pipeline step checkpoint sequence stopped at 0 of {total} steps"
+            )),
+        );
+        assert_eq!(
+            record(&declared[..1]),
+            Err(format!(
+                "pipeline step checkpoint sequence stopped at 1 of {total} steps"
+            )),
+        );
+        assert_eq!(
+            record(&[declared[1], declared[0]]),
+            Err(format!(
+                "pipeline step checkpoint order mismatch at 0: expected {:?}, recorded {:?}",
+                declared[0], declared[1],
+            )),
+        );
+        let mut repeated = declared.clone();
+        repeated.push(declared[total - 1]);
+        assert_eq!(
+            record(&repeated),
+            Err(format!(
+                "unexpected extra pipeline step checkpoint {:?}",
+                declared[total - 1],
+            )),
+        );
+    }
+
+    /// A step hands the next one the row components it just computed so the
+    /// next checkpoint can reuse them instead of hashing the same table again.
+    /// That offer is only good for the exact table it recorded: a different row
+    /// count is a different table, and once the components are taken the offer
+    /// is withdrawn.
+    #[test]
+    fn the_step_recorder_only_offers_row_components_for_the_table_it_recorded() {
+        let rows = app_csv_rows();
+        assert!(rows.len() > 1, "the fixture has a table to shorten");
+        let first_step = crate::step_contract::PIPELINE_STEPS[0].id;
+
+        let mut digests = BTreeMap::new();
+        let mut checkpoints = BTreeMap::new();
+        let mut recorder = empty_step_recorder(&mut digests, &mut checkpoints);
+        assert!(recorder.last_row_parts().is_none());
+        assert!(recorder.reusable_row_components(&rows).is_none());
+
+        recorder.rows(first_step, &rows);
+        assert_eq!(recorder.last_row_parts().map(<[_]>::len), Some(rows.len()));
+        let (parts, checkpoint) = recorder
+            .reusable_row_components(&rows)
+            .expect("the table that was just recorded");
+        assert_eq!(parts.len(), rows.len());
+        assert_eq!(checkpoint.node_id, first_step);
+        assert!(
+            recorder
+                .reusable_row_components(&rows[..rows.len() - 1])
+                .is_none(),
+            "a shorter table is not the table that was recorded",
+        );
+
+        assert_eq!(
+            recorder.take_last_row_parts().map(|parts| parts.len()),
+            Some(rows.len()),
+        );
+        assert!(recorder.last_row_parts().is_none());
+        assert!(recorder.reusable_row_components(&rows).is_none());
+    }
+
+    /// Supplying a canonical row order is a caller's claim that the order is
+    /// already sorted by source identity, and the checkpoint trusts it instead
+    /// of sorting again. A wrong claim would commit a membership digest for the
+    /// wrong row sequence, so the claim is checked rather than assumed.
+    #[cfg(debug_assertions)]
+    #[test]
+    #[should_panic(expected = "assertion failed")]
+    fn a_supplied_canonical_row_order_that_is_not_sorted_is_refused() {
+        let rows = app_csv_rows();
+        let parts = row_checkpoint_parts_for_rows(&rows);
+        let reversed = (0..rows.len()).rev().collect::<Vec<_>>();
+        logical_stage_checkpoint_with_group_parts(
+            "test_stage",
+            &[("rows", &rows)],
+            &[],
+            Some(&[parts.as_slice()]),
+            None,
+            Some(&reversed),
+        );
+    }
+
+    /// When the genre collapse consumes its source columns the export blanks
+    /// them, so the classification checkpoint has to blank the same columns —
+    /// otherwise two rows that export identically would commit different
+    /// digests. A row whose columns were not consumed still commits them.
+    #[test]
+    fn the_classification_checkpoint_masks_exactly_the_consumed_genre_columns() {
+        let classification = |value: Option<&str>, cleared: bool, slot: usize| {
+            let mut row = app_csv_rows().remove(0);
+            {
+                let data = row.edit_all();
+                let mut fields = vec![None; CODEBOOK_RENAME_PAIRS.len()];
+                fields[slot] = value.map(str::to_owned);
+                data.codebook_fields = Arc::new(fields);
+                data.codebook_genre_fields_cleared = cleared;
+            }
+            let mut scratch = RowCheckpointScratch::default();
+            row_checkpoint_parts(&row, &mut scratch).classification
+        };
+
+        let consumed = COLLAPSED_GENRE_FIELD_INDICES[0];
+        let untouched = (0..CODEBOOK_RENAME_PAIRS.len())
+            .find(|index| !COLLAPSED_GENRE_FIELD_INDICES.contains(index))
+            .expect("a codebook column outside the genre collapse");
+
+        assert_eq!(
+            classification(Some("Social"), true, consumed),
+            classification(None, true, consumed),
+            "a consumed genre column is blank in the digest, as it is in the export",
+        );
+        assert_ne!(
+            classification(Some("Social"), false, consumed),
+            classification(None, false, consumed),
+            "a genre column that was never consumed still commits its value",
+        );
+        assert_ne!(
+            classification(Some("Social"), true, untouched),
+            classification(None, true, untouched),
+            "the collapse consumes only the genre columns",
+        );
+    }
+}
+
+/// Exact product-output contract for the fused cold-oracle pipeline.
+///
+/// The browser runtime hands these bytes to researchers unchanged, and the
+/// step digests are the evidence a step may be reported as cached from, so
+/// both are pinned byte-for-byte against checked-in expected files for one
+/// fixture that reaches every option-gated stage.
+///
+/// Re-record deliberately, never to turn a red run green:
+/// ```text
+/// UPDATE_GOLDEN=1 cargo test --features incremental-v2 \
+///   --manifest-path rust/chronicle_chrono_kernel_wasm/Cargo.toml \
+///   output_contract
+/// ```
+#[cfg(test)]
+mod output_contract {
+    use super::*;
+
+    // Every row reaches a specific option-gated stage:
+    //   09:59 Screen Interactive / 10:10 Screen Non-Interactive -> screen session
+    //   10:00-10:02 chat Resumed/Paused                         -> app session
+    //   10:02 third event on a duplicate timestamp              -> nudge stage
+    //   10:01-10:09:30 music, overlapping chat and video        -> concurrent split
+    //   10:03-10:05 chat again (same package)                   -> switched_app 0
+    //   10:06-10:09 video (different package)                   -> switched_app 1
+    //   10:20 Screen Interactive + Keyguard Shown               -> screen classify
+    //   11:30 Device Shutdown / 11:31 Device Startup            -> liveness break
+    //   12:00-12:01 com.example.secret                          -> filter relabel
+    //   13:00 video Resumed (closes the background span above)  -> background model
+    //   14:00 news Resumed, 14:10 news Activity Stopped         -> stop fallback
+    //   next day 09:00-09:30 chat                               -> two-day coverage
+    // The chat label carries a comma and an embedded double quote, so the
+    // emitted CSV must quote the field and double the inner quote.
+    const FIXTURE_CSV: &str = concat!(
+        "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+        "Study,P01,Target Child,,Screen Interactive,,2026-03-07 09:59:00,America/Chicago\n",
+        "Study,P01,Target Child,\"Chat, \"\"Bot\"\"\",Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago\n",
+        "Study,P01,Target Child,\"Chat, \"\"Bot\"\"\",Activity Paused,com.example.chat,2026-03-07 10:02:00,America/Chicago\n",
+        "Study,P01,Target Child,\"Chat, \"\"Bot\"\"\",User Interaction,com.example.chat,2026-03-07 10:02:00,America/Chicago\n",
+        "Study,P01,Target Child,Music,Activity Resumed,com.example.music,2026-03-07 10:01:00,America/Chicago\n",
+        "Study,P01,Target Child,\"Chat, \"\"Bot\"\"\",Activity Resumed,com.example.chat,2026-03-07 10:03:00,America/Chicago\n",
+        "Study,P01,Target Child,\"Chat, \"\"Bot\"\"\",Activity Paused,com.example.chat,2026-03-07 10:05:00,America/Chicago\n",
+        "Study,P01,Target Child,Video,Activity Resumed,com.example.video,2026-03-07 10:06:00,America/Chicago\n",
+        "Study,P01,Target Child,Video,Activity Paused,com.example.video,2026-03-07 10:09:00,America/Chicago\n",
+        "Study,P01,Target Child,Music,Activity Paused,com.example.music,2026-03-07 10:09:30,America/Chicago\n",
+        "Study,P01,Target Child,,Screen Non-Interactive,,2026-03-07 10:10:00,America/Chicago\n",
+        "Study,P01,Target Child,,Screen Interactive,,2026-03-07 10:20:00,America/Chicago\n",
+        "Study,P01,Target Child,,Keyguard Shown,,2026-03-07 10:20:30,America/Chicago\n",
+        "Study,P01,Target Child,,Screen Non-Interactive,,2026-03-07 10:21:00,America/Chicago\n",
+        "Study,P01,Target Child,,Device Shutdown,,2026-03-07 11:30:00,America/Chicago\n",
+        "Study,P01,Target Child,,Device Startup,,2026-03-07 11:31:00,America/Chicago\n",
+        "Study,P01,Target Child,Secret,Activity Resumed,com.example.secret,2026-03-07 12:00:00,America/Chicago\n",
+        "Study,P01,Target Child,Secret,Activity Paused,com.example.secret,2026-03-07 12:01:00,America/Chicago\n",
+        "Study,P01,Target Child,Video,Activity Resumed,com.example.video,2026-03-07 13:00:00,America/Chicago\n",
+        "Study,P01,Target Child,Video,Activity Stopped,com.example.video,2026-03-07 13:05:00,America/Chicago\n",
+        "Study,P01,Target Child,News,Activity Resumed,com.example.news,2026-03-07 14:00:00,America/Chicago\n",
+        "Study,P01,Target Child,News,Activity Stopped,com.example.news,2026-03-07 14:10:00,America/Chicago\n",
+        "Study,P01,Target Child,\"Chat, \"\"Bot\"\"\",Activity Resumed,com.example.chat,2026-03-08 09:00:00,America/Chicago\n",
+        "Study,P01,Target Child,\"Chat, \"\"Bot\"\"\",Activity Paused,com.example.chat,2026-03-08 09:30:00,America/Chicago\n",
+    );
+
+    const FILTER_CSV: &[u8] =
+        b"app_package_name,known_application_labels\ncom.example.secret,Secret\n";
+    const APPS_FORCING_CSV: &[u8] = b"package_name,label_or_note\ncom.example.video,Video\n";
+    const BACKGROUND_APPS_CSV: &[u8] = b"app_package_name\ncom.example.video\n";
+    const CODEBOOK_CSV: &[u8] = concat!(
+        "app_package_name,bcm_play_store_broad_app_category,genreId\n",
+        "com.example.chat,Social,SOCIAL\n",
+        "com.example.video,Entertainment,ENTERTAINMENT\n",
+    )
+    .as_bytes();
+    const STUDY_DATES_CSV: &[u8] =
+        b"participant_id,start_date,end_date\nP01,2026-03-07,2026-03-08\n";
+    const DEVICE_SHARING_CSV: &[u8] = b"participant_id,sharing_status\nP01,Shared\n";
+    const SURVEY_ATTRIBUTION_CSV: &[u8] = concat!(
+        "participant_id,event_timestamp,users\n",
+        "P01,2026-03-07 10:00:00,Target Child\n",
+    )
+    .as_bytes();
+    const ENROLLED_DEVICES_CSV: &[u8] = b"participant_id,device_count\nP01,1\n";
+
+    use crate::golden::assert_matches as assert_golden;
+
+    fn contract_options() -> PipelineV2Options {
+        PipelineV2Options {
+            study_name: "Kernel Output Contract".into(),
+            timezone: "America/Chicago".into(),
+            timezone_handling: "selected-convert".into(),
+            usage_session_mode: UsageSessionMode::AppAndScreenUsage,
+            include_app_output: true,
+            include_screen_output: true,
+            use_filter_file: true,
+            use_apps_forcing_screen_open: true,
+            use_background_apps_file: true,
+            use_app_codebook: true,
+            include_category_column: true,
+            deduplicate_exact_rows: true,
+            interaction_type_remap: Vec::new(),
+            correct_duplicate_event_timestamps: true,
+            allow_stop_event_reuse: false,
+            use_activity_stopped_as_fallback: true,
+            apply_threshold_to_fallback: true,
+            long_duration_threshold_ns: 21_600_000_000_000,
+            proximity_interval_ns: 2_000_000_000,
+            custom_app_engagement_duration: 300.0,
+            long_data_time_gap_thresholds: vec![1.0, 6.0, 12.0],
+            long_usage_duration_thresholds: vec![1.0, 6.0, 12.0],
+            same_app_stop_types: vec!["Activity Paused".into(), "Activity Resumed".into()],
+            other_stop_types: vec!["Activity Resumed".into(), "Device Shutdown".into()],
+            interaction_types_to_remove: Vec::new(),
+            screen_auto_lock_timeout_seconds: 120.0,
+            screen_auto_lock_tolerance_seconds: 30.0,
+            screen_manual_lock_max_tail_seconds: 30.0,
+            screen_keyguard_near_stop_seconds: 2.0,
+            datetime_of_preprocessing: "2026-07-21 12:00:00 UTC".into(),
+            model_concurrent_usage: true,
+            minimum_usage_duration: 60.0,
+            apply_minimum_usage_duration_to_concurrent_subintervals: true,
+            filter_zero_duration_sessions: true,
+            add_no_activity_placeholder_days: true,
+            enable_study_window_filter: true,
+            enable_person_attribution: true,
+            enable_day_coverage: true,
+            enable_compliance_scoring: true,
+            compliance_threshold_percent: 70.0,
+            enable_screen_gated_crediting: true,
+            enable_aggregates: true,
+            aggregate_shape: "wide".into(),
+            materialize_visualization_data: true,
+            credited_session_cap_minutes: 360.0,
+            device_liveness_gap_tolerance_minutes: 120.0,
+            auto_lock_bridge_seconds: 120.0,
+            no_witness_min_day_apps: 2,
+        }
+    }
+
+    fn support_files() -> PipelineV2SupportFiles<'static> {
+        PipelineV2SupportFiles {
+            filter_csv: FILTER_CSV,
+            apps_forcing_csv: APPS_FORCING_CSV,
+            background_apps_csv: BACKGROUND_APPS_CSV,
+            codebook_csv: CODEBOOK_CSV,
+            study_dates_csv: STUDY_DATES_CSV,
+            device_sharing_csv: DEVICE_SHARING_CSV,
+            survey_attribution_csv: SURVEY_ATTRIBUTION_CSV,
+            enrolled_devices_csv: ENROLLED_DEVICES_CSV,
+        }
+    }
+
+    fn run_contract_fixture() -> PipelineV2Result {
+        run_pipeline_v2_with_supports(FIXTURE_CSV.as_bytes(), &contract_options(), support_files())
+            .expect("the contract fixture must preprocess cleanly")
+    }
+
+    /// The codebook alias columns are the derived category columns that stand
+    /// in for a codebook join. Turning the codebook on without supplying a
+    /// usable one still has to emit them: with nothing joined they are the only
+    /// place a category can come from. Once a codebook actually carries rows,
+    /// the joined columns take over and the aliases are dropped again unless
+    /// the researcher asked for the category column outright.
+    #[test]
+    fn an_enabled_but_empty_codebook_still_emits_the_alias_columns() {
+        // The narrow runner cannot accept the late analysis support roles, so
+        // the stages needing them are off; the codebook role is what this test
+        // moves.
+        let mut options = contract_options();
+        options.use_app_codebook = true;
+        options.include_category_column = false;
+        options.enable_study_window_filter = false;
+        options.enable_person_attribution = false;
+        options.enable_day_coverage = false;
+        options.enable_compliance_scoring = false;
+        options.add_no_activity_placeholder_days = false;
+        let options = options;
+        let none: &[u8] = b"";
+        let usage_layer_active =
+            options.model_concurrent_usage || options.use_background_apps_file;
+
+        let header_of = |bytes: &[u8]| -> Vec<String> {
+            String::from_utf8(bytes.to_vec())
+                .expect("the app csv is utf-8")
+                .lines()
+                .next()
+                .expect("the app csv has a header")
+                .split(',')
+                .map(str::to_string)
+                .collect()
+        };
+
+        let without_codebook = run_pipeline_v2(FIXTURE_CSV.as_bytes(), &options, none, none, none)
+            .expect("the fixture preprocesses with the codebook enabled and absent");
+        assert_eq!(
+            header_of(&without_codebook.app_csv_bytes),
+            declared_app_output_columns(
+                true,
+                true,
+                usage_layer_active,
+                options.custom_app_engagement_duration,
+            ),
+            "an enabled codebook with no rows to join dropped the alias columns",
+        );
+
+        let with_codebook =
+            run_pipeline_v2(FIXTURE_CSV.as_bytes(), &options, none, none, CODEBOOK_CSV)
+                .expect("the fixture preprocesses with a codebook");
+        assert_eq!(
+            header_of(&with_codebook.app_csv_bytes),
+            declared_app_output_columns(
+                true,
+                false,
+                usage_layer_active,
+                options.custom_app_engagement_duration,
+            ),
+            "a joined codebook still emitted the alias columns",
+        );
+    }
+
+    /// `run_pipeline_v2` and `run_pipeline_v2_with_background` are the entry
+    /// points callers reach for when they do not need every support role, and
+    /// they exist only to forward their arguments into `PipelineV2SupportFiles`.
+    /// A dropped field there is invisible — the call still succeeds and returns
+    /// plausible output with a support file silently ignored — so every
+    /// forwarded argument is checked by feeding it and observing the change.
+    #[test]
+    fn the_narrow_runners_forward_every_support_file_they_accept() {
+        // The late analysis stages need support roles these runners cannot
+        // accept, so they are off here; every role the runners *do* accept
+        // stays on.
+        let mut options = contract_options();
+        options.enable_study_window_filter = false;
+        options.enable_person_attribution = false;
+        options.enable_day_coverage = false;
+        options.enable_compliance_scoring = false;
+        options.add_no_activity_placeholder_days = false;
+        let options = options;
+        let none: &[u8] = b"";
+
+        let baseline = run_pipeline_v2(FIXTURE_CSV.as_bytes(), &options, none, none, none)
+            .expect("the fixture preprocesses with no support files");
+        for (name, filter, apps_forcing, codebook) in [
+            ("filter_csv", FILTER_CSV, none, none),
+            ("apps_forcing_csv", none, APPS_FORCING_CSV, none),
+            ("codebook_csv", none, none, CODEBOOK_CSV),
+        ] {
+            let supplied =
+                run_pipeline_v2(FIXTURE_CSV.as_bytes(), &options, filter, apps_forcing, codebook)
+                    .expect("the fixture preprocesses with one support file");
+            assert_ne!(
+                (
+                    supplied.app_csv_bytes.to_vec(),
+                    supplied.screen_csv_bytes.to_vec()
+                ),
+                (
+                    baseline.app_csv_bytes.to_vec(),
+                    baseline.screen_csv_bytes.to_vec()
+                ),
+                "run_pipeline_v2 ignored {name}",
+            );
+        }
+
+        let wide_baseline =
+            run_pipeline_v2_with_background(FIXTURE_CSV.as_bytes(), &options, none, none, none, none)
+                .expect("the fixture preprocesses with no support files");
+        assert_eq!(
+            wide_baseline.app_csv_bytes, baseline.app_csv_bytes,
+            "the two narrow runners disagree with no support files supplied"
+        );
+        for (name, filter, apps_forcing, background, codebook) in [
+            ("filter_csv", FILTER_CSV, none, none, none),
+            ("apps_forcing_csv", none, APPS_FORCING_CSV, none, none),
+            ("background_apps_csv", none, none, BACKGROUND_APPS_CSV, none),
+            ("codebook_csv", none, none, none, CODEBOOK_CSV),
+        ] {
+            let supplied = run_pipeline_v2_with_background(
+                FIXTURE_CSV.as_bytes(),
+                &options,
+                filter,
+                apps_forcing,
+                background,
+                codebook,
+            )
+            .expect("the fixture preprocesses with one support file");
+            assert_ne!(
+                (
+                    supplied.app_csv_bytes.to_vec(),
+                    supplied.screen_csv_bytes.to_vec()
+                ),
+                (
+                    wide_baseline.app_csv_bytes.to_vec(),
+                    wide_baseline.screen_csv_bytes.to_vec()
+                ),
+                "run_pipeline_v2_with_background ignored {name}",
+            );
+        }
+
+        // The roles neither narrow runner accepts must stay at their defaults,
+        // so a caller that used one of them cannot silently pick up study
+        // windows, sharing status, survey attribution or device counts.
+        let full = run_pipeline_v2_with_supports(
+            FIXTURE_CSV.as_bytes(),
+            &options,
+            PipelineV2SupportFiles {
+                filter_csv: FILTER_CSV,
+                apps_forcing_csv: APPS_FORCING_CSV,
+                background_apps_csv: BACKGROUND_APPS_CSV,
+                codebook_csv: CODEBOOK_CSV,
+                ..PipelineV2SupportFiles::default()
+            },
+        )
+        .expect("the fixture preprocesses with the four narrow support files");
+        let wide = run_pipeline_v2_with_background(
+            FIXTURE_CSV.as_bytes(),
+            &options,
+            FILTER_CSV,
+            APPS_FORCING_CSV,
+            BACKGROUND_APPS_CSV,
+            CODEBOOK_CSV,
+        )
+        .expect("the fixture preprocesses with the four narrow support files");
+        assert_eq!(full.app_csv_bytes, wide.app_csv_bytes);
+        assert_eq!(full.screen_csv_bytes, wide.screen_csv_bytes);
+        assert_eq!(full.day_coverage_csv_bytes, wide.day_coverage_csv_bytes);
+        assert_eq!(full.compliance_csv_bytes, wide.compliance_csv_bytes);
+    }
+
+    /// The support files, session-mode flags, and threshold knobs above are
+    /// not decoration: flipping any one of them must move the emitted product
+    /// bytes. Without this, a golden could stay green while an option stopped
+    /// reaching the pipeline at all.
+    #[test]
+    fn every_contract_option_and_support_file_changes_the_emitted_output() {
+        let baseline = run_contract_fixture();
+        let baseline_bytes = |result: &PipelineV2Result| {
+            (
+                result.app_csv_bytes.to_vec(),
+                result.screen_csv_bytes.to_vec(),
+                result.credited_app_csv_bytes.to_vec(),
+                result.day_coverage_csv_bytes.to_vec(),
+                result.compliance_csv_bytes.to_vec(),
+            )
+        };
+        let baseline_output = baseline_bytes(&baseline);
+
+        let perturbations: Vec<(&str, Box<dyn Fn(&mut PipelineV2Options)>)> = vec![
+            (
+                "use_filter_file",
+                Box::new(|options: &mut PipelineV2Options| options.use_filter_file = false),
+            ),
+            (
+                "use_apps_forcing_screen_open",
+                Box::new(|options: &mut PipelineV2Options| {
+                    options.use_apps_forcing_screen_open = false
+                }),
+            ),
+            (
+                "use_background_apps_file",
+                Box::new(|options: &mut PipelineV2Options| {
+                    options.use_background_apps_file = false
+                }),
+            ),
+            (
+                "use_app_codebook",
+                Box::new(|options: &mut PipelineV2Options| options.use_app_codebook = false),
+            ),
+            (
+                "include_category_column",
+                Box::new(|options: &mut PipelineV2Options| {
+                    options.include_category_column = false
+                }),
+            ),
+            (
+                "enable_person_attribution",
+                Box::new(|options: &mut PipelineV2Options| {
+                    options.enable_person_attribution = false
+                }),
+            ),
+            (
+                "enable_day_coverage",
+                Box::new(|options: &mut PipelineV2Options| options.enable_day_coverage = false),
+            ),
+            (
+                "enable_compliance_scoring",
+                Box::new(|options: &mut PipelineV2Options| {
+                    options.enable_compliance_scoring = false
+                }),
+            ),
+            (
+                "enable_screen_gated_crediting",
+                Box::new(|options: &mut PipelineV2Options| {
+                    options.enable_screen_gated_crediting = false
+                }),
+            ),
+            (
+                "correct_duplicate_event_timestamps",
+                Box::new(|options: &mut PipelineV2Options| {
+                    options.correct_duplicate_event_timestamps = false
+                }),
+            ),
+            (
+                "use_activity_stopped_as_fallback",
+                Box::new(|options: &mut PipelineV2Options| {
+                    options.use_activity_stopped_as_fallback = false
+                }),
+            ),
+            (
+                "model_concurrent_usage",
+                Box::new(|options: &mut PipelineV2Options| {
+                    options.model_concurrent_usage = false
+                }),
+            ),
+            (
+                "minimum_usage_duration",
+                Box::new(|options: &mut PipelineV2Options| {
+                    options.minimum_usage_duration = 240.0
+                }),
+            ),
+            (
+                "long_data_time_gap_thresholds",
+                Box::new(|options: &mut PipelineV2Options| {
+                    options.long_data_time_gap_thresholds = vec![48.0]
+                }),
+            ),
+            (
+                "long_usage_duration_thresholds",
+                Box::new(|options: &mut PipelineV2Options| {
+                    options.long_usage_duration_thresholds = vec![48.0]
+                }),
+            ),
+            (
+                "custom_app_engagement_duration",
+                Box::new(|options: &mut PipelineV2Options| {
+                    options.custom_app_engagement_duration = 45.0
+                }),
+            ),
+            (
+                "screen_auto_lock_timeout_seconds",
+                Box::new(|options: &mut PipelineV2Options| {
+                    options.screen_auto_lock_timeout_seconds = 3_600.0
+                }),
+            ),
+            (
+                "study_name",
+                Box::new(|options: &mut PipelineV2Options| {
+                    options.study_name = "Other Study".into()
+                }),
+            ),
+        ];
+        for (name, perturb) in perturbations {
+            let mut options = contract_options();
+            perturb(&mut options);
+            let perturbed =
+                run_pipeline_v2_with_supports(FIXTURE_CSV.as_bytes(), &options, support_files())
+                    .unwrap_or_else(|error| panic!("{name} perturbation must still run: {error}"));
+            assert_ne!(
+                baseline_output,
+                baseline_bytes(&perturbed),
+                "changing {name} left every product output identical",
+            );
+        }
+
+        // Each support file must reach the pipeline through the support struct.
+        let support_roles: [(&str, fn(&mut PipelineV2SupportFiles<'static>)); 4] = [
+            ("filter_csv", |support| support.filter_csv = b""),
+            ("apps_forcing_csv", |support| support.apps_forcing_csv = b""),
+            ("background_apps_csv", |support| {
+                support.background_apps_csv = b""
+            }),
+            ("codebook_csv", |support| support.codebook_csv = b""),
+        ];
+        for (name, clear) in support_roles {
+            let mut support = support_files();
+            clear(&mut support);
+            let perturbed =
+                run_pipeline_v2_with_supports(FIXTURE_CSV.as_bytes(), &contract_options(), support)
+                    .unwrap_or_else(|error| panic!("{name} removal must still run: {error}"));
+            assert_ne!(
+                baseline_output,
+                baseline_bytes(&perturbed),
+                "removing {name} left every product output identical",
+            );
+        }
+    }
+
+    #[test]
+    fn product_csv_and_json_outputs_are_exact() {
+        let result = run_contract_fixture();
+        assert_golden("app.csv", &result.app_csv_bytes);
+        assert_golden("screen.csv", &result.screen_csv_bytes);
+        assert_golden("credited_app.csv", &result.credited_app_csv_bytes);
+        assert_golden("day_coverage.csv", &result.day_coverage_csv_bytes);
+        assert_golden("compliance.csv", &result.compliance_csv_bytes);
+        assert_golden("review_summary.json", &result.review_summary_json_bytes);
+        assert_golden(
+            "visualization_data.json",
+            &result.visualization_data_json_bytes,
+        );
+        let kinds = result
+            .aggregate_csv_outputs
+            .iter()
+            .map(|output| output.kind.clone())
+            .collect::<Vec<_>>();
+        assert_golden("aggregate_kinds.json", format!("{kinds:?}").as_bytes());
+        for output in result.aggregate_csv_outputs.iter() {
+            assert_golden(&format!("{}.csv", output.kind), &output.bytes);
+        }
+    }
+
+    #[test]
+    fn step_digests_and_row_lineage_are_exact() {
+        let result = run_contract_fixture();
+        assert_golden(
+            "pipeline_step_digests.json",
+            serde_json::to_string_pretty(&result.pipeline_step_digests)
+                .expect("step digests serialize")
+                .as_bytes(),
+        );
+        assert_golden(
+            "pipeline_step_checkpoints.json",
+            serde_json::to_string_pretty(&result.pipeline_step_checkpoints)
+                .expect("step checkpoints serialize")
+                .as_bytes(),
+        );
+        assert_golden(
+            "logical_stage_checkpoints.json",
+            serde_json::to_string_pretty(&result.logical_stage_checkpoints)
+                .expect("logical stage checkpoints serialize")
+                .as_bytes(),
+        );
+        assert_golden(
+            "row_lineage.json",
+            serde_json::to_string_pretty(&result.row_lineage)
+                .expect("row lineage serializes")
+                .as_bytes(),
+        );
+    }
+
+    #[test]
+    fn reported_counts_and_timezone_resolution_are_exact() {
+        let result = run_contract_fixture();
+        assert_golden(
+            "counts.json",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "originalRowCount": result.original_row_count,
+                "processedRowCount": result.processed_row_count,
+                "appRowCount": result.app_row_count,
+                "screenRowCount": result.screen_row_count,
+                "dayCoverageRowCount": result.day_coverage_row_count,
+                "complianceRowCount": result.compliance_row_count,
+                "creditedAppRowCount": result.credited_app_row_count,
+                "duplicateTimestampsCorrected": result.duplicate_timestamps_corrected,
+                "exactDuplicateRowsRemoved": result.exact_duplicate_rows_removed,
+                "availableTimezones": result.available_timezones,
+                "timezone": result.timezone,
+                "timezoneAction": result.timezone_action,
+                "rowsBeforeTimezoneHandling": result.rows_before_timezone_handling,
+                "rowsAfterTimezoneHandling": result.rows_after_timezone_handling,
+                "rowsRemovedByTimezone": result.rows_removed_by_timezone,
+                "timezoneRetainedSourceRowsDigest": result.timezone_retained_source_rows_digest,
+                "timezoneStageDigest": result.timezone_stage_digest,
+                "logicalStageDigests": result.logical_stage_digests,
+            }))
+            .expect("counts serialize")
+            .as_bytes(),
         );
     }
 }

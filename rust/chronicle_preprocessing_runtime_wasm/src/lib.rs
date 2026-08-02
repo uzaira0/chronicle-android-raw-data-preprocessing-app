@@ -1776,64 +1776,57 @@ fn build_runtime_step_executions(
             .clone();
         let applicable = plan_step.applicability.evaluate(semantic_options);
         let previous = state.previous_observations.get(definition.id);
-        // Salsa has already proved that a cached query did not execute. When
-        // its output and applicability also match the prior observation, its
-        // exact bound-input key is unchanged. Reuse that key instead of
-        // rebuilding and canonically hashing maps for every one of the 44
-        // unaffected steps in a typical threshold comparison.
-        let input_key = if !executed_steps.contains(definition.id)
-            && previous.is_some_and(|entry| {
-                entry.output_digest == output_digest && entry.applicable == applicable
-            }) {
-            previous
-                .expect("checked previous observation")
-                .input_key
-                .clone()
-        } else {
-            let upstream = definition
-                .inputs
-                .iter()
-                .map(|input| {
-                    result
-                        .pipeline_step_digests
-                        .get(*input)
-                        .cloned()
-                        .map(|digest| ((*input).to_string(), digest))
-                        .ok_or_else(|| {
-                            format!("{} has no checkpoint for input {input}", definition.id)
-                        })
-                })
-                .collect::<Result<BTreeMap<_, _>, _>>()?;
-            let request_fields = step_request_fields(definition.id)
-                .iter()
-                .map(|field| {
-                    exact_object
-                        .get(*field)
-                        .cloned()
-                        .map(|value| ((*field).to_string(), value))
-                        .ok_or_else(|| {
-                            format!(
-                                "{} binds unknown exact request field {field}",
-                                definition.id
-                            )
-                        })
-                })
-                .collect::<Result<BTreeMap<_, _>, _>>()?;
-            let source_roles = active_source_roles(definition.id, exact_object, assignments);
-            sha256(
-                &serde_jcs::to_vec(&RuntimeStepKeyMaterial {
-                    implementation_digest: IMPLEMENTATION_BUILD_DIGEST,
-                    build_environment_digest: BUILD_ENVIRONMENT_DIGEST,
-                    contract_digest: EMBEDDED_PRODUCT_CONTRACT_SHA256,
-                    applicable,
-                    upstream,
-                    request_fields,
-                    source_roles,
-                    output_mode: step_output_mode(definition.id, state.materialize_full_outputs),
-                })
-                .map_err(|error| format!("canonicalize {} input key: {error}", definition.id))?,
-            )
-        };
+        // The key is defined below as a function of *this* run's inputs, so it
+        // is always built from them. A previous run's key was reused here when
+        // Salsa reported the query had not executed, on the reasoning that a
+        // query which did not run cannot have changed its inputs. That does
+        // not hold: the key binds the step's *declared* request fields, and a
+        // step can legitimately skip execution while one of them changes —
+        // `split_concurrent` binds `minimum_usage_duration` but only reads it
+        // when `apply_minimum_usage_duration_to_concurrent_subintervals` is
+        // on, so editing the floor with that switch off left a warm review
+        // reporting the previous run's key for it while a cold review of the
+        // same options reported a different one. A key that depends on how the
+        // run got here is not an identity, and comparing keys across runs is
+        // exactly what they are published for.
+        let upstream = definition
+            .inputs
+            .iter()
+            .map(|input| {
+                result
+                    .pipeline_step_digests
+                    .get(*input)
+                    .cloned()
+                    .map(|digest| ((*input).to_string(), digest))
+                    .ok_or_else(|| format!("{} has no checkpoint for input {input}", definition.id))
+            })
+            .collect::<Result<BTreeMap<_, _>, _>>()?;
+        let request_fields = step_request_fields(definition.id)
+            .iter()
+            .map(|field| {
+                exact_object
+                    .get(*field)
+                    .cloned()
+                    .map(|value| ((*field).to_string(), value))
+                    .ok_or_else(|| {
+                        format!("{} binds unknown exact request field {field}", definition.id)
+                    })
+            })
+            .collect::<Result<BTreeMap<_, _>, _>>()?;
+        let source_roles = active_source_roles(definition.id, exact_object, assignments);
+        let input_key = sha256(
+            &serde_jcs::to_vec(&RuntimeStepKeyMaterial {
+                implementation_digest: IMPLEMENTATION_BUILD_DIGEST,
+                build_environment_digest: BUILD_ENVIRONMENT_DIGEST,
+                contract_digest: EMBEDDED_PRODUCT_CONTRACT_SHA256,
+                applicable,
+                upstream,
+                request_fields,
+                source_roles,
+                output_mode: step_output_mode(definition.id, state.materialize_full_outputs),
+            })
+            .map_err(|error| format!("canonicalize {} input key: {error}", definition.id))?,
+        );
         if previous.is_some_and(|entry| {
             entry.input_key == input_key && entry.output_digest != output_digest
         }) {
@@ -5079,6 +5072,75 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
         assert!(!warnings
             .iter()
             .any(|warning| warning == "No timezone values found."));
+        assert!(!warnings.iter().any(|warning| warning
+            .as_str()
+            .is_some_and(|text| text.starts_with("Invalid timezone values:"))));
+    }
+
+    /// The invalid-timezone advisory is the only signal a researcher gets that
+    /// a device wrote a timezone preprocessing cannot resolve, so it has to
+    /// fire on exactly those values and stay silent on the ones it can. It
+    /// reports a distinct count and never the cell text: timezone values are
+    /// participant data and warnings are surfaced in the UI.
+    #[test]
+    fn the_invalid_timezone_advisory_names_only_timezones_chronicle_cannot_resolve() {
+        let header = "study_id,participant_id,application_label,interaction_type,app_package_name,event_timestamp,timezone\n";
+
+        let resolvable = format!(
+            "{header}\
+S,P1,Chat,Activity Resumed,pkg,2026-03-07 12:00:00,America/Chicago\n\
+S,P1,Chat,Activity Paused,pkg,2026-03-07 12:01:00,UTC\n\
+S,P1,Chat,Activity Resumed,pkg,2026-03-07 12:02:00,Australia/Eucla"
+        );
+        let resolvable: Value = serde_json::from_str(&inspect_raw_file_v1(
+            resolvable.as_bytes(),
+            "resolvable.csv",
+            resolvable.len() as f64,
+        ))
+        .unwrap();
+        assert_eq!(
+            resolvable["timezones"],
+            serde_json::json!(["America/Chicago", "Australia/Eucla", "UTC"])
+        );
+        assert!(
+            !resolvable["warnings"]
+                .as_array()
+                .expect("inspection warnings")
+                .iter()
+                .any(|warning| warning
+                    .as_str()
+                    .is_some_and(|text| text.starts_with("Invalid timezone values:"))),
+            "a file whose every timezone parses was still advised about invalid timezones"
+        );
+
+        let unresolvable = format!(
+            "{header}\
+S,P1,Chat,Activity Resumed,pkg,2026-03-07 12:00:00,America/Chicago\n\
+S,P1,Chat,Activity Paused,pkg,2026-03-07 12:01:00,Middle_Earth/Shire\n\
+S,P1,Chat,Activity Resumed,pkg,2026-03-07 12:02:00,GMT+25\n\
+S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
+        );
+        let unresolvable: Value = serde_json::from_str(&inspect_raw_file_v1(
+            unresolvable.as_bytes(),
+            "unresolvable.csv",
+            unresolvable.len() as f64,
+        ))
+        .unwrap();
+        let warnings = unresolvable["warnings"]
+            .as_array()
+            .expect("inspection warnings");
+        assert!(
+            warnings.iter().any(|warning| warning
+                == "Invalid timezone values: 2 distinct value(s) in the timezone column."),
+            "two distinct unresolvable timezones were not advised exactly once each: {warnings:?}"
+        );
+        for warning in warnings {
+            let text = warning.as_str().expect("warning text");
+            assert!(
+                !text.contains("Middle_Earth") && !text.contains("GMT+25"),
+                "a raw timezone cell leaked into a warning: {text}"
+            );
+        }
     }
 
     #[test]
@@ -5503,6 +5565,128 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
             .expect("full execution review summary");
         assert_eq!(review_bytes, full_review_bytes);
         assert_eq!(stable_artifact_generation_count(), 1);
+    }
+
+    /// A review never materializes artifacts, so it is the only command whose
+    /// product-stage projection is served from the previous run's cache when a
+    /// stage's inputs did not change. That cache is only sound if the stage
+    /// view it serves is the one a cold review of the same options reports —
+    /// the stage view is the evidence a researcher reads to see which part of
+    /// the pipeline an option touched, and a stale entry there is a false
+    /// claim about the run. Status and reason differ by construction (a warm
+    /// run reports what it reused); identity, key and output must not.
+    #[test]
+    fn a_warm_review_after_an_option_edit_projects_the_stages_a_cold_review_reports() {
+        reset_tracked_execution_count();
+        // The plain `csv()` fixture carries only unrecognized interaction
+        // types, so it produces no sessions and no duration option can move
+        // its output. This fixture has two 60 s Resumed/Paused pairs.
+        let csv = mixed_timezone_csv();
+        let support = RuntimeSupportFiles::default();
+
+        let mut first_request = request_for_workspace(&csv, '3');
+        first_request["command"] = Value::String(QUERY_REVIEW_COMMAND.into());
+        let first = execute_workspace_native(&first_request.to_string(), &csv, &support).unwrap();
+        let first: ReviewRuntimeManifest = serde_json::from_str(&first.manifest_json).unwrap();
+
+        // 90 s raises the floor above both 60 s sessions in the fixture, so the
+        // edit moves the summary as well as the keys. An edit that only moved
+        // keys would leave a stale cached stage output indistinguishable from a
+        // fresh one.
+        let mut edited_request = first_request.clone();
+        edited_request["requestId"] = Value::String("warm-review-after-edit".into());
+        edited_request["options"]["minimum_usage_duration"] = serde_json::json!(90.0);
+        let warm = execute_workspace_native(&edited_request.to_string(), &csv, &support).unwrap();
+        let warm: ReviewRuntimeManifest = serde_json::from_str(&warm.manifest_json).unwrap();
+
+        let mut cold_request = request_for_workspace(&csv, '4');
+        cold_request["command"] = Value::String(QUERY_REVIEW_COMMAND.into());
+        cold_request["requestId"] = Value::String("cold-review-oracle".into());
+        cold_request["options"]["minimum_usage_duration"] = serde_json::json!(90.0);
+        let cold = execute_workspace_native(&cold_request.to_string(), &csv, &support).unwrap();
+        let cold: ReviewRuntimeManifest = serde_json::from_str(&cold.manifest_json).unwrap();
+
+        assert!(
+            warm.node_executions
+                .iter()
+                .any(|execution| execution.status == ExecutionStatus::Cached),
+            "the warm review recomputed every stage, so it never exercised the projection cache"
+        );
+        assert_ne!(
+            warm.review_summary_digest, first.review_summary_digest,
+            "the option edit left the review summary unchanged, so a stale stage output would be invisible"
+        );
+        assert_eq!(warm.review_summary_digest, cold.review_summary_digest);
+
+        // Steps first: a step's bound-input key is the primitive fact, and a
+        // stage key is built from its members', so a step disagreement is the
+        // smaller and more exact report.
+        fn step_identity(executions: &[RuntimeStepExecution]) -> Vec<(&str, &str, &str, &str)> {
+            executions
+                .iter()
+                .map(|execution| {
+                    (
+                        execution.step_id.as_str(),
+                        execution.unit_id.as_str(),
+                        execution.input_key.as_str(),
+                        execution.output_digest.as_str(),
+                    )
+                })
+                .collect::<Vec<_>>()
+        }
+        let warm_steps = step_identity(&warm.step_executions);
+        let cold_steps = step_identity(&cold.step_executions);
+        let disagreeing_steps = warm_steps
+            .iter()
+            .zip(cold_steps.iter())
+            .filter(|(warm_step, cold_step)| warm_step != cold_step)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            warm_steps.len(),
+            cold_steps.len(),
+            "a warm review reported a different number of steps than a cold review"
+        );
+        assert!(
+            disagreeing_steps.is_empty(),
+            "a warm review reported step bindings a cold review of the same options does not: {disagreeing_steps:#?}"
+        );
+
+        type StageIdentity<'a> = (&'a str, &'a str, &'a str, Option<(&'a str, &'a str, u64)>);
+        fn stage_identity(executions: &[NodeExecution]) -> Vec<StageIdentity<'_>> {
+            executions
+                .iter()
+                .map(|execution| {
+                    (
+                        execution.node_id.as_str(),
+                        execution.capability_id.as_str(),
+                        execution.input_key.as_str(),
+                        execution.output.as_ref().map(|output| {
+                            (
+                                output.artifact_id.as_str(),
+                                output.digest.as_str(),
+                                output.size,
+                            )
+                        }),
+                    )
+                })
+                .collect::<Vec<_>>()
+        }
+        let warm_stages = stage_identity(&warm.node_executions);
+        let cold_stages = stage_identity(&cold.node_executions);
+        let disagreeing_stages = warm_stages
+            .iter()
+            .zip(cold_stages.iter())
+            .filter(|(warm_stage, cold_stage)| warm_stage != cold_stage)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            warm_stages.len(),
+            cold_stages.len(),
+            "a warm review reported a different number of product stages than a cold review"
+        );
+        assert!(
+            disagreeing_stages.is_empty(),
+            "a warm review projected product stages a cold review of the same options does not: {disagreeing_stages:#?}"
+        );
     }
 
     #[test]
@@ -6362,6 +6546,36 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
             execution.status,
             ExecutionStatus::Cached | ExecutionStatus::Bypassed
         )));
+        // Reusing a cached stage projection is a reporting shortcut, never a
+        // licence to publish less. Evidence artifacts (the ledger, journal,
+        // stage view, workspace root) legitimately differ between the two
+        // runs because they describe the run itself; every product-stage
+        // output must be republished byte for byte, or the second run of the
+        // same request hands the user a shorter download list than the first.
+        fn stage_outputs(manifest: &RuntimeManifest) -> BTreeSet<(&str, &str, u64)> {
+            manifest
+                .artifacts
+                .iter()
+                .filter(|artifact| artifact.kind.starts_with("node-output:"))
+                .map(|artifact| {
+                    (
+                        artifact.kind.as_str(),
+                        artifact.digest.as_str(),
+                        artifact.size,
+                    )
+                })
+                .collect::<BTreeSet<_>>()
+        }
+        assert_eq!(
+            stage_outputs(&first).len(),
+            first.node_executions.len(),
+            "the cold run did not publish one output artifact per product stage"
+        );
+        assert_eq!(
+            stage_outputs(&warm),
+            stage_outputs(&first),
+            "a warm repeat of the same request stopped publishing product-stage outputs"
+        );
         let mut warm_ledger = None;
         let mut warm_journal = None;
         for index in 0..warm_handle.artifact_count() {
@@ -6652,6 +6866,44 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
         INCREMENTAL_RUNTIME_STATES.with(|states| {
             assert_eq!(states.borrow().states.len(), MAX_INCREMENTAL_RUNTIME_STATES);
         });
+        // Pinned because an exclusion depends on it: at a capacity of one,
+        // `state_for` removes the revisited id from the LRU list before the
+        // admission check, so the list is empty and `pop_front` evicts nothing
+        // however that check is written. Raising the capacity makes the
+        // admission check load-bearing again — see the state-cache entry in
+        // .semantic-federation/quality/runtime-mutation-exclusions.txt.
+        assert_eq!(MAX_INCREMENTAL_RUNTIME_STATES, 1);
+    }
+
+    /// A warm review resumes from Salsa state already in this worker instead
+    /// of reparsing the input. Both halves of that claim have to hold: the
+    /// workspace must be at the root the request expects, and the engine must
+    /// already have verified *this* input. Accepting either one alone would
+    /// resume a review against a digest the engine never parsed.
+    #[test]
+    fn a_warm_review_needs_the_workspace_root_and_the_verified_input_together() {
+        let mut cache = IncrementalRuntimeStateCache::default();
+        let workspace = "warm-review-workspace";
+        let root = format!("sha256:{}", "a".repeat(64));
+        let input = format!("sha256:{}", "b".repeat(64));
+        cache.state_for(workspace).last_workspace_root = Some(root.clone());
+
+        assert!(
+            !cache.has_warm_review_input(workspace, Some(root.as_str()), &input),
+            "a matching workspace root alone claimed a warm review input the engine never verified"
+        );
+        assert!(
+            !cache.has_warm_review_input(workspace, Some("sha256:other"), &input),
+            "a workspace at a different root claimed a warm review input"
+        );
+        assert!(
+            !cache.has_warm_review_input(workspace, None, &input),
+            "a request carrying no workspace root claimed a warm review input"
+        );
+        assert!(
+            !cache.has_warm_review_input("unknown-workspace", Some(root.as_str()), &input),
+            "a workspace with no state at all claimed a warm review input"
+        );
     }
 
     #[test]

@@ -629,3 +629,200 @@ pub(super) fn build_aggregate_outputs(
     }
     outputs
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const MINUTE: i64 = 60_000_000_000;
+
+    /// (package, usage layer, start minute, stop minute, interaction type)
+    type Session<'a> = (&'a str, Option<&'a str>, i64, Option<i64>, &'a str);
+
+    fn sessions(rows: &[Session<'_>]) -> Vec<Row> {
+        let stamps = rows
+            .iter()
+            .enumerate()
+            .map(|(index, _)| format!("2026-03-07 10:{index:02}:00"))
+            .collect::<Vec<_>>();
+        let events: Vec<(&str, &str, &str)> = stamps
+            .iter()
+            .map(|stamp| (stamp.as_str(), "Activity Resumed", "com.example.chat"))
+            .collect();
+        let mut built = crate::pipeline_v2::tests::rows_from_events(&events);
+        for (row, (package, layer, start, stop, kind)) in built.iter_mut().zip(rows) {
+            let data = row.edit_all();
+            data.study_id = "Study".into();
+            data.participant_id = "P01".into();
+            data.date = "2026-03-07".into();
+            data.interaction_type = (*kind).into();
+            data.app_package_name = (*package).into();
+            data.application_label = (*package).into();
+            data.usage_layer = layer.map(SharedString::from);
+            data.start_timestamp_ns = Some(*start * MINUTE);
+            data.stop_timestamp_ns = stop.map(|stop| stop * MINUTE);
+            data.duration_minutes = stop.map(|stop| (stop - *start) as f64);
+        }
+        built
+    }
+
+    fn csv_rows(bytes: &[u8]) -> Vec<Vec<String>> {
+        String::from_utf8(bytes.to_vec())
+            .expect("aggregate CSV is UTF-8")
+            .lines()
+            .map(|line| line.split(',').map(str::to_owned).collect())
+            .collect()
+    }
+
+    /// The aggregates describe app usage, so they count only completed app
+    /// sessions: a screen session sitting in the same row list is a different
+    /// kind, and an app session that never got a stop is not a session yet.
+    #[test]
+    fn aggregates_count_only_completed_sessions_of_their_own_kind() {
+        let rows = sessions(&[
+            ("com.example.counted", None, 0, Some(10), APP_USAGE),
+            ("com.example.screen", None, 0, Some(10), SCREEN_USAGE),
+            ("com.example.unfinished", None, 0, None, APP_USAGE),
+        ]);
+        let (bytes, count) = top_apps_csv(&rows, "Study");
+        assert_eq!(count, 1, "only the completed app session may be ranked");
+        let lines = csv_rows(&bytes);
+        assert_eq!(lines.len(), 2, "one header and one ranked app");
+        assert!(
+            lines[1].contains(&"com.example.counted".to_string()),
+            "{:?}",
+            lines[1],
+        );
+    }
+
+    /// Co-usage means two apps were open at the same instant. Sessions that
+    /// merely abut — one stopping exactly when the next starts — share no
+    /// time, so they must not be reported as a co-usage pair however the
+    /// active-session scan decides to retire the earlier one.
+    #[test]
+    fn sessions_that_only_abut_are_not_co_usage() {
+        let rows = sessions(&[
+            ("com.example.first", None, 0, Some(10), APP_USAGE),
+            ("com.example.second", None, 10, Some(20), APP_USAGE),
+        ]);
+        let (bytes, count) = co_usage_csv(&rows, "Study");
+        assert_eq!(count, 0, "abutting sessions were reported as co-usage");
+        assert_eq!(csv_rows(&bytes).len(), 1, "only the header may be written");
+
+        let overlapping = sessions(&[
+            ("com.example.first", None, 0, Some(10), APP_USAGE),
+            ("com.example.second", None, 9, Some(20), APP_USAGE),
+        ]);
+        let (bytes, count) = co_usage_csv(&overlapping, "Study");
+        assert_eq!(count, 1, "a one-minute overlap is co-usage");
+        let lines = csv_rows(&bytes);
+        assert!(
+            lines[1].contains(&"1".to_string()),
+            "expected one overlapping minute in {:?}",
+            lines[1]
+        );
+    }
+
+    /// The active window spans the first start to the last stop. A day whose
+    /// only session is instantaneous spans nothing, so it reports zero
+    /// minutes rather than a window.
+    #[test]
+    fn an_instantaneous_day_has_no_active_window() {
+        let rows = sessions(&[("com.example.blink", None, 5, Some(5), APP_USAGE)]);
+        let borrowed: Vec<&Row> = rows.iter().collect();
+        let summary = summarize(borrowed, Vec::new(), Vec::new());
+        assert_eq!(
+            summary.active_window_minutes, 0.0,
+            "a zero-length day reported an active window"
+        );
+        assert_eq!(summary.first_use_ns, summary.last_use_ns);
+
+        let spanned = sessions(&[("com.example.real", None, 5, Some(11), APP_USAGE)]);
+        let borrowed: Vec<&Row> = spanned.iter().collect();
+        assert_eq!(
+            summarize(borrowed, Vec::new(), Vec::new()).active_window_minutes,
+            6.0
+        );
+    }
+
+    /// The top-apps table ranks by the whole day an app was used: foreground
+    /// and background minutes added together, not one weighed against the
+    /// other. An app with less foreground time can still outrank one with more.
+    #[test]
+    fn top_apps_rank_by_foreground_and_background_minutes_together() {
+        let rows = sessions(&[
+            ("com.example.foreground", None, 0, Some(10), APP_USAGE),
+            ("com.example.both", None, 20, Some(26), APP_USAGE),
+            (
+                "com.example.both",
+                Some("secondary"),
+                30,
+                Some(38),
+                APP_USAGE,
+            ),
+        ]);
+        let (bytes, count) = top_apps_csv(&rows, "Study");
+        assert_eq!(count, 2);
+        let lines = csv_rows(&bytes);
+        let column = |name: &str| {
+            lines[0]
+                .iter()
+                .position(|header| header == name)
+                .unwrap_or_else(|| panic!("{name} is not a top-apps column"))
+        };
+        let package = column("app_package_name");
+        let total = column("total_minutes");
+        assert_eq!(
+            (lines[1][package].as_str(), lines[1][total].as_str()),
+            ("com.example.both", "14"),
+            "6 foreground plus 8 background minutes outranks 10 foreground",
+        );
+        assert_eq!(
+            (lines[2][package].as_str(), lines[2][total].as_str()),
+            ("com.example.foreground", "10"),
+        );
+    }
+
+    /// A period summary describes completed sessions of one kind. A row of the
+    /// other kind sitting in the same list, and a session that never got a
+    /// stop, are both excluded — from the counts and from the minutes — and the
+    /// active window spans the first start to the last stop across both kinds.
+    #[test]
+    fn period_summaries_count_only_completed_sessions_of_the_matching_kind() {
+        let app = sessions(&[
+            ("com.example.chat", None, 0, Some(10), APP_USAGE),
+            ("com.example.mail", None, 12, None, APP_USAGE),
+            ("com.example.screen", None, 0, Some(30), SCREEN_USAGE),
+            (
+                "com.example.player",
+                Some("secondary"),
+                0,
+                Some(4),
+                APP_USAGE,
+            ),
+        ]);
+        let screen = sessions(&[
+            ("com.example.screen", None, 0, Some(14), SCREEN_USAGE),
+            ("com.example.screen", None, 20, None, SCREEN_USAGE),
+        ]);
+
+        let summaries = compute_period_summaries(&app, &screen, str::to_owned);
+        assert_eq!(summaries.len(), 1);
+        let summary = &summaries[0].summary;
+        assert_eq!(summaries[0].period, "2026-03-07");
+        assert_eq!(
+            (summary.app_session_count, summary.screen_session_count),
+            (1, 1),
+            "the unfinished session and the other kind's row are not sessions here",
+        );
+        assert_eq!(summary.total_app_usage_minutes, 10.0);
+        assert_eq!(summary.total_background_app_usage_minutes, 4.0);
+        assert_eq!(summary.total_screen_usage_minutes, 14.0);
+        assert_eq!(summary.mean_app_session_minutes, 10.0);
+        assert_eq!(summary.longest_app_session_minutes, 10.0);
+        assert_eq!(
+            summary.active_window_minutes, 14.0,
+            "the window runs from the first start to the last stop of either kind",
+        );
+    }
+}

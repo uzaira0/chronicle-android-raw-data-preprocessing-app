@@ -33,13 +33,93 @@ fn digest_field(hasher: &mut Sha256, bytes: &[u8]) {
     hasher.update(bytes);
 }
 
-fn is_test_only(tokens: &impl ToTokens) -> bool {
-    tokens
-        .to_token_stream()
-        .to_string()
-        .split_whitespace()
-        .collect::<String>()
-        .starts_with("#[cfg(test)]")
+fn is_cfg_test(attributes: &[syn::Attribute]) -> bool {
+    attributes.iter().any(|attribute| {
+        attribute.path().is_ident("cfg")
+            && matches!(&attribute.meta, syn::Meta::List(list)
+                if list.tokens.to_string().split_whitespace().collect::<String>() == "test")
+    })
+}
+
+/// Attributes may be written in any order, and a doc comment *is* an
+/// attribute. Reading only the first one meant a documented `#[cfg(test)]`
+/// module was hashed into the implementation digest as production source —
+/// the kernel's `output_contract` and `golden` modules both are — so every
+/// edit to a test moved the digest that the runtime binds its receipts and
+/// resume decisions to.
+fn is_test_only_item(item: &syn::Item) -> bool {
+    let attributes: &[syn::Attribute] = match item {
+        syn::Item::Const(item) => &item.attrs,
+        syn::Item::Enum(item) => &item.attrs,
+        syn::Item::ExternCrate(item) => &item.attrs,
+        syn::Item::Fn(item) => &item.attrs,
+        syn::Item::ForeignMod(item) => &item.attrs,
+        syn::Item::Impl(item) => &item.attrs,
+        syn::Item::Macro(item) => &item.attrs,
+        syn::Item::Mod(item) => &item.attrs,
+        syn::Item::Static(item) => &item.attrs,
+        syn::Item::Struct(item) => &item.attrs,
+        syn::Item::Trait(item) => &item.attrs,
+        syn::Item::TraitAlias(item) => &item.attrs,
+        syn::Item::Type(item) => &item.attrs,
+        syn::Item::Union(item) => &item.attrs,
+        syn::Item::Use(item) => &item.attrs,
+        _ => &[],
+    };
+    is_cfg_test(attributes)
+}
+
+fn is_test_only_statement(statement: &syn::Stmt) -> bool {
+    match statement {
+        syn::Stmt::Local(local) => is_cfg_test(&local.attrs),
+        syn::Stmt::Item(item) => is_test_only_item(item),
+        syn::Stmt::Macro(macro_statement) => is_cfg_test(&macro_statement.attrs),
+        syn::Stmt::Expr(expression, _) => is_cfg_test(expression_attributes(expression)),
+    }
+}
+
+fn expression_attributes(expression: &syn::Expr) -> &[syn::Attribute] {
+    match expression {
+        syn::Expr::Array(expression) => &expression.attrs,
+        syn::Expr::Assign(expression) => &expression.attrs,
+        syn::Expr::Async(expression) => &expression.attrs,
+        syn::Expr::Await(expression) => &expression.attrs,
+        syn::Expr::Binary(expression) => &expression.attrs,
+        syn::Expr::Block(expression) => &expression.attrs,
+        syn::Expr::Break(expression) => &expression.attrs,
+        syn::Expr::Call(expression) => &expression.attrs,
+        syn::Expr::Cast(expression) => &expression.attrs,
+        syn::Expr::Closure(expression) => &expression.attrs,
+        syn::Expr::Const(expression) => &expression.attrs,
+        syn::Expr::Continue(expression) => &expression.attrs,
+        syn::Expr::Field(expression) => &expression.attrs,
+        syn::Expr::ForLoop(expression) => &expression.attrs,
+        syn::Expr::Group(expression) => &expression.attrs,
+        syn::Expr::If(expression) => &expression.attrs,
+        syn::Expr::Index(expression) => &expression.attrs,
+        syn::Expr::Infer(expression) => &expression.attrs,
+        syn::Expr::Let(expression) => &expression.attrs,
+        syn::Expr::Lit(expression) => &expression.attrs,
+        syn::Expr::Loop(expression) => &expression.attrs,
+        syn::Expr::Macro(expression) => &expression.attrs,
+        syn::Expr::Match(expression) => &expression.attrs,
+        syn::Expr::MethodCall(expression) => &expression.attrs,
+        syn::Expr::Paren(expression) => &expression.attrs,
+        syn::Expr::Path(expression) => &expression.attrs,
+        syn::Expr::Range(expression) => &expression.attrs,
+        syn::Expr::Reference(expression) => &expression.attrs,
+        syn::Expr::Repeat(expression) => &expression.attrs,
+        syn::Expr::Return(expression) => &expression.attrs,
+        syn::Expr::Struct(expression) => &expression.attrs,
+        syn::Expr::Try(expression) => &expression.attrs,
+        syn::Expr::TryBlock(expression) => &expression.attrs,
+        syn::Expr::Tuple(expression) => &expression.attrs,
+        syn::Expr::Unary(expression) => &expression.attrs,
+        syn::Expr::Unsafe(expression) => &expression.attrs,
+        syn::Expr::While(expression) => &expression.attrs,
+        syn::Expr::Yield(expression) => &expression.attrs,
+        _ => &[],
+    }
 }
 
 struct StripTestOnly;
@@ -47,12 +127,19 @@ struct StripTestOnly;
 impl VisitMut for StripTestOnly {
     fn visit_file_mut(&mut self, file: &mut syn::File) {
         visit_mut::visit_file_mut(self, file);
-        file.items.retain(|item| !is_test_only(item));
+        file.items.retain(|item| !is_test_only_item(item));
+    }
+
+    fn visit_item_mod_mut(&mut self, module: &mut syn::ItemMod) {
+        visit_mut::visit_item_mod_mut(self, module);
+        if let Some((_, items)) = module.content.as_mut() {
+            items.retain(|item| !is_test_only_item(item));
+        }
     }
 
     fn visit_block_mut(&mut self, block: &mut syn::Block) {
         visit_mut::visit_block_mut(self, block);
-        block.stmts.retain(|statement| !is_test_only(statement));
+        block.stmts.retain(|statement| !is_test_only_statement(statement));
     }
 }
 
