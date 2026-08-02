@@ -26,10 +26,14 @@ were regenerated with `make dependency-evidence` and landed in `3c598ee`
 rust/chronicle_preprocessing_runtime_wasm/Cargo.toml` now reports `60 passed;
 0 failed; 1 ignored`, with zero stale-receipt failures. The authoritative live status and remaining checks
 are in the [55-step incremental Rust plan](55-step-incremental-rust-plan.md).
-This document is still not a completed production claim: the open blockers
-below — exact raw-field/support-record contribution, cross-browser durability,
-chrono-kernel mutation and coverage debt, streaming archive export/import, and
-large-file memory/crash injection — remain unproven.
+This document is still not a completed production claim, but the list of what is
+unproven is shorter than it was. The first provenance wave closed cross-browser
+durability, large-file memory and crash injection, streaming archive
+export/import, the chrono-kernel mutation and coverage debt, and exact
+raw-field-to-output-cell contribution for the six columns that qualify for it.
+Support-record-to-output-cell contribution remains conservative, and the
+remaining blockers are enumerated in the
+[final review matrix](final-review-matrix.md); they are open, not softened.
 
 ## Reusable authority layers
 
