@@ -1,7 +1,9 @@
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
 
+import { expect, test } from "./durabilityContext";
 import { APP_ONLY_RAW_CSV, MALFORMED_RAW_CSV } from "./fixtures";
 import {
+  downloadZipEntries,
   expandSectionCard,
   gotoApp,
   installDeterministicRuntime,
@@ -90,7 +92,7 @@ async function pollUntil(fn: () => Promise<boolean>, timeoutMs = 8000): Promise<
   }
 }
 
-test("a corrupt cached run never permanently wedges the boot; recovery is reachable", async ({
+test("@durability a corrupt cached run never permanently wedges the boot; recovery is reachable", async ({
   page,
 }) => {
   const consoleErrors: string[] = [];
@@ -129,7 +131,7 @@ test("a corrupt cached run never permanently wedges the boot; recovery is reacha
   expect(await readLastRun(page)).toBeNull();
 });
 
-test("work survives a tab kill as a restorable summary", async ({ context }) => {
+test("@durability work survives a tab kill as a restorable summary", async ({ context }) => {
   // Two tabs in ONE browser context share this origin's IndexedDB (separate
   // Playwright contexts are storage-isolated, like separate profiles). The
   // browser process survives; one tab dies and the user reopens it.
@@ -152,12 +154,23 @@ test("work survives a tab kill as a restorable summary", async ({ context }) => 
   await expect(tab2.getByTestId("result-panel")).toBeVisible({ timeout: 15_000 });
   await expect(tab2.getByTestId("result-panel")).toContainText("1 file processed");
   await expect(tab2.getByTestId("restored-lightweight-note")).toBeVisible();
-  // The heavy artifacts were intentionally not persisted, so downloads need a re-run.
-  await expect(tab2.getByTestId("download-all-zip")).toBeDisabled();
+  // Plot blobs and timeline geometry are still dropped from the cached record,
+  // but `toLightweightResults` keeps the OPFS-backed outputs and the root-pinned
+  // rebuild requests, so the download must stay available AND actually deliver
+  // the outputs again from the verified workspace without re-processing. (This
+  // assertion previously demanded a DISABLED button, which had been wrong since
+  // OPFS-backed outputs began surviving the record — nothing caught it because
+  // the persona suites are not part of the @smoke gate.)
+  await expect(tab2.getByTestId("download-all-zip")).toBeEnabled();
+  const restoredEntries = await downloadZipEntries(tab2, "download-all-zip");
+  expect(
+    Array.from(restoredEntries.keys()).some((name) => name.toLowerCase().endsWith(".csv")),
+    "the crash-restored workspace still yields its CSV outputs",
+  ).toBe(true);
   await tab2.close();
 });
 
-test("cancelling a run stops it cleanly and leaves no half-finished state (#11)", async ({
+test("@durability cancelling a run stops it cleanly and leaves no half-finished state (#11)", async ({
   page,
 }) => {
   const errors: string[] = [];
@@ -195,7 +208,7 @@ test("cancelling a run stops it cleanly and leaves no half-finished state (#11)"
   expect(errors, "cancel path raised no uncaught error").toEqual([]);
 });
 
-test("a fully failed run leaves no stale cached record", async ({ page }) => {
+test("@durability a fully failed run leaves no stale cached record", async ({ page }) => {
   await installDeterministicRuntime(page);
   await gotoApp(page);
 

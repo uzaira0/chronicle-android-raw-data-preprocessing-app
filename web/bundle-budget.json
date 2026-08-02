@@ -1,14 +1,14 @@
 {
-  "_comment": "Deploy-artifact size budgets (bytes), enforced by check_deploy_artifact.mts. Re-measured 2026-07-28 (evening): runtime WASM 6,039,041 (was 5,978,073 same morning). Cause: the incremental-execution kernel perf work landed 2026-07-28 (becd018..eab8b6e) — seven content-keyed alternation caches, the decoded_reconstruction_base salsa query split with retained-encoded-bytes identity, the product-shaped warm loop support, and the canonical-row/dedupe allocation cuts all compile into chronicle_chrono_kernel_wasm. Runtime WASM cap raised 6,000,000 to 6,100,000. Also .js total 900,222 (cap was 900,000): the in-progress compare/View UI work in the working tree (App.tsx, ProcessPanel.tsx, review panels); .js cap raised 900,000 to 910,000. Total assets 11,087,227; worker 125,840; semantic-index WASM 2,024,364 — all within their existing caps. Prior worker-raise rationale (122,000 to 127,000, sourcemap attribution finding no removable duplication) retained in git history. Budgets retain limited headroom; raising one requires a named cause and a new measurement.",
-  "totalBytes": 11250000,
+  "_comment": "Deploy-artifact size budgets (bytes), enforced by check_deploy_artifact.mts. Re-measured 2026-08-01 (cross-browser durability lane). Runtime WASM 6,264,349 (was 6,086,515): `--merge-similar-functions` was removed from the release wasm-opt flags in rust/chronicle_preprocessing_runtime_wasm/Cargo.toml because merging Salsa 0.28's per-jar `fn() -> TypeId` thunks corrupted jar identity — the second salsa::Storage built inside one WASM instance registered an incomplete jar map and the next singleton-input read aborted with `ingredient JarImpl<UsageSupportInput> was not registered`. Measured on WebKit 26.4 that broke every processing run after the first in a page; the Cargo.toml comment carries the full evidence. Cost +177,834 B uncompressed (gzip essentially unchanged: 1,853.81 kB to 1,853.89 kB). Runtime WASM cap raised 6,100,000 to 6,330,000, .wasm total 8,200,000 to 8,360,000, assets total 11,250,000 to 11,420,000. Worker 127,851 (was 125,840): chronicle-worker.ts now exposes probeWorkspaceCapability and opfsArtifactStore.ts probes a verified OPFS write/read-back round trip instead of mere directory existence, so the fail-closed durable-storage gate runs in the worker that actually writes; worker cap raised 127,000 to 129,000. Prior 2026-07-28 rationale (incremental-execution kernel perf work, compare/View UI) retained in git history. Budgets retain limited headroom; raising one requires a named cause and a new measurement.",
+  "totalBytes": 11420000,
   "categories": {
     ".js": 910000,
-    ".wasm": 8200000,
+    ".wasm": 8360000,
     ".css": 100000
   },
   "filePrefixes": {
-    "chronicle_preprocessing_runtime_wasm_bg-": 6100000,
+    "chronicle_preprocessing_runtime_wasm_bg-": 6330000,
     "chronicle_semantic_index_wasm_bg-": 2350000,
-    "chronicle-worker-": 127000
+    "chronicle-worker-": 129000
   }
 }

@@ -177,11 +177,33 @@ export class WorkerPool {
   private readonly spawn: WorkerSpawn;
   private readonly maxTasksPerWorker: number;
   private terminated = false;
+  /**
+   * Rejects the moment {@link terminate} is called. Every in-flight task races
+   * it, because `Worker.terminate()` does NOT settle the Comlink RPC promises
+   * already awaiting a reply from that worker: the worker simply stops, no
+   * message ever comes back, and `onerror`/`onmessageerror` (which is all
+   * `slot.fault` watches) never fires. Without this, cancelling a batch left
+   * the caller's `await` pending forever — the run's `Promise.all` never
+   * resolved and the UI stayed wedged on "Processing…" with no way out. That is
+   * exactly the half-finished state cancellation exists to prevent, and
+   * `App.tsx`'s runner already documents the opposite contract ("a terminate()
+   * during cancel rejects the in-flight file").
+   */
+  private readonly aborted: Promise<never>;
+  private abort: () => void = () => {};
 
   constructor(
     size: number,
     spawnOrOptions: WorkerSpawn | WorkerPoolOptions = spawnWorker,
   ) {
+    this.aborted = new Promise<never>((_, reject) => {
+      this.abort = () =>
+        reject(new Error("Worker pool has been terminated."));
+    });
+    // Pre-handle so an un-raced abort (a pool terminated with nothing in
+    // flight) never surfaces as an unhandled rejection; racing still observes
+    // the same rejection.
+    this.aborted.catch(() => {});
     const options: WorkerPoolOptions =
       typeof spawnOrOptions === "function"
         ? { spawn: spawnOrOptions }
@@ -327,9 +349,11 @@ export class WorkerPool {
   ): Promise<T> {
     const slot = await this.acquire();
     try {
-      // Race the worker's fault so a dead worker rejects loudly, not silently.
-      await Promise.race([slot.ready, slot.fault]);
-      return await Promise.race([action(slot.api), slot.fault]);
+      // Race the worker's fault so a dead worker rejects loudly, not silently,
+      // and the pool's abort so terminate() settles this task instead of
+      // leaving it pending against a worker that will never answer.
+      await Promise.race([slot.ready, slot.fault, this.aborted]);
+      return await Promise.race([action(slot.api), slot.fault, this.aborted]);
     } finally {
       this.release(slot);
     }
@@ -342,11 +366,11 @@ export class WorkerPool {
   ): Promise<T> {
     const slot = await this.acquire();
     try {
-      await Promise.race([slot.ready, slot.fault]);
-      if (!(await Promise.race([hasSetup(slot.api), slot.fault]))) {
-        await Promise.race([setup(slot.api), slot.fault]);
+      await Promise.race([slot.ready, slot.fault, this.aborted]);
+      if (!(await Promise.race([hasSetup(slot.api), slot.fault, this.aborted]))) {
+        await Promise.race([setup(slot.api), slot.fault, this.aborted]);
       }
-      return await Promise.race([action(slot.api), slot.fault]);
+      return await Promise.race([action(slot.api), slot.fault, this.aborted]);
     } finally {
       this.release(slot);
     }
@@ -354,6 +378,9 @@ export class WorkerPool {
 
   terminate(): void {
     this.terminated = true;
+    // Settle in-flight tasks first: the workers below are about to stop without
+    // ever answering their pending RPCs.
+    this.abort();
     while (this.waiters.length) {
       this.waiters
         .shift()!

@@ -824,11 +824,16 @@ test("restores last processed results after refresh and collapses process detail
   await expect(page.getByTestId("result-panel")).toContainText("1 file processed");
   await expect(page.locator("#process-details")).toBeHidden();
   await expect(page.getByRole("button", { name: "Show processing details" })).toBeVisible();
-  // The restore is lightweight: counts come back, but the heavy artifacts are
-  // not persisted across a refresh (so a big batch can't exhaust memory/quota
-  // on the next boot). The note explains it and downloads are disabled.
+  // The restore is lightweight: plot blobs and timeline geometry are dropped so
+  // a big batch can't exhaust memory/quota on the next boot, and the note
+  // explains that. Downloads stay AVAILABLE, because `toLightweightResults`
+  // keeps the receipt-pinned OPFS outputs and they are rebuilt from the verified
+  // workspace rather than from anything held in memory. (This assertion demanded
+  // a disabled button and had been failing since OPFS-backed outputs began
+  // surviving the cached record; nothing caught it because app.spec's non-@smoke
+  // tests are not part of the `make all` gate.)
   await expect(page.getByTestId("restored-lightweight-note")).toBeVisible();
-  await expect(page.getByTestId("download-all-zip")).toBeDisabled();
+  await expect(page.getByTestId("download-all-zip")).toBeEnabled();
 
   // Delete results: the panel empties AND the persisted copy is gone, so a
   // further refresh starts clean instead of restoring the run again.
