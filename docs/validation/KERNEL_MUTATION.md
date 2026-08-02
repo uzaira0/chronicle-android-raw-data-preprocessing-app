@@ -1,8 +1,12 @@
 # Kernel mutation campaign — final ledger
 
-`rust/chronicle_chrono_kernel_wasm`, cargo-mutants 27.1.0.
+cargo-mutants 27.1.0. The campaign was scoped to
+`rust/chronicle_chrono_kernel_wasm`; finishing it meant repairing the gate
+itself, which turned out to have kept two other crates' campaigns from ever
+starting, so `rust/chronicle_preprocessing_runtime_wasm`'s first campaign is
+recorded here too.
 
-## The campaign
+## The kernel campaign
 
 ```bash
 cargo mutants \
@@ -109,11 +113,14 @@ table before using them.
 
 Fixing the manifest defect below started
 `rust/chronicle_preprocessing_runtime_wasm`'s mutation gate for the first time.
-That first run left **15** survivors. Tightening the two over-broad
-expressions it inherited exposed **7** more mutants that had never been tested
-and do not survive, and **4** timeouts the old shape had swallowed. All 22 are
-resolved. On the current tree the crate has **660** mutants, **14** are
-excluded, and the remaining **646** are tested.
+That first run left **15** survivors.
+
+Anchoring the three over-broad expressions it inherited put **18** more
+mutants under test for the first time: 3 of them survive, 4 time out, and 11
+are caught. So **22** entries needed a resolution — the 15, the 3 further
+survivors, and the 4 timeouts — and each has one. On the current tree the
+crate has **660** mutants, **14** are excluded, and the remaining **646** are
+tested with no misses and no timeouts.
 
 **5 killed by tests written in this campaign:**
 
