@@ -10503,6 +10503,12 @@ mod tracked {
                 reused.result.review_summary_json_bytes,
                 expected.result.review_summary_json_bytes
             );
+            let oracle = run_pipeline_v2_with_supports(&csv(), &changed, support)
+                .expect("sequential oracle for a minimum-only change");
+            assert_eq!(
+                reused.result.review_summary_json_bytes, oracle.review_summary_json_bytes,
+                "reusing rows across a minimum-only change drifted from the sequential path",
+            );
 
             changed.apply_minimum_usage_duration_to_concurrent_subintervals = true;
             let affected = engine.execute(&csv(), &changed, support, false).unwrap();
@@ -10602,6 +10608,17 @@ mod tracked {
                 &second.result,
                 &expected.result,
                 second_edit.usage_session_mode,
+            );
+
+            // Both engines above run the same query graph, so they agree even
+            // when that graph reuses the wrong rows. The sequential path
+            // computes the same steps through separate code and is the only
+            // check here that a review shortcut dropped work it owed.
+            let oracle = run_pipeline_v2_with_supports(&csv(), &second_edit, support)
+                .expect("sequential oracle for a repeated floor edit");
+            assert_eq!(
+                second.result.review_summary_json_bytes, oracle.review_summary_json_bytes,
+                "repeated floor edits drifted from the sequential path",
             );
         }
 
@@ -11421,6 +11438,64 @@ mod tracked {
                     "{component} disagreement has to be symmetric",
                 );
             }
+        }
+
+        /// Both row-removing options are reported as product counts. A raw
+        /// export that carries an exact duplicate row and a session that opens
+        /// and closes at the same instant has to keep or lose those rows
+        /// exactly as the two options say, in either direction.
+        #[test]
+        fn the_row_removing_options_decide_whether_a_row_survives() {
+            let raw = concat!(
+                "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+                "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago\n",
+                "Study,P01,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 10:00:00,America/Chicago\n",
+                "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:02:00,America/Chicago\n",
+                "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:02:00,America/Chicago\n",
+                "Study,P01,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 10:04:00,America/Chicago\n",
+            )
+            .as_bytes();
+            let support = PipelineV2SupportFiles::default();
+            let mut options = pipeline_options();
+            options.usage_session_mode = UsageSessionMode::AppUsage;
+            options.include_app_output = true;
+            // Nudging tied timestamps apart would give the paired session a
+            // one-nanosecond duration, which is not a zero-duration session.
+            options.correct_duplicate_event_timestamps = false;
+
+            let run = |deduplicate: bool, drop_zero: bool| {
+                let mut options = options.clone();
+                options.deduplicate_exact_rows = deduplicate;
+                options.filter_zero_duration_sessions = drop_zero;
+                TrackedEngine::default()
+                    .execute(raw, &options, support, true)
+                    .expect("row-removing options execute")
+                    .result
+            };
+
+            let kept = run(false, false);
+            assert_eq!(
+                kept.exact_duplicate_rows_removed, 0,
+                "dedupe was off and still removed rows",
+            );
+
+            let deduped = run(true, false);
+            assert_eq!(
+                deduped.exact_duplicate_rows_removed, 1,
+                "the repeated Activity Resumed row was not recognised as an exact duplicate",
+            );
+            assert_eq!(
+                deduped.processed_row_count + 1,
+                kept.processed_row_count,
+                "dedupe reported a removal it did not make",
+            );
+
+            let dropped = run(true, true);
+            assert_eq!(
+                dropped.app_row_count + 1,
+                deduped.app_row_count,
+                "the session that opened and closed at one instant survived the zero-duration filter",
+            );
         }
 
         /// `rows_step_reusing` may hand a step's consumers the upstream row
