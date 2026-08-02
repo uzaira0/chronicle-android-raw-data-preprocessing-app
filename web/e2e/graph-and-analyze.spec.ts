@@ -1,5 +1,6 @@
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
 
+import { expect, test } from "./durabilityContext";
 import { APP_AND_SCREEN_RAW_CSV } from "./fixtures";
 import {
   assertNoExternalRequests,
