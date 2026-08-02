@@ -9475,6 +9475,240 @@ mod tests {
         assert_eq!(p, 5e-8);
     }
 
+    fn credit_point(timestamp_ns: i64, state: ScreenCreditState) -> ScreenChangePoint {
+        ScreenChangePoint {
+            timestamp_ns,
+            state,
+            source_data_rows: SourceDataRows::default(),
+        }
+    }
+
+    /// `creditable_intervals` decides how much of an app session the
+    /// screen-gated credit layer pays for. The auto-lock bridge is the
+    /// researcher-facing rule: a screen-OFF blip shorter than the device's
+    /// auto-lock cannot be a real lock, so credit continues across it, while an
+    /// OFF stretch at or beyond the auto-lock ends the credited interval.
+    #[test]
+    fn screen_credit_pays_for_lit_time_and_bridges_only_sub_auto_lock_blips() {
+        use ScreenCreditState::{Off, On};
+        let bridge = 10;
+
+        // No screen witness at all: nothing is creditable, which is what makes
+        // the no-witness fallback options necessary.
+        assert_eq!(creditable_intervals(&[], 0, 100, bridge), Vec::new());
+        // A screen state established before the session covers the session.
+        assert_eq!(
+            creditable_intervals(&[credit_point(-5, On)], 0, 100, bridge),
+            vec![(0, 100)]
+        );
+        assert_eq!(
+            creditable_intervals(&[credit_point(-5, Off)], 0, 100, bridge),
+            Vec::new()
+        );
+        // Screen turns on mid-session: only the lit tail is credited.
+        assert_eq!(
+            creditable_intervals(&[credit_point(20, On)], 0, 100, bridge),
+            vec![(20, 100)]
+        );
+        // A lock at or past the auto-lock closes the interval.
+        assert_eq!(
+            creditable_intervals(&[credit_point(0, On), credit_point(50, Off)], 0, 100, bridge),
+            vec![(0, 50)]
+        );
+        assert_eq!(
+            creditable_intervals(
+                &[
+                    credit_point(0, On),
+                    credit_point(50, Off),
+                    credit_point(60, On)
+                ],
+                0,
+                100,
+                bridge
+            ),
+            vec![(0, 50), (60, 100)],
+            "an OFF span exactly as long as the auto-lock is a real lock"
+        );
+        // A shorter blip is bridged, and the bridged time itself is credited.
+        assert_eq!(
+            creditable_intervals(
+                &[
+                    credit_point(0, On),
+                    credit_point(50, Off),
+                    credit_point(59, On)
+                ],
+                0,
+                100,
+                bridge
+            ),
+            vec![(0, 100)]
+        );
+        // Two blips inside one session stay inside one credited interval.
+        assert_eq!(
+            creditable_intervals(
+                &[
+                    credit_point(0, On),
+                    credit_point(20, Off),
+                    credit_point(25, On),
+                    credit_point(40, Off),
+                    credit_point(48, On)
+                ],
+                0,
+                100,
+                bridge
+            ),
+            vec![(0, 100)]
+        );
+        // The session window clips both ends, and a point beyond the end is
+        // never consulted.
+        assert_eq!(
+            creditable_intervals(&[credit_point(0, On), credit_point(50, Off)], 0, 40, bridge),
+            vec![(0, 40)]
+        );
+        assert_eq!(
+            creditable_intervals(&[credit_point(0, On), credit_point(50, Off)], 20, 40, bridge),
+            vec![(20, 40)]
+        );
+        // A trailing blip shorter than the auto-lock keeps the interval open to
+        // the end of the session rather than truncating at the blip.
+        assert_eq!(
+            creditable_intervals(&[credit_point(0, On), credit_point(95, Off)], 0, 100, bridge),
+            vec![(0, 100)]
+        );
+        // A zero-length window credits nothing whatever the screen was doing.
+        assert_eq!(
+            creditable_intervals(&[credit_point(0, On)], 50, 50, bridge),
+            Vec::new()
+        );
+        // With no bridge allowance every OFF span is a lock.
+        assert_eq!(
+            creditable_intervals(
+                &[
+                    credit_point(0, On),
+                    credit_point(50, Off),
+                    credit_point(51, On)
+                ],
+                0,
+                100,
+                0
+            ),
+            vec![(0, 50), (51, 100)]
+        );
+    }
+
+    /// Credit is paid only where the screen was lit *and* the device was
+    /// demonstrably alive, so the two interval lists are intersected. The
+    /// sweep is linear; check it against the obvious quadratic definition.
+    #[test]
+    fn interval_intersection_matches_the_all_pairs_definition() {
+        fn reference(left: &[CreditInterval], right: &[CreditInterval]) -> Vec<CreditInterval> {
+            let mut output = Vec::new();
+            for (a_start, a_end) in left {
+                for (b_start, b_end) in right {
+                    let lower = *a_start.max(b_start);
+                    let upper = *a_end.min(b_end);
+                    if upper > lower {
+                        output.push((lower, upper));
+                    }
+                }
+            }
+            output.sort_unstable();
+            output
+        }
+
+        // Touching intervals share no positive-length time.
+        assert_eq!(intersect_intervals(&[(0, 10)], &[(10, 20)]), Vec::new());
+        assert_eq!(intersect_intervals(&[(0, 10)], &[(9, 20)]), vec![(9, 10)]);
+        assert_eq!(intersect_intervals(&[], &[(0, 10)]), Vec::new());
+        assert_eq!(intersect_intervals(&[(0, 10)], &[]), Vec::new());
+        // One long interval can be cut into several pieces by the other list.
+        assert_eq!(
+            intersect_intervals(&[(0, 100)], &[(10, 20), (30, 40), (90, 200)]),
+            vec![(10, 20), (30, 40), (90, 100)]
+        );
+        // Advancing the list that ends first is what keeps this linear; a
+        // shared right edge must not drop the following interval.
+        assert_eq!(
+            intersect_intervals(&[(0, 10), (10, 30)], &[(5, 10), (12, 40)]),
+            vec![(5, 10), (12, 30)]
+        );
+
+        fn next(state: &mut u64) -> u64 {
+            *state ^= *state << 13;
+            *state ^= *state >> 7;
+            *state ^= *state << 17;
+            *state
+        }
+        fn build(state: &mut u64, count: usize) -> Vec<CreditInterval> {
+            let mut intervals: Vec<CreditInterval> = Vec::new();
+            let mut cursor = 0i64;
+            for _ in 0..count {
+                cursor += (next(state) % 7) as i64;
+                let width = 1 + (next(state) % 11) as i64;
+                intervals.push((cursor, cursor + width));
+                cursor += width;
+            }
+            intervals
+        }
+
+        let mut state = 0x2545_f491_4f6c_dd1d_u64;
+        for _ in 0..2_000 {
+            let left_count = 1 + (next(&mut state) % 6) as usize;
+            let left = build(&mut state, left_count);
+            let right_count = 1 + (next(&mut state) % 6) as usize;
+            let right = build(&mut state, right_count);
+            assert_eq!(
+                intersect_intervals(&left, &right),
+                reference(&left, &right),
+                "left={left:?} right={right:?}"
+            );
+        }
+    }
+
+    /// Only a completed, positive-duration App Usage session is a credit
+    /// candidate. Screen rows, placeholders and zero-length rows pass through
+    /// the credit layer untouched.
+    #[test]
+    fn credit_candidates_are_exactly_positive_duration_app_usage_rows() {
+        let raw = incremental::csv_parse(
+            b"study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n\
+              Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago\n",
+        );
+        let mut row = incremental::build_canonical_rows(
+            &raw,
+            "America/Chicago",
+            &BTreeMap::new(),
+            "test-device",
+        )
+        .expect("canonical rows")
+        .remove(0);
+
+        let set = |row: &mut Row, interaction: &str, duration: Option<f64>| {
+            let data = row.edit_all();
+            data.interaction_type = interaction.into();
+            data.duration_minutes = duration;
+        };
+
+        set(&mut row, APP_USAGE, Some(1.5));
+        assert!(is_credit_session(&row));
+
+        // A completed session with no time in it has nothing to credit, and a
+        // session with no duration at all was never closed.
+        set(&mut row, APP_USAGE, Some(0.0));
+        assert!(!is_credit_session(&row));
+        set(&mut row, APP_USAGE, Some(-1.0));
+        assert!(!is_credit_session(&row));
+        set(&mut row, APP_USAGE, None);
+        assert!(!is_credit_session(&row));
+
+        // Screen rows and raw interaction rows travel through the credit layer
+        // untouched; only the reconstructed App Usage episodes are candidates.
+        set(&mut row, SCREEN_USAGE, Some(1.5));
+        assert!(!is_credit_session(&row));
+        set(&mut row, "Activity Resumed", Some(1.5));
+        assert!(!is_credit_session(&row));
+    }
+
     #[test]
     fn screen_credit_lineage_separates_direct_state_from_liveness_search() {
         let mut substrate = ScreenCreditSubstrate::default();
