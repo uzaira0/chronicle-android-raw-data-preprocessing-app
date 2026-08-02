@@ -335,7 +335,15 @@ describe("field-level provenance reconciliation", () => {
       sha256Uri(readFileSync(EXPECTED_FILE, "utf8")),
     );
     expect(serialized).toBe(readFileSync(EXPECTED_FILE, "utf8"));
-  });
+    // Explicit timeout, matching every other campaign reconciliation in this
+    // directory (240_000 to 1_800_000 ms). This one was the only test here still
+    // on vitest's 5 s default while doing the same class of work: it reads and
+    // gunzips every recorded correspondence sidecar synchronously — 2.5 s when
+    // it runs alone, but measured at 7 s and 9 s on two separate full-suite runs
+    // sharing the box with the other 50 test files, each of which failed the
+    // suite. The work is bounded and deterministic; how long it takes depends on
+    // what else is running, which must not decide whether it passes.
+  }, 120_000);
 
   it("keeps the three unread raw columns out of the declared field graph", () => {
     // `RawRow` carries eight of the eleven raw columns. The parser never reads
