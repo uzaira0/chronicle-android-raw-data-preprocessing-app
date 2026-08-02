@@ -9216,6 +9216,215 @@ mod tests {
         assert_eq!(normalize_float_string(v), "5e-8");
     }
 
+    /// Every expectation below is the value V8 prints, produced by
+    /// `node -e "console.log((<value>).toPrecision(<p>))"`. `ecma_to_precision`
+    /// declares itself an implementation of `Number.prototype.toPrecision`, and
+    /// `normalize_float_string` renders it into researcher-facing CSV cells, so
+    /// the JS output is the specification, not an incidental detail.
+    #[test]
+    fn ecma_to_precision_matches_javascript_to_precision() {
+        let cases: &[(f64, u32, &str)] = &[
+            // Zero takes its own branch: one digit, then a padded fraction.
+            (0.0, 1, "0"),
+            (0.0, 3, "0.00"),
+            (0.0, 17, "0.0000000000000000"),
+            // exp >= 0 and exp == precision - 1: every digit sits left of the
+            // point and the integer is padded, never truncated.
+            (5.0, 1, "5"),
+            (999.999, 6, "999.999"),
+            // exp >= 0 and exp < precision - 1: the point splits the digits.
+            (1.5, 3, "1.50"),
+            (1234.5678, 6, "1234.57"),
+            (999.999, 7, "999.9990"),
+            (999.999, 17, "999.99900000000002"),
+            // -6 <= exp < 0: leading zeros before the significant digits, and
+            // 1e-6 is the last magnitude that stays in positional form.
+            (0.1, 2, "0.10"),
+            (0.3333333333333333, 3, "0.333"),
+            (0.30000000000000004, 17, "0.30000000000000004"),
+            (0.000001, 1, "0.000001"),
+            (0.000001, 15, "0.00000100000000000000"),
+            // exp >= precision: exponential form.
+            (123456789.0, 3, "1.23e+8"),
+            (1e21, 3, "1.00e+21"),
+            // exp < -6: exponential form, including three-digit exponents.
+            (5e-8, 1, "5e-8"),
+            (5e-8, 15, "5.00000000000000e-8"),
+            (5e-8, 17, "4.9999999999999998e-8"),
+            (-5e-8, 3, "-5.00e-8"),
+            (1e-7, 17, "9.9999999999999995e-8"),
+            (0.000001, 17, "9.9999999999999995e-7"),
+            (1e-100, 3, "1.00e-100"),
+            (1.2345678901234567e-9, 15, "1.23456789012346e-9"),
+            // Rounding is decided on the true binary value, not the literal:
+            // 9.95 is stored as 9.9499999..., so it rounds down.
+            (9.95, 2, "9.9"),
+            (9.95, 21, "9.94999999999999928946"),
+            (0.1, 21, "0.100000000000000005551"),
+            // Carry out of the leading digit raises the exponent and drops the
+            // digit that fell off the end.
+            (999.999, 1, "1e+3"),
+            (999.999, 2, "1.0e+3"),
+            (999.999, 3, "1.00e+3"),
+        ];
+        for (value, precision, expected) in cases {
+            assert_eq!(
+                ecma_to_precision(*value, *precision),
+                *expected,
+                "({value}).toPrecision({precision})",
+            );
+        }
+        assert_eq!(ecma_to_precision(f64::NAN, 3), "NaN");
+        assert_eq!(ecma_to_precision(f64::INFINITY, 3), "Infinity");
+        assert_eq!(ecma_to_precision(f64::NEG_INFINITY, 3), "-Infinity");
+    }
+
+    /// Expectations are `node -e "console.log((<value>).toExponential())"`.
+    #[test]
+    fn to_exponential_matches_javascript_to_exponential() {
+        let cases: &[(f64, &str)] = &[
+            (0.0, "0e+0"),
+            (1.0, "1e+0"),
+            (-1.0, "-1e+0"),
+            (0.5, "5e-1"),
+            (1.5, "1.5e+0"),
+            (21.625, "2.1625e+1"),
+            (123456789.0, "1.23456789e+8"),
+            (1e20, "1e+20"),
+            (1e21, "1e+21"),
+            (0.1, "1e-1"),
+            (0.30000000000000004, "3.0000000000000004e-1"),
+            (0.3333333333333333, "3.333333333333333e-1"),
+            (-0.3333333333333333, "-3.333333333333333e-1"),
+            (1234.5678, "1.2345678e+3"),
+            (999.999, "9.99999e+2"),
+            (1e-4, "1e-4"),
+            (9.9999e-5, "9.9999e-5"),
+            (1e-6, "1e-6"),
+            (9.999999e-7, "9.999999e-7"),
+            (5e-8, "5e-8"),
+            (-5e-8, "-5e-8"),
+            (1e-10, "1e-10"),
+            (1e-100, "1e-100"),
+            (1.2345678901234567e-9, "1.2345678901234566e-9"),
+        ];
+        for (value, expected) in cases {
+            assert_eq!(
+                to_exponential(*value),
+                *expected,
+                "({value}).toExponential()",
+            );
+        }
+
+        // decimal_to_exponential is the branch to_exponential takes when
+        // ryu_js chose positional form, so drive it directly across the
+        // integer/fraction boundary it has to locate.
+        assert_eq!(decimal_to_exponential("0"), "0e+0");
+        assert_eq!(decimal_to_exponential("-0.000"), "-0e+0");
+        assert_eq!(decimal_to_exponential("7"), "7e+0");
+        assert_eq!(decimal_to_exponential("70"), "7e+1");
+        assert_eq!(decimal_to_exponential("700.0"), "7e+2");
+        assert_eq!(decimal_to_exponential("1234.5678"), "1.2345678e+3");
+        assert_eq!(decimal_to_exponential("-1234.5678"), "-1.2345678e+3");
+        assert_eq!(decimal_to_exponential("0.5"), "5e-1");
+        assert_eq!(decimal_to_exponential("0.0005"), "5e-4");
+        assert_eq!(decimal_to_exponential("0.00050020"), "5.002e-4");
+    }
+
+    /// The two string rewrites `normalize_float_string` applies after
+    /// `to_exponential`, documented in place as the JS regexes
+    /// `/\.0+e/ -> "e"` and `/e([+-])0+/ -> "e$1"`.
+    #[test]
+    fn exponential_mantissa_and_exponent_are_trimmed_exactly() {
+        // Only an all-zero fraction collapses, and only the fraction.
+        assert_eq!(collapse_zero_mantissa("5.0e-8"), "5e-8");
+        assert_eq!(collapse_zero_mantissa("5.000e-8"), "5e-8");
+        assert_eq!(collapse_zero_mantissa("-1.0e-100"), "-1e-100");
+        assert_eq!(collapse_zero_mantissa("5.01e-8"), "5.01e-8");
+        assert_eq!(collapse_zero_mantissa("5.10e-8"), "5.10e-8");
+        assert_eq!(collapse_zero_mantissa("5e-8"), "5e-8");
+        // No exponent at all: the value passes through untouched, otherwise a
+        // plain decimal would lose its fraction.
+        assert_eq!(collapse_zero_mantissa("5.0"), "5.0");
+        assert_eq!(collapse_zero_mantissa("100.0"), "100.0");
+
+        // Leading zeros in the exponent go, the sign stays, and a lone zero
+        // exponent keeps one digit rather than becoming a bare sign.
+        assert_eq!(strip_exp_leading_zeros("1e-08"), "1e-8");
+        assert_eq!(strip_exp_leading_zeros("1e+05"), "1e+5");
+        assert_eq!(strip_exp_leading_zeros("1.25e-0010"), "1.25e-10");
+        assert_eq!(strip_exp_leading_zeros("1e-8"), "1e-8");
+        assert_eq!(strip_exp_leading_zeros("1e+0"), "1e+0");
+        assert_eq!(strip_exp_leading_zeros("1e-000"), "1e-0");
+        // An unsigned or absent exponent is left alone.
+        assert_eq!(strip_exp_leading_zeros("1e8"), "1e8");
+        assert_eq!(strip_exp_leading_zeros("100.0"), "100.0");
+    }
+
+    /// `normalize_float_string` is what writes a float into a CSV cell, so pin
+    /// the rendering end to end. Expectations come from the documented
+    /// JavaScript original: `parseFloat(v.toPrecision(15)).toExponential()`
+    /// with the two regex rewrites below 1e-4, and
+    /// `String(parseFloat(v.toPrecision(17)))` with a forced `.0` above it.
+    #[test]
+    fn normalize_float_string_matches_the_javascript_renderer() {
+        let cases: &[(f64, &str)] = &[
+            // At or above 1e-4: positional, and an integral value keeps a
+            // trailing ".0" so a duration column never turns into an integer.
+            (0.0, "0.0"),
+            (-0.0, "0.0"),
+            (1.0, "1.0"),
+            (-1.0, "-1.0"),
+            (60.0, "60.0"),
+            (123456789.0, "123456789.0"),
+            (1e20, "100000000000000000000.0"),
+            (1e21, "1e+21"),
+            (-1e21, "-1e+21"),
+            (0.5, "0.5"),
+            (-0.5, "-0.5"),
+            (21.625, "21.625"),
+            (1234.5678, "1234.5678"),
+            (0.001, "0.001"),
+            (1e-4, "0.0001"),
+            (-1e-4, "-0.0001"),
+            (0.0833333, "0.0833333"),
+            // toPrecision(17) keeps the seventeen significant digits that make
+            // these values distinguishable from their neighbours.
+            (0.1 + 0.2, "0.30000000000000004"),
+            (1.0 / 3.0, "0.3333333333333333"),
+            (-1.0 / 3.0, "-0.3333333333333333"),
+            (1.0 / 7.0, "0.14285714285714285"),
+            (1.0000000000000002, "1.0000000000000002"),
+            // Below 1e-4: exponential, mantissa and exponent trimmed.
+            (9.9999e-5, "9.9999e-5"),
+            (1e-5, "1e-5"),
+            (1e-7, "1e-7"),
+            (1.5e-7, "1.5e-7"),
+            (5e-8, "5e-8"),
+            (-5e-8, "-5e-8"),
+            (1e-10, "1e-10"),
+            (1.25e-10, "1.25e-10"),
+            (1e-100, "1e-100"),
+            (-1e-100, "-1e-100"),
+            (1e-323, "1e-323"),
+            (f64::from_bits(1), "5e-324"),
+            // toPrecision(15) rounds away the digits that only exist because
+            // the division was inexact.
+            (3e-6 / 60.0, "5e-8"),
+            (1.2345678901234567e-9, "1.23456789012346e-9"),
+        ];
+        for (value, expected) in cases {
+            assert_eq!(
+                normalize_float_string(*value),
+                *expected,
+                "normalize_float_string({value})",
+            );
+        }
+        assert_eq!(normalize_float_string(f64::NAN), "NaN");
+        assert_eq!(normalize_float_string(f64::INFINITY), "Infinity");
+        assert_eq!(normalize_float_string(f64::NEG_INFINITY), "-Infinity");
+    }
+
     #[test]
     fn ecma_to_fixed_half_away() {
         assert_eq!(ecma_to_fixed(0.045, 2), "0.04"); // V8 prints 0.04 because 0.045 is actually 0.0449999...
