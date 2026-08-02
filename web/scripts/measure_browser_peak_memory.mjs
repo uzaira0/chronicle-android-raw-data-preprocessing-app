@@ -26,7 +26,7 @@
  *   PLAYWRIGHT_BASE_URL=http://127.0.0.1:4287 \
  *     node scripts/measure_browser_peak_memory.mjs <fixture.csv> [engines]
  */
-import { mkdir, mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 
 import { chromium, firefox, webkit } from "@playwright/test";
@@ -211,9 +211,13 @@ if (!fixtureArgument) {
   process.exit(2);
 }
 const fixturePath = path.resolve(fixtureArgument);
-const fixtureBytes = (await stat(fixturePath)).size;
-// Read once so a missing/unreadable fixture fails before a browser launches.
-await readFile(fixturePath, { encoding: null, flag: "r" }).then((bytes) => bytes.byteLength);
+// One read, and the size is taken from the bytes actually read. Calling stat()
+// for the size and then readFile() separately is a check-then-use pair: the
+// fixture can change between the two, so the reported fixtureBytes need not
+// describe the bytes the measurement ran on. It also still fails before a
+// browser launches when the fixture is missing or unreadable.
+const fixtureBytes = (await readFile(fixturePath, { encoding: null, flag: "r" }))
+  .byteLength;
 
 const engines = /** @type {Array<"chromium" | "firefox" | "webkit">} */ (
   (engineArgument ?? "chromium,firefox,webkit").split(",")
