@@ -11192,10 +11192,14 @@ mod tests {
     #[test]
     fn exported_rows_use_their_own_timezone_and_collapse_only_where_marked() {
         let mut rows = app_csv_rows();
+        // The same instant in two zones, so the exported local timestamps can
+        // only differ if each row is rendered in its own timezone.
+        let instant = rows[0].event_timestamp_ns;
         rows[0].edit_all().timezone = "UTC".into();
         let collapsed = {
             let data = rows[1].edit_all();
             data.timezone = "America/New_York".into();
+            data.event_timestamp_ns = instant;
             data.codebook_genre_fields_cleared = true;
             true
         };
@@ -11237,6 +11241,112 @@ mod tests {
             assert_eq!(
                 lines[2][value], expected,
                 "a row with collapsed genre columns exported {exported} wrongly",
+            );
+        }
+
+        // The screen export is a separate writer carrying the same per-row
+        // timezone rule, so the same two rows are checked through it.
+        let screen = csv_lines(&write_screen_csv(&rows, &opts));
+        let screen_timestamp = screen[0]
+            .iter()
+            .position(|header| header == "event_timestamp")
+            .expect("event_timestamp is a screen column");
+        assert_ne!(
+            screen[1][screen_timestamp], screen[2][screen_timestamp],
+            "the screen export rendered two timezones as the same local timestamp",
+        );
+    }
+
+    /// Four codebook columns can each carry a genre and they collapse into the
+    /// one derived `genre_id_scraped`: agreement keeps that genre and marks the
+    /// source columns as consumed so the export blanks them, disagreement means
+    /// no genre at all, and a row with nothing to collapse is Unknown. The
+    /// collapse runs over rows that may already carry an answer from an earlier
+    /// pass, so it also has to correct a stale one rather than leave it.
+    #[test]
+    fn genre_columns_collapse_to_one_answer_and_correct_a_stale_one() {
+        let indices = [
+            codebook_col_index("babyemu_genreId_scraped").expect("scraped genre column"),
+            codebook_col_index("babyemu_genreId_manual").expect("manual genre column"),
+            codebook_col_index("bcm_play_store_genreId").expect("play store genre column"),
+            codebook_col_index("usc_genreId").expect("usc genre column"),
+        ];
+        let collapse = |values: [Option<&str>; 4], genre: Option<&str>, cleared: bool| {
+            let mut row = app_csv_rows().remove(0);
+            {
+                let data = row.edit_all();
+                let mut fields = vec![None; CODEBOOK_RENAME_PAIRS.len()];
+                for (slot, value) in indices.iter().zip(values) {
+                    fields[*slot] = value.map(str::to_owned);
+                }
+                data.codebook_fields = Arc::new(fields);
+                data.genre_id_scraped = genre.map(SharedString::from);
+                data.codebook_genre_fields_cleared = cleared;
+            }
+            collapse_genre_row(&mut row, indices);
+            (
+                row.genre_id_scraped
+                    .as_ref()
+                    .map(|genre| genre.as_str().to_owned()),
+                row.codebook_genre_fields_cleared,
+            )
+        };
+
+        let cases: &[([Option<&str>; 4], Option<&str>, bool, Option<&str>, bool)] = &[
+            // (columns, genre before, cleared before, genre after, cleared after)
+            ([None, None, None, None], None, false, Some("Unknown"), false),
+            ([Some(" "), None, Some(""), None], None, false, Some("Unknown"), false),
+            (
+                [None, Some("Social"), None, None],
+                None,
+                false,
+                Some("Social"),
+                true,
+            ),
+            (
+                [Some("Social"), Some("Social"), None, Some("Social")],
+                None,
+                false,
+                Some("Social"),
+                true,
+            ),
+            (
+                [Some("Social"), Some("Games"), None, None],
+                None,
+                false,
+                None,
+                false,
+            ),
+            // A stale answer from an earlier pass has to be corrected in both
+            // directions, and a row that already names the right genre still
+            // has to be marked as having consumed its source columns.
+            (
+                [Some("Games"), Some("Games"), None, None],
+                Some("Social"),
+                true,
+                Some("Games"),
+                true,
+            ),
+            (
+                [Some("Games"), None, None, None],
+                Some("Games"),
+                false,
+                Some("Games"),
+                true,
+            ),
+            (
+                [Some("Social"), Some("Games"), None, None],
+                Some("Social"),
+                true,
+                None,
+                false,
+            ),
+        ];
+        for (columns, genre_before, cleared_before, genre_after, cleared_after) in cases {
+            assert_eq!(
+                collapse(*columns, *genre_before, *cleared_before),
+                (genre_after.map(str::to_owned), *cleared_after),
+                "collapsing {columns:?} over {genre_before:?}/{cleared_before}",
             );
         }
     }
