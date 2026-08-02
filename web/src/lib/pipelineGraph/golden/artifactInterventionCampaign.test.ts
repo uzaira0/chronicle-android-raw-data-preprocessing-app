@@ -825,6 +825,27 @@ describe("artifact dependency tomography", () => {
             }),
           ),
         };
+        // A stage badge is a claim about physical execution. The graph panel
+        // reads these statuses under "Badges show what the last run actually
+        // recomputed versus reused", so `recomputed` must be backed by a
+        // member query in this run's own executed-step set. `deactivatedSteps`
+        // is asserted empty above, so that is the only other legal source.
+        // A support artifact rewritten with CRLF line endings moves the
+        // stage's projection key and executes nothing; it must stay `cached`.
+        const executedStepSet = new Set(actualExecutedSteps);
+        const recomputedWithoutExecution = report.displayGroupStatuses
+          .filter(({ status }) => status === "recomputed")
+          .filter(
+            ({ nodeId }) =>
+              !stepContract.steps.some(
+                (step) => step.group === nodeId && executedStepSet.has(step.id),
+              ),
+          )
+          .map(({ nodeId }) => nodeId);
+        expect(
+          recomputedWithoutExecution,
+          `${caseId}: stage badged recomputed with no member query in the executed set`,
+        ).toEqual([]);
         reports.push(report);
         caseIdentities.push(JSON.stringify(report));
       }
