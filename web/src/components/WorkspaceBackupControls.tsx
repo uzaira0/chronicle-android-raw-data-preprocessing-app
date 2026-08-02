@@ -32,12 +32,12 @@ export function WorkspaceBackupControls({ results }: Props): ReactElement {
     setBusy(true);
     setMessage(null);
     try {
-      const archive = await exportVerifiedWorkspaceClosure(workspaceId);
+      // The worker hands back the archive Blob itself (already typed
+      // application/vnd.chronicle.workspace). Re-wrapping it would copy the
+      // whole closure into this thread for no benefit.
       downloadBlob(
         backupName(inputFileName),
-        new Blob([archive.buffer as ArrayBuffer], {
-          type: "application/vnd.chronicle.workspace",
-        }),
+        await exportVerifiedWorkspaceClosure(workspaceId),
       );
       setMessage(`Verified workspace backup exported for ${inputFileName}.`);
     } catch (error) {
@@ -51,9 +51,9 @@ export function WorkspaceBackupControls({ results }: Props): ReactElement {
     setBusy(true);
     setMessage(null);
     try {
-      const restored = await importVerifiedWorkspaceClosure(
-        new Uint8Array(await file.arrayBuffer()),
-      );
+      // The picked File is already a lazily-read handle onto the user's disk;
+      // it is passed straight through so the archive is never read whole.
+      const restored = await importVerifiedWorkspaceClosure(file);
       setMessage(
         `Verified workspace restored at generation ${restored.slot.generation}. Re-add its raw file to resume processing from this root.`,
       );
