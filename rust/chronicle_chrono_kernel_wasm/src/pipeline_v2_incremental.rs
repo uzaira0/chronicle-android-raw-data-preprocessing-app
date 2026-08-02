@@ -2173,6 +2173,248 @@ mod tests {
         );
     }
 
+    const SECOND_NS: i64 = 1_000_000_000;
+
+    /// The event instant `second` seconds after the fixture's 10:00:00 origin.
+    fn instant(second: i64) -> i64 {
+        rows(&[("Activity Resumed", "com.example.chat", second)])[0].event_timestamp_ns
+    }
+
+    /// App-usage sessions from `(start second, stop second)` pairs.
+    fn app_sessions(sessions: &[(i64, i64)]) -> Vec<Row> {
+        let mut built = rows(
+            &sessions
+                .iter()
+                .map(|(start, _)| (APP_USAGE, "com.example.chat", *start))
+                .collect::<Vec<_>>(),
+        );
+        for (row, (start, stop)) in built.iter_mut().zip(sessions) {
+            let temporal = row.edit_temporal();
+            temporal.start_timestamp_ns = Some(instant(*start));
+            temporal.stop_timestamp_ns = Some(instant(*stop));
+            temporal.duration_seconds = Some((stop - start) as f64);
+            temporal.duration_minutes = Some((stop - start) as f64 / 60.0);
+        }
+        built
+    }
+
+    struct CreditRun {
+        /// Credited intervals in seconds after the fixture origin.
+        intervals: Vec<(i64, i64)>,
+        counts: CreditEmissionCounts,
+        incapable: Vec<String>,
+    }
+
+    /// Run the whole screen-credit lane over one participant: `witnesses` are
+    /// the raw events the export recorded, `sessions` the app usage to credit.
+    fn run_credit(
+        witnesses: &[(&str, i64)],
+        sessions: &[(i64, i64)],
+        cap_minutes: f64,
+        tolerance_minutes: f64,
+        bridge_seconds: f64,
+        min_day_apps: u32,
+    ) -> CreditRun {
+        let raw = rows(
+            &witnesses
+                .iter()
+                .map(|(kind, second)| (*kind, "com.example.screen", *second))
+                .collect::<Vec<_>>(),
+        );
+        let substrate = build_liveness_substrate(&raw).expect("liveness substrate");
+        let app = app_sessions(sessions);
+        let partition = partition_credit_sessions(&app, None).expect("credit partition");
+        let day_apps = count_day_apps(&partition);
+        let decisions = credit_sessions(
+            &partition,
+            &substrate,
+            &day_apps,
+            cap_minutes,
+            tolerance_minutes,
+            bridge_seconds,
+            min_day_apps,
+        );
+        let emission = emit_credited_rows(&partition, &decisions, &substrate, tolerance_minutes);
+        let origin = instant(0);
+        CreditRun {
+            intervals: emission
+                .credited
+                .iter()
+                .map(|row| {
+                    (
+                        (row.start_timestamp_ns.expect("credited start") - origin) / SECOND_NS,
+                        (row.stop_timestamp_ns.expect("credited stop") - origin) / SECOND_NS,
+                    )
+                })
+                .collect(),
+            counts: emission.counts,
+            incapable: screen_incapable_participants(&partition, &substrate),
+        }
+    }
+
+    /// Screen gating needs a screen the export actually witnessed: both an
+    /// interactive and a non-interactive event have to appear, because a stream
+    /// that only ever reports one of them never shows the screen changing. A
+    /// participant who fails that test is reported once, however many sessions
+    /// they have, and their usage is credited in full rather than gated away.
+    #[test]
+    fn screen_credit_reports_and_passes_through_participants_with_no_screen_witness() {
+        let sessions = [(0, 60), (120, 180)];
+
+        let witnessed = run_credit(
+            &[("Screen Interactive", 0), ("Screen Non-Interactive", 300)],
+            &sessions,
+            360.0,
+            120.0,
+            120.0,
+            1,
+        );
+        assert!(witnessed.incapable.is_empty());
+
+        let one_sided = run_credit(&[("Screen Interactive", 0)], &sessions, 360.0, 120.0, 120.0, 1);
+        assert_eq!(
+            one_sided.incapable,
+            vec!["P01".to_string()],
+            "one screen state is never a witness, and the participant is named once",
+        );
+        assert_eq!(
+            one_sided.intervals,
+            vec![(0, 60), (120, 180)],
+            "usage that cannot be gated is credited exactly as recorded",
+        );
+
+        let unwitnessed = run_credit(&[], &sessions, 360.0, 120.0, 120.0, 1);
+        assert_eq!(unwitnessed.incapable, vec!["P01".to_string()]);
+        assert_eq!(unwitnessed.intervals, vec![(0, 60), (120, 180)]);
+    }
+
+    /// A session that starts before any screen event needs deciding twice over:
+    /// if the screen is witnessed inside the session it is gated normally, and
+    /// only when there is no witness anywhere in the session does the fallback
+    /// credit device-alive time — and then only for a day busy enough to meet
+    /// the minimum app count.
+    #[test]
+    fn screen_credit_separates_a_witnessed_session_from_one_with_no_witness_at_all() {
+        let inside_the_session = run_credit(
+            &[("Screen Interactive", 30), ("Screen Non-Interactive", 200)],
+            &[(10, 70)],
+            360.0,
+            120.0,
+            120.0,
+            1,
+        );
+        assert_eq!(
+            inside_the_session.intervals,
+            vec![(30, 70)],
+            "credit starts when the screen was first witnessed on",
+        );
+        assert_eq!(
+            inside_the_session.counts.no_witness_fallbacks, 0,
+            "a screen event inside the session is a witness, not a fallback",
+        );
+
+        let unwitnessed = [
+            ("Activity Resumed", 20),
+            ("Screen Interactive", 1000),
+            ("Screen Non-Interactive", 1100),
+        ];
+
+        let no_witness = run_credit(&unwitnessed, &[(10, 70)], 360.0, 120.0, 120.0, 1);
+        assert_eq!(
+            no_witness.counts.no_witness_fallbacks, 1,
+            "no screen event covers the session, so the fallback decides it",
+        );
+        assert_eq!(
+            no_witness.intervals,
+            vec![(20, 70)],
+            "the fallback credits the part of the session the device was alive for",
+        );
+
+        let too_quiet = run_credit(&unwitnessed, &[(10, 70)], 360.0, 120.0, 120.0, 2);
+        assert_eq!(
+            too_quiet.counts.no_witness_fallbacks, 0,
+            "one app on the day does not meet a two-app minimum",
+        );
+        assert!(
+            too_quiet.intervals.is_empty(),
+            "without the fallback an unwitnessed session earns no credit",
+        );
+    }
+
+    /// Credit is truncated at the cap measured from the session start, never
+    /// zeroed, and every truncated session is counted so the run can report how
+    /// often it happened.
+    #[test]
+    fn screen_credit_truncates_a_session_at_the_cap_and_counts_it() {
+        let witnesses = [
+            ("Screen Interactive", 0),
+            ("Activity Resumed", 300),
+            ("Screen Non-Interactive", 900),
+        ];
+
+        let capped = run_credit(&witnesses, &[(0, 600)], 5.0, 120.0, 120.0, 1);
+        assert_eq!(capped.intervals, vec![(0, 300)]);
+        assert_eq!(capped.counts.truncated_sessions, 1);
+
+        let uncapped = run_credit(&witnesses, &[(0, 600)], 60.0, 120.0, 120.0, 1);
+        assert_eq!(uncapped.intervals, vec![(0, 600)]);
+        assert_eq!(uncapped.counts.truncated_sessions, 0);
+    }
+
+    /// A screen-off blip shorter than the device's auto-lock cannot be a real
+    /// lock, so credit bridges across it and the session stays one interval.
+    /// A blip longer than the bridge splits the session in two.
+    #[test]
+    fn screen_credit_bridges_an_off_blip_shorter_than_the_auto_lock() {
+        let witnesses = [
+            ("Screen Interactive", 0),
+            ("Screen Non-Interactive", 100),
+            ("Screen Interactive", 130),
+            ("Activity Resumed", 200),
+        ];
+
+        let bridged = run_credit(&witnesses, &[(0, 200)], 360.0, 120.0, 120.0, 1);
+        assert_eq!(
+            bridged.intervals,
+            vec![(0, 200)],
+            "a 30-second gap under a 120-second auto-lock is not a lock",
+        );
+
+        let split = run_credit(&witnesses, &[(0, 200)], 360.0, 120.0, 10.0, 1);
+        assert_eq!(
+            split.intervals,
+            vec![(0, 100), (130, 200)],
+            "a 30-second gap over a 10-second auto-lock is a real lock",
+        );
+    }
+
+    /// Credit also requires the device to have been demonstrably alive. A
+    /// silence longer than the liveness tolerance breaks the alive chain, and
+    /// the part of the session inside that silence earns nothing even though
+    /// the screen was last witnessed on.
+    #[test]
+    fn screen_credit_stops_at_a_silence_longer_than_the_liveness_tolerance() {
+        let witnesses = [
+            ("Screen Interactive", 0),
+            ("Activity Resumed", 100),
+            ("Activity Resumed", 300),
+            ("Screen Non-Interactive", 400),
+        ];
+
+        let tolerant = run_credit(&witnesses, &[(0, 300)], 360.0, 5.0, 120.0, 1);
+        assert_eq!(
+            tolerant.intervals,
+            vec![(0, 300)],
+            "a 200-second silence inside a 5-minute tolerance keeps the device alive",
+        );
+
+        let broken = run_credit(&witnesses, &[(0, 300)], 360.0, 2.0, 120.0, 1);
+        assert_eq!(
+            broken.intervals,
+            vec![(0, 100)],
+            "a 200-second silence past a 2-minute tolerance ends the alive span",
+        );
+    }
 }
 
 #[cfg(feature = "incremental-v2")]
