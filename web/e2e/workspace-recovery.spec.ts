@@ -1,7 +1,8 @@
 import { readFile } from "node:fs/promises";
 
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
 
+import { expect, test } from "./durabilityContext";
 import { APP_ONLY_RAW_CSV } from "./fixtures";
 import {
   assertNoExternalRequests,
@@ -60,7 +61,7 @@ function inspectClosure(bytes: Uint8Array): {
 
 test("@smoke @opfs verified workspace closure survives reload, imports into a fresh origin, rejects corruption, and resumes its root chain", async ({
   page,
-  browser,
+  freshOriginPage,
 }) => {
   const requests = trackExternalRequests(page);
   await installDeterministicRuntime(page);
@@ -98,12 +99,12 @@ test("@smoke @opfs verified workspace closure survives reload, imports into a fr
   );
   assertNoExternalRequests(requests);
 
-  // A second browser context is a fresh origin store. Import must derive its
+  // A fresh origin store (a second context where the engine isolates one, an
+  // explicit origin wipe on WebKit, which does not). Import must derive its
   // destination from the signed closure identity, reject tampering, then let
   // the same raw input continue from the imported root.
-  const restoredContext = await browser.newContext();
-  try {
-    const restoredPage = await restoredContext.newPage();
+  {
+    const restoredPage = await freshOriginPage();
     const restoredRequests = trackExternalRequests(restoredPage);
     await installDeterministicRuntime(restoredPage);
     await gotoApp(restoredPage);
@@ -145,7 +146,5 @@ test("@smoke @opfs verified workspace closure survives reload, imports into a fr
       first.manifest.workspaceRootDigest,
     );
     assertNoExternalRequests(restoredRequests);
-  } finally {
-    await restoredContext.close();
   }
 });

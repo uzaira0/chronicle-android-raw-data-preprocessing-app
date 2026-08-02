@@ -8,6 +8,7 @@ import type {
   RustStageView,
 } from "@/lib/types";
 import type { ChronicleWorkerApi } from "@/workers/chronicle-worker";
+import type { OpfsCapability } from "@/lib/opfsArtifactStore";
 import type { RawFileInspection } from "@/lib/fileInspection";
 export { comparisonSupportCacheKey } from "@/lib/comparisonSupportKey";
 import runtimeWasmUrl from "@/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm_bg.wasm?url";
@@ -367,6 +368,30 @@ export class WorkerPool {
 
 export async function getRuntimeVersion(): Promise<string> {
   return onSharedWorker((api) => api.runtimeVersion());
+}
+
+/**
+ * Fail-closed durable-storage gate, evaluated in the worker that owns every
+ * production OPFS write. An unreachable worker is itself a hard stop: there is
+ * no other path that can persist a verified workspace, so it is reported as an
+ * unavailable capability rather than thrown into a caller that might continue.
+ */
+export async function probeWorkerWorkspaceCapability(): Promise<OpfsCapability> {
+  try {
+    // Explicit type argument: Comlink's Remote<> distributes over the
+    // ready/unavailable union, so inference would otherwise fix T to the
+    // "ready" arm alone and reject the failure arm the gate depends on.
+    return await onSharedWorker<OpfsCapability>((api) =>
+      api.probeWorkspaceCapability(),
+    );
+  } catch (error) {
+    return {
+      status: "unavailable",
+      reason: `The processing worker that owns durable storage could not be reached: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    };
+  }
 }
 
 export async function exportVerifiedWorkspaceClosure(
