@@ -571,12 +571,6 @@ impl std::fmt::Display for SharedString {
     }
 }
 
-impl AsRef<str> for SharedString {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
 impl std::borrow::Borrow<str> for SharedString {
     fn borrow(&self) -> &str {
         self.as_str()
@@ -592,12 +586,6 @@ impl From<String> for SharedString {
 impl From<&str> for SharedString {
     fn from(value: &str) -> Self {
         Self(Arc::new(value.to_owned()))
-    }
-}
-
-impl PartialEq<str> for SharedString {
-    fn eq(&self, other: &str) -> bool {
-        self.as_str() == other
     }
 }
 
@@ -8183,6 +8171,347 @@ mod tests {
         }
 
         assert!(postcard::to_allocvec(&SharedString::from("unscoped")).is_err());
+    }
+
+    /// JSON text reaches serde through three different entry points depending
+    /// on how the document arrives: an in-memory document borrows its bytes, a
+    /// streamed one is copied through a scratch buffer, and a pre-parsed value
+    /// hands over an owned `String`. All three have to produce the same text.
+    /// Interning is what keeps a long run's memory flat, so the sharing rules
+    /// are checked too: repeated values inside one row table share a single
+    /// allocation, the fixed lineage vocabulary reuses one process-wide
+    /// allocation across tables, and anything else stays private.
+    #[test]
+    fn json_strings_decode_the_same_text_through_every_serde_entry_point() {
+        #[derive(Debug, serde::Deserialize)]
+        struct SharedField {
+            text: SharedString,
+        }
+
+        #[derive(Debug, serde::Deserialize)]
+        struct ArcField {
+            #[serde(deserialize_with = "deserialize_shared_arc_string")]
+            text: Arc<String>,
+        }
+
+        fn document(text: &str) -> String {
+            format!(r#"{{"text":"{text}"}}"#)
+        }
+
+        let borrowed = document("selected-qualifying-stop");
+        let owned = serde_json::json!({ "text": "selected-qualifying-stop" });
+
+        for text in [
+            serde_json::from_str::<SharedField>(&borrowed)
+                .expect("borrowed shared string")
+                .text,
+            serde_json::from_reader::<_, SharedField>(borrowed.as_bytes())
+                .expect("copied shared string")
+                .text,
+            serde_json::from_value::<SharedField>(owned.clone())
+                .expect("owned shared string")
+                .text,
+        ] {
+            assert_eq!(text.as_str(), "selected-qualifying-stop");
+        }
+
+        for text in [
+            serde_json::from_str::<ArcField>(&borrowed)
+                .expect("borrowed lineage string")
+                .text,
+            serde_json::from_reader::<_, ArcField>(borrowed.as_bytes())
+                .expect("copied lineage string")
+                .text,
+            serde_json::from_value::<ArcField>(owned)
+                .expect("owned lineage string")
+                .text,
+        ] {
+            assert_eq!(text.as_str(), "selected-qualifying-stop");
+        }
+
+        // Every lineage constant is a fixed vocabulary word, so two decodes
+        // outside any row table still hand back one allocation.
+        for text in [
+            "chronicle-lineage-search/v1",
+            "selected-qualifying-stop",
+            "no-qualifying-stop",
+            "screen-credit-liveness-window",
+            "pipeline-event-order",
+            "participant-source-event-order",
+        ] {
+            let document = document(text);
+            let first = serde_json::from_str::<ArcField>(&document)
+                .expect("first lineage decode")
+                .text;
+            let second = serde_json::from_str::<ArcField>(&document)
+                .expect("second lineage decode")
+                .text;
+            assert_eq!(first.as_str(), text);
+            assert_eq!(second.as_str(), text);
+            assert!(
+                Arc::ptr_eq(&first, &second),
+                "lineage constant {text} allocated a private copy"
+            );
+        }
+
+        // A raw-data value is not part of that vocabulary and must not be
+        // retained process-wide once its row table is gone.
+        let package = document("com.example.app");
+        let loose_first = serde_json::from_str::<ArcField>(&package)
+            .expect("first package decode")
+            .text;
+        let loose_second = serde_json::from_str::<ArcField>(&package)
+            .expect("second package decode")
+            .text;
+        assert!(!Arc::ptr_eq(&loose_first, &loose_second));
+
+        // Within one row table both entry points intern, so a package name
+        // repeated across rows costs one allocation.
+        let pooled: Vec<SharedString> = with_deserialized_row_string_pool(|| {
+            vec![
+                serde_json::from_str::<SharedField>(&package)
+                    .expect("pooled borrowed")
+                    .text,
+                serde_json::from_str::<SharedField>(&package)
+                    .expect("pooled borrowed again")
+                    .text,
+                serde_json::from_value::<SharedField>(
+                    serde_json::json!({ "text": "com.example.app" }),
+                )
+                .expect("pooled owned")
+                .text,
+            ]
+        });
+        for value in &pooled {
+            assert_eq!(value.as_str(), "com.example.app");
+        }
+        assert!(Arc::ptr_eq(&pooled[0].0, &pooled[1].0));
+        assert!(Arc::ptr_eq(&pooled[1].0, &pooled[2].0));
+
+        // A corrupt persisted row names what it wanted instead of the value it
+        // rejected, so the message can be shown without leaking raw data.
+        for error in [
+            serde_json::from_str::<SharedField>(r#"{"text":5}"#)
+                .expect_err("a number is not a shared string")
+                .to_string(),
+            serde_json::from_str::<ArcField>(r#"{"text":5}"#)
+                .expect_err("a number is not a lineage string")
+                .to_string(),
+        ] {
+            assert!(error.contains("a UTF-8 string"), "{error}");
+        }
+    }
+
+    /// The Arrow evidence export writes the raw 32 digest bytes while the
+    /// human-readable views write `blake3:<hex>`. Both come off the same value,
+    /// so they have to describe the same digest.
+    #[test]
+    fn lineage_search_digest_keeps_its_bytes_and_text_in_step() {
+        const TEXT: &str =
+            "blake3:000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
+        let digest = LineageSearchDigest::parse(TEXT).expect("parse a blake3 digest");
+        let expected: [u8; 32] = std::array::from_fn(|index| index as u8);
+        assert_eq!(digest.as_bytes(), &expected);
+        assert_eq!(digest.to_string(), TEXT);
+    }
+
+    /// The checkpoint fingerprint streams serde events into xxh3 through two
+    /// internal buffers: a 4 KiB sink buffer and a 64-byte stack buffer for
+    /// `Display` values. Where a payload happens to land in those buffers must
+    /// not change the fingerprint, and no payload length may push either buffer
+    /// past its end, so the sweep walks every length across both boundaries and
+    /// checks that the same content always fingerprints the same way.
+    #[test]
+    fn the_checkpoint_fingerprint_follows_content_and_not_buffer_alignment() {
+        let mut seen = std::collections::BTreeSet::new();
+        for length in 0..=4200_usize {
+            let text = "x".repeat(length);
+            let owned = vec![text.clone(), "tail".to_owned()];
+            let borrowed = vec![text.as_str(), "tail"];
+            let fingerprint = value_fingerprint(&owned).expect("fingerprint an owned payload");
+            assert_eq!(
+                fingerprint,
+                value_fingerprint(&borrowed).expect("fingerprint a borrowed payload"),
+                "payload of {length} bytes fingerprinted differently when borrowed"
+            );
+            assert!(
+                seen.insert(fingerprint),
+                "payload of {length} bytes reused an earlier fingerprint"
+            );
+        }
+    }
+
+    /// Every serde shape the fingerprint accepts has to stay separable: two
+    /// values that differ anywhere - in a number, a name, a variant index, or a
+    /// payload - must not share a fingerprint, or a changed step value would be
+    /// reported as unchanged. Values only reachable through `Display` take a
+    /// different route into the sink and have to land on the same bytes as the
+    /// string they print.
+    #[test]
+    fn the_checkpoint_fingerprint_separates_every_serde_shape_it_accepts() {
+        enum Shape {
+            Bool(bool),
+            I8(i8),
+            I16(i16),
+            I32(i32),
+            I64(i64),
+            I128(i128),
+            U8(u8),
+            U16(u16),
+            U32(u32),
+            U64(u64),
+            U128(u128),
+            F32(f32),
+            F64(f64),
+            Char(char),
+            Str(String),
+            Bytes(Vec<u8>),
+            Nothing,
+            Something(i64),
+            Unit,
+            UnitStruct(&'static str),
+            UnitVariant(&'static str, u32),
+            NewtypeStruct(&'static str, i64),
+            NewtypeVariant(&'static str, u32, i64),
+            Printed(String, u32),
+            Refusing,
+        }
+
+        struct Printer<'a>(&'a str, u32);
+
+        impl std::fmt::Display for Printer<'_> {
+            fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                for _ in 0..self.1 {
+                    formatter.write_str(self.0)?;
+                }
+                Ok(())
+            }
+        }
+
+        impl serde::Serialize for Shape {
+            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: serde::Serializer,
+            {
+                match self {
+                    Shape::Bool(value) => serializer.serialize_bool(*value),
+                    Shape::I8(value) => serializer.serialize_i8(*value),
+                    Shape::I16(value) => serializer.serialize_i16(*value),
+                    Shape::I32(value) => serializer.serialize_i32(*value),
+                    Shape::I64(value) => serializer.serialize_i64(*value),
+                    Shape::I128(value) => serializer.serialize_i128(*value),
+                    Shape::U8(value) => serializer.serialize_u8(*value),
+                    Shape::U16(value) => serializer.serialize_u16(*value),
+                    Shape::U32(value) => serializer.serialize_u32(*value),
+                    Shape::U64(value) => serializer.serialize_u64(*value),
+                    Shape::U128(value) => serializer.serialize_u128(*value),
+                    Shape::F32(value) => serializer.serialize_f32(*value),
+                    Shape::F64(value) => serializer.serialize_f64(*value),
+                    Shape::Char(value) => serializer.serialize_char(*value),
+                    Shape::Str(value) => serializer.serialize_str(value),
+                    Shape::Bytes(value) => serializer.serialize_bytes(value),
+                    Shape::Nothing => serializer.serialize_none(),
+                    Shape::Something(value) => serializer.serialize_some(value),
+                    Shape::Unit => serializer.serialize_unit(),
+                    Shape::UnitStruct(name) => serializer.serialize_unit_struct(name),
+                    Shape::UnitVariant(name, index) => {
+                        serializer.serialize_unit_variant(name, *index, "variant")
+                    }
+                    Shape::NewtypeStruct(name, value) => {
+                        serializer.serialize_newtype_struct(name, value)
+                    }
+                    Shape::NewtypeVariant(name, index, value) => {
+                        serializer.serialize_newtype_variant(name, *index, "variant", value)
+                    }
+                    Shape::Printed(text, repeats) => {
+                        serializer.collect_str(&Printer(text, *repeats))
+                    }
+                    Shape::Refusing => {
+                        Err(serde::ser::Error::custom("probe refused to serialize"))
+                    }
+                }
+            }
+        }
+
+        fn fingerprint(shape: &Shape) -> [u8; 16] {
+            value_fingerprint(shape).expect("fingerprint a probe shape")
+        }
+
+        let shapes = [
+            Shape::Bool(false),
+            Shape::Bool(true),
+            Shape::I8(0),
+            Shape::I8(1),
+            Shape::I16(0),
+            Shape::I16(1),
+            Shape::I32(0),
+            Shape::I32(1),
+            Shape::I64(0),
+            Shape::I64(1),
+            Shape::I128(0),
+            Shape::I128(1),
+            Shape::U8(0),
+            Shape::U8(1),
+            Shape::U16(0),
+            Shape::U16(1),
+            Shape::U32(0),
+            Shape::U32(1),
+            Shape::U64(0),
+            Shape::U64(1),
+            Shape::U128(0),
+            Shape::U128(1),
+            Shape::F32(0.0),
+            Shape::F32(1.0),
+            Shape::F64(0.0),
+            Shape::F64(1.0),
+            Shape::Char('a'),
+            Shape::Char('b'),
+            Shape::Str("a".to_owned()),
+            Shape::Str("b".to_owned()),
+            Shape::Bytes(vec![1]),
+            Shape::Bytes(vec![2]),
+            Shape::Nothing,
+            Shape::Something(0),
+            Shape::Something(1),
+            Shape::Unit,
+            Shape::UnitStruct("First"),
+            Shape::UnitStruct("Second"),
+            Shape::UnitVariant("First", 0),
+            Shape::UnitVariant("First", 1),
+            Shape::UnitVariant("Second", 0),
+            Shape::NewtypeStruct("First", 0),
+            Shape::NewtypeStruct("First", 1),
+            Shape::NewtypeStruct("Second", 0),
+            Shape::NewtypeVariant("First", 0, 0),
+            Shape::NewtypeVariant("First", 0, 1),
+            Shape::NewtypeVariant("First", 1, 0),
+            Shape::NewtypeVariant("Second", 0, 0),
+        ];
+        let mut seen = std::collections::BTreeSet::new();
+        for (index, shape) in shapes.iter().enumerate() {
+            assert!(
+                seen.insert(fingerprint(shape)),
+                "probe shape {index} reused an earlier fingerprint"
+            );
+        }
+
+        // A `Display` value has to fingerprint as the string it prints, both
+        // when it fits the stack buffer and when it spills to the heap.
+        for (piece, repeats) in [("ab", 3_u32), ("0123456789", 12), ("z", 0)] {
+            let printed = Shape::Printed(piece.to_owned(), repeats);
+            let written = Shape::Str(piece.repeat(repeats as usize));
+            assert_eq!(
+                fingerprint(&printed),
+                fingerprint(&written),
+                "{piece} repeated {repeats} times fingerprinted differently through Display"
+            );
+        }
+
+        // A value that refuses to serialize names its own reason, so a failure
+        // reaches the caller as something it can act on.
+        let refused = value_fingerprint(&Shape::Refusing)
+            .expect_err("a refusing probe must not fingerprint");
+        assert!(refused.contains("probe refused to serialize"), "{refused}");
     }
 
     /// The engagement columns describe how a session relates to the one before
