@@ -11494,6 +11494,102 @@ mod tracked {
             );
         }
 
+        /// `IncrementalPipelineV2Engine` is the engine the runtime crate
+        /// actually drives, and the whole persisted-resume path goes through
+        /// it: it says whether the raw input it already holds matches a digest,
+        /// hands out the two persisted bases, re-enters from a live input, and
+        /// re-enters from the bases in a fresh engine. Drive that public
+        /// surface directly, so a delegation that quietly hands back nothing —
+        /// or accepts the wrong input — fails.
+        #[test]
+        fn the_public_engine_reports_its_verified_input_and_hands_out_usable_bases() {
+            let raw = csv();
+            let input_sha256 = sha256_bytes(raw.as_slice());
+            let foreign_sha256 = sha256_bytes(b"not this participant's export");
+            let options = pipeline_options();
+            let support = PipelineV2SupportFiles::default();
+
+            let mut engine = super::super::IncrementalPipelineV2Engine::default();
+            assert!(
+                !engine.has_verified_input(&input_sha256),
+                "a fresh engine cannot already hold a verified input",
+            );
+
+            let cold = engine
+                .execute_review(raw.as_slice(), &options, support)
+                .expect("cold review through the public engine");
+            assert!(
+                engine.has_verified_input(&input_sha256),
+                "the engine did not recognise the input it just processed",
+            );
+            assert!(
+                !engine.has_verified_input(&foreign_sha256),
+                "the engine claimed to hold an input it never saw",
+            );
+
+            let review_base = engine.export_review_base().expect("export a review base");
+            let reconstruction_base = engine
+                .export_reconstruction_base()
+                .expect("export a reconstruction base");
+
+            let warm = engine
+                .execute_review_with_warm_verified_input(input_sha256.clone(), &options, support)
+                .expect("warm review on the live input");
+            assert_eq!(
+                warm.result.review_summary_json_bytes, cold.result.review_summary_json_bytes,
+                "the warm review answered differently from the cold one",
+            );
+            assert!(
+                engine
+                    .execute_review_with_warm_verified_input(
+                        foreign_sha256.clone(),
+                        &options,
+                        support,
+                    )
+                    .is_err(),
+                "a foreign digest was served from the live input",
+            );
+
+            // The later checkpoint wins when both are offered, so each base has
+            // to be resumed on its own to prove it carries anything.
+            for (label, bases, expected) in [
+                (
+                    "both bases",
+                    (review_base.as_slice(), reconstruction_base.as_slice()),
+                    "restore_reconstruction_base",
+                ),
+                (
+                    "the review base alone",
+                    (review_base.as_slice(), [].as_slice()),
+                    "restore_review_base",
+                ),
+            ] {
+                let mut resumed_engine = super::super::IncrementalPipelineV2Engine::default();
+                let resumed = resumed_engine
+                    .execute_review_with_bases(
+                        raw.as_slice(),
+                        bases.0,
+                        bases.1,
+                        &options,
+                        support,
+                    )
+                    .unwrap_or_else(|error| panic!("resume from {label}: {error}"));
+                assert!(
+                    resumed
+                        .internal_executed_queries
+                        .iter()
+                        .any(|executed| executed == expected),
+                    "{label} did not carry {expected}: {:?}",
+                    resumed.internal_executed_queries,
+                );
+                assert_eq!(
+                    resumed.result.review_summary_json_bytes,
+                    cold.result.review_summary_json_bytes,
+                    "resuming from {label} changed the answer",
+                );
+            }
+        }
+
         /// The review cone reaches its annotations by two different routes.
         /// With concurrent modelling off and no background apps it overlays a
         /// threshold-independent static table; otherwise it annotates the
@@ -11542,15 +11638,28 @@ mod tracked {
         /// comparing against the same review without it.
         #[test]
         fn a_review_blanks_filtered_usage_timing_on_both_annotation_paths() {
+            // One filtered app and one ordinary app on the same day: the
+            // ordinary session is what puts the day in the summary at all, and
+            // the filtered session is the one whose minutes must not appear
+            // beside it.
             let raw = concat!(
                 "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
                 "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago\n",
                 "Study,P01,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 10:05:00,America/Chicago\n",
+                "Study,P01,Target Child,Music,Activity Resumed,com.example.music,2026-03-07 10:10:00,America/Chicago\n",
+                "Study,P01,Target Child,Music,Activity Paused,com.example.music,2026-03-07 10:20:00,America/Chicago\n",
             )
             .as_bytes();
             let filter = b"app_package_name\ncom.example.chat\n".to_vec();
+            let study_dates =
+                b"participant_id,start_date,end_date\nP01,2026-03-07,2026-03-07\n".to_vec();
+            let device_sharing = b"participant_id,sharing_status\nP01,Non-Shared\n".to_vec();
+            let enrolled_devices = b"participant_id,device_count\nP01,1\n".to_vec();
             let support = PipelineV2SupportFiles {
                 filter_csv: &filter,
+                study_dates_csv: &study_dates,
+                device_sharing_csv: &device_sharing,
+                enrolled_devices_csv: &enrolled_devices,
                 ..PipelineV2SupportFiles::default()
             };
 
@@ -11574,6 +11683,18 @@ mod tracked {
                     plain.result.review_summary_json_bytes,
                     "the filter file has to change the summary or this proves nothing \
                      (concurrent={concurrent})",
+                );
+
+                let summary =
+                    String::from_utf8_lossy(&review.result.review_summary_json_bytes).into_owned();
+                assert!(
+                    summary.contains("com.example.music"),
+                    "the ordinary session has to reach the summary (concurrent={concurrent}): \
+                     {summary}",
+                );
+                assert!(
+                    !summary.contains("com.example.chat"),
+                    "the filtered session kept its minutes (concurrent={concurrent}): {summary}",
                 );
 
                 let oracle = run_pipeline_v2_with_supports(raw, &filtered, support)
