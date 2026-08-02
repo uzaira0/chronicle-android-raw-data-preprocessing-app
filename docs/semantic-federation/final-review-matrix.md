@@ -2,14 +2,21 @@
 
 This report records what the Chronicle raw-data preprocessing app currently
 proves as the first full implementation target for the generalized semantic
-federation scaffold. It describes `main` at `3c598ee`. `main` now has 55 real
-tracked Rust computations, complete four-mode fused-oracle parity, zero-body
-unchanged reuse, and exact output-only reuse. Runtime reporting consumes actual
-executed-step IDs. Typed step-16/step-28 persistence is implemented and fails
-closed, all six empirical campaign ledgers were regenerated against physical
-Salsa events in `3c598ee`, and `make gate-truth` and `make semantic-federation`
-pass. It is still not a completed production-incrementality claim; the
-remaining blockers listed at the end of this file are open and specific. The
+federation scaffold. It describes the tree it is committed on: the first
+provenance wave, which merges eight parallel lanes onto `3c598ee` and closes
+matrix items 2, 3, 5, 6, 7, 8 and 10. Every number in this document was
+measured on that merged tree, not on the lane branch that produced the work —
+an earlier draft published lane-branch campaign figures that the merge had
+already moved, which is the specific defect this rule exists to prevent.
+
+The engine itself is unchanged by the wave: 55 real tracked Rust computations,
+complete four-mode fused-oracle parity, zero-body unchanged reuse, and exact
+output-only reuse. Runtime reporting consumes actual executed-step IDs. Typed
+step-16/step-28 persistence is implemented and fails closed, all six empirical
+campaign ledgers are regenerated against physical Salsa events, and
+`make gate-truth` and `make semantic-federation` pass. It is still not a
+completed production-incrementality claim; the remaining blockers listed at the
+end of this file are open and specific. The
 [55-step incremental Rust plan](55-step-incremental-rust-plan.md) is the active
 release plan. A high aggregate coverage percentage is not a substitute for
 boundary, failure, architecture, security, performance, or actual-execution
