@@ -78,6 +78,12 @@ loop-counter class covers a sibling that misses rather than hangs. The
 `src/bin/` expression matches no survivor because the sweep already excluded
 that path — it is carried so the gate's own invocation keeps excluding it.
 
+Applied to the sweep's 2947 names the 113 expressions match **176** mutants:
+the 175 survivors plus `pipeline_v2_incremental.rs:2533:13: replace
+tracked::QueryTimer::start -> Self with Default::default()`, which is
+**unviable** and sits in the already-justified diagnostics class. No mutant the
+suite kills is excluded.
+
 The full reason for each class, and the tests that pin the invariant making it
 equivalent, are written above the expressions in
 `.semantic-federation/quality/kernel-mutation-exclusions.txt`. Each expression
@@ -99,7 +105,60 @@ fails the suite except in `ReviewUsageRowsBeforeFloor` and `ReviewAnnotations`,
 whose consumers re-verify row identity and copy durations from the upstream
 table before using them.
 
-## Two defects found outside the mutant list
+## The runtime crate's first campaign
+
+Fixing the manifest defect below started
+`rust/chronicle_preprocessing_runtime_wasm`'s mutation gate for the first time.
+It reported **660** mutants, of which the previous configuration had never
+tested 17 and the run left **15** surviving. All 15 are resolved here.
+
+Ten are **killed by tests written in this campaign**:
+
+| mutant | what it broke | test |
+| --- | --- | --- |
+| `lib.rs:396:16: delete !` in `inspect_raw_file_v1` | every resolvable timezone was reported as invalid; the existing "clean file" test never asserted the advisory's absence | `the_invalid_timezone_advisory_names_only_timezones_chronicle_cannot_resolve` |
+| `lib.rs:1781:37/:54/:74` in `build_runtime_step_executions` (3) | the code is gone — see the stale-key defect below | `a_warm_review_after_an_option_edit_projects_the_stages_a_cold_review_reports` |
+| `lib.rs:1999:30/:53/:56` in `project_product_stages` (3) | a warm run served stale or missing product-stage projections | the review test above, plus the artifact assertion added to `warm_workspace_reuses_tracked_results_and_option_change_recomputes_exact_cone` |
+| `lib.rs:1073:17: replace && with \|\|` in `has_warm_review_input` | a warm review was claimed on a matching workspace root alone, resuming against a digest the engine never verified | `a_warm_review_needs_the_workspace_root_and_the_verified_input_together` |
+| 2 more `project_product_stages` siblings | same class | same tests |
+
+Five are **excluded with a written reason** in
+`.semantic-federation/quality/runtime-mutation-exclusions.txt`: three
+`EnvelopeTimer` bodies the gate never compiles (`query-timing` is not a default
+feature), and a `||`/`&&` precondition in `execute_incremental_pipeline` whose
+four disjuncts are each already forced false by
+`PreparedReviewWorkspace::execute_selected_base_native`. Two `source_scopes`
+mutants and one state-cache mutant join them on proven-equivalence grounds;
+one more is recorded as a **reachability limit rather than an equivalence** —
+`execute_prepared_workspace:3113` guards a 32 MiB cache bound whose operands
+are each pinned separately but cannot be driven apart from a request.
+
+### A stale bound-input key, found by a test written for a mutant
+
+`build_runtime_step_executions` reused the previous run's input key whenever
+Salsa reported a query had not executed. The key binds a step's **declared**
+request fields, and a step can skip execution while one of them changes:
+`split_concurrent` declares `minimum_usage_duration` but only reads it when
+`apply_minimum_usage_duration_to_concurrent_subintervals` is on. Editing the
+floor with that switch off left a warm review reporting the previous run's key
+for `split_concurrent` while a cold review of the same options reported a
+different one.
+
+The key is now always built from the run's own inputs. The configuration
+influence ledger gains **864** previously suppressed
+`changedCompatibilityInputKeyNodes` entries across ten product stages and loses
+none; no observed output, executed-step or artifact field moves.
+
+### An exclusion that was hiding kills
+
+The runtime's old inline expression `src/lib\.rs:[0-9]+:1[37]: replace && with`
+matched 11 mutants. Only 3 survive. The other 8 — all six in
+`dependency_evidence_current`, one in `execute_incremental_pipeline` and one in
+`build_correspondence_index` — are caught, and blanketing them would have let a
+future regression there pass silently. They are tested again, and every
+expression in the new file was checked to match no mutant the suite kills.
+
+## Three defects found outside the mutant list
 
 The gate could not run at all, and finishing this campaign meant fixing that.
 
@@ -127,3 +186,16 @@ The gate could not run at all, and finishing this campaign meant fixing that.
    non-test change was adding a doc comment above a `#[cfg(test)] mod`.
    `is_test_only` now reads an item's attributes with `syn` regardless of
    order, so a test-only edit no longer moves the digest.
+
+3. **The gate died in its own baseline after any semantic-federation edit.**
+   cargo-mutants builds each mutant in a copy of the crate directory, so the
+   `../..` that `chronicle_preprocessing_semantic_adapter/build.rs`,
+   `chronicle_semantic_index_wasm/build.rs` and
+   `chronicle_preprocessing_runtime_wasm/build.rs` fall back to points at the
+   scratch parent, not the repository. That fallback only survived because the
+   build scripts were not re-running; regenerating the dependency evidence
+   makes them re-run and the whole gate then fails its unmutated baseline with
+   `read Chronicle product plan: No such file or directory`.
+   `check-rust-quality.sh` now exports `CHRONICLE_REPOSITORY_ROOT`,
+   `CHRONICLE_SEMANTIC_ROOT` and `CHRONICLE_DEPENDENCY_CERTIFICATE`, which
+   those build scripts already accept.

@@ -1,0 +1,88 @@
+# cargo-mutants exclusions for rust/chronicle_preprocessing_runtime_wasm.
+#
+# One expression per line, matched against the mutant names `cargo mutants
+# --list` prints (`path:line:col: description`). Blank lines and '#' comments
+# are ignored. Every expression below was checked to match at least one
+# surviving mutant and no mutant the suite kills.
+#
+# This crate's mutation gate had never run before 2026-08-02: its entry in
+# rust-authority-manifests.txt carried an inline alternation, the loader splits
+# an entry on '|' and its exclusion field on ',', and cargo-mutants rejected
+# the truncated regex before testing anything. The exclusion set that entry
+# meant to carry was also far broader than its survivors — the single
+# expression `src/lib\.rs:[0-9]+:1[37]: replace && with` matched 11 mutants of
+# which only 3 survive; the other 8 are caught, and blanket-excluding them
+# would have let a future regression in dependency_evidence_current,
+# execute_incremental_pipeline and build_correspondence_index pass silently.
+# They are tested again.
+
+# --- Loop counters cargo-mutants already detects by timeout ---------------
+# Both functions count over the raw CSV. Replacing the counter's `+=` with
+# `-=` or `*=` makes the loop run forever rather than produce a wrong answer,
+# so cargo-mutants reports a 90 s timeout instead of a miss. A timeout is a
+# detection, not a coverage hole.
+replace \+= with .* in physical_data_row_count
+replace \+= with .* in duplicate_safe_headers
+
+# --- Diagnostics compiled out of the gate's feature set --------------------
+# EnvelopeTimer exists only under `#[cfg(feature = "query-timing")]`, which is
+# not a default feature and is not enabled for this crate's manifest entry, so
+# the gate never compiles these bodies. Enabling the feature only adds
+# `eprintln!` segment timings; it computes nothing the product reads. Same
+# class as the kernel's QueryTimer entries.
+replace EnvelopeTimer::start -> Self with Default::default\(\)
+replace EnvelopeTimer::finish with \(\)
+replace <impl Drop for EnvelopeTimer>::drop with \(\)
+
+# --- A precondition its callers already enforce ----------------------------
+# `if !verified_persisted_input || owned_review_csv.is_some() ||
+# !verified_review_base.is_empty() || !verified_reconstruction_base.is_empty()`
+# guards the warm-review branch of execute_incremental_pipeline. Every
+# disjunct is false whenever that branch is entered, so `||` and `&&` both
+# never fire. The only caller that passes warm_verified_input = true is
+# PreparedReviewWorkspace::execute_selected_base_native, which forces
+# selection = None (so both bases are empty), rejects a non-empty selected
+# base outright, and takes the raw-fallback branch only when
+# !warm_verified_input (so owned_review_csv is None and
+# verified_persisted_input is true). execute_workspace_native_with_review_bases
+# passes false and never reaches the branch.
+src/lib\.rs:(2148|2149|2150):21: replace \|\| with && in execute_incremental_pipeline
+
+# --- Source scopes the product cannot produce ------------------------------
+# `source.role_id == "processing_options" && source.coordinate_media_type ==
+# "application/json"` reads as two conditions but is one: every CanonicalSource
+# the runtime builds sets coordinate_media_type to a literal, and
+# "application/json" appears at exactly one construction site, the one whose
+# role_id is the literal "processing_options". Every other site, including all
+# support roles, is "text/csv". No source can satisfy one condition without the
+# other, so `&&` and `||` select the same sources.
+src/binary_exports\.rs:1286:13: replace && with \|\| in source_scopes
+# The processing_options document is the serialized options record, which is
+# always a JSON object. The Array arm exists so a top-level array would still
+# yield index selectors rather than panic; the product never emits one, so
+# deleting the arm cannot change a scope the runtime computes.
+src/binary_exports\.rs:1297:17: delete match arm serde_json::Value::Array\(values\) in source_scopes
+
+# --- State cache at a capacity of one --------------------------------------
+# `if !self.states.contains_key(id) && self.states.len() >= MAX` decides
+# whether to evict before admitting. MAX_INCREMENTAL_RUNTIME_STATES is 1, and
+# state_for removes the requested id from the LRU list before this check, so
+# on a revisit the list is empty and pop_front() evicts nothing whichever way
+# the check reads. incremental_workspace_cache_is_bounded pins the capacity at
+# 1 so raising it breaks that test rather than silently invalidating this
+# entry.
+src/lib\.rs:1051:13: replace && with \|\| in IncrementalRuntimeStateCache::state_for
+
+# --- Not an equivalence: a bound the suite cannot cross --------------------
+# `dependency_cache_decision.mode == CertifiedNarrow &&
+# stable_artifacts_fit_cache(...)` is a real memory bound and `||` would be a
+# real defect. Both operands are pinned on their own —
+# stable_artifact_cache_is_bounded_before_bytes_are_shared drives
+# stable_artifacts_fit_cache through its boundary and
+# dependency_evidence_requires_every_receipt_identity_field drives the mode —
+# but the conjunction cannot be driven apart from a request: crossing the
+# 32 MiB bound needs a corpus far larger than the suite carries, and
+# ConservativeFull comes from a stale dependency certificate, which is build
+# state rather than request input. Recorded as a reachability limit, not as a
+# claim that the mutant is equivalent.
+src/lib\.rs:3113:17: replace && with \|\| in execute_prepared_workspace

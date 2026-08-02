@@ -8,6 +8,18 @@ minimum_regions=${RUST_COVERAGE_MIN_REGIONS:-94}
 minimum_functions=${RUST_COVERAGE_MIN_FUNCTIONS:-70}
 deny_config=${RUST_DENY_CONFIG:-quality/deny.toml}
 
+# cargo-mutants builds each mutant in a copy of the crate directory, where the
+# `../..` these build scripts fall back to is the scratch parent rather than
+# the repository. The fallback only survived because the build scripts were not
+# re-running; any edit under .semantic-federation makes them re-run and the
+# whole gate then dies in an unmutated baseline with "read Chronicle product
+# plan: No such file or directory". Pin the roots the build scripts already
+# accept so a sandboxed build resolves them.
+repository_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)
+export CHRONICLE_REPOSITORY_ROOT="$repository_root"
+export CHRONICLE_SEMANTIC_ROOT="$repository_root/.semantic-federation/semantic"
+export CHRONICLE_DEPENDENCY_CERTIFICATE="$repository_root/.semantic-federation/proofs/dependency-certificate.json"
+
 case "$mode" in
   coverage|mutation|supply-chain) ;;
   *) echo "usage: $0 coverage|mutation|supply-chain" >&2; exit 2 ;;
