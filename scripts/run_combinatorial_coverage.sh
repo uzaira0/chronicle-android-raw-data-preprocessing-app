@@ -127,7 +127,12 @@ run_campaign_batch long \
 run_campaign_batch short \
   artifact-influence test:artifact-influence \
   raw-boundary-influence test:raw-boundary-influence \
-  semantic-mutations test:semantic-mutations
+  semantic-mutations test:semantic-mutations \
+  field-provenance test:field-provenance
+# Runs on its own: it already recycles one process per source column and
+# bounds its own concurrency with FIELD_MIXED_MAX_PARALLEL.
+run_campaign_batch per-field \
+  field-mixed-tomography test:field-mixed-tomography
 rm -rf "$CAMPAIGN_LOG_ROOT"
 trap - EXIT INT TERM
 
