@@ -8673,6 +8673,7 @@ mod tests {
             NewtypeStruct(&'static str, i64),
             NewtypeVariant(&'static str, u32, i64),
             Printed(String, u32),
+            Sequence(Vec<Shape>),
             Refusing,
         }
 
@@ -8725,6 +8726,7 @@ mod tests {
                     Shape::Printed(text, repeats) => {
                         serializer.collect_str(&Printer(text, *repeats))
                     }
+                    Shape::Sequence(values) => serializer.collect_seq(values),
                     Shape::Refusing => {
                         Err(serde::ser::Error::custom("probe refused to serialize"))
                     }
@@ -8785,6 +8787,11 @@ mod tests {
             Shape::NewtypeVariant("First", 0, 1),
             Shape::NewtypeVariant("First", 1, 0),
             Shape::NewtypeVariant("Second", 0, 0),
+            // A unit inside a sequence is a value, not an absence: dropping it
+            // must not make the sequence read as the shorter one.
+            Shape::Sequence(vec![Shape::U8(1)]),
+            Shape::Sequence(vec![Shape::Unit, Shape::U8(1)]),
+            Shape::Sequence(vec![Shape::U8(1), Shape::Unit]),
         ];
         let mut seen = std::collections::BTreeSet::new();
         for (index, shape) in shapes.iter().enumerate() {
