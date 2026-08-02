@@ -11440,6 +11440,59 @@ mod tracked {
             }
         }
 
+        /// A matcher-option edit can change the session a row belongs to. With
+        /// concurrent modelling off, review annotations are carried on the
+        /// pre-floor row table rather than rebuilt from reconstructed
+        /// intervals, so that table has to be recognised as changed. If it is
+        /// not, the annotations overlaid on the rebuilt rows are the ones the
+        /// previous option produced.
+        #[test]
+        fn a_matcher_edit_that_changes_the_session_reaches_the_review_annotations() {
+            let raw = concat!(
+                "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+                "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 08:00:00,America/Chicago\n",
+                "Study,P01,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 18:00:00,America/Chicago\n",
+            )
+            .as_bytes();
+            let codebook = b"app_package_name,application_label,bcm_play_store_genreId,bcm_play_store_broad_app_category,dataset\ncom.example.chat,Chat,Social,Communication,test\n".to_vec();
+            let support = PipelineV2SupportFiles {
+                codebook_csv: &codebook,
+                ..PipelineV2SupportFiles::default()
+            };
+
+            let mut baseline = pipeline_options();
+            baseline.usage_session_mode = UsageSessionMode::AppUsage;
+            baseline.model_concurrent_usage = false;
+            baseline.use_app_codebook = true;
+            baseline.include_category_column = true;
+            // Twelve hours: the ten-hour session below is a normal session.
+            baseline.long_duration_threshold_ns = 43_200_000_000_000;
+            let mut shortened = baseline.clone();
+            // Six hours: the same session is now too long to have an observed
+            // end, so the matcher reports it as end-of-usage-missing.
+            shortened.long_duration_threshold_ns = 21_600_000_000_000;
+
+            let mut engine = TrackedEngine::default();
+            let long_threshold = engine
+                .execute(raw, &baseline, support, false)
+                .expect("review with the long threshold");
+            let short_threshold = engine
+                .execute(raw, &shortened, support, false)
+                .expect("review with the short threshold");
+            assert_ne!(
+                long_threshold.result.review_summary_json_bytes,
+                short_threshold.result.review_summary_json_bytes,
+                "the threshold edit has to change the matcher result or it proves nothing",
+            );
+
+            let oracle = run_pipeline_v2_with_supports(raw, &shortened, support)
+                .expect("sequential oracle for the shortened threshold");
+            assert_eq!(
+                short_threshold.result.review_summary_json_bytes, oracle.review_summary_json_bytes,
+                "the review cone kept annotations from the previous threshold",
+            );
+        }
+
         /// A review base exported while screen processing was on carries the
         /// classified screen sessions, so a resumed review reuses them instead
         /// of walking the screen state machine again. That reuse is only
