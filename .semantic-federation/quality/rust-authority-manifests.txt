@@ -31,6 +31,14 @@
 # kernel build instead of the production 55-step query engine.
 # A seventh `no-default-features` field keeps a gate on the exact feature set
 # linked into the browser when a crate's defaults only expose another product.
+# An eighth field scopes coverage measurement only: it becomes llvm-cov's
+# `--ignore-filename-regex`. It is for a source file that is entirely test
+# scaffolding, never for production code that is merely under-covered — the
+# ratchet fields above are the honest place to record that. llvm-cov takes one
+# expression, and this field cannot hold a '|' or a ',', so it names one file.
+# The gate resolves it against the crate's real sources and refuses to run if
+# it matches nothing, because a scope that has drifted off its anchor silently
+# measures the whole crate while reading as a deliberate exemption.
 #
 # The kernel's and runtime's exclusion sets are too large and too regex-heavy
 # for the inline field, so they name a file instead:
@@ -39,7 +47,17 @@
 # a file is also the only place an expression may contain a ',' or a '|'.
 #
 ../rust/chronicle_preprocessing_semantic_adapter/Cargo.toml|wasm::
-../rust/chronicle_preprocessing_runtime_wasm/Cargo.toml|@runtime-mutation-exclusions.txt
-../rust/chronicle_semantic_index_wasm/Cargo.toml
+# binary_exports/perf_measurement.rs is a `#[cfg(test)]` module of `#[ignore]`d
+# measurement tests. cargo-llvm-cov compiles it into the test binary and then
+# scores its 379 regions / 210 lines / 20 functions at 0.00% because the gate
+# does not run ignored tests, which alone dragged the crate under both floors.
+# It is scoped out of the measurement, not gated out of the build, so
+# `cargo test -- --ignored` still runs the harness with no extra flag.
+../rust/chronicle_preprocessing_runtime_wasm/Cargo.toml|@runtime-mutation-exclusions.txt||||||binary_exports/perf_measurement\.rs
+# Same test-only measurement harness, same 0.00% drag: 132 regions / 71 lines /
+# 11 functions. It was invisible until the runtime entry above stopped failing,
+# because the loop runs under `set -e` and never reached this entry. Its lib.rs
+# is 96.51% regions / 96.97% lines on its own.
+../rust/chronicle_semantic_index_wasm/Cargo.toml|||||||src/perf_measurement\.rs
 ../rust/chronicle_chrono_kernel_wasm/Cargo.toml|@kernel-mutation-exclusions.txt|90|89|85|incremental-v2
 ../rust/chronicle_app_usage_matcher/Cargo.toml|PyResult<,PyErr, in to_py_error, in match_app_usage, in split_overlapping_sessions_py, in _rust_app_usage_matcher|93|93|90||no-default-features
