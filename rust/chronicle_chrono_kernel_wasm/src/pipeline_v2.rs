@@ -8048,6 +8048,61 @@ mod tests {
         );
     }
 
+    /// The raw Chronicle export goes through its own reader, and the same
+    /// buffer-growth, ragged-row and degenerate-input cases apply there. A
+    /// truncated `application_label` here would silently rename an app in every
+    /// output file.
+    #[test]
+    fn raw_export_parsing_survives_long_cells_ragged_rows_and_empty_input() {
+        let long_label = "L".repeat(5_000);
+        let quoted_long_label = format!("Chat, {}", "Q".repeat(5_000));
+        let csv = format!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n\
+             Study,P01,Target Child,{long_label},Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago\n\
+             Study,P01,Target Child,\"{quoted_long_label}\",Activity Paused,com.example.chat,2026-03-07 10:01:00,America/Chicago\n"
+        );
+        let parsed = incremental::csv_parse(csv.as_bytes());
+        assert_eq!(parsed.len(), 2);
+        assert_eq!(parsed[0].application_label, long_label);
+        assert_eq!(parsed[1].application_label, quoted_long_label);
+        assert_eq!(parsed[0].app_package_name, "com.example.chat");
+        assert_eq!(parsed[1].interaction_type, "Activity Paused");
+
+        // A header longer than the field buffer must survive too, or the
+        // column it names becomes unfindable and every value in it is lost.
+        let long_header = "h".repeat(3_000);
+        let wide = format!(
+            "{long_header},participant_id,event_timestamp\nignored,P01,2026-03-07 10:00:00\n"
+        );
+        let wide_parsed = incremental::csv_parse(wide.as_bytes());
+        assert_eq!(wide_parsed.len(), 1);
+        assert_eq!(wide_parsed[0].participant_id, "P01");
+        assert_eq!(wide_parsed[0].event_timestamp, "2026-03-07 10:00:00");
+
+        // More cells than the header declares: the extras are dropped, the
+        // declared columns still parse, and the row number keeps counting.
+        let ragged = incremental::csv_parse(
+            b"participant_id,event_timestamp\nP01,2026-03-07 10:00:00,extra,cells\nP02,2026-03-07 10:05:00\n",
+        );
+        assert_eq!(
+            ragged
+                .iter()
+                .map(|row| (row.source_data_row, row.participant_id.as_str()))
+                .collect::<Vec<_>>(),
+            vec![(1, "P01"), (2, "P02")]
+        );
+
+        // Degenerate inputs: no bytes at all, and a final record with no
+        // trailing newline, which the reader has to terminate itself.
+        assert!(incremental::csv_parse(b"").is_empty());
+        assert!(incremental::csv_parse(b"participant_id,event_timestamp\n").is_empty());
+        let unterminated =
+            incremental::csv_parse(b"participant_id,event_timestamp\nP01,2026-03-07 10:00:00");
+        assert_eq!(unterminated.len(), 1);
+        assert_eq!(unterminated[0].participant_id, "P01");
+        assert_eq!(unterminated[0].event_timestamp, "2026-03-07 10:00:00");
+    }
+
     #[test]
     fn discovery_and_incremental_report_the_same_physical_data_row() {
         // Header + valid data row 1 + an all-empty filler record (physical
@@ -8128,6 +8183,115 @@ mod tests {
         }
 
         assert!(postcard::to_allocvec(&SharedString::from("unscoped")).is_err());
+    }
+
+    /// The engagement columns describe how a session relates to the one before
+    /// it: whether more than thirty seconds (or the study's own threshold)
+    /// passed, whether the app changed, and how long the gap was in hours. The
+    /// `valid_*` columns look back only at unfiltered sessions while the
+    /// `any_*` columns look back at filtered ones too, so a filtered session in
+    /// between has to move one pair and not the other.
+    ///
+    /// The walk also decides which cached row-checkpoint components to discard.
+    /// Getting that wrong leaves a digest that describes values the row no
+    /// longer holds, so every row is checked against a freshly hashed copy of
+    /// its own data.
+    #[test]
+    fn engagement_columns_measure_the_gap_to_the_previous_session_of_each_kind() {
+        const SECOND: i64 = 1_000_000_000;
+        let custom_duration = 300.0;
+
+        let sessions: &[(&str, &str, i64, i64)] = &[
+            // (interaction, package, start seconds, stop seconds)
+            (APP_USAGE, "com.example.chat", 0, 60),
+            // Exactly thirty seconds later: the thirty-second flag is strict.
+            (APP_USAGE, "com.example.chat", 90, 150),
+            // Exactly the study threshold later, and a different app.
+            (APP_USAGE, "com.example.video", 450, 500),
+            // A filtered session moves the any_* baseline but not valid_*.
+            (FILTERED_APP_USAGE, "com.example.secret", 531, 560),
+            (APP_USAGE, "com.example.chat", 600, 660),
+        ];
+        // The event timestamps only have to be distinct and parseable; the walk
+        // reads the session start and stop set below.
+        let mut rows = rows_from_events(
+            &sessions
+                .iter()
+                .enumerate()
+                .map(|(index, (_, package, _, _))| {
+                    (
+                        [
+                            "2026-03-07 10:00:00",
+                            "2026-03-07 10:01:00",
+                            "2026-03-07 10:02:00",
+                            "2026-03-07 10:03:00",
+                            "2026-03-07 10:04:00",
+                        ][index],
+                        "Activity Resumed",
+                        *package,
+                    )
+                })
+                .collect::<Vec<_>>(),
+        );
+        for (row, (interaction, _, start, stop)) in rows.iter_mut().zip(sessions) {
+            let data = row.edit_all();
+            data.interaction_type = (*interaction).into();
+            data.start_timestamp_ns = Some(*start * SECOND);
+            data.stop_timestamp_ns = Some(*stop * SECOND);
+        }
+
+        // Hash every row before the walk, so a cache the walk fails to discard
+        // is still holding the pre-walk value afterwards.
+        let mut scratch = RowCheckpointScratch::default();
+        for row in &rows {
+            row_checkpoint_parts(row, &mut scratch);
+        }
+
+        add_app_usage_detail_columns(&mut rows, custom_duration);
+
+        let observed: Vec<(i32, i32, i32, f64, i32, i32, i32, f64)> = rows
+            .iter()
+            .map(|row| {
+                (
+                    row.valid_app_new_engage_30s,
+                    row.valid_app_new_engage_custom,
+                    row.valid_app_switched_app,
+                    row.valid_app_usage_time_gap_hours,
+                    row.any_app_new_engage_30s,
+                    row.any_app_new_engage_custom,
+                    row.any_app_switched_app,
+                    row.any_app_usage_time_gap_hours,
+                )
+            })
+            .collect();
+        assert_eq!(
+            observed,
+            vec![
+                // No previous session at all: both flags fire, nothing switched.
+                (1, 1, 0, 0.0, 1, 1, 0, 0.0),
+                // Exactly thirty seconds is not "more than thirty seconds".
+                (0, 0, 0, 30.0 / 3600.0, 0, 0, 0, 30.0 / 3600.0),
+                // Exactly the study threshold is not "more than" it either, but
+                // three hundred seconds is more than thirty, and the app moved.
+                (1, 0, 1, 300.0 / 3600.0, 1, 0, 1, 300.0 / 3600.0),
+                // A filtered session leaves the valid_* columns untouched at
+                // their defaults and takes only the any_* measurement.
+                (0, 0, 0, 0.0, 1, 0, 1, 31.0 / 3600.0),
+                // The next real session measures back past the filtered one for
+                // valid_* (a hundred seconds, from the video session) and back
+                // to it for any_* (forty seconds).
+                (1, 0, 1, 100.0 / 3600.0, 1, 0, 1, 40.0 / 3600.0),
+            ]
+        );
+
+        for (index, row) in rows.iter().enumerate() {
+            let cached = row_checkpoint_parts(row, &mut scratch);
+            let fresh = row_checkpoint_parts(&Row::new(row.0.data.clone()), &mut scratch);
+            assert_eq!(
+                cached, fresh,
+                "row {index} kept a checkpoint component the walk changed",
+            );
+        }
     }
 
     #[test]
@@ -10390,6 +10554,114 @@ mod output_contract {
     fn run_contract_fixture() -> PipelineV2Result {
         run_pipeline_v2_with_supports(FIXTURE_CSV.as_bytes(), &contract_options(), support_files())
             .expect("the contract fixture must preprocess cleanly")
+    }
+
+    /// `run_pipeline_v2` and `run_pipeline_v2_with_background` are the entry
+    /// points callers reach for when they do not need every support role, and
+    /// they exist only to forward their arguments into `PipelineV2SupportFiles`.
+    /// A dropped field there is invisible — the call still succeeds and returns
+    /// plausible output with a support file silently ignored — so every
+    /// forwarded argument is checked by feeding it and observing the change.
+    #[test]
+    fn the_narrow_runners_forward_every_support_file_they_accept() {
+        // The late analysis stages need support roles these runners cannot
+        // accept, so they are off here; every role the runners *do* accept
+        // stays on.
+        let mut options = contract_options();
+        options.enable_study_window_filter = false;
+        options.enable_person_attribution = false;
+        options.enable_day_coverage = false;
+        options.enable_compliance_scoring = false;
+        options.add_no_activity_placeholder_days = false;
+        let options = options;
+        let none: &[u8] = b"";
+
+        let baseline = run_pipeline_v2(FIXTURE_CSV.as_bytes(), &options, none, none, none)
+            .expect("the fixture preprocesses with no support files");
+        for (name, filter, apps_forcing, codebook) in [
+            ("filter_csv", FILTER_CSV, none, none),
+            ("apps_forcing_csv", none, APPS_FORCING_CSV, none),
+            ("codebook_csv", none, none, CODEBOOK_CSV),
+        ] {
+            let supplied =
+                run_pipeline_v2(FIXTURE_CSV.as_bytes(), &options, filter, apps_forcing, codebook)
+                    .expect("the fixture preprocesses with one support file");
+            assert_ne!(
+                (
+                    supplied.app_csv_bytes.to_vec(),
+                    supplied.screen_csv_bytes.to_vec()
+                ),
+                (
+                    baseline.app_csv_bytes.to_vec(),
+                    baseline.screen_csv_bytes.to_vec()
+                ),
+                "run_pipeline_v2 ignored {name}",
+            );
+        }
+
+        let wide_baseline =
+            run_pipeline_v2_with_background(FIXTURE_CSV.as_bytes(), &options, none, none, none, none)
+                .expect("the fixture preprocesses with no support files");
+        assert_eq!(
+            wide_baseline.app_csv_bytes, baseline.app_csv_bytes,
+            "the two narrow runners disagree with no support files supplied"
+        );
+        for (name, filter, apps_forcing, background, codebook) in [
+            ("filter_csv", FILTER_CSV, none, none, none),
+            ("apps_forcing_csv", none, APPS_FORCING_CSV, none, none),
+            ("background_apps_csv", none, none, BACKGROUND_APPS_CSV, none),
+            ("codebook_csv", none, none, none, CODEBOOK_CSV),
+        ] {
+            let supplied = run_pipeline_v2_with_background(
+                FIXTURE_CSV.as_bytes(),
+                &options,
+                filter,
+                apps_forcing,
+                background,
+                codebook,
+            )
+            .expect("the fixture preprocesses with one support file");
+            assert_ne!(
+                (
+                    supplied.app_csv_bytes.to_vec(),
+                    supplied.screen_csv_bytes.to_vec()
+                ),
+                (
+                    wide_baseline.app_csv_bytes.to_vec(),
+                    wide_baseline.screen_csv_bytes.to_vec()
+                ),
+                "run_pipeline_v2_with_background ignored {name}",
+            );
+        }
+
+        // The roles neither narrow runner accepts must stay at their defaults,
+        // so a caller that used one of them cannot silently pick up study
+        // windows, sharing status, survey attribution or device counts.
+        let full = run_pipeline_v2_with_supports(
+            FIXTURE_CSV.as_bytes(),
+            &options,
+            PipelineV2SupportFiles {
+                filter_csv: FILTER_CSV,
+                apps_forcing_csv: APPS_FORCING_CSV,
+                background_apps_csv: BACKGROUND_APPS_CSV,
+                codebook_csv: CODEBOOK_CSV,
+                ..PipelineV2SupportFiles::default()
+            },
+        )
+        .expect("the fixture preprocesses with the four narrow support files");
+        let wide = run_pipeline_v2_with_background(
+            FIXTURE_CSV.as_bytes(),
+            &options,
+            FILTER_CSV,
+            APPS_FORCING_CSV,
+            BACKGROUND_APPS_CSV,
+            CODEBOOK_CSV,
+        )
+        .expect("the fixture preprocesses with the four narrow support files");
+        assert_eq!(full.app_csv_bytes, wide.app_csv_bytes);
+        assert_eq!(full.screen_csv_bytes, wide.screen_csv_bytes);
+        assert_eq!(full.day_coverage_csv_bytes, wide.day_coverage_csv_bytes);
+        assert_eq!(full.compliance_csv_bytes, wide.compliance_csv_bytes);
     }
 
     /// The support files, session-mode flags, and threshold knobs above are

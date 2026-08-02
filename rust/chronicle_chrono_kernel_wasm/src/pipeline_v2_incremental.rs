@@ -33,6 +33,20 @@ pub(super) fn csv_parse(csv_bytes: &[u8]) -> Vec<RawRow> {
     let mut reader = CsvReader::new();
     let mut field_buf = vec![0u8; 1024];
     let mut input = csv_bytes;
+    // csv-core consumes the input it wrote before reporting OutputFull, so the
+    // bytes already in `field_buf` are the only copy of the front of a long
+    // cell. Carry them across the resize; dropping them truncated every raw
+    // value longer than the buffer to its tail.
+    let mut carried: Vec<u8> = Vec::new();
+    fn take_field(carried: &mut Vec<u8>, field_buf: &[u8]) -> String {
+        if carried.is_empty() {
+            return String::from_utf8_lossy(field_buf).into_owned();
+        }
+        carried.extend_from_slice(field_buf);
+        let value = String::from_utf8_lossy(carried).into_owned();
+        carried.clear();
+        value
+    }
 
     let mut headers = Vec::new();
     loop {
@@ -41,14 +55,11 @@ pub(super) fn csv_parse(csv_bytes: &[u8]) -> Vec<RawRow> {
         match result {
             ReadFieldResult::InputEmpty => continue,
             ReadFieldResult::OutputFull => {
+                carried.extend_from_slice(&field_buf[..produced]);
                 field_buf.resize(field_buf.len() * 2, 0);
             }
             ReadFieldResult::Field { record_end } => {
-                headers.push(
-                    std::str::from_utf8(&field_buf[..produced])
-                        .unwrap_or("")
-                        .to_string(),
-                );
+                headers.push(take_field(&mut carried, &field_buf[..produced]));
                 if record_end {
                     break;
                 }
@@ -84,13 +95,14 @@ pub(super) fn csv_parse(csv_bytes: &[u8]) -> Vec<RawRow> {
         match result {
             ReadFieldResult::InputEmpty => continue,
             ReadFieldResult::OutputFull => {
+                carried.extend_from_slice(&field_buf[..produced]);
                 field_buf.resize(field_buf.len() * 2, 0);
             }
             ReadFieldResult::Field { record_end } => {
+                let value = take_field(&mut carried, &field_buf[..produced]);
                 if column_index < row_values.len() {
-                    let value = std::str::from_utf8(&field_buf[..produced]).unwrap_or("");
                     row_values[column_index].clear();
-                    row_values[column_index].push_str(value);
+                    row_values[column_index].push_str(&value);
                 }
                 column_index += 1;
                 if record_end {
