@@ -11257,6 +11257,168 @@ mod tests {
         );
     }
 
+    /// A filtered app-usage row keeps its label but must not keep its timing:
+    /// a start, stop, or duration left behind would let a filtered row be
+    /// counted as usage downstream. Any one of the four fields being present is
+    /// enough to require the clear, and an unfiltered row keeps everything.
+    #[test]
+    fn filtered_app_usage_rows_lose_every_timing_field() {
+        type Timing = (Option<i64>, Option<i64>, Option<f64>, Option<f64>);
+        const EMPTY: Timing = (None, None, None, None);
+
+        let base = rows_from_events(&[(
+            "2026-03-07 10:00:00",
+            "Activity Resumed",
+            "com.example.chat",
+        )]);
+        let timing = |row: &Row| {
+            (
+                row.start_timestamp_ns,
+                row.stop_timestamp_ns,
+                row.duration_seconds,
+                row.duration_minutes,
+            )
+        };
+        let build = |interaction: &str, fields: Timing| {
+            let mut row = base[0].clone();
+            let data = row.edit_all();
+            data.interaction_type = interaction.into();
+            data.start_timestamp_ns = fields.0;
+            data.stop_timestamp_ns = fields.1;
+            data.duration_seconds = fields.2;
+            data.duration_minutes = fields.3;
+            row
+        };
+
+        for present in [
+            (Some(1), None, None, None),
+            (None, Some(2), None, None),
+            (None, None, Some(3.0), None),
+            (None, None, None, Some(4.0)),
+            (Some(1), Some(2), Some(3.0), Some(4.0)),
+        ] {
+            let mut rows = vec![
+                build(FILTERED_APP_USAGE, present),
+                build(APP_USAGE, present),
+            ];
+            clear_filtered_usage_timing(&mut rows);
+            assert_eq!(timing(&rows[0]), EMPTY, "filtered timing survived {present:?}");
+            assert_eq!(
+                timing(&rows[1]),
+                present,
+                "an unfiltered row lost its timing",
+            );
+        }
+
+        // The review pass folds the same clear into the single walk that also
+        // fills the engagement columns, so both effects are checked together.
+        let mut second = build(
+            APP_USAGE,
+            (
+                Some(7_200_000_000_000),
+                Some(7_260_000_000_000),
+                Some(60.0),
+                Some(1.0),
+            ),
+        );
+        second.edit_all().app_package_name = "com.example.other".into();
+        let mut rows = vec![
+            build(
+                APP_USAGE,
+                (Some(0), Some(3_600_000_000_000), Some(3600.0), Some(60.0)),
+            ),
+            build(FILTERED_APP_USAGE, (Some(1), Some(2), Some(3.0), Some(4.0))),
+            second,
+        ];
+        apply_review_annotations_one_pass(&mut rows, 300.0, &[1.0], &[0.5]);
+        assert_eq!(timing(&rows[1]), EMPTY, "the review pass skipped the clear");
+        assert_eq!(
+            rows[0].any_app_usage_flags.as_str(),
+            "['>0.5-HR APP USAGE']",
+            "the review pass skipped the usage flags",
+        );
+        assert_eq!(
+            rows[2].any_app_switched_app, 1,
+            "the review pass skipped the engagement columns",
+        );
+    }
+
+    /// A day with raw events but no app usage gets one "No Activity"
+    /// placeholder built from that day's first raw event, so the day is
+    /// visible without inventing usage. The placeholder is emitted after any
+    /// real row recorded at the same instant.
+    #[test]
+    fn no_activity_placeholders_come_from_the_first_raw_event_of_a_silent_day() {
+        let raw = rows_from_events(&[
+            // 2026-03-07 has usage, so it gets no placeholder.
+            (
+                "2026-03-07 09:00:00",
+                "Activity Resumed",
+                "com.example.chat",
+            ),
+            // 2026-03-08 is silent. Its first event is the tie at 08:00:00,
+            // and the placeholder must be built from the earlier-listed row.
+            (
+                "2026-03-08 08:00:00",
+                "Activity Resumed",
+                "com.example.first",
+            ),
+            (
+                "2026-03-08 08:00:00",
+                "Activity Resumed",
+                "com.example.tie",
+            ),
+            (
+                "2026-03-08 09:00:00",
+                "Activity Resumed",
+                "com.example.later",
+            ),
+        ]);
+        let mut app_rows = vec![raw[0].clone(), raw[1].clone()];
+        {
+            let data = app_rows[0].edit_all();
+            data.interaction_type = APP_USAGE.into();
+        }
+        {
+            // A filtered row does not make 2026-03-08 a usage day, but it is a
+            // real row sharing the placeholder's instant.
+            let data = app_rows[1].edit_all();
+            data.interaction_type = FILTERED_APP_USAGE.into();
+        }
+
+        let result = add_no_activity_placeholder_rows(app_rows, &raw);
+        let placeholders = result
+            .iter()
+            .filter(|row| row.app_package_name.as_str() == "com.placeholder.noactivity")
+            .collect::<Vec<_>>();
+        assert_eq!(placeholders.len(), 1, "exactly one silent day needs a placeholder");
+        let placeholder = placeholders[0];
+        assert_eq!(placeholder.date.as_str(), "2026-03-08");
+        assert_eq!(placeholder.application_label.as_str(), "No Activity");
+        assert_eq!(placeholder.interaction_type.as_str(), APP_USAGE);
+        assert_eq!(placeholder.duration_minutes, Some(0.0));
+        assert_eq!(
+            placeholder.event_timestamp_ns, raw[1].event_timestamp_ns,
+            "the placeholder must copy the day's first raw event",
+        );
+        assert_eq!(
+            placeholder.username.as_str(),
+            raw[1].username.as_str(),
+            "a tie at the first instant keeps the earlier row",
+        );
+
+        let position = |package: &str| {
+            result
+                .iter()
+                .position(|row| row.app_package_name.as_str() == package)
+                .unwrap_or_else(|| panic!("{package} is not in the output"))
+        };
+        assert!(
+            position("com.example.first") < position("com.placeholder.noactivity"),
+            "the placeholder displaced a real row recorded at the same instant",
+        );
+    }
+
     /// Four codebook columns can each carry a genre and they collapse into the
     /// one derived `genre_id_scraped`: agreement keeps that genre and marks the
     /// source columns as consumed so the export blanks them, disagreement means
@@ -11375,6 +11537,16 @@ mod tests {
                 "Activity Resumed",
                 "com.example.chat",
             ),
+            (
+                "2026-03-05 10:00:00",
+                "Activity Resumed",
+                "com.example.chat",
+            ),
+            (
+                "2026-03-06 10:00:00",
+                "Activity Resumed",
+                "com.example.chat",
+            ),
         ]);
         for (row, (date, layer, start, stop)) in rows.iter_mut().zip(sessions) {
             let data = row.edit_all();
@@ -11386,6 +11558,29 @@ mod tests {
             data.start_timestamp_ns = Some(*start * MINUTE);
             data.stop_timestamp_ns = Some(*stop * MINUTE);
             data.duration_minutes = Some((*stop - *start) as f64);
+        }
+        // Neither of the last two rows is a completed app-usage session, so
+        // neither may open a day: one is a screen session that happens to sit
+        // in the app rows, the other an app session that never got a stop.
+        {
+            let data = rows[2].edit_all();
+            data.study_id = "Study".into();
+            data.participant_id = "P01".into();
+            data.interaction_type = SCREEN_USAGE.into();
+            data.date = "2026-03-05".into();
+            data.start_timestamp_ns = Some(0);
+            data.stop_timestamp_ns = Some(7 * MINUTE);
+            data.duration_minutes = Some(7.0);
+        }
+        {
+            let data = rows[3].edit_all();
+            data.study_id = "Study".into();
+            data.participant_id = "P01".into();
+            data.interaction_type = APP_USAGE.into();
+            data.date = "2026-03-06".into();
+            data.start_timestamp_ns = Some(0);
+            data.stop_timestamp_ns = None;
+            data.duration_minutes = None;
         }
 
         let summary = build_review_summary(&rows, &[]);
