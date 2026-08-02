@@ -1895,12 +1895,15 @@ enum ColumnKind {
     Boolean,
 }
 
-struct CsvTable {
+pub struct CsvTable {
     headers: Vec<String>,
     rows: Vec<Vec<String>>,
 }
 
-fn parse_csv(bytes: &[u8]) -> Result<CsvTable, String> {
+/// `binary_exports` is a private module, so `pub` here is crate-internal: it
+/// only lets `append_binary_exports` parse a canonical CSV once and hand the
+/// same table to both the Parquet and the SPSS writer.
+pub fn parse_csv(bytes: &[u8]) -> Result<CsvTable, String> {
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(true)
         .from_reader(bytes);
@@ -2015,8 +2018,17 @@ fn parse_bool(value: Option<&str>, column: &str) -> Result<Option<bool>, String>
         .transpose()
 }
 
+/// Parse a canonical CSV and encode it as Parquet in one call. The product no
+/// longer uses this — `append_binary_exports` parses each CSV family once and
+/// feeds `parquet_from_table` and `sav_from_table` from the same table — so it
+/// is test-only, and it is kept because the byte-identity test needs an
+/// independently reparsed reference to compare the shared table against.
+#[cfg(test)]
 pub fn parquet_from_csv(csv_bytes: &[u8], screen: bool) -> Result<Vec<u8>, String> {
-    let table = parse_csv(csv_bytes)?;
+    parquet_from_table(&parse_csv(csv_bytes)?, screen)
+}
+
+pub fn parquet_from_table(table: &CsvTable, screen: bool) -> Result<Vec<u8>, String> {
     let fields = table
         .headers
         .iter()
@@ -2277,9 +2289,15 @@ impl SavCommands {
     }
 }
 
+/// Test-only for the same reason as `parquet_from_csv`: it is the independently
+/// reparsed reference the byte-identity test compares the shared table against.
+#[cfg(test)]
 pub fn sav_from_csv(csv_bytes: &[u8], screen: bool) -> Result<Vec<u8>, String> {
-    let table = parse_csv(csv_bytes)?;
-    let variables = sav_variables(&table, screen);
+    sav_from_table(&parse_csv(csv_bytes)?, screen)
+}
+
+pub fn sav_from_table(table: &CsvTable, screen: bool) -> Result<Vec<u8>, String> {
+    let variables = sav_variables(table, screen);
     let mut sink = ByteSink::new();
     sink.fixed_utf8("$FL2", 4, b' ');
     sink.fixed_utf8(
@@ -2417,6 +2435,12 @@ pub fn sav_from_csv(csv_bytes: &[u8], screen: bool) -> Result<Vec<u8>, String> {
     commands.flush(&mut sink);
     Ok(sink.bytes)
 }
+
+/// `#[ignore]`d measurement harness for the recorded Parquet/SPSS reparse debt.
+/// It lives here so it can time the private `parse_csv` against the public
+/// export paths without widening their visibility.
+#[cfg(test)]
+mod perf_measurement;
 
 #[cfg(test)]
 mod tests {
@@ -3438,6 +3462,33 @@ mod tests {
                 .unwrap_err()
                 .contains("invalid SAV boolean")
         );
+    }
+
+    /// `append_binary_exports` parses each canonical CSV once and hands the
+    /// same `CsvTable` to the Parquet writer and then to the SPSS writer. That
+    /// sharing is only allowed to be a performance change, so both writers must
+    /// produce exactly the bytes an independent reparse produced, and the
+    /// second writer must not be affected by the first having read the table.
+    #[test]
+    fn shared_export_table_is_byte_identical_to_independent_reparse() {
+        let long = format!("{}é", "x".repeat(255));
+        let app_csv = format!(
+            "participant_id,duration_minutes,day,valid_app_new_engage_custom_30,free_text\nP01,1.25,2,3,{long}\nP02,,,,\n"
+        );
+        let screen_csv =
+            "participant_id,duration_seconds,hour,screen_usage_lock_screen_only,free_text\n\
+             P01,12.5,3,true,ok\nP02,,,,\n";
+        for (bytes, screen) in [(app_csv.as_bytes(), false), (screen_csv.as_bytes(), true)] {
+            let independent_parquet = parquet_from_csv(bytes, screen).unwrap();
+            let independent_sav = sav_from_csv(bytes, screen).unwrap();
+            let shared = parse_csv(bytes).unwrap();
+            let shared_parquet = parquet_from_table(&shared, screen).unwrap();
+            let shared_sav = sav_from_table(&shared, screen).unwrap();
+            assert_eq!(shared_parquet, independent_parquet);
+            assert_eq!(shared_sav, independent_sav);
+            // Reusing the table a third time still yields the same bytes.
+            assert_eq!(parquet_from_table(&shared, screen).unwrap(), shared_parquet);
+        }
     }
 
     #[test]
