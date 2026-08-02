@@ -9424,30 +9424,7 @@ mod output_contract {
     .as_bytes();
     const ENROLLED_DEVICES_CSV: &[u8] = b"participant_id,device_count\nP01,1\n";
 
-    fn golden_path(name: &str) -> std::path::PathBuf {
-        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("tests")
-            .join("golden")
-            .join(name)
-    }
-
-    fn assert_golden(name: &str, actual: &[u8]) {
-        let path = golden_path(name);
-        if std::env::var_os("UPDATE_GOLDEN").is_some() {
-            std::fs::create_dir_all(path.parent().expect("golden directory"))
-                .expect("create golden directory");
-            std::fs::write(&path, actual).expect("write golden");
-            return;
-        }
-        let expected = std::fs::read(&path)
-            .unwrap_or_else(|error| panic!("missing golden {}: {error}", path.display()));
-        assert_eq!(
-            String::from_utf8_lossy(actual),
-            String::from_utf8_lossy(&expected),
-            "product output drifted from {}",
-            path.display(),
-        );
-    }
+    use crate::golden::assert_matches as assert_golden;
 
     fn contract_options() -> PipelineV2Options {
         PipelineV2Options {
