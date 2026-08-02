@@ -25,16 +25,35 @@ INFLUENCE_PROTOCOL_SOURCE = (
 INFLUENCE_PROTOCOL_PATTERN = re.compile(
     r'const SOURCE_RESULT_INFLUENCE_PROTOCOL: &str = "([^"]+)";'
 )
-INFLUENCE_PROTOCOL_MENTION = re.compile(r"chronicle-source-result-influence/v\d+")
 # The witness publishes its own precision vocabulary. A class the runtime emits
 # but no document explains is an unexplained label in a researcher's export.
 INFLUENCE_PRECISION_CLASSES = re.compile(
     r'"precisionClasses"\.into\(\),\s*"([^"]+)"\.into\(\),'
 )
-PROTOCOL_DOCUMENTS = (
+# These two must each name the current protocol. Requiring only that *some*
+# document does lets one free-ride on the other: rewrite one to say "its
+# protocol is now `v2`" and the bare version carries no slug to match, while
+# the sibling's correct slug satisfies the check.
+INFLUENCE_PROTOCOL_PUBLISHERS = (
     REPOSITORY_ROOT / "docs/semantic-federation/production-proof.md",
     REPOSITORY_ROOT / "docs/semantic-federation/final-review-matrix.md",
 )
+
+
+def documentation_files() -> list[Path]:
+    """Every prose document that could publish the protocol or its vocabulary.
+
+    Deliberately a search, not an allowlist. A third document that starts
+    naming the protocol -- the natural thing to do in a document about this
+    artifact -- would be unguarded under an allowlist and would silently
+    outlive the constant at the next version bump.
+    """
+    found = sorted((REPOSITORY_ROOT / "docs").rglob("*.md"))
+    for extra in ("README.md", ".semantic-federation/PROJECT_DECISIONS.md"):
+        path = REPOSITORY_ROOT / extra
+        if path.is_file():
+            found.append(path)
+    return found
 
 REQUIRED_DOCUMENT_TEXT = {
     REPOSITORY_ROOT / "README.md": [
@@ -284,6 +303,40 @@ def check_source_shape() -> None:
         fail("exact 55-step bindings must not collapse back to a 15-stage projection")
 
 
+def protocol_mention_pattern(current: str) -> re.Pattern[str]:
+    """Match any version of the protocol family `current` belongs to.
+
+    Derived from the constant rather than written out here. A hardcoded family
+    name is the same defect this whole check exists to close: rename the
+    protocol in Rust and a literal spelled in this file goes on matching a name
+    nothing emits, so every document keeps passing while publishing the old one.
+    """
+    family, _, _ = current.rpartition("/")
+    if not family:
+        fail(
+            f"influence protocol {current!r} has no family/version shape, so the "
+            "document check cannot tell a superseded version from a current one"
+        )
+    return re.compile(rf"{re.escape(family)}/v\d+")
+
+
+def precision_class_definition(name: str) -> re.Pattern[str]:
+    """The published shape of a precision-class definition.
+
+    A bare substring search is not enough. `unresolved` occurs in
+    `final-review-matrix.md` in "rejects unresolved conditional support roles",
+    which has nothing to do with the vocabulary -- so a substring check stays
+    green with every real definition deleted. This requires the bullet the
+    documents actually use: the class as a backticked token, optionally sharing
+    the bullet with a sibling class, followed by an em-dash definition.
+    """
+    token = rf"`{re.escape(name)}`"
+    return re.compile(
+        rf"^\s*[-*]\s+(?:`[^`]+`\s*/\s*)*{token}\s*(?:/\s*`[^`]+`\s*)*—",
+        re.MULTILINE,
+    )
+
+
 def protocol_version_failures(current: str, documents: dict[Path, str]) -> list[str]:
     """Every fully-qualified protocol slug in the docs must name `current`.
 
@@ -292,10 +345,11 @@ def protocol_version_failures(current: str, documents: dict[Path, str]) -> list[
     What this refuses is a document publishing a superseded protocol as if it
     were the one the runtime emits, which is how `/v2` outlived the constant.
     """
+    mention = protocol_mention_pattern(current)
     failures = []
     for path, text in documents.items():
         for number, line in enumerate(text.splitlines(), 1):
-            for named in INFLUENCE_PROTOCOL_MENTION.findall(line):
+            for named in mention.findall(line):
                 if named != current:
                     failures.append(
                         f"{path.relative_to(REPOSITORY_ROOT)}:{number} publishes "
@@ -317,15 +371,17 @@ def check_published_protocol_version() -> str:
         )
     current = match.group(1)
     documents = {
-        path: path.read_text(encoding="utf-8") for path in PROTOCOL_DOCUMENTS
+        path: path.read_text(encoding="utf-8") for path in documentation_files()
     }
     for message in protocol_version_failures(current, documents):
         fail(message)
-    if not any(current in text for text in documents.values()):
-        fail(
-            f"no document publishes the current influence protocol {current}; "
-            "the runtime emits a protocol nothing describes"
-        )
+    for path in INFLUENCE_PROTOCOL_PUBLISHERS:
+        if current not in documents.get(path, ""):
+            fail(
+                f"{path.relative_to(REPOSITORY_ROOT)} does not publish the "
+                f"current influence protocol {current}; the document describes "
+                "the witness, so a reader takes its version as the live one"
+            )
 
     classes = INFLUENCE_PRECISION_CLASSES.search(source)
     if classes is None:
@@ -335,11 +391,13 @@ def check_published_protocol_version() -> str:
         )
     emitted = [name.strip() for name in classes.group(1).split(",") if name.strip()]
     for name in emitted:
-        if not any(name in text for text in documents.values()):
+        definition = precision_class_definition(name)
+        if not any(definition.search(text) for text in documents.values()):
             fail(
                 f"influence witness emits precision class {name!r} that no "
-                "document explains; a researcher reading the export would find "
-                "a label with no published meaning"
+                "document defines; a researcher reading the export would find "
+                "a label with no published meaning. Define it as a bullet: "
+                f"- `{name}` — what the class claims."
             )
     return current
 
@@ -352,6 +410,32 @@ def self_test() -> None:
     history = {seeded: "The version moved from v1 to v2 rather than forking."}
     if protocol_version_failures("chronicle-source-result-influence/v3", history):
         fail("protocol checker self-test rejected a legitimate history sentence")
+    renamed = {seeded: "Its protocol is now `chronicle-cell-influence/v1`."}
+    if not protocol_version_failures("chronicle-cell-influence/v2", renamed):
+        fail(
+            "protocol checker self-test did not follow a renamed protocol family; "
+            "the family must be derived from the constant, not spelled here"
+        )
+
+    # The exact coincidence that made the substring form of this check useless:
+    # `unresolved` appears in final-review-matrix.md in "rejects unresolved
+    # conditional support roles", so the class could lose its definition with
+    # the gate green.
+    mention = "Rust rejects unresolved conditional support roles at ExecuteWorkspace."
+    if precision_class_definition("unresolved").search(mention):
+        fail("precision-class checker self-test accepted a passing mention as a definition")
+    for defined in (
+        "- `exact-field` — one supplied raw cell determines one output cell.",
+        "- `declared-transitive` / `unresolved` — role or selector scope.",
+    ):
+        for name in ("exact-field", "declared-transitive", "unresolved"):
+            if name not in defined:
+                continue
+            if not precision_class_definition(name).search(defined):
+                fail(
+                    "precision-class checker self-test rejected the published "
+                    f"definition shape for {name!r}"
+                )
 
     forbidden = "This repository is the first complete consumer."
     phrase = FORBIDDEN_DOCUMENT_TEXT[REPOSITORY_ROOT / "README.md"][0]
