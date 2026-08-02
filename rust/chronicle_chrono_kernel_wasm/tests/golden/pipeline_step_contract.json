@@ -740,6 +740,9 @@
       ],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [],
+      "fieldWrites": [],
+      "fieldEdges": [],
       "applicability": {
         "kind": "always"
       },
@@ -759,6 +762,92 @@
           "whenAll": []
         }
       ],
+      "fieldReads": [
+        "source.raw_row_set",
+        "source.raw_row_order",
+        "raw_chronicle_csv.study_id",
+        "raw_chronicle_csv.participant_id",
+        "raw_chronicle_csv.username",
+        "raw_chronicle_csv.application_label",
+        "raw_chronicle_csv.interaction_type",
+        "raw_chronicle_csv.app_package_name",
+        "raw_chronicle_csv.event_timestamp",
+        "raw_chronicle_csv.timezone"
+      ],
+      "fieldWrites": [
+        "row.membership",
+        "row.order",
+        "study_id",
+        "participant_id",
+        "username",
+        "application_label",
+        "interaction_type",
+        "app_package_name",
+        "event_timestamp",
+        "timezone"
+      ],
+      "fieldEdges": [
+        {
+          "to": "row.membership",
+          "from": [
+            "source.raw_row_set"
+          ]
+        },
+        {
+          "to": "row.order",
+          "from": [
+            "source.raw_row_order"
+          ]
+        },
+        {
+          "to": "study_id",
+          "from": [
+            "raw_chronicle_csv.study_id"
+          ]
+        },
+        {
+          "to": "participant_id",
+          "from": [
+            "raw_chronicle_csv.participant_id"
+          ]
+        },
+        {
+          "to": "username",
+          "from": [
+            "raw_chronicle_csv.username"
+          ]
+        },
+        {
+          "to": "application_label",
+          "from": [
+            "raw_chronicle_csv.application_label"
+          ]
+        },
+        {
+          "to": "interaction_type",
+          "from": [
+            "raw_chronicle_csv.interaction_type"
+          ]
+        },
+        {
+          "to": "app_package_name",
+          "from": [
+            "raw_chronicle_csv.app_package_name"
+          ]
+        },
+        {
+          "to": "event_timestamp",
+          "from": [
+            "raw_chronicle_csv.event_timestamp"
+          ]
+        },
+        {
+          "to": "timezone",
+          "from": [
+            "raw_chronicle_csv.timezone"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "always"
       },
@@ -773,6 +862,20 @@
       "requestFields": [],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [
+        "event_timestamp"
+      ],
+      "fieldWrites": [
+        "row.membership"
+      ],
+      "fieldEdges": [
+        {
+          "to": "row.membership",
+          "from": [
+            "event_timestamp"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "always"
       },
@@ -787,6 +890,20 @@
       "requestFields": [],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [
+        "app_package_name"
+      ],
+      "fieldWrites": [
+        "derived.possible_device_model"
+      ],
+      "fieldEdges": [
+        {
+          "to": "derived.possible_device_model",
+          "from": [
+            "app_package_name"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "always"
       },
@@ -801,6 +918,9 @@
       ],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [],
+      "fieldWrites": [],
+      "fieldEdges": [],
       "applicability": {
         "kind": "always"
       },
@@ -819,6 +939,278 @@
       ],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [
+        "study_id",
+        "participant_id",
+        "username",
+        "application_label",
+        "interaction_type",
+        "app_package_name",
+        "event_timestamp",
+        "event_timestamp_ns",
+        "timezone",
+        "date",
+        "derived.possible_device_model"
+      ],
+      "fieldWrites": [
+        "study_id",
+        "participant_id",
+        "possible_device_model",
+        "username",
+        "application_label",
+        "interaction_type",
+        "app_package_name",
+        "event_timestamp_ns",
+        "timezone",
+        "data_time_gap_hours",
+        "date",
+        "day",
+        "weekday_mf",
+        "weekday_mth",
+        "weekday_su_th",
+        "hour",
+        "quarter",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "duration_seconds",
+        "duration_minutes",
+        "screen_usage_end_reason",
+        "screen_usage_end_reason_confidence",
+        "screen_usage_stop_event_type",
+        "screen_usage_last_activity_timestamp_ns",
+        "screen_usage_tail_gap_seconds",
+        "screen_usage_foreground_app_package",
+        "screen_usage_apps_forcing_screen_open_label",
+        "screen_usage_lock_screen_only",
+        "any_app_usage_flags",
+        "valid_app_new_engage_30s",
+        "valid_app_new_engage_custom",
+        "valid_app_switched_app",
+        "valid_app_usage_time_gap_hours",
+        "any_app_new_engage_30s",
+        "any_app_new_engage_custom",
+        "any_app_switched_app",
+        "any_app_usage_time_gap_hours",
+        "genre_id_scraped",
+        "broad_app_category",
+        "codebook_fields",
+        "codebook_genre_fields_cleared",
+        "usage_layer"
+      ],
+      "fieldEdges": [
+        {
+          "to": "study_id",
+          "from": [
+            "study_id"
+          ]
+        },
+        {
+          "to": "participant_id",
+          "from": [
+            "participant_id"
+          ]
+        },
+        {
+          "to": "possible_device_model",
+          "from": [
+            "derived.possible_device_model"
+          ]
+        },
+        {
+          "to": "username",
+          "from": [
+            "username"
+          ]
+        },
+        {
+          "to": "application_label",
+          "from": [
+            "application_label"
+          ]
+        },
+        {
+          "to": "interaction_type",
+          "from": [
+            "interaction_type"
+          ]
+        },
+        {
+          "to": "app_package_name",
+          "from": [
+            "app_package_name"
+          ]
+        },
+        {
+          "to": "event_timestamp_ns",
+          "from": [
+            "event_timestamp"
+          ]
+        },
+        {
+          "to": "timezone",
+          "from": [
+            "timezone"
+          ]
+        },
+        {
+          "to": "data_time_gap_hours",
+          "from": []
+        },
+        {
+          "to": "date",
+          "from": [
+            "event_timestamp_ns",
+            "timezone",
+            "date"
+          ]
+        },
+        {
+          "to": "day",
+          "from": [
+            "event_timestamp_ns",
+            "timezone"
+          ]
+        },
+        {
+          "to": "weekday_mf",
+          "from": [
+            "event_timestamp_ns",
+            "timezone"
+          ]
+        },
+        {
+          "to": "weekday_mth",
+          "from": [
+            "event_timestamp_ns",
+            "timezone"
+          ]
+        },
+        {
+          "to": "weekday_su_th",
+          "from": [
+            "event_timestamp_ns",
+            "timezone"
+          ]
+        },
+        {
+          "to": "hour",
+          "from": [
+            "event_timestamp_ns",
+            "timezone"
+          ]
+        },
+        {
+          "to": "quarter",
+          "from": [
+            "event_timestamp_ns",
+            "timezone"
+          ]
+        },
+        {
+          "to": "start_timestamp_ns",
+          "from": []
+        },
+        {
+          "to": "stop_timestamp_ns",
+          "from": []
+        },
+        {
+          "to": "duration_seconds",
+          "from": []
+        },
+        {
+          "to": "duration_minutes",
+          "from": []
+        },
+        {
+          "to": "screen_usage_end_reason",
+          "from": []
+        },
+        {
+          "to": "screen_usage_end_reason_confidence",
+          "from": []
+        },
+        {
+          "to": "screen_usage_stop_event_type",
+          "from": []
+        },
+        {
+          "to": "screen_usage_last_activity_timestamp_ns",
+          "from": []
+        },
+        {
+          "to": "screen_usage_tail_gap_seconds",
+          "from": []
+        },
+        {
+          "to": "screen_usage_foreground_app_package",
+          "from": []
+        },
+        {
+          "to": "screen_usage_apps_forcing_screen_open_label",
+          "from": []
+        },
+        {
+          "to": "screen_usage_lock_screen_only",
+          "from": []
+        },
+        {
+          "to": "any_app_usage_flags",
+          "from": []
+        },
+        {
+          "to": "valid_app_new_engage_30s",
+          "from": []
+        },
+        {
+          "to": "valid_app_new_engage_custom",
+          "from": []
+        },
+        {
+          "to": "valid_app_switched_app",
+          "from": []
+        },
+        {
+          "to": "valid_app_usage_time_gap_hours",
+          "from": []
+        },
+        {
+          "to": "any_app_new_engage_30s",
+          "from": []
+        },
+        {
+          "to": "any_app_new_engage_custom",
+          "from": []
+        },
+        {
+          "to": "any_app_switched_app",
+          "from": []
+        },
+        {
+          "to": "any_app_usage_time_gap_hours",
+          "from": []
+        },
+        {
+          "to": "genre_id_scraped",
+          "from": []
+        },
+        {
+          "to": "broad_app_category",
+          "from": []
+        },
+        {
+          "to": "codebook_fields",
+          "from": []
+        },
+        {
+          "to": "codebook_genre_fields_cleared",
+          "from": []
+        },
+        {
+          "to": "usage_layer",
+          "from": []
+        }
+      ],
       "applicability": {
         "kind": "always"
       },
@@ -833,6 +1225,20 @@
       "requestFields": [],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [
+        "event_timestamp_ns"
+      ],
+      "fieldWrites": [
+        "row.order"
+      ],
+      "fieldEdges": [
+        {
+          "to": "row.order",
+          "from": [
+            "event_timestamp_ns"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "always"
       },
@@ -847,6 +1253,20 @@
       "requestFields": [],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [
+        "timezone"
+      ],
+      "fieldWrites": [
+        "derived.timezone_set"
+      ],
+      "fieldEdges": [
+        {
+          "to": "derived.timezone_set",
+          "from": [
+            "timezone"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "always"
       },
@@ -861,6 +1281,20 @@
       "requestFields": [],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [
+        "timezone"
+      ],
+      "fieldWrites": [
+        "derived.dominant_timezone"
+      ],
+      "fieldEdges": [
+        {
+          "to": "derived.dominant_timezone",
+          "from": [
+            "timezone"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "always"
       },
@@ -879,6 +1313,22 @@
       ],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [
+        "timezone",
+        "derived.dominant_timezone"
+      ],
+      "fieldWrites": [
+        "derived.selected_timezone"
+      ],
+      "fieldEdges": [
+        {
+          "to": "derived.selected_timezone",
+          "from": [
+            "timezone",
+            "derived.dominant_timezone"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "always"
       },
@@ -893,6 +1343,106 @@
       "requestFields": [],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [
+        "event_timestamp_ns",
+        "timezone",
+        "date",
+        "derived.selected_timezone"
+      ],
+      "fieldWrites": [
+        "row.membership",
+        "timezone",
+        "date",
+        "day",
+        "weekday_mf",
+        "weekday_mth",
+        "weekday_su_th",
+        "hour",
+        "quarter"
+      ],
+      "fieldEdges": [
+        {
+          "to": "row.membership",
+          "from": [
+            "event_timestamp_ns",
+            "timezone",
+            "date",
+            "derived.selected_timezone"
+          ]
+        },
+        {
+          "to": "timezone",
+          "from": [
+            "event_timestamp_ns",
+            "timezone",
+            "date",
+            "derived.selected_timezone"
+          ]
+        },
+        {
+          "to": "date",
+          "from": [
+            "event_timestamp_ns",
+            "timezone",
+            "date",
+            "derived.selected_timezone"
+          ]
+        },
+        {
+          "to": "day",
+          "from": [
+            "event_timestamp_ns",
+            "timezone",
+            "date",
+            "derived.selected_timezone"
+          ]
+        },
+        {
+          "to": "weekday_mf",
+          "from": [
+            "event_timestamp_ns",
+            "timezone",
+            "date",
+            "derived.selected_timezone"
+          ]
+        },
+        {
+          "to": "weekday_mth",
+          "from": [
+            "event_timestamp_ns",
+            "timezone",
+            "date",
+            "derived.selected_timezone"
+          ]
+        },
+        {
+          "to": "weekday_su_th",
+          "from": [
+            "event_timestamp_ns",
+            "timezone",
+            "date",
+            "derived.selected_timezone"
+          ]
+        },
+        {
+          "to": "hour",
+          "from": [
+            "event_timestamp_ns",
+            "timezone",
+            "date",
+            "derived.selected_timezone"
+          ]
+        },
+        {
+          "to": "quarter",
+          "from": [
+            "event_timestamp_ns",
+            "timezone",
+            "date",
+            "derived.selected_timezone"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "always"
       },
@@ -908,6 +1458,16 @@
       "requestFields": [],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [],
+      "fieldWrites": [
+        "derived.row_count_report"
+      ],
+      "fieldEdges": [
+        {
+          "to": "derived.row_count_report",
+          "from": []
+        }
+      ],
       "applicability": {
         "kind": "always"
       },
@@ -924,6 +1484,26 @@
       ],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [
+        "participant_id",
+        "event_timestamp_ns",
+        "interaction_type",
+        "app_package_name"
+      ],
+      "fieldWrites": [
+        "row.membership"
+      ],
+      "fieldEdges": [
+        {
+          "to": "row.membership",
+          "from": [
+            "participant_id",
+            "event_timestamp_ns",
+            "interaction_type",
+            "app_package_name"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "always"
       },
@@ -938,6 +1518,20 @@
       "requestFields": [],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [
+        "event_timestamp_ns"
+      ],
+      "fieldWrites": [
+        "derived.duplicate_group_count"
+      ],
+      "fieldEdges": [
+        {
+          "to": "derived.duplicate_group_count",
+          "from": [
+            "event_timestamp_ns"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "always"
       },
@@ -956,6 +1550,30 @@
       ],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [
+        "event_timestamp_ns",
+        "interaction_type"
+      ],
+      "fieldWrites": [
+        "row.order",
+        "event_timestamp_ns"
+      ],
+      "fieldEdges": [
+        {
+          "to": "row.order",
+          "from": [
+            "event_timestamp_ns",
+            "interaction_type"
+          ]
+        },
+        {
+          "to": "event_timestamp_ns",
+          "from": [
+            "event_timestamp_ns",
+            "interaction_type"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "always"
       },
@@ -970,6 +1588,22 @@
       "requestFields": [],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [
+        "event_timestamp_ns",
+        "data_time_gap_hours"
+      ],
+      "fieldWrites": [
+        "data_time_gap_hours"
+      ],
+      "fieldEdges": [
+        {
+          "to": "data_time_gap_hours",
+          "from": [
+            "event_timestamp_ns",
+            "data_time_gap_hours"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "always"
       },
@@ -999,6 +1633,48 @@
           ]
         }
       ],
+      "fieldReads": [
+        "app_package_name",
+        "application_label",
+        "interaction_type",
+        "filter_file.app_package_name",
+        "filter_file.package_name",
+        "filter_file.application_label",
+        "filter_file.known_application_labels",
+        "filter_file.label_or_note"
+      ],
+      "fieldWrites": [
+        "interaction_type",
+        "derived.filtered_packages"
+      ],
+      "fieldEdges": [
+        {
+          "to": "interaction_type",
+          "from": [
+            "app_package_name",
+            "application_label",
+            "interaction_type",
+            "filter_file.app_package_name",
+            "filter_file.package_name",
+            "filter_file.application_label",
+            "filter_file.known_application_labels",
+            "filter_file.label_or_note"
+          ]
+        },
+        {
+          "to": "derived.filtered_packages",
+          "from": [
+            "app_package_name",
+            "application_label",
+            "interaction_type",
+            "filter_file.app_package_name",
+            "filter_file.package_name",
+            "filter_file.application_label",
+            "filter_file.known_application_labels",
+            "filter_file.label_or_note"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "always"
       },
@@ -1013,6 +1689,22 @@
       "requestFields": [],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [
+        "event_timestamp_ns",
+        "interaction_type"
+      ],
+      "fieldWrites": [
+        "derived.keyguard_timestamps"
+      ],
+      "fieldEdges": [
+        {
+          "to": "derived.keyguard_timestamps",
+          "from": [
+            "event_timestamp_ns",
+            "interaction_type"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_screen_usage"
@@ -1028,6 +1720,26 @@
       "requestFields": [],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [
+        "event_timestamp_ns",
+        "interaction_type",
+        "app_package_name",
+        "timezone"
+      ],
+      "fieldWrites": [
+        "derived.screen_state_timeline"
+      ],
+      "fieldEdges": [
+        {
+          "to": "derived.screen_state_timeline",
+          "from": [
+            "event_timestamp_ns",
+            "interaction_type",
+            "app_package_name",
+            "timezone"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_screen_usage"
@@ -1064,6 +1776,465 @@
           ]
         }
       ],
+      "fieldReads": [
+        "event_timestamp_ns",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "duration_seconds",
+        "timezone",
+        "apps_forcing_screen_open_file.package_name",
+        "apps_forcing_screen_open_file.app_package_name",
+        "apps_forcing_screen_open_file.label_or_note",
+        "apps_forcing_screen_open_file.application_label",
+        "derived.screen_state_timeline",
+        "derived.keyguard_timestamps"
+      ],
+      "fieldWrites": [
+        "row.membership",
+        "row.order",
+        "app_package_name",
+        "application_label",
+        "interaction_type",
+        "event_timestamp_ns",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "duration_seconds",
+        "duration_minutes",
+        "data_time_gap_hours",
+        "date",
+        "day",
+        "weekday_mf",
+        "weekday_mth",
+        "weekday_su_th",
+        "hour",
+        "quarter",
+        "screen_usage_end_reason",
+        "screen_usage_end_reason_confidence",
+        "screen_usage_stop_event_type",
+        "screen_usage_last_activity_timestamp_ns",
+        "screen_usage_tail_gap_seconds",
+        "screen_usage_foreground_app_package",
+        "screen_usage_apps_forcing_screen_open_label",
+        "screen_usage_lock_screen_only"
+      ],
+      "fieldEdges": [
+        {
+          "to": "row.membership",
+          "from": [
+            "event_timestamp_ns",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "duration_seconds",
+            "timezone",
+            "apps_forcing_screen_open_file.package_name",
+            "apps_forcing_screen_open_file.app_package_name",
+            "apps_forcing_screen_open_file.label_or_note",
+            "apps_forcing_screen_open_file.application_label",
+            "derived.screen_state_timeline",
+            "derived.keyguard_timestamps"
+          ]
+        },
+        {
+          "to": "row.order",
+          "from": [
+            "event_timestamp_ns",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "duration_seconds",
+            "timezone",
+            "apps_forcing_screen_open_file.package_name",
+            "apps_forcing_screen_open_file.app_package_name",
+            "apps_forcing_screen_open_file.label_or_note",
+            "apps_forcing_screen_open_file.application_label",
+            "derived.screen_state_timeline",
+            "derived.keyguard_timestamps"
+          ]
+        },
+        {
+          "to": "app_package_name",
+          "from": [
+            "event_timestamp_ns",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "duration_seconds",
+            "timezone",
+            "apps_forcing_screen_open_file.package_name",
+            "apps_forcing_screen_open_file.app_package_name",
+            "apps_forcing_screen_open_file.label_or_note",
+            "apps_forcing_screen_open_file.application_label",
+            "derived.screen_state_timeline",
+            "derived.keyguard_timestamps"
+          ]
+        },
+        {
+          "to": "application_label",
+          "from": [
+            "event_timestamp_ns",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "duration_seconds",
+            "timezone",
+            "apps_forcing_screen_open_file.package_name",
+            "apps_forcing_screen_open_file.app_package_name",
+            "apps_forcing_screen_open_file.label_or_note",
+            "apps_forcing_screen_open_file.application_label",
+            "derived.screen_state_timeline",
+            "derived.keyguard_timestamps"
+          ]
+        },
+        {
+          "to": "interaction_type",
+          "from": [
+            "event_timestamp_ns",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "duration_seconds",
+            "timezone",
+            "apps_forcing_screen_open_file.package_name",
+            "apps_forcing_screen_open_file.app_package_name",
+            "apps_forcing_screen_open_file.label_or_note",
+            "apps_forcing_screen_open_file.application_label",
+            "derived.screen_state_timeline",
+            "derived.keyguard_timestamps"
+          ]
+        },
+        {
+          "to": "event_timestamp_ns",
+          "from": [
+            "event_timestamp_ns",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "duration_seconds",
+            "timezone",
+            "apps_forcing_screen_open_file.package_name",
+            "apps_forcing_screen_open_file.app_package_name",
+            "apps_forcing_screen_open_file.label_or_note",
+            "apps_forcing_screen_open_file.application_label",
+            "derived.screen_state_timeline",
+            "derived.keyguard_timestamps"
+          ]
+        },
+        {
+          "to": "start_timestamp_ns",
+          "from": [
+            "event_timestamp_ns",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "duration_seconds",
+            "timezone",
+            "apps_forcing_screen_open_file.package_name",
+            "apps_forcing_screen_open_file.app_package_name",
+            "apps_forcing_screen_open_file.label_or_note",
+            "apps_forcing_screen_open_file.application_label",
+            "derived.screen_state_timeline",
+            "derived.keyguard_timestamps"
+          ]
+        },
+        {
+          "to": "stop_timestamp_ns",
+          "from": [
+            "event_timestamp_ns",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "duration_seconds",
+            "timezone",
+            "apps_forcing_screen_open_file.package_name",
+            "apps_forcing_screen_open_file.app_package_name",
+            "apps_forcing_screen_open_file.label_or_note",
+            "apps_forcing_screen_open_file.application_label",
+            "derived.screen_state_timeline",
+            "derived.keyguard_timestamps"
+          ]
+        },
+        {
+          "to": "duration_seconds",
+          "from": [
+            "event_timestamp_ns",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "duration_seconds",
+            "timezone",
+            "apps_forcing_screen_open_file.package_name",
+            "apps_forcing_screen_open_file.app_package_name",
+            "apps_forcing_screen_open_file.label_or_note",
+            "apps_forcing_screen_open_file.application_label",
+            "derived.screen_state_timeline",
+            "derived.keyguard_timestamps"
+          ]
+        },
+        {
+          "to": "duration_minutes",
+          "from": [
+            "event_timestamp_ns",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "duration_seconds",
+            "timezone",
+            "apps_forcing_screen_open_file.package_name",
+            "apps_forcing_screen_open_file.app_package_name",
+            "apps_forcing_screen_open_file.label_or_note",
+            "apps_forcing_screen_open_file.application_label",
+            "derived.screen_state_timeline",
+            "derived.keyguard_timestamps"
+          ]
+        },
+        {
+          "to": "data_time_gap_hours",
+          "from": [
+            "event_timestamp_ns",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "duration_seconds",
+            "timezone",
+            "apps_forcing_screen_open_file.package_name",
+            "apps_forcing_screen_open_file.app_package_name",
+            "apps_forcing_screen_open_file.label_or_note",
+            "apps_forcing_screen_open_file.application_label",
+            "derived.screen_state_timeline",
+            "derived.keyguard_timestamps"
+          ]
+        },
+        {
+          "to": "date",
+          "from": [
+            "event_timestamp_ns",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "duration_seconds",
+            "timezone",
+            "apps_forcing_screen_open_file.package_name",
+            "apps_forcing_screen_open_file.app_package_name",
+            "apps_forcing_screen_open_file.label_or_note",
+            "apps_forcing_screen_open_file.application_label",
+            "derived.screen_state_timeline",
+            "derived.keyguard_timestamps"
+          ]
+        },
+        {
+          "to": "day",
+          "from": [
+            "event_timestamp_ns",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "duration_seconds",
+            "timezone",
+            "apps_forcing_screen_open_file.package_name",
+            "apps_forcing_screen_open_file.app_package_name",
+            "apps_forcing_screen_open_file.label_or_note",
+            "apps_forcing_screen_open_file.application_label",
+            "derived.screen_state_timeline",
+            "derived.keyguard_timestamps"
+          ]
+        },
+        {
+          "to": "weekday_mf",
+          "from": [
+            "event_timestamp_ns",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "duration_seconds",
+            "timezone",
+            "apps_forcing_screen_open_file.package_name",
+            "apps_forcing_screen_open_file.app_package_name",
+            "apps_forcing_screen_open_file.label_or_note",
+            "apps_forcing_screen_open_file.application_label",
+            "derived.screen_state_timeline",
+            "derived.keyguard_timestamps"
+          ]
+        },
+        {
+          "to": "weekday_mth",
+          "from": [
+            "event_timestamp_ns",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "duration_seconds",
+            "timezone",
+            "apps_forcing_screen_open_file.package_name",
+            "apps_forcing_screen_open_file.app_package_name",
+            "apps_forcing_screen_open_file.label_or_note",
+            "apps_forcing_screen_open_file.application_label",
+            "derived.screen_state_timeline",
+            "derived.keyguard_timestamps"
+          ]
+        },
+        {
+          "to": "weekday_su_th",
+          "from": [
+            "event_timestamp_ns",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "duration_seconds",
+            "timezone",
+            "apps_forcing_screen_open_file.package_name",
+            "apps_forcing_screen_open_file.app_package_name",
+            "apps_forcing_screen_open_file.label_or_note",
+            "apps_forcing_screen_open_file.application_label",
+            "derived.screen_state_timeline",
+            "derived.keyguard_timestamps"
+          ]
+        },
+        {
+          "to": "hour",
+          "from": [
+            "event_timestamp_ns",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "duration_seconds",
+            "timezone",
+            "apps_forcing_screen_open_file.package_name",
+            "apps_forcing_screen_open_file.app_package_name",
+            "apps_forcing_screen_open_file.label_or_note",
+            "apps_forcing_screen_open_file.application_label",
+            "derived.screen_state_timeline",
+            "derived.keyguard_timestamps"
+          ]
+        },
+        {
+          "to": "quarter",
+          "from": [
+            "event_timestamp_ns",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "duration_seconds",
+            "timezone",
+            "apps_forcing_screen_open_file.package_name",
+            "apps_forcing_screen_open_file.app_package_name",
+            "apps_forcing_screen_open_file.label_or_note",
+            "apps_forcing_screen_open_file.application_label",
+            "derived.screen_state_timeline",
+            "derived.keyguard_timestamps"
+          ]
+        },
+        {
+          "to": "screen_usage_end_reason",
+          "from": [
+            "event_timestamp_ns",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "duration_seconds",
+            "timezone",
+            "apps_forcing_screen_open_file.package_name",
+            "apps_forcing_screen_open_file.app_package_name",
+            "apps_forcing_screen_open_file.label_or_note",
+            "apps_forcing_screen_open_file.application_label",
+            "derived.screen_state_timeline",
+            "derived.keyguard_timestamps"
+          ]
+        },
+        {
+          "to": "screen_usage_end_reason_confidence",
+          "from": [
+            "event_timestamp_ns",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "duration_seconds",
+            "timezone",
+            "apps_forcing_screen_open_file.package_name",
+            "apps_forcing_screen_open_file.app_package_name",
+            "apps_forcing_screen_open_file.label_or_note",
+            "apps_forcing_screen_open_file.application_label",
+            "derived.screen_state_timeline",
+            "derived.keyguard_timestamps"
+          ]
+        },
+        {
+          "to": "screen_usage_stop_event_type",
+          "from": [
+            "event_timestamp_ns",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "duration_seconds",
+            "timezone",
+            "apps_forcing_screen_open_file.package_name",
+            "apps_forcing_screen_open_file.app_package_name",
+            "apps_forcing_screen_open_file.label_or_note",
+            "apps_forcing_screen_open_file.application_label",
+            "derived.screen_state_timeline",
+            "derived.keyguard_timestamps"
+          ]
+        },
+        {
+          "to": "screen_usage_last_activity_timestamp_ns",
+          "from": [
+            "event_timestamp_ns",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "duration_seconds",
+            "timezone",
+            "apps_forcing_screen_open_file.package_name",
+            "apps_forcing_screen_open_file.app_package_name",
+            "apps_forcing_screen_open_file.label_or_note",
+            "apps_forcing_screen_open_file.application_label",
+            "derived.screen_state_timeline",
+            "derived.keyguard_timestamps"
+          ]
+        },
+        {
+          "to": "screen_usage_tail_gap_seconds",
+          "from": [
+            "event_timestamp_ns",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "duration_seconds",
+            "timezone",
+            "apps_forcing_screen_open_file.package_name",
+            "apps_forcing_screen_open_file.app_package_name",
+            "apps_forcing_screen_open_file.label_or_note",
+            "apps_forcing_screen_open_file.application_label",
+            "derived.screen_state_timeline",
+            "derived.keyguard_timestamps"
+          ]
+        },
+        {
+          "to": "screen_usage_foreground_app_package",
+          "from": [
+            "event_timestamp_ns",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "duration_seconds",
+            "timezone",
+            "apps_forcing_screen_open_file.package_name",
+            "apps_forcing_screen_open_file.app_package_name",
+            "apps_forcing_screen_open_file.label_or_note",
+            "apps_forcing_screen_open_file.application_label",
+            "derived.screen_state_timeline",
+            "derived.keyguard_timestamps"
+          ]
+        },
+        {
+          "to": "screen_usage_apps_forcing_screen_open_label",
+          "from": [
+            "event_timestamp_ns",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "duration_seconds",
+            "timezone",
+            "apps_forcing_screen_open_file.package_name",
+            "apps_forcing_screen_open_file.app_package_name",
+            "apps_forcing_screen_open_file.label_or_note",
+            "apps_forcing_screen_open_file.application_label",
+            "derived.screen_state_timeline",
+            "derived.keyguard_timestamps"
+          ]
+        },
+        {
+          "to": "screen_usage_lock_screen_only",
+          "from": [
+            "event_timestamp_ns",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "duration_seconds",
+            "timezone",
+            "apps_forcing_screen_open_file.package_name",
+            "apps_forcing_screen_open_file.app_package_name",
+            "apps_forcing_screen_open_file.label_or_note",
+            "apps_forcing_screen_open_file.application_label",
+            "derived.screen_state_timeline",
+            "derived.keyguard_timestamps"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_screen_usage"
@@ -1079,6 +2250,20 @@
       "requestFields": [],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [
+        "app_package_name"
+      ],
+      "fieldWrites": [
+        "derived.junk_packages"
+      ],
+      "fieldEdges": [
+        {
+          "to": "derived.junk_packages",
+          "from": [
+            "app_package_name"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_app_usage"
@@ -1095,6 +2280,22 @@
       "requestFields": [],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [
+        "interaction_type",
+        "derived.junk_packages"
+      ],
+      "fieldWrites": [
+        "interaction_type"
+      ],
+      "fieldEdges": [
+        {
+          "to": "interaction_type",
+          "from": [
+            "interaction_type",
+            "derived.junk_packages"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_app_usage"
@@ -1128,6 +2329,28 @@
           ]
         }
       ],
+      "fieldReads": [
+        "app_package_name",
+        "interaction_type",
+        "event_timestamp_ns",
+        "background_apps_file.package_name",
+        "background_apps_file.app_package_name"
+      ],
+      "fieldWrites": [
+        "derived.matcher_input"
+      ],
+      "fieldEdges": [
+        {
+          "to": "derived.matcher_input",
+          "from": [
+            "app_package_name",
+            "interaction_type",
+            "event_timestamp_ns",
+            "background_apps_file.package_name",
+            "background_apps_file.app_package_name"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_app_usage"
@@ -1149,6 +2372,20 @@
       ],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [
+        "derived.matcher_input"
+      ],
+      "fieldWrites": [
+        "derived.matcher_output"
+      ],
+      "fieldEdges": [
+        {
+          "to": "derived.matcher_output",
+          "from": [
+            "derived.matcher_input"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_app_usage"
@@ -1166,6 +2403,78 @@
       "requestFields": [],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [
+        "app_package_name",
+        "participant_id",
+        "interaction_type",
+        "event_timestamp_ns",
+        "derived.matcher_output",
+        "derived.filtered_packages"
+      ],
+      "fieldWrites": [
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "duration_seconds",
+        "duration_minutes"
+      ],
+      "fieldEdges": [
+        {
+          "to": "interaction_type",
+          "from": [
+            "app_package_name",
+            "participant_id",
+            "interaction_type",
+            "event_timestamp_ns",
+            "derived.matcher_output",
+            "derived.filtered_packages"
+          ]
+        },
+        {
+          "to": "start_timestamp_ns",
+          "from": [
+            "app_package_name",
+            "participant_id",
+            "interaction_type",
+            "event_timestamp_ns",
+            "derived.matcher_output",
+            "derived.filtered_packages"
+          ]
+        },
+        {
+          "to": "stop_timestamp_ns",
+          "from": [
+            "app_package_name",
+            "participant_id",
+            "interaction_type",
+            "event_timestamp_ns",
+            "derived.matcher_output",
+            "derived.filtered_packages"
+          ]
+        },
+        {
+          "to": "duration_seconds",
+          "from": [
+            "app_package_name",
+            "participant_id",
+            "interaction_type",
+            "event_timestamp_ns",
+            "derived.matcher_output",
+            "derived.filtered_packages"
+          ]
+        },
+        {
+          "to": "duration_minutes",
+          "from": [
+            "app_package_name",
+            "participant_id",
+            "interaction_type",
+            "event_timestamp_ns",
+            "derived.matcher_output",
+            "derived.filtered_packages"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_app_usage"
@@ -1184,6 +2493,72 @@
       ],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [
+        "app_package_name",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "derived.junk_packages"
+      ],
+      "fieldWrites": [
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "duration_seconds",
+        "duration_minutes"
+      ],
+      "fieldEdges": [
+        {
+          "to": "interaction_type",
+          "from": [
+            "app_package_name",
+            "interaction_type",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "derived.junk_packages"
+          ]
+        },
+        {
+          "to": "start_timestamp_ns",
+          "from": [
+            "app_package_name",
+            "interaction_type",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "derived.junk_packages"
+          ]
+        },
+        {
+          "to": "stop_timestamp_ns",
+          "from": [
+            "app_package_name",
+            "interaction_type",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "derived.junk_packages"
+          ]
+        },
+        {
+          "to": "duration_seconds",
+          "from": [
+            "app_package_name",
+            "interaction_type",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "derived.junk_packages"
+          ]
+        },
+        {
+          "to": "duration_minutes",
+          "from": [
+            "app_package_name",
+            "interaction_type",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "derived.junk_packages"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_app_usage"
@@ -1215,6 +2590,72 @@
           ]
         }
       ],
+      "fieldReads": [
+        "app_package_name",
+        "interaction_type",
+        "derived.junk_packages",
+        "background_apps_file.package_name",
+        "background_apps_file.app_package_name"
+      ],
+      "fieldWrites": [
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "duration_seconds",
+        "duration_minutes"
+      ],
+      "fieldEdges": [
+        {
+          "to": "interaction_type",
+          "from": [
+            "app_package_name",
+            "interaction_type",
+            "derived.junk_packages",
+            "background_apps_file.package_name",
+            "background_apps_file.app_package_name"
+          ]
+        },
+        {
+          "to": "start_timestamp_ns",
+          "from": [
+            "app_package_name",
+            "interaction_type",
+            "derived.junk_packages",
+            "background_apps_file.package_name",
+            "background_apps_file.app_package_name"
+          ]
+        },
+        {
+          "to": "stop_timestamp_ns",
+          "from": [
+            "app_package_name",
+            "interaction_type",
+            "derived.junk_packages",
+            "background_apps_file.package_name",
+            "background_apps_file.app_package_name"
+          ]
+        },
+        {
+          "to": "duration_seconds",
+          "from": [
+            "app_package_name",
+            "interaction_type",
+            "derived.junk_packages",
+            "background_apps_file.package_name",
+            "background_apps_file.app_package_name"
+          ]
+        },
+        {
+          "to": "duration_minutes",
+          "from": [
+            "app_package_name",
+            "interaction_type",
+            "derived.junk_packages",
+            "background_apps_file.package_name",
+            "background_apps_file.app_package_name"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_app_usage"
@@ -1230,6 +2671,20 @@
       "requestFields": [],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [
+        "event_timestamp_ns"
+      ],
+      "fieldWrites": [
+        "row.order"
+      ],
+      "fieldEdges": [
+        {
+          "to": "row.order",
+          "from": [
+            "event_timestamp_ns"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_app_usage"
@@ -1264,6 +2719,118 @@
           ]
         }
       ],
+      "fieldReads": [
+        "app_package_name",
+        "interaction_type",
+        "event_timestamp_ns",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "derived.junk_packages",
+        "background_apps_file.package_name",
+        "background_apps_file.app_package_name"
+      ],
+      "fieldWrites": [
+        "row.membership",
+        "row.order",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "duration_seconds",
+        "duration_minutes",
+        "usage_layer"
+      ],
+      "fieldEdges": [
+        {
+          "to": "row.membership",
+          "from": [
+            "app_package_name",
+            "interaction_type",
+            "event_timestamp_ns",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "derived.junk_packages",
+            "background_apps_file.package_name",
+            "background_apps_file.app_package_name"
+          ]
+        },
+        {
+          "to": "row.order",
+          "from": [
+            "app_package_name",
+            "interaction_type",
+            "event_timestamp_ns",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "derived.junk_packages",
+            "background_apps_file.package_name",
+            "background_apps_file.app_package_name"
+          ]
+        },
+        {
+          "to": "start_timestamp_ns",
+          "from": [
+            "app_package_name",
+            "interaction_type",
+            "event_timestamp_ns",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "derived.junk_packages",
+            "background_apps_file.package_name",
+            "background_apps_file.app_package_name"
+          ]
+        },
+        {
+          "to": "stop_timestamp_ns",
+          "from": [
+            "app_package_name",
+            "interaction_type",
+            "event_timestamp_ns",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "derived.junk_packages",
+            "background_apps_file.package_name",
+            "background_apps_file.app_package_name"
+          ]
+        },
+        {
+          "to": "duration_seconds",
+          "from": [
+            "app_package_name",
+            "interaction_type",
+            "event_timestamp_ns",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "derived.junk_packages",
+            "background_apps_file.package_name",
+            "background_apps_file.app_package_name"
+          ]
+        },
+        {
+          "to": "duration_minutes",
+          "from": [
+            "app_package_name",
+            "interaction_type",
+            "event_timestamp_ns",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "derived.junk_packages",
+            "background_apps_file.package_name",
+            "background_apps_file.app_package_name"
+          ]
+        },
+        {
+          "to": "usage_layer",
+          "from": [
+            "app_package_name",
+            "interaction_type",
+            "event_timestamp_ns",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "derived.junk_packages",
+            "background_apps_file.package_name",
+            "background_apps_file.app_package_name"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_app_usage"
@@ -1294,6 +2861,78 @@
           ]
         }
       ],
+      "fieldReads": [
+        "app_package_name",
+        "codebook_fields",
+        "app_codebook_file.app_package_name",
+        "app_codebook_file.application_label",
+        "app_codebook_file.bcm_play_store_genreId",
+        "app_codebook_file.bcm_play_store_genre",
+        "app_codebook_file.bcm_play_store_broad_app_category",
+        "app_codebook_file.bcm_play_store_developer",
+        "app_codebook_file.bcm_play_store_free",
+        "app_codebook_file.bcm_play_store_rating",
+        "app_codebook_file.bcm_play_store_downloads",
+        "app_codebook_file.usc_broad_app_category",
+        "app_codebook_file.usc_genreId",
+        "app_codebook_file.umich_child_app_category_code",
+        "app_codebook_file.umich_child_app_category",
+        "app_codebook_file.umich_adult_app_category_code",
+        "app_codebook_file.umich_adult_app_category",
+        "app_codebook_file.umich_free",
+        "app_codebook_file.umich_gambling_app",
+        "app_codebook_file.umich_inappropriate_app",
+        "app_codebook_file.babyemu_genreId_scraped",
+        "app_codebook_file.babyemu_genreId_manual",
+        "app_codebook_file.babyemu_broad_app_category",
+        "app_codebook_file.babyemu_medium_app_category",
+        "app_codebook_file.babyemu_fine_app_category",
+        "app_codebook_file.babyemu_alternate_fine_app_category",
+        "app_codebook_file.babyemu_kids",
+        "app_codebook_file.bcm_cnrc_heuristic_category",
+        "app_codebook_file.bcm_cnrc_categorization_source",
+        "app_codebook_file.dataset"
+      ],
+      "fieldWrites": [
+        "codebook_fields"
+      ],
+      "fieldEdges": [
+        {
+          "to": "codebook_fields",
+          "from": [
+            "app_package_name",
+            "codebook_fields",
+            "app_codebook_file.app_package_name",
+            "app_codebook_file.application_label",
+            "app_codebook_file.bcm_play_store_genreId",
+            "app_codebook_file.bcm_play_store_genre",
+            "app_codebook_file.bcm_play_store_broad_app_category",
+            "app_codebook_file.bcm_play_store_developer",
+            "app_codebook_file.bcm_play_store_free",
+            "app_codebook_file.bcm_play_store_rating",
+            "app_codebook_file.bcm_play_store_downloads",
+            "app_codebook_file.usc_broad_app_category",
+            "app_codebook_file.usc_genreId",
+            "app_codebook_file.umich_child_app_category_code",
+            "app_codebook_file.umich_child_app_category",
+            "app_codebook_file.umich_adult_app_category_code",
+            "app_codebook_file.umich_adult_app_category",
+            "app_codebook_file.umich_free",
+            "app_codebook_file.umich_gambling_app",
+            "app_codebook_file.umich_inappropriate_app",
+            "app_codebook_file.babyemu_genreId_scraped",
+            "app_codebook_file.babyemu_genreId_manual",
+            "app_codebook_file.babyemu_broad_app_category",
+            "app_codebook_file.babyemu_medium_app_category",
+            "app_codebook_file.babyemu_fine_app_category",
+            "app_codebook_file.babyemu_alternate_fine_app_category",
+            "app_codebook_file.babyemu_kids",
+            "app_codebook_file.bcm_cnrc_heuristic_category",
+            "app_codebook_file.bcm_cnrc_categorization_source",
+            "app_codebook_file.dataset"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_app_usage"
@@ -1311,6 +2950,22 @@
       ],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [
+        "codebook_fields",
+        "broad_app_category"
+      ],
+      "fieldWrites": [
+        "broad_app_category"
+      ],
+      "fieldEdges": [
+        {
+          "to": "broad_app_category",
+          "from": [
+            "codebook_fields",
+            "broad_app_category"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_app_usage"
@@ -1328,6 +2983,33 @@
       ],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [
+        "codebook_fields",
+        "codebook_genre_fields_cleared",
+        "genre_id_scraped"
+      ],
+      "fieldWrites": [
+        "genre_id_scraped",
+        "codebook_genre_fields_cleared"
+      ],
+      "fieldEdges": [
+        {
+          "to": "genre_id_scraped",
+          "from": [
+            "codebook_fields",
+            "codebook_genre_fields_cleared",
+            "genre_id_scraped"
+          ]
+        },
+        {
+          "to": "codebook_genre_fields_cleared",
+          "from": [
+            "codebook_fields",
+            "codebook_genre_fields_cleared",
+            "genre_id_scraped"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_app_usage"
@@ -1345,6 +3027,121 @@
       ],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [
+        "app_package_name",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "valid_app_new_engage_30s",
+        "valid_app_new_engage_custom",
+        "valid_app_switched_app",
+        "valid_app_usage_time_gap_hours",
+        "any_app_new_engage_30s",
+        "any_app_new_engage_custom",
+        "any_app_switched_app",
+        "any_app_usage_time_gap_hours"
+      ],
+      "fieldWrites": [
+        "valid_app_new_engage_30s",
+        "valid_app_new_engage_custom",
+        "valid_app_switched_app",
+        "valid_app_usage_time_gap_hours",
+        "any_app_new_engage_30s",
+        "any_app_new_engage_custom",
+        "any_app_switched_app",
+        "any_app_usage_time_gap_hours"
+      ],
+      "fieldEdges": [
+        {
+          "to": "valid_app_new_engage_30s",
+          "from": [
+            "app_package_name",
+            "interaction_type",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "usage_layer",
+            "valid_app_new_engage_30s"
+          ]
+        },
+        {
+          "to": "valid_app_new_engage_custom",
+          "from": [
+            "app_package_name",
+            "interaction_type",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "usage_layer",
+            "valid_app_new_engage_custom"
+          ]
+        },
+        {
+          "to": "valid_app_switched_app",
+          "from": [
+            "app_package_name",
+            "interaction_type",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "usage_layer",
+            "valid_app_switched_app"
+          ]
+        },
+        {
+          "to": "valid_app_usage_time_gap_hours",
+          "from": [
+            "app_package_name",
+            "interaction_type",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "usage_layer",
+            "valid_app_usage_time_gap_hours"
+          ]
+        },
+        {
+          "to": "any_app_new_engage_30s",
+          "from": [
+            "app_package_name",
+            "interaction_type",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "usage_layer",
+            "any_app_new_engage_30s"
+          ]
+        },
+        {
+          "to": "any_app_new_engage_custom",
+          "from": [
+            "app_package_name",
+            "interaction_type",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "usage_layer",
+            "any_app_new_engage_custom"
+          ]
+        },
+        {
+          "to": "any_app_switched_app",
+          "from": [
+            "app_package_name",
+            "interaction_type",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "usage_layer",
+            "any_app_switched_app"
+          ]
+        },
+        {
+          "to": "any_app_usage_time_gap_hours",
+          "from": [
+            "app_package_name",
+            "interaction_type",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "usage_layer",
+            "any_app_usage_time_gap_hours"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_app_usage"
@@ -1363,6 +3160,24 @@
       ],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [
+        "any_app_usage_flags",
+        "data_time_gap_hours",
+        "duration_minutes"
+      ],
+      "fieldWrites": [
+        "any_app_usage_flags"
+      ],
+      "fieldEdges": [
+        {
+          "to": "any_app_usage_flags",
+          "from": [
+            "any_app_usage_flags",
+            "data_time_gap_hours",
+            "duration_minutes"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_app_usage"
@@ -1379,6 +3194,66 @@
       "requestFields": [],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "duration_seconds",
+        "duration_minutes",
+        "derived.junk_packages"
+      ],
+      "fieldWrites": [
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "duration_seconds",
+        "duration_minutes"
+      ],
+      "fieldEdges": [
+        {
+          "to": "start_timestamp_ns",
+          "from": [
+            "interaction_type",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "duration_seconds",
+            "duration_minutes",
+            "derived.junk_packages"
+          ]
+        },
+        {
+          "to": "stop_timestamp_ns",
+          "from": [
+            "interaction_type",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "duration_seconds",
+            "duration_minutes",
+            "derived.junk_packages"
+          ]
+        },
+        {
+          "to": "duration_seconds",
+          "from": [
+            "interaction_type",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "duration_seconds",
+            "duration_minutes",
+            "derived.junk_packages"
+          ]
+        },
+        {
+          "to": "duration_minutes",
+          "from": [
+            "interaction_type",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "duration_seconds",
+            "duration_minutes",
+            "derived.junk_packages"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_app_usage"
@@ -1397,6 +3272,22 @@
       ],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [
+        "interaction_type",
+        "data_time_gap_hours"
+      ],
+      "fieldWrites": [
+        "row.membership"
+      ],
+      "fieldEdges": [
+        {
+          "to": "row.membership",
+          "from": [
+            "interaction_type",
+            "data_time_gap_hours"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_app_usage"
@@ -1414,6 +3305,22 @@
       ],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [
+        "interaction_type",
+        "duration_seconds"
+      ],
+      "fieldWrites": [
+        "row.membership"
+      ],
+      "fieldEdges": [
+        {
+          "to": "row.membership",
+          "from": [
+            "interaction_type",
+            "duration_seconds"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_app_usage"
@@ -1429,6 +3336,22 @@
       "requestFields": [],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [
+        "interaction_type",
+        "duration_minutes"
+      ],
+      "fieldWrites": [
+        "derived.credit_partition"
+      ],
+      "fieldEdges": [
+        {
+          "to": "derived.credit_partition",
+          "from": [
+            "interaction_type",
+            "duration_minutes"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "all",
         "terms": [
@@ -1453,6 +3376,24 @@
       "requestFields": [],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [
+        "participant_id",
+        "interaction_type",
+        "event_timestamp_ns"
+      ],
+      "fieldWrites": [
+        "derived.liveness_substrate"
+      ],
+      "fieldEdges": [
+        {
+          "to": "derived.liveness_substrate",
+          "from": [
+            "participant_id",
+            "interaction_type",
+            "event_timestamp_ns"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "all",
         "terms": [
@@ -1478,6 +3419,24 @@
       "requestFields": [],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [
+        "participant_id",
+        "derived.credit_partition",
+        "derived.liveness_substrate"
+      ],
+      "fieldWrites": [
+        "derived.screen_incapable_participants"
+      ],
+      "fieldEdges": [
+        {
+          "to": "derived.screen_incapable_participants",
+          "from": [
+            "participant_id",
+            "derived.credit_partition",
+            "derived.liveness_substrate"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "all",
         "terms": [
@@ -1502,6 +3461,26 @@
       "requestFields": [],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [
+        "participant_id",
+        "date",
+        "app_package_name",
+        "derived.credit_partition"
+      ],
+      "fieldWrites": [
+        "derived.day_app_counts"
+      ],
+      "fieldEdges": [
+        {
+          "to": "derived.day_app_counts",
+          "from": [
+            "participant_id",
+            "date",
+            "app_package_name",
+            "derived.credit_partition"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "all",
         "terms": [
@@ -1533,6 +3512,32 @@
       ],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [
+        "participant_id",
+        "date",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "derived.credit_partition",
+        "derived.liveness_substrate",
+        "derived.day_app_counts"
+      ],
+      "fieldWrites": [
+        "derived.credit_decisions"
+      ],
+      "fieldEdges": [
+        {
+          "to": "derived.credit_decisions",
+          "from": [
+            "participant_id",
+            "date",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "derived.credit_partition",
+            "derived.liveness_substrate",
+            "derived.day_app_counts"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "all",
         "terms": [
@@ -1559,6 +3564,186 @@
       "requestFields": [],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [
+        "participant_id",
+        "event_timestamp_ns",
+        "timezone",
+        "derived.credit_partition",
+        "derived.liveness_substrate",
+        "derived.credit_decisions"
+      ],
+      "fieldWrites": [
+        "row.membership",
+        "row.order",
+        "event_timestamp_ns",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "duration_seconds",
+        "duration_minutes",
+        "date",
+        "day",
+        "weekday_mf",
+        "weekday_mth",
+        "weekday_su_th",
+        "hour",
+        "quarter"
+      ],
+      "fieldEdges": [
+        {
+          "to": "row.membership",
+          "from": [
+            "participant_id",
+            "event_timestamp_ns",
+            "timezone",
+            "derived.credit_partition",
+            "derived.liveness_substrate",
+            "derived.credit_decisions"
+          ]
+        },
+        {
+          "to": "row.order",
+          "from": [
+            "participant_id",
+            "event_timestamp_ns",
+            "timezone",
+            "derived.credit_partition",
+            "derived.liveness_substrate",
+            "derived.credit_decisions"
+          ]
+        },
+        {
+          "to": "event_timestamp_ns",
+          "from": [
+            "participant_id",
+            "event_timestamp_ns",
+            "timezone",
+            "derived.credit_partition",
+            "derived.liveness_substrate",
+            "derived.credit_decisions"
+          ]
+        },
+        {
+          "to": "start_timestamp_ns",
+          "from": [
+            "participant_id",
+            "event_timestamp_ns",
+            "timezone",
+            "derived.credit_partition",
+            "derived.liveness_substrate",
+            "derived.credit_decisions"
+          ]
+        },
+        {
+          "to": "stop_timestamp_ns",
+          "from": [
+            "participant_id",
+            "event_timestamp_ns",
+            "timezone",
+            "derived.credit_partition",
+            "derived.liveness_substrate",
+            "derived.credit_decisions"
+          ]
+        },
+        {
+          "to": "duration_seconds",
+          "from": [
+            "participant_id",
+            "event_timestamp_ns",
+            "timezone",
+            "derived.credit_partition",
+            "derived.liveness_substrate",
+            "derived.credit_decisions"
+          ]
+        },
+        {
+          "to": "duration_minutes",
+          "from": [
+            "participant_id",
+            "event_timestamp_ns",
+            "timezone",
+            "derived.credit_partition",
+            "derived.liveness_substrate",
+            "derived.credit_decisions"
+          ]
+        },
+        {
+          "to": "date",
+          "from": [
+            "participant_id",
+            "event_timestamp_ns",
+            "timezone",
+            "derived.credit_partition",
+            "derived.liveness_substrate",
+            "derived.credit_decisions"
+          ]
+        },
+        {
+          "to": "day",
+          "from": [
+            "participant_id",
+            "event_timestamp_ns",
+            "timezone",
+            "derived.credit_partition",
+            "derived.liveness_substrate",
+            "derived.credit_decisions"
+          ]
+        },
+        {
+          "to": "weekday_mf",
+          "from": [
+            "participant_id",
+            "event_timestamp_ns",
+            "timezone",
+            "derived.credit_partition",
+            "derived.liveness_substrate",
+            "derived.credit_decisions"
+          ]
+        },
+        {
+          "to": "weekday_mth",
+          "from": [
+            "participant_id",
+            "event_timestamp_ns",
+            "timezone",
+            "derived.credit_partition",
+            "derived.liveness_substrate",
+            "derived.credit_decisions"
+          ]
+        },
+        {
+          "to": "weekday_su_th",
+          "from": [
+            "participant_id",
+            "event_timestamp_ns",
+            "timezone",
+            "derived.credit_partition",
+            "derived.liveness_substrate",
+            "derived.credit_decisions"
+          ]
+        },
+        {
+          "to": "hour",
+          "from": [
+            "participant_id",
+            "event_timestamp_ns",
+            "timezone",
+            "derived.credit_partition",
+            "derived.liveness_substrate",
+            "derived.credit_decisions"
+          ]
+        },
+        {
+          "to": "quarter",
+          "from": [
+            "participant_id",
+            "event_timestamp_ns",
+            "timezone",
+            "derived.credit_partition",
+            "derived.liveness_substrate",
+            "derived.credit_decisions"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "all",
         "terms": [
@@ -1585,6 +3770,24 @@
       "requestFields": [],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [
+        "duration_minutes",
+        "derived.credit_partition",
+        "derived.screen_incapable_participants"
+      ],
+      "fieldWrites": [
+        "derived.credit_result"
+      ],
+      "fieldEdges": [
+        {
+          "to": "derived.credit_result",
+          "from": [
+            "duration_minutes",
+            "derived.credit_partition",
+            "derived.screen_incapable_participants"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "all",
         "terms": [
@@ -1614,6 +3817,26 @@
         {
           "role": "study_dates_file",
           "whenAll": []
+        }
+      ],
+      "fieldReads": [
+        "participant_id",
+        "study_dates_file.participant_id",
+        "study_dates_file.start_date",
+        "study_dates_file.end_date"
+      ],
+      "fieldWrites": [
+        "derived.participant_windows"
+      ],
+      "fieldEdges": [
+        {
+          "to": "derived.participant_windows",
+          "from": [
+            "participant_id",
+            "study_dates_file.participant_id",
+            "study_dates_file.start_date",
+            "study_dates_file.end_date"
+          ]
         }
       ],
       "applicability": {
@@ -1647,6 +3870,30 @@
           ]
         }
       ],
+      "fieldReads": [
+        "participant_id",
+        "date",
+        "derived.participant_windows",
+        "study_dates_file.participant_id",
+        "study_dates_file.start_date",
+        "study_dates_file.end_date"
+      ],
+      "fieldWrites": [
+        "row.membership"
+      ],
+      "fieldEdges": [
+        {
+          "to": "row.membership",
+          "from": [
+            "participant_id",
+            "date",
+            "derived.participant_windows",
+            "study_dates_file.participant_id",
+            "study_dates_file.start_date",
+            "study_dates_file.end_date"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_app_usage"
@@ -1674,6 +3921,24 @@
               "request_field": "enable_person_attribution",
               "value": true
             }
+          ]
+        }
+      ],
+      "fieldReads": [
+        "participant_id",
+        "device_sharing_file.participant_id",
+        "device_sharing_file.sharing_status"
+      ],
+      "fieldWrites": [
+        "derived.sharing_status"
+      ],
+      "fieldEdges": [
+        {
+          "to": "derived.sharing_status",
+          "from": [
+            "participant_id",
+            "device_sharing_file.participant_id",
+            "device_sharing_file.sharing_status"
           ]
         }
       ],
@@ -1705,6 +3970,24 @@
           ]
         }
       ],
+      "fieldReads": [
+        "survey_attribution_file.participant_id",
+        "survey_attribution_file.event_timestamp",
+        "survey_attribution_file.users"
+      ],
+      "fieldWrites": [
+        "derived.survey_lookup"
+      ],
+      "fieldEdges": [
+        {
+          "to": "derived.survey_lookup",
+          "from": [
+            "survey_attribution_file.participant_id",
+            "survey_attribution_file.event_timestamp",
+            "survey_attribution_file.users"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_app_usage"
@@ -1724,6 +4007,45 @@
       ],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [
+        "participant_id",
+        "username",
+        "interaction_type",
+        "app_package_name",
+        "event_timestamp_ns",
+        "derived.sharing_status",
+        "derived.survey_lookup"
+      ],
+      "fieldWrites": [
+        "username",
+        "interaction_type"
+      ],
+      "fieldEdges": [
+        {
+          "to": "username",
+          "from": [
+            "participant_id",
+            "username",
+            "interaction_type",
+            "app_package_name",
+            "event_timestamp_ns",
+            "derived.sharing_status",
+            "derived.survey_lookup"
+          ]
+        },
+        {
+          "to": "interaction_type",
+          "from": [
+            "participant_id",
+            "username",
+            "interaction_type",
+            "app_package_name",
+            "event_timestamp_ns",
+            "derived.sharing_status",
+            "derived.survey_lookup"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_app_usage"
@@ -1742,6 +4064,204 @@
       ],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [
+        "participant_id",
+        "date",
+        "interaction_type",
+        "event_timestamp_ns",
+        "timezone"
+      ],
+      "fieldWrites": [
+        "row.membership",
+        "row.order",
+        "app_package_name",
+        "application_label",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "duration_seconds",
+        "duration_minutes",
+        "data_time_gap_hours",
+        "date",
+        "day",
+        "weekday_mf",
+        "weekday_mth",
+        "weekday_su_th",
+        "hour",
+        "quarter"
+      ],
+      "fieldEdges": [
+        {
+          "to": "row.membership",
+          "from": [
+            "participant_id",
+            "date",
+            "interaction_type",
+            "event_timestamp_ns",
+            "timezone"
+          ]
+        },
+        {
+          "to": "row.order",
+          "from": [
+            "participant_id",
+            "date",
+            "interaction_type",
+            "event_timestamp_ns",
+            "timezone"
+          ]
+        },
+        {
+          "to": "app_package_name",
+          "from": [
+            "participant_id",
+            "date",
+            "interaction_type",
+            "event_timestamp_ns",
+            "timezone"
+          ]
+        },
+        {
+          "to": "application_label",
+          "from": [
+            "participant_id",
+            "date",
+            "interaction_type",
+            "event_timestamp_ns",
+            "timezone"
+          ]
+        },
+        {
+          "to": "interaction_type",
+          "from": [
+            "participant_id",
+            "date",
+            "interaction_type",
+            "event_timestamp_ns",
+            "timezone"
+          ]
+        },
+        {
+          "to": "start_timestamp_ns",
+          "from": [
+            "participant_id",
+            "date",
+            "interaction_type",
+            "event_timestamp_ns",
+            "timezone"
+          ]
+        },
+        {
+          "to": "stop_timestamp_ns",
+          "from": [
+            "participant_id",
+            "date",
+            "interaction_type",
+            "event_timestamp_ns",
+            "timezone"
+          ]
+        },
+        {
+          "to": "duration_seconds",
+          "from": [
+            "participant_id",
+            "date",
+            "interaction_type",
+            "event_timestamp_ns",
+            "timezone"
+          ]
+        },
+        {
+          "to": "duration_minutes",
+          "from": [
+            "participant_id",
+            "date",
+            "interaction_type",
+            "event_timestamp_ns",
+            "timezone"
+          ]
+        },
+        {
+          "to": "data_time_gap_hours",
+          "from": [
+            "participant_id",
+            "date",
+            "interaction_type",
+            "event_timestamp_ns",
+            "timezone"
+          ]
+        },
+        {
+          "to": "date",
+          "from": [
+            "participant_id",
+            "date",
+            "interaction_type",
+            "event_timestamp_ns",
+            "timezone"
+          ]
+        },
+        {
+          "to": "day",
+          "from": [
+            "participant_id",
+            "date",
+            "interaction_type",
+            "event_timestamp_ns",
+            "timezone"
+          ]
+        },
+        {
+          "to": "weekday_mf",
+          "from": [
+            "participant_id",
+            "date",
+            "interaction_type",
+            "event_timestamp_ns",
+            "timezone"
+          ]
+        },
+        {
+          "to": "weekday_mth",
+          "from": [
+            "participant_id",
+            "date",
+            "interaction_type",
+            "event_timestamp_ns",
+            "timezone"
+          ]
+        },
+        {
+          "to": "weekday_su_th",
+          "from": [
+            "participant_id",
+            "date",
+            "interaction_type",
+            "event_timestamp_ns",
+            "timezone"
+          ]
+        },
+        {
+          "to": "hour",
+          "from": [
+            "participant_id",
+            "date",
+            "interaction_type",
+            "event_timestamp_ns",
+            "timezone"
+          ]
+        },
+        {
+          "to": "quarter",
+          "from": [
+            "participant_id",
+            "date",
+            "interaction_type",
+            "event_timestamp_ns",
+            "timezone"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_app_usage"
@@ -1757,6 +4277,22 @@
       "requestFields": [],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [
+        "participant_id",
+        "date"
+      ],
+      "fieldWrites": [
+        "derived.raw_date_index"
+      ],
+      "fieldEdges": [
+        {
+          "to": "derived.raw_date_index",
+          "from": [
+            "participant_id",
+            "date"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_app_usage"
@@ -1778,6 +4314,36 @@
         {
           "role": "study_dates_file",
           "whenAll": []
+        }
+      ],
+      "fieldReads": [
+        "participant_id",
+        "date",
+        "interaction_type",
+        "duration_minutes",
+        "derived.raw_date_index",
+        "derived.participant_windows",
+        "study_dates_file.participant_id",
+        "study_dates_file.start_date",
+        "study_dates_file.end_date"
+      ],
+      "fieldWrites": [
+        "derived.coverage_table"
+      ],
+      "fieldEdges": [
+        {
+          "to": "derived.coverage_table",
+          "from": [
+            "participant_id",
+            "date",
+            "interaction_type",
+            "duration_minutes",
+            "derived.raw_date_index",
+            "derived.participant_windows",
+            "study_dates_file.participant_id",
+            "study_dates_file.start_date",
+            "study_dates_file.end_date"
+          ]
         }
       ],
       "applicability": {
@@ -1804,6 +4370,28 @@
       "requestFields": [],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [
+        "participant_id",
+        "username",
+        "date",
+        "interaction_type",
+        "duration_minutes"
+      ],
+      "fieldWrites": [
+        "derived.attribution_minutes"
+      ],
+      "fieldEdges": [
+        {
+          "to": "derived.attribution_minutes",
+          "from": [
+            "participant_id",
+            "username",
+            "date",
+            "interaction_type",
+            "duration_minutes"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "all",
         "terms": [
@@ -1831,6 +4419,22 @@
       ],
       "sourceRoles": [],
       "sourceRoleBindings": [],
+      "fieldReads": [
+        "derived.attribution_minutes",
+        "derived.sharing_status"
+      ],
+      "fieldWrites": [
+        "derived.compliance_scores"
+      ],
+      "fieldEdges": [
+        {
+          "to": "derived.compliance_scores",
+          "from": [
+            "derived.attribution_minutes",
+            "derived.sharing_status"
+          ]
+        }
+      ],
       "applicability": {
         "kind": "all",
         "terms": [
@@ -1950,10 +4554,2846 @@
           ]
         }
       ],
+      "fieldReads": [
+        "study_id",
+        "participant_id",
+        "possible_device_model",
+        "username",
+        "application_label",
+        "interaction_type",
+        "app_package_name",
+        "event_timestamp_ns",
+        "timezone",
+        "data_time_gap_hours",
+        "date",
+        "day",
+        "weekday_mf",
+        "weekday_mth",
+        "weekday_su_th",
+        "hour",
+        "quarter",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "duration_seconds",
+        "duration_minutes",
+        "screen_usage_end_reason",
+        "screen_usage_end_reason_confidence",
+        "screen_usage_stop_event_type",
+        "screen_usage_last_activity_timestamp_ns",
+        "screen_usage_tail_gap_seconds",
+        "screen_usage_foreground_app_package",
+        "screen_usage_apps_forcing_screen_open_label",
+        "screen_usage_lock_screen_only",
+        "any_app_usage_flags",
+        "valid_app_new_engage_30s",
+        "valid_app_new_engage_custom",
+        "valid_app_switched_app",
+        "valid_app_usage_time_gap_hours",
+        "any_app_new_engage_30s",
+        "any_app_new_engage_custom",
+        "any_app_switched_app",
+        "any_app_usage_time_gap_hours",
+        "genre_id_scraped",
+        "broad_app_category",
+        "codebook_fields",
+        "codebook_genre_fields_cleared",
+        "usage_layer",
+        "derived.row_count_report",
+        "derived.duplicate_group_count",
+        "derived.timezone_set",
+        "derived.selected_timezone",
+        "derived.coverage_table",
+        "derived.compliance_scores",
+        "derived.credit_result",
+        "derived.sharing_status",
+        "enrolled_devices_file.participant_id",
+        "enrolled_devices_file.device_count"
+      ],
+      "fieldWrites": [],
+      "fieldEdges": [],
       "applicability": {
         "kind": "always"
       },
       "canBypass": false
     }
+  ],
+  "outputCellBindings": [
+    {
+      "outputKind": "app-csv",
+      "column": "study_id",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "study_name",
+      "emittingStep": "assemble_result",
+      "from": []
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "participant_id",
+      "emittingStep": "assemble_result",
+      "from": [
+        "participant_id"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "possible_device_model",
+      "emittingStep": "assemble_result",
+      "from": [
+        "possible_device_model"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "username",
+      "emittingStep": "assemble_result",
+      "from": [
+        "username"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "event_timestamp",
+      "emittingStep": "assemble_result",
+      "from": [
+        "event_timestamp_ns",
+        "timezone"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "date",
+      "emittingStep": "assemble_result",
+      "from": [
+        "date"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "timezone",
+      "emittingStep": "assemble_result",
+      "from": [
+        "timezone"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "app_package_name",
+      "emittingStep": "assemble_result",
+      "from": [
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "application_label",
+      "emittingStep": "assemble_result",
+      "from": [
+        "application_label"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "genreId_scraped",
+      "emittingStep": "assemble_result",
+      "from": [
+        "genre_id_scraped"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "broad_app_category",
+      "emittingStep": "assemble_result",
+      "from": [
+        "broad_app_category"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "interaction_type",
+      "emittingStep": "assemble_result",
+      "from": [
+        "interaction_type"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "start_timestamp",
+      "emittingStep": "assemble_result",
+      "from": [
+        "start_timestamp_ns",
+        "timezone"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "stop_timestamp",
+      "emittingStep": "assemble_result",
+      "from": [
+        "stop_timestamp_ns",
+        "timezone"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "duration_seconds",
+      "emittingStep": "assemble_result",
+      "from": [
+        "duration_seconds"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "duration_minutes",
+      "emittingStep": "assemble_result",
+      "from": [
+        "duration_minutes"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "any_app_usage_flags",
+      "emittingStep": "assemble_result",
+      "from": [
+        "any_app_usage_flags"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "data_time_gap_hours",
+      "emittingStep": "assemble_result",
+      "from": [
+        "data_time_gap_hours"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "day",
+      "emittingStep": "assemble_result",
+      "from": [
+        "day"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "weekdayMF",
+      "emittingStep": "assemble_result",
+      "from": [
+        "weekday_mf"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "weekdayMTh",
+      "emittingStep": "assemble_result",
+      "from": [
+        "weekday_mth"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "weekdaySuTh",
+      "emittingStep": "assemble_result",
+      "from": [
+        "weekday_su_th"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "hour",
+      "emittingStep": "assemble_result",
+      "from": [
+        "hour"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "quarter",
+      "emittingStep": "assemble_result",
+      "from": [
+        "quarter"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "valid_app_new_engage_30s",
+      "emittingStep": "assemble_result",
+      "from": [
+        "valid_app_new_engage_30s"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "valid_app_new_engage_custom_*s",
+      "emittingStep": "assemble_result",
+      "from": [
+        "valid_app_new_engage_custom"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "valid_app_switched_app",
+      "emittingStep": "assemble_result",
+      "from": [
+        "valid_app_switched_app"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "valid_app_usage_time_gap_hours",
+      "emittingStep": "assemble_result",
+      "from": [
+        "valid_app_usage_time_gap_hours"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "any_app_new_engage_30s",
+      "emittingStep": "assemble_result",
+      "from": [
+        "any_app_new_engage_30s"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "any_app_new_engage_custom_*s",
+      "emittingStep": "assemble_result",
+      "from": [
+        "any_app_new_engage_custom"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "any_app_switched_app",
+      "emittingStep": "assemble_result",
+      "from": [
+        "any_app_switched_app"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "any_app_usage_time_gap_hours",
+      "emittingStep": "assemble_result",
+      "from": [
+        "any_app_usage_time_gap_hours"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "preprocessor_version",
+      "emittingStep": "assemble_result",
+      "from": []
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "datetime_of_preprocessing",
+      "emittingStep": "assemble_result",
+      "from": []
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "usage_layer",
+      "emittingStep": "assemble_result",
+      "from": [
+        "usage_layer"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "shape/rows",
+      "emittingStep": "assemble_result",
+      "from": []
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "codebook_application_label",
+      "emittingStep": "assemble_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "bcm_play_store_genreId",
+      "emittingStep": "assemble_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "bcm_play_store_genre",
+      "emittingStep": "assemble_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "bcm_play_store_broad_app_category",
+      "emittingStep": "assemble_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "bcm_play_store_developer",
+      "emittingStep": "assemble_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "bcm_play_store_free",
+      "emittingStep": "assemble_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "bcm_play_store_rating",
+      "emittingStep": "assemble_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "bcm_play_store_downloads",
+      "emittingStep": "assemble_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "usc_broad_app_category",
+      "emittingStep": "assemble_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "usc_genreId",
+      "emittingStep": "assemble_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "umich_child_app_category_code",
+      "emittingStep": "assemble_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "umich_child_app_category",
+      "emittingStep": "assemble_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "umich_adult_app_category_code",
+      "emittingStep": "assemble_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "umich_adult_app_category",
+      "emittingStep": "assemble_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "umich_free",
+      "emittingStep": "assemble_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "umich_gambling_app",
+      "emittingStep": "assemble_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "umich_inappropriate_app",
+      "emittingStep": "assemble_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "babyemu_genreId_scraped",
+      "emittingStep": "assemble_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "babyemu_genreId_manual",
+      "emittingStep": "assemble_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "babyemu_broad_app_category",
+      "emittingStep": "assemble_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "babyemu_medium_app_category",
+      "emittingStep": "assemble_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "babyemu_fine_app_category",
+      "emittingStep": "assemble_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "babyemu_alternate_fine_app_category",
+      "emittingStep": "assemble_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "babyemu_kids",
+      "emittingStep": "assemble_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "bcm_cnrc_heuristic_category",
+      "emittingStep": "assemble_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "bcm_cnrc_categorization_source",
+      "emittingStep": "assemble_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "codebook_dataset",
+      "emittingStep": "assemble_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "study_id",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "study_id"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "study_name",
+      "emittingStep": "assemble_credit_result",
+      "from": []
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "participant_id",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "participant_id"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "possible_device_model",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "possible_device_model"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "username",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "username"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "event_timestamp",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "event_timestamp_ns",
+        "timezone"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "date",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "date"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "timezone",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "timezone"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "app_package_name",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "application_label",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "application_label"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "genreId_scraped",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "genre_id_scraped"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "broad_app_category",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "broad_app_category"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "interaction_type",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "interaction_type"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "start_timestamp",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "start_timestamp_ns",
+        "timezone"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "stop_timestamp",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "stop_timestamp_ns",
+        "timezone"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "duration_seconds",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "duration_seconds"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "duration_minutes",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "duration_minutes"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "any_app_usage_flags",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "any_app_usage_flags"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "data_time_gap_hours",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "data_time_gap_hours"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "day",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "day"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "weekdayMF",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "weekday_mf"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "weekdayMTh",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "weekday_mth"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "weekdaySuTh",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "weekday_su_th"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "hour",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "hour"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "quarter",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "quarter"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "valid_app_new_engage_30s",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "valid_app_new_engage_30s"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "valid_app_new_engage_custom_*s",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "valid_app_new_engage_custom"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "valid_app_switched_app",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "valid_app_switched_app"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "valid_app_usage_time_gap_hours",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "valid_app_usage_time_gap_hours"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "any_app_new_engage_30s",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "any_app_new_engage_30s"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "any_app_new_engage_custom_*s",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "any_app_new_engage_custom"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "any_app_switched_app",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "any_app_switched_app"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "any_app_usage_time_gap_hours",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "any_app_usage_time_gap_hours"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "preprocessor_version",
+      "emittingStep": "assemble_credit_result",
+      "from": []
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "datetime_of_preprocessing",
+      "emittingStep": "assemble_credit_result",
+      "from": []
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "usage_layer",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "usage_layer"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "shape/rows",
+      "emittingStep": "assemble_credit_result",
+      "from": []
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "codebook_application_label",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "bcm_play_store_genreId",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "bcm_play_store_genre",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "bcm_play_store_broad_app_category",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "bcm_play_store_developer",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "bcm_play_store_free",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "bcm_play_store_rating",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "bcm_play_store_downloads",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "usc_broad_app_category",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "usc_genreId",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "umich_child_app_category_code",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "umich_child_app_category",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "umich_adult_app_category_code",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "umich_adult_app_category",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "umich_free",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "umich_gambling_app",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "umich_inappropriate_app",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "babyemu_genreId_scraped",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "babyemu_genreId_manual",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "babyemu_broad_app_category",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "babyemu_medium_app_category",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "babyemu_fine_app_category",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "babyemu_alternate_fine_app_category",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "babyemu_kids",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "bcm_cnrc_heuristic_category",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "bcm_cnrc_categorization_source",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "codebook_dataset",
+      "emittingStep": "assemble_credit_result",
+      "from": [
+        "codebook_fields"
+      ]
+    },
+    {
+      "outputKind": "screen-csv",
+      "column": "study_id",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id"
+      ]
+    },
+    {
+      "outputKind": "screen-csv",
+      "column": "study_name",
+      "emittingStep": "assemble_result",
+      "from": []
+    },
+    {
+      "outputKind": "screen-csv",
+      "column": "participant_id",
+      "emittingStep": "assemble_result",
+      "from": [
+        "participant_id"
+      ]
+    },
+    {
+      "outputKind": "screen-csv",
+      "column": "possible_device_model",
+      "emittingStep": "assemble_result",
+      "from": [
+        "possible_device_model"
+      ]
+    },
+    {
+      "outputKind": "screen-csv",
+      "column": "username",
+      "emittingStep": "assemble_result",
+      "from": [
+        "username"
+      ]
+    },
+    {
+      "outputKind": "screen-csv",
+      "column": "event_timestamp",
+      "emittingStep": "assemble_result",
+      "from": [
+        "event_timestamp_ns",
+        "timezone"
+      ]
+    },
+    {
+      "outputKind": "screen-csv",
+      "column": "date",
+      "emittingStep": "assemble_result",
+      "from": [
+        "date"
+      ]
+    },
+    {
+      "outputKind": "screen-csv",
+      "column": "timezone",
+      "emittingStep": "assemble_result",
+      "from": [
+        "timezone"
+      ]
+    },
+    {
+      "outputKind": "screen-csv",
+      "column": "app_package_name",
+      "emittingStep": "assemble_result",
+      "from": [
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "screen-csv",
+      "column": "application_label",
+      "emittingStep": "assemble_result",
+      "from": [
+        "application_label"
+      ]
+    },
+    {
+      "outputKind": "screen-csv",
+      "column": "interaction_type",
+      "emittingStep": "assemble_result",
+      "from": [
+        "interaction_type"
+      ]
+    },
+    {
+      "outputKind": "screen-csv",
+      "column": "start_timestamp",
+      "emittingStep": "assemble_result",
+      "from": [
+        "start_timestamp_ns",
+        "timezone"
+      ]
+    },
+    {
+      "outputKind": "screen-csv",
+      "column": "stop_timestamp",
+      "emittingStep": "assemble_result",
+      "from": [
+        "stop_timestamp_ns",
+        "timezone"
+      ]
+    },
+    {
+      "outputKind": "screen-csv",
+      "column": "duration_seconds",
+      "emittingStep": "assemble_result",
+      "from": [
+        "duration_seconds"
+      ]
+    },
+    {
+      "outputKind": "screen-csv",
+      "column": "duration_minutes",
+      "emittingStep": "assemble_result",
+      "from": [
+        "duration_minutes"
+      ]
+    },
+    {
+      "outputKind": "screen-csv",
+      "column": "screen_usage_end_reason",
+      "emittingStep": "assemble_result",
+      "from": [
+        "screen_usage_end_reason"
+      ]
+    },
+    {
+      "outputKind": "screen-csv",
+      "column": "screen_usage_end_reason_confidence",
+      "emittingStep": "assemble_result",
+      "from": [
+        "screen_usage_end_reason_confidence"
+      ]
+    },
+    {
+      "outputKind": "screen-csv",
+      "column": "screen_usage_stop_event_type",
+      "emittingStep": "assemble_result",
+      "from": [
+        "screen_usage_stop_event_type"
+      ]
+    },
+    {
+      "outputKind": "screen-csv",
+      "column": "screen_usage_last_activity_timestamp",
+      "emittingStep": "assemble_result",
+      "from": [
+        "screen_usage_last_activity_timestamp_ns",
+        "timezone"
+      ]
+    },
+    {
+      "outputKind": "screen-csv",
+      "column": "screen_usage_tail_gap_seconds",
+      "emittingStep": "assemble_result",
+      "from": [
+        "screen_usage_tail_gap_seconds"
+      ]
+    },
+    {
+      "outputKind": "screen-csv",
+      "column": "screen_usage_foreground_app_package",
+      "emittingStep": "assemble_result",
+      "from": [
+        "screen_usage_foreground_app_package"
+      ]
+    },
+    {
+      "outputKind": "screen-csv",
+      "column": "screen_usage_apps_forcing_screen_open_label",
+      "emittingStep": "assemble_result",
+      "from": [
+        "screen_usage_apps_forcing_screen_open_label"
+      ]
+    },
+    {
+      "outputKind": "screen-csv",
+      "column": "screen_usage_lock_screen_only",
+      "emittingStep": "assemble_result",
+      "from": [
+        "screen_usage_lock_screen_only"
+      ]
+    },
+    {
+      "outputKind": "screen-csv",
+      "column": "data_time_gap_hours",
+      "emittingStep": "assemble_result",
+      "from": [
+        "data_time_gap_hours"
+      ]
+    },
+    {
+      "outputKind": "screen-csv",
+      "column": "day",
+      "emittingStep": "assemble_result",
+      "from": [
+        "day"
+      ]
+    },
+    {
+      "outputKind": "screen-csv",
+      "column": "weekdayMF",
+      "emittingStep": "assemble_result",
+      "from": [
+        "weekday_mf"
+      ]
+    },
+    {
+      "outputKind": "screen-csv",
+      "column": "weekdayMTh",
+      "emittingStep": "assemble_result",
+      "from": [
+        "weekday_mth"
+      ]
+    },
+    {
+      "outputKind": "screen-csv",
+      "column": "weekdaySuTh",
+      "emittingStep": "assemble_result",
+      "from": [
+        "weekday_su_th"
+      ]
+    },
+    {
+      "outputKind": "screen-csv",
+      "column": "hour",
+      "emittingStep": "assemble_result",
+      "from": [
+        "hour"
+      ]
+    },
+    {
+      "outputKind": "screen-csv",
+      "column": "quarter",
+      "emittingStep": "assemble_result",
+      "from": [
+        "quarter"
+      ]
+    },
+    {
+      "outputKind": "screen-csv",
+      "column": "preprocessor_version",
+      "emittingStep": "assemble_result",
+      "from": []
+    },
+    {
+      "outputKind": "screen-csv",
+      "column": "datetime_of_preprocessing",
+      "emittingStep": "assemble_result",
+      "from": []
+    },
+    {
+      "outputKind": "screen-csv",
+      "column": "shape/rows",
+      "emittingStep": "assemble_result",
+      "from": []
+    },
+    {
+      "outputKind": "compliance-csv",
+      "column": "participant_id",
+      "emittingStep": "assemble_result",
+      "from": [
+        "derived.compliance_scores"
+      ]
+    },
+    {
+      "outputKind": "compliance-csv",
+      "column": "date",
+      "emittingStep": "assemble_result",
+      "from": [
+        "derived.compliance_scores"
+      ]
+    },
+    {
+      "outputKind": "compliance-csv",
+      "column": "known_minutes",
+      "emittingStep": "assemble_result",
+      "from": [
+        "derived.compliance_scores"
+      ]
+    },
+    {
+      "outputKind": "compliance-csv",
+      "column": "unknown_minutes",
+      "emittingStep": "assemble_result",
+      "from": [
+        "derived.compliance_scores"
+      ]
+    },
+    {
+      "outputKind": "compliance-csv",
+      "column": "compliance_percent",
+      "emittingStep": "assemble_result",
+      "from": [
+        "derived.compliance_scores"
+      ]
+    },
+    {
+      "outputKind": "compliance-csv",
+      "column": "zero_real_usage",
+      "emittingStep": "assemble_result",
+      "from": [
+        "derived.compliance_scores"
+      ]
+    },
+    {
+      "outputKind": "compliance-csv",
+      "column": "sharing_status",
+      "emittingStep": "assemble_result",
+      "from": [
+        "derived.compliance_scores",
+        "derived.sharing_status"
+      ]
+    },
+    {
+      "outputKind": "compliance-csv",
+      "column": "expected_device_count",
+      "emittingStep": "assemble_result",
+      "from": [
+        "derived.compliance_scores",
+        "enrolled_devices_file.participant_id",
+        "enrolled_devices_file.device_count"
+      ]
+    },
+    {
+      "outputKind": "compliance-csv",
+      "column": "is_valid",
+      "emittingStep": "assemble_result",
+      "from": [
+        "derived.compliance_scores",
+        "derived.sharing_status",
+        "enrolled_devices_file.participant_id",
+        "enrolled_devices_file.device_count"
+      ]
+    },
+    {
+      "outputKind": "compliance-csv",
+      "column": "shape/rows",
+      "emittingStep": "assemble_result",
+      "from": [
+        "derived.compliance_scores"
+      ]
+    },
+    {
+      "outputKind": "day-coverage-csv",
+      "column": "participant_id",
+      "emittingStep": "build_coverage_table",
+      "from": [
+        "derived.coverage_table"
+      ]
+    },
+    {
+      "outputKind": "day-coverage-csv",
+      "column": "date",
+      "emittingStep": "build_coverage_table",
+      "from": [
+        "derived.coverage_table"
+      ]
+    },
+    {
+      "outputKind": "day-coverage-csv",
+      "column": "status",
+      "emittingStep": "build_coverage_table",
+      "from": [
+        "derived.coverage_table"
+      ]
+    },
+    {
+      "outputKind": "day-coverage-csv",
+      "column": "shape/rows",
+      "emittingStep": "build_coverage_table",
+      "from": [
+        "derived.coverage_table"
+      ]
+    },
+    {
+      "outputKind": "review-summary-json",
+      "column": "/participants/*/studyId",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id"
+      ]
+    },
+    {
+      "outputKind": "review-summary-json",
+      "column": "/participants/*/participantId",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id"
+      ]
+    },
+    {
+      "outputKind": "review-summary-json",
+      "column": "/participants/*/perDay/*/*",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "duration_minutes",
+        "usage_layer"
+      ]
+    },
+    {
+      "outputKind": "review-summary-json",
+      "column": "/participants/*/perDay/*/flags/*",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "duration_minutes",
+        "usage_layer"
+      ]
+    },
+    {
+      "outputKind": "review-summary-json",
+      "column": "/participants/*/totals/*",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "duration_minutes",
+        "usage_layer"
+      ]
+    },
+    {
+      "outputKind": "review-summary-json",
+      "column": "/participants/*/topAppsByDate",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "review-summary-json",
+      "column": "/participants/*/topAppsByDate/*/*/appPackageName",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "review-summary-json",
+      "column": "/participants/*/topAppsByDate/*/*/applicationLabel",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "duration_minutes",
+        "app_package_name",
+        "application_label"
+      ]
+    },
+    {
+      "outputKind": "review-summary-json",
+      "column": "/participants/*/topAppsByDate/*/*/category",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "duration_minutes",
+        "app_package_name",
+        "broad_app_category"
+      ]
+    },
+    {
+      "outputKind": "review-summary-json",
+      "column": "/participants/*/topAppsByDate/*/*/minutes",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "visualization-data-json",
+      "column": "/appRows/*/*",
+      "emittingStep": "assemble_result",
+      "from": [
+        "participant_id",
+        "date",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "event_timestamp_ns",
+        "interaction_type",
+        "broad_app_category",
+        "app_package_name",
+        "application_label",
+        "username",
+        "screen_usage_end_reason"
+      ]
+    },
+    {
+      "outputKind": "visualization-data-json",
+      "column": "/screenRows/*/*",
+      "emittingStep": "assemble_result",
+      "from": [
+        "participant_id",
+        "date",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "event_timestamp_ns",
+        "interaction_type",
+        "broad_app_category",
+        "app_package_name",
+        "application_label",
+        "username",
+        "screen_usage_end_reason"
+      ]
+    },
+    {
+      "outputKind": "visualization-data-json",
+      "column": "/eventTimestampsByParticipant/*/*",
+      "emittingStep": "assemble_result",
+      "from": [
+        "participant_id",
+        "event_timestamp_ns"
+      ]
+    },
+    {
+      "outputKind": "aggregate-daily-summary-csv",
+      "column": "study_id",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer"
+      ]
+    },
+    {
+      "outputKind": "aggregate-daily-summary-csv",
+      "column": "study_name",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer"
+      ]
+    },
+    {
+      "outputKind": "aggregate-daily-summary-csv",
+      "column": "participant_id",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer"
+      ]
+    },
+    {
+      "outputKind": "aggregate-daily-summary-csv",
+      "column": "timezone",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "timezone"
+      ]
+    },
+    {
+      "outputKind": "aggregate-daily-summary-csv",
+      "column": "total_app_usage_minutes",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-daily-summary-csv",
+      "column": "total_background_app_usage_minutes",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-daily-summary-csv",
+      "column": "total_screen_usage_minutes",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-daily-summary-csv",
+      "column": "app_session_count",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-daily-summary-csv",
+      "column": "screen_session_count",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-daily-summary-csv",
+      "column": "app_switches",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-daily-summary-csv",
+      "column": "pickups",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-daily-summary-csv",
+      "column": "mean_app_session_minutes",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-daily-summary-csv",
+      "column": "longest_app_session_minutes",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-daily-summary-csv",
+      "column": "active_window_minutes",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-daily-summary-csv",
+      "column": "first_use",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "timezone"
+      ]
+    },
+    {
+      "outputKind": "aggregate-daily-summary-csv",
+      "column": "last_use",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "timezone"
+      ]
+    },
+    {
+      "outputKind": "aggregate-daily-summary-csv",
+      "column": "metric",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer"
+      ]
+    },
+    {
+      "outputKind": "aggregate-daily-summary-csv",
+      "column": "value",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-daily-summary-csv",
+      "column": "shape/rows",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer"
+      ]
+    },
+    {
+      "outputKind": "aggregate-daily-summary-csv",
+      "column": "date",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer"
+      ]
+    },
+    {
+      "outputKind": "aggregate-daily-summary-csv",
+      "column": "day",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "day"
+      ]
+    },
+    {
+      "outputKind": "aggregate-daily-summary-csv",
+      "column": "weekdayMF",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "weekday_mf"
+      ]
+    },
+    {
+      "outputKind": "aggregate-daily-summary-csv",
+      "column": "weekdayMTh",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "weekday_mth"
+      ]
+    },
+    {
+      "outputKind": "aggregate-daily-summary-csv",
+      "column": "weekdaySuTh",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "weekday_su_th"
+      ]
+    },
+    {
+      "outputKind": "aggregate-weekly-summary-csv",
+      "column": "study_id",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer"
+      ]
+    },
+    {
+      "outputKind": "aggregate-weekly-summary-csv",
+      "column": "study_name",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer"
+      ]
+    },
+    {
+      "outputKind": "aggregate-weekly-summary-csv",
+      "column": "participant_id",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer"
+      ]
+    },
+    {
+      "outputKind": "aggregate-weekly-summary-csv",
+      "column": "timezone",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "timezone"
+      ]
+    },
+    {
+      "outputKind": "aggregate-weekly-summary-csv",
+      "column": "total_app_usage_minutes",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-weekly-summary-csv",
+      "column": "total_background_app_usage_minutes",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-weekly-summary-csv",
+      "column": "total_screen_usage_minutes",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-weekly-summary-csv",
+      "column": "app_session_count",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-weekly-summary-csv",
+      "column": "screen_session_count",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-weekly-summary-csv",
+      "column": "app_switches",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-weekly-summary-csv",
+      "column": "pickups",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-weekly-summary-csv",
+      "column": "mean_app_session_minutes",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-weekly-summary-csv",
+      "column": "longest_app_session_minutes",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-weekly-summary-csv",
+      "column": "active_window_minutes",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-weekly-summary-csv",
+      "column": "first_use",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "timezone"
+      ]
+    },
+    {
+      "outputKind": "aggregate-weekly-summary-csv",
+      "column": "last_use",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "timezone"
+      ]
+    },
+    {
+      "outputKind": "aggregate-weekly-summary-csv",
+      "column": "metric",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer"
+      ]
+    },
+    {
+      "outputKind": "aggregate-weekly-summary-csv",
+      "column": "value",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-weekly-summary-csv",
+      "column": "shape/rows",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer"
+      ]
+    },
+    {
+      "outputKind": "aggregate-weekly-summary-csv",
+      "column": "iso_year_week",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer"
+      ]
+    },
+    {
+      "outputKind": "aggregate-weekly-summary-csv",
+      "column": "week_start_date",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer"
+      ]
+    },
+    {
+      "outputKind": "aggregate-top-apps-csv",
+      "column": "study_id",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-top-apps-csv",
+      "column": "study_name",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-top-apps-csv",
+      "column": "participant_id",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-top-apps-csv",
+      "column": "date",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-top-apps-csv",
+      "column": "rank",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-top-apps-csv",
+      "column": "app_package_name",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-top-apps-csv",
+      "column": "application_label",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name",
+        "application_label"
+      ]
+    },
+    {
+      "outputKind": "aggregate-top-apps-csv",
+      "column": "foreground_minutes",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-top-apps-csv",
+      "column": "background_minutes",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-top-apps-csv",
+      "column": "total_minutes",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-top-apps-csv",
+      "column": "session_count",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-top-apps-csv",
+      "column": "shape/rows",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-category-time-budget-csv",
+      "column": "study_id",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "broad_app_category"
+      ]
+    },
+    {
+      "outputKind": "aggregate-category-time-budget-csv",
+      "column": "study_name",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "broad_app_category"
+      ]
+    },
+    {
+      "outputKind": "aggregate-category-time-budget-csv",
+      "column": "participant_id",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "broad_app_category"
+      ]
+    },
+    {
+      "outputKind": "aggregate-category-time-budget-csv",
+      "column": "date",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "broad_app_category"
+      ]
+    },
+    {
+      "outputKind": "aggregate-category-time-budget-csv",
+      "column": "broad_app_category",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "broad_app_category"
+      ]
+    },
+    {
+      "outputKind": "aggregate-category-time-budget-csv",
+      "column": "foreground_minutes",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "broad_app_category"
+      ]
+    },
+    {
+      "outputKind": "aggregate-category-time-budget-csv",
+      "column": "background_minutes",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "broad_app_category"
+      ]
+    },
+    {
+      "outputKind": "aggregate-category-time-budget-csv",
+      "column": "total_minutes",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "broad_app_category"
+      ]
+    },
+    {
+      "outputKind": "aggregate-category-time-budget-csv",
+      "column": "session_count",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "broad_app_category"
+      ]
+    },
+    {
+      "outputKind": "aggregate-category-time-budget-csv",
+      "column": "shape/rows",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "broad_app_category"
+      ]
+    },
+    {
+      "outputKind": "aggregate-app-co-usage-csv",
+      "column": "study_id",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-app-co-usage-csv",
+      "column": "study_name",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-app-co-usage-csv",
+      "column": "participant_id",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-app-co-usage-csv",
+      "column": "app_a",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-app-co-usage-csv",
+      "column": "app_b",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-app-co-usage-csv",
+      "column": "co_usage_count",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-app-co-usage-csv",
+      "column": "total_overlap_minutes",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    },
+    {
+      "outputKind": "aggregate-app-co-usage-csv",
+      "column": "shape/rows",
+      "emittingStep": "assemble_result",
+      "from": [
+        "study_id",
+        "participant_id",
+        "date",
+        "interaction_type",
+        "start_timestamp_ns",
+        "stop_timestamp_ns",
+        "usage_layer",
+        "duration_minutes",
+        "app_package_name"
+      ]
+    }
+  ],
+  "exactCellContributions": [
+    {
+      "outputKind": "app-csv",
+      "column": "study_id",
+      "sourceField": "raw_chronicle_csv.study_id"
+    },
+    {
+      "outputKind": "app-csv",
+      "column": "participant_id",
+      "sourceField": "raw_chronicle_csv.participant_id"
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "study_id",
+      "sourceField": "raw_chronicle_csv.study_id"
+    },
+    {
+      "outputKind": "credited-app-csv",
+      "column": "participant_id",
+      "sourceField": "raw_chronicle_csv.participant_id"
+    },
+    {
+      "outputKind": "screen-csv",
+      "column": "study_id",
+      "sourceField": "raw_chronicle_csv.study_id"
+    },
+    {
+      "outputKind": "screen-csv",
+      "column": "participant_id",
+      "sourceField": "raw_chronicle_csv.participant_id"
+    }
+  ],
+  "rowSetFields": [
+    "row.membership",
+    "row.order"
+  ],
+  "rowAddressedOutputKinds": [
+    "app-csv",
+    "credited-app-csv",
+    "screen-csv",
+    "compliance-csv",
+    "day-coverage-csv",
+    "review-summary-json",
+    "visualization-data-json",
+    "aggregate-daily-summary-csv",
+    "aggregate-weekly-summary-csv",
+    "aggregate-top-apps-csv",
+    "aggregate-category-time-budget-csv",
+    "aggregate-app-co-usage-csv"
   ]
 }
