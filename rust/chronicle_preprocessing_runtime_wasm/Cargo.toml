@@ -5,6 +5,24 @@ edition = "2021"
 license = "GPL-3.0-only"
 publish = false
 
+# DO NOT re-add `--merge-similar-functions`. Salsa 0.28 identifies each jar by
+# calling a per-jar `fn() -> TypeId` stored in `ErasedJar`, and compares the
+# result against `TypeId::of::<J>()` computed inline at the lookup site. Merging
+# those near-identical thunks breaks that identity, so the second
+# `salsa::Storage` built inside one WASM instance registers an incomplete jar
+# map. The next singleton-input access then panics in
+# `salsa-0.28.1/src/zalsa.rs:356` with "ingredient
+# `salsa::input::JarImpl<...UsageSupportInput>` was not registered", and because
+# this crate builds with `panic = "abort"` the browser only reports
+# "Unreachable code should not be executed (evaluating 't.execute_workspace')".
+# Measured against the production build: on WebKit 26.4 run 1 of a page
+# succeeded and every later run failed, with or without OPFS, for the same or a
+# different input, and a page reload cleared it; Chromium and Firefox passed all
+# four of those scenarios. zalsa.rs:356 is `lookup_jar_by_type`, which
+# `IngredientCache` only reaches once a SECOND database exists in the instance,
+# so only WebKit was taking that branch here. Dropping the flag fixed WebKit and
+# left the other two green, at +177,834 B of uncompressed WASM (gzip unchanged).
+# `web/e2e/durability-fault-injection.spec.ts` covers repeat runs per engine.
 [package.metadata.wasm-pack.profile.release]
 wasm-opt = [
     '-O3',
@@ -14,7 +32,6 @@ wasm-opt = [
     '--enable-mutable-globals',
     '--enable-sign-ext',
     '--enable-reference-types',
-    '--merge-similar-functions',
     '--vacuum',
     '--strip-producers',
 ]
@@ -30,7 +47,6 @@ wasm-opt = [
     '--enable-mutable-globals',
     '--enable-sign-ext',
     '--enable-reference-types',
-    '--merge-similar-functions',
     '--vacuum',
     '--strip-producers',
     '--debuginfo',
@@ -69,12 +85,22 @@ syn = { version = "2.0", features = ["full", "visit-mut"] }
 
 [dev-dependencies]
 bytes = "1.11"
+# Used only by the `boundary_model` example, which parses this crate's own
+# serialization model to generate the browser boundary validator. Same crates
+# the build script already uses for the implementation digest, so the example
+# adds no new entry to Cargo.lock and nothing to the shipped WASM.
+quote = "1.0"
+syn = { version = "2.0", features = ["full", "visit-mut"] }
 
 [profile.release]
-# `2` keeps the runtime below the 6 MiB uncompressed WASM budget without the
+# `2` keeps the runtime inside the enforced uncompressed WASM budget without the
 # ~29% cold-ingestion regression measured with `s`. On the 100 x 100k-row,
 # 8-worker review benchmark it preserved exact output/status parity and was
-# no slower than `3` on the changed-config path.
+# no slower than `3` on the changed-config path. The cap is the
+# `chronicle_preprocessing_runtime_wasm_bg-` prefix budget in
+# `web/bundle-budget.json`, currently 6,400,000 B against a 6,336,842 B
+# artifact; the "6 MiB" this comment used to cite was the pre-raise figure and
+# the artifact has been over it since the witness and step-contract work landed.
 opt-level = 2
 lto = "fat"
 codegen-units = 1

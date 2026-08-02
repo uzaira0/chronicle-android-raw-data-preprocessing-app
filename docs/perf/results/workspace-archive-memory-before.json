@@ -1,0 +1,40 @@
+{
+  "label": "before-run2",
+  "rawFile": "../.tmp-archive-lane/large-workspace.csv",
+  "rawBytes": 11521193,
+  "archiveFile": "../.tmp-archive-lane/large-workspace.csv.chronicle-workspace",
+  "archiveBytes": 80422659,
+  "sampleIntervalMs": 15,
+  "export": {
+    "elapsedMs": 1056.6274999999996,
+    "samples": 28,
+    "baselineBytes": {
+      "pageHeap": 52660821,
+      "rendererRss": 511295488
+    },
+    "peakBytes": {
+      "pageHeap": 120319144,
+      "rendererRss": 601178112
+    },
+    "peakDeltaBytes": {
+      "pageHeap": 67658323,
+      "rendererRss": 89882624
+    }
+  },
+  "import": {
+    "elapsedMs": 348.08329199999935,
+    "samples": 10,
+    "baselineBytes": {
+      "pageHeap": 4656436,
+      "rendererRss": 215613440
+    },
+    "peakBytes": {
+      "pageHeap": 4863208,
+      "rendererRss": 371785728
+    },
+    "peakDeltaBytes": {
+      "pageHeap": 206772,
+      "rendererRss": 156172288
+    }
+  }
+}

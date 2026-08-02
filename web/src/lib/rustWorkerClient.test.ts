@@ -9,6 +9,7 @@ import {
   importVerifiedWorkspaceClosure,
   inspectRawCsvBytes,
   clearReviewSummaryReuseCache,
+  probeWorkerWorkspaceCapability,
   processPersistedReview,
   processPersistedOrRawChangedReviewViaPool,
   processPersistedReviewViaPool,
@@ -143,6 +144,74 @@ describe("WorkerPool", () => {
     });
   });
 
+  it("rejects an in-flight submission when the pool is terminated", async () => {
+    // `worker.terminate()` fires no error event and never delivers the pending
+    // Comlink reply, so a submission that is already running has no natural way
+    // to settle. Without an explicit abort it hangs forever, and the batch
+    // cancel in App.tsx waits on it — leaving the UI stuck on "Processing…".
+    const { spawn, workers } = makeSpawn();
+    const pool = new WorkerPool(2, spawn);
+    const neverSettles = new Promise<string>(() => {});
+    const inFlight = pool.submit(() => neverSettles);
+    const queued = pool.submit(() => neverSettles);
+    const alsoQueued = pool.submit(() => neverSettles);
+    await Promise.resolve();
+
+    pool.terminate();
+
+    await expect(inFlight).rejects.toThrow(/Worker pool has been terminated/);
+    await expect(queued).rejects.toThrow(/Worker pool has been terminated/);
+    await expect(alsoQueued).rejects.toThrow(/Worker pool has been terminated/);
+    workers.forEach((worker) => {
+      expect(worker.terminate).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("rejects a submission terminated in the same synchronous turn it was made", async () => {
+    // The test above interposes `await Promise.resolve()`, which lets every
+    // submission reach `runOnSlot` before `terminate()` runs. Nothing forces a
+    // caller to do that: `submit()` suspends on `await this.acquire()` even when
+    // a slot is idle (an already-resolved promise still costs one microtask), so
+    // a `terminate()` in the SAME turn lands while the submission is between
+    // acquire and runOnSlot. A per-slot abort hook installed by `runOnSlot` does
+    // not exist yet at that moment and `this.slots` is emptied before the
+    // continuation resumes, so the resumed submission would go on to race
+    // `body()` (an RPC to a worker that has already stopped) against a fault
+    // that never fires and an abort nobody can reach — a promise that never
+    // settles. Only a pool-scoped abort covers this window.
+    const { spawn, workers } = makeSpawn();
+    const pool = new WorkerPool(2, spawn);
+    const neverSettles = new Promise<string>(() => {});
+
+    const inFlight = pool.submit(() => neverSettles);
+    const withSetup = pool.submitWithSetup(
+      () => Promise.resolve(false),
+      () => neverSettles,
+      () => neverSettles,
+    );
+    const queued = pool.submit(() => neverSettles);
+    // No `await` between the submissions and the cancel — this is the shape a
+    // synchronous cancel path (a click handler that submits then bails) takes.
+    pool.terminate();
+
+    await expect(inFlight).rejects.toThrow(/Worker pool has been terminated/);
+    await expect(withSetup).rejects.toThrow(/Worker pool has been terminated/);
+    await expect(queued).rejects.toThrow(/Worker pool has been terminated/);
+    workers.forEach((worker) => {
+      expect(worker.terminate).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("does not reject a submission that completes before termination", async () => {
+    const { spawn } = makeSpawn();
+    const pool = new WorkerPool(1, spawn);
+    const gate = deferred<string>();
+    const running = pool.submit(() => gate.promise);
+    gate.resolve("done");
+    await expect(running).resolves.toBe("done");
+    pool.terminate();
+  });
+
   it("replaces a retired slot lazily after its configured task limit", async () => {
     const { spawn, apis, workers } = makeSpawn();
     const pool = new WorkerPool(1, { spawn, maxTasksPerWorker: 1 });
@@ -257,8 +326,12 @@ describe("WorkerPool", () => {
     await Promise.resolve();
 
     pool.terminate();
+    // The in-flight submission is rejected by termination, not left to settle:
+    // a real terminated worker never sends its reply, so waiting for the body
+    // is waiting forever. A late resolve must not resurrect the pool either.
+    await expect(running).rejects.toThrow(/Worker pool has been terminated/);
     gate.resolve();
-    await expect(running).resolves.toBeUndefined();
+    await Promise.resolve();
     expect(workers).toHaveLength(1);
     expect(workers[0]?.terminate).toHaveBeenCalledTimes(1);
   });
@@ -382,13 +455,56 @@ describe("WorkerPool", () => {
     const queued = pool.submit(() => Promise.resolve("queued"));
 
     pool.terminate();
+    // Both the in-flight blocker and the queued waiter are settled by
+    // termination; the blocker's own late resolve is irrelevant by then.
+    await expect(blocker).rejects.toThrow(/terminated/);
+    // Resolving the action AFTER terminate() must not resurrect the task: its
+    // worker is already gone, so the pool's abort has settled it as rejected.
     releaseBlocker();
-    await blocker;
+    await expect(blocker).rejects.toThrow(/terminated/);
     await expect(queued).rejects.toThrow(/terminated/);
     // A terminated pool refuses new work outright.
     await expect(pool.submit(() => Promise.resolve("late"))).rejects.toThrow(
       /terminated/,
     );
+  });
+
+  it("rejects the in-flight task on terminate even though its worker never answers", async () => {
+    // The real failure this pins: `Worker.terminate()` stops the worker without
+    // settling the Comlink RPC promises already awaiting a reply, and it does
+    // not fire onerror/onmessageerror either, so `slot.fault` stays pending
+    // too. Before the pool raced its own abort signal, cancelling a batch left
+    // this promise pending forever and the run's `Promise.all` never resolved —
+    // the UI sat on "Processing…" with the Cancel already clicked. Note there is
+    // deliberately no `resolve` here: an action that never settles is exactly
+    // what a terminated worker leaves behind.
+    const { spawn } = makeSpawn();
+    const pool = new WorkerPool(1, spawn);
+
+    const inFlight = pool.submit(() => new Promise<string>(() => {}));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    pool.terminate();
+
+    await expect(inFlight).rejects.toThrow(/terminated/);
+  });
+
+  it("rejects a task still waiting on worker readiness when the pool is terminated", async () => {
+    // Same hazard one step earlier: terminate() during `initializeRuntime`
+    // leaves `slot.ready` pending against a worker that is gone.
+    const worker = { terminate: vi.fn() };
+    const pool = new WorkerPool(1, () => ({
+      api: {} as RemoteApi,
+      worker,
+      ready: new Promise<void>(() => {}),
+    }));
+
+    const inFlight = pool.submit(() => Promise.resolve("never reached"));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    pool.terminate();
+
+    await expect(inFlight).rejects.toThrow(/terminated/);
   });
 
   it("rounds non-integer or sub-1 sizes up to a single worker", () => {
@@ -458,6 +574,50 @@ describe("WorkerPool", () => {
     await expect(
       pool.submit(async (api) => api.runtimeVersion()),
     ).rejects.toThrow("All Chronicle workers have failed.");
+    pool.terminate();
+  });
+
+  it("does not recycle a faulted (not retired) slot while work is queued", async () => {
+    // `replaceSlot` recycles only a slot that reached its TASK LIMIT. A slot
+    // killed by a worker fault is dead but not retired, and must never be
+    // silently respawned behind the caller's back — the surviving lane drains
+    // the queue instead.
+    const { spawn, apis, workers } = makeSpawn();
+    const faults = [deferred<never>(), deferred<never>()];
+    let index = 0;
+    const faultingSpawn: WorkerSpawn = () => {
+      const slot = spawn();
+      const fault = faults[index];
+      index += 1;
+      return fault ? { ...slot, fault: fault.promise } : slot;
+    };
+    const pool = new WorkerPool(2, { spawn: faultingSpawn });
+    const firstGate = deferred<void>();
+    const secondGate = deferred<void>();
+    const first = pool.submit(() => firstGate.promise);
+    const second = pool.submit(() => secondGate.promise);
+    await Promise.resolve();
+    // A third submission has no idle lane and queues as a waiter.
+    let thirdApi: RemoteApi | undefined;
+    const third = pool.submit((api) => {
+      thirdApi = api;
+      return Promise.resolve(api);
+    });
+    await Promise.resolve();
+    expect(thirdApi).toBeUndefined();
+
+    // Lane 0 faults with a waiter queued: release() reaches replaceSlot, which
+    // refuses because the slot is dead-by-fault rather than retired.
+    faults[0]!.reject(new Error("worker exploded"));
+    await expect(first).rejects.toThrow("worker exploded");
+    expect(workers).toHaveLength(2);
+
+    // The queued task still runs — on the surviving lane, not a replacement.
+    secondGate.resolve();
+    await second;
+    await expect(third).resolves.toBe(apis[1]);
+    expect(workers).toHaveLength(2);
+    firstGate.resolve();
     pool.terminate();
   });
 
@@ -788,7 +948,9 @@ describe("shared worker fault handling (fake Worker global)", () => {
     lastWorker().fire("error", { message: "export failed" });
     await expect(exported).rejects.toThrow("export failed");
 
-    const imported = importVerifiedWorkspaceClosure(new Uint8Array([1, 2, 3]));
+    const imported = importVerifiedWorkspaceClosure(
+      new Blob([new Uint8Array([1, 2, 3])]),
+    );
     lastWorker().fire("error", { message: "import failed" });
     await expect(imported).rejects.toThrow("import failed");
 
@@ -834,6 +996,28 @@ describe("shared worker fault handling (fake Worker global)", () => {
     );
     lastWorker().fire("error", { message: "review failed" });
     await expect(review).rejects.toThrow("review failed");
+  });
+
+  it("reports an unreachable worker as an unavailable durable-storage capability", async () => {
+    // The durable-storage gate must never throw into its caller: a worker that
+    // cannot be reached is itself the answer, because no other path can persist
+    // a verified workspace.
+    const pending = probeWorkerWorkspaceCapability();
+    lastWorker().fire("error", { message: "worker died during boot" });
+    await expect(pending).resolves.toEqual({
+      status: "unavailable",
+      reason:
+        "The processing worker that owns durable storage could not be reached: Chronicle worker failed: worker died during boot",
+    });
+
+    // A non-Error rejection still has to render a usable reason.
+    const unreadable = probeWorkerWorkspaceCapability();
+    lastWorker().fire("messageerror", {});
+    await expect(unreadable).resolves.toEqual({
+      status: "unavailable",
+      reason:
+        "The processing worker that owns durable storage could not be reached: Chronicle worker sent an unreadable message.",
+    });
   });
 });
 
@@ -891,7 +1075,7 @@ describe("shared worker successful routing and WASM compilation", () => {
       initializeRuntime: vi.fn(() => Promise.resolve()),
       runtimeVersion: vi.fn(() => Promise.resolve("runtime-v1")),
       exportWorkspaceClosure: vi.fn(() =>
-        Promise.resolve(new Uint8Array([1, 2, 3])),
+        Promise.resolve(new Blob([new Uint8Array([1, 2, 3])])),
       ),
       importWorkspaceClosureArchive: vi.fn(() => Promise.resolve(imported)),
       planStageView: vi.fn(() => Promise.resolve({ payload: {} })),
@@ -914,12 +1098,17 @@ describe("shared worker successful routing and WASM compilation", () => {
     expect(compileStreaming).toHaveBeenCalledTimes(1);
     expect(compile).not.toHaveBeenCalled();
 
+const exportedArchive = await client.exportVerifiedWorkspaceClosure(
+      `sha256:${"1".repeat(64)}`,
+    );
+    expect(new Uint8Array(await exportedArchive.arrayBuffer())).toEqual(
+      new Uint8Array([1, 2, 3]),
+    );
+    // The archive crosses the boundary as a Blob handle: no copy, no transfer
+    // list, and the picked File itself is what gets forwarded.
+    const archiveBlob = new Blob([new Uint8Array([9, 1, 2, 8])]);
     await expect(
-      client.exportVerifiedWorkspaceClosure(`sha256:${"1".repeat(64)}`),
-    ).resolves.toEqual(new Uint8Array([1, 2, 3]));
-    const archiveBacking = new Uint8Array([9, 1, 2, 8]);
-    await expect(
-      client.importVerifiedWorkspaceClosure(archiveBacking.subarray(1, 3)),
+      client.importVerifiedWorkspaceClosure(archiveBlob),
     ).resolves.toEqual(imported);
     await expect(
       client.getPlanStageView({} as BrowserProcessingOptions),
@@ -958,9 +1147,7 @@ describe("shared worker successful routing and WASM compilation", () => {
         "digest",
       ),
     ).resolves.toBe(result);
-    expect(api.importWorkspaceClosureArchive).toHaveBeenCalledWith(
-      expect.objectContaining({ byteLength: 2 }),
-    );
+    expect(api.importWorkspaceClosureArchive).toHaveBeenCalledWith(archiveBlob);
     expect(api.processRawCsvBytes).toHaveBeenCalledWith(
       "raw.csv",
       expect.any(ArrayBuffer),
@@ -978,6 +1165,45 @@ describe("shared worker successful routing and WASM compilation", () => {
 
     compileStreaming.mockRestore();
     compile.mockRestore();
+  });
+
+  it("returns the worker's own durable-storage verdict when the worker answers", async () => {
+    // The gate is evaluated inside the worker that owns every production OPFS
+    // write, so the reply must be forwarded verbatim — both the ready arm and a
+    // worker-side refusal, which share one union the client must not collapse.
+    const module = {} as WebAssembly.Module;
+    const compileStreaming = vi
+      .spyOn(WebAssembly, "compileStreaming")
+      .mockResolvedValue(module);
+    const probeWorkspaceCapability = vi
+      .fn()
+      .mockResolvedValueOnce({ status: "ready", evictionProtected: true })
+      .mockResolvedValueOnce({
+        status: "unavailable",
+        reason: "Origin-private file storage is open but not writable: quota",
+      });
+    const api = {
+      initializeRuntime: vi.fn(() => Promise.resolve()),
+      probeWorkspaceCapability,
+    } as unknown as RemoteApi;
+    const client = await loadFreshWorkerClient(
+      api,
+      new Response(new Uint8Array([0, 97, 115, 109]), {
+        headers: { "content-type": "application/wasm" },
+      }),
+    );
+
+    await expect(client.probeWorkerWorkspaceCapability()).resolves.toEqual({
+      status: "ready",
+      evictionProtected: true,
+    });
+    await expect(client.probeWorkerWorkspaceCapability()).resolves.toEqual({
+      status: "unavailable",
+      reason: "Origin-private file storage is open but not writable: quota",
+    });
+    expect(probeWorkspaceCapability).toHaveBeenCalledTimes(2);
+
+    compileStreaming.mockRestore();
   });
 
   it("falls back to ArrayBuffer compilation when streaming compilation fails", async () => {

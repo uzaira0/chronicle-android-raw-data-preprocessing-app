@@ -232,6 +232,11 @@ archive/
 # Combinatorial coverage: the executed-test projection IS a tracked artifact
 # (with_covering_arrays.csv stays ignored — it is a derived concatenation)
 !web/combinatorial/existing_tests.csv
+# Kernel output-contract expectations. These are synthetic fixture outputs, not
+# study data, and they must be tracked: cargo-mutants copies the crate honoring
+# gitignore, so an ignored expectation file would make every mutant fail for a
+# missing file instead of for its mutation.
+!rust/chronicle_chrono_kernel_wasm/tests/golden/*.csv
 app_codebook_files/App Codebook*.xlsx
 app_codebook_files/*backup*.xlsx
 app_codebook_files/Baby EMU*

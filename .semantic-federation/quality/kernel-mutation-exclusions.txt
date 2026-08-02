@@ -1,0 +1,225 @@
+# Surviving mutants in chronicle_chrono_kernel_wasm that no test can kill,
+# grouped by the reason they are equivalent.
+#
+# Every expression here is verified against `cargo mutants --list`: it matches
+# at least one surviving mutant and no mutant the suite kills. Re-run that
+# check after any edit to pipeline_v2.rs, pipeline_v2_aggregates.rs or
+# pipeline_v2_incremental.rs. Four expressions carry a line number because the
+# three review-cone helpers each hold several `if !...` guards at the same
+# column and only some of them are equivalent; a drifted line number is loud
+# rather than silent, because the mutant it stops matching comes back as a
+# missed mutant and fails the gate.
+#
+# One expression per line. '#' starts a comment. Unlike the inline field in
+# rust-authority-manifests.txt, expressions here may contain ',' and '|'.
+
+
+# Contract-export binary.
+#
+# Exercised by the contract drift gate. cargo test cannot call its
+# `main` in a mutant sandbox.
+src/bin/
+
+# Hash-sink flush scheduling.
+#
+# Both sinks batch small writes so per-call overhead cannot dominate.
+# Moving a flush splits the byte stream across different `update` calls but
+# never drops, duplicates or reorders a byte, and a streaming hash digests the
+# concatenation.
+#
+# Pinned by:
+#   the_buffered_checkpoint_hasher_digests_the_concatenation_whatever_the_chunking
+#   the_fingerprint_sink_digests_the_concatenation_whatever_the_chunking
+:21: replace > with >= in FingerprintSink::flush$
+:24: replace >= with < in <impl CheckpointSink for BufferedCheckpointHasher>::checkpoint_update$
+:31: replace \+ with \* in <impl CheckpointSink for BufferedCheckpointHasher>::checkpoint_update$
+:38: replace > with >= in FingerprintSink::write$
+:45: replace > with (<|==|>=) in <impl CheckpointSink for BufferedCheckpointHasher>::checkpoint_update$
+
+# Memoisation and caching.
+#
+# A lost memo or a missed cache slot is recomputed and yields the same
+# value. These change what the engine spends, never what it answers.
+:13: replace <impl Clone for RowCheckpointCache>::clone::copy_lock \-> OnceLock<\[u8; 16\]> with OnceLock::new\(\)$
+:13: replace tracked::AlternationSlots<T>::lookup \-> Option<T> with None$
+:13: replace tracked::AlternationSlots<T>::store with \(\)$
+:38: replace match guard \*y == year \&\& \*m == month \&\& \*d == day with false in LocalDateMemo::date_string$
+:56: replace != with == in tracked::AlternationSlots<T>::store$
+:9: replace <impl Clone for RowCheckpointCache>::clone \-> Self with Default::default\(\)$
+
+# Diagnostics.
+#
+# `QueryTimer` and its `Drop` are compiled out unless the `query-timing`
+# feature is on, which this gate does not enable, and even then they only write
+# to stderr. `fmt::Debug` output reaches no product artifact.
+:13: replace tracked::<impl Drop for QueryTimer>::drop with \(\)$
+:13: replace tracked::<impl fmt::Debug for DecodedReconstructionBase>::fmt \-> fmt::Result with Ok\(Default::default\(\)\)$
+:13: replace tracked::<impl fmt::Debug for DecodedReviewBase>::fmt \-> fmt::Result with Ok\(Default::default\(\)\)$
+:13: replace tracked::<impl fmt::Debug for StepValue<T>>::fmt \-> fmt::Result with Ok\(Default::default\(\)\)$
+:13: replace tracked::QueryTimer::finish with \(\)$
+:13: replace tracked::QueryTimer::start \-> Self with Default::default\(\)$
+
+# Allocation and buffer sizing.
+#
+# A different reserve, capacity or growth step produces the same parsed
+# value and the same digest. MAX_REVIEW_BASE_UNCOMPRESSED_BYTES and
+# MAX_RECONSTRUCTION_BASE_UNCOMPRESSED_BYTES were once excluded here and do not
+# belong to this class: they are hard reject bounds, and shrinking one stops
+# the typed resume from engaging at all. They are pinned by
+# the_resume_ceilings_stay_far_above_a_real_production_base.
+:40: replace \+ with \* in parse_csv_to_records_with_physical_rows$
+:44: replace \+ with \* in csv_parse$
+:48: replace \* with \+$
+:50: replace \* with (\+|/) in csv_parse$
+:50: replace \* with (\+|/) in parse_csv_to_records_with_physical_rows$
+:60: replace == with != in csv_parse$
+
+# Loop counters cargo-mutants already detects by timeout.
+#
+# The mutated loop never terminates, so the mutant is detected — but a
+# timeout is still reported as a failed gate. Same precedent as the runtime
+# crate's exclusions.
+:(22|23): replace \+= with \*= in SourceDataRows::merge$
+:(24|25): replace \+= with \*= in intersect_intervals$
+:(33|36|38): replace \+= with \*= in tracked::persist_reconstruction_base$
+:15: replace < with <= in bisect_right$
+:17: replace \+= with \*= in unalign_duplicate_timestamps$
+:25: replace \+= with \*= in creditable_intervals$
+:26: replace \+ with \* in bisect_right$
+:35: replace / with % in bisect_right$
+:60: replace \-= with /= in unalign_duplicate_timestamps$
+
+# Boundary comparisons a later guard already neutralises.
+#
+# A run of one adds `len - 1` = 0 in count_duplicate_groups; a span that
+# only touches a window edge clips to nothing in clip_alive_spans and
+# build_coverage; an interval with equal ends is dropped by `overlap <= 0` in
+# co_usage_csv and by `right > left` in intersect_intervals; a zero-length day
+# yields zero minutes either way in summarize; a zero floor cannot nullify a
+# non-negative duration in relabel_usage_with_floor and split_concurrent; a
+# screen point exactly at a session start is already answered by screen_state_at
+# in credit_sessions; the emit_csv_i32 fast-path arms render exactly what the
+# general path writes.
+#
+# Pinned by:
+#   clipping_alive_spans_drops_the_spans_that_only_touch_the_window_edges
+#   sessions_that_only_abut_are_not_co_usage
+#   an_instantaneous_day_has_no_active_window
+#   the_small_integer_csv_fast_path_renders_exactly_like_the_general_path
+:(12|20): replace > with >= in count_duplicate_groups$
+:17: replace < with <= in unalign_duplicate_timestamps$
+:18: replace < with <= in creditable_intervals$
+:29: replace \+ with \* in unalign_duplicate_timestamps$
+:31: replace < with <= in intersect_intervals$
+:35: replace < with <= in clip_alive_spans$
+:39: replace > with >= in split_concurrent$
+:42: replace match guard last > first with true in summarize$
+:47: replace > with >= in relabel_usage_with_floor$
+:47: replace > with >= in summarize$
+:49: replace < with <= in build_coverage$
+:54: replace \+ with \* in emit_credited_rows$
+:70: replace \- with / in unalign_duplicate_timestamps$
+:77: replace > with >= in build_coverage$
+:79: replace > with >= in co_usage_csv$
+:89: replace < with (<=|==) in credit_sessions$
+:9: delete match arm 0 in emit_csv_i32$
+:9: delete match arm 1 in emit_csv_i32$
+
+# Arithmetic identities and unreachable branches.
+#
+# `(1 << 52) | fraction` and `^` are the same operation because bit 52 of
+# the fraction is clear. The subnormal exponent branch shifts a u128 right by
+# more than 128 bits at every precision the scale admits, so both exponents give
+# zero. A non-negative finite gap makes the `|| rounded.is_nan()` guard in
+# mark_data_time_gaps a no-op.
+#
+# Pinned by:
+#   subnormals_round_to_zero_at_every_precision_the_scale_admits
+:24: replace \| with \^ in ecma_round_fixed_f64$
+:29: replace \- with \+ in ecma_round_fixed_f64$
+:31: replace \|\| with \&\& in mark_data_time_gaps$
+
+# Checkpoint component selection.
+#
+# `reusable_components` only ever returns all-false or
+# membership-and-order-true, so the mutated `canonical_components_needed` can
+# only widen; every `record_canonical_parts` call is itself guarded by
+# `!reuse_*`, and the pre-sorted path and the explicit sort commit the same
+# bytes in the same canonical order.
+:13: delete ! in logical_stage_checkpoint_with_group_parts$
+:17: replace \|\| with \&\& in logical_stage_checkpoint_with_group_parts$
+
+# Review-cone Salsa equality.
+#
+# Flipping one `==` to `!=`, or returning `false` outright, makes the
+# equality report "changed" for a value that did not change. Salsa then declines
+# to backdate and recomputes downstream — the recomputed value is the same
+# value, so this costs reuse and never correctness. The opposite direction is
+# what would be a defect and it is caught: every `&&` -> `||` in these
+# implementations fails the suite except in ReviewAnnotations, whose consumers
+# re-verify row identity and copy durations from the upstream table before
+# using them.
+#
+# DecodedReviewBase, DecodedReconstructionBase, ReviewStaticAnnotations and
+# ReviewUsageRowsBeforeFloor are no longer excluded in either direction. Their
+# `-> true` mutants were listed here under this very reason, which calls that
+# direction a defect, and all sixteen of their mutants — both constant returns,
+# every `==` and both `&&` — were missed. They are now pinned by
+# the_review_cone_equalities_separate_two_different_values, which separates two
+# values whose identity differs one field at a time and still recognises an
+# unchanged value.
+#
+# Pinned by:
+#   a_review_holds_its_cone_across_options_its_summary_cannot_depend_on
+:(21|37|39|40|41|42|46|50): replace == with != in tracked::<impl PartialEq for ReviewReconstruction>::eq$
+:(21|37|40|41|42|46): replace == with != in tracked::<impl PartialEq for ReviewReconstructedRows>::eq$
+:(32|40|41|43|44|47): replace == with != in tracked::<impl PartialEq for ReviewAnnotations>::eq$
+:(37|40|41|46): replace == with != in tracked::<impl PartialEq for ReviewAppliedRows>::eq$
+:13: replace tracked::<impl PartialEq for ReviewAnnotations>::eq \-> bool with false$
+:13: replace tracked::<impl PartialEq for ReviewAppliedRows>::eq \-> bool with false$
+:13: replace tracked::<impl PartialEq for ReviewReconstructedRows>::eq \-> bool with false$
+:13: replace tracked::<impl PartialEq for ReviewReconstruction>::eq \-> bool with false$
+:13: replace tracked::<impl PartialEq for ReviewReconstructionOutput>::eq \-> bool with false$
+:21: replace == with != in tracked::<impl PartialEq for ReviewReconstructionOutput>::eq$
+src/pipeline_v2_incremental\.rs:6476:17: replace \&\& with \|\| in tracked::<impl PartialEq for ReviewAnnotations>::eq$
+
+# Review-cone physical shortcuts.
+#
+# A review run produces one artifact, the summary, and
+# build_review_summary reads only identity, date, duration, package, label,
+# category, interaction type, timestamps and usage layer. These guards choose
+# between recomputing a table and reusing one already proved identical, or
+# re-apply a marking an upstream step performed — junk_downstream_mark already
+# nulls the durations that clear_filtered_usage_timing_row would null again.
+# Both branches feed the same summary, which every review test compares against
+# the sequential oracle.
+:(21|34): replace \|\| with \&\& in tracked::review_annotations_fused$
+:(55|65|83): replace == with != in tracked::review_annotations_fused$
+:13: delete ! in tracked::review_annotations_fused$
+:17: replace == with != in tracked::review_base_app_policy_checkpoint$
+:18: replace match guard removed_types\.is_empty\(\) \&\& zero_duration_filter_off with false in tracked::review_annotations_fused$
+:20: delete ! in tracked::review_annotations_fused$
+:20: replace match guard removed_types\.is_empty\(\) \&\& zero_duration_filter_off \&\& static_classification_unchanged \&\& static_temporal_matches_upstream with (false|true) in tracked::review_annotations_fused$
+:20: replace match guard static_rows_unchanged \&\& removed_types\.is_empty\(\) \&\& zero_duration_filter_off with (false|true) in tracked::review_annotations_fused$
+:21: delete match arm \(None. None\) in tracked::review_annotations_fused$
+:21: delete match arm \(Some\(left\). Some\(right\)\) in tracked::review_annotations_fused$
+:21: replace \&\& with \|\| in tracked::review_annotations_fused$
+:27: replace == with != in tracked::review_reconstructed_rows$
+:30: replace > with (<|==|>=) in tracked::review_reconstructed_rows$
+:33: replace match guard inputs\.raw\.bytes\(\&self\.db\)\.as_slice\(\) == csv_bytes with false in tracked::TrackedEngine::execute_with_review_bases$
+:37: delete ! in tracked::review_annotations_fused$
+:40: delete ! in tracked::review_annotations_fused$
+:42: replace == with != in tracked::restamp_rows$
+:44: replace == with != in tracked::rows_step_reusing$
+:47: replace == with != in tracked::codebook_join$
+:53: replace \&= with \|= in tracked::review_annotations_fused$
+:53: replace \+ with (\*|\-) in tracked::decoded_review_base$
+:54: replace < with (<=|==) in tracked::review_reconstructed_rows$
+:58: replace \|\| with \&\& in tracked::review_usage_rows_before_floor$
+:60: replace \|\| with \&\& in tracked::assemble_primary_outputs$
+:62: replace \|\| with \&\& in tracked::review_reconstructed_rows$
+:77: delete ! in tracked::review_reconstructed_rows$
+src/pipeline_v2_incremental\.rs:5783:12: delete ! in tracked::review_static_annotations$
+src/pipeline_v2_incremental\.rs:5978:12: delete ! in tracked::review_reconstructed_rows$
+src/pipeline_v2_incremental\.rs:5987:12: delete ! in tracked::review_reconstructed_rows$
+src/pipeline_v2_incremental\.rs:6655:12: delete ! in tracked::review_annotations_fused$

@@ -17,6 +17,10 @@ import {
 } from "@/lib/rustPipelineRuntime";
 import type { RawFileInspection } from "@/lib/fileInspection";
 import {
+  probeOpfsCapability,
+  type OpfsCapability,
+} from "@/lib/opfsArtifactStore";
+import {
   processPersistedReviewWithRustAuthority,
   processRawCsvReviewWithRustAuthority,
   processRawCsvWithRustAuthority,
@@ -158,20 +162,32 @@ const api = {
   planStageView(options: BrowserProcessingOptions) {
     return getRustPlanStageView(options);
   },
+  /**
+   * Probe durable storage from the thread that actually persists it. Every
+   * workspace write in production happens here (this worker calls into
+   * rustPipelineRuntime.ts), so a main-thread-only probe can pass while the
+   * worker context is the one that has no OPFS.
+   */
+  probeWorkspaceCapability(): Promise<OpfsCapability> {
+    return probeOpfsCapability();
+  },
   async verifyWorkspace(workspaceId: string) {
     return (await verifyPersistedRustWorkspace(workspaceId)) ?? null;
   },
-  async exportWorkspaceClosure(workspaceId: string): Promise<Uint8Array> {
-    const archive = await exportPersistedRustWorkspace(workspaceId);
-    return Comlink.transfer(archive, [archive.buffer]);
+  // The archive crosses the worker boundary as a Blob, not a buffer: a
+  // structured-cloned Blob is a reference to browser-held (disk-backed)
+  // storage, so neither side ever materializes the whole closure to hand it
+  // over, and no transfer list is needed.
+  async exportWorkspaceClosure(workspaceId: string): Promise<Blob> {
+    return exportPersistedRustWorkspace(workspaceId);
   },
-  async importWorkspaceClosure(workspaceId: string, bytes: Uint8Array) {
-    const result = await importPersistedRustWorkspace(workspaceId, bytes);
+  async importWorkspaceClosure(workspaceId: string, archive: Blob) {
+    const result = await importPersistedRustWorkspace(workspaceId, archive);
     invalidateSemanticIndex(workspaceId);
     return result;
   },
-  async importWorkspaceClosureArchive(bytes: Uint8Array) {
-    const result = await importPersistedRustWorkspaceArchive(bytes);
+  async importWorkspaceClosureArchive(archive: Blob) {
+    const result = await importPersistedRustWorkspaceArchive(archive);
     invalidateSemanticIndex(result.workspaceId);
     return result;
   },

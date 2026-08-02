@@ -1,8 +1,12 @@
 import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 
-import { expect, test } from "@playwright/test";
 import { AxeBuilder } from "@axe-core/playwright";
+
+// The @opfs tests in this file need a real origin-private filesystem, which
+// WebKit only grants against an on-disk profile; the fixture is a no-op for
+// every other project.
+import { expect, test } from "./durabilityContext";
 
 import {
   APP_AND_SCREEN_RAW_CSV,
@@ -70,39 +74,64 @@ test("processes app and screen outputs with CSV support files and downloads both
   await expect(page.locator(".preview-table-wrap")).toHaveCount(0);
 
   const zipEntries = await downloadZipEntries(page, "download-all-zip");
-  expect(Array.from(zipEntries.keys())).toContain("chronicle-processing-report.json");
-  const report = JSON.parse(zipEntries.get("chronicle-processing-report.json") ?? "{}") as unknown;
-  expect((report as Record<string, unknown>).preprocessorVersion).toBe("1.0.0");
-  const reportFiles = (report as Record<string, unknown>).files as Array<Record<string, unknown>>;
-  expect(reportFiles).toHaveLength(1);
-  // Plots are on by default, so outputs also include "plot" entries; assert the
-  // CSV kinds are present rather than pinning the exact set.
-  const outputKinds = (reportFiles[0]?.outputs as Array<{ kind: string }>).map((output) => output.kind);
-  expect(outputKinds).toContain("app");
-  expect(outputKinds).toContain("screen");
-  // The manifest carries the run's ExecutionLedger (per-unit/per-step lineage).
-  expect(((reportFiles[0]?.executions as unknown[]) ?? []).length).toBeGreaterThan(0);
-  expect(
-    ((reportFiles[0]?.executions as Array<{ steps: unknown[] }>) ?? []).flatMap((unit) => unit.steps).length,
-  ).toBeGreaterThan(0);
-
-  // The PROV-O sidecar rides in the same ZIP and carries per-node
-  // chron:NodeExecution activities (the runtime lineage ledger) alongside
-  // the run activity — not just the run-level summary.
-  expect(Array.from(zipEntries.keys())).toContain("chronicle-provenance.jsonld");
-  const provenance = JSON.parse(zipEntries.get("chronicle-provenance.jsonld") ?? "{}") as unknown;
-  const provGraph: Array<Record<string, unknown>> = (provenance as Record<string, unknown>)["@graph"] as Array<Record<string, unknown>> ?? [];
-  const nodeExecutions = provGraph.filter(
-    (node) => Array.isArray(node["@type"]) && (node["@type"] as string[]).includes("chron:NodeExecution"),
+  const zipNames = Array.from(zipEntries.keys());
+  // #81 (the Rust/WASM single-engine cutover) retired the TypeScript-built
+  // run report and PROV-O sidecar along with the rest of the duplicate
+  // TypeScript authority — `buildProcessingReport` / `buildProvenanceJsonLd`
+  // are now banned symbols in scripts/check_no_typescript_authority.mts. Every
+  // artifact in the bundle is Rust-owned; the run manifest, execution ledger
+  // and artifact closure carry what those two files used to.
+  expect(zipNames).not.toContain("chronicle-processing-report.json");
+  expect(zipNames).not.toContain("chronicle-provenance.jsonld");
+  expect(zipNames).toEqual(
+    expect.arrayContaining([
+      "Raw P01 Automatically Preprocessed.csv",
+      "Raw P01 Screen Usage Automatically Preprocessed.csv",
+      "Raw P01 Runtime Manifest.json",
+      "Raw P01 Execution Ledger.json",
+      "Raw P01 Artifact Closure.json",
+      "Raw P01 Dependency Certificate.json",
+      "Raw P01 Row Lineage.arrow",
+    ]),
   );
-  expect(nodeExecutions.length).toBeGreaterThan(0);
+
+  const manifest = JSON.parse(
+    zipEntries.get("Raw P01 Runtime Manifest.json") ?? "{}",
+  ) as Record<string, unknown>;
+  expect(manifest.protocolVersion).toBe("chronicle-preprocessing-runtime/v1");
+  expect(manifest.preprocessorVersion).toBe("1.0.0");
+  // Plots are on by default, so the artifact set also includes plot/derived
+  // entries; assert the CSV kinds are present rather than pinning the whole set.
+  const artifactKinds = (manifest.artifacts as Array<{ kind: string }>).map(
+    (artifact) => artifact.kind,
+  );
+  expect(artifactKinds).toContain("app-csv");
+  expect(artifactKinds).toContain("screen-csv");
+  // Per-node and per-step lineage now rides in the manifest itself instead of
+  // the retired PROV-O graph. The step scale is the full 55-step contract.
+  expect((manifest.nodeExecutions as unknown[]).length).toBeGreaterThan(0);
+  expect((manifest.stepExecutions as unknown[]).length).toBe(55);
   expect(
-    nodeExecutions.every(
-      (node) => node["chron:executes_step"] && node["chron:used_parameter_set"],
+    (manifest.stepExecutions as Array<Record<string, unknown>>).every(
+      (step) => step.step_id && step.unit_id && step.status && step.reason_id,
     ),
   ).toBe(true);
-  // Step-scale executions nest under their unit via dcterms:isPartOf.
-  expect(nodeExecutions.some((node) => node["dcterms:isPartOf"])).toBe(true);
+
+  // The execution ledger is the per-unit/per-step lineage the old report kept
+  // under `files[].executions`.
+  const ledger = JSON.parse(
+    zipEntries.get("Raw P01 Execution Ledger.json") ?? "[]",
+  ) as Array<{ steps: unknown[] }>;
+  expect(ledger.length).toBeGreaterThan(0);
+  expect(ledger.flatMap((unit) => unit.steps).length).toBe(55);
+
+  // The artifact closure pins each output to the exact inputs it derives from —
+  // the derivation edges the PROV-O graph used to spell out.
+  const closure = JSON.parse(
+    zipEntries.get("Raw P01 Artifact Closure.json") ?? "{}",
+  ) as { artifacts: Array<{ kind: string; derivedFrom: string[] }> };
+  const closedAppCsv = closure.artifacts.find((artifact) => artifact.kind === "app-csv");
+  expect(closedAppCsv?.derivedFrom.length).toBeGreaterThan(0);
 
   const appCsv = await downloadCsv(page, "download-app-csv");
   const screenCsv = await downloadCsv(page, "download-screen-csv");
@@ -346,12 +375,12 @@ test("supports reduced motion, forced colors, and practical pointer targets", as
 });
 
 test("prefers-contrast: more does not break layout or hide content", async ({ page }) => {
-  await page.emulateMedia({ colorScheme: "light", forcedColors: "none" });
-  // Inject a style tag that simulates high-contrast preference so layout
-  // responses to prefers-contrast are exercised even in non-supporting browsers.
-  await page.addStyleTag({
-    content: "@media (prefers-contrast: more) { * { outline: 2px solid red !important; } }",
-  });
+  // Emulate the media feature itself rather than injecting a stylesheet that
+  // simulates it: the app ships `style-src 'self'` (no 'unsafe-inline'), so
+  // page.addStyleTag is blocked by CSP — correctly, and the CSP must not be
+  // loosened for a test. emulateMedia drives the real `prefers-contrast: more`
+  // state, so any rule the app adds for it is genuinely exercised.
+  await page.emulateMedia({ colorScheme: "light", forcedColors: "none", contrast: "more" });
   await gotoApp(page);
   await expect(page.getByRole("tab", { name: /Settings/i })).toBeVisible();
   await expect(page.getByRole("tab", { name: /Files/i })).toBeVisible();
@@ -765,10 +794,15 @@ test("View tab renders the review surface (rail, metrics, timeline) with file an
 
 test("View tab compares the run against a second config (Arm B) in-browser", async ({ page }) => {
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_AND_SCREEN_RAW_CSV, "text/csv");
+  // Per-session timeline geometry is opt-in (it is the heavy part of a result),
+  // so Arm A only has a scene to draw when this is on. The closing assertion —
+  // exactly ONE scene after the comparison — is only meaningful with a scene.
+  await page.getByTestId("toggle-enableInteractiveTimeline").check();
   await processFiles(page);
 
   await page.getByRole("tab", { name: /View/i }).click();
   await expect(page.getByTestId("timeline-view")).toBeVisible();
+  await expect(page.getByTestId("timeline-view-participant-title")).toHaveCount(1);
 
   // Open the Arm-B drawer and re-run the same file under it.
   await page.getByTestId("review-compare-toggle").click();
@@ -791,7 +825,8 @@ test("View tab compares the run against a second config (Arm B) in-browser", asy
   ]);
 
   // The fast comparison deliberately returns compact Rust metrics rather than
-  // rebuilding Arm-B timeline geometry.
+  // rebuilding Arm-B timeline geometry: Arm A's single scene stays on screen,
+  // and no second scene is materialized for B.
   await expect(page.getByTestId("review-compare-no-overlap")).toContainText(
     "fast comparison updated the Δ metrics",
   );
@@ -820,11 +855,21 @@ test("restores last processed results after refresh and collapses process detail
   await expect(page.getByTestId("result-panel")).toContainText("1 file processed");
   await expect(page.locator("#process-details")).toBeHidden();
   await expect(page.getByRole("button", { name: "Show processing details" })).toBeVisible();
-  // The restore is lightweight: counts come back, but the heavy artifacts are
-  // not persisted across a refresh (so a big batch can't exhaust memory/quota
-  // on the next boot). The note explains it and downloads are disabled.
-  await expect(page.getByTestId("restored-lightweight-note")).toBeVisible();
-  await expect(page.getByTestId("download-all-zip")).toBeDisabled();
+  // The restore is lightweight: the browser-only blobs and per-session timeline
+  // geometry are dropped before persisting (so a big batch can't exhaust
+  // memory/quota on the next boot), but `toLightweightResults` keeps every
+  // receipt-pinned Rust output, so those stay downloadable — the note says so,
+  // and the ZIP must really rebuild from verified OPFS, not just look clickable.
+  await expect(page.getByTestId("restored-lightweight-note")).toContainText(
+    "Rust outputs and static plots remain downloadable",
+  );
+  await expect(page.getByTestId("download-all-zip")).toBeEnabled();
+  const restoredZip = await downloadZipEntries(page, "download-all-zip");
+  expect(Array.from(restoredZip.keys())).toContain(
+    "Raw P01 Automatically Preprocessed.csv",
+  );
+  expect(parseCsv(restoredZip.get("Raw P01 Automatically Preprocessed.csv") ?? "").length)
+    .toBeGreaterThan(0);
 
   // Delete results: the panel empties AND the persisted copy is gone, so a
   // further refresh starts clean instead of restoring the run again.

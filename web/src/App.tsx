@@ -24,6 +24,7 @@ import {
   processRawCsvChangedReviewBytesViaPool,
   processRawCsvReviewBytes,
   processRawCsvBytesViaPool,
+  probeWorkerWorkspaceCapability,
   warmRuntime,
 } from "@/lib/rustWorkerClient";
 import { BUILD_DATE, BUILD_SHA } from "@/lib/buildInfo";
@@ -125,6 +126,22 @@ function getInjectedRuntime(): BrowserProcessingRuntime | undefined {
       persistRustWorkspace: true,
     }
   );
+}
+
+/**
+ * The durable-workspace gate. Both contexts must hold: this thread reads the
+ * OPFS the UI shows, and the Rust worker performs every actual workspace write.
+ * A browser can grant one and deny the other (Safari private browsing denies
+ * both; a sandboxed or partitioned worker can deny only its own), so either
+ * failure closes the gate and the first concrete reason is what the user sees.
+ */
+async function probeDurableWorkspaceCapability(): Promise<OpfsCapability> {
+  const [mainThread, worker] = await Promise.all([
+    probeOpfsCapability(),
+    probeWorkerWorkspaceCapability(),
+  ]);
+  if (mainThread.status === "unavailable") return mainThread;
+  return worker;
 }
 
 const STEP_WEIGHTS: Record<ProgressStepKind, number> = {
@@ -383,10 +400,16 @@ export default function App(): ReactElement {
 
   // Ask once for persistent storage so projects + the cached run aren't evicted
   // under disk pressure (best-effort; ignored where unsupported/denied).
+  //
+  // The durability gate must NOT be sequenced behind that request. Firefox 148
+  // never settles navigator.storage.persist() without a user gesture — it waits
+  // on a permission prompt that headless and un-gestured sessions never answer —
+  // so chaining the probe to it left the durable-workspace probe permanently
+  // pending and the fail-closed banner unreachable on Firefox. Nothing reads
+  // `evictionProtected`, so there is no reason to wait for the answer.
   useEffect(() => {
-    void requestPersistentStorage().finally(() => {
-      void probeOpfsCapability().then(setWorkspaceCapability);
-    });
+    void requestPersistentStorage();
+    void probeDurableWorkspaceCapability().then(setWorkspaceCapability);
   }, []);
 
   // Warm the matcher worker on boot: faster first run, and a still-live worker
@@ -1175,7 +1198,7 @@ export default function App(): ReactElement {
       processingRef.current = false;
       return;
     }
-    const capability = await probeOpfsCapability();
+    const capability = await probeDurableWorkspaceCapability();
     setWorkspaceCapability(capability);
     if (capability.status === "unavailable") {
       setError(`Durable local workspace unavailable. ${capability.reason}`);
@@ -1572,7 +1595,7 @@ export default function App(): ReactElement {
         },
       }));
       try {
-        const capability = await probeOpfsCapability();
+        const capability = await probeDurableWorkspaceCapability();
         setWorkspaceCapability(capability);
         if (capability.status === "unavailable") {
           throw new Error(
@@ -2009,6 +2032,9 @@ export default function App(): ReactElement {
               inspections={fileInspections}
               isInspecting={isInspectingFiles}
               isRunning={isRunning}
+              durableWorkspaceUnavailable={
+                workspaceCapability?.status === "unavailable"
+              }
               displayMasker={demoDisplay}
               onProcess={() => {
                 void processUploadedFiles();

@@ -8,6 +8,7 @@ import type {
   RustStageView,
 } from "@/lib/types";
 import type { ChronicleWorkerApi } from "@/workers/chronicle-worker";
+import type { OpfsCapability } from "@/lib/opfsArtifactStore";
 import type { RawFileInspection } from "@/lib/fileInspection";
 export { comparisonSupportCacheKey } from "@/lib/comparisonSupportKey";
 import runtimeWasmUrl from "@/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm_bg.wasm?url";
@@ -176,11 +177,42 @@ export class WorkerPool {
   private readonly spawn: WorkerSpawn;
   private readonly maxTasksPerWorker: number;
   private terminated = false;
+  /**
+   * Rejects the moment {@link terminate} is called. Every submission races it in
+   * {@link runOnSlot}, because `Worker.terminate()` does NOT settle the Comlink
+   * RPC promises already awaiting a reply from that worker: the worker simply
+   * stops, no message ever comes back, and `onerror`/`onmessageerror` (which is
+   * all `slot.fault` watches) never fires. Without this, cancelling a batch left
+   * the caller's `await` pending forever — the run's `Promise.all` never
+   * resolved and the UI stayed wedged on "Processing…" with no way out. That is
+   * exactly the half-finished state cancellation exists to prevent, and
+   * `App.tsx`'s runner already documents the opposite contract ("a terminate()
+   * during cancel rejects the in-flight file").
+   *
+   * It is deliberately pool-scoped and created in the constructor rather than
+   * being a per-slot hook installed by `runOnSlot`. `submit()` reaches
+   * `runOnSlot` only after `await this.acquire()` yields a microtask, so a
+   * `submit()` immediately followed by `terminate()` in the SAME synchronous
+   * turn lands while no per-slot hook exists yet: `terminate()` would find
+   * nothing to fire, empty `this.slots`, and the resumed continuation would then
+   * await an RPC to an already-dead worker with no abort in the race at all.
+   * A promise that exists for the pool's whole life cannot miss that window.
+   */
+  private readonly aborted: Promise<never>;
+  private abort: () => void = () => {};
 
   constructor(
     size: number,
     spawnOrOptions: WorkerSpawn | WorkerPoolOptions = spawnWorker,
   ) {
+    this.aborted = new Promise<never>((_, reject) => {
+      this.abort = () =>
+        reject(new Error("Worker pool has been terminated."));
+    });
+    // Pre-handle so an un-raced abort (a pool terminated with nothing in
+    // flight) never surfaces as an unhandled rejection; racing still observes
+    // the same rejection.
+    this.aborted.catch(() => {});
     const options: WorkerPoolOptions =
       typeof spawnOrOptions === "function"
         ? { spawn: spawnOrOptions }
@@ -321,17 +353,33 @@ export class WorkerPool {
     this.pump();
   }
 
+  /**
+   * Run one submission on an acquired slot, racing the worker's fault AND the
+   * pool-wide {@link aborted} that `terminate()` fires. Terminating a worker
+   * mid-call produces no error event and no Comlink reply, so that abort is the
+   * only thing that settles the promise — without it a cancelled batch waits
+   * forever.
+   */
+  private async runOnSlot<T>(
+    slot: WorkerSlot,
+    body: () => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await Promise.race([body(), slot.fault, this.aborted]);
+    } finally {
+      this.release(slot);
+    }
+  }
+
   async submit<T>(
     action: (api: Comlink.Remote<ChronicleWorkerApi>) => Promise<T>,
   ): Promise<T> {
     const slot = await this.acquire();
-    try {
+    return this.runOnSlot(slot, async () => {
       // Race the worker's fault so a dead worker rejects loudly, not silently.
       await Promise.race([slot.ready, slot.fault]);
-      return await Promise.race([action(slot.api), slot.fault]);
-    } finally {
-      this.release(slot);
-    }
+      return action(slot.api);
+    });
   }
 
   async submitWithSetup<T>(
@@ -340,19 +388,22 @@ export class WorkerPool {
     action: (api: Comlink.Remote<ChronicleWorkerApi>) => Promise<T>,
   ): Promise<T> {
     const slot = await this.acquire();
-    try {
+    return this.runOnSlot(slot, async () => {
       await Promise.race([slot.ready, slot.fault]);
       if (!(await Promise.race([hasSetup(slot.api), slot.fault]))) {
         await Promise.race([setup(slot.api), slot.fault]);
       }
-      return await Promise.race([action(slot.api), slot.fault]);
-    } finally {
-      this.release(slot);
-    }
+      return action(slot.api);
+    });
   }
 
   terminate(): void {
     this.terminated = true;
+    // Settle every submission FIRST — before killing the workers that owe them a
+    // reply — so a cancel unwinds the batch instead of wedging it. One pool-wide
+    // rejection covers all of them, including a submission still suspended in
+    // `await this.acquire()` that has not reached `runOnSlot` yet.
+    this.abort();
     while (this.waiters.length) {
       this.waiters
         .shift()!
@@ -369,29 +420,47 @@ export async function getRuntimeVersion(): Promise<string> {
   return onSharedWorker((api) => api.runtimeVersion());
 }
 
+/**
+ * Fail-closed durable-storage gate, evaluated in the worker that owns every
+ * production OPFS write. An unreachable worker is itself a hard stop: there is
+ * no other path that can persist a verified workspace, so it is reported as an
+ * unavailable capability rather than thrown into a caller that might continue.
+ */
+export async function probeWorkerWorkspaceCapability(): Promise<OpfsCapability> {
+  try {
+    // Explicit type argument: Comlink's Remote<> distributes over the
+    // ready/unavailable union, so inference would otherwise fix T to the
+    // "ready" arm alone and reject the failure arm the gate depends on.
+    return await onSharedWorker<OpfsCapability>((api) =>
+      api.probeWorkspaceCapability(),
+    );
+  } catch (error) {
+    return {
+      status: "unavailable",
+      reason: `The processing worker that owns durable storage could not be reached: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    };
+  }
+}
+
+/**
+ * Both directions move the archive as a Blob. Structured cloning a Blob copies
+ * a handle to browser-managed storage, not the bytes, so a multi-hundred-MB
+ * backup never has to exist as a contiguous buffer on either side of the worker
+ * boundary — which is exactly what the picked `File` already is on import.
+ */
 export async function exportVerifiedWorkspaceClosure(
   workspaceId: string,
-): Promise<Uint8Array> {
+): Promise<Blob> {
   return onSharedWorker((api) => api.exportWorkspaceClosure(workspaceId));
 }
 
-export async function importVerifiedWorkspaceClosure(
-  archive: Uint8Array,
-): Promise<{
+export async function importVerifiedWorkspaceClosure(archive: Blob): Promise<{
   workspaceId: string;
   slot: { generation: number; workspaceRootDigest: string };
 }> {
-  const owned =
-    archive.buffer instanceof ArrayBuffer &&
-    archive.byteOffset === 0 &&
-    archive.byteLength === archive.buffer.byteLength
-      ? archive
-      : Uint8Array.from(archive);
-  return onSharedWorker((api) =>
-    api.importWorkspaceClosureArchive(
-      Comlink.transfer(owned, [owned.buffer as ArrayBuffer]),
-    ),
-  );
+  return onSharedWorker((api) => api.importWorkspaceClosureArchive(archive));
 }
 
 /**

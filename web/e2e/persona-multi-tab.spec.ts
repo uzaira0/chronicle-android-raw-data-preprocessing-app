@@ -1,5 +1,6 @@
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
 
+import { expect, test } from "./durabilityContext";
 import { APP_ONLY_RAW_CSV } from "./fixtures";
 import {
   gotoApp,
@@ -73,7 +74,9 @@ test("concurrent settings edits in two tabs reconcile to a valid value, never co
   await tab2.close();
 });
 
-test("two tabs processing at once leave a single, valid cached run", async ({ context }) => {
+test("@durability two tabs processing at once leave a single, valid cached run", async ({
+  context,
+}) => {
   const tab1 = await context.newPage();
   const tab2 = await context.newPage();
   const errors: string[] = [];

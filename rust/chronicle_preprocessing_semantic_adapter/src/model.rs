@@ -2,6 +2,13 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
 
+/// A lowercase `sha256:<64 hex>` content identity as serialized across the
+/// WASM boundary. The alias is transparent to serde and to Rust, and it is the
+/// declaration the boundary-model generator reads: every field typed
+/// `Sha256Digest` becomes a digest-shaped field in the generated browser
+/// validator, while a plain `String` becomes a non-empty string.
+pub type Sha256Digest = String;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ChroniclePlan {
     pub protocol_version: String,
@@ -72,8 +79,8 @@ pub enum DependencyCacheMode {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DependencyCacheDecision {
     pub mode: DependencyCacheMode,
-    pub certificate_digest: Option<String>,
-    pub binding_surface_digest: Option<String>,
+    pub certificate_digest: Option<Sha256Digest>,
+    pub binding_surface_digest: Option<Sha256Digest>,
     pub empirical_evidence_current: bool,
     pub reasons: Vec<String>,
 }
@@ -224,7 +231,7 @@ pub enum PlanStepSourceRolePredicate {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ArtifactRef {
     pub artifact_id: String,
-    pub digest: String,
+    pub digest: Sha256Digest,
     pub media_type: String,
     pub size: u64,
     #[serde(default)]
@@ -287,7 +294,7 @@ pub struct NodeExecution {
     pub node_id: String,
     pub capability_id: String,
     pub status: ExecutionStatus,
-    pub input_key: String,
+    pub input_key: Sha256Digest,
     pub output: Option<ArtifactRef>,
     pub reason_id: String,
 }

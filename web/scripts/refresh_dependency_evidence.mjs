@@ -243,6 +243,33 @@ try {
       },
     },
   );
+  // Reconciles the declared field-level edges against the changed-cell
+  // sidecars the campaigns above just rewrote, so it must run last and against
+  // the final fail-closed package.
+  await run(
+    "refresh field-level provenance reconciliation",
+    "npm",
+    ["run", "test:field-provenance"],
+    {
+      env: {
+        ...toolchainEnv,
+        UPDATE_FIELD_PROVENANCE: "1",
+      },
+    },
+  );
+  // Per-source-column mixed tomography pins the implementation receipt of the
+  // final fail-closed package, so it runs after the last build:wasm above.
+  await run(
+    "refresh per-field mixed tomography",
+    "npm",
+    ["run", "test:field-mixed-tomography"],
+    {
+      env: {
+        ...toolchainEnv,
+        UPDATE_FIELD_MIXED: "1",
+      },
+    },
+  );
 } catch (error) {
   restoreSnapshots();
   throw error;

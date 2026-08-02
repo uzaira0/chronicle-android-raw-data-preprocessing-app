@@ -215,7 +215,7 @@ The ledger also commits to the compressed
 `artifact-output-cell-correspondence.json.gz` sidecar. For every intervention,
 that sidecar maps the named changed raw/support component to every changed cell
 address in the canonical Rust-produced CSV and JSON outputs. It contains
-204,370 changed-cell addresses across the 192 cases. The ledger retains a
+202,124 changed-cell addresses across the 192 cases. The ledger retains a
 per-case address digest and a compact wildcarded column/path scope so it stays
 human-reviewable. Parquet, SPSS, and Arrow remain byte/digest-verified derived
 artifacts; they are not falsely decoded as independent semantic cell surfaces.
@@ -241,7 +241,7 @@ The independent boundary ledger is
 `web/src/lib/pipelineGraph/golden/family-expected/raw-boundary-influence-ledger.json`.
 It records 648 Rust/WASM executions, 162 exact warm/cold comparisons, 162 exact
 declared-versus-observed cluster comparisons, 162 typed-component comparisons,
-162 artifact-to-role qualification correspondence comparisons, and 660,187
+162 artifact-to-role qualification correspondence comparisons, and 651,823
 changed canonical output-cell addresses in the checked
 `raw-boundary-output-cell-correspondence.json.gz` sidecar.
 

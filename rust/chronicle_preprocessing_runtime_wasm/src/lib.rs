@@ -31,7 +31,7 @@ use chronicle_preprocessing_semantic_adapter::{
     journal::{EvidenceJournal, Transition},
     views::{artifact_view, encode_view, explanation_view, obligation_view, stage_view},
     ArtifactRef, DependencyCacheDecision, DependencyCacheMode, ExecutionStatus,
-    MaterializationState, NodeExecution, RoleAssignment, CERTIFIED_OPTION_KEYS,
+    MaterializationState, NodeExecution, RoleAssignment, Sha256Digest, CERTIFIED_OPTION_KEYS,
     EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256, EMBEDDED_PLAN_SHA256, EMBEDDED_PRODUCT_CONTRACT_SHA256,
     EMBEDDED_PROFILE_LOCK_SHA256, EMBEDDED_PROFILE_SHA256, EMBEDDED_RUNTIME_AUTHORITY_SHA256,
 };
@@ -649,19 +649,24 @@ impl RuntimeRequest {
     }
 }
 
+/// A single rendered preview cell. Unlike every other boundary string this one
+/// is legitimately empty when the source column is empty, so the generated
+/// browser validator only requires a string here.
+pub type PreviewCell = String;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RuntimeArtifactMetadata {
     pub artifact_id: String,
     pub kind: String,
     pub media_type: String,
-    pub digest: String,
+    pub digest: Sha256Digest,
     pub size: u64,
     pub derived_from: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub row_count: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub preview_rows: Option<Vec<Vec<String>>>,
+    pub preview_rows: Option<Vec<Vec<PreviewCell>>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -678,9 +683,9 @@ pub struct RuntimeStepExecution {
     pub step_id: String,
     pub unit_id: String,
     pub status: ExecutionStatus,
-    pub input_key: String,
-    pub output_digest: String,
-    pub reason_id: String,
+    pub input_key: Sha256Digest,
+    pub output_digest: Sha256Digest,
+    pub reason_id: Sha256Digest,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -692,14 +697,14 @@ pub struct RuntimeProcessingSummary {
     pub rows_before_timezone_handling: u32,
     pub rows_after_timezone_handling: u32,
     pub rows_removed_by_timezone: u32,
-    pub timezone_retained_source_rows_digest: String,
-    pub timezone_stage_digest: String,
-    pub logical_stage_digests: BTreeMap<String, String>,
+    pub timezone_retained_source_rows_digest: Sha256Digest,
+    pub timezone_stage_digest: Sha256Digest,
+    pub logical_stage_digests: BTreeMap<String, Sha256Digest>,
     pub logical_stage_checkpoints: BTreeMap<String, LogicalStageCheckpoint>,
-    pub pipeline_step_digests: BTreeMap<String, String>,
+    pub pipeline_step_digests: BTreeMap<String, Sha256Digest>,
     pub pipeline_step_checkpoints: BTreeMap<String, LogicalStageCheckpoint>,
-    pub published_outputs_digest: String,
-    pub provenance_digest: String,
+    pub published_outputs_digest: Sha256Digest,
+    pub provenance_digest: Sha256Digest,
     pub duplicate_timestamps_corrected: u32,
     pub exact_duplicate_rows_removed: u32,
 }
@@ -712,19 +717,19 @@ pub struct RuntimeManifest {
     pub request_id: String,
     pub command: String,
     pub implementation: String,
-    pub implementation_digest: String,
-    pub build_environment_digest: String,
+    pub implementation_digest: Sha256Digest,
+    pub build_environment_digest: Sha256Digest,
     pub scope: String,
-    pub plan_digest: String,
-    pub profile_digest: String,
-    pub profile_lock_digest: String,
-    pub runtime_authority_digest: String,
-    pub product_contract_digest: String,
-    pub dependency_certificate_digest: String,
+    pub plan_digest: Sha256Digest,
+    pub profile_digest: Sha256Digest,
+    pub profile_lock_digest: Sha256Digest,
+    pub runtime_authority_digest: Sha256Digest,
+    pub product_contract_digest: Sha256Digest,
+    pub dependency_certificate_digest: Sha256Digest,
     pub dependency_cache_decision: DependencyCacheDecision,
-    pub previous_workspace_root_digest: Option<String>,
-    pub workspace_id: String,
-    pub workspace_root_digest: String,
+    pub previous_workspace_root_digest: Option<Sha256Digest>,
+    pub workspace_id: Sha256Digest,
+    pub workspace_root_digest: Sha256Digest,
     pub input: ArtifactRef,
     pub role_assignments: Vec<RoleAssignment>,
     pub qualification_traces: Vec<chronicle_preprocessing_semantic_adapter::QualificationTrace>,
@@ -736,7 +741,7 @@ pub struct RuntimeManifest {
     pub artifacts: Vec<RuntimeArtifactMetadata>,
     pub counts: RuntimeCounts,
     pub processing_summary: RuntimeProcessingSummary,
-    pub journal_digest: String,
+    pub journal_digest: Sha256Digest,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -746,17 +751,17 @@ pub struct ReviewRuntimeManifest {
     pub preprocessor_version: String,
     pub request_id: String,
     pub command: String,
-    pub workspace_id: String,
-    pub previous_workspace_root_digest: Option<String>,
-    pub input_digest: String,
-    pub options_digest: String,
-    pub implementation_digest: String,
-    pub build_environment_digest: String,
-    pub plan_digest: String,
-    pub profile_digest: String,
-    pub profile_lock_digest: String,
-    pub product_contract_digest: String,
-    pub dependency_certificate_digest: String,
+    pub workspace_id: Sha256Digest,
+    pub previous_workspace_root_digest: Option<Sha256Digest>,
+    pub input_digest: Sha256Digest,
+    pub options_digest: Sha256Digest,
+    pub implementation_digest: Sha256Digest,
+    pub build_environment_digest: Sha256Digest,
+    pub plan_digest: Sha256Digest,
+    pub profile_digest: Sha256Digest,
+    pub profile_lock_digest: Sha256Digest,
+    pub product_contract_digest: Sha256Digest,
+    pub dependency_certificate_digest: Sha256Digest,
     pub dependency_cache_decision: DependencyCacheDecision,
     pub counts: RuntimeCounts,
     pub available_timezones: Vec<String>,
@@ -770,8 +775,8 @@ pub struct ReviewRuntimeManifest {
     pub node_executions: Vec<NodeExecution>,
     pub step_executions: Vec<RuntimeStepExecution>,
     pub cache_sources: Vec<String>,
-    pub review_summary_digest: String,
-    pub comparison_digest: String,
+    pub review_summary_digest: Sha256Digest,
+    pub comparison_digest: Sha256Digest,
     /// True when the request's `knownReviewSummaryDigests` list matched the
     /// recomputed summary, so no artifact bytes accompany this manifest and
     /// the caller keeps its cached copy.
@@ -1771,64 +1776,57 @@ fn build_runtime_step_executions(
             .clone();
         let applicable = plan_step.applicability.evaluate(semantic_options);
         let previous = state.previous_observations.get(definition.id);
-        // Salsa has already proved that a cached query did not execute. When
-        // its output and applicability also match the prior observation, its
-        // exact bound-input key is unchanged. Reuse that key instead of
-        // rebuilding and canonically hashing maps for every one of the 44
-        // unaffected steps in a typical threshold comparison.
-        let input_key = if !executed_steps.contains(definition.id)
-            && previous.is_some_and(|entry| {
-                entry.output_digest == output_digest && entry.applicable == applicable
-            }) {
-            previous
-                .expect("checked previous observation")
-                .input_key
-                .clone()
-        } else {
-            let upstream = definition
-                .inputs
-                .iter()
-                .map(|input| {
-                    result
-                        .pipeline_step_digests
-                        .get(*input)
-                        .cloned()
-                        .map(|digest| ((*input).to_string(), digest))
-                        .ok_or_else(|| {
-                            format!("{} has no checkpoint for input {input}", definition.id)
-                        })
-                })
-                .collect::<Result<BTreeMap<_, _>, _>>()?;
-            let request_fields = step_request_fields(definition.id)
-                .iter()
-                .map(|field| {
-                    exact_object
-                        .get(*field)
-                        .cloned()
-                        .map(|value| ((*field).to_string(), value))
-                        .ok_or_else(|| {
-                            format!(
-                                "{} binds unknown exact request field {field}",
-                                definition.id
-                            )
-                        })
-                })
-                .collect::<Result<BTreeMap<_, _>, _>>()?;
-            let source_roles = active_source_roles(definition.id, exact_object, assignments);
-            sha256(
-                &serde_jcs::to_vec(&RuntimeStepKeyMaterial {
-                    implementation_digest: IMPLEMENTATION_BUILD_DIGEST,
-                    build_environment_digest: BUILD_ENVIRONMENT_DIGEST,
-                    contract_digest: EMBEDDED_PRODUCT_CONTRACT_SHA256,
-                    applicable,
-                    upstream,
-                    request_fields,
-                    source_roles,
-                    output_mode: step_output_mode(definition.id, state.materialize_full_outputs),
-                })
-                .map_err(|error| format!("canonicalize {} input key: {error}", definition.id))?,
-            )
-        };
+        // The key is defined below as a function of *this* run's inputs, so it
+        // is always built from them. A previous run's key was reused here when
+        // Salsa reported the query had not executed, on the reasoning that a
+        // query which did not run cannot have changed its inputs. That does
+        // not hold: the key binds the step's *declared* request fields, and a
+        // step can legitimately skip execution while one of them changes —
+        // `split_concurrent` binds `minimum_usage_duration` but only reads it
+        // when `apply_minimum_usage_duration_to_concurrent_subintervals` is
+        // on, so editing the floor with that switch off left a warm review
+        // reporting the previous run's key for it while a cold review of the
+        // same options reported a different one. A key that depends on how the
+        // run got here is not an identity, and comparing keys across runs is
+        // exactly what they are published for.
+        let upstream = definition
+            .inputs
+            .iter()
+            .map(|input| {
+                result
+                    .pipeline_step_digests
+                    .get(*input)
+                    .cloned()
+                    .map(|digest| ((*input).to_string(), digest))
+                    .ok_or_else(|| format!("{} has no checkpoint for input {input}", definition.id))
+            })
+            .collect::<Result<BTreeMap<_, _>, _>>()?;
+        let request_fields = step_request_fields(definition.id)
+            .iter()
+            .map(|field| {
+                exact_object
+                    .get(*field)
+                    .cloned()
+                    .map(|value| ((*field).to_string(), value))
+                    .ok_or_else(|| {
+                        format!("{} binds unknown exact request field {field}", definition.id)
+                    })
+            })
+            .collect::<Result<BTreeMap<_, _>, _>>()?;
+        let source_roles = active_source_roles(definition.id, exact_object, assignments);
+        let input_key = sha256(
+            &serde_jcs::to_vec(&RuntimeStepKeyMaterial {
+                implementation_digest: IMPLEMENTATION_BUILD_DIGEST,
+                build_environment_digest: BUILD_ENVIRONMENT_DIGEST,
+                contract_digest: EMBEDDED_PRODUCT_CONTRACT_SHA256,
+                applicable,
+                upstream,
+                request_fields,
+                source_roles,
+                output_mode: step_output_mode(definition.id, state.materialize_full_outputs),
+            })
+            .map_err(|error| format!("canonicalize {} input key: {error}", definition.id))?,
+        );
         if previous.is_some_and(|entry| {
             entry.input_key == input_key && entry.output_digest != output_digest
         }) {
@@ -1897,13 +1895,33 @@ struct ProductStageInputKey<'a> {
     step_inputs: BTreeMap<&'a str, (&'a str, &'a str)>,
 }
 
+/// `Recomputed` is a claim about physical execution, so it is reachable only
+/// from a member query that actually ran (`has_executed_member`, read straight
+/// off the Salsa execution events) or from a group the run deactivated.
+///
+/// The stage's published `input_key` deliberately does *not* feed this. That
+/// key binds every member step's own key, and a step's key can legitimately
+/// move while the step does not execute — a support artifact rewritten with
+/// CRLF line endings changes `active_source_roles`' raw digest but parses to
+/// the same rows, so Salsa recomputes nothing. Folding that into the status
+/// badged eight support-file byte rewrites per corpus as "recomputed" inside a
+/// manifest whose own `stepExecutions` reported 0 of 55 steps recomputed.
+/// Callers that need "the projection key moved" read `input_key`, which is
+/// published on every `NodeExecution`.
+///
+/// `has_executed_member` is the Salsa event set and not "some member is badged
+/// `Recomputed`", because the member ladder in `build_runtime_step_executions`
+/// resolves `Bypassed` and `Skipped` ahead of `Recomputed`. A step that is not
+/// applicable but whose query still ran is therefore badged `Bypassed`, and
+/// reading the badges back would lose the execution — leaving this function
+/// free to answer `Cached`, whose published reason is
+/// `all-active-queries-reused`, for a stage in which a query ran.
 fn product_stage_status(
     has_error: bool,
     bypassed: bool,
     has_skipped_step: bool,
-    projection_changed: bool,
     group_deactivated: bool,
-    has_recomputed_step: bool,
+    has_executed_member: bool,
 ) -> ExecutionStatus {
     if has_error {
         ExecutionStatus::Error
@@ -1911,7 +1929,7 @@ fn product_stage_status(
         ExecutionStatus::Bypassed
     } else if has_skipped_step {
         ExecutionStatus::Skipped
-    } else if projection_changed || group_deactivated || has_recomputed_step {
+    } else if group_deactivated || has_executed_member {
         ExecutionStatus::Recomputed
     } else {
         ExecutionStatus::Cached
@@ -1924,6 +1942,7 @@ fn project_product_stages(
     semantic_options: &Value,
     result: &PipelineV2Result,
     step_executions: &[RuntimeStepExecution],
+    executed_steps: &BTreeSet<&str>,
     deactivated_groups: &BTreeSet<&str>,
     previous_stage_inputs: &mut BTreeMap<String, String>,
     previous_stage_outputs: &mut BTreeMap<String, ArtifactRef>,
@@ -2047,11 +2066,10 @@ fn project_product_stages(
             members
                 .iter()
                 .any(|execution| execution.status == ExecutionStatus::Skipped),
-            projection_changed,
             deactivated_groups.contains(node.node_id.as_str()),
             members
                 .iter()
-                .any(|execution| execution.status == ExecutionStatus::Recomputed),
+                .any(|execution| executed_steps.contains(execution.step_id.as_str())),
         );
         let reason = match status {
             ExecutionStatus::Cached => "all-active-queries-reused",
@@ -2291,6 +2309,7 @@ fn execute_incremental_pipeline(
             options_value,
             &result,
             &step_executions,
+            &executed_steps.iter().map(String::as_str).collect(),
             &deactivated_groups,
             &mut state.previous_stage_inputs,
             &mut state.previous_stage_outputs,
@@ -4454,6 +4473,10 @@ fn canonical_cell_outputs(result: &PipelineV2Result) -> Vec<binary_exports::Cano
     outputs
 }
 
+/// The enabled binary encodings of one canonical CSV family: the Parquet bytes
+/// and the SPSS bytes, each present only when that export option is on.
+type EncodedExportFamily = (Option<Vec<u8>>, Option<Vec<u8>>);
+
 fn append_binary_exports(
     artifacts: &mut Vec<RuntimeArtifact>,
     result: &PipelineV2Result,
@@ -4468,41 +4491,70 @@ fn append_binary_exports(
             artifact.metadata.row_count = Some(row_count);
             artifacts.push(artifact);
         };
-        if options.enable_parquet_export {
-            if options.include_app_output {
-                append(
-                    "app-parquet",
-                    "application/vnd.apache.parquet",
-                    binary_exports::parquet_from_csv(&result.app_csv_bytes, false)?,
-                    result.app_row_count,
-                );
+        // Parquet and SPSS are two encodings of the same canonical CSV, so the
+        // reparse is shared: with both enabled, the 40k-row app CSV used to be
+        // parsed twice (measured 48.1 ms and 44.3 MB of `CsvTable` strings per
+        // parse; see `binary_exports::perf_measurement`). `encode_export_family`
+        // parses one CSV family once, writes every enabled encoding of it, and
+        // drops the table before the next family is parsed, so peak memory
+        // still holds at most one `CsvTable`. The writers only read the table,
+        // so both encodings are byte-identical to an independent reparse —
+        // `binary_exports::tests::shared_export_table_is_byte_identical_to_independent_reparse`
+        // pins that.
+        let encode_export_family = |csv_bytes: &[u8],
+                                    include: bool,
+                                    screen: bool|
+         -> Result<EncodedExportFamily, String> {
+            if !include || !(options.enable_parquet_export || options.enable_spss_export) {
+                return Ok((None, None));
             }
-            if options.include_screen_output {
-                append(
-                    "screen-parquet",
-                    "application/vnd.apache.parquet",
-                    binary_exports::parquet_from_csv(&result.screen_csv_bytes, true)?,
-                    result.screen_row_count,
-                );
-            }
+            let table = binary_exports::parse_csv(csv_bytes)?;
+            let parquet = options
+                .enable_parquet_export
+                .then(|| binary_exports::parquet_from_table(&table, screen))
+                .transpose()?;
+            let spss = options
+                .enable_spss_export
+                .then(|| binary_exports::sav_from_table(&table, screen))
+                .transpose()?;
+            Ok((parquet, spss))
+        };
+        let (app_parquet, app_spss) =
+            encode_export_family(&result.app_csv_bytes, options.include_app_output, false)?;
+        let (screen_parquet, screen_spss) =
+            encode_export_family(&result.screen_csv_bytes, options.include_screen_output, true)?;
+        // Unchanged artifact order: app-parquet, screen-parquet, app-spss, screen-spss.
+        if let Some(bytes) = app_parquet {
+            append(
+                "app-parquet",
+                "application/vnd.apache.parquet",
+                bytes,
+                result.app_row_count,
+            );
         }
-        if options.enable_spss_export {
-            if options.include_app_output {
-                append(
-                    "app-spss",
-                    "application/x-spss-sav",
-                    binary_exports::sav_from_csv(&result.app_csv_bytes, false)?,
-                    result.app_row_count,
-                );
-            }
-            if options.include_screen_output {
-                append(
-                    "screen-spss",
-                    "application/x-spss-sav",
-                    binary_exports::sav_from_csv(&result.screen_csv_bytes, true)?,
-                    result.screen_row_count,
-                );
-            }
+        if let Some(bytes) = screen_parquet {
+            append(
+                "screen-parquet",
+                "application/vnd.apache.parquet",
+                bytes,
+                result.screen_row_count,
+            );
+        }
+        if let Some(bytes) = app_spss {
+            append(
+                "app-spss",
+                "application/x-spss-sav",
+                bytes,
+                result.app_row_count,
+            );
+        }
+        if let Some(bytes) = screen_spss {
+            append(
+                "screen-spss",
+                "application/x-spss-sav",
+                bytes,
+                result.screen_row_count,
+            );
         }
         let lineage_record_count = result
             .row_lineage
@@ -5041,6 +5093,75 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
         assert!(!warnings
             .iter()
             .any(|warning| warning == "No timezone values found."));
+        assert!(!warnings.iter().any(|warning| warning
+            .as_str()
+            .is_some_and(|text| text.starts_with("Invalid timezone values:"))));
+    }
+
+    /// The invalid-timezone advisory is the only signal a researcher gets that
+    /// a device wrote a timezone preprocessing cannot resolve, so it has to
+    /// fire on exactly those values and stay silent on the ones it can. It
+    /// reports a distinct count and never the cell text: timezone values are
+    /// participant data and warnings are surfaced in the UI.
+    #[test]
+    fn the_invalid_timezone_advisory_names_only_timezones_chronicle_cannot_resolve() {
+        let header = "study_id,participant_id,application_label,interaction_type,app_package_name,event_timestamp,timezone\n";
+
+        let resolvable = format!(
+            "{header}\
+S,P1,Chat,Activity Resumed,pkg,2026-03-07 12:00:00,America/Chicago\n\
+S,P1,Chat,Activity Paused,pkg,2026-03-07 12:01:00,UTC\n\
+S,P1,Chat,Activity Resumed,pkg,2026-03-07 12:02:00,Australia/Eucla"
+        );
+        let resolvable: Value = serde_json::from_str(&inspect_raw_file_v1(
+            resolvable.as_bytes(),
+            "resolvable.csv",
+            resolvable.len() as f64,
+        ))
+        .unwrap();
+        assert_eq!(
+            resolvable["timezones"],
+            serde_json::json!(["America/Chicago", "Australia/Eucla", "UTC"])
+        );
+        assert!(
+            !resolvable["warnings"]
+                .as_array()
+                .expect("inspection warnings")
+                .iter()
+                .any(|warning| warning
+                    .as_str()
+                    .is_some_and(|text| text.starts_with("Invalid timezone values:"))),
+            "a file whose every timezone parses was still advised about invalid timezones"
+        );
+
+        let unresolvable = format!(
+            "{header}\
+S,P1,Chat,Activity Resumed,pkg,2026-03-07 12:00:00,America/Chicago\n\
+S,P1,Chat,Activity Paused,pkg,2026-03-07 12:01:00,Middle_Earth/Shire\n\
+S,P1,Chat,Activity Resumed,pkg,2026-03-07 12:02:00,GMT+25\n\
+S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
+        );
+        let unresolvable: Value = serde_json::from_str(&inspect_raw_file_v1(
+            unresolvable.as_bytes(),
+            "unresolvable.csv",
+            unresolvable.len() as f64,
+        ))
+        .unwrap();
+        let warnings = unresolvable["warnings"]
+            .as_array()
+            .expect("inspection warnings");
+        assert!(
+            warnings.iter().any(|warning| warning
+                == "Invalid timezone values: 2 distinct value(s) in the timezone column."),
+            "two distinct unresolvable timezones were not advised exactly once each: {warnings:?}"
+        );
+        for warning in warnings {
+            let text = warning.as_str().expect("warning text");
+            assert!(
+                !text.contains("Middle_Earth") && !text.contains("GMT+25"),
+                "a raw timezone cell leaked into a warning: {text}"
+            );
+        }
     }
 
     #[test]
@@ -5465,6 +5586,128 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
             .expect("full execution review summary");
         assert_eq!(review_bytes, full_review_bytes);
         assert_eq!(stable_artifact_generation_count(), 1);
+    }
+
+    /// A review never materializes artifacts, so it is the only command whose
+    /// product-stage projection is served from the previous run's cache when a
+    /// stage's inputs did not change. That cache is only sound if the stage
+    /// view it serves is the one a cold review of the same options reports —
+    /// the stage view is the evidence a researcher reads to see which part of
+    /// the pipeline an option touched, and a stale entry there is a false
+    /// claim about the run. Status and reason differ by construction (a warm
+    /// run reports what it reused); identity, key and output must not.
+    #[test]
+    fn a_warm_review_after_an_option_edit_projects_the_stages_a_cold_review_reports() {
+        reset_tracked_execution_count();
+        // The plain `csv()` fixture carries only unrecognized interaction
+        // types, so it produces no sessions and no duration option can move
+        // its output. This fixture has two 60 s Resumed/Paused pairs.
+        let csv = mixed_timezone_csv();
+        let support = RuntimeSupportFiles::default();
+
+        let mut first_request = request_for_workspace(&csv, '3');
+        first_request["command"] = Value::String(QUERY_REVIEW_COMMAND.into());
+        let first = execute_workspace_native(&first_request.to_string(), &csv, &support).unwrap();
+        let first: ReviewRuntimeManifest = serde_json::from_str(&first.manifest_json).unwrap();
+
+        // 90 s raises the floor above both 60 s sessions in the fixture, so the
+        // edit moves the summary as well as the keys. An edit that only moved
+        // keys would leave a stale cached stage output indistinguishable from a
+        // fresh one.
+        let mut edited_request = first_request.clone();
+        edited_request["requestId"] = Value::String("warm-review-after-edit".into());
+        edited_request["options"]["minimum_usage_duration"] = serde_json::json!(90.0);
+        let warm = execute_workspace_native(&edited_request.to_string(), &csv, &support).unwrap();
+        let warm: ReviewRuntimeManifest = serde_json::from_str(&warm.manifest_json).unwrap();
+
+        let mut cold_request = request_for_workspace(&csv, '4');
+        cold_request["command"] = Value::String(QUERY_REVIEW_COMMAND.into());
+        cold_request["requestId"] = Value::String("cold-review-oracle".into());
+        cold_request["options"]["minimum_usage_duration"] = serde_json::json!(90.0);
+        let cold = execute_workspace_native(&cold_request.to_string(), &csv, &support).unwrap();
+        let cold: ReviewRuntimeManifest = serde_json::from_str(&cold.manifest_json).unwrap();
+
+        assert!(
+            warm.node_executions
+                .iter()
+                .any(|execution| execution.status == ExecutionStatus::Cached),
+            "the warm review recomputed every stage, so it never exercised the projection cache"
+        );
+        assert_ne!(
+            warm.review_summary_digest, first.review_summary_digest,
+            "the option edit left the review summary unchanged, so a stale stage output would be invisible"
+        );
+        assert_eq!(warm.review_summary_digest, cold.review_summary_digest);
+
+        // Steps first: a step's bound-input key is the primitive fact, and a
+        // stage key is built from its members', so a step disagreement is the
+        // smaller and more exact report.
+        fn step_identity(executions: &[RuntimeStepExecution]) -> Vec<(&str, &str, &str, &str)> {
+            executions
+                .iter()
+                .map(|execution| {
+                    (
+                        execution.step_id.as_str(),
+                        execution.unit_id.as_str(),
+                        execution.input_key.as_str(),
+                        execution.output_digest.as_str(),
+                    )
+                })
+                .collect::<Vec<_>>()
+        }
+        let warm_steps = step_identity(&warm.step_executions);
+        let cold_steps = step_identity(&cold.step_executions);
+        let disagreeing_steps = warm_steps
+            .iter()
+            .zip(cold_steps.iter())
+            .filter(|(warm_step, cold_step)| warm_step != cold_step)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            warm_steps.len(),
+            cold_steps.len(),
+            "a warm review reported a different number of steps than a cold review"
+        );
+        assert!(
+            disagreeing_steps.is_empty(),
+            "a warm review reported step bindings a cold review of the same options does not: {disagreeing_steps:#?}"
+        );
+
+        type StageIdentity<'a> = (&'a str, &'a str, &'a str, Option<(&'a str, &'a str, u64)>);
+        fn stage_identity(executions: &[NodeExecution]) -> Vec<StageIdentity<'_>> {
+            executions
+                .iter()
+                .map(|execution| {
+                    (
+                        execution.node_id.as_str(),
+                        execution.capability_id.as_str(),
+                        execution.input_key.as_str(),
+                        execution.output.as_ref().map(|output| {
+                            (
+                                output.artifact_id.as_str(),
+                                output.digest.as_str(),
+                                output.size,
+                            )
+                        }),
+                    )
+                })
+                .collect::<Vec<_>>()
+        }
+        let warm_stages = stage_identity(&warm.node_executions);
+        let cold_stages = stage_identity(&cold.node_executions);
+        let disagreeing_stages = warm_stages
+            .iter()
+            .zip(cold_stages.iter())
+            .filter(|(warm_stage, cold_stage)| warm_stage != cold_stage)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            warm_stages.len(),
+            cold_stages.len(),
+            "a warm review reported a different number of product stages than a cold review"
+        );
+        assert!(
+            disagreeing_stages.is_empty(),
+            "a warm review projected product stages a cold review of the same options does not: {disagreeing_stages:#?}"
+        );
     }
 
     #[test]
@@ -6324,6 +6567,36 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
             execution.status,
             ExecutionStatus::Cached | ExecutionStatus::Bypassed
         )));
+        // Reusing a cached stage projection is a reporting shortcut, never a
+        // licence to publish less. Evidence artifacts (the ledger, journal,
+        // stage view, workspace root) legitimately differ between the two
+        // runs because they describe the run itself; every product-stage
+        // output must be republished byte for byte, or the second run of the
+        // same request hands the user a shorter download list than the first.
+        fn stage_outputs(manifest: &RuntimeManifest) -> BTreeSet<(&str, &str, u64)> {
+            manifest
+                .artifacts
+                .iter()
+                .filter(|artifact| artifact.kind.starts_with("node-output:"))
+                .map(|artifact| {
+                    (
+                        artifact.kind.as_str(),
+                        artifact.digest.as_str(),
+                        artifact.size,
+                    )
+                })
+                .collect::<BTreeSet<_>>()
+        }
+        assert_eq!(
+            stage_outputs(&first).len(),
+            first.node_executions.len(),
+            "the cold run did not publish one output artifact per product stage"
+        );
+        assert_eq!(
+            stage_outputs(&warm),
+            stage_outputs(&first),
+            "a warm repeat of the same request stopped publishing product-stage outputs"
+        );
         let mut warm_ledger = None;
         let mut warm_journal = None;
         for index in 0..warm_handle.artifact_count() {
@@ -6614,6 +6887,44 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
         INCREMENTAL_RUNTIME_STATES.with(|states| {
             assert_eq!(states.borrow().states.len(), MAX_INCREMENTAL_RUNTIME_STATES);
         });
+        // Pinned because an exclusion depends on it: at a capacity of one,
+        // `state_for` removes the revisited id from the LRU list before the
+        // admission check, so the list is empty and `pop_front` evicts nothing
+        // however that check is written. Raising the capacity makes the
+        // admission check load-bearing again — see the state-cache entry in
+        // .semantic-federation/quality/runtime-mutation-exclusions.txt.
+        assert_eq!(MAX_INCREMENTAL_RUNTIME_STATES, 1);
+    }
+
+    /// A warm review resumes from Salsa state already in this worker instead
+    /// of reparsing the input. Both halves of that claim have to hold: the
+    /// workspace must be at the root the request expects, and the engine must
+    /// already have verified *this* input. Accepting either one alone would
+    /// resume a review against a digest the engine never parsed.
+    #[test]
+    fn a_warm_review_needs_the_workspace_root_and_the_verified_input_together() {
+        let mut cache = IncrementalRuntimeStateCache::default();
+        let workspace = "warm-review-workspace";
+        let root = format!("sha256:{}", "a".repeat(64));
+        let input = format!("sha256:{}", "b".repeat(64));
+        cache.state_for(workspace).last_workspace_root = Some(root.clone());
+
+        assert!(
+            !cache.has_warm_review_input(workspace, Some(root.as_str()), &input),
+            "a matching workspace root alone claimed a warm review input the engine never verified"
+        );
+        assert!(
+            !cache.has_warm_review_input(workspace, Some("sha256:other"), &input),
+            "a workspace at a different root claimed a warm review input"
+        );
+        assert!(
+            !cache.has_warm_review_input(workspace, None, &input),
+            "a request carrying no workspace root claimed a warm review input"
+        );
+        assert!(
+            !cache.has_warm_review_input("unknown-workspace", Some(root.as_str()), &input),
+            "a workspace with no state at all claimed a warm review input"
+        );
     }
 
     #[test]
@@ -7640,30 +7951,249 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
         assert!(!should_report_salsa_memory(true, true, &[recomputed]));
 
         assert_eq!(
-            product_stage_status(true, false, false, false, false, false),
+            product_stage_status(true, false, false, false, false),
             ExecutionStatus::Error
         );
         assert_eq!(
-            product_stage_status(false, true, false, false, false, false),
+            product_stage_status(false, true, false, false, false),
             ExecutionStatus::Bypassed
         );
         assert_eq!(
-            product_stage_status(false, false, true, false, false, false),
+            product_stage_status(false, false, true, false, false),
             ExecutionStatus::Skipped
         );
-        for changed in [
-            (true, false, false),
-            (false, true, false),
-            (false, false, true),
-        ] {
+        for changed in [(true, false), (false, true)] {
             assert_eq!(
-                product_stage_status(false, false, false, changed.0, changed.1, changed.2),
+                product_stage_status(false, false, false, changed.0, changed.1),
                 ExecutionStatus::Recomputed
             );
         }
         assert_eq!(
-            product_stage_status(false, false, false, false, false, false),
+            product_stage_status(false, false, false, false, false),
             ExecutionStatus::Cached
+        );
+    }
+
+    /// A product stage may report `recomputed` only when a member query
+    /// actually executed or the run deactivated the group. Nothing else — no
+    /// projection key move, no artifact rebuild — may reach that status, so a
+    /// stage badge can never contradict the manifest's own `stepExecutions`.
+    #[test]
+    fn no_product_stage_reports_recomputed_without_an_executed_member() {
+        for bits in 0..(1_u8 << 5) {
+            let has_error = bits & 1 != 0;
+            let bypassed = bits & 2 != 0;
+            let has_skipped_step = bits & 4 != 0;
+            let group_deactivated = bits & 8 != 0;
+            let has_executed_member = bits & 16 != 0;
+            let status = product_stage_status(
+                has_error,
+                bypassed,
+                has_skipped_step,
+                group_deactivated,
+                has_executed_member,
+            );
+            if status == ExecutionStatus::Recomputed {
+                assert!(
+                    group_deactivated || has_executed_member,
+                    "recomputed without an executed member or a deactivated group: {bits:05b}"
+                );
+            }
+            // The converse, which the original assertion left open: `cached`
+            // publishes the reason `all-active-queries-reused`, so it may not
+            // be reachable from an input set in which a member query ran. Only
+            // `error`, `bypassed` and `skipped` -- each of which withdraws the
+            // reuse claim rather than making one -- outrank an execution.
+            if status == ExecutionStatus::Cached {
+                assert!(
+                    !has_executed_member,
+                    "cached claims every active query was reused, but a member \
+                     query executed: {bits:05b}"
+                );
+            }
+        }
+    }
+
+    /// The end-to-end pin for the same invariant: drive the real projection
+    /// with a previous run whose stage keys all differ, every member query
+    /// reported cached by Salsa, and no deactivated group. Every stage must
+    /// come back `cached`, because a moved projection key is not an execution
+    /// event. A support artifact rewritten with CRLF line endings is exactly
+    /// this shape — the raw digest inside `active_source_roles` moves, the
+    /// parsed rows do not, and Salsa runs nothing.
+    #[test]
+    fn a_moved_projection_key_alone_never_badges_a_stage_recomputed() {
+        let csv = csv();
+        let (_request, result, semantic_options, _exact_options) =
+            direct_pipeline_result(&csv, false);
+        let plan = embedded_plan();
+        // Salsa reported every member query cached: nothing physically ran.
+        let step_executions = PIPELINE_STEPS
+            .iter()
+            .map(|definition| RuntimeStepExecution {
+                step_id: definition.id.to_string(),
+                unit_id: definition.group.to_string(),
+                status: ExecutionStatus::Cached,
+                input_key: format!("sha256:{}", "1".repeat(64)),
+                output_digest: format!("sha256:{}", "2".repeat(64)),
+                reason_id: format!("sha256:{}", "3".repeat(64)),
+            })
+            .collect::<Vec<_>>();
+        // Every stage's remembered key differs from the one this run builds,
+        // so `projection_changed` is true for all of them.
+        let mut previous_stage_inputs = plan
+            .nodes
+            .iter()
+            .map(|node| (node.node_id.clone(), format!("sha256:{}", "9".repeat(64))))
+            .collect::<BTreeMap<_, _>>();
+        let mut previous_stage_outputs = BTreeMap::new();
+        let (executions, _artifacts) = project_product_stages(
+            &plan,
+            &semantic_options,
+            &result,
+            &step_executions,
+            &BTreeSet::new(),
+            &BTreeSet::new(),
+            &mut previous_stage_inputs,
+            &mut previous_stage_outputs,
+            true,
+        )
+        .expect("projection over cached members");
+        assert_eq!(executions.len(), plan.nodes.len());
+        let recomputed = executions
+            .iter()
+            .filter(|execution| execution.status == ExecutionStatus::Recomputed)
+            .map(|execution| execution.node_id.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            recomputed,
+            Vec::<&str>::new(),
+            "a moved projection key alone reported physical recomputation"
+        );
+        // The projection still rebuilt the stage artifacts, and the moved key
+        // is still published — only the execution claim is withheld.
+        assert!(executions
+            .iter()
+            .all(|execution| execution.output.is_some()));
+        assert!(plan.nodes.iter().all(|node| previous_stage_inputs
+            .get(&node.node_id)
+            .is_some_and(|key| key != &format!("sha256:{}", "9".repeat(64)))));
+
+        // One member query that actually executed is what makes its stage
+        // recomputed, and only that stage.
+        let executed = &PIPELINE_STEPS[0];
+        let mut with_execution = step_executions.clone();
+        with_execution[0].status = ExecutionStatus::Recomputed;
+        let executed_steps = BTreeSet::from([executed.id]);
+        let mut previous_stage_inputs = plan
+            .nodes
+            .iter()
+            .map(|node| (node.node_id.clone(), format!("sha256:{}", "9".repeat(64))))
+            .collect::<BTreeMap<_, _>>();
+        let mut previous_stage_outputs = BTreeMap::new();
+        let (executions, _artifacts) = project_product_stages(
+            &plan,
+            &semantic_options,
+            &result,
+            &with_execution,
+            &executed_steps,
+            &BTreeSet::new(),
+            &mut previous_stage_inputs,
+            &mut previous_stage_outputs,
+            true,
+        )
+        .expect("projection with one executed member");
+        let recomputed = executions
+            .iter()
+            .filter(|execution| execution.status == ExecutionStatus::Recomputed)
+            .map(|execution| execution.node_id.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(recomputed, vec![executed.group]);
+    }
+
+    /// The step ladder in `build_runtime_step_executions` resolves `Bypassed`
+    /// ahead of `Recomputed`, so a step that is not applicable is badged
+    /// `Bypassed` even when Salsa ran its query. Deriving the stage badge from
+    /// the member badges therefore loses that execution, and the stage answers
+    /// `Cached` -- published as `all-active-queries-reused` -- for a run in
+    /// which a query ran.
+    ///
+    /// `day_coverage` is where the two applicability conditions genuinely
+    /// differ (`step_contract.rs`): the group is applicable when
+    /// `add_no_activity_placeholder_days` alone is on, while its member
+    /// `build_coverage_table` additionally requires `enable_day_coverage`. So
+    /// the stage is not bypassed, no member is badged `Recomputed`, and the
+    /// contradiction is reachable rather than theoretical.
+    #[test]
+    fn a_bypassed_member_whose_query_ran_still_recomputes_its_stage() {
+        let csv = csv();
+        let (_request, result, mut semantic_options, _exact_options) =
+            direct_pipeline_result(&csv, false);
+        semantic_options["process_app_usage"] = Value::Bool(true);
+        semantic_options["add_no_activity_placeholder_days"] = Value::Bool(true);
+        semantic_options["enable_day_coverage"] = Value::Bool(false);
+        let plan = embedded_plan();
+        let node = plan
+            .nodes
+            .iter()
+            .find(|node| node.node_id == "day_coverage")
+            .expect("day_coverage stage");
+        assert!(
+            node.applicability.evaluate(&semantic_options),
+            "the stage must stay applicable, or `bypassed` would outrank the \
+             execution for an unrelated reason"
+        );
+
+        // Salsa ran exactly one query in this stage, and it is the member the
+        // options make inapplicable.
+        let executed_id = "build_coverage_table";
+        let step_executions = PIPELINE_STEPS
+            .iter()
+            .map(|definition| RuntimeStepExecution {
+                step_id: definition.id.to_string(),
+                unit_id: definition.group.to_string(),
+                status: if definition.id == executed_id {
+                    ExecutionStatus::Bypassed
+                } else {
+                    ExecutionStatus::Cached
+                },
+                input_key: format!("sha256:{}", "1".repeat(64)),
+                output_digest: format!("sha256:{}", "2".repeat(64)),
+                reason_id: format!("sha256:{}", "3".repeat(64)),
+            })
+            .collect::<Vec<_>>();
+        assert!(
+            !step_executions
+                .iter()
+                .any(|execution| execution.status == ExecutionStatus::Recomputed),
+            "no member is badged recomputed, which is exactly why reading the \
+             badges back reported this stage cached"
+        );
+
+        let mut previous_stage_inputs = BTreeMap::new();
+        let mut previous_stage_outputs = BTreeMap::new();
+        let (executions, _artifacts) = project_product_stages(
+            &plan,
+            &semantic_options,
+            &result,
+            &step_executions,
+            &BTreeSet::from([executed_id]),
+            &BTreeSet::new(),
+            &mut previous_stage_inputs,
+            &mut previous_stage_outputs,
+            true,
+        )
+        .expect("projection with one executed but inapplicable member");
+        let status = executions
+            .iter()
+            .find(|execution| execution.node_id == "day_coverage")
+            .map(|execution| execution.status)
+            .expect("day_coverage stage execution");
+        assert_eq!(
+            status,
+            ExecutionStatus::Recomputed,
+            "a stage whose member query ran may not claim every active query \
+             was reused"
         );
     }
 
@@ -7870,6 +8400,85 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
                 && edge["relation"] == "publishes"
                 && edge["targetId"] == *credited_app_digest
         }));
+    }
+
+    /// `encode_export_family`'s guard, `!include || !(parquet || spss)`, decides
+    /// two independent things: whether this CSV family is published at all, and
+    /// whether any binary encoding of it was asked for. A run with both families
+    /// included and both formats on separates neither — it enters the body
+    /// however the operators are read, which is why
+    /// `every_optional_output_family_is_emitted_by_the_rust_authority` above
+    /// leaves both operators free. Sweep the cases that do separate them.
+    #[test]
+    fn export_encoding_is_gated_on_the_family_and_on_at_least_one_format() {
+        let csv = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            "Study,P01,Target Child,Screen,Screen Interactive,android,2026-03-07 09:59:00,America/Chicago\n",
+            "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago\n",
+            "Study,P01,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 10:01:00,America/Chicago\n",
+            "Study,P01,Target Child,Screen,Screen Non-interactive,android,2026-03-07 10:02:00,America/Chicago\n"
+        )
+        .as_bytes()
+        .to_vec();
+        let export_kinds =
+            |marker: char, include_app: bool, include_screen: bool, parquet: bool, spss: bool| {
+                let mut request_value = request_for_workspace(&csv, marker);
+                request_value["options"]["usage_session_mode"] =
+                    Value::String("app_and_screen_usage".into());
+                request_value["options"]["include_app_output"] = Value::Bool(include_app);
+                request_value["options"]["include_screen_output"] = Value::Bool(include_screen);
+                request_value["options"]["enable_parquet_export"] = Value::Bool(parquet);
+                request_value["options"]["enable_spss_export"] = Value::Bool(spss);
+                let handle = execute_workspace_native(
+                    &request_value.to_string(),
+                    &csv,
+                    &RuntimeSupportFiles::default(),
+                )
+                .unwrap();
+                (0..handle.artifact_count())
+                    .map(|index| {
+                        let metadata: RuntimeArtifactMetadata =
+                            serde_json::from_str(&handle.artifact_metadata_json(index).unwrap())
+                                .unwrap();
+                        metadata.kind
+                    })
+                    .filter(|kind| kind.ends_with("-parquet") || kind.ends_with("-spss"))
+                    .collect::<BTreeSet<_>>()
+            };
+
+        // One format on is enough to enter the body. Reading the inner `||` as
+        // `&&` makes `!(true && false)` true and skips every export.
+        assert_eq!(
+            export_kinds('0', true, true, true, false),
+            BTreeSet::from(["app-parquet".to_string(), "screen-parquet".to_string()]),
+            "parquet alone must still be encoded"
+        );
+        assert_eq!(
+            export_kinds('1', true, true, false, true),
+            BTreeSet::from(["app-spss".to_string(), "screen-spss".to_string()]),
+            "spss alone must still be encoded"
+        );
+
+        // An excluded family is never encoded, whatever the formats say.
+        // Reading the outer `||` as `&&` makes the guard false for the excluded
+        // family, which then gets parsed and published anyway.
+        assert_eq!(
+            export_kinds('5', false, true, true, true),
+            BTreeSet::from(["screen-parquet".to_string(), "screen-spss".to_string()]),
+            "an excluded app family must not be encoded"
+        );
+        assert_eq!(
+            export_kinds('6', true, false, true, true),
+            BTreeSet::from(["app-parquet".to_string(), "app-spss".to_string()]),
+            "an excluded screen family must not be encoded"
+        );
+
+        // Neither format on: nothing is encoded and no CSV is reparsed.
+        assert_eq!(
+            export_kinds('8', true, true, false, false),
+            BTreeSet::new(),
+            "no export format means no binary export"
+        );
     }
 
     #[test]
