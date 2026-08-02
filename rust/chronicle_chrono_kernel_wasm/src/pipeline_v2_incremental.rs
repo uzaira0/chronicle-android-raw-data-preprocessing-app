@@ -1906,6 +1906,7 @@ mod tracked {
         app_policy_checkpoint: [u8; 32],
     }
 
+    #[derive(Debug)]
     struct VerifiedReviewBaseHeader {
         input_key: [u8; 32],
         app_policy_checkpoint: [u8; 32],
@@ -2912,6 +2913,7 @@ mod tracked {
             .expect("32-byte reconstruction-base input key"))
     }
 
+    #[derive(Debug)]
     struct VerifiedReconstructionBaseHeader {
         input_key: [u8; 32],
         payload_digest: [u8; 32],
@@ -9218,6 +9220,102 @@ mod tracked {
             options.enable_day_coverage = true;
             options.enable_compliance_scoring = true;
             options
+        }
+
+        /// A persisted resume base is read back from browser storage, so its
+        /// header is the only thing standing between a corrupt or hostile
+        /// object and the decoder. The header size the runtime is told to
+        /// reserve has to be the size the parser skips, the magic and the
+        /// payload digest have to be checked, and the declared payload size is
+        /// refused only once it is past the cap - a base declaring exactly the
+        /// cap is still a base the decoder must accept.
+        #[test]
+        fn a_persisted_base_header_is_checked_against_its_own_declared_payload() {
+            let review = {
+                let mut bytes = vec![0_u8; super::super::review_base_header_bytes()];
+                bytes[..REVIEW_BASE_MAGIC.len()].copy_from_slice(REVIEW_BASE_MAGIC);
+                let digest = *blake3::hash(&[]).as_bytes();
+                let size_offset = REVIEW_BASE_MAGIC.len();
+                let digest_offset = size_offset + 4;
+                bytes[digest_offset..digest_offset + 32].copy_from_slice(&digest);
+                let declare = |bytes: &mut Vec<u8>, value: u32| {
+                    bytes[size_offset..digest_offset].copy_from_slice(&value.to_le_bytes());
+                };
+                declare(&mut bytes, MAX_REVIEW_BASE_UNCOMPRESSED_BYTES as u32);
+                let header = verify_review_base_payload(&bytes)
+                    .expect("a review base declaring exactly the cap");
+                assert_eq!(header.declared_bytes, MAX_REVIEW_BASE_UNCOMPRESSED_BYTES);
+                assert_eq!(header.payload_digest, digest);
+
+                declare(&mut bytes, MAX_REVIEW_BASE_UNCOMPRESSED_BYTES as u32 + 1);
+                let over = verify_review_base_payload(&bytes)
+                    .expect_err("a review base past the cap");
+                assert!(over.contains("exceeding"), "{over}");
+
+                declare(&mut bytes, 0);
+                bytes
+            };
+            let truncated = verify_review_base_payload(&review[..review.len() - 1])
+                .expect_err("a truncated review base");
+            assert!(truncated.contains("truncated"), "{truncated}");
+            let mut wrong_magic = review.clone();
+            wrong_magic[0] = b'X';
+            let invalid = verify_review_base_payload(&wrong_magic)
+                .expect_err("a review base with foreign magic");
+            assert!(invalid.contains("invalid header"), "{invalid}");
+            let mut wrong_digest = review.clone();
+            wrong_digest[REVIEW_BASE_MAGIC.len() + 4] ^= 0xff;
+            let mismatch = verify_review_base_payload(&wrong_digest)
+                .expect_err("a review base whose payload does not match its digest");
+            assert!(mismatch.contains("digest mismatch"), "{mismatch}");
+
+            let reconstruction = {
+                let mut bytes = vec![0_u8; super::super::reconstruction_base_header_bytes()];
+                bytes[..RECONSTRUCTION_BASE_MAGIC.len()]
+                    .copy_from_slice(RECONSTRUCTION_BASE_MAGIC);
+                let digest = *blake3::hash(&[]).as_bytes();
+                let size_offset = RECONSTRUCTION_BASE_MAGIC.len();
+                let digest_offset = size_offset + 4;
+                bytes[digest_offset..digest_offset + 32].copy_from_slice(&digest);
+                let declare = |bytes: &mut Vec<u8>, value: u32| {
+                    bytes[size_offset..digest_offset].copy_from_slice(&value.to_le_bytes());
+                };
+                declare(
+                    &mut bytes,
+                    MAX_RECONSTRUCTION_BASE_UNCOMPRESSED_BYTES as u32,
+                );
+                let header = verify_reconstruction_base_payload(&bytes)
+                    .expect("a reconstruction base declaring exactly the cap");
+                assert_eq!(
+                    header.declared_bytes,
+                    MAX_RECONSTRUCTION_BASE_UNCOMPRESSED_BYTES
+                );
+                assert_eq!(header.payload_digest, digest);
+
+                declare(
+                    &mut bytes,
+                    MAX_RECONSTRUCTION_BASE_UNCOMPRESSED_BYTES as u32 + 1,
+                );
+                let over = verify_reconstruction_base_payload(&bytes)
+                    .expect_err("a reconstruction base past the cap");
+                assert!(over.contains("exceeding"), "{over}");
+
+                declare(&mut bytes, 0);
+                bytes
+            };
+            let truncated = verify_reconstruction_base_payload(&reconstruction[..reconstruction.len() - 1])
+                .expect_err("a truncated reconstruction base");
+            assert!(truncated.contains("truncated"), "{truncated}");
+            let mut wrong_magic = reconstruction.clone();
+            wrong_magic[0] = b'X';
+            let invalid = verify_reconstruction_base_payload(&wrong_magic)
+                .expect_err("a reconstruction base with foreign magic");
+            assert!(invalid.contains("invalid header"), "{invalid}");
+            let mut wrong_digest = reconstruction.clone();
+            wrong_digest[RECONSTRUCTION_BASE_MAGIC.len() + 4] ^= 0xff;
+            let mismatch = verify_reconstruction_base_payload(&wrong_digest)
+                .expect_err("a reconstruction base whose payload does not match its digest");
+            assert!(mismatch.contains("digest mismatch"), "{mismatch}");
         }
 
         #[test]
