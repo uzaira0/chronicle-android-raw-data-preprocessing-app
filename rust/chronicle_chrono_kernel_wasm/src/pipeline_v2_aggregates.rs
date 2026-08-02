@@ -225,15 +225,48 @@ fn to_csv(headers: &[&str], rows: Vec<Vec<String>>) -> Vec<u8> {
     output
 }
 
-fn summary_csv(
-    summaries: &[SummaryEntry],
-    study_name: &str,
-    period_column: &str,
-    weekly: bool,
-    shape: &str,
-) -> Vec<u8> {
+const TOP_APPS_HEADERS: &[&str] = &[
+    "study_id",
+    "study_name",
+    "participant_id",
+    "date",
+    "rank",
+    "app_package_name",
+    "application_label",
+    "foreground_minutes",
+    "background_minutes",
+    "total_minutes",
+    "session_count",
+];
+
+const CATEGORY_HEADERS: &[&str] = &[
+    "study_id",
+    "study_name",
+    "participant_id",
+    "date",
+    "broad_app_category",
+    "foreground_minutes",
+    "background_minutes",
+    "total_minutes",
+    "session_count",
+];
+
+const CO_USAGE_HEADERS: &[&str] = &[
+    "study_id",
+    "study_name",
+    "participant_id",
+    "app_a",
+    "app_b",
+    "co_usage_count",
+    "total_overlap_minutes",
+];
+
+/// The exact `summary_csv` header row. `summary_csv` writes this and the
+/// field-level step contract binds output cells against it, so the emitted
+/// columns and the declared columns cannot drift apart.
+fn summary_headers(period_column: &'static str, weekly: bool, shape: &str) -> Vec<&'static str> {
     if shape == "long" {
-        let headers = [
+        return vec![
             "study_id",
             "study_name",
             "participant_id",
@@ -242,6 +275,41 @@ fn summary_csv(
             "metric",
             "value",
         ];
+    }
+    let mut headers = vec!["study_id", "study_name", "participant_id", period_column];
+    if weekly {
+        headers.push("week_start_date");
+    } else {
+        headers.extend_from_slice(&["day", "weekdayMF", "weekdayMTh", "weekdaySuTh"]);
+    }
+    headers.push("timezone");
+    headers.extend_from_slice(METRICS);
+    headers.extend_from_slice(&["first_use", "last_use"]);
+    headers
+}
+
+/// Every column each aggregate CSV can carry, for the exact `aggregate_shape`.
+/// `output_cell_bindings` in `step_contract.rs` is checked against this list.
+pub fn declared_aggregate_output_columns(kind: &str, shape: &str) -> Vec<&'static str> {
+    match kind {
+        "aggregate-daily-summary-csv" => summary_headers("date", false, shape),
+        "aggregate-weekly-summary-csv" => summary_headers("iso_year_week", true, shape),
+        "aggregate-top-apps-csv" => TOP_APPS_HEADERS.to_vec(),
+        "aggregate-category-time-budget-csv" => CATEGORY_HEADERS.to_vec(),
+        "aggregate-app-co-usage-csv" => CO_USAGE_HEADERS.to_vec(),
+        _ => Vec::new(),
+    }
+}
+
+fn summary_csv(
+    summaries: &[SummaryEntry],
+    study_name: &str,
+    period_column: &'static str,
+    weekly: bool,
+    shape: &str,
+) -> Vec<u8> {
+    let headers = summary_headers(period_column, weekly, shape);
+    if shape == "long" {
         let rows = summaries
             .iter()
             .flat_map(|entry| {
@@ -260,16 +328,6 @@ fn summary_csv(
             .collect();
         return to_csv(&headers, rows);
     }
-    let extra_headers: &[&str] = if weekly {
-        &["week_start_date"]
-    } else {
-        &["day", "weekdayMF", "weekdayMTh", "weekdaySuTh"]
-    };
-    let mut headers = vec!["study_id", "study_name", "participant_id", period_column];
-    headers.extend_from_slice(extra_headers);
-    headers.push("timezone");
-    headers.extend_from_slice(METRICS);
-    headers.extend_from_slice(&["first_use", "last_use"]);
     let rows = summaries
         .iter()
         .map(|entry| {
@@ -384,22 +442,7 @@ fn top_apps_csv(app_rows: &[Row], study_name: &str) -> (Vec<u8>, u32) {
     }
     let count = records.len() as u32;
     (
-        to_csv(
-            &[
-                "study_id",
-                "study_name",
-                "participant_id",
-                "date",
-                "rank",
-                "app_package_name",
-                "application_label",
-                "foreground_minutes",
-                "background_minutes",
-                "total_minutes",
-                "session_count",
-            ],
-            records,
-        ),
+        to_csv(TOP_APPS_HEADERS, records),
         count,
     )
 }
@@ -453,20 +496,7 @@ fn category_csv(app_rows: &[Row], study_name: &str) -> (Vec<u8>, u32) {
         .collect();
     let count = records.len() as u32;
     (
-        to_csv(
-            &[
-                "study_id",
-                "study_name",
-                "participant_id",
-                "date",
-                "broad_app_category",
-                "foreground_minutes",
-                "background_minutes",
-                "total_minutes",
-                "session_count",
-            ],
-            records,
-        ),
+        to_csv(CATEGORY_HEADERS, records),
         count,
     )
 }
@@ -527,18 +557,7 @@ fn co_usage_csv(app_rows: &[Row], study_name: &str) -> (Vec<u8>, u32) {
     }
     let count = records.len() as u32;
     (
-        to_csv(
-            &[
-                "study_id",
-                "study_name",
-                "participant_id",
-                "app_a",
-                "app_b",
-                "co_usage_count",
-                "total_overlap_minutes",
-            ],
-            records,
-        ),
+        to_csv(CO_USAGE_HEADERS, records),
         count,
     )
 }
