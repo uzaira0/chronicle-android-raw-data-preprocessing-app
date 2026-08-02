@@ -12724,6 +12724,235 @@ mod tracked {
             }
         }
 
+        /// Salsa backdates: when a re-executed query produces a value equal to
+        /// the one it produced last revision, its dependents keep their cached
+        /// results. That is the entire job of the review cone's `PartialEq`
+        /// implementations, and an equality that reports "changed" for an equal
+        /// value is invisible to any result comparison — the value it forces to
+        /// be recomputed is correct. It shows up only as work the engine did
+        /// not need to do.
+        ///
+        /// Every option moved below belongs to the full-output cone: the
+        /// aggregate tables, day coverage, compliance scoring, the
+        /// visualisation payload, the optional output column and the two output
+        /// toggles. A review run produces one artifact, the summary, and none
+        /// of them can reach it — so moving one has to leave the whole review
+        /// cone cached, not merely produce the same bytes again.
+        #[test]
+        fn a_review_holds_its_cone_across_options_its_summary_cannot_depend_on() {
+            let study_dates =
+                b"participant_id,start_date,end_date\nP01,2026-03-07,2026-03-07\n".to_vec();
+            let device_sharing = b"participant_id,sharing_status\nP01,Shared\n".to_vec();
+            let survey_attribution =
+                b"participant_id,event_timestamp,users\nP01,2026-03-07 10:00:00,Target Child\n"
+                    .to_vec();
+            let enrolled_devices = b"participant_id,device_count\nP01,1\n".to_vec();
+            let filter = b"app_package_name\ncom.example.chat\n".to_vec();
+            let apps_forcing = b"package_name\ncom.example.chat\n".to_vec();
+            let background_apps = b"app_package_name\ncom.example.chat\n".to_vec();
+            let codebook = b"app_package_name,application_label,bcm_play_store_genreId,bcm_play_store_broad_app_category,dataset\ncom.example.chat,Chat,Social,Communication,test\n".to_vec();
+            let support = PipelineV2SupportFiles {
+                filter_csv: &filter,
+                apps_forcing_csv: &apps_forcing,
+                background_apps_csv: &background_apps,
+                codebook_csv: &codebook,
+                study_dates_csv: &study_dates,
+                device_sharing_csv: &device_sharing,
+                survey_attribution_csv: &survey_attribution,
+                enrolled_devices_csv: &enrolled_devices,
+            };
+
+            // (label, edit, the steps the edit's own query may recompute)
+            type Edit = (
+                &'static str,
+                Box<dyn Fn(&mut PipelineV2Options)>,
+                &'static [&'static str],
+            );
+            let edits: Vec<Edit> = vec![
+                (
+                    "enable_aggregates",
+                    Box::new(|options: &mut PipelineV2Options| options.enable_aggregates = false),
+                    &[],
+                ),
+                (
+                    "aggregate_shape",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.aggregate_shape = "long".into()
+                    }),
+                    &[],
+                ),
+                (
+                    "enable_day_coverage",
+                    Box::new(|options: &mut PipelineV2Options| options.enable_day_coverage = false),
+                    &[],
+                ),
+                (
+                    "enable_compliance_scoring",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.enable_compliance_scoring = false
+                    }),
+                    &[],
+                ),
+                (
+                    "compliance_threshold_percent",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.compliance_threshold_percent = 20.0
+                    }),
+                    &[],
+                ),
+                (
+                    "materialize_visualization_data",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.materialize_visualization_data = false
+                    }),
+                    &[],
+                ),
+                (
+                    "include_category_column",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.include_category_column = false
+                    }),
+                    &[],
+                ),
+                (
+                    "include_app_output",
+                    Box::new(|options: &mut PipelineV2Options| options.include_app_output = false),
+                    &[],
+                ),
+                (
+                    "include_screen_output",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.include_screen_output = false
+                    }),
+                    &[],
+                ),
+                // These four the review cone does read. This data makes every
+                // move inert: no session comes near a thirty-second floor or a
+                // multi-hour cap, and the engagement and threshold lists only
+                // label rows the summary never reports. A cone step that
+                // re-runs here produced a value equal to the one it already
+                // had and failed to say so.
+                (
+                    "minimum_usage_duration",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.minimum_usage_duration = 31.0
+                    }),
+                    &["relabel_usage_with_floor", "junk_downstream_mark", "sort_episodes"],
+                ),
+                (
+                    "long_duration_threshold_ns",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.long_duration_threshold_ns = 13 * 3_600_000_000_000
+                    }),
+                    &["run_matcher"],
+                ),
+                (
+                    "custom_app_engagement_duration",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.custom_app_engagement_duration = 900.0
+                    }),
+                    &[
+                        "codebook_join",
+                        "derive_broad_category",
+                        "collapse_genre",
+                        "engagement_walk",
+                        "flag_and_retain",
+                        "blank_junk_timing",
+                        "drop_selected_types",
+                        "resolve_participant_windows",
+                        "filter_rows_to_window",
+                    ],
+                ),
+                (
+                    "long_usage_duration_thresholds",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.long_usage_duration_thresholds = vec![7.0, 9.0]
+                    }),
+                    &[
+                        "codebook_join",
+                        "derive_broad_category",
+                        "collapse_genre",
+                        "engagement_walk",
+                        "flag_and_retain",
+                        "blank_junk_timing",
+                        "drop_selected_types",
+                        "resolve_participant_windows",
+                        "filter_rows_to_window",
+                    ],
+                ),
+            ];
+
+            // `assemble_result` reads the option record itself to decide which
+            // artifacts to hand back, so it re-runs for any option at all. It
+            // is the one step that legitimately does; everything upstream of it
+            // is the cone this test is about.
+            fn cone_work(steps: &[String]) -> Vec<&str> {
+                steps
+                    .iter()
+                    .map(String::as_str)
+                    .filter(|step| *step != "assemble_result")
+                    .collect()
+            }
+
+            for concurrent in [false, true] {
+                let mut baseline = late_pipeline_options();
+                baseline.use_filter_file = true;
+                baseline.use_apps_forcing_screen_open = true;
+                baseline.use_background_apps_file = true;
+                baseline.use_app_codebook = true;
+                baseline.include_app_output = true;
+                baseline.include_screen_output = true;
+                baseline.include_category_column = true;
+                baseline.enable_aggregates = true;
+                baseline.model_concurrent_usage = concurrent;
+                baseline.minimum_usage_duration = 30.0;
+                let baseline = baseline;
+
+                let mut engine = TrackedEngine::default();
+                let cold = engine
+                    .execute(&csv(), &baseline, support, false)
+                    .expect("cold review");
+                let summary = cold.result.review_summary_json_bytes.clone();
+                assert!(
+                    !cold.executed_steps.is_empty(),
+                    "concurrent={concurrent}: the cold review executed nothing"
+                );
+
+                for (label, edit, recomputes) in &edits {
+                    let mut changed = baseline.clone();
+                    edit(&mut changed);
+                    let warm = engine
+                        .execute(&csv(), &changed, support, false)
+                        .expect("warm review");
+                    assert_eq!(
+                        warm.result.review_summary_json_bytes, summary,
+                        "{label} concurrent={concurrent}: a full-output option changed the \
+                         review summary, so it is not review-irrelevant after all"
+                    );
+                    assert_eq!(
+                        cone_work(&warm.executed_steps),
+                        recomputes.to_vec(),
+                        "{label} concurrent={concurrent}: moving the option recomputed a \
+                         different part of the review cone than the option itself reaches"
+                    );
+
+                    let reverted = engine
+                        .execute(&csv(), &baseline, support, false)
+                        .expect("reverted review");
+                    assert_eq!(reverted.result.review_summary_json_bytes, summary);
+                    // Reverting can recompute less than the edit did, because
+                    // the baseline values are still cached from the revision
+                    // before the edit. It must never recompute more.
+                    let reverted_work = cone_work(&reverted.executed_steps);
+                    assert!(
+                        reverted_work.iter().all(|step| recomputes.contains(step)),
+                        "{label} concurrent={concurrent}: reverting the option recomputed \
+                         {reverted_work:?}. which reaches past {recomputes:?}"
+                    );
+                }
+            }
+        }
+
         /// The same two properties for edits to the inputs rather than the
         /// options: a changed raw export and a changed support file.
         #[test]
