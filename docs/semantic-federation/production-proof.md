@@ -337,12 +337,12 @@ contributor sets are conservative, and semantic dependencies are
 declared-transitive.
 
 `source-result-influence-arrow` makes those precision boundaries executable.
-Its protocol is now `chronicle-source-result-influence/v2` and it contains 986
+Its protocol is now `chronicle-source-result-influence/v3` and it contains 986
 normalized witness rows in 61,778 bytes on the same fixture. The first
 Cartesian prototype (measured on the development fixture during design) emitted
 240,540 rows and 13,759,858 bytes; normalization reduces the bridge by two
 orders of magnitude while preserving lossless joins into the source-coordinate,
-result-cell, and row-lineage tables. Every row carries one of five precision
+result-cell, and row-lineage tables. Every row carries one of six precision
 classes, and the two new coordinates `source_field` and
 `target_output_column` are populated exactly where the class justifies them:
 
@@ -355,9 +355,18 @@ classes, and the two new coordinates `source_field` and
   `screen-csv`.
 - `conservative-row-lineage` — a contiguous raw source-row range
   (`source_record_index`..`source_record_last`) contributed to an output row.
-- `conservative-search-window` — a lineage search scanned a bounded raw record
-  window while producing an output row; every record in the window is a
-  possible contributor and none is claimed as the contributor.
+- `conservative-search-window` — the kernel scanned a bounded index range while
+  selecting a stop event or establishing that none qualified, so events in that
+  range decided the row without appearing in its contributing range. Every
+  event in the window is a possible contributor and none is claimed as the
+  contributor. The range is stated in the pipeline-internal ordering named by
+  `source_index_space` — `pipeline-event-order` counts normalized events after
+  `drop_empty_timestamp`, sorting and dedupe; `participant-source-event-order`
+  is the 0-based per-participant screen-event order — and never in raw data
+  rows. These rows carry `source_key_kind` = `lineage-search-window`, address
+  no raw record, and are excluded from `sourceCoordinateJoin`; join them
+  instead to the row-lineage artifact's candidate-search rows, which publish
+  the same bounds under `search_index_space`.
 - `declared-column-scope` — a supplied source column may affect a named output
   column of a result family that carries no row lineage at all. This closes
   what were previously whole-artifact unresolved gaps for `compliance-csv`,
@@ -369,9 +378,15 @@ classes, and the two new coordinates `source_field` and
 
 The artifact is closure-bound, deterministic, researcher-exportable, and states
 that a missing row/cell edge is never evidence of non-influence. The version
-moved from v1 to v2 rather than adding a parallel artifact: the schema gained
-two coordinate columns and four new `relation`/`precision` values, which any v1
-reader would silently mis-join, and no consumer holds v1 bytes — the deployed
+has moved twice rather than adding a parallel artifact, each time because a
+reader of the older schema would silently mis-join the newer bytes. v1 to v2
+added two coordinate columns and four new `relation`/`precision` values. v2 to
+v3 added the nullable `source_index_space` column and the
+`lineage-search-window` source key kind, which together stop search-window
+rows from reading as raw-record ranges: under v2 those rows stated their
+scanned bounds in the same columns raw-record contributors use, so a consumer
+joining them to the source-coordinate index would have addressed raw records
+the kernel never claimed. No consumer holds v1 or v2 bytes — the deployed
 Pages build is a deliberate rollback and every checked ledger is regenerated
 from source by `make dependency-evidence`.
 
