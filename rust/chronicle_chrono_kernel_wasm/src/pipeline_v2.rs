@@ -8010,6 +8010,49 @@ mod tests {
             "an unrelated numerical run must not borrow another participant's window",
         );
         assert!(window_for("P01", &windows).is_none());
+
+        // The per-participant resolution the study-window step runs walks the
+        // rows once and applies the same rule, so it is checked on rows.
+        let mut rows = rows_from_events(&[
+            (
+                "2026-03-07 10:00:00",
+                "Activity Resumed",
+                "com.example.chat",
+            ),
+            (
+                "2026-03-07 10:01:00",
+                "Activity Resumed",
+                "com.example.chat",
+            ),
+            (
+                "2026-03-07 10:02:00",
+                "Activity Resumed",
+                "com.example.chat",
+            ),
+        ]);
+        for (row, participant) in rows
+            .iter_mut()
+            .zip(["TECH-1042-D2", "TECH-9999-D1", "TECH-1042-D2"])
+        {
+            row.edit_all().participant_id = participant.into();
+        }
+        assert_eq!(
+            resolve_participant_windows(&rows, &windows)
+                .iter()
+                .map(|entry| (
+                    entry.participant_id.as_str(),
+                    entry
+                        .window
+                        .as_ref()
+                        .map(|window| window.start_date.as_str()),
+                ))
+                .collect::<Vec<_>>(),
+            vec![
+                ("TECH-1042-D2", Some("2026-03-01")),
+                ("TECH-9999-D1", None),
+            ],
+            "each participant is resolved once, by exact ID then numerical run",
+        );
     }
 
     #[test]
