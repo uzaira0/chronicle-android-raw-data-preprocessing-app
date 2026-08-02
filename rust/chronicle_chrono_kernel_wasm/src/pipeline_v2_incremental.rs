@@ -11423,6 +11423,44 @@ mod tracked {
             }
         }
 
+        /// `rows_step_reusing` may hand a step's consumers the upstream row
+        /// allocation, but only when the step left every row alone. A step
+        /// that drops rows publishes a shorter table, and handing back the
+        /// upstream table would silently undo the drop while still reporting
+        /// a checkpoint that claims nothing changed.
+        #[test]
+        fn a_step_that_drops_rows_never_publishes_the_upstream_table() {
+            let rows = checkpoint_rows();
+            assert!(rows.len() >= 3, "the fixture must have rows to drop");
+            let upstream = StepValue {
+                value: Arc::new(rows.clone()),
+                checkpoint: logical_stage_rows_checkpoint("upstream", &rows),
+                logical_checkpoint: None,
+            };
+
+            let unchanged = rows_step_reusing("probe", &upstream, rows.clone());
+            assert!(
+                Arc::ptr_eq(&unchanged.value, &upstream.value),
+                "a step that changed nothing has to reuse the upstream rows",
+            );
+
+            // Drop the last row. Every surviving row is still the same `Arc`,
+            // so the row count is the only thing saying the step did anything.
+            let mut shorter = rows.clone();
+            shorter.pop();
+            let dropped = rows_step_reusing("probe", &upstream, shorter.clone());
+            assert_eq!(
+                dropped.value.len(),
+                shorter.len(),
+                "the dropped row came back in the published table",
+            );
+            assert_eq!(
+                dropped.checkpoint,
+                logical_stage_rows_checkpoint("probe", &shorter),
+                "a shorter table has to carry the checkpoint of that table",
+            );
+        }
+
         /// A threshold edit moves the temporal columns of a handful of rows and
         /// leaves identity and classification alone, so the temporal digest is
         /// patched in place rather than rebuilt from every row. The patched
