@@ -155,6 +155,56 @@ function reviewCacheWorkspace(input: {
   };
 }
 
+/**
+ * A persisted workspace addressed by the SAME workspace id a real
+ * `queryPersistedRustReview` call derives from its verified input digest, so
+ * the review path reaches the probe reader instead of failing identity checks
+ * first. `reviewCacheWorkspace` above pins the shared fixture identity; this
+ * one is parameterised because the review entry point computes its own.
+ */
+function persistedReviewWorkspace(input: {
+  reviewWorkspaceId: string;
+  inputDigest: string;
+  artifacts: ReadonlyArray<{
+    kind: string;
+    bytes: Uint8Array;
+    declaredSize?: number;
+  }>;
+}) {
+  const objects = new Map<string, Uint8Array>();
+  const closureArtifacts = input.artifacts.map(
+    ({ kind, bytes, declaredSize }) => {
+      const digest = digestBytes(bytes);
+      objects.set(digest, bytes);
+      return { kind, digest, size: declaredSize ?? bytes.byteLength };
+    },
+  );
+  const identity = {
+    implementationDigest,
+    buildEnvironmentDigest,
+    workspaceId: input.reviewWorkspaceId,
+    inputDigest: input.inputDigest,
+  };
+  const closureBytes = enc.encode(
+    JSON.stringify({ ...identity, artifacts: closureArtifacts }),
+  );
+  const artifactClosureDigest = digestBytes(closureBytes);
+  objects.set(artifactClosureDigest, closureBytes);
+  const rootBytes = enc.encode(
+    JSON.stringify({ artifactClosureDigest, ...identity }),
+  );
+  const workspaceRootDigest = digestBytes(rootBytes);
+  objects.set(workspaceRootDigest, rootBytes);
+  return {
+    objects,
+    slot: {
+      ...slot,
+      workspaceRootDigest,
+      artifactDigests: [workspaceRootDigest, artifactClosureDigest],
+    },
+  };
+}
+
 const slot: WorkspaceRootSlot = {
   protocolVersion: "chronicle-opfs-root/v1",
   generation: 1,
@@ -670,6 +720,184 @@ describe("persisted Rust workspace boundary", () => {
         }),
       ).rejects.toThrow(/processing options|non-empty (?:string|timestamp)/i);
     }
+
+    // A whitespace-only timestamp passes the non-empty string check but is
+    // still not a run timestamp. A/B holds this value fixed across the
+    // comparison, so accepting blank whitespace would silently hand Rust a
+    // meaningless `datetime_of_preprocessing` instead of failing closed.
+    const blank = reviewCacheWorkspace({
+      review: enc.encode("review-cache"),
+      datetimeOfPreprocessing: "   ",
+    });
+    opfs.readRuntimeObject.mockImplementation(
+      (_root: FileSystemDirectoryHandle, digest: string) =>
+        Promise.resolve(blank.objects.get(digest) ?? enc.encode("missing")),
+    );
+    await expect(
+      readPersistedRustReviewBases(root, blank.slot, {
+        implementationDigest,
+        buildEnvironmentDigest,
+        workspaceId,
+        inputDigest: payloadDigest,
+      }),
+    ).rejects.toThrow(
+      /persistedProcessingOptions\.datetime_of_preprocessing.*non-empty timestamp/,
+    );
+  });
+
+  it("fails closed on persisted review probes the workspace cannot back", async () => {
+    const options = {
+      ...DEFAULT_BROWSER_OPTIONS,
+      selectedTimezone: "UTC",
+      useFilterFile: false,
+      useAppsForcingScreenOpenFile: false,
+      useBackgroundAppsFile: false,
+      useAppCodebook: false,
+    };
+    const runtime = {
+      persistRustWorkspace: true,
+      // The persisted run's own timestamp replaces this one once the bases
+      // resolve; a caller-supplied value is still required to build a request.
+      datetimeOfPreprocessing: "2026-07-26 00:00:00 UTC",
+    } as const;
+    // The mocked kernel advertises these probe prefixes; the persisted bases
+    // must be at least that long or the prefix is not a probe of anything.
+    const reviewProbeBytes = 148;
+    const optionsJson = (datetime: string) =>
+      enc.encode(JSON.stringify({ datetime_of_preprocessing: datetime }));
+    const filled = (length: number, byte: number) =>
+      new Uint8Array(length).fill(byte);
+
+    const query = async (
+      inputHex: string,
+      artifacts: ReadonlyArray<{
+        kind: string;
+        bytes: Uint8Array;
+        declaredSize?: number;
+      }>,
+    ) => {
+      const reviewWorkspaceId = await runtimeWorkspaceId(
+        "review.csv",
+        new Uint8Array(),
+        inputHex,
+      );
+      const fixture = persistedReviewWorkspace({
+        reviewWorkspaceId,
+        inputDigest: `sha256:${inputHex}`,
+        artifacts,
+      });
+      opfs.recoverRuntimeWorkspaceHead.mockResolvedValue(fixture.slot);
+      opfs.readRuntimeObject.mockImplementation(
+        (_root: FileSystemDirectoryHandle, digest: string) =>
+          Promise.resolve(fixture.objects.get(digest) ?? enc.encode("missing")),
+      );
+      opfs.readRuntimeObjectPrefix.mockImplementation(
+        (
+          _root: FileSystemDirectoryHandle,
+          digest: string,
+          _expectedSize: number,
+          prefixBytes: number,
+        ) =>
+          Promise.resolve(
+            (fixture.objects.get(digest) ?? enc.encode("missing")).subarray(
+              0,
+              prefixBytes,
+            ),
+          ),
+      );
+      return queryPersistedRustReview(
+        3,
+        "review.csv",
+        options,
+        undefined,
+        runtime,
+        inputHex,
+      );
+    };
+
+    // A base whose whole object is shorter than the probe the kernel asked for
+    // cannot be a truncated prefix of a valid base — it is a different (or
+    // corrupt) artifact, and reusing it would seed Rust with wrong state.
+    await expect(
+      query("a".repeat(64), [
+        { kind: "review-base", bytes: filled(10, 1) },
+        {
+          kind: "processing-options-json",
+          bytes: optionsJson("2026-04-24 00:32:53"),
+        },
+      ]),
+    ).rejects.toThrow("persisted Rust review base is shorter than its probe");
+
+    // A base without its processing options has no run timestamp to hold fixed
+    // across the A/B comparison, so the whole persisted set is refused rather
+    // than silently re-timestamped from the receiving worker's clock.
+    await expect(
+      query("b".repeat(64), [
+        { kind: "review-base", bytes: filled(reviewProbeBytes, 2) },
+      ]),
+    ).rejects.toThrow(
+      "persisted Rust review bases are missing their processing options",
+    );
+
+    // Whitespace clears the non-empty string check but is not a timestamp.
+    await expect(
+      query("c".repeat(64), [
+        { kind: "review-base", bytes: filled(reviewProbeBytes, 3) },
+        { kind: "processing-options-json", bytes: optionsJson("  \t ") },
+      ]),
+    ).rejects.toThrow(
+      /persistedProcessingOptions\.datetime_of_preprocessing.*non-empty timestamp/,
+    );
+
+    // The probe prefix passes its own length check, but the selected full base
+    // must still match the size the closure declared for it.
+    const preparedFree = vi.fn();
+    kernel.prepare_persisted_workspace_review.mockImplementation(() => ({
+      required_base_kind: () => "review-base",
+      execute_selected_base: () => {
+        throw new Error("test must not execute a base");
+      },
+      free: preparedFree,
+    }));
+    await expect(
+      query("d".repeat(64), [
+        {
+          kind: "review-base",
+          bytes: filled(reviewProbeBytes, 4),
+          declaredSize: 500,
+        },
+        {
+          kind: "processing-options-json",
+          bytes: optionsJson("2026-04-24 00:32:53"),
+        },
+      ]),
+    ).rejects.toThrow(
+      "persisted Rust artifact integrity mismatch: review-base",
+    );
+    expect(preparedFree).toHaveBeenCalledTimes(1);
+
+    // Rust may select a base this workspace never persisted. There is no
+    // descriptor to read it from, so the run fails closed instead of handing
+    // the kernel an empty or substituted buffer.
+    kernel.prepare_persisted_workspace_review.mockImplementation(() => ({
+      required_base_kind: () => "reconstruction-base",
+      execute_selected_base: () => {
+        throw new Error("test must not execute a base");
+      },
+      free: preparedFree,
+    }));
+    await expect(
+      query("e".repeat(64), [
+        { kind: "review-base", bytes: filled(reviewProbeBytes, 5) },
+        {
+          kind: "processing-options-json",
+          bytes: optionsJson("2026-04-24 00:32:53"),
+        },
+      ]),
+    ).rejects.toThrow(
+      "persisted Rust workspace is missing reconstruction-base",
+    );
+    expect(preparedFree).toHaveBeenCalledTimes(2);
   });
 
   it("keys workspaces by semantic input bytes and factors out filename labels", async () => {
@@ -1176,6 +1404,78 @@ describe("persisted Rust workspace boundary", () => {
       workspaceRootDigest: rootDigest,
       source: bytesByDigest.get(payloadDigest),
     });
+  });
+
+  it("fails closed when a verified closure carries no semantic-index source", async () => {
+    // The closure verifies end to end (same objects, same digests, same
+    // sizes) — only the semantic-index role is absent. A snapshot reader must
+    // say so rather than return an empty or substituted source.
+    const closureWithoutIndex = {
+      ...validClosure,
+      artifacts: validClosure.artifacts.map((entry) =>
+        entry.kind === "semantic-index-source-json"
+          ? { ...entry, kind: "unassigned-payload-json" }
+          : entry,
+      ),
+    };
+    opfs.readRuntimeObject.mockImplementation(
+      (_root: FileSystemDirectoryHandle, digest: string) =>
+        Promise.resolve(
+          digest === closureDigest
+            ? enc.encode(JSON.stringify(closureWithoutIndex))
+            : (bytesByDigest.get(digest) ?? enc.encode("missing")),
+        ),
+    );
+
+    await expect(readVerifiedSemanticIndexSnapshot(workspaceId)).rejects.toThrow(
+      "persisted Rust artifact is missing: semantic-index-source-json",
+    );
+  });
+
+  it("stops a recovered workspace history that loops back on itself", async () => {
+    // Every commit points at its predecessor, so a root reached twice is not a
+    // history: walking it would either never terminate or double-count objects
+    // into the allowed set. The walk is bounded and fails loudly instead.
+    const selfReferencing = {
+      ...validCommit,
+      previousWorkspaceRootDigest: rootDigest,
+    };
+    const selfReferencingState = {
+      ...executionState,
+      previousWorkspaceRootDigest: rootDigest,
+    };
+    const stateBytes = enc.encode(JSON.stringify(selfReferencingState));
+    const selfReferencingClosure = {
+      ...validClosure,
+      previousWorkspaceRootDigest: rootDigest,
+      // The closure keeps declaring the real size of every object it lists.
+      artifacts: validClosure.artifacts.map((entry) =>
+        entry.kind === "execution-state-json"
+          ? { ...entry, size: stateBytes.byteLength }
+          : entry,
+      ),
+    };
+    const cyclicBytes = new Map<string, Uint8Array>([
+      [rootDigest, enc.encode(JSON.stringify(selfReferencing))],
+      [closureDigest, enc.encode(JSON.stringify(selfReferencingClosure))],
+      [executionStateDigest, stateBytes],
+    ]);
+    opfs.recoverRuntimeWorkspace.mockResolvedValue({
+      ...slot,
+      previousWorkspaceRootDigest: rootDigest,
+    });
+    opfs.readRuntimeObject.mockImplementation(
+      (_root: FileSystemDirectoryHandle, digest: string) =>
+        Promise.resolve(
+          cyclicBytes.get(digest) ??
+            bytesByDigest.get(digest) ??
+            enc.encode("missing"),
+        ),
+    );
+
+    await expect(verifyPersistedRustWorkspace(workspaceId)).rejects.toThrow(
+      "recovered workspace history is cyclic or too large",
+    );
   });
 
   it("fails closed before execution when durable commits lack Web Locks", async () => {

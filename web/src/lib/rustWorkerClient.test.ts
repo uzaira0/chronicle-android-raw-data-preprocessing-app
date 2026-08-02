@@ -9,6 +9,7 @@ import {
   importVerifiedWorkspaceClosure,
   inspectRawCsvBytes,
   clearReviewSummaryReuseCache,
+  probeWorkerWorkspaceCapability,
   processPersistedReview,
   processPersistedOrRawChangedReviewViaPool,
   processPersistedReviewViaPool,
@@ -576,6 +577,50 @@ describe("WorkerPool", () => {
     pool.terminate();
   });
 
+  it("does not recycle a faulted (not retired) slot while work is queued", async () => {
+    // `replaceSlot` recycles only a slot that reached its TASK LIMIT. A slot
+    // killed by a worker fault is dead but not retired, and must never be
+    // silently respawned behind the caller's back — the surviving lane drains
+    // the queue instead.
+    const { spawn, apis, workers } = makeSpawn();
+    const faults = [deferred<never>(), deferred<never>()];
+    let index = 0;
+    const faultingSpawn: WorkerSpawn = () => {
+      const slot = spawn();
+      const fault = faults[index];
+      index += 1;
+      return fault ? { ...slot, fault: fault.promise } : slot;
+    };
+    const pool = new WorkerPool(2, { spawn: faultingSpawn });
+    const firstGate = deferred<void>();
+    const secondGate = deferred<void>();
+    const first = pool.submit(() => firstGate.promise);
+    const second = pool.submit(() => secondGate.promise);
+    await Promise.resolve();
+    // A third submission has no idle lane and queues as a waiter.
+    let thirdApi: RemoteApi | undefined;
+    const third = pool.submit((api) => {
+      thirdApi = api;
+      return Promise.resolve(api);
+    });
+    await Promise.resolve();
+    expect(thirdApi).toBeUndefined();
+
+    // Lane 0 faults with a waiter queued: release() reaches replaceSlot, which
+    // refuses because the slot is dead-by-fault rather than retired.
+    faults[0]!.reject(new Error("worker exploded"));
+    await expect(first).rejects.toThrow("worker exploded");
+    expect(workers).toHaveLength(2);
+
+    // The queued task still runs — on the surviving lane, not a replacement.
+    secondGate.resolve();
+    await second;
+    await expect(third).resolves.toBe(apis[1]);
+    expect(workers).toHaveLength(2);
+    firstGate.resolve();
+    pool.terminate();
+  });
+
   it("rejects queued waiters when the last live slot dies mid-wait", async () => {
     const gate = deferred<ProcessedFileResult>();
     const { spawn, faults } = stubSpawn({
@@ -952,6 +997,28 @@ describe("shared worker fault handling (fake Worker global)", () => {
     lastWorker().fire("error", { message: "review failed" });
     await expect(review).rejects.toThrow("review failed");
   });
+
+  it("reports an unreachable worker as an unavailable durable-storage capability", async () => {
+    // The durable-storage gate must never throw into its caller: a worker that
+    // cannot be reached is itself the answer, because no other path can persist
+    // a verified workspace.
+    const pending = probeWorkerWorkspaceCapability();
+    lastWorker().fire("error", { message: "worker died during boot" });
+    await expect(pending).resolves.toEqual({
+      status: "unavailable",
+      reason:
+        "The processing worker that owns durable storage could not be reached: Chronicle worker failed: worker died during boot",
+    });
+
+    // A non-Error rejection still has to render a usable reason.
+    const unreadable = probeWorkerWorkspaceCapability();
+    lastWorker().fire("messageerror", {});
+    await expect(unreadable).resolves.toEqual({
+      status: "unavailable",
+      reason:
+        "The processing worker that owns durable storage could not be reached: Chronicle worker sent an unreadable message.",
+    });
+  });
 });
 
 async function loadFreshWorkerClient(
@@ -1098,6 +1165,45 @@ const exportedArchive = await client.exportVerifiedWorkspaceClosure(
 
     compileStreaming.mockRestore();
     compile.mockRestore();
+  });
+
+  it("returns the worker's own durable-storage verdict when the worker answers", async () => {
+    // The gate is evaluated inside the worker that owns every production OPFS
+    // write, so the reply must be forwarded verbatim — both the ready arm and a
+    // worker-side refusal, which share one union the client must not collapse.
+    const module = {} as WebAssembly.Module;
+    const compileStreaming = vi
+      .spyOn(WebAssembly, "compileStreaming")
+      .mockResolvedValue(module);
+    const probeWorkspaceCapability = vi
+      .fn()
+      .mockResolvedValueOnce({ status: "ready", evictionProtected: true })
+      .mockResolvedValueOnce({
+        status: "unavailable",
+        reason: "Origin-private file storage is open but not writable: quota",
+      });
+    const api = {
+      initializeRuntime: vi.fn(() => Promise.resolve()),
+      probeWorkspaceCapability,
+    } as unknown as RemoteApi;
+    const client = await loadFreshWorkerClient(
+      api,
+      new Response(new Uint8Array([0, 97, 115, 109]), {
+        headers: { "content-type": "application/wasm" },
+      }),
+    );
+
+    await expect(client.probeWorkerWorkspaceCapability()).resolves.toEqual({
+      status: "ready",
+      evictionProtected: true,
+    });
+    await expect(client.probeWorkerWorkspaceCapability()).resolves.toEqual({
+      status: "unavailable",
+      reason: "Origin-private file storage is open but not writable: quota",
+    });
+    expect(probeWorkspaceCapability).toHaveBeenCalledTimes(2);
+
+    compileStreaming.mockRestore();
   });
 
   it("falls back to ArrayBuffer compilation when streaming compilation fails", async () => {

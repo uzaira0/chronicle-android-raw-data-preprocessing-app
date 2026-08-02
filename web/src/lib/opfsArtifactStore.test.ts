@@ -1723,6 +1723,52 @@ describe("OPFS content-addressed runtime workspace", () => {
       reason: "Origin-private file storage is open but not writable: quota",
     });
 
+    // A browser that hands out the origin root but refuses to create the probe
+    // directory (private browsing, an exhausted quota) never reaches the write
+    // at all, and must be reported at that boundary rather than as a write
+    // failure the caller could misread as transient.
+    const noDirectories = new MemoryDirectoryHandle();
+    noDirectories.getDirectoryHandle = () =>
+      Promise.reject(new DOMException("no space", "QuotaExceededError"));
+    vi.stubGlobal("navigator", {
+      storage: { getDirectory: () => Promise.resolve(rootHandle(noDirectories)) },
+      locks: { request: vi.fn() },
+    });
+    await expect(probeOpfsCapability()).resolves.toEqual({
+      status: "unavailable",
+      reason:
+        "Origin-private file storage is readable but no directory can be created: no space",
+    });
+
+    // A store that accepts the write and then cannot read the file back is the
+    // other half of the round trip: verified persistence needs both, so a
+    // write-only store fails closed with its own distinct reason.
+    const unreadable = new MemoryDirectoryHandle();
+    const unreadableProbe = (await unreadable.getDirectoryHandle(
+      "chronicle-capability-probe-v1",
+      { create: true },
+    )) as unknown as MemoryDirectoryHandle;
+    const unreadableGetFileHandle =
+      unreadableProbe.getFileHandle.bind(unreadableProbe);
+    unreadableProbe.getFileHandle = async (name, options) => {
+      const handle = (await unreadableGetFileHandle(
+        name,
+        options,
+      )) as unknown as MemoryFileHandle;
+      // Writing never calls getFile(), so this only bites the read-back.
+      handle.nextReadError = new DOMException("read failed", "NotReadableError");
+      return handle as unknown as FileSystemFileHandle;
+    };
+    vi.stubGlobal("navigator", {
+      storage: { getDirectory: () => Promise.resolve(rootHandle(unreadable)) },
+      locks: { request: vi.fn() },
+    });
+    await expect(probeOpfsCapability()).resolves.toEqual({
+      status: "unavailable",
+      reason:
+        "Origin-private file storage accepted a write it cannot read back: read failed",
+    });
+
     // A store that accepts the write and returns different bytes cannot back a
     // verified workspace at all, so it must fail closed too.
     const lyingStore = new MemoryDirectoryHandle();
@@ -1958,6 +2004,107 @@ describe("OPFS content-addressed runtime workspace", () => {
     await expect(
       readRuntimeObjectPrefix(rootHandle(root), bogusDigest, 8, 4, 4),
     ).rejects.toThrow(/exceeds the 4 byte read limit/);
+  });
+
+  it("names both sizes when a write reads back with a different length", async () => {
+    // WebKit's writable stream ignores byteOffset/byteLength and stores the
+    // whole backing buffer. The read-back check exists to catch exactly that,
+    // and it must name the observed size — "wrote 812, read back 6291456" is
+    // what turns an engine bug into a one-line diagnosis.
+    const root = new MemoryDirectoryHandle();
+    const payload = await artifact("blob", "seven-byte-ish payload");
+    const hex = payload.digest.slice(7);
+    const store = (await root.getDirectoryHandle(
+      "chronicle-preprocessing-runtime-v1",
+      { create: true },
+    )) as unknown as MemoryDirectoryHandle;
+    const objects = (await store.getDirectoryHandle("objects", {
+      create: true,
+    })) as unknown as MemoryDirectoryHandle;
+    const shard = (await objects.getDirectoryHandle(hex.slice(0, 2), {
+      create: true,
+    })) as unknown as MemoryDirectoryHandle;
+    const handle = (await shard.getFileHandle(hex.slice(2), {
+      create: true,
+    })) as unknown as MemoryFileHandle;
+    handle.nextWriteTransform = (bytes) =>
+      Promise.resolve(Uint8Array.from([...bytes, ...bytes]));
+
+    await expect(
+      persistRuntimeObject(rootHandle(root), payload),
+    ).rejects.toThrow(
+      `OPFS verification failed for blob: wrote ${payload.size} bytes, read back ${payload.size * 2}`,
+    );
+  });
+
+  it("refuses a commit that would push the projected closure past the object ceiling", async () => {
+    // The already-committed history counts toward the ceiling: checking only
+    // the incoming set would let a workspace grow past the limit one commit at
+    // a time and become unreadable.
+    const root = new MemoryDirectoryHandle();
+    const committed = await artifact("workspace-root-json", "ceiling-base");
+    const current = await persistRuntimeWorkspace(rootHandle(root), {
+      workspaceRootDigest: committed.digest,
+      previousWorkspaceRootDigest: null,
+      artifacts: [committed],
+    });
+    const nextRoot = await artifact(
+      "workspace-root-json",
+      JSON.stringify({
+        workspaceId: `sha256:${"1".repeat(64)}`,
+        previousWorkspaceRootDigest: committed.digest,
+        artifactDigests: [],
+      }),
+    );
+    const filler = Array.from({ length: 100_000 }, (_, index) => ({
+      kind: `artifact-${index}`,
+      digest: `sha256:${(index + 1).toString(16).padStart(64, "0")}`,
+      size: 0,
+      digestVerified: true as const,
+    }));
+
+    await expect(
+      commitPersistedRuntimeWorkspace(rootHandle(root), {
+        workspaceRootDigest: nextRoot.digest,
+        previousWorkspaceRootDigest: committed.digest,
+        recoveredSlot: current,
+        artifacts: [
+          { kind: nextRoot.kind, digest: nextRoot.digest, size: nextRoot.size },
+          ...filler,
+        ],
+        slotArtifactDigests: [nextRoot.digest],
+      }),
+    ).rejects.toThrow(
+      /workspace history would exceed 100000 objects; export and start a new workspace/,
+    );
+  });
+
+  it("refuses to write a root slot larger than a recoverable slot read", async () => {
+    // Recovery reads a slot under a hard 128 KiB limit, so writing one past
+    // that ceiling would commit a head no reader could ever recover. The write
+    // is refused instead of producing an unreadable workspace.
+    const root = new MemoryDirectoryHandle();
+    const rootArtifact = await artifact("workspace-root-json", "oversize-slot");
+    const bloated = `sha256:${"a".repeat(200_000)}`;
+
+    await expect(
+      commitPersistedRuntimeWorkspace(rootHandle(root), {
+        workspaceRootDigest: rootArtifact.digest,
+        previousWorkspaceRootDigest: null,
+        artifacts: [
+          {
+            kind: rootArtifact.kind,
+            digest: rootArtifact.digest,
+            size: rootArtifact.size,
+          },
+          { kind: "bloated", digest: bloated, size: 0 },
+        ],
+      }),
+    ).rejects.toThrow("runtime root slot is too large");
+    // Nothing was committed: recovery still reports an empty workspace.
+    await expect(
+      recoverRuntimeWorkspace(rootHandle(root)),
+    ).resolves.toBeUndefined();
   });
 
   it("rejects a persist whose incoming root artifact lies about its digest", async () => {
