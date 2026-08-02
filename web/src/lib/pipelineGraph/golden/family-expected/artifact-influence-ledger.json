@@ -8,17 +8,17 @@
   },
   "implementationReceipt": {
     "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
-    "implementationDigest": "sha256:34d3bbdad183ef69dc7c01eff2d48371086e653b29ed67ad6d03c2acbf1419fc",
+    "implementationDigest": "sha256:4cb15c966b6fe9b070face8b68f8678333b1349908e7dc92a7bbe5c9e8d17ae7",
     "planDigest": "sha256:e6acec3530cef7f3e67443077affb86632db8485d771c3fa9a754dc810ff8e20",
-    "profileDigest": "sha256:7581dd27886f0317d037380b0c4e6b7c041e7690fd94580a5b60c089f1cfe1ba",
-    "profileLockDigest": "sha256:63d048c400ec4aab8c03d642f8d3533f949fbd5513789387df65ff0d6109062f",
+    "profileDigest": "sha256:d9328288d3b1a0c4998a4aef5faf4a522c0cee63f1fbae867c0c09e31f48bddd",
+    "profileLockDigest": "sha256:37d2d87be779b0ecf17781285d76ba33782da71776ad6d8ae4291f69709f0a7e",
     "runtimeAuthorityDigest": "sha256:7598af2d710ac32563dd8e0bff49a9447e7f450c618c4689004025fbb6826ed4",
     "productContractDigest": "sha256:3855791ad25992d95e055d5c672253cb06ac3e4320463bc46f984b7bc8f05f95"
   },
   "cellEvidence": {
-    "protocolVersion": "chronicle-output-cell-correspondence/v1",
+    "protocolVersion": "chronicle-output-cell-correspondence/v2",
     "path": "artifact-output-cell-correspondence.json.gz",
-    "contentDigest": "sha256:045b2d1946d7f754eab05cecfb915e732ce193a8536f6f621225edb48e27af08",
+    "contentDigest": "sha256:3255eab8e8cf9cfc600c1216538c89069002c8dc9aaeaf7f80d6087ba5cd3321",
     "cases": 192,
     "changedCellAddresses": 202124
   },
@@ -9044,7 +9044,7 @@
         },
         {
           "nodeId": "score_compliance",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "outputs",
@@ -18407,7 +18407,7 @@
         },
         {
           "nodeId": "score_compliance",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "outputs",
@@ -27701,7 +27701,7 @@
         },
         {
           "nodeId": "score_compliance",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "outputs",
@@ -36916,7 +36916,7 @@
         },
         {
           "nodeId": "score_compliance",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "outputs",
@@ -46325,7 +46325,7 @@
         },
         {
           "nodeId": "score_compliance",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "outputs",
@@ -56028,7 +56028,7 @@
         },
         {
           "nodeId": "score_compliance",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "outputs",
@@ -56928,5 +56928,5 @@
       ]
     }
   ],
-  "caseSetDigest": "sha256:5f32e82177c4aea6cb66ea72569f7aec7d2d1bc85d0dc681930913e8511484a2"
+  "caseSetDigest": "sha256:c71d1e892981e5ad0964c3636e2063168458b4cc62eab62a9ac6e37ce22d8db8"
 }

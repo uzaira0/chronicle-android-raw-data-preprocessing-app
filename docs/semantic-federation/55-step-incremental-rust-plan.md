@@ -34,9 +34,12 @@ Six different things exist today and must not be confused:
 2. `chronicle.plan.json` groups those steps into 15 reporting checkpoints.
 3. `pipeline_v2_incremental.rs` contains exactly 55 tracked product-step
    computations, one for every step ID and in the same topological order.
-   Two separately reported internal queries cache normalized codebook state and
-   expensive primary output assembly; neither is presented as a 56th product
-   transformation.
+   It also contains 24 separately reported internal queries — support-file
+   parsing, normalized codebook state, review/reconstruction base decoding, and
+   expensive primary output assembly among them — for 79 `#[salsa::tracked]`
+   functions in total. `check-execution-claims.py` pins the exact split by
+   requiring `record_query_body` on all 55 and `record_internal_query_body` on
+   exactly those 24; none is presented as a 56th product transformation.
 4. `IncrementalPipelineV2Engine` retains one Salsa database across calls and
    updates individual source, support-file, and option inputs only when their
    values change.
@@ -60,8 +63,8 @@ Therefore the current state is:
 | Can one output-only change skip all unrelated physical work? | Yes in the stateful engine test: only `assemble_result` runs. |
 | Does an unchanged second call execute a step body? | No in the stateful engine test. |
 | Does that warm cache survive reload or worker replacement? | Salsa's database does not. Verified OPFS inputs and outputs survive. A typed step-output cache is now planned for the expensive boundaries proven below; it is not a serialized Salsa database. |
-| Do runtime `cached`/`recomputed` step labels use actual query execution? | Yes. Exact step labels use Salsa events and the 15 product groups are derived from those step IDs. The empirical receipts are still stale. |
-| Is the tracked runtime production-ready? | No. Runtime, durability, empirical campaigns, performance, and full browser gates remain. |
+| Do runtime `cached`/`recomputed` step labels use actual query execution? | Yes. Exact step labels use Salsa events and the 15 product groups are derived from those step IDs. The empirical receipts were regenerated on this merged provenance wave. |
+| Is the tracked runtime production-ready? | No. Cross-browser durability, chrono-kernel coverage and mutation debt, large-file memory/crash injection, streaming archive export/import, and the final aggregate review remain. |
 
 This distinction is the main production blocker addressed by this plan.
 
@@ -425,9 +428,12 @@ The goal is complete only when all of these are true:
     provenance-authority, or semantic-state logic.
 15. The current complete local gate remains green. No existing correctness,
     security, coverage, mutation, bundle, or offline requirement is weakened.
-16. Only the preview site may be deployed during development. Production Pages,
-    `main`, research-pipeline, homelab deployment, and runner infrastructure
-    remain untouched.
+16. No deployment is a side effect of landing work. This check has been
+    partially superseded: `main` is now the integration branch (PR #81
+    `121e7b5`, PR #88 `3c598ee`), and PR #85 (`b315858`) removed the `push`
+    trigger so merging cannot publish. Production Pages, research-pipeline,
+    homelab deployment, and runner infrastructure remain untouched, and the
+    live app is still the manually dispatched `rollback/2026-06-27-build`.
 
 ## Performance requirements
 
@@ -557,7 +563,7 @@ collection, output equality, and the 100-file performance gates above.
 Proof: explanation tests, actual-event/view parity, lineage joins, registered
 query tests, and UI E2E for upstream/middle/downstream/binding changes.
 
-### Phase 6 — cutover and cleanup (complete)
+### Phase 6 — cutover and cleanup (code cutover complete; deploy step not performed)
 
 - Shadow the query runtime against the fused oracle over all existing test
   campaigns.
@@ -606,7 +612,7 @@ named command or file proving it.
 | Item | Status | Proof or next action |
 |---|---|---|
 | Create one durable goal for real 55-step execution | done | Active Codex goal created 2026-07-23. |
-| Verify canonical Chronicle worktree and shared toolchain | done | Canonical preflight passed; Chronicle branch `codex/chronicle-55-step-authority`; committed HEAD `5fc631c` before the current tracked-engine changes. |
+| Verify canonical Chronicle worktree and shared toolchain | done | Canonical preflight passed; the work was developed on `codex/chronicle-55-step-authority` at HEAD `5fc631c` before the tracked-engine changes. That branch was squash-merged as `121e7b5` (PR #81) and deleted; the commit is still reachable locally by SHA. |
 | Record the original fused-versus-55-step mismatch | done | The baseline inventory and `check-execution-claims.py` recorded 55 declared / 0 independently cached / one fused executor before extraction. |
 | Correct README and production claims | done | Product semantic check and local four-part review passed 2026-07-23. |
 | Correct shared Salsa decision history | done | Toolchain decision updated; dependency probe and `make check` passed. |
@@ -615,9 +621,9 @@ named command or file proving it.
 | Implement representative query path | done | Six real product queries have body/`WillExecute` parity and controlled-change tests. |
 | Select Salsa versus bounded memo table for implementation | done | Representative product trial passed native/headless-browser WASM, actual-read, event, early-cutoff, qualification, audit, memory, and size checks. Snapshot profiling justified deleting persistence. |
 | Track every computational input separately | done | The engine updates individual Salsa input fields only on value change; regenerated configuration, artifact, timestamp-boundary, interaction, and mixed-role evidence checks the observed dependency sets. |
-| Track qualification and assignments | pending | Connect the existing runtime role decisions to tracked inputs and prove a same-file/config-change case. |
+| Track qualification and assignments | active | The same-file/config-change case is proven: `qualify::tests::configuration_changes_the_requirement_not_the_candidate_identity` moves one unchanged `filter_file` candidate through NotApplicable/Open/Satisfied on `use_filter_file` alone, and `every_conditional_support_role_has_a_closed_three_state_requirement_proof` closes that over every conditional role. The decisions reach the tracked graph through the resolved support-file and option inputs (`screen_queries_match_the_oracle_and_ignore_disabled_support_bytes`, `reconstruction_queries_match_the_oracle_and_track_conditional_support_reads`). Still open: `execute_incremental_pipeline` computes `ingress_assignments` per request *outside* Salsa, so qualification itself is not yet a tracked query. |
 | Extract steps 1–16 | done | `sixteen_tracked_steps_match_the_sequential_oracle_and_reuse_exactly`; 16/16 checkpoint digests match, unchanged execution runs zero bodies, controlled settings prove early cutoff, native tests/Clippy and `wasm32` check pass. |
-| Extract steps 17–32 | done | Full 38-test kernel run includes reconstruction, codebook, and annotation query parity. |
+| Extract steps 17–32 | done | The kernel run — now 62 tests — includes reconstruction, codebook, and annotation query parity. |
 | Extract steps 33–44 | done | Full kernel run includes annotation, cleaning, and screen-credit query parity. |
 | Extract steps 45–55 | done | `late_queries_match_the_fused_oracle_and_reuse_exactly` plus all-mode complete-result parity pass. |
 | Generate 55 callable bindings | done | Source and generated checks prove 55 unique tracked product functions in contract order; internal derived caches are classified separately and cannot become product bindings. |
@@ -625,33 +631,34 @@ named command or file proving it.
 | Split terminal outputs and derived views into queries | active | `assemble_result` is a tracked terminal query and output-only reuse is proven; independently reusable artifact/view queries remain. |
 | Handle worker replacement | done | Opaque Salsa snapshots remain deleted. Verified OPFS step-16/step-28 values let replacement workers resume at step 17 or 29; wrong input/options/build/schema/digest fail closed to the raw Rust path. |
 | Replace inferred statuses with real events | done | Runtime step status consumes `IncrementalPipelineV2Execution.executed_steps`; regenerated dependency evidence and the normal WASM package carry the same implementation identity. |
-| Run all existing empirical campaigns on physical events | done | Configuration, artifact, timestamp-boundary, interaction, mixed-role, and semantic-model mutation campaigns regenerated the current dependency certificate; normal runtime tests pass 50/50. |
+| Run all existing empirical campaigns on physical events | done | Configuration, artifact, timestamp-boundary, interaction, mixed-role, and semantic-model mutation campaigns regenerated the current dependency certificate. All six ledgers under `web/src/lib/pipelineGraph/golden/family-expected/` and `.semantic-federation/proofs/dependency-certificate.json` were last written by `make dependency-evidence` on this merged provenance wave; the runtime suite reports `69 passed; 0 failed; 3 ignored`. |
 | Enforce TypeScript boundary | done | `check_no_typescript_authority.mts`, its seeded-failure gate, typecheck, and production bundle search reject a second engine. |
 | Remove superseded scheduler/status code | done | TypeScript pipeline, graph engine, 55-step mirror, shadow runner, duplicate reports/exporters, obsolete benchmarks, and their static-analysis rules are deleted. |
-| Meet coverage and mutation requirements | active | Final web coverage passes 435 tests at 99.53% lines / 95.74% branches. All five Rust authority coverage gates pass; the kernel is 90.84% lines / 90.21% regions. Final mutation rerun remains part of the aggregate release gate. |
+| Meet coverage and mutation requirements | active | Both coverage gates pass on this merged wave. `cd web && npm run test:coverage` passes 517 tests in 51 files at 99.83% lines / 95.84% branches / 99.27% statements / 99.83% functions. `make coverage-rust` exits 0 and prints `rust_authority_quality=coverage manifests=5`: adapter 99.16%/98.33%/96.84%, product runtime 95.54%/94.47%/76.18%, semantic index 96.97%/96.51%/80.85%, matcher 94.69%/94.10%/90.09%, and `chronicle_chrono_kernel_wasm` 96.24% lines / 95.47% regions / 92.80% functions against its unchanged 90/89/85 ratchet. The kernel figure was 89.78/89.36/84.30 when the repaired gate first reached it, and the earlier `90.84% lines / 90.21% regions` figure in this row and `41.54%` in the final review matrix were both wrong. `make coverage-rust` had never reached the kernel at all: `.semantic-federation/scripts/check-rust-quality.sh` split manifest lines on `|`, the runtime entry's exclusion regex contained `(physical_data_row_count|duplicate_safe_headers)`, and cargo-llvm-cov aborted the loop with `error: invalid float literal` after the first crate. That is repaired and a multi-expression exclusion set now lives in its own `@file`. Mutation is measured on the same merged tree: the kernel campaign tests 3035 mutants (2316 caught, 719 unviable, 0 missed, 0 timeout) in 66 min, and its 13 misses were killed by tests rather than excluded — the exclusion file is byte-identical across that work. Product runtime 659 (599/60/0/0), semantic adapter 150 (122/28/0/0), semantic index 76 (75/1/0/0). `chronicle_app_usage_matcher` stays deliberately red at 279 tested with 44 survivors, so `make mutation-rust` exits 3 on its account alone. |
 | Meet performance requirements | done | The production browser processes and renders 100 exact duplicate 100k-row files in 5.401 s, changes and renders the comparison in 1.343 s, and applies a second nearby option change from Salsa memory in 0.856 s. Independent eight-process measurements remain documented for 100 unique contents. |
-| Complete browser durability decision | pending | Cross-browser tests or explicit supported-browser restriction. |
-| Run subphase reviews and fixes | pending | Review record after each phase. |
+| Complete browser durability decision | pending | Cross-browser tests or explicit supported-browser restriction. Everything durable is still Chromium-only. |
+| Run subphase reviews and fixes | active | Three review records are in this file: Phase 0 (2026-07-23), steps 1–16 (2026-07-23), steps 17–55 (2026-07-23). Phases 4–7 have no written review record yet. |
 | Run final aggregate review | pending | Final findings all fixed or rejected with evidence. |
-| Deploy preview only | pending | Preview commit and byte-hash verification. |
+| Commit and push the implementation | done | PR #81 squash-merged as `121e7b5`; PR #88 squash-merged as `3c598ee`. `git status` is clean and `origin/main` is at `3c598ee`. |
+| Deploy preview only | pending | No preview deployment has been performed. This repository has no preview workflow; `web-pwa-deploy.yml` targets production Pages and is `workflow_dispatch` only since PR #85 (`b315858`). The last successful dispatch was `rollback/2026-06-27-build` on 2026-07-29, so the live app is a deliberate rollback and the 6-hourly `canary.yml` failures against it are expected. Preview commit and byte-hash verification are still owed. |
 
 ## Test obligation matrix
 
 | Component | Must add | Must run | Health check | Boundary check | Advanced proof | Status |
 |---|---|---|---|---|---|---|
-| Documentation/current-state check | Count/state/forbidden-claim cases and a seeded false claim | semantic federation check | checker derives 55 declared / 55 feature-gated tracked / runtime cutover active / fused cold oracle | Generated current state must match tracked Rust query symbols | check must fail on a seeded contradiction | active; source count is verified, generated refresh follows current empirical evidence regeneration |
+| Documentation/current-state check | Count/state/forbidden-claim cases and a seeded false claim | semantic federation check | checker derives 55 declared / 55 feature-gated tracked / runtime cutover active / fused cold oracle | Generated current state must match tracked Rust query symbols | check must fail on a seeded contradiction | done; `make semantic-federation` prints `execution_claims=valid groups=15 declared_steps=55 tracked_executors=1 independently_callable_steps=55 independently_cached_steps=55` and `check-artifacts-in-sync: closure digests correct and no drift`, `check-execution-claims.py --self-test` passes, and the empirical-evidence refresh it was waiting on landed in `3c598ee` |
 | Salsa product trial | early/middle/output/binding query tests | native and WASM Cargo checks | real Chronicle calls in native and headless Chrome | no default Rayon/thread/network requirement | event log, early cutoff, size/memory benchmark | done; upstream Salsa selected, trial and failed snapshot approach removed |
-| Tracked inputs | every option/source/qualification accessor | Rust unit and contract tests | construct database from one complete fixture | unknown and untracked reads fail | property and mutation tests over access sets | pending |
+| Tracked inputs | every option/source/qualification accessor | Rust unit and contract tests | construct database from one complete fixture | unknown and untracked reads fail | property and mutation tests over access sets | active; option and source accessors are done — `step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls` pins declared edges to real query calls, `make gate-truth` proves the Rust step-dataflow gate fires on a declared-but-unread edge, `exact_option_bindings_drive_step_invalidation_and_match_a_cold_rust_run` shows a one-nanosecond `proximity_interval_ns` change recomputing `run_matcher` while `csv_parse` stays cached, and the semantic-model mutation ledger kills all 59 option-binding and 11 role-binding deletions. The qualification accessor is the gap: assignments are computed outside the Salsa graph (see the backlog row) |
 | 55 query registry | missing/duplicate/cycle/type cases | registry and build drift checks | resolve and call every applicable query | exactly 55 callable bindings | semantic-model mutation of every edge and binding | done; 55 product functions, generated bindings, internal-query classification, and negative drift cases are checked |
 | Step extraction | nearest behavior tests per group | existing Rust/golden suites | cold run on smallest fixture | malformed/empty/boundary inputs | fused parity, fuzz, property, mutation | active; complete four-mode checkpoint/output parity passes, broad fuzz/mutation remains |
-| Incremental execution | unchanged/upstream/middle/downstream/binding changes | all controlled-change campaigns | warm call after cold call | both under-invalidation and over-invalidation fail | random sequences, inverse, commutativity, early cutoff | active; unchanged and output-only exact execution pass, empirical campaigns remain |
-| Query persistence | save/reload/version/corruption cases | OPFS integration and browser E2E | reload one workspace offline | partial writes, wrong digest/build/schema | crash injection at every commit point | pending |
-| Provenance and explanations | real event/reason mapping | journal, index, registered-query tests | request stage and explanation views | no inferred cached/recomputed status | replay and root equality | pending |
-| Terminal results/views | independent output and view query tests | native/WASM and browser tests | render complete result offline | no unchanged artifact regeneration | exact bytes, lineage/correspondence parity | pending |
-| TypeScript boundary | forbidden import/symbol cases | typecheck, authority check, production build | worker starts and processes through Rust | no TS computation or semantic authority | seeded attempt to restore a retired symbol must fail | active; source/type checks pass, final E2E/build pending |
+| Incremental execution | unchanged/upstream/middle/downstream/binding changes | all controlled-change campaigns | warm call after cold call | both under-invalidation and over-invalidation fail | random sequences, inverse, commutativity, early cutoff | active; unchanged and output-only exact execution pass and the empirical campaigns now run against physical Salsa events (all six ledgers regenerated in `3c598ee`). The mixed campaign covers both transition orders; randomized change sequences are still not run |
+| Query persistence | save/reload/version/corruption cases | OPFS integration and browser E2E | reload one workspace offline | partial writes, wrong digest/build/schema | crash injection at every commit point | active; the step-16/step-28 resume path is implemented and fails closed — `persisted_review_base_reenters_a_fresh_runtime_without_result_drift`, `reconstruction_base_v8_preserves_exact_annotation_rows_and_rejects_identity_drift`, `reconstruction_base_skips_exact_reconstruction_cone_and_rejects_wrong_keys`, `review_base_skips_early_rows_without_changing_results`. Reload/recovery/offline journeys pass in Chromium only; WebKit/Firefox and large-file crash injection are the open half |
+| Provenance and explanations | real event/reason mapping | journal, index, registered-query tests | request stage and explanation views | no inferred cached/recomputed status | replay and root equality | active; runtime status consumes `IncrementalPipelineV2Execution.executed_steps` and `check-execution-claims.py` enforces the cache-decision → tracked-execution → `build_runtime_step_executions` → `project_product_stages` order in the real source, so no status can be inferred after the fact. Semantic-index source v2 projects qualification and requirement traces through registered browser-WASM queries. The saved-view/root-replay proof named in Phase 5 is the remainder |
+| Terminal results/views | independent output and view query tests | native/WASM and browser tests | render complete result offline | no unchanged artifact regeneration | exact bytes, lineage/correspondence parity | active; `assemble_result` is a tracked terminal query with proven output-only reuse, `every_optional_output_family_is_emitted_by_the_rust_authority` and `disabled_browser_views_do_not_materialize_visualization_data` pass. Independently reusable per-artifact and per-view queries are still not split out |
+| TypeScript boundary | forbidden import/symbol cases | typecheck, authority check, production build | worker starts and processes through Rust | no TS computation or semantic authority | seeded attempt to restore a retired symbol must fail | done; `npm run check:authority-boundary` prints `TypeScript authority boundary: Rust/WASM is the only preprocessing engine.` and `make gate-truth` reports `✓ TypeScript authority boundary fires` on the seeded restoration attempt |
 | Performance | committed benchmark cases and thresholds | Hyperfine, browser profile, native flamegraph | benchmark fixture hash and output hash | fail on false cached claim | repeated distributions, memory, bundle size | done for the requested proof; 100 exact duplicate 100k-row files render in 5.401 s, the first changed comparison in 1.343 s, and a second nearby option change runs from Salsa memory in 0.856 s with all 100 exact results. Separate direct eight-process results document the cost of 100 unique contents. |
-| Security/supply chain | malformed cache/profile/artifact cases | cargo audit/deny, Semgrep, ast-grep, Trivy, gitleaks | offline execution | profiles cannot inject code; cache cannot bypass verification | fuzz parsers and import paths | pending |
-| Release/rollback | query-runtime and cold-oracle switches | complete `make all` plus new gates | preview loads offline | no production/main/research-pipeline changes | rollback rehearsal and preview hash | pending |
+| Security/supply chain | malformed cache/profile/artifact cases | cargo audit/deny, Semgrep, ast-grep, Trivy, gitleaks | offline execution | profiles cannot inject code; cache cannot bypass verification | fuzz parsers and import paths | active; `make security` passes end to end — Semgrep, `sg scan` plus 15 `sg test` rule meta-tests, `cargo audit` on four crates, `cargo deny` reporting `advisories ok, licenses ok, sources ok` for all five authority manifests, Trivy, and gitleaks `no leaks found`. `scripts/run-fuzz-sanity.sh` exists but is not wired into any `make` target, so the fuzz obligation is still unmet |
+| Release/rollback | query-runtime and cold-oracle switches | complete `make all` plus new gates | preview loads offline | no production/main/research-pipeline changes | rollback rehearsal and preview hash | active; the production rollback has been rehearsed for real — `web-pwa-deploy.yml` was dispatched against `rollback/2026-06-27-build` on 2026-07-29 and succeeded, and `research-pipeline` is unaffected because its checkout stays on the `last-python-engine` tag. `main` is no longer excluded: PRs #81 and #88 landed there. The preview-loads-offline check and the preview byte hash have never been produced |
 
 Not applicable to this work: server database migration, multi-user HTTP load,
 Kubernetes/container deployment, mobile-device automation, GPU/HIL tests, and
@@ -705,17 +712,24 @@ and no production deployment change is allowed.
 
 ## Live control state
 
+- Where the work lives: on `main`, not on an isolated branch. PR #81
+  (`121e7b5`) squash-merged the 55-step Rust/WASM single-engine cutover and
+  PR #88 (`3c598ee`) squash-merged the source-result influence witness. Every
+  feature branch this plan was developed on has been deleted; `git ls-remote
+  --heads origin` returns `main` plus two open Dependabot branches. Nothing is
+  pending commit or push.
 - Current state: the verified 55-query engine has replaced the old physical
   runtime gate. The 15-group scheduler builds compatibility artifacts and views
   after tracked execution and cannot suppress a required Salsa query.
 - Last evidence: exactly 55 unique tracked product functions exist in contract
-  order, with two separately observable internal derived caches; 41 kernel
-  tests pass; all four usage modes match every fused step checkpoint,
-  grouped checkpoint, output byte sequence, count, timezone result, aggregate,
-  and lineage; an unchanged call executes no body; an output-only `study_name`
-  change executes only `assemble_result` plus primary-output assembly; a
-  day-coverage-only change leaves primary-output assembly cached; Clippy and
-  the browser-WASM build pass.
+  order, with 24 separately observable internal derived caches; `cargo test
+  --locked --manifest-path rust/chronicle_chrono_kernel_wasm/Cargo.toml
+  --features incremental-v2` passes 62 tests; all four usage modes match every
+  fused step checkpoint, grouped checkpoint, output byte sequence, count,
+  timezone result, aggregate, and lineage; an unchanged call executes no body;
+  an output-only `study_name` change executes only `assemble_result` plus
+  primary-output assembly; a day-coverage-only change leaves primary-output
+  assembly cached; Clippy and the browser-WASM build pass.
 - Local Rust setup: `/opt/homebrew/bin/cargo` uses the Homebrew compiler, which
   does not see rustup-installed targets. WASM checks therefore use
   `rustup run stable cargo ... --target wasm32-unknown-unknown`; a plain
@@ -725,10 +739,19 @@ and no production deployment change is allowed.
   pass `warm_workspace_reuses_tracked_results_and_option_change_recomputes_exact_cone`.
   A day-coverage-only change reports exactly `build_coverage_table` and
   `assemble_result`, grouped as `day_coverage` and `outputs`.
-- Next proof: regenerate all six implementation-bound dependency ledgers and
-  the dependency certificate, then run the complete runtime suite. The current
-  full runtime suite has 45 passing tests and two intentional stale-receipt
-  failures until those files are regenerated.
+- Evidence currency: all six implementation-bound dependency ledgers and
+  `.semantic-federation/proofs/dependency-certificate.json` were regenerated
+  with `make dependency-evidence` on this merged provenance wave. The two
+  intentional stale-receipt failures are gone: `cargo test --locked
+  --manifest-path rust/chronicle_preprocessing_runtime_wasm/Cargo.toml`
+  reports `69 passed; 0 failed; 3 ignored`. `make semantic-federation` reports
+  `check-artifacts-in-sync: closure digests correct and no drift`.
+- `chronicle_chrono_kernel_wasm` is back above its declared coverage ratchet at
+  96.24%/95.47%/92.80% against 90/89/85, and `make coverage-rust` — which could
+  not reach the kernel at all — is repaired and exits 0 across all five
+  authority crates.
+- Next proof: the final aggregate
+  review.
 - Main risk: an omitted actual read could keep a stale value. Every option,
   support-file, qualification, and binding campaign therefore compares the warm
   result and event set with an independent cold run.
@@ -740,13 +763,14 @@ and no production deployment change is allowed.
 |---|---|---|
 | Put the corrected understanding in the plan | done | This document names the 55 steps, current truth, target, phases, checks, and live backlog. |
 | Put it in the tracked goal | done | Active Codex goal created 2026-07-23. |
-| Correct all accessible project documents | active | This plan, README, decisions, proof, branch authority, generated inventory/bindings, performance history, and claim checkers now use the tracked-runtime model; empirical ledgers and final reports remain. |
+| Correct all accessible project documents | active | This plan, README, decisions, proof, branch authority, generated inventory/bindings, performance history, and claim checkers use the tracked-runtime model, and the empirical ledgers were regenerated in `3c598ee`. The final aggregate report is the remainder. |
 | Use the software already researched | done | Salsa `0.28.1` is pinned and implements all 55 real steps; the retained alternatives are historical fallback evidence, not an invitation to search again. |
 | Do not invent another abstract runtime | done | Existing 55-step contract and Rust functions are the only product model; the status check adds no runtime behavior. |
 | Make the setup generalized but prove it in this app | active | Shared repositories keep narrow reusable responsibilities; Chronicle owns the first full implementation. |
 | Make it production-ready | pending | Phases 1–7 and every acceptance check must pass. |
-| Keep TypeScript to interaction/rendering | pending verification | Existing boundary remains; final cutover checks enforce it. |
-| Commit/push and preview-only deploy | pending | Per the earlier instruction, after verified implementation milestones; no production/main change. |
+| Keep TypeScript to interaction/rendering | done | `npm run check:authority-boundary` reports `TypeScript authority boundary: Rust/WASM is the only preprocessing engine.`, and `make gate-truth` proves that check fires when a retired engine symbol is seeded back in. |
+| Commit/push | done | PR #81 squash-merged as `121e7b5`; PR #88 squash-merged as `3c598ee`. The instruction that no `main` change was allowed is superseded: `main` is now where this work lives, and the development branches are deleted. |
+| Preview-only deploy | pending | Never performed. There is no preview workflow in this repository, and `web-pwa-deploy.yml` publishes to production Pages on manual dispatch only. The live app remains the deliberately dispatched `rollback/2026-06-27-build` from 2026-07-29. |
 
 ## Required review record
 

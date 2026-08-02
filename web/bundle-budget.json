@@ -1,14 +1,14 @@
 {
-  "_comment": "Deploy-artifact size budgets (bytes), enforced by check_deploy_artifact.mts. Re-measured 2026-07-28 (evening): runtime WASM 6,039,041 (was 5,978,073 same morning). Cause: the incremental-execution kernel perf work landed 2026-07-28 (becd018..eab8b6e) — seven content-keyed alternation caches, the decoded_reconstruction_base salsa query split with retained-encoded-bytes identity, the product-shaped warm loop support, and the canonical-row/dedupe allocation cuts all compile into chronicle_chrono_kernel_wasm. Runtime WASM cap raised 6,000,000 to 6,100,000. Also .js total 900,222 (cap was 900,000): the in-progress compare/View UI work in the working tree (App.tsx, ProcessPanel.tsx, review panels); .js cap raised 900,000 to 910,000. Total assets 11,087,227; worker 125,840; semantic-index WASM 2,024,364 — all within their existing caps. Prior worker-raise rationale (122,000 to 127,000, sourcemap attribution finding no removable duplication) retained in git history. Budgets retain limited headroom; raising one requires a named cause and a new measurement.",
-  "totalBytes": 11250000,
+  "_comment": "Deploy-artifact size budgets (bytes), enforced by check_deploy_artifact.mts. Re-measured 2026-08-01 (provenance wave 1 integration, incl. cross-browser durability lane): total 11,440,542; .js 927,917; .wasm 8,357,657. Runtime WASM 6,333,180: (a) the source-result influence witness v2 (per-row precision classes, source_field/target_output_column columns, column-granular declared-scope routing) and the per-step field-level read/write declarations in the step contract (+114,990 over the 2026-07-28 baseline); (b) `--merge-similar-functions` removed from the release wasm-opt flags in rust/chronicle_preprocessing_runtime_wasm/Cargo.toml (+177,834 uncompressed, gzip unchanged) because merging Salsa 0.28's per-jar `fn() -> TypeId` thunks corrupted jar identity — the second salsa::Storage in one WASM instance registered an incomplete jar map and aborted WebKit runs with `ingredient JarImpl<UsageSupportInput> was not registered`; the Cargo.toml comment carries the evidence. Runtime WASM cap raised 6,100,000 to 6,400,000; .wasm total 8,200,000 to 8,430,000; assets total 11,250,000 to 11,500,000. Worker chunk 134,190 (cap 127,000 to 136,000): the streaming workspace-archive builder/import verification, the runOnSlot/abortInFlight cancel fix, and probeWorkspaceCapability's verified OPFS write/read-back round trip in the writing worker. .js total 927,917 (cap 910,000 to 935,000): the generated runtime-boundary validator artifact plus the worker code above. Prior raise rationales retained in git history. Budgets retain limited headroom; raising one requires a named cause and a new measurement.",
+  "totalBytes": 11500000,
   "categories": {
-    ".js": 910000,
-    ".wasm": 8200000,
+    ".js": 935000,
+    ".wasm": 8430000,
     ".css": 100000
   },
   "filePrefixes": {
-    "chronicle_preprocessing_runtime_wasm_bg-": 6100000,
+    "chronicle_preprocessing_runtime_wasm_bg-": 6400000,
     "chronicle_semantic_index_wasm_bg-": 2350000,
-    "chronicle-worker-": 127000
+    "chronicle-worker-": 136000
   }
 }

@@ -43,7 +43,7 @@ export default defineConfig({
         lines: 99,
         statements: 99,
         functions: 99,
-        // Branches ratcheted to 95 (measured 96.27%). v8 counts each unhit
+        // Branches ratcheted to 95 (measured 95.27% on 2026-08-01). v8 counts each unhit
         // ternary/`??`/optional-chain arm separately, so 99 is unrealistic here;
         // the residual uncovered arms are documented-unreachable defensive/DOM
         // guards. Keep this a hair under the measured value to bite regressions

@@ -24,10 +24,21 @@ import {
   verifyRuntimeWorkspace,
 } from "@/lib/opfsArtifactStore";
 
+/**
+ * Geometry of the last BufferSource handed to `write()`. WebKit's
+ * FileSystemWritableFileStream ignores byteOffset/byteLength and writes the
+ * whole underlying ArrayBuffer, so passing a partial view is a real
+ * cross-browser corruption bug that an in-memory mock (which copies the view
+ * faithfully) can never reproduce. Recording the geometry lets a test assert
+ * the constraint directly.
+ */
+type WriteGeometry = { byteOffset: number; byteLength: number; bufferBytes: number };
+
 class MemoryFileHandle {
   readonly kind = "file" as const;
   bytes = new Uint8Array();
   reads = 0;
+  lastWriteGeometry: WriteGeometry | undefined;
   nextReadError: Error | undefined;
   nextWriteTransform:
     | ((bytes: Uint8Array<ArrayBuffer>) => Promise<Uint8Array<ArrayBuffer>>)
@@ -46,10 +57,22 @@ class MemoryFileHandle {
   createWritable(): Promise<FileSystemWritableFileStream> {
     let pending = new Uint8Array();
     return Promise.resolve({
-      write(data: FileSystemWriteChunkType) {
-        if (data instanceof Uint8Array) pending = Uint8Array.from(data);
-        else if (data instanceof ArrayBuffer) pending = new Uint8Array(data);
-        else throw new Error("unsupported test write");
+      write: (data: FileSystemWriteChunkType) => {
+        if (data instanceof Uint8Array) {
+          this.lastWriteGeometry = {
+            byteOffset: data.byteOffset,
+            byteLength: data.byteLength,
+            bufferBytes: data.buffer.byteLength,
+          };
+          pending = Uint8Array.from(data);
+        } else if (data instanceof ArrayBuffer) {
+          this.lastWriteGeometry = {
+            byteOffset: 0,
+            byteLength: data.byteLength,
+            bufferBytes: data.byteLength,
+          };
+          pending = new Uint8Array(data);
+        } else throw new Error("unsupported test write");
         return Promise.resolve();
       },
       close: async () => {
@@ -184,6 +207,89 @@ async function signedTestSlot(
     ...unsigned,
     checksum: await digest(new TextEncoder().encode(JSON.stringify(unsigned))),
   };
+}
+
+async function blobBytes(blob: Blob): Promise<Uint8Array> {
+  return new Uint8Array(await blob.arrayBuffer());
+}
+
+function asArchive(bytes: Uint8Array): Blob {
+  return new Blob([bytes as BlobPart]);
+}
+
+/**
+ * Wrap an archive so every range read goes through `slice`. Import must reach
+ * the archive only that way, so this is how the tests observe (and perturb)
+ * exactly what the streaming importer asks for.
+ */
+function archiveWithSliceHook(
+  archive: Blob,
+  slice: (start: number, end: number) => Blob,
+): Blob {
+  return new Proxy(archive, {
+    get(target, property, receiver) {
+      if (property === "slice") return slice;
+      const value: unknown = Reflect.get(target, property, receiver);
+      return typeof value === "function"
+        ? (value as (...args: never[]) => unknown).bind(target)
+        : value;
+    },
+  });
+}
+
+/**
+ * The pre-streaming whole-buffer `exportRuntimeClosure`, kept verbatim as the
+ * byte-compatibility oracle. Archives already sitting in users' backups were
+ * written by exactly this code, so the streaming writer must still produce the
+ * same bytes and the streaming importer must still accept them.
+ */
+async function legacyExportRuntimeClosure(
+  root: FileSystemDirectoryHandle,
+  slot: WorkspaceRootSlot,
+): Promise<Uint8Array> {
+  const magic = new TextEncoder().encode("CHRONICLE-CLOSURE-V1\n");
+  const rootCommit = JSON.parse(
+    new TextDecoder().decode(
+      await readRuntimeObject(root, slot.workspaceRootDigest),
+    ),
+  ) as { workspaceId: string };
+  const sorted = await collectRuntimeHistoryDigests(
+    root,
+    slot.workspaceRootDigest,
+  );
+  const payloads: Uint8Array[] = [];
+  let offset = 0;
+  const objects: Array<{ digest: string; size: number; offset: number }> = [];
+  for (const objectDigest of sorted) {
+    const bytes = await readRuntimeObject(root, objectDigest);
+    objects.push({ digest: objectDigest, size: bytes.byteLength, offset });
+    payloads.push(bytes);
+    offset += bytes.byteLength;
+  }
+  const manifestBytes = new TextEncoder().encode(
+    JSON.stringify({
+      protocolVersion: "chronicle-runtime-closure/v1",
+      workspaceId: rootCommit.workspaceId,
+      workspaceRootDigest: slot.workspaceRootDigest,
+      previousWorkspaceRootDigest: slot.previousWorkspaceRootDigest,
+      objects,
+    }),
+  );
+  const archive = new Uint8Array(
+    magic.byteLength + 4 + manifestBytes.byteLength + offset,
+  );
+  archive.set(magic, 0);
+  new DataView(archive.buffer).setUint32(
+    magic.byteLength,
+    manifestBytes.byteLength,
+    true,
+  );
+  const payloadStart = magic.byteLength + 4 + manifestBytes.byteLength;
+  archive.set(manifestBytes, magic.byteLength + 4);
+  for (let index = 0; index < payloads.length; index += 1) {
+    archive.set(payloads[index]!, payloadStart + objects[index]!.offset);
+  }
+  return archive;
 }
 
 function buildTestClosureArchive(
@@ -617,18 +723,18 @@ describe("OPFS content-addressed runtime workspace", () => {
       artifacts: [rootArtifact, payload],
     });
     const archive = await exportRuntimeClosure(rootHandle(source), slot);
-    expect(runtimeClosureWorkspaceId(archive)).toBe(workspaceId);
+    expect(archive.type).toBe("application/vnd.chronicle.workspace");
+    await expect(runtimeClosureWorkspaceId(archive)).resolves.toBe(workspaceId);
     const destination = new MemoryDirectoryHandle();
     let verified = false;
     const imported = await importRuntimeClosure(
       rootHandle(destination),
       archive,
-      (closure) => {
+      async (closure) => {
         expect(closure.manifest.workspaceRootDigest).toBe(rootArtifact.digest);
         expect(closure.manifest.workspaceId).toBe(workspaceId);
-        expect(closure.object(payload.digest)).toEqual(payload.bytes);
+        expect(await closure.object(payload.digest)).toEqual(payload.bytes);
         verified = true;
-        return Promise.resolve();
       },
     );
     expect(verified).toBe(true);
@@ -637,15 +743,302 @@ describe("OPFS content-addressed runtime workspace", () => {
       await readRuntimeObject(rootHandle(destination), payload.digest),
     ).toEqual(payload.bytes);
 
-    const corrupt = Uint8Array.from(archive);
+    const corrupt = await blobBytes(archive);
     corrupt[corrupt.length - 1] = (corrupt[corrupt.length - 1] ?? 0) ^ 0xff;
     await expect(
       importRuntimeClosure(
         rootHandle(new MemoryDirectoryHandle()),
-        corrupt,
+        asArchive(corrupt),
         () => Promise.resolve(),
       ),
     ).rejects.toThrow(/digest mismatch/);
+  });
+
+  it("writes bytes identical to the pre-streaming whole-buffer exporter and imports that writer's archives", async () => {
+    const workspaceId = `sha256:${"5".repeat(64)}`;
+    const source = new MemoryDirectoryHandle();
+    let slot: WorkspaceRootSlot | undefined;
+    const values: PersistedRuntimeArtifact[] = [];
+    for (const label of ["alpha", "beta"]) {
+      const payload = await artifact("app-csv", label.repeat(4096));
+      const rootArtifact = await artifact(
+        "workspace-root-json",
+        JSON.stringify({
+          workspaceId,
+          previousWorkspaceRootDigest: slot?.workspaceRootDigest ?? null,
+          artifactDigests: [payload.digest],
+        }),
+      );
+      slot = await persistRuntimeWorkspace(rootHandle(source), {
+        workspaceRootDigest: rootArtifact.digest,
+        previousWorkspaceRootDigest: slot?.workspaceRootDigest ?? null,
+        recoveredSlot: slot,
+        artifacts: [rootArtifact, payload],
+      });
+      values.push(rootArtifact, payload);
+    }
+
+    const legacy = await legacyExportRuntimeClosure(rootHandle(source), slot!);
+    const streamed = await exportRuntimeClosure(rootHandle(source), slot!);
+    // Byte-for-byte, not merely "parses the same": an archive written by the
+    // shipped whole-buffer exporter is exactly what this exporter now writes,
+    // so the format needed no version bump and no backup was invalidated.
+    expect(await blobBytes(streamed)).toEqual(legacy);
+
+    const destination = new MemoryDirectoryHandle();
+    const imported = await importRuntimeClosure(
+      rootHandle(destination),
+      asArchive(legacy),
+      () => Promise.resolve(),
+    );
+    expect(imported.workspaceRootDigest).toBe(slot!.workspaceRootDigest);
+    for (const value of values) {
+      await expect(
+        readRuntimeObject(rootHandle(destination), value.digest),
+      ).resolves.toEqual(value.bytes);
+    }
+  });
+
+  it("streams a many-object archive and never reads more than one object at a time", async () => {
+    const workspaceId = `sha256:${"3".repeat(64)}`;
+    const source = new MemoryDirectoryHandle();
+    const payloads: PersistedRuntimeArtifact[] = [];
+    for (let index = 0; index < 64; index += 1) {
+      payloads.push(await artifact("app-csv", `object-${index}-${"x".repeat(2048)}`));
+    }
+    const rootArtifact = await artifact(
+      "workspace-root-json",
+      JSON.stringify({
+        workspaceId,
+        previousWorkspaceRootDigest: null,
+        artifactDigests: payloads.map(({ digest }) => digest),
+      }),
+    );
+    const slot = await persistRuntimeWorkspace(rootHandle(source), {
+      workspaceRootDigest: rootArtifact.digest,
+      previousWorkspaceRootDigest: null,
+      artifacts: [rootArtifact, ...payloads],
+    });
+
+    const archive = await exportRuntimeClosure(rootHandle(source), slot);
+    const destination = new MemoryDirectoryHandle();
+    // A slice reader that refuses to hand out more than one object's worth of
+    // bytes per call proves the importer never asks for the whole payload.
+    const largest = Math.max(...payloads.map(({ size }) => size), rootArtifact.size);
+    let widestRead = 0;
+    let sliceCalls = 0;
+    const bounded = archiveWithSliceHook(archive, (start, end) => {
+      sliceCalls += 1;
+      // Calls 1 and 2 are the fixed header and the manifest; every later read
+      // is a single object payload.
+      if (sliceCalls > 2) widestRead = Math.max(widestRead, end - start);
+      return archive.slice(start, end);
+    });
+    const imported = await importRuntimeClosure(
+      rootHandle(destination),
+      bounded,
+      () => Promise.resolve(),
+    );
+    expect(imported.workspaceRootDigest).toBe(rootArtifact.digest);
+    expect(widestRead).toBeLessThanOrEqual(largest);
+    for (const value of [rootArtifact, ...payloads]) {
+      await expect(
+        readRuntimeObject(rootHandle(destination), value.digest),
+      ).resolves.toEqual(value.bytes);
+    }
+  });
+
+  it("flushes staged payloads past the staging budget without changing the bytes", async () => {
+    const workspaceId = `sha256:${"c".repeat(64)}`;
+    const source = new MemoryDirectoryHandle();
+    // Six 1 MiB objects cross the 4 MiB staging budget, so the builder hands
+    // parts to blob storage mid-export instead of only at `finish()`.
+    const payloads: PersistedRuntimeArtifact[] = [];
+    for (let index = 0; index < 6; index += 1) {
+      payloads.push(
+        await artifact("app-csv", `${String(index)}${"x".repeat(1024 * 1024)}`),
+      );
+    }
+    const rootArtifact = await artifact(
+      "workspace-root-json",
+      JSON.stringify({
+        workspaceId,
+        previousWorkspaceRootDigest: null,
+        artifactDigests: payloads.map(({ digest }) => digest),
+      }),
+    );
+    const slot = await persistRuntimeWorkspace(rootHandle(source), {
+      workspaceRootDigest: rootArtifact.digest,
+      previousWorkspaceRootDigest: null,
+      artifacts: [rootArtifact, ...payloads],
+    });
+
+    const archive = await exportRuntimeClosure(rootHandle(source), slot);
+    expect(archive.size).toBeGreaterThan(4 * 1024 * 1024);
+    // Staging is an allocation strategy, never a format decision: a flushed
+    // archive is byte-identical to the whole-buffer writer's output. Compared
+    // by digest because element-wise deep equality over megabytes of typed
+    // array costs seconds and proves nothing extra.
+    const legacy = await legacyExportRuntimeClosure(rootHandle(source), slot);
+    expect(archive.size).toBe(legacy.byteLength);
+    expect(await digest(await blobBytes(archive))).toBe(await digest(legacy));
+
+    const destination = new MemoryDirectoryHandle();
+    const imported = await importRuntimeClosure(
+      rootHandle(destination),
+      archive,
+      () => Promise.resolve(),
+    );
+    expect(imported.workspaceRootDigest).toBe(rootArtifact.digest);
+    for (const value of [rootArtifact, ...payloads]) {
+      const stored = await readRuntimeObject(rootHandle(destination), value.digest);
+      expect(stored.byteLength).toBe(value.size);
+      expect(await digest(stored)).toBe(value.digest);
+    }
+  });
+
+  it("fails the export when filesystem metadata disagrees with the object it reads", async () => {
+    const source = new MemoryDirectoryHandle();
+    const workspaceId = `sha256:${"b".repeat(64)}`;
+    const payload = await artifact("app-csv", "metadata-disagreement");
+    const rootArtifact = await artifact(
+      "workspace-root-json",
+      JSON.stringify({
+        workspaceId,
+        previousWorkspaceRootDigest: null,
+        artifactDigests: [payload.digest],
+      }),
+    );
+    const slot = await persistRuntimeWorkspace(rootHandle(source), {
+      workspaceRootDigest: rootArtifact.digest,
+      previousWorkspaceRootDigest: null,
+      artifacts: [rootArtifact, payload],
+    });
+
+    // The manifest is written from `file.size`; the payload comes from a later
+    // full read. A store that reports the wrong size would shift every offset
+    // after this object, so the export refuses rather than emitting a manifest
+    // that does not describe its own payload.
+    const handle = objectFile(source, payload.digest);
+    const honest = handle.getFile.bind(handle);
+    handle.getFile = async () => {
+      const file = await honest();
+      return new Proxy(file, {
+        get(target, property, receiver) {
+          if (property === "size") return target.size + 1;
+          const value: unknown = Reflect.get(target, property, receiver);
+          return typeof value === "function"
+            ? (value as (...args: never[]) => unknown).bind(target)
+            : value;
+        },
+      });
+    };
+    await expect(exportRuntimeClosure(rootHandle(source), slot)).rejects.toThrow(
+      /changed while exporting/,
+    );
+  });
+
+  it("rejects an archive truncated inside an object without writing anything", async () => {
+    const workspaceId = `sha256:${"2".repeat(64)}`;
+    const source = new MemoryDirectoryHandle();
+    const payload = await artifact("app-csv", "truncation-probe".repeat(64));
+    const rootArtifact = await artifact(
+      "workspace-root-json",
+      JSON.stringify({
+        workspaceId,
+        previousWorkspaceRootDigest: null,
+        artifactDigests: [payload.digest],
+      }),
+    );
+    const slot = await persistRuntimeWorkspace(rootHandle(source), {
+      workspaceRootDigest: rootArtifact.digest,
+      previousWorkspaceRootDigest: null,
+      artifacts: [rootArtifact, payload],
+    });
+    const complete = await blobBytes(
+      await exportRuntimeClosure(rootHandle(source), slot),
+    );
+
+    // Cutting one byte, half an object, and all-but-one byte of an object each
+    // leaves the last declared object extending past the end of the archive.
+    // That is caught from the table alone, before any payload is hashed.
+    for (const cut of [1, Math.floor(payload.size / 2), payload.size - 1]) {
+      const destination = new MemoryDirectoryHandle();
+      await expect(
+        importRuntimeClosure(
+          rootHandle(destination),
+          asArchive(complete.subarray(0, complete.byteLength - cut)),
+          () => Promise.resolve(),
+        ),
+      ).rejects.toThrow(/invalid runtime closure object table/);
+      // Nothing may have been placed, and no root slot may exist.
+      expect(
+        destination.directories.get("chronicle-preprocessing-runtime-v1"),
+      ).toBeUndefined();
+    }
+
+    // The mirror case: bytes beyond the last declared object mean the table
+    // does not account for the whole archive.
+    const padded = new Uint8Array(complete.byteLength + 7);
+    padded.set(complete);
+    const overlong = new MemoryDirectoryHandle();
+    await expect(
+      importRuntimeClosure(rootHandle(overlong), asArchive(padded), () =>
+        Promise.resolve(),
+      ),
+    ).rejects.toThrow(/payload is incomplete/);
+    expect(
+      overlong.directories.get("chronicle-preprocessing-runtime-v1"),
+    ).toBeUndefined();
+
+    // A digest that no longer matches its object is rejected before any write,
+    // even though the framing is intact.
+    const flipped = Uint8Array.from(complete);
+    flipped[flipped.byteLength - 1] = (flipped[flipped.byteLength - 1] ?? 0) ^ 0xff;
+    const tampered = new MemoryDirectoryHandle();
+    await expect(
+      importRuntimeClosure(rootHandle(tampered), asArchive(flipped), () =>
+        Promise.resolve(),
+      ),
+    ).rejects.toThrow(/digest mismatch/);
+    expect(
+      tampered.directories.get("chronicle-preprocessing-runtime-v1"),
+    ).toBeUndefined();
+  });
+
+  it("imports an archive whose object table is not in sorted digest order", async () => {
+    const workspaceId = `sha256:${"a".repeat(64)}`;
+    const payload = await artifact("app-csv", "unordered-payload");
+    const rootArtifact = await artifact(
+      "workspace-root-json",
+      JSON.stringify({
+        workspaceId,
+        previousWorkspaceRootDigest: null,
+        artifactDigests: [payload.digest],
+      }),
+    );
+    const ordered = [rootArtifact, payload].sort((left, right) =>
+      left.digest < right.digest ? -1 : 1,
+    );
+    const destination = new MemoryDirectoryHandle();
+    const imported = await importRuntimeClosure(
+      rootHandle(destination),
+      asArchive(
+        buildTestClosureArchive(
+          workspaceId,
+          rootArtifact.digest,
+          null,
+          [...ordered].reverse(),
+        ),
+      ),
+      () => Promise.resolve(),
+    );
+    expect(imported.workspaceRootDigest).toBe(rootArtifact.digest);
+    for (const value of ordered) {
+      await expect(
+        readRuntimeObject(rootHandle(destination), value.digest),
+      ).resolves.toEqual(value.bytes);
+    }
   });
 
   it("retains, exports, and imports the complete three-run history", async () => {
@@ -965,11 +1358,13 @@ describe("OPFS content-addressed runtime workspace", () => {
     await expect(
       importRuntimeClosure(
         rootHandle(new MemoryDirectoryHandle()),
-        buildTestClosureArchive(
-          `sha256:${"1".repeat(64)}`,
-          head.digest,
-          tenThousandth.digest,
-          [...chain].reverse(),
+        asArchive(
+          buildTestClosureArchive(
+            `sha256:${"1".repeat(64)}`,
+            head.digest,
+            tenThousandth.digest,
+            [...chain].reverse(),
+          ),
         ),
         () => Promise.resolve(),
       ),
@@ -1194,6 +1589,46 @@ describe("OPFS content-addressed runtime workspace", () => {
     ).toEqual(source);
   });
 
+  it("never hands the browser a partial view of a larger buffer", async () => {
+    // `importRuntimeClosure` slices every object out of one archive buffer, so
+    // the artifacts it persists are subarray views. WebKit's
+    // FileSystemWritableFileStream.write() ignores byteOffset/byteLength and
+    // stores the WHOLE underlying ArrayBuffer (WebKit 26.4; Chromium 147 and
+    // Firefox 148 honour the view), which wrote the entire archive in place of
+    // each object and failed the store's own read-back check. The store must
+    // therefore only ever pass a buffer the view completely spans.
+    const root = new MemoryDirectoryHandle();
+    const source = new TextEncoder().encode(
+      JSON.stringify({
+        workspaceId: `sha256:${"1".repeat(64)}`,
+        previousWorkspaceRootDigest: null,
+        artifactDigests: [],
+      }),
+    );
+    const archive = new Uint8Array(source.byteLength + 64);
+    archive.set(source, 32);
+    const viewArtifact: PersistedRuntimeArtifact = {
+      kind: "workspace-root-json",
+      digest: await digest(source),
+      size: source.byteLength,
+      bytes: archive.subarray(32, 32 + source.byteLength),
+    };
+    await persistRuntimeWorkspace(rootHandle(root), {
+      workspaceRootDigest: viewArtifact.digest,
+      previousWorkspaceRootDigest: null,
+      artifacts: [viewArtifact],
+    });
+    const written = objectFile(root, viewArtifact.digest).lastWriteGeometry;
+    expect(written).toEqual({
+      byteOffset: 0,
+      byteLength: source.byteLength,
+      bufferBytes: source.byteLength,
+    });
+    expect(
+      await readRuntimeObject(rootHandle(root), viewArtifact.digest),
+    ).toEqual(source);
+  });
+
   it("distinguishes a new empty workspace from a corrupt existing workspace", async () => {
     await expect(
       recoverRuntimeWorkspace(rootHandle(new MemoryDirectoryHandle())),
@@ -1270,6 +1705,122 @@ describe("OPFS content-addressed runtime workspace", () => {
       evictionProtected: null,
     });
 
+    // A browser that hands out a directory handle but refuses the write is the
+    // exact half-run this gate exists to stop: an existence-only probe reports
+    // "ready" and the run dies at commit time instead of before it starts.
+    const writeDenied = new MemoryDirectoryHandle();
+    writeDenied.getDirectoryHandle = () =>
+      Promise.resolve({
+        getFileHandle: () =>
+          Promise.reject(new DOMException("quota", "QuotaExceededError")),
+      } as unknown as FileSystemDirectoryHandle);
+    vi.stubGlobal("navigator", {
+      storage: { getDirectory: () => Promise.resolve(rootHandle(writeDenied)) },
+      locks: { request: vi.fn() },
+    });
+    await expect(probeOpfsCapability()).resolves.toEqual({
+      status: "unavailable",
+      reason: "Origin-private file storage is open but not writable: quota",
+    });
+
+    // A browser that hands out the origin root but refuses to create the probe
+    // directory (private browsing, an exhausted quota) never reaches the write
+    // at all, and must be reported at that boundary rather than as a write
+    // failure the caller could misread as transient.
+    const noDirectories = new MemoryDirectoryHandle();
+    noDirectories.getDirectoryHandle = () =>
+      Promise.reject(new DOMException("no space", "QuotaExceededError"));
+    vi.stubGlobal("navigator", {
+      storage: { getDirectory: () => Promise.resolve(rootHandle(noDirectories)) },
+      locks: { request: vi.fn() },
+    });
+    await expect(probeOpfsCapability()).resolves.toEqual({
+      status: "unavailable",
+      reason:
+        "Origin-private file storage is readable but no directory can be created: no space",
+    });
+
+    // A store that accepts the write and then cannot read the file back is the
+    // other half of the round trip: verified persistence needs both, so a
+    // write-only store fails closed with its own distinct reason.
+    const unreadable = new MemoryDirectoryHandle();
+    const unreadableProbe = (await unreadable.getDirectoryHandle(
+      "chronicle-capability-probe-v1",
+      { create: true },
+    )) as unknown as MemoryDirectoryHandle;
+    const unreadableGetFileHandle =
+      unreadableProbe.getFileHandle.bind(unreadableProbe);
+    unreadableProbe.getFileHandle = async (name, options) => {
+      const handle = (await unreadableGetFileHandle(
+        name,
+        options,
+      )) as unknown as MemoryFileHandle;
+      // Writing never calls getFile(), so this only bites the read-back.
+      handle.nextReadError = new DOMException("read failed", "NotReadableError");
+      return handle as unknown as FileSystemFileHandle;
+    };
+    vi.stubGlobal("navigator", {
+      storage: { getDirectory: () => Promise.resolve(rootHandle(unreadable)) },
+      locks: { request: vi.fn() },
+    });
+    await expect(probeOpfsCapability()).resolves.toEqual({
+      status: "unavailable",
+      reason:
+        "Origin-private file storage accepted a write it cannot read back: read failed",
+    });
+
+    // A store that accepts the write and returns different bytes cannot back a
+    // verified workspace at all, so it must fail closed too.
+    const lyingStore = new MemoryDirectoryHandle();
+    const probeDirectory = (await lyingStore.getDirectoryHandle(
+      "chronicle-capability-probe-v1",
+      { create: true },
+    )) as unknown as MemoryDirectoryHandle;
+    const originalGetFileHandle =
+      probeDirectory.getFileHandle.bind(probeDirectory);
+    probeDirectory.getFileHandle = async (name, options) => {
+      const handle = (await originalGetFileHandle(
+        name,
+        options,
+      )) as unknown as MemoryFileHandle;
+      handle.nextWriteTransform = (bytes) =>
+        Promise.resolve(Uint8Array.from(bytes, (byte) => byte ^ 0xff));
+      return handle as unknown as FileSystemFileHandle;
+    };
+    vi.stubGlobal("navigator", {
+      storage: { getDirectory: () => Promise.resolve(rootHandle(lyingStore)) },
+      locks: { request: vi.fn() },
+    });
+    await expect(probeOpfsCapability()).resolves.toEqual({
+      status: "unavailable",
+      reason:
+        "Origin-private file storage returned different bytes than were written, so verified persistence is impossible.",
+    });
+
+    // Deletion is not a durability primitive — a store that cannot remove the
+    // probe file still persists verified objects, so it must stay "ready".
+    const noDelete = new MemoryDirectoryHandle();
+    const noDeleteProbe = (await noDelete.getDirectoryHandle(
+      "chronicle-capability-probe-v1",
+      { create: true },
+    )) as unknown as MemoryDirectoryHandle;
+    noDeleteProbe.removeEntry = () =>
+      Promise.reject(new DOMException("read-only", "NoModificationAllowedError"));
+    vi.stubGlobal("navigator", {
+      storage: { getDirectory: () => Promise.resolve(rootHandle(noDelete)) },
+      locks: { request: vi.fn() },
+    });
+    await expect(probeOpfsCapability()).resolves.toEqual({
+      status: "ready",
+      evictionProtected: null,
+    });
+
+    vi.stubGlobal("navigator", {
+      storage: {
+        getDirectory: () => Promise.resolve(rootHandle(root)),
+      },
+      locks: { request: vi.fn() },
+    });
     const first = await openOpfsWorkspace(`sha256:${"1".repeat(64)}`);
     const second = await openOpfsWorkspace(`sha256:${"2".repeat(64)}`);
     expect(first).not.toBe(second);
@@ -1292,17 +1843,31 @@ describe("OPFS content-addressed runtime workspace", () => {
       previousWorkspaceRootDigest: null,
       artifacts: [rootArtifact, payload],
     });
-    const valid = await exportRuntimeClosure(rootHandle(source), slot);
+    const valid = await blobBytes(
+      await exportRuntimeClosure(rootHandle(source), slot),
+    );
     const magic = new TextEncoder().encode("CHRONICLE-CLOSURE-V1\n");
 
-    expect(() => runtimeClosureWorkspaceId(new Uint8Array([1, 2, 3]))).toThrow(
+    await expect(
+      runtimeClosureWorkspaceId(asArchive(new Uint8Array([1, 2, 3]))),
+    ).rejects.toThrow(/invalid runtime closure magic/);
+    await expect(
+      runtimeClosureWorkspaceId(asArchive(new Uint8Array(magic.byteLength + 3))),
+    ).rejects.toThrow(/invalid runtime closure magic/);
+    // Long enough to carry a header, but the magic itself is wrong: the framing
+    // check reads the header range and compares every byte, so this is rejected
+    // without reading a manifest or a payload.
+    const wrongMagic = new Uint8Array(valid);
+    wrongMagic[magic.byteLength - 1] =
+      (wrongMagic[magic.byteLength - 1] ?? 0) ^ 0xff;
+    await expect(runtimeClosureWorkspaceId(asArchive(wrongMagic))).rejects.toThrow(
       /invalid runtime closure magic/,
     );
     const zeroManifest = new Uint8Array(magic.byteLength + 4);
     zeroManifest.set(magic);
-    expect(() => runtimeClosureWorkspaceId(zeroManifest)).toThrow(
-      /invalid runtime closure manifest size/,
-    );
+    await expect(
+      runtimeClosureWorkspaceId(asArchive(zeroManifest)),
+    ).rejects.toThrow(/invalid runtime closure manifest size/);
 
     type MutableClosureManifest = Omit<
       RuntimeClosureManifest,
@@ -1310,7 +1875,7 @@ describe("OPFS content-addressed runtime workspace", () => {
     > & {
       protocolVersion: string;
     };
-    const rewrite = (mutate: (manifest: MutableClosureManifest) => void) => {
+    const rewrite = (mutate: (manifest: MutableClosureManifest) => void): Blob => {
       const oldSize = new DataView(
         valid.buffer,
         valid.byteOffset,
@@ -1335,17 +1900,17 @@ describe("OPFS content-addressed runtime workspace", () => {
       );
       next.set(manifestBytes, magic.byteLength + 4);
       next.set(oldPayload, magic.byteLength + 4 + manifestBytes.byteLength);
-      return next;
+      return asArchive(next);
     };
 
-    expect(() =>
+    await expect(
       runtimeClosureWorkspaceId(
         rewrite((manifest) => {
           manifest.protocolVersion = "unsupported";
         }),
       ),
-    ).toThrow(/unsupported runtime closure manifest/);
-    expect(() =>
+    ).rejects.toThrow(/unsupported runtime closure manifest/);
+    await expect(
       runtimeClosureWorkspaceId(
         rewrite((manifest) => {
           const firstObject = manifest.objects[0];
@@ -1353,14 +1918,14 @@ describe("OPFS content-addressed runtime workspace", () => {
           firstObject.size = -1;
         }),
       ),
-    ).toThrow(/invalid runtime closure object table/);
-    expect(() =>
+    ).rejects.toThrow(/invalid runtime closure object table/);
+    await expect(
       runtimeClosureWorkspaceId(
         rewrite((manifest) => {
           manifest.workspaceRootDigest = `sha256:${"9".repeat(64)}`;
         }),
       ),
-    ).toThrow(/runtime closure payload is incomplete/);
+    ).rejects.toThrow(/runtime closure payload is incomplete/);
 
     await expect(
       importRuntimeClosure(
@@ -1384,15 +1949,34 @@ describe("OPFS content-addressed runtime workspace", () => {
     await expect(
       importRuntimeClosure(
         rootHandle(new MemoryDirectoryHandle()),
-        valid,
-        (closure) => {
-          expect(() => closure.object(`sha256:${"9".repeat(64)}`)).toThrow(
-            /runtime closure object is missing/,
-          );
-          return Promise.resolve();
+        asArchive(valid),
+        async (closure) => {
+          await expect(
+            closure.object(`sha256:${"9".repeat(64)}`),
+          ).rejects.toThrow(/runtime closure object is missing/);
         },
       ),
     ).resolves.toMatchObject({ workspaceRootDigest: rootArtifact.digest });
+
+    // A source that shrinks after the table validated cannot yield a short
+    // object: Blob.slice clamps silently, so the accessor length-checks.
+    let shrinkingCalls = 0;
+    const validArchive = asArchive(valid);
+    const shrinking = archiveWithSliceHook(validArchive, (start, end) => {
+      shrinkingCalls += 1;
+      // Leave the header and manifest intact so the object table still
+      // validates; only the payload reads come back short.
+      return shrinkingCalls <= 2
+        ? validArchive.slice(start, end)
+        : validArchive.slice(start, Math.max(start, end - 1));
+    });
+    await expect(
+      importRuntimeClosure(
+        rootHandle(new MemoryDirectoryHandle()),
+        shrinking,
+        () => Promise.resolve(),
+      ),
+    ).rejects.toThrow(/runtime closure object is truncated/);
   });
 
   it("rejects closure export when the root omits its workspace identity", async () => {
@@ -1420,6 +2004,107 @@ describe("OPFS content-addressed runtime workspace", () => {
     await expect(
       readRuntimeObjectPrefix(rootHandle(root), bogusDigest, 8, 4, 4),
     ).rejects.toThrow(/exceeds the 4 byte read limit/);
+  });
+
+  it("names both sizes when a write reads back with a different length", async () => {
+    // WebKit's writable stream ignores byteOffset/byteLength and stores the
+    // whole backing buffer. The read-back check exists to catch exactly that,
+    // and it must name the observed size — "wrote 812, read back 6291456" is
+    // what turns an engine bug into a one-line diagnosis.
+    const root = new MemoryDirectoryHandle();
+    const payload = await artifact("blob", "seven-byte-ish payload");
+    const hex = payload.digest.slice(7);
+    const store = (await root.getDirectoryHandle(
+      "chronicle-preprocessing-runtime-v1",
+      { create: true },
+    )) as unknown as MemoryDirectoryHandle;
+    const objects = (await store.getDirectoryHandle("objects", {
+      create: true,
+    })) as unknown as MemoryDirectoryHandle;
+    const shard = (await objects.getDirectoryHandle(hex.slice(0, 2), {
+      create: true,
+    })) as unknown as MemoryDirectoryHandle;
+    const handle = (await shard.getFileHandle(hex.slice(2), {
+      create: true,
+    })) as unknown as MemoryFileHandle;
+    handle.nextWriteTransform = (bytes) =>
+      Promise.resolve(Uint8Array.from([...bytes, ...bytes]));
+
+    await expect(
+      persistRuntimeObject(rootHandle(root), payload),
+    ).rejects.toThrow(
+      `OPFS verification failed for blob: wrote ${payload.size} bytes, read back ${payload.size * 2}`,
+    );
+  });
+
+  it("refuses a commit that would push the projected closure past the object ceiling", async () => {
+    // The already-committed history counts toward the ceiling: checking only
+    // the incoming set would let a workspace grow past the limit one commit at
+    // a time and become unreadable.
+    const root = new MemoryDirectoryHandle();
+    const committed = await artifact("workspace-root-json", "ceiling-base");
+    const current = await persistRuntimeWorkspace(rootHandle(root), {
+      workspaceRootDigest: committed.digest,
+      previousWorkspaceRootDigest: null,
+      artifacts: [committed],
+    });
+    const nextRoot = await artifact(
+      "workspace-root-json",
+      JSON.stringify({
+        workspaceId: `sha256:${"1".repeat(64)}`,
+        previousWorkspaceRootDigest: committed.digest,
+        artifactDigests: [],
+      }),
+    );
+    const filler = Array.from({ length: 100_000 }, (_, index) => ({
+      kind: `artifact-${index}`,
+      digest: `sha256:${(index + 1).toString(16).padStart(64, "0")}`,
+      size: 0,
+      digestVerified: true as const,
+    }));
+
+    await expect(
+      commitPersistedRuntimeWorkspace(rootHandle(root), {
+        workspaceRootDigest: nextRoot.digest,
+        previousWorkspaceRootDigest: committed.digest,
+        recoveredSlot: current,
+        artifacts: [
+          { kind: nextRoot.kind, digest: nextRoot.digest, size: nextRoot.size },
+          ...filler,
+        ],
+        slotArtifactDigests: [nextRoot.digest],
+      }),
+    ).rejects.toThrow(
+      /workspace history would exceed 100000 objects; export and start a new workspace/,
+    );
+  });
+
+  it("refuses to write a root slot larger than a recoverable slot read", async () => {
+    // Recovery reads a slot under a hard 128 KiB limit, so writing one past
+    // that ceiling would commit a head no reader could ever recover. The write
+    // is refused instead of producing an unreadable workspace.
+    const root = new MemoryDirectoryHandle();
+    const rootArtifact = await artifact("workspace-root-json", "oversize-slot");
+    const bloated = `sha256:${"a".repeat(200_000)}`;
+
+    await expect(
+      commitPersistedRuntimeWorkspace(rootHandle(root), {
+        workspaceRootDigest: rootArtifact.digest,
+        previousWorkspaceRootDigest: null,
+        artifacts: [
+          {
+            kind: rootArtifact.kind,
+            digest: rootArtifact.digest,
+            size: rootArtifact.size,
+          },
+          { kind: "bloated", digest: bloated, size: 0 },
+        ],
+      }),
+    ).rejects.toThrow("runtime root slot is too large");
+    // Nothing was committed: recovery still reports an empty workspace.
+    await expect(
+      recoverRuntimeWorkspace(rootHandle(root)),
+    ).resolves.toBeUndefined();
   });
 
   it("rejects a persist whose incoming root artifact lies about its digest", async () => {

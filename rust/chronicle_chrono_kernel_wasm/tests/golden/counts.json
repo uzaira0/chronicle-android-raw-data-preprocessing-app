@@ -1,0 +1,38 @@
+{
+  "appRowCount": 22,
+  "availableTimezones": [
+    "America/Chicago"
+  ],
+  "complianceRowCount": 2,
+  "creditedAppRowCount": 20,
+  "dayCoverageRowCount": 2,
+  "duplicateTimestampsCorrected": 1,
+  "exactDuplicateRowsRemoved": 0,
+  "logicalStageDigests": {
+    "app_policy": "sha256:8f42d8863ef06397c7b633a2df9562df902a0015339e0f13dc289ba94736d5b4",
+    "attribute_person": "sha256:477b1fa087ae32414243490abe982a8091c76b790fc8cefe30fe4fd7d337ec19",
+    "categorize_apps": "sha256:594d8ecfc99a32a20cb3635841e90fbd95dc640aab2dab09a7bd69f5a7415048",
+    "day_coverage": "sha256:597abc516f2881b7feb88206f3120ab5d81ce56969a1be431b5bb40fde7bc3ab",
+    "dedup_and_order": "sha256:b9afac882c8f558485309a8b9dd684ff1e1a6d8b4bbdbf91fce46e5b8e95cb11",
+    "device_state_timeline": "sha256:67fa55f22152b34149519bceca9bf773cfd83de3d467f26d611b48127eeb86b1",
+    "effective_usage": "sha256:8f52e3c15f92b40fd6719136cb130c9b93f3b78040f9c577b70139ad15b3d4e1",
+    "episode_annotations": "sha256:9c04f62d485986d258a7b826bb33d8e32abd66e8922d4c0b591577b69ff5f1ed",
+    "interval_cleaning": "sha256:677968b3c6c6b376c6e8e820c6b4fff26de181b7bd474139e6d3f007b32ca1d9",
+    "normalize_timezones": "sha256:09641d9ce238a405ec55ae12bbf2558de80d4f889f0cbfab75acf9b103e008a4",
+    "observation_window": "sha256:03b2aa78de44d9b092d2253f7b8c28084181e33843d9835355e49077c3679eac",
+    "outputs": "sha256:bd8df7dd0478468b6e45511debed646217dc612eab06b49db2eb724417ab94d5",
+    "parse_events": "sha256:eda019b50f2e350c34d762f78032d11915bafc0bde37097858b83ef87a1b53ab",
+    "reconstruct_episodes": "sha256:29d0e1b2f31d9b172d657c90083930f569a64540853230393a45723b56e6dec9",
+    "score_compliance": "sha256:02ae57c936b6c8308cb15df157950c211d1daf218d7cb5169ce69d824d1b579e"
+  },
+  "originalRowCount": 24,
+  "processedRowCount": 24,
+  "rowsAfterTimezoneHandling": 24,
+  "rowsBeforeTimezoneHandling": 24,
+  "rowsRemovedByTimezone": 0,
+  "screenRowCount": 2,
+  "timezone": "America/Chicago",
+  "timezoneAction": "converted_to_selected",
+  "timezoneRetainedSourceRowsDigest": "sha256:89770234ac2f6458346fb87e252775b9f63565b45181a9e2cc135770e921f421",
+  "timezoneStageDigest": "sha256:84e6c03a5d52bd7766476f15750835435cc75f9b61d39c961d9f00bb7f791748"
+}

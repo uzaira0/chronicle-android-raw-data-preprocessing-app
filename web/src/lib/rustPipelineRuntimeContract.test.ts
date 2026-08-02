@@ -194,6 +194,26 @@ function firstKey(value: Record<string, unknown>): string {
   return key;
 }
 
+// Sizes and counts of the correspondence artifacts on the 600-event fixture
+// below. `docs/semantic-federation/production-proof.md` and
+// `final-review-matrix.md` publish these exact numbers, so they are pinned here
+// rather than left to generous upper bounds — the witness schema change to v3
+// moved its byte size and nothing failed, because a 262,144-byte ceiling
+// happily accommodates any drift a reader would care about.
+const EXPECTED_SOURCE_COORDINATE_ROWS = 4_885;
+const EXPECTED_SOURCE_COORDINATE_BYTES = 37_866;
+const EXPECTED_RESULT_CELL_ROWS = 9_902;
+const EXPECTED_RESULT_CELL_BYTES = 45_810;
+// 64,658 -> 65,394 when the `exact-field` claim text was corrected: the class
+// carries the supplied value with surrounding whitespace removed, so the
+// metadata now says to compare trimmed source bytes rather than implying
+// `value_sha256` always equals `cell_value_sha256`. That is 352 characters of
+// schema metadata, which Arrow stores in both the schema message and the
+// footer, plus 8-byte alignment padding. The row count is deliberately
+// unchanged at 986 -- the witness DATA did not move, only what it says about
+// itself.
+const EXPECTED_INFLUENCE_WITNESS_BYTES = 65_394;
+
 function representativeSourceFixture(): Uint8Array {
   const rows = [
     "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
@@ -2075,15 +2095,36 @@ describe("Rust/WASM runtime manifest contract firewall", () => {
         execution.manifest.artifacts.find((artifact) => artifact.kind === kind)!
           .digest,
     );
+    const resultCellMetadata = execution.manifest.artifacts.find(
+      ({ kind }) => kind === "result-cell-correspondence-arrow",
+    );
     expect(metadata).toBeDefined();
     expect(bytes).toBeDefined();
     expect(metadata?.rowCount).toBeGreaterThanOrEqual(4_800);
     expect(metadata?.size).toBe(bytes?.byteLength);
     expect(metadata?.size).toBeLessThanOrEqual(raw.byteLength * 3 + 65_536);
+    // Pinned exactly for the same reason as the witness size below: the
+    // semantic-federation documents publish these counts and byte sizes, and
+    // only an upper bound stood between a schema change and a stale published
+    // figure.
+    expect(metadata?.rowCount).toBe(EXPECTED_SOURCE_COORDINATE_ROWS);
+    expect(metadata?.size).toBe(EXPECTED_SOURCE_COORDINATE_BYTES);
+    expect(resultCellMetadata?.rowCount).toBe(EXPECTED_RESULT_CELL_ROWS);
+    expect(resultCellMetadata?.size).toBe(EXPECTED_RESULT_CELL_BYTES);
     expect(influenceMetadata).toBeDefined();
     expect(influenceBytes).toBeDefined();
-    expect(influenceMetadata?.rowCount).toBe(686);
+    // v2 of the witness added the three field-level precision classes on top of
+    // the v1 scope/checkpoint and row-lineage rows: exact single-source field
+    // contributions, conservative lineage-search windows, and declared column
+    // scope for the output kinds that have no row lineage. v3 then moved the
+    // search-window bounds into their own `lineage-search-window` key kind and
+    // named index space, which changes the encoded size but not the row count.
+    expect(influenceMetadata?.rowCount).toBe(986);
     expect(influenceMetadata?.size).toBe(influenceBytes?.byteLength);
+    // Pinned exactly, not merely bounded. `docs/semantic-federation` publishes
+    // this byte count, and a bound of 262,144 let the published figure drift
+    // away from the artifact unnoticed while every test stayed green.
+    expect(influenceMetadata?.size).toBe(EXPECTED_INFLUENCE_WITNESS_BYTES);
     expect(influenceMetadata?.size).toBeLessThanOrEqual(262_144);
     expect(influenceMetadata?.derivedFrom).toEqual(
       expect.arrayContaining(dependencyDigests),

@@ -17,6 +17,12 @@ type Props = {
   displayMasker: DemoDisplayMasker;
   isInspecting: boolean;
   isRunning: boolean;
+  /**
+   * True once the durable-workspace probe has failed. The banner App.tsx renders
+   * tells the user processing is disabled; this is what actually disables it, so
+   * the control state and the message cannot disagree.
+   */
+  durableWorkspaceUnavailable?: boolean;
   onProcess: () => void;
   onCancel: () => void;
   onRetry?: (fileName: string) => void;
@@ -42,6 +48,7 @@ export function ProcessPanel({
   displayMasker,
   isInspecting,
   isRunning,
+  durableWorkspaceUnavailable = false,
   onProcess,
   onCancel,
   onRetry,
@@ -102,13 +109,21 @@ export function ProcessPanel({
             className="btn btn--primary btn--lg"
             data-testid="process-files-button"
             onClick={onProcess}
-            disabled={isRunning || isInspecting || !!retryingFile || !uploadedFiles.length}
+            disabled={
+              isRunning ||
+              isInspecting ||
+              !!retryingFile ||
+              !uploadedFiles.length ||
+              durableWorkspaceUnavailable
+            }
           >
             {isRunning
               ? "Processing..."
               : isInspecting
                 ? "Inspecting files..."
-                : "Process files"}
+                : durableWorkspaceUnavailable
+                  ? "Durable storage unavailable"
+                  : "Process files"}
           </button>
         </div>
       </div>

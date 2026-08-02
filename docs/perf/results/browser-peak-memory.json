@@ -1,0 +1,120 @@
+{
+  "what": "Per-engine peak WASM memory for one large raw Chronicle CSV, processed by the production build in a real browser. Recorded by web/scripts/measure_browser_peak_memory.mjs; no threshold is enforced anywhere.",
+  "harness": "web/scripts/measure_browser_peak_memory.mjs (npm run measure:browser-peak-memory -- <fixture.csv> [engines])",
+  "producedBy": {
+    "command": "MEASURE_RUN_TIMEOUT_MS=600000 PLAYWRIGHT_BASE_URL=http://127.0.0.1:4287 npm run measure:browser-peak-memory -- <fixture>",
+    "build": "web/dist from `npm run build`, served by `vite preview` on 127.0.0.1:4287",
+    "host": "Apple Silicon macOS 25.2, 32 logical cores. Other agent lanes were building and running tests during these passes, so elapsedMs is wall-clock under contention and is NOT a performance claim. wasmMemoryBytes does not depend on load."
+  },
+  "mechanics": {
+    "wasmMemoryBytes": "ProcessedFileResult.workerWasmMemoryBytes, recorded by the processing worker from rustWasmMemoryBytes() (WebAssembly.Memory.buffer.byteLength) when the file finished, then read back out of the app's own chronicle-last-run IndexedDB record. WASM linear memory never shrinks, so this IS the run's high-water mark, and it is exactly as accurate on WebKit and Firefox as on Chromium. Reading it from the shipped record means this measures the production path, not a private instrumentation build.",
+    "jsHeapBytes": "performance.memory.usedJSHeapSize. Chromium-only, main thread only, and it says nothing about the worker's WASM heap. Firefox and WebKit expose no equivalent to page script at all, so it is null there - that absence is part of the evidence, not a gap in the harness.",
+    "processRss": "Not recorded. Playwright's browsers are multi-process and the pipeline runs inside a worker process this harness has no reliable cross-engine way to attribute. Sampled RSS of the browsers' content processes was observed in the 0.5-3.8 GB range during these passes but is not reported as a number, because it cannot be attributed to the pipeline.",
+    "profile": "Every engine runs against an on-disk profile via launchPersistentContext. WebKit refuses OPFS in an ephemeral automation context, so an ephemeral run would measure a different (persistence-free) code path on that engine only.",
+    "thresholds": "None. This file records evidence and enforces nothing."
+  },
+  "findings": [
+    "At 34,569,498 bytes / 181,798 rows all three engines complete, and the WASM high-water mark is byte-identical across them: 1,025,900,544 B (978 MiB, 15,655 x 64 KiB pages). Peak WASM memory for this workload is a property of the Rust pipeline, not of the browser.",
+    "Row counts agree across engines as well (181,798 in / 175,131 out), which is the same cross-engine output agreement the durability suites assert.",
+    "At 115,254,808 bytes / 605,915 rows all three engines refuse the file with the SAME product error: 'reconstruction base is too large: 260554624 bytes exceeds 201326592'. 201,326,592 is MAX_RECONSTRUCTION_BASE_UNCOMPRESSED_BYTES (192 MiB) in rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs:1842, checked in encode_reconstruction_base at :2852 - the kernel's own cap on the postcard-encoded step-28 resume value, not a browser memory limit. It is a clean fail-closed refusal with a visible message: no partial output, no silent success. The large-file ceiling is therefore set by that cap, identically on every engine, and no engine was observed to run out of memory before reaching it.",
+    "Chromium's jsHeapBytes (16.1 MB) is roughly two orders of magnitude below the worker's WASM high-water mark, which is why a main-thread heap number is not a proxy for this pipeline's memory on any engine."
+  ],
+  "passes": [
+    {
+      "measuredAt": "2026-08-02T03:33:03.933Z",
+      "fixture": "chronicle-medium.csv",
+      "fixtureBytes": 34569498,
+      "fixtureRows": 181798,
+      "fixtureProvenance": "npm run generate:benchmark-fixture -- --output .tmp/memory-fixture/chronicle-medium.csv --sessions 60000 --seed 20260801 (sha256:9813289e0852211bcbeb8873c65726ad536926c4f74a8a205973dc388a2dbdf5)",
+      "measurements": [
+        {
+          "engine": "chromium",
+          "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/147.0.7727.15 Safari/537.36",
+          "elapsedMs": 10186,
+          "outcome": "complete",
+          "reason": null,
+          "wasmMemoryBytes": 1025900544,
+          "rowsIn": 181798,
+          "rowsOut": 175131,
+          "jsHeapBytes": 16100000,
+          "hardwareConcurrency": 32,
+          "consoleErrors": []
+        },
+        {
+          "engine": "firefox",
+          "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:148.0) Gecko/20100101 Firefox/148.0",
+          "elapsedMs": 73396,
+          "outcome": "complete",
+          "reason": null,
+          "wasmMemoryBytes": 1025900544,
+          "rowsIn": 181798,
+          "rowsOut": 175131,
+          "jsHeapBytes": null,
+          "hardwareConcurrency": 32,
+          "consoleErrors": []
+        },
+        {
+          "engine": "webkit",
+          "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.4 Safari/605.1.15",
+          "elapsedMs": 8171,
+          "outcome": "complete",
+          "reason": null,
+          "wasmMemoryBytes": 1025900544,
+          "rowsIn": 181798,
+          "rowsOut": 175131,
+          "jsHeapBytes": null,
+          "hardwareConcurrency": 8,
+          "consoleErrors": []
+        }
+      ]
+    },
+    {
+      "measuredAt": "2026-08-02T03:35:50.737Z",
+      "fixture": "chronicle-large.csv",
+      "fixtureBytes": 115254808,
+      "fixtureRows": 605915,
+      "fixtureProvenance": "npm run generate:benchmark-fixture -- --output .tmp/memory-fixture/chronicle-large.csv --sessions 200000",
+      "measurements": [
+        {
+          "engine": "chromium",
+          "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/147.0.7727.15 Safari/537.36",
+          "elapsedMs": 20827,
+          "outcome": "app-error",
+          "reason": "reconstruction base is too large: 260554624 bytes exceeds 201326592",
+          "wasmMemoryBytes": null,
+          "rowsIn": null,
+          "rowsOut": null,
+          "jsHeapBytes": null,
+          "hardwareConcurrency": 32,
+          "consoleErrors": []
+        },
+        {
+          "engine": "firefox",
+          "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:148.0) Gecko/20100101 Firefox/148.0",
+          "elapsedMs": 113913,
+          "outcome": "app-error",
+          "reason": "reconstruction base is too large: 260554624 bytes exceeds 201326592",
+          "wasmMemoryBytes": null,
+          "rowsIn": null,
+          "rowsOut": null,
+          "jsHeapBytes": null,
+          "hardwareConcurrency": 32,
+          "consoleErrors": []
+        },
+        {
+          "engine": "webkit",
+          "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.4 Safari/605.1.15",
+          "elapsedMs": 14268,
+          "outcome": "app-error",
+          "reason": "reconstruction base is too large: 260554624 bytes exceeds 201326592",
+          "wasmMemoryBytes": null,
+          "rowsIn": null,
+          "rowsOut": null,
+          "jsHeapBytes": null,
+          "hardwareConcurrency": 8,
+          "consoleErrors": []
+        }
+      ]
+    }
+  ]
+}

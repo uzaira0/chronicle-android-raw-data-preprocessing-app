@@ -1,0 +1,6 @@
+study_id,study_name,participant_id,date,rank,app_package_name,application_label,foreground_minutes,background_minutes,total_minutes,session_count
+Study,Kernel Output Contract,P01,2026-03-07,1,com.example.video,Video,179,0,179,2
+Study,Kernel Output Contract,P01,2026-03-07,2,com.example.news,News,10,0,10,1
+Study,Kernel Output Contract,P01,2026-03-07,3,com.example.music,Music,3,5.5,8.5,4
+Study,Kernel Output Contract,P01,2026-03-07,4,com.example.chat,"Chat, ""Bot""",3,0,3,3
+Study,Kernel Output Contract,P01,2026-03-08,1,com.example.chat,"Chat, ""Bot""",30,0,30,1
