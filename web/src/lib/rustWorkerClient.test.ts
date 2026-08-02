@@ -166,6 +166,41 @@ describe("WorkerPool", () => {
     });
   });
 
+  it("rejects a submission terminated in the same synchronous turn it was made", async () => {
+    // The test above interposes `await Promise.resolve()`, which lets every
+    // submission reach `runOnSlot` before `terminate()` runs. Nothing forces a
+    // caller to do that: `submit()` suspends on `await this.acquire()` even when
+    // a slot is idle (an already-resolved promise still costs one microtask), so
+    // a `terminate()` in the SAME turn lands while the submission is between
+    // acquire and runOnSlot. A per-slot abort hook installed by `runOnSlot` does
+    // not exist yet at that moment and `this.slots` is emptied before the
+    // continuation resumes, so the resumed submission would go on to race
+    // `body()` (an RPC to a worker that has already stopped) against a fault
+    // that never fires and an abort nobody can reach — a promise that never
+    // settles. Only a pool-scoped abort covers this window.
+    const { spawn, workers } = makeSpawn();
+    const pool = new WorkerPool(2, spawn);
+    const neverSettles = new Promise<string>(() => {});
+
+    const inFlight = pool.submit(() => neverSettles);
+    const withSetup = pool.submitWithSetup(
+      () => Promise.resolve(false),
+      () => neverSettles,
+      () => neverSettles,
+    );
+    const queued = pool.submit(() => neverSettles);
+    // No `await` between the submissions and the cancel — this is the shape a
+    // synchronous cancel path (a click handler that submits then bails) takes.
+    pool.terminate();
+
+    await expect(inFlight).rejects.toThrow(/Worker pool has been terminated/);
+    await expect(withSetup).rejects.toThrow(/Worker pool has been terminated/);
+    await expect(queued).rejects.toThrow(/Worker pool has been terminated/);
+    workers.forEach((worker) => {
+      expect(worker.terminate).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it("does not reject a submission that completes before termination", async () => {
     const { spawn } = makeSpawn();
     const pool = new WorkerPool(1, spawn);
