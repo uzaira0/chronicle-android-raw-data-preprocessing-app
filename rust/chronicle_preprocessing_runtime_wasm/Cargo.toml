@@ -69,6 +69,12 @@ syn = { version = "2.0", features = ["full", "visit-mut"] }
 
 [dev-dependencies]
 bytes = "1.11"
+# Used only by the `boundary_model` example, which parses this crate's own
+# serialization model to generate the browser boundary validator. Same crates
+# the build script already uses for the implementation digest, so the example
+# adds no new entry to Cargo.lock and nothing to the shipped WASM.
+quote = "1.0"
+syn = { version = "2.0", features = ["full", "visit-mut"] }
 
 [profile.release]
 # `2` keeps the runtime below the 6 MiB uncompressed WASM budget without the
