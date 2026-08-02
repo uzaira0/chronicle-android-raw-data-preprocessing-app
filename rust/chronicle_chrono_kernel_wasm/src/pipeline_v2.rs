@@ -10928,6 +10928,25 @@ mod tests {
             )]
         );
 
+        // A forcing app that let the screen go at exactly the auto-lock timeout
+        // did not keep it awake: the timeout is where an ordinary auto-lock
+        // lands, so only a tail past it is evidence the app extended anything.
+        assert_eq!(
+            classify(
+                &[
+                    ("2026-03-07 10:00:00", "Screen Interactive", ""),
+                    (
+                        "2026-03-07 10:00:01",
+                        "Activity Resumed",
+                        "com.example.video"
+                    ),
+                    ("2026-03-07 10:02:01", "Screen Non-Interactive", ""),
+                ],
+                &[("com.example.video", "video")]
+            ),
+            vec![("probable_auto_lock".to_string(), 0.9, 0, Some(120.0))]
+        );
+
         // The screen went off within the manual-lock tail, so the person almost
         // certainly pressed the button.
         assert_eq!(
@@ -12631,6 +12650,106 @@ mod tests {
         assert_eq!(
             inline_lineage_search_range_digest(&inline, 0, 1),
             lineage_search_range_digest(&strings, 0, 1),
+        );
+    }
+
+    /// Explaining a screen-off by a nearby keyguard is a two-step search: first
+    /// narrow to the keyguard events around the screen-off, then measure each
+    /// one against the configured tolerance. Both edges of the window count as
+    /// near — including a keyguard recorded just after the screen went off,
+    /// which is the phone waking straight back into the lock screen. The
+    /// narrowing rounds the tolerance up to whole nanoseconds, so it can hand
+    /// back an event that is outside the tolerance, and the measurement is what
+    /// actually decides.
+    #[test]
+    fn the_keyguard_near_stop_search_measures_every_event_it_narrows_to() {
+        fn reasons(
+            rows: &[Row],
+            keyguard_near_stop_seconds: f64,
+        ) -> Vec<String> {
+            let closes = incremental::walk_screen_state_machine(rows);
+            let keyguard = incremental::collect_keyguard_timestamps(rows);
+            incremental::build_classified_sessions(
+                rows,
+                &closes,
+                &keyguard,
+                &HashMap::new(),
+                incremental::ScreenClassificationSettings {
+                    auto_lock_timeout_seconds: 120.0,
+                    auto_lock_tolerance_seconds: 30.0,
+                    manual_lock_max_tail_seconds: 30.0,
+                    keyguard_near_stop_seconds,
+                },
+            )
+            .iter()
+            .map(|session| {
+                session
+                    .screen_usage_end_reason
+                    .as_ref()
+                    .map(|reason| reason.to_string())
+                    .unwrap_or_default()
+            })
+            .collect()
+        }
+
+        // One screen session with a 200-second idle tail, ended by a keyguard
+        // recorded an exact number of nanoseconds before the screen went off.
+        let before = |offset_ns: i64, near_stop_seconds: f64| {
+            let mut rows = rows_from_events(&[
+                ("2026-03-07 10:00:00", "Screen Interactive", ""),
+                ("2026-03-07 10:00:01", "Activity Resumed", "com.example.chat"),
+                ("2026-03-07 10:03:20", "Keyguard Shown", ""),
+                ("2026-03-07 10:03:21", "Screen Non-Interactive", ""),
+            ]);
+            let stop = rows[3].event_timestamp_ns;
+            rows[2].edit_temporal().event_timestamp_ns = stop - offset_ns;
+            reasons(&rows, near_stop_seconds)
+        };
+
+        assert_eq!(
+            before(2_000_000_000, 2.0),
+            vec!["probable_manual_lock".to_string()],
+            "a keyguard exactly one tolerance before the screen-off is near it",
+        );
+        assert_eq!(
+            before(2_000_000_001, 2.0),
+            vec!["extended_idle_or_unknown".to_string()],
+            "one nanosecond further out is not",
+        );
+        assert_eq!(
+            before(500_000_000, 2.0),
+            vec!["probable_manual_lock".to_string()],
+            "a fraction of a second before the screen-off is near it",
+        );
+        assert_eq!(
+            before(100_000_001, 0.1),
+            vec!["extended_idle_or_unknown".to_string()],
+            "a tenth of a second plus a nanosecond is outside a tenth-second tolerance",
+        );
+        assert_eq!(
+            before(100_000_000, 0.1),
+            vec!["probable_manual_lock".to_string()],
+            "exactly a tenth of a second is inside it",
+        );
+
+        // The phone locked, then woke two seconds later straight into the lock
+        // screen: the keyguard that explains the screen-off is recorded after
+        // it, in the session that follows.
+        let woke_back_up = rows_from_events(&[
+            ("2026-03-07 10:00:00", "Screen Interactive", ""),
+            ("2026-03-07 10:00:01", "Keyguard Shown", ""),
+            ("2026-03-07 10:00:02", "Activity Resumed", "com.example.chat"),
+            ("2026-03-07 10:03:21", "Screen Non-Interactive", ""),
+            ("2026-03-07 10:03:23", "Screen Interactive", ""),
+            ("2026-03-07 10:03:23", "Keyguard Shown", ""),
+        ]);
+        assert_eq!(
+            reasons(&woke_back_up, 2.0),
+            vec![
+                "probable_manual_lock".to_string(),
+                "missing_stop".to_string(),
+            ],
+            "a keyguard two seconds after the screen-off still explains it",
         );
     }
 
