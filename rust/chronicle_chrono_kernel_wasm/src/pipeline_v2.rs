@@ -9475,6 +9475,194 @@ mod tests {
         assert_eq!(p, 5e-8);
     }
 
+    /// Build real canonical rows from raw events, so tests operate on the same
+    /// values the pipeline does rather than on hand-assembled structs.
+    fn rows_from_events(events: &[(&str, &str, &str)]) -> Vec<Row> {
+        let mut csv = String::from(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+        );
+        for (timestamp, interaction, package) in events {
+            csv.push_str(&format!(
+                "Study,P01,Target Child,Label,{interaction},{package},{timestamp},America/Chicago\n"
+            ));
+        }
+        let raw = incremental::csv_parse(csv.as_bytes());
+        incremental::build_canonical_rows(&raw, "America/Chicago", &BTreeMap::new(), "test-device")
+            .expect("canonical rows")
+    }
+
+    /// `duplicateTimestampsCorrected` in the review summary is this count: how
+    /// many rows had to be moved because they shared a timestamp with an
+    /// earlier row. Each tied group of n rows contributes n - 1.
+    #[test]
+    fn duplicate_timestamp_counting_reports_every_extra_row_in_a_tied_group() {
+        let count = |timestamps: &[&str]| {
+            let events: Vec<(&str, &str, &str)> = timestamps
+                .iter()
+                .map(|timestamp| (*timestamp, "Activity Resumed", "com.example.chat"))
+                .collect();
+            count_duplicate_groups(&rows_from_events(&events))
+        };
+        assert_eq!(count(&[]), 0);
+        assert_eq!(count(&["2026-03-07 10:00:00"]), 0);
+        assert_eq!(count(&["2026-03-07 10:00:00", "2026-03-07 10:00:01"]), 0);
+        assert_eq!(count(&["2026-03-07 10:00:00", "2026-03-07 10:00:00"]), 1);
+        assert_eq!(
+            count(&[
+                "2026-03-07 10:00:00",
+                "2026-03-07 10:00:00",
+                "2026-03-07 10:00:00"
+            ]),
+            2
+        );
+        // A group in the middle and a group that runs to the end of the file
+        // both count; the trailing group is handled after the loop, so it needs
+        // its own case.
+        assert_eq!(
+            count(&[
+                "2026-03-07 10:00:00",
+                "2026-03-07 10:00:00",
+                "2026-03-07 10:00:01",
+                "2026-03-07 10:00:02",
+                "2026-03-07 10:00:02",
+                "2026-03-07 10:00:02"
+            ]),
+            3
+        );
+        assert_eq!(
+            count(&[
+                "2026-03-07 10:00:00",
+                "2026-03-07 10:00:01",
+                "2026-03-07 10:00:01"
+            ]),
+            1
+        );
+    }
+
+    /// Chronicle exports several events on the same second, and the matcher
+    /// pairs events in timestamp order, so a tie has to be broken the same way
+    /// every run: the start of a usage episode first, ordinary events next, and
+    /// the events that can close an episode last. The nudged rows are placed
+    /// one microsecond apart immediately before the shared timestamp, so no
+    /// nudged row can overtake an event that genuinely came earlier.
+    #[test]
+    fn duplicate_timestamps_are_nudged_apart_with_resumed_first_and_stops_last() {
+        let same_app_stop_types = vec!["Activity Paused".to_string()];
+        let other_stop_types = vec!["Device Shutdown".to_string()];
+        let shared = parse_chronicle_timestamp_ns("2026-03-07 16:00:00")
+            .expect("the fixture timestamp parses");
+
+        let nudged = unalign_duplicate_timestamps(
+            rows_from_events(&[
+                ("2026-03-07 10:00:00", "Activity Paused", "com.example.chat"),
+                ("2026-03-07 10:00:00", "User Interaction", "com.example.chat"),
+                ("2026-03-07 10:00:00", "Activity Resumed", "com.example.chat"),
+            ]),
+            &same_app_stop_types,
+            &other_stop_types,
+        );
+        let observed: Vec<(&str, i64)> = nudged
+            .iter()
+            .map(|row| (row.interaction_type.as_str(), row.event_timestamp_ns))
+            .collect();
+        let base = parse_chronicle_timestamp_ns("2026-03-07 10:00:00").expect("fixture timestamp");
+        assert_eq!(
+            observed,
+            vec![
+                ("Activity Resumed", base - 3_000),
+                ("User Interaction", base - 2_000),
+                ("Activity Paused", base - 1_000),
+            ]
+        );
+
+        // Ties among equal-priority events keep file order, so a re-run of the
+        // same export produces the same episodes.
+        let stable = unalign_duplicate_timestamps(
+            rows_from_events(&[
+                ("2026-03-07 16:00:00", "User Interaction", "com.example.a"),
+                ("2026-03-07 16:00:00", "User Interaction", "com.example.b"),
+            ]),
+            &same_app_stop_types,
+            &other_stop_types,
+        );
+        assert_eq!(
+            stable
+                .iter()
+                .map(|row| (row.app_package_name.as_str(), row.event_timestamp_ns))
+                .collect::<Vec<_>>(),
+            vec![
+                ("com.example.a", shared - 2_000),
+                ("com.example.b", shared - 1_000),
+            ]
+        );
+
+        // Both stop lists feed one priority class, and the alternate spelling
+        // of Screen Non-Interactive is normalized before the lookup.
+        let mixed = unalign_duplicate_timestamps(
+            rows_from_events(&[
+                ("2026-03-07 16:00:00", "Device Shutdown", "com.example.chat"),
+                (
+                    "2026-03-07 16:00:00",
+                    "Screen Non-interactive",
+                    "com.example.chat",
+                ),
+                ("2026-03-07 16:00:00", "Activity Paused", "com.example.chat"),
+            ]),
+            &same_app_stop_types,
+            &vec![
+                "Device Shutdown".to_string(),
+                "Screen Non-Interactive".to_string(),
+            ],
+        );
+        assert_eq!(
+            mixed
+                .iter()
+                .map(|row| row.interaction_type.as_str())
+                .collect::<Vec<_>>(),
+            vec!["Device Shutdown", "Screen Non-interactive", "Activity Paused"],
+            "every stop spelling shares one priority, so file order decides"
+        );
+
+        // Rows that are already distinct are returned untouched: the pipeline
+        // must not shift timestamps it did not need to shift.
+        let untouched = rows_from_events(&[
+            ("2026-03-07 10:00:00", "Activity Resumed", "com.example.chat"),
+            ("2026-03-07 10:00:01", "Activity Paused", "com.example.chat"),
+        ]);
+        let expected: Vec<i64> = untouched
+            .iter()
+            .map(|row| row.event_timestamp_ns)
+            .collect();
+        let unchanged =
+            unalign_duplicate_timestamps(untouched, &same_app_stop_types, &other_stop_types);
+        assert_eq!(
+            unchanged
+                .iter()
+                .map(|row| row.event_timestamp_ns)
+                .collect::<Vec<_>>(),
+            expected
+        );
+
+        // A single row, and no rows at all, take the early return.
+        assert_eq!(
+            unalign_duplicate_timestamps(Vec::new(), &same_app_stop_types, &other_stop_types).len(),
+            0
+        );
+        assert_eq!(
+            unalign_duplicate_timestamps(
+                rows_from_events(&[(
+                    "2026-03-07 10:00:00",
+                    "Activity Resumed",
+                    "com.example.chat"
+                )]),
+                &same_app_stop_types,
+                &other_stop_types,
+            )[0]
+            .event_timestamp_ns,
+            parse_chronicle_timestamp_ns("2026-03-07 10:00:00").expect("fixture timestamp")
+        );
+    }
+
     fn credit_point(timestamp_ns: i64, state: ScreenCreditState) -> ScreenChangePoint {
         ScreenChangePoint {
             timestamp_ns,
