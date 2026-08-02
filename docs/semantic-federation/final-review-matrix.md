@@ -236,11 +236,23 @@ evidence.
 4. The semantic projection uses standards for shared correspondences, but the
    product profile still needs richer declared mappings and conformance fixtures
    before it should be advertised as broadly interoperable RDF.
-5. The semantic index is reconstructed for each query; a root-digest keyed cache
-   should be added if repeated interactive queries become material.
-6. Parquet and SPSS export paths independently parse CSV output, and visualization
-   payloads are eagerly materialized. These are measurable optimization targets,
-   not correctness defects at the current fixture size.
+5. Measured 2026-08-01; a cache is deliberately NOT built. Reconstruction is
+   92.4% of every registered query (9.55 ms whole vs 0.73 ms evaluation), but
+   the derived index is size-independent (221,057 B at both 600 and 60,015
+   rows), runs one-shot per root change inside a worker, and no product
+   surface currently issues these queries. Thresholds that would reopen this:
+   >16.7 ms on the main thread, or cost growing with workspace size. Evidence:
+   `docs/perf/MEASURED_DEBT_ITEMS_5_AND_6.md`.
+6. Split and measured 2026-08-01. The duplicate export CSV parse is RESOLVED:
+   `append_binary_exports` parses each family once and writes every enabled
+   encoding from the shared table (21–26% off the both-exports path, at most
+   one table live at a time, byte-identical output pinned by
+   `shared_export_table_is_byte_identical_to_independent_reparse` and eight
+   recorded SHA-256 digests). The eager visualization payload is measured and
+   deliberately unchanged: already gated on
+   `enablePlotting || enableInteractiveTimeline`, costing 15–90 ms of a
+   1,700 ms 60k run, and deferring it would move verified-closure membership
+   and the root digest. Evidence: `docs/perf/MEASURED_DEBT_ITEMS_5_AND_6.md`.
 7. Closed 2026-08-01: workspace archive export/import streams object-at-a-time
    with bounded peak memory. The `chronicle-runtime-closure/v1` format was
    already incrementally consumable, so archives are byte-identical to the
