@@ -530,10 +530,17 @@ own output rather than five hand-run commands.
 
 The semantic-layer mutation runs have zero survivors and zero timeouts on this
 tree: adapter 150 tested (122 caught, 28 compiler-rejected), product runtime
-660 tested (600 caught, 60 compiler-rejected), semantic index 76 tested (75
-caught, 1 compiler-rejected). Each crate's declared exclusions are additionally
-run as their own campaign, which fails if the suite catches a mutant the
-exclusion claims is equivalent; all three report `caught=0`.
+659 tested (599 caught, 60 compiler-rejected), semantic index 76 tested (75
+caught, 1 compiler-rejected). The chrono kernel joins them at 3,035 tested
+(2,316 caught, 719 compiler-rejected). Each crate that declares exclusions runs
+them as their own campaign first, which fails if the suite catches a mutant the
+exclusion claims is equivalent; adapter `audited=4`, product runtime
+`audited=14` and chrono kernel `audited=154` all report `caught=0`. The
+semantic index declares no exclusions, so its 76 are the whole crate.
+`chronicle_app_usage_matcher` is the one crate still red — 279 tested, 200
+caught, 35 compiler-rejected, 37 missed and 7 timeouts — so `make mutation-rust`
+exits 3 on its account alone; the survivors are sized and named in
+`docs/validation/KERNEL_MUTATION.md` rather than blanket-excluded green.
 The adapter's target-incompatible `cfg(wasm)` facade exclusion is declared in
 the authority manifest rather than hidden in an aggregate percentage, and its
 delegate/build/browser path is tested separately. TypeScript coverage remains

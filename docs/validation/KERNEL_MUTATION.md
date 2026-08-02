@@ -20,26 +20,33 @@ cargo mutants \
 
 This is the campaign the gate runs, re-measured on the merged provenance wave
 rather than on the lane branch that produced the classification below.
-`cargo mutants --list` finds **3183** mutants in the crate. The 97 exclusion
-expressions match **154** of them, leaving **3029** for the scored campaign,
-which ran in **81 min**:
+`cargo mutants --list` finds **3189** mutants in the crate. The 97 exclusion
+expressions match **154** of them, leaving **3035** for the scored campaign,
+which ran in **66 min**:
 
 | outcome | count |
 | --- | ---: |
-| caught | 2297 |
+| caught | 2316 |
 | unviable (does not compile) | 719 |
-| missed | 13 |
+| missed | 0 |
 | timeout | 0 |
-| **scored total** | **3029** |
+| **scored total** | **3035** |
 | excluded, audited separately | 154 |
-| **crate total** | **3183** |
+| **crate total** | **3189** |
 
-The 13 misses are being killed by tests, not moved into the exclusion file.
+The 13 misses this campaign first reported were killed by tests, not moved into
+the exclusion file — `git diff` on the exclusion list across that work is empty.
 Three were `output_cell_dependencies`, whose only consumer calls it as a filter
 predicate so a wrong answer silently emptied the declared column-granular reach
-instead of failing anything; the other ten are in the syn-based
+instead of failing anything; the other ten were in the syn-based
 `field_use_scan.rs`, whose read/write sets are the implementation-bound half of
-the field-level provenance claim.
+the field-level provenance claim. Its tests had only ever asserted aggregate
+properties over the hard-coded `include_str!` of the real pipeline sources, so
+they were blind to all ten: the five write-target unwrapping arms, the
+impl-method walk, two support-role argument arms, and both `&&` guards in the
+call frontier. Parameterizing `scan()` and `data_field_universe()` by their
+source list — one implementation, driven by a synthetic one-element source in
+the new tests — added six mutants of its own (3183 → 3189), all caught.
 
 The 154 excluded mutants are run as their own campaign before the scored one,
 which fails if the suite catches any of them — an exclusion covering a mutant
@@ -236,15 +243,22 @@ Anchoring the three over-broad expressions it inherited put **18** more
 mutants under test for the first time: 3 of them survive, 4 time out, and 11
 are caught. So **22** entries needed a resolution — the 15, the 3 further
 survivors, and the 4 timeouts — and each has one. On the merged integration
-tree the crate has **675** mutants, **14** are excluded, and the remaining
-**661** are tested: 599 caught, 60 unviable, 0 timeouts and **2 missed**. The
-two are `lib.rs:4487:25` and `:4487:60`, both `||` → `&&` in the
+tree the crate has **673** mutants, **14** are excluded, and the remaining
+**659** are tested: 599 caught, 60 unviable, **0 missed, 0 timeout**.
+
+An earlier run of this campaign reported two misses at `lib.rs:4487:25` and
+`:4487:60`, both `||` → `&&` in the
 `if !include || !(options.enable_parquet_export || options.enable_spss_export)`
 guard of `append_binary_exports`, which arrived with `8ceddd1` (the shared
-export-CSV parse). Nothing exercises "include off with an export format on" or
-"exactly one of Parquet and SPSS on", so neither flip changes an assertion.
-They are **not** excluded and are not this lane's to resolve; they are the
-runtime entry's open item.
+export-CSV parse). Both are caught on the merged tree. The guard now sits at
+`lib.rs:4508` and a campaign scoped to it — `cargo mutants -d
+rust/chronicle_preprocessing_runtime_wasm --re append_binary_exports`, with
+`CHRONICLE_REPOSITORY_ROOT` set as the gate sets it — reports **6 mutants
+tested, 6 caught**. Flipping the first `||` by hand fails six runtime tests,
+among them `a_warm_review_after_an_option_edit_projects_the_stages_a_cold_review_reports`
+and `persisted_review_base_reenters_a_fresh_runtime_without_result_drift`.
+Neither mutant was excluded to reach that state; the exclusion set is the same
+14 entries it was when they were reported missed.
 
 **5 killed by tests written in this campaign:**
 
