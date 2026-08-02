@@ -560,47 +560,47 @@
   "evidence": {
     "implementation_receipt": {
       "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
-      "implementationDigest": "sha256:9b1297af991f3b063203f1a2f991526065233dc35c60e643dcacbdf97b0cc1df",
+      "implementationDigest": "sha256:ae5ebf0ea1d3e1dbd2e4a2bb5b648006f065a00be5739e4b41c9f2da14f52257",
       "planDigest": "sha256:e6acec3530cef7f3e67443077affb86632db8485d771c3fa9a754dc810ff8e20",
-      "profileDigest": "sha256:d220f8159ab14a525102b9d3113f6ef6c16f8eb73d4d92e45640db272bab76f0",
-      "profileLockDigest": "sha256:70417372db2e9f4c0afae1b21790a8e2ef298dd3f786f2f01f6475a35335892e",
+      "profileDigest": "sha256:2a6f5ec3adc14554bdb4a48282a2cfcc5dacef2b038572be9ca78adc47c28b8e",
+      "profileLockDigest": "sha256:a1fd059d747c1e8a0f180c369564323b0a98fd5e2e848a0f3bf6d834d6fd57ab",
       "runtimeAuthorityDigest": "sha256:7598af2d710ac32563dd8e0bff49a9447e7f450c618c4689004025fbb6826ed4",
       "productContractDigest": "sha256:3855791ad25992d95e055d5c672253cb06ac3e4320463bc46f984b7bc8f05f95"
     },
     "proof_ledgers": [
       {
         "path": "web/src/lib/pipelineGraph/golden/family-expected/configuration-influence-ledger.json",
-        "digest": "sha256:7026811a304edd3e126d33dd8e4ca0aea52e3c49000929437e05a35779526dbe",
+        "digest": "sha256:b1b3be4f6a565b80e8cd7a7bafcb3e3f4813a7a93d3ca55cbc04c9f806a9a52a",
         "protocol_version": "chronicle-configuration-influence-ledger/v1",
         "claim_boundary": "Exact 55-step and 15-display-group execution plus warm/cold equality for the recorded Rust/WASM implementation, equivalence classes, contexts, support bindings, and synthetic corpora. Absence of an observed effect remains bounded to this declared test scope. Step recomputation is taken from actual Salsa query bodies plus explicitly instrumented product-step evaluations inside review-only fused queries. The separate sequential Rust path remains the independent cold oracle."
       },
       {
         "path": "web/src/lib/pipelineGraph/golden/family-expected/artifact-influence-ledger.json",
-        "digest": "sha256:78c2af88f66b1bea1425b487ea2bb263d353a85775f7b499159ead30fbff368d",
+        "digest": "sha256:1dd0a6dbcfcf31e6f548f5442e6c21ad4837feb6483b83b79d95f1f59b21c4ec",
         "protocol_version": "chronicle-artifact-influence-ledger/v1",
         "claim_boundary": "Exact raw/support artifact percolation for the recorded product plan, implementation, six deterministic synthetic corpora, and intervention catalog. Each intervention changes exactly one source artifact; every warm 55-step checkpoint, 15 display-group checkpoint, and researcher-visible output is compared with an independent cold Rust/WASM target. Absence of an effect is not generalized beyond the named mutation and corpus."
       },
       {
         "path": "web/src/lib/pipelineGraph/golden/family-expected/raw-boundary-influence-ledger.json",
-        "digest": "sha256:66211ad311679e1eb1c55b2682efce3b6254db40fd95b49436a313c0c0c37ca2",
+        "digest": "sha256:294f55d8236ae44f9a1c668c288c87f40fdcc8ed08617f82be412eec9d7e1fd6",
         "protocol_version": "chronicle-raw-boundary-influence-ledger/v1",
         "claim_boundary": "Exact raw timestamp percolation for every named boundary intervention across all checked synthetic corpus profiles. Each mutation changes one raw event timestamp; warm execution is checked against an independent cold oracle. The evidence does not generalize beyond the listed boundary catalog, corpora, plan, and implementation receipt."
       },
       {
         "path": "web/src/lib/pipelineGraph/golden/family-expected/interaction-influence-ledger.json",
-        "digest": "sha256:45c928b52de6f07135cafc3fec5313365c249909e8ddc5c37b8026d4977dc948",
+        "digest": "sha256:d7cd0b88b7cb766c64371a00596e7adc5a182d05b2aefd1b145b97321be7b90f",
         "protocol_version": "chronicle-interaction-influence-ledger/v1",
         "claim_boundary": "Exhaustive two-factor structural interaction and exact 55-step plus 15-display-group warm/cold execution proof across every valid pair of non-baseline declared equivalence-class values for all 46 computational browser axes, on the deterministic configuration-influence-probes corpus. Invalid selected-timezone combinations are enumerated with their qualification reason. This does not claim numeric statistical additivity or exhaust interactions of arity three and above. Step recomputation is taken from actual Salsa query bodies plus explicitly instrumented product-step evaluations inside review-only fused queries. The separate sequential Rust path remains the independent cold oracle."
       },
       {
         "path": "web/src/lib/pipelineGraph/golden/family-expected/mixed-artifact-configuration-ledger.json",
-        "digest": "sha256:36283e6952773790cd2ec5266bc2603ac3c5820b731214fceba81d67c65dd139",
+        "digest": "sha256:842f5f293a2a74a5f843384218afcff5b360ce1a8cb014661376cacb4e363e9a",
         "protocol_version": "chronicle-mixed-artifact-configuration-aggregate/v1",
         "claim_boundary": "Aggregate of nine independently recycled exhaustive role/value shards. Each shard selects one empirically branch-activating intervention for its source role, crosses it with every valid alternate value of all 46 computational axes, executes both transition orders, and compares every final logical checkpoint, output artifact, and canonical output cell with an independent cold Rust/WASM target. Field/record interactions beyond the selected representative remain outside this claim."
       },
       {
         "path": "web/src/lib/pipelineGraph/golden/family-expected/semantic-model-mutation-ledger.json",
-        "digest": "sha256:366229a4e03db4ecb58b04b0f75948fad5b937cd4d8eb185ee242186fac924ad",
+        "digest": "sha256:3aa4737a849af8de9a5851ad0368bd0fc58a8b27206a0ef9e48a1ef73ff111ef",
         "protocol_version": "chronicle-semantic-model-mutation-ledger/v1",
         "claim_boundary": "In-memory mutation of every declared 55-step Rust query edge (removal and reversal), every computational request/applicability binding, and every raw/support role binding. A mutant is killed by disagreement with an actual Salsa execution campaign, a structural cycle, or the independent Rust AST check that proves declared edges and request fields equal direct query calls and helper reads. Rust checkpoint-component and qualification-rule mutations are enforced by their focused unit tests."
       }
