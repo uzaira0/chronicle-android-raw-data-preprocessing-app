@@ -62,8 +62,11 @@ src/bin/
 # Allocation and buffer sizing.
 #
 # A different reserve, capacity or growth step produces the same parsed
-# value and the same digest.
-:(59|66|67|74): replace \* with \+$
+# value and the same digest. MAX_REVIEW_BASE_UNCOMPRESSED_BYTES and
+# MAX_RECONSTRUCTION_BASE_UNCOMPRESSED_BYTES were once excluded here and do not
+# belong to this class: they are hard reject bounds, and shrinking one stops
+# the typed resume from engaging at all. They are pinned by
+# the_resume_ceilings_stay_far_above_a_real_production_base.
 :40: replace \+ with \* in parse_csv_to_records_with_physical_rows$
 :44: replace \+ with \* in csv_parse$
 :48: replace \* with \+$
@@ -153,36 +156,32 @@ src/bin/
 # to backdate and recomputes downstream — the recomputed value is the same
 # value, so this costs reuse and never correctness. The opposite direction is
 # what would be a defect and it is caught: every `&&` -> `||` in these
-# implementations fails the suite except in ReviewUsageRowsBeforeFloor and
-# ReviewAnnotations, whose consumers re-verify row identity and copy durations
-# from the upstream table before using them.
+# implementations fails the suite except in ReviewAnnotations, whose consumers
+# re-verify row identity and copy durations from the upstream table before
+# using them.
+#
+# DecodedReviewBase, DecodedReconstructionBase, ReviewStaticAnnotations and
+# ReviewUsageRowsBeforeFloor are no longer excluded in either direction. Their
+# `-> true` mutants were listed here under this very reason, which calls that
+# direction a defect, and all sixteen of their mutants — both constant returns,
+# every `==` and both `&&` — were missed. They are now pinned by
+# the_review_cone_equalities_separate_two_different_values, which separates two
+# values whose identity differs one field at a time and still recognises an
+# unchanged value.
 #
 # Pinned by:
 #   a_review_holds_its_cone_across_options_its_summary_cannot_depend_on
 :(21|37|39|40|41|42|46|50): replace == with != in tracked::<impl PartialEq for ReviewReconstruction>::eq$
 :(21|37|40|41|42|46): replace == with != in tracked::<impl PartialEq for ReviewReconstructedRows>::eq$
-:(29|43|49): replace == with != in tracked::<impl PartialEq for ReviewUsageRowsBeforeFloor>::eq$
 :(32|40|41|43|44|47): replace == with != in tracked::<impl PartialEq for ReviewAnnotations>::eq$
 :(37|40|41|46): replace == with != in tracked::<impl PartialEq for ReviewAppliedRows>::eq$
-:13: replace tracked::<impl PartialEq for DecodedReconstructionBase>::eq \-> bool with false$
-:13: replace tracked::<impl PartialEq for DecodedReconstructionBase>::eq \-> bool with true$
-:13: replace tracked::<impl PartialEq for DecodedReviewBase>::eq \-> bool with false$
-:13: replace tracked::<impl PartialEq for DecodedReviewBase>::eq \-> bool with true$
 :13: replace tracked::<impl PartialEq for ReviewAnnotations>::eq \-> bool with false$
 :13: replace tracked::<impl PartialEq for ReviewAppliedRows>::eq \-> bool with false$
 :13: replace tracked::<impl PartialEq for ReviewReconstructedRows>::eq \-> bool with false$
 :13: replace tracked::<impl PartialEq for ReviewReconstruction>::eq \-> bool with false$
 :13: replace tracked::<impl PartialEq for ReviewReconstructionOutput>::eq \-> bool with false$
-:13: replace tracked::<impl PartialEq for ReviewStaticAnnotations>::eq \-> bool with false$
-:13: replace tracked::<impl PartialEq for ReviewStaticAnnotations>::eq \-> bool with true$
-:13: replace tracked::<impl PartialEq for ReviewUsageRowsBeforeFloor>::eq \-> bool with false$
-:13: replace tracked::<impl PartialEq for ReviewUsageRowsBeforeFloor>::eq \-> bool with true$
-:17: replace \&\& with \|\| in tracked::<impl PartialEq for ReviewUsageRowsBeforeFloor>::eq$
 :21: replace == with != in tracked::<impl PartialEq for ReviewReconstructionOutput>::eq$
-:28: replace == with != in tracked::<impl PartialEq for ReviewStaticAnnotations>::eq$
-:33: replace == with != in tracked::<impl PartialEq for DecodedReconstructionBase>::eq$
-:33: replace == with != in tracked::<impl PartialEq for DecodedReviewBase>::eq$
-src/pipeline_v2_incremental\.rs:6455:17: replace \&\& with \|\| in tracked::<impl PartialEq for ReviewAnnotations>::eq$
+src/pipeline_v2_incremental\.rs:6476:17: replace \&\& with \|\| in tracked::<impl PartialEq for ReviewAnnotations>::eq$
 
 # Review-cone physical shortcuts.
 #
@@ -205,8 +204,6 @@ src/pipeline_v2_incremental\.rs:6455:17: replace \&\& with \|\| in tracked::<imp
 :21: delete match arm \(None. None\) in tracked::review_annotations_fused$
 :21: delete match arm \(Some\(left\). Some\(right\)\) in tracked::review_annotations_fused$
 :21: replace \&\& with \|\| in tracked::review_annotations_fused$
-:24: replace > with (==|>=) in tracked::encode_reconstruction_base$
-:24: replace > with (==|>=) in tracked::encode_review_base$
 :27: replace == with != in tracked::review_reconstructed_rows$
 :30: replace > with (<|==|>=) in tracked::review_reconstructed_rows$
 :33: replace match guard inputs\.raw\.bytes\(\&self\.db\)\.as_slice\(\) == csv_bytes with false in tracked::TrackedEngine::execute_with_review_bases$
@@ -222,7 +219,7 @@ src/pipeline_v2_incremental\.rs:6455:17: replace \&\& with \|\| in tracked::<imp
 :60: replace \|\| with \&\& in tracked::assemble_primary_outputs$
 :62: replace \|\| with \&\& in tracked::review_reconstructed_rows$
 :77: delete ! in tracked::review_reconstructed_rows$
-src/pipeline_v2_incremental\.rs:5762:12: delete ! in tracked::review_static_annotations$
-src/pipeline_v2_incremental\.rs:5957:12: delete ! in tracked::review_reconstructed_rows$
-src/pipeline_v2_incremental\.rs:5966:12: delete ! in tracked::review_reconstructed_rows$
-src/pipeline_v2_incremental\.rs:6634:12: delete ! in tracked::review_annotations_fused$
+src/pipeline_v2_incremental\.rs:5783:12: delete ! in tracked::review_static_annotations$
+src/pipeline_v2_incremental\.rs:5978:12: delete ! in tracked::review_reconstructed_rows$
+src/pipeline_v2_incremental\.rs:5987:12: delete ! in tracked::review_reconstructed_rows$
+src/pipeline_v2_incremental\.rs:6655:12: delete ! in tracked::review_annotations_fused$

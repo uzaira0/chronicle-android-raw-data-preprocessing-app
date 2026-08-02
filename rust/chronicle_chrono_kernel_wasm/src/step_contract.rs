@@ -3582,9 +3582,71 @@ mod tests {
         true
     }
 
+    /// The supplied source column a field is a verbatim copy of, re-derived
+    /// here straight from the declared field edges. `pure_copy_source` is the
+    /// predicate that decides the published membership, so the negative
+    /// control below must not call it - re-calling it could only agree with
+    /// itself. Every hop of the transitive write chain has to take exactly one
+    /// contributor once the field's identity carry onto itself is dropped, no
+    /// hop may land on a pseudo-field or on a field nothing declares a write
+    /// of, no hop may close a cycle - the declared edges do carry them, for
+    /// example `app_package_name` -> `duration_seconds` -> `app_package_name`
+    /// through the atomic steps that read and write both - and every branch
+    /// has to bottom out at the same supplied column.
+    fn write_chain_source(
+        field: &'static str,
+        writers: &BTreeMap<&'static str, Vec<&'static [&'static str]>>,
+        ancestors: &mut Vec<&'static str>,
+    ) -> Option<&'static str> {
+        if is_supplied_source_column(field) {
+            return Some(field);
+        }
+        if is_pseudo_field(field) || ancestors.contains(&field) {
+            return None;
+        }
+        let edges = writers.get(field)?;
+        ancestors.push(field);
+        let mut sources = BTreeSet::new();
+        let mut every_hop_single = true;
+        for from in edges {
+            let contributors = from
+                .iter()
+                .copied()
+                .filter(|other| *other != field)
+                .collect::<Vec<_>>();
+            match contributors.as_slice() {
+                [] => {}
+                [only] => match write_chain_source(only, writers, ancestors) {
+                    Some(source) => {
+                        sources.insert(source);
+                    }
+                    None => {
+                        every_hop_single = false;
+                        break;
+                    }
+                },
+                _ => {
+                    every_hop_single = false;
+                    break;
+                }
+            }
+        }
+        ancestors.pop();
+        let mut sources = sources.into_iter();
+        match (every_hop_single, sources.next(), sources.next()) {
+            (true, Some(only), None) => Some(only),
+            _ => None,
+        }
+    }
+
     /// The exact-field class is the only claim in the witness that names a
-    /// single source cell, so its membership is pinned here and its rule is
-    /// checked from both sides.
+    /// single source cell. Its membership is pinned here, and the rule behind
+    /// it is re-derived from the declared field edges rather than from
+    /// `pure_copy_source`, which is the predicate that produced the set:
+    /// backwards over `field_writers()` every hop of a claimed cell's write
+    /// chain has to take exactly one contributor, and forwards over
+    /// `reachable_fields()` the claimed column has to be the only declared
+    /// source column that reaches the field.
     #[test]
     fn exact_cell_contributions_are_verbatim_single_source_copies() {
         let contributions = exact_cell_contributions();
@@ -3636,35 +3698,65 @@ mod tests {
              edges and explain every added or removed column"
         );
 
-        // Negative side. A cell whose declared value has more than one
-        // contributor anywhere along its write chain must never be claimed
-        // exact, however few source columns reach it.
+        // Negative side. `pure_copy_source` is the predicate that decided the
+        // membership above, so re-calling it here could only agree with
+        // itself. Re-derive the rule from the declared edges instead, and do
+        // it in both directions: backwards over `field_writers()`, where every
+        // hop of the transitive write chain has to take exactly one
+        // contributor and every chain has to bottom out at the same supplied
+        // column, and forwards over `reachable_fields()`, where that column
+        // has to be the only declared source column that reaches the field.
         let writers = field_writers();
-        let mut resolved = BTreeMap::new();
+
         let exact = contributions
             .iter()
-            .map(|entry| (entry.output_kind, entry.column))
-            .collect::<BTreeSet<_>>();
+            .map(|entry| ((entry.output_kind, entry.column), entry.source_field))
+            .collect::<BTreeMap<_, _>>();
+        let source_reach = declared_source_columns()
+            .into_iter()
+            .map(|column| (column, reachable_fields(column)))
+            .collect::<Vec<_>>();
         for binding in output_cell_bindings() {
-            let single_contributor = match binding.from {
-                [field] => {
-                    pure_copy_source(field, &writers, &mut resolved, &mut Vec::new()).is_some()
-                }
-                _ => false,
+            // A cell rendered from more than one field already carries more
+            // than one contributor.
+            let single_field = match binding.from {
+                [field] => Some(*field),
+                _ => None,
             };
+            let verbatim =
+                single_field.and_then(|field| write_chain_source(field, &writers, &mut Vec::new()));
             assert_eq!(
-                exact.contains(&(binding.output_kind, binding.column)),
-                single_contributor,
-                "{}/{} is claimed exact without a verbatim single-source write chain",
+                exact.get(&(binding.output_kind, binding.column)).copied(),
+                verbatim,
+                "{}/{} does not agree with the write chain the declared field edges spell out",
                 binding.output_kind,
                 binding.column
             );
+            // Forward direction: the claimed column has to reach the field,
+            // and it has to be the only declared source column that does.
+            if let (Some(source_field), Some(field)) = (verbatim, single_field) {
+                let reaching = source_reach
+                    .iter()
+                    .filter(|(_, reached)| reached.contains(field))
+                    .map(|(column, _)| *column)
+                    .collect::<Vec<_>>();
+                assert_eq!(
+                    reaching,
+                    vec![source_field],
+                    "{}/{} claims {source_field}, which is not the only declared source column \
+                     whose forward closure reaches {field}",
+                    binding.output_kind,
+                    binding.column
+                );
+            }
         }
         // `username` is the sharpest negative: it is written verbatim from
         // `raw_chronicle_csv.username` at parse time and then rewritten by
-        // `attribute_rows` from the survey and sharing supports.
-        assert!(
-            pure_copy_source("username", &writers, &mut resolved, &mut Vec::new()).is_none(),
+        // `attribute_rows` from the survey and sharing supports, so a hop on
+        // its chain takes more than one contributor.
+        assert_eq!(
+            write_chain_source("username", &writers, &mut Vec::new()),
+            None,
             "a field a later step rewrites from other inputs is not a verbatim copy"
         );
         // Every exact contribution's source column must be one the contract
