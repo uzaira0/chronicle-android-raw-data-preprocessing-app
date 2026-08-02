@@ -9663,6 +9663,270 @@ mod tests {
         );
     }
 
+    /// Every screen session carries an end reason and a confidence into the
+    /// screen-usage CSV, and the ladder that assigns them is the only
+    /// explanation a researcher gets for why a session ended when it did.
+    #[test]
+    fn screen_sessions_are_classified_by_the_documented_end_reason_ladder() {
+        fn classify(
+            events: &[(&str, &str, &str)],
+            apps_forcing: &[(&str, &str)],
+        ) -> Vec<(String, f64, u8, Option<f64>)> {
+            let rows = rows_from_events(events);
+            let closes = incremental::walk_screen_state_machine(&rows);
+            let keyguard = incremental::collect_keyguard_timestamps(&rows);
+            let forcing: HashMap<String, String> = apps_forcing
+                .iter()
+                .map(|(package, label)| (package.to_string(), label.to_string()))
+                .collect();
+            incremental::build_classified_sessions(
+                &rows,
+                &closes,
+                &keyguard,
+                &forcing,
+                incremental::ScreenClassificationSettings {
+                    auto_lock_timeout_seconds: 120.0,
+                    auto_lock_tolerance_seconds: 30.0,
+                    manual_lock_max_tail_seconds: 30.0,
+                    keyguard_near_stop_seconds: 2.0,
+                },
+            )
+            .iter()
+            .map(|session| {
+                (
+                    session
+                        .screen_usage_end_reason
+                        .as_ref()
+                        .map(|reason| reason.to_string())
+                        .unwrap_or_default(),
+                    session.screen_usage_end_reason_confidence.unwrap_or(-1.0),
+                    session.screen_usage_lock_screen_only.unwrap_or(255),
+                    session.screen_usage_tail_gap_seconds,
+                )
+            })
+            .collect()
+        }
+
+        // The screen never went off before the export ended: there is no stop
+        // event to explain, and the session has no duration.
+        assert_eq!(
+            classify(
+                &[
+                    ("2026-03-07 10:00:00", "Screen Interactive", ""),
+                    ("2026-03-07 10:00:01", "Activity Resumed", "com.example.chat"),
+                ],
+                &[]
+            ),
+            vec![("missing_stop".to_string(), 1.0, 0, None)]
+        );
+
+        // Woken straight into the lock screen and never unlocked: no app was
+        // ever in the foreground, so this is not real screen usage.
+        assert_eq!(
+            classify(
+                &[
+                    (
+                        "2026-03-07 10:00:00",
+                        "Screen Interactive/Keyguard Shown",
+                        ""
+                    ),
+                    ("2026-03-07 10:00:10", "Screen Non-Interactive", ""),
+                ],
+                &[]
+            ),
+            vec![("lock_screen_only".to_string(), 0.95, 1, None)]
+        );
+
+        // A video app on the forces-screen-open list held the screen awake far
+        // past the auto-lock timeout.
+        assert_eq!(
+            classify(
+                &[
+                    ("2026-03-07 10:00:00", "Screen Interactive", ""),
+                    (
+                        "2026-03-07 10:00:01",
+                        "Activity Resumed",
+                        "com.example.video"
+                    ),
+                    ("2026-03-07 10:05:00", "Screen Non-Interactive", ""),
+                ],
+                &[("com.example.video", "video")]
+            ),
+            vec![(
+                "app_kept_awake_or_extended".to_string(),
+                0.9,
+                0,
+                Some(299.0)
+            )]
+        );
+
+        // The screen went off within the manual-lock tail, so the person almost
+        // certainly pressed the button.
+        assert_eq!(
+            classify(
+                &[
+                    ("2026-03-07 10:00:00", "Screen Interactive", ""),
+                    ("2026-03-07 10:00:01", "Activity Resumed", "com.example.chat"),
+                    ("2026-03-07 10:00:11", "Screen Non-Interactive", ""),
+                ],
+                &[]
+            ),
+            vec![("probable_manual_lock".to_string(), 0.85, 0, Some(10.0))]
+        );
+        // The manual-lock tail is inclusive at its edge.
+        assert_eq!(
+            classify(
+                &[
+                    ("2026-03-07 10:00:00", "Screen Interactive", ""),
+                    ("2026-03-07 10:00:01", "Activity Resumed", "com.example.chat"),
+                    ("2026-03-07 10:00:31", "Screen Non-Interactive", ""),
+                ],
+                &[]
+            ),
+            vec![("probable_manual_lock".to_string(), 0.85, 0, Some(30.0))]
+        );
+
+        // Idle for about the auto-lock timeout, inside the tolerance.
+        for (stop, gap) in [
+            ("2026-03-07 10:02:01", 120.0),
+            ("2026-03-07 10:01:31", 90.0),
+            ("2026-03-07 10:02:31", 150.0),
+        ] {
+            assert_eq!(
+                classify(
+                    &[
+                        ("2026-03-07 10:00:00", "Screen Interactive", ""),
+                        ("2026-03-07 10:00:01", "Activity Resumed", "com.example.chat"),
+                        (stop, "Screen Non-Interactive", ""),
+                    ],
+                    &[]
+                ),
+                vec![("probable_auto_lock".to_string(), 0.9, 0, Some(gap))],
+                "a {gap}s tail is within the auto-lock tolerance"
+            );
+        }
+
+        // One second past the tolerance there is no explanation left except a
+        // long idle.
+        assert_eq!(
+            classify(
+                &[
+                    ("2026-03-07 10:00:00", "Screen Interactive", ""),
+                    ("2026-03-07 10:00:01", "Activity Resumed", "com.example.chat"),
+                    ("2026-03-07 10:02:32", "Screen Non-Interactive", ""),
+                ],
+                &[]
+            ),
+            vec![("extended_idle_or_unknown".to_string(), 0.5, 0, Some(151.0))]
+        );
+
+        // A long tail, but the keyguard appeared right before the screen went
+        // off, so the lock is still the better explanation - at lower
+        // confidence than an observed short tail.
+        assert_eq!(
+            classify(
+                &[
+                    ("2026-03-07 10:00:00", "Screen Interactive", ""),
+                    ("2026-03-07 10:00:01", "Activity Resumed", "com.example.chat"),
+                    ("2026-03-07 10:03:20", "Keyguard Shown", ""),
+                    ("2026-03-07 10:03:21", "Screen Non-Interactive", ""),
+                ],
+                &[]
+            ),
+            vec![("probable_manual_lock".to_string(), 0.7, 0, Some(200.0))]
+        );
+        // Three seconds is outside the keyguard window.
+        assert_eq!(
+            classify(
+                &[
+                    ("2026-03-07 10:00:00", "Screen Interactive", ""),
+                    ("2026-03-07 10:00:01", "Activity Resumed", "com.example.chat"),
+                    ("2026-03-07 10:03:18", "Keyguard Shown", ""),
+                    ("2026-03-07 10:03:21", "Screen Non-Interactive", ""),
+                ],
+                &[]
+            ),
+            vec![(
+                "extended_idle_or_unknown".to_string(),
+                0.5,
+                0,
+                Some(200.0)
+            )]
+        );
+
+        // The screen went on and off with nothing in between, so there is no
+        // last activity to measure a tail from.
+        assert_eq!(
+            classify(
+                &[
+                    ("2026-03-07 10:00:00", "Screen Interactive", ""),
+                    ("2026-03-07 10:00:10", "Screen Non-Interactive", ""),
+                ],
+                &[]
+            ),
+            vec![("unknown".to_string(), 0.25, 0, None)]
+        );
+    }
+
+    /// The classified session is a synthetic row: it takes its identity from
+    /// the screen-on event, its span from the state machine, and it must not
+    /// carry the app fields of the row it was cloned from.
+    #[test]
+    fn a_classified_screen_session_reports_its_own_span_and_foreground_app() {
+        let rows = rows_from_events(&[
+            ("2026-03-07 10:00:00", "Screen Interactive", ""),
+            ("2026-03-07 10:00:30", "Activity Resumed", "com.example.chat"),
+            ("2026-03-07 10:00:50", "Screen Non-Interactive", ""),
+        ]);
+        let closes = incremental::walk_screen_state_machine(&rows);
+        let keyguard = incremental::collect_keyguard_timestamps(&rows);
+        let sessions = incremental::build_classified_sessions(
+            &rows,
+            &closes,
+            &keyguard,
+            &HashMap::new(),
+            incremental::ScreenClassificationSettings {
+                auto_lock_timeout_seconds: 120.0,
+                auto_lock_tolerance_seconds: 30.0,
+                manual_lock_max_tail_seconds: 30.0,
+                keyguard_near_stop_seconds: 2.0,
+            },
+        );
+        assert_eq!(sessions.len(), 1);
+        let session = &sessions[0];
+        let start = parse_chronicle_timestamp_ns("2026-03-07 10:00:00").expect("fixture timestamp");
+        let stop = parse_chronicle_timestamp_ns("2026-03-07 10:00:50").expect("fixture timestamp");
+        assert_eq!(session.interaction_type.as_str(), SCREEN_USAGE);
+        assert_eq!(session.event_timestamp_ns, start);
+        assert_eq!(session.start_timestamp_ns, Some(start));
+        assert_eq!(session.stop_timestamp_ns, Some(stop));
+        assert_eq!(session.duration_seconds, Some(50.0));
+        assert_eq!(session.duration_minutes, Some(50.0 / 60.0));
+        assert_eq!(session.data_time_gap_hours, 0.0);
+        assert!(session.application_label.is_empty());
+        assert_eq!(session.app_package_name.as_str(), "com.example.chat");
+        assert_eq!(
+            session
+                .screen_usage_foreground_app_package
+                .as_ref()
+                .map(|package| package.to_string()),
+            Some("com.example.chat".to_string())
+        );
+        assert_eq!(
+            session
+                .screen_usage_stop_event_type
+                .as_ref()
+                .map(|value| value.to_string()),
+            Some("Screen Non-Interactive".to_string())
+        );
+        assert_eq!(
+            session.screen_usage_last_activity_timestamp_ns,
+            Some(parse_chronicle_timestamp_ns("2026-03-07 10:00:30").expect("fixture timestamp"))
+        );
+        // The synthetic row is pushed past every raw row so ordering is stable.
+        assert_eq!(session.index, rows[0].index + 1_000_000);
+    }
+
     fn credit_point(timestamp_ns: i64, state: ScreenCreditState) -> ScreenChangePoint {
         ScreenChangePoint {
             timestamp_ns,
