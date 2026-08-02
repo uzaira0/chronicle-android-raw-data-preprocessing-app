@@ -1722,10 +1722,10 @@ fn ecma_to_precision(value: f64, precision: u32) -> String {
         return "NaN".to_string();
     }
     if value.is_infinite() {
-        return if value > 0.0 {
-            "Infinity".to_string()
-        } else {
+        return if value.is_sign_negative() {
             "-Infinity".to_string()
+        } else {
+            "Infinity".to_string()
         };
     }
     if value == 0.0 {
@@ -1735,7 +1735,8 @@ fn ecma_to_precision(value: f64, precision: u32) -> String {
             format!("0.{}", "0".repeat(precision as usize - 1))
         };
     }
-    let neg = value < 0.0;
+    // Zero and NaN are already handled, so the sign bit is the sign.
+    let neg = value.is_sign_negative();
     let abs_v = value.abs();
     // Render with high precision to inspect.
     let high = format!("{:.30e}", abs_v);
@@ -1788,8 +1789,7 @@ fn precision_format_output(neg: bool, digits: &str, exp: i32, precision: usize) 
     let p = precision;
     if exp < -6 || (exp as i64) >= p as i64 {
         // d.dddd...e±N
-        let head = &digits[..1];
-        let tail = if digits.len() > 1 { &digits[1..] } else { "" };
+        let (head, tail) = digits.split_at(1);
         // Strip trailing zeros from tail to match parseFloat-back behavior?
         // No — toPrecision keeps trailing zeros. parseFloat then strips them.
         // Since we always go through parseFloat, we can keep them; parseFloat
@@ -7087,7 +7087,9 @@ pub fn run_pipeline_v2_with_supports(
     );
 
     // 4. filter labeling
-    let filter_map = if opts.use_filter_file && !support.filter_csv.is_empty() {
+    // Parsing an empty filter file already yields an empty map, so the file's
+    // emptiness is not a second condition.
+    let filter_map = if opts.use_filter_file {
         parse_filter_csv(support.filter_csv)
     } else {
         HashMap::new()
