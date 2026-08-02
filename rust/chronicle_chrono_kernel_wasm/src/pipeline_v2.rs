@@ -11528,6 +11528,69 @@ mod output_contract {
             .expect("the contract fixture must preprocess cleanly")
     }
 
+    /// The codebook alias columns are the derived category columns that stand
+    /// in for a codebook join. Turning the codebook on without supplying a
+    /// usable one still has to emit them: with nothing joined they are the only
+    /// place a category can come from. Once a codebook actually carries rows,
+    /// the joined columns take over and the aliases are dropped again unless
+    /// the researcher asked for the category column outright.
+    #[test]
+    fn an_enabled_but_empty_codebook_still_emits_the_alias_columns() {
+        // The narrow runner cannot accept the late analysis support roles, so
+        // the stages needing them are off; the codebook role is what this test
+        // moves.
+        let mut options = contract_options();
+        options.use_app_codebook = true;
+        options.include_category_column = false;
+        options.enable_study_window_filter = false;
+        options.enable_person_attribution = false;
+        options.enable_day_coverage = false;
+        options.enable_compliance_scoring = false;
+        options.add_no_activity_placeholder_days = false;
+        let options = options;
+        let none: &[u8] = b"";
+        let usage_layer_active =
+            options.model_concurrent_usage || options.use_background_apps_file;
+
+        let header_of = |bytes: &[u8]| -> Vec<String> {
+            String::from_utf8(bytes.to_vec())
+                .expect("the app csv is utf-8")
+                .lines()
+                .next()
+                .expect("the app csv has a header")
+                .split(',')
+                .map(str::to_string)
+                .collect()
+        };
+
+        let without_codebook = run_pipeline_v2(FIXTURE_CSV.as_bytes(), &options, none, none, none)
+            .expect("the fixture preprocesses with the codebook enabled and absent");
+        assert_eq!(
+            header_of(&without_codebook.app_csv_bytes),
+            declared_app_output_columns(
+                true,
+                true,
+                usage_layer_active,
+                options.custom_app_engagement_duration,
+            ),
+            "an enabled codebook with no rows to join dropped the alias columns",
+        );
+
+        let with_codebook =
+            run_pipeline_v2(FIXTURE_CSV.as_bytes(), &options, none, none, CODEBOOK_CSV)
+                .expect("the fixture preprocesses with a codebook");
+        assert_eq!(
+            header_of(&with_codebook.app_csv_bytes),
+            declared_app_output_columns(
+                true,
+                false,
+                usage_layer_active,
+                options.custom_app_engagement_duration,
+            ),
+            "a joined codebook still emitted the alias columns",
+        );
+    }
+
     /// `run_pipeline_v2` and `run_pipeline_v2_with_background` are the entry
     /// points callers reach for when they do not need every support role, and
     /// they exist only to forward their arguments into `PipelineV2SupportFiles`.
