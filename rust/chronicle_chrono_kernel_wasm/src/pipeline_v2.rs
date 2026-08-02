@@ -8787,7 +8787,17 @@ mod tests {
 
         // A `Display` value has to fingerprint as the string it prints, both
         // when it fits the stack buffer and when it spills to the heap.
-        for (piece, repeats) in [("ab", 3_u32), ("0123456789", 12), ("z", 0)] {
+        // The last two cases overflow the 64-byte stack buffer: once in many
+        // small writes, once in a single write larger than the buffer itself.
+        for (piece, repeats) in [
+            ("ab", 3_u32),
+            ("0123456789", 12),
+            ("z", 0),
+            (
+                "0123456789012345678901234567890123456789012345678901234567890123456789",
+                1,
+            ),
+        ] {
             let printed = Shape::Printed(piece.to_owned(), repeats);
             let written = Shape::Str(piece.repeat(repeats as usize));
             assert_eq!(
@@ -10605,6 +10615,25 @@ mod tests {
             let value = delta_ns as f64 / 3_600_000_000_000.0;
             assert_eq!(ecma_round_fixed_f64(value, 2), reference(value));
         }
+
+        // JS `toFixed` hands these back untouched rather than rounding them.
+        assert!(ecma_round_fixed_f64(f64::NAN, 2).is_nan());
+        assert_eq!(ecma_round_fixed_f64(f64::INFINITY, 2), f64::INFINITY);
+        assert_eq!(
+            ecma_round_fixed_f64(f64::NEG_INFINITY, 2),
+            f64::NEG_INFINITY,
+        );
+        for huge in [1e21, -1e21, 1e300] {
+            assert_eq!(ecma_round_fixed_f64(huge, 2), huge);
+        }
+
+        // A subnormal has no implicit leading mantissa bit and a fixed
+        // exponent, and sits far below any scale a caller asks for, so it
+        // rounds to zero at both a small and a large number of digits.
+        let smallest = f64::from_bits(1);
+        assert_eq!(ecma_round_fixed_f64(smallest, 2), 0.0);
+        assert_eq!(ecma_round_fixed_f64(smallest, 20), 0.0);
+        assert_eq!(ecma_round_fixed_f64(-smallest, 20), 0.0);
     }
 
     #[test]
