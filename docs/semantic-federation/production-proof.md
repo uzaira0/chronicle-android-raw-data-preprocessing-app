@@ -501,38 +501,45 @@ bundle-budget validation.
 The production Rust quality rails enforce at least 95% line, 94% region, and
 70% function coverage on each new semantic authority crate, with two
 established authorities ratcheted lower in
-`.semantic-federation/quality/rust-authority-manifests.txt`. Measured on `main`
-at `3c598ee` with `rustup run stable cargo llvm-cov --manifest-path <crate>
---summary-only [--features/--no-default-features per manifest entry]`:
+`.semantic-federation/quality/rust-authority-manifests.txt`. Re-measured on
+**this merged provenance wave** — not the `3c598ee` tree the previous revision
+of this table cited — by `make coverage-rust`, which exits 0 and prints
+`rust_authority_quality=coverage manifests=5`:
 
 | Authority crate | Lines | Regions | Functions | Enforced floor (L/R/F) | Result |
 |---|---:|---:|---:|---|---|
 | `chronicle_preprocessing_semantic_adapter` | 99.16% | 98.33% | 96.84% | 95/94/70 | pass |
-| `chronicle_preprocessing_runtime_wasm` | 95.19% | 94.12% | 75.00% | 95/94/70 | pass |
-| `chronicle_semantic_index_wasm` | 97.07% | 96.65% | 82.22% | 95/94/70 | pass |
+| `chronicle_preprocessing_runtime_wasm` | 95.54% | 94.47% | 76.18% | 95/94/70 | pass |
+| `chronicle_semantic_index_wasm` | 96.97% | 96.51% | 80.85% | 95/94/70 | pass |
 | `chronicle_app_usage_matcher` (`--no-default-features`) | 94.69% | 94.10% | 90.09% | 93/93/90 | pass |
-| `chronicle_chrono_kernel_wasm` (`--features incremental-v2`) | 89.78% | 89.36% | 84.30% | 90/89/85 | **fails lines and functions** |
+| `chronicle_chrono_kernel_wasm` (`--features incremental-v2`) | 96.20% | 95.42% | 92.73% | 90/89/85 | pass |
 
-Two facts about that table are release-blocking and must not be rounded away.
-First, the chrono kernel is below its own declared ratchet: the same command
-with only `--fail-under-regions 89` exits 0, while `--fail-under-lines 90` and
-`--fail-under-functions 85` each exit 1. Second, `make coverage-rust` does not
-currently reach the kernel at all. `.semantic-federation/scripts/check-rust-quality.sh`
-splits each manifest line with `IFS='|'`, and the second entry's mutation
-exclusion regex contains a `|` alternation
-(`(physical_data_row_count|duplicate_safe_headers)`), so `duplicate_safe_headers)`
-is passed to `--fail-under-lines` and cargo-llvm-cov aborts the whole loop with
-`error: invalid float literal`. The gate therefore reports only the first
-crate's result today; the four figures after it come from the direct
-per-crate invocations above. The semantic-layer mutation runs
-have zero survivors and zero timeouts: adapter 76 killed/25 compiler-rejected,
-product runtime 194 killed/21 compiler-rejected, and semantic index 31 killed.
+Both facts this section previously recorded as release-blocking are closed, and
+neither was closed by moving a floor. The chrono kernel was below its own
+ratchet at 89.78/89.36/84.30; the mutation lane's kill tests lifted it against
+the unchanged 90/89/85. And `make coverage-rust` really did report only the
+first crate: `.semantic-federation/scripts/check-rust-quality.sh` split each
+manifest line with `IFS='|'`, and the runtime entry's exclusion regex contained
+the alternation `(physical_data_row_count|duplicate_safe_headers)`, so
+`duplicate_safe_headers)` reached `--fail-under-lines` and cargo-llvm-cov
+aborted the loop with `error: invalid float literal` — which is why the kernel
+ratchet had never once run. A multi-expression exclusion set now lives in its
+own `@file` where no delimiter can reach it, and an inline expression
+containing `(` or `{` is rejected with exit 2. The table above is that gate's
+own output rather than five hand-run commands.
+
+The semantic-layer mutation runs have zero survivors and zero timeouts on this
+tree: adapter 150 tested (122 caught, 28 compiler-rejected), product runtime
+660 tested (600 caught, 60 compiler-rejected), semantic index 76 tested (75
+caught, 1 compiler-rejected). Each crate's declared exclusions are additionally
+run as their own campaign, which fails if the suite catches a mutant the
+exclusion claims is equivalent; all three report `caught=0`.
 The adapter's target-incompatible `cfg(wasm)` facade exclusion is declared in
 the authority manifest rather than hidden in an aggregate percentage, and its
 delegate/build/browser path is tested separately. TypeScript coverage remains
 a separate UI/oracle boundary measurement, not a substitute for Rust authority
-coverage. The broader chrono-kernel mutation debt remains explicit in the final
-review matrix; it is not hidden by the clean semantic-layer result.
+coverage. The chrono-kernel mutation ledger is
+[docs/validation/KERNEL_MUTATION.md](../validation/KERNEL_MUTATION.md).
 
 This work now lives on `main`: PR #81 (`121e7b5`) landed the 55-step Rust/WASM
 single-engine cutover and PR #88 (`3c598ee`) landed the source-result influence
