@@ -279,6 +279,13 @@ these figures are evidence for this machine and commit, not portable promises.
   and much larger than cold recalculation.
 - Repeated large-fixture peak RSS in Chromium rather than the Node WASM host.
 - Cross-browser OPFS and performance measurements outside Chromium.
-- Cold-versus-warm semantic-index query profiling after adding an index cache.
 - Export/import streaming memory for large workspace closures.
-- Separate cost attribution for CSV-to-Parquet/SPSS generation.
+
+Two gaps listed here previously are now measured in
+[measured debt items 5 and 6](MEASURED_DEBT_ITEMS_5_AND_6.md): semantic-index
+query profiling (the reconstruction is 92.4% of every registered query, is
+independent of workspace size, and no product surface issues repeated queries,
+so no index cache was added) and separate cost attribution for
+CSV-to-Parquet/SPSS generation (the duplicate parse when both exports are
+enabled was removed with byte-identical output; the remaining cost is the
+writers themselves).
