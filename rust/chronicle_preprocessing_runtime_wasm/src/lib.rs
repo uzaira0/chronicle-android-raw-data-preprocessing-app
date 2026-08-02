@@ -4454,6 +4454,10 @@ fn canonical_cell_outputs(result: &PipelineV2Result) -> Vec<binary_exports::Cano
     outputs
 }
 
+/// The enabled binary encodings of one canonical CSV family: the Parquet bytes
+/// and the SPSS bytes, each present only when that export option is on.
+type EncodedExportFamily = (Option<Vec<u8>>, Option<Vec<u8>>);
+
 fn append_binary_exports(
     artifacts: &mut Vec<RuntimeArtifact>,
     result: &PipelineV2Result,
@@ -4468,41 +4472,70 @@ fn append_binary_exports(
             artifact.metadata.row_count = Some(row_count);
             artifacts.push(artifact);
         };
-        if options.enable_parquet_export {
-            if options.include_app_output {
-                append(
-                    "app-parquet",
-                    "application/vnd.apache.parquet",
-                    binary_exports::parquet_from_csv(&result.app_csv_bytes, false)?,
-                    result.app_row_count,
-                );
+        // Parquet and SPSS are two encodings of the same canonical CSV, so the
+        // reparse is shared: with both enabled, the 40k-row app CSV used to be
+        // parsed twice (measured 48.1 ms and 44.3 MB of `CsvTable` strings per
+        // parse; see `binary_exports::perf_measurement`). `encode_export_family`
+        // parses one CSV family once, writes every enabled encoding of it, and
+        // drops the table before the next family is parsed, so peak memory
+        // still holds at most one `CsvTable`. The writers only read the table,
+        // so both encodings are byte-identical to an independent reparse —
+        // `binary_exports::tests::shared_export_table_is_byte_identical_to_independent_reparse`
+        // pins that.
+        let encode_export_family = |csv_bytes: &[u8],
+                                    include: bool,
+                                    screen: bool|
+         -> Result<EncodedExportFamily, String> {
+            if !include || !(options.enable_parquet_export || options.enable_spss_export) {
+                return Ok((None, None));
             }
-            if options.include_screen_output {
-                append(
-                    "screen-parquet",
-                    "application/vnd.apache.parquet",
-                    binary_exports::parquet_from_csv(&result.screen_csv_bytes, true)?,
-                    result.screen_row_count,
-                );
-            }
+            let table = binary_exports::parse_csv(csv_bytes)?;
+            let parquet = options
+                .enable_parquet_export
+                .then(|| binary_exports::parquet_from_table(&table, screen))
+                .transpose()?;
+            let spss = options
+                .enable_spss_export
+                .then(|| binary_exports::sav_from_table(&table, screen))
+                .transpose()?;
+            Ok((parquet, spss))
+        };
+        let (app_parquet, app_spss) =
+            encode_export_family(&result.app_csv_bytes, options.include_app_output, false)?;
+        let (screen_parquet, screen_spss) =
+            encode_export_family(&result.screen_csv_bytes, options.include_screen_output, true)?;
+        // Unchanged artifact order: app-parquet, screen-parquet, app-spss, screen-spss.
+        if let Some(bytes) = app_parquet {
+            append(
+                "app-parquet",
+                "application/vnd.apache.parquet",
+                bytes,
+                result.app_row_count,
+            );
         }
-        if options.enable_spss_export {
-            if options.include_app_output {
-                append(
-                    "app-spss",
-                    "application/x-spss-sav",
-                    binary_exports::sav_from_csv(&result.app_csv_bytes, false)?,
-                    result.app_row_count,
-                );
-            }
-            if options.include_screen_output {
-                append(
-                    "screen-spss",
-                    "application/x-spss-sav",
-                    binary_exports::sav_from_csv(&result.screen_csv_bytes, true)?,
-                    result.screen_row_count,
-                );
-            }
+        if let Some(bytes) = screen_parquet {
+            append(
+                "screen-parquet",
+                "application/vnd.apache.parquet",
+                bytes,
+                result.screen_row_count,
+            );
+        }
+        if let Some(bytes) = app_spss {
+            append(
+                "app-spss",
+                "application/x-spss-sav",
+                bytes,
+                result.app_row_count,
+            );
+        }
+        if let Some(bytes) = screen_spss {
+            append(
+                "screen-spss",
+                "application/x-spss-sav",
+                bytes,
+                result.screen_row_count,
+            );
         }
         let lineage_record_count = result
             .row_lineage

@@ -634,13 +634,26 @@ fn store_from_nquads(index: &[u8]) -> Result<Store, String> {
 }
 
 fn query(index: &[u8], query_id: &str) -> Result<Value, String> {
-    let query = registered_query(query_id)
+    // Rejecting an unregistered query id before touching the index keeps the
+    // original error precedence: an unregistered id never reports an N-Quads
+    // parse failure instead.
+    registered_query(query_id)
         .ok_or_else(|| format!("unregistered production query: {query_id}"))?;
     let store = store_from_nquads(index)?;
+    query_on_store(&store, query_id)
+}
+
+/// Evaluate one registered query against an already-built store. Split out of
+/// `query` only so the two halves of a query — reconstructing the store and
+/// answering from it — can be timed separately; `query` is still the single
+/// caller in the product.
+fn query_on_store(store: &Store, query_id: &str) -> Result<Value, String> {
+    let query = registered_query(query_id)
+        .ok_or_else(|| format!("unregistered production query: {query_id}"))?;
     let results = SparqlEvaluator::new()
         .parse_query(query)
         .map_err(|error| format!("parse registered query: {error}"))?
-        .on_store(&store)
+        .on_store(store)
         .execute()
         .map_err(|error| format!("execute registered query: {error}"))?;
     match results {
@@ -764,6 +777,12 @@ pub fn query_registered_native(index: &[u8], query_id: &str) -> Result<String, S
     query(index, query_id)
         .and_then(|value| serde_json::to_string(&value).map_err(|error| error.to_string()))
 }
+
+/// `#[ignore]`d measurement harness for the recorded per-query reconstruction
+/// debt. It lives in-crate so it can time the private `store_from_nquads`
+/// against the whole `query` path without widening their visibility.
+#[cfg(test)]
+mod perf_measurement;
 
 #[cfg(test)]
 mod tests {
