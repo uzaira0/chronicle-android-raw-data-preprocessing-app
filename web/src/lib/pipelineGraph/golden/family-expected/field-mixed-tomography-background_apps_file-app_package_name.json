@@ -4,10 +4,10 @@
   "claimBoundary": "One supplied source column, one empirically branch-activating intervention on it, crossed with every computational configuration axis the field-level step contract predicts can interact with that column, plus a deterministic control sample of axes it predicts cannot. Under every configuration executed, every canonical output cell the intervention changes belongs to a declared output-cell family of that column, and no control axis introduces a family the base configuration did not move. Declared families no configuration moved are listed, not asserted: a declared edge no run exercised is not evidence the edge is unreal. Changed step checkpoints are recorded as context only, because a step checkpoint also moves when the step merely carries a changed field through its records.",
   "implementationReceipt": {
     "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
-    "implementationDigest": "sha256:b503b681ded01003bf322e14e51fe7aa102e6bdf1ba2fd51df0a9ec45213f290",
+    "implementationDigest": "sha256:340d85a92ddda73e8be41c5c058ebc712a78c50c1f818288423a9e4233c3065a",
     "planDigest": "sha256:e6acec3530cef7f3e67443077affb86632db8485d771c3fa9a754dc810ff8e20",
-    "profileDigest": "sha256:6a2607a050ed77d20ec7fa3124dedc36390c34527e1b571ad314d3e097edbf33",
-    "profileLockDigest": "sha256:939e283b78a1ad2de47f75fef9ffdcf362bf887a34ccd09ec3a245735697904b",
+    "profileDigest": "sha256:513f917debb76dab088cd7a7c24e0351f9ad7ee045408431fc82cab45c6a7d93",
+    "profileLockDigest": "sha256:b6507724f096d79fd937bb414cee63533f45a767e87fccacfb119e86baa0814b",
     "runtimeAuthorityDigest": "sha256:7598af2d710ac32563dd8e0bff49a9447e7f450c618c4689004025fbb6826ed4",
     "productContractDigest": "sha256:3855791ad25992d95e055d5c672253cb06ac3e4320463bc46f984b7bc8f05f95"
   },

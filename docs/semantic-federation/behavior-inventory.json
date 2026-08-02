@@ -30,7 +30,7 @@
     },
     "rust_product_runtime": {
       "path": "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",
-      "digest": "sha256:b5f10d0ea289f120bfdfac28c23178732e2f22e21cd01b56c93a8f570c77a6c5",
+      "digest": "sha256:85311b84177353cbd95f5b7882a2e1b108c9f9bb7c9ca933bb3c5d9d2ceba8b4",
       "coverage": "production-worker-authority"
     }
   },
@@ -339,7 +339,7 @@
   "runtime_authority_surface_count": 24,
   "dependency_certificate": {
     "path": ".semantic-federation/proofs/dependency-certificate.json",
-    "digest": "sha256:54b5ed6abeed4d0467d14b5edda400211530da69d8d7d27869cbe961159fc300",
+    "digest": "sha256:3a4c25a8d34c1f2bb880f08985f02fe185f1a24fe077407d837ab62787c64d00",
     "fallback": "full-logical-recompute"
   },
   "resolved_baseline_findings": [
