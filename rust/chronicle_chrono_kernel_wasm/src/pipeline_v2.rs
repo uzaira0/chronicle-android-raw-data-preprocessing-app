@@ -8292,6 +8292,87 @@ mod tests {
                 "row {index} kept a checkpoint component the walk changed",
             );
         }
+
+        // Re-running the walk over rows that already carry engagement columns —
+        // which is what happens whenever an upstream step re-emits a row — has
+        // to restore any column that disagrees with the measurement *and*
+        // discard the checkpoint component that described the old value. Each
+        // column is disturbed on its own, so exactly one of the four change
+        // tests, and exactly one term inside it, is the reason the row is
+        // rewritten. A term that stops contributing therefore leaves either a
+        // stale column or a stale digest.
+        fn engagement(data: &RowData) -> (i32, i32, i32, u64, i32, i32, i32, u64) {
+            (
+                data.valid_app_new_engage_30s,
+                data.valid_app_new_engage_custom,
+                data.valid_app_switched_app,
+                data.valid_app_usage_time_gap_hours.to_bits(),
+                data.any_app_new_engage_30s,
+                data.any_app_new_engage_custom,
+                data.any_app_switched_app,
+                data.any_app_usage_time_gap_hours.to_bits(),
+            )
+        }
+
+        const ENGAGEMENT_COLUMNS: [&str; 8] = [
+            "any_app_new_engage_30s",
+            "any_app_new_engage_custom",
+            "any_app_switched_app",
+            "any_app_usage_time_gap_hours",
+            "valid_app_new_engage_30s",
+            "valid_app_new_engage_custom",
+            "valid_app_switched_app",
+            "valid_app_usage_time_gap_hours",
+        ];
+        // No measurement can produce these, so any column left holding one was
+        // never rewritten.
+        const WRONG_FLAG: i32 = -7;
+        const WRONG_HOURS: f64 = -7.0;
+
+        let settled: Vec<RowData> = rows.iter().map(|row| row.0.data.clone()).collect();
+        for (column, name) in ENGAGEMENT_COLUMNS.iter().enumerate() {
+            for target in 0..settled.len() {
+                // The walk only owns the valid_* columns of unfiltered
+                // sessions; a filtered row keeps whatever it was handed.
+                if column >= 4 && settled[target].interaction_type != APP_USAGE {
+                    continue;
+                }
+                let mut perturbed: Vec<Row> = settled.iter().cloned().map(Row::new).collect();
+                let data = perturbed[target].edit_all();
+                match column {
+                    0 => data.any_app_new_engage_30s = WRONG_FLAG,
+                    1 => data.any_app_new_engage_custom = WRONG_FLAG,
+                    2 => data.any_app_switched_app = WRONG_FLAG,
+                    3 => data.any_app_usage_time_gap_hours = WRONG_HOURS,
+                    4 => data.valid_app_new_engage_30s = WRONG_FLAG,
+                    5 => data.valid_app_new_engage_custom = WRONG_FLAG,
+                    6 => data.valid_app_switched_app = WRONG_FLAG,
+                    _ => data.valid_app_usage_time_gap_hours = WRONG_HOURS,
+                }
+                // Hash the disturbed state, so a component the walk fails to
+                // discard is still describing the wrong value afterwards.
+                for row in &perturbed {
+                    row_checkpoint_parts(row, &mut scratch);
+                }
+
+                add_app_usage_detail_columns(&mut perturbed, custom_duration);
+
+                for (index, (row, expected)) in perturbed.iter().zip(&settled).enumerate() {
+                    assert_eq!(
+                        engagement(row),
+                        engagement(expected),
+                        "row {index} after {name} was disturbed on row {target}",
+                    );
+                    let cached = row_checkpoint_parts(row, &mut scratch);
+                    let fresh = row_checkpoint_parts(&Row::new(row.0.data.clone()), &mut scratch);
+                    assert_eq!(
+                        cached, fresh,
+                        "row {index} kept a checkpoint component describing the \
+                         old {name} disturbed on row {target}",
+                    );
+                }
+            }
+        }
     }
 
     #[test]
@@ -10128,6 +10209,254 @@ mod tests {
         built
     }
 
+    /// Split a written CSV into rows of fields, honouring RFC 4180 quoting so a
+    /// value that legitimately contains a comma is not counted as two fields.
+    fn csv_lines(bytes: &[u8]) -> Vec<Vec<String>> {
+        let text = String::from_utf8(bytes.to_vec()).expect("csv output is utf-8");
+        text.lines()
+            .map(|line| {
+                let mut fields = vec![String::new()];
+                let mut quoted = false;
+                let mut characters = line.chars().peekable();
+                while let Some(character) = characters.next() {
+                    match character {
+                        '"' if quoted && characters.peek() == Some(&'"') => {
+                            characters.next();
+                            fields.last_mut().expect("a field is open").push('"');
+                        }
+                        '"' => quoted = !quoted,
+                        ',' if !quoted => fields.push(String::new()),
+                        _ => fields.last_mut().expect("a field is open").push(character),
+                    }
+                }
+                fields
+            })
+            .collect()
+    }
+
+    fn app_csv_rows() -> Vec<Row> {
+        let mut rows = rows_from_events(&[
+            (
+                "2026-03-07 10:00:00",
+                "Activity Resumed",
+                "com.example.chat",
+            ),
+            (
+                "2026-03-07 10:05:00",
+                "Activity Resumed",
+                "com.example.video",
+            ),
+        ]);
+        for row in rows.iter_mut() {
+            let data = row.edit_all();
+            data.interaction_type = APP_USAGE.into();
+            data.start_timestamp_ns = Some(0);
+            data.stop_timestamp_ns = Some(60_000_000_000);
+            data.duration_seconds = Some(60.0);
+            data.duration_minutes = Some(1.0);
+            data.usage_layer = Some("primary".into());
+            data.genre_id_scraped = Some("Social".into());
+            data.broad_app_category = Some("COMMUNICATION".into());
+            data.codebook_fields = Arc::new(
+                (0..CODEBOOK_RENAME_PAIRS.len())
+                    .map(|index| Some(format!("field{index}")))
+                    .collect(),
+            );
+        }
+        rows
+    }
+
+    /// A reader lines an exported row up against the header by position. The
+    /// header and the row body are built in two different places from the same
+    /// options, so an option that adds or removes a column has to move both or
+    /// every column after it shifts. This walks the options that change the
+    /// column set and checks the header against the declared contract and every
+    /// row against the header.
+    #[test]
+    fn app_and_screen_csv_rows_line_up_with_their_declared_header() {
+        let rows = app_csv_rows();
+        for use_app_codebook in [false, true] {
+            for include_aliases in [false, true] {
+                for model_concurrent_usage in [false, true] {
+                    for use_background_apps_file in [false, true] {
+                        let mut opts = test_options();
+                        opts.use_app_codebook = use_app_codebook;
+                        opts.model_concurrent_usage = model_concurrent_usage;
+                        opts.use_background_apps_file = use_background_apps_file;
+                        let label = format!(
+                            "codebook={use_app_codebook} aliases={include_aliases} \
+                             concurrent={model_concurrent_usage} \
+                             background={use_background_apps_file}"
+                        );
+
+                        let written = write_app_csv_from_iter(
+                            rows.iter(),
+                            rows.len(),
+                            &opts,
+                            include_aliases,
+                        );
+                        let lines = csv_lines(&written);
+                        let declared = declared_app_output_columns(
+                            use_app_codebook,
+                            include_aliases,
+                            model_concurrent_usage || use_background_apps_file,
+                            opts.custom_app_engagement_duration,
+                        );
+                        assert_eq!(lines[0], declared, "app header for {label}");
+                        assert_eq!(lines.len(), rows.len() + 1, "app row count for {label}");
+                        for (index, line) in lines.iter().enumerate().skip(1) {
+                            assert_eq!(
+                                line.len(),
+                                declared.len(),
+                                "app row {index} field count for {label}",
+                            );
+                        }
+
+                        let written = write_screen_csv(&rows, &opts);
+                        let lines = csv_lines(&written);
+                        assert_eq!(
+                            lines[0],
+                            declared_screen_output_columns(),
+                            "screen header for {label}",
+                        );
+                        assert_eq!(lines.len(), rows.len() + 1, "screen row count for {label}");
+                        for (index, line) in lines.iter().enumerate().skip(1) {
+                            assert_eq!(
+                                line.len(),
+                                lines[0].len(),
+                                "screen row {index} field count for {label}",
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Two things a row carries on its own, rather than taking from the run's
+    /// settings: the timezone its timestamps are rendered in, and whether its
+    /// genre columns were collapsed. A row keeps its own recorded timezone even
+    /// when the run selected a different one, and the four collapsed-genre
+    /// columns are blanked only on rows that actually had them collapsed.
+    #[test]
+    fn exported_rows_use_their_own_timezone_and_collapse_only_where_marked() {
+        let mut rows = app_csv_rows();
+        rows[0].edit_all().timezone = "UTC".into();
+        let collapsed = {
+            let data = rows[1].edit_all();
+            data.timezone = "America/New_York".into();
+            data.codebook_genre_fields_cleared = true;
+            true
+        };
+        assert!(collapsed);
+
+        let mut opts = test_options();
+        opts.timezone = "UTC".into();
+        opts.use_app_codebook = true;
+        let written = write_app_csv_from_iter(rows.iter(), rows.len(), &opts, false);
+        let lines = csv_lines(&written);
+        let column = |name: &str| {
+            lines[0]
+                .iter()
+                .position(|header| header == name)
+                .unwrap_or_else(|| panic!("{name} is not an exported column"))
+        };
+
+        let timestamp = column("event_timestamp");
+        assert_ne!(
+            lines[1][timestamp], lines[2][timestamp],
+            "two rows recorded at the same instant in different timezones \
+             rendered the same local timestamp",
+        );
+        assert_eq!(lines[1][column("timezone")], "UTC");
+        assert_eq!(lines[2][column("timezone")], "America/New_York");
+
+        for (index, (_, exported)) in CODEBOOK_RENAME_PAIRS.iter().enumerate() {
+            let value = column(exported);
+            assert_eq!(
+                lines[1][value],
+                format!("field{index}"),
+                "a row with no collapsed genre columns lost {exported}",
+            );
+            let expected = if COLLAPSED_GENRE_FIELD_INDICES.contains(&index) {
+                String::new()
+            } else {
+                format!("field{index}")
+            };
+            assert_eq!(
+                lines[2][value], expected,
+                "a row with collapsed genre columns exported {exported} wrongly",
+            );
+        }
+    }
+
+    /// `days_with_usage` is what tells a researcher how many of a participant's
+    /// days actually carried data. A day counts when it holds a completed
+    /// session of either kind, and it also counts when it holds only background
+    /// minutes and no foreground session at all. Days that only exist because
+    /// the per-day spine fills a hole in the observed span do not count.
+    #[test]
+    fn review_summary_counts_used_days_by_sessions_or_background_minutes_alone() {
+        const MINUTE: i64 = 60_000_000_000;
+        // (date, usage layer, start minute, stop minute)
+        let sessions: &[(&str, Option<&str>, i64, i64)] = &[
+            ("2026-03-01", None, 0, 10),
+            ("2026-03-04", Some("secondary"), 0, 5),
+        ];
+        let mut rows = rows_from_events(&[
+            (
+                "2026-03-01 10:00:00",
+                "Activity Resumed",
+                "com.example.chat",
+            ),
+            (
+                "2026-03-04 10:00:00",
+                "Activity Resumed",
+                "com.example.chat",
+            ),
+        ]);
+        for (row, (date, layer, start, stop)) in rows.iter_mut().zip(sessions) {
+            let data = row.edit_all();
+            data.study_id = "Study".into();
+            data.participant_id = "P01".into();
+            data.interaction_type = APP_USAGE.into();
+            data.date = (*date).into();
+            data.usage_layer = (*layer).map(SharedString::from);
+            data.start_timestamp_ns = Some(*start * MINUTE);
+            data.stop_timestamp_ns = Some(*stop * MINUTE);
+            data.duration_minutes = Some((*stop - *start) as f64);
+        }
+
+        let summary = build_review_summary(&rows, &[]);
+        assert_eq!(summary.participants.len(), 1);
+        let participant = &summary.participants[0];
+        assert_eq!(
+            participant
+                .per_day
+                .iter()
+                .map(|day| (
+                    day.date.as_str(),
+                    day.app_usage_minutes,
+                    day.background_app_usage_minutes,
+                    day.app_session_count,
+                    day.screen_session_count,
+                ))
+                .collect::<Vec<_>>(),
+            vec![
+                ("2026-03-01", 10.0, 0.0, 1, 0),
+                ("2026-03-02", 0.0, 0.0, 0, 0),
+                ("2026-03-03", 0.0, 0.0, 0, 0),
+                ("2026-03-04", 0.0, 5.0, 0, 0),
+            ],
+            "the spine fills the hole between the two observed days",
+        );
+        assert_eq!(participant.totals.total_days, 4);
+        assert_eq!(
+            participant.totals.days_with_usage, 2,
+            "only the session day and the background-only day carried data",
+        );
+    }
+
     /// The day-coverage table tells a researcher, for every day of a
     /// participant's study window, whether the device produced usage, produced
     /// raw events but no usage, or went silent. The spine is the study window
@@ -10836,6 +11165,22 @@ mod tests {
                 0
             ),
             vec![(0, 50), (51, 100)]
+        );
+        // Two screen records at the same instant leave no time between them. An
+        // OFF that lasts zero nanoseconds is not a lock, so the credited
+        // interval runs straight through it even with no bridge allowance.
+        assert_eq!(
+            creditable_intervals(
+                &[
+                    credit_point(0, On),
+                    credit_point(50, Off),
+                    credit_point(50, On)
+                ],
+                0,
+                100,
+                0
+            ),
+            vec![(0, 100)]
         );
     }
 
