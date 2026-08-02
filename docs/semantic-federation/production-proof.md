@@ -279,7 +279,9 @@ comparisons. They identify 150 pairs where context introduces or masks a
 checkpoint or cell effect. Those are the measured wide/narrow sections of the
 configuration–data funnel; they are retained as exact counterexamples rather
 than flattened into a binary dependency edge. One representative mutation per
-role does not yet exhaust every record/field×configuration interaction.
+role does not by itself exhaust every record/field×configuration interaction;
+the per-field campaign described below narrows it to one activating
+intervention per supplied source column.
 
 The artifact dependency tomography applies the same falsification protocol to
 source changes. It covers all eleven supplied raw columns, row
@@ -316,21 +318,79 @@ uses dictionary encoding plus LZ4 frame compression. On the checked 600-event
 representative fixture it contains 9,902 cells in 45,810 bytes, 0.51 times
 the 89,709 canonical output bytes. The precision labels remain load-bearing:
 source and result coordinate identity and row-table joins are exact, raw-row
-contributor sets are conservative, semantic dependencies are
-declared-transitive, and exact raw-field/support-record contributors are not yet
-claimed.
+contributor sets are conservative, and semantic dependencies are
+declared-transitive.
 
 `source-result-influence-arrow` makes those precision boundaries executable.
-It contains 686 normalized witness rows in 47,042 bytes on the same fixture:
-role/selector-prefix to logical checkpoint, contiguous raw source-row range
-(`source_record_index`..`source_record_last`) to output row, and
-explicit unresolved source-scope to result-family gaps. The first Cartesian
-prototype (measured on the development fixture during design) emitted 240,540
-rows and 13,759,858 bytes; normalization reduces the bridge by two orders of
-magnitude while preserving lossless
-joins into the source-coordinate, result-cell, and row-lineage tables. The
-artifact is closure-bound, deterministic, researcher-exportable, and states
-that a missing row/cell edge is never evidence of non-influence.
+Its protocol is now `chronicle-source-result-influence/v2` and it contains 986
+normalized witness rows in 61,778 bytes on the same fixture. The first
+Cartesian prototype (measured on the development fixture during design) emitted
+240,540 rows and 13,759,858 bytes; normalization reduces the bridge by two
+orders of magnitude while preserving lossless joins into the source-coordinate,
+result-cell, and row-lineage tables. Every row carries one of five precision
+classes, and the two new coordinates `source_field` and
+`target_output_column` are populated exactly where the class justifies them:
+
+- `exact-field` — one supplied raw cell determines one output cell. Emitted
+  only where the field contract derives the output column as a verbatim
+  single-source copy along its whole write chain *and* kernel row lineage
+  resolves that output row to a single contiguous source record *and* no
+  lineage search participated. Six columns qualify today:
+  `study_id` and `participant_id` in `app-csv`, `credited-app-csv`, and
+  `screen-csv`.
+- `conservative-row-lineage` — a contiguous raw source-row range
+  (`source_record_index`..`source_record_last`) contributed to an output row.
+- `conservative-search-window` — a lineage search scanned a bounded raw record
+  window while producing an output row; every record in the window is a
+  possible contributor and none is claimed as the contributor.
+- `declared-column-scope` — a supplied source column may affect a named output
+  column of a result family that carries no row lineage at all. This closes
+  what were previously whole-artifact unresolved gaps for `compliance-csv`,
+  `day-coverage-csv`, `review-summary-json`, `visualization-data-json`, and
+  all five `aggregate-*` families.
+- `declared-transitive` / `unresolved` — role or selector scope to logical
+  checkpoint, and the explicit gaps that survive when no lineage information of
+  any kind exists.
+
+The artifact is closure-bound, deterministic, researcher-exportable, and states
+that a missing row/cell edge is never evidence of non-influence. The version
+moved from v1 to v2 rather than adding a parallel artifact: the schema gained
+two coordinate columns and four new `relation`/`precision` values, which any v1
+reader would silently mis-join, and no consumer holds v1 bytes — the deployed
+Pages build is a deliberate rollback and every checked ledger is regenerated
+from source by `make dependency-evidence`.
+
+The declared field-level reads and writes behind those classes are reconciled
+against the recorded per-column changed-cell evidence by
+`web/src/lib/pipelineGraph/golden/fieldLevelProvenance.test.ts`. Direction one
+is a hard gate: every canonical cell that a recorded intervention changed must
+be reachable from that intervention's own source columns through the declared
+field edges, and a mutation confined to columns no step declares as read must
+change no output cell at all. Direction two is enumerated rather than asserted:
+a declared reach that no recorded intervention exercised is written to
+`family-expected/field-level-provenance-ledger.json` as structurally declared
+but unwitnessed, so a widening declaration cannot pass silently. That gate
+found the two real declaration defects fixed here: `build_canonical_rows`
+listed contributors for only 16 of the 43 fields it produces, so the remaining
+27 constant initializers fell back to "every read determines every write" and
+made every raw column reach every downstream field; and the aggregate
+`study_name` column plus the review summary's `/participants/*` addressing
+omitted the grouping keys that decide which rows and participants exist.
+
+`web/src/lib/pipelineGraph/golden/fieldMixedTomography.test.ts` then crosses
+each supplied source column with configuration. Twenty columns each get one
+empirically branch-activating intervention crossed with every computational
+axis the field contract predicts can interact with that column plus a
+deterministic control sample of axes it predicts cannot — 729 predicted axis
+crossings, 65 control axes, and 1,682 Rust/WASM executions across twenty
+process-recycled shards. Under every executed configuration, every canonical
+cell the column moved belonged to a declared output-cell family of that column,
+and no control axis introduced a family the base configuration did not move.
+Two supplied columns are recorded as having no declared reach at all rather
+than being dropped: `filter_file.app_filter_category` and
+`filter_file.filter_bool` appear in the shipped filter file and in the review
+UI, but no kernel step reads either — the filter map is built from the package
+and label columns alone.
 
 The combined empirical and structural sweep found both kinds of ontology drift.
 Output assembly directly consumed attribution and observation-window products
