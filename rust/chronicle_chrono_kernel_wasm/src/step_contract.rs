@@ -3810,6 +3810,63 @@ mod tests {
         }
     }
 
+    /// Every assertion above holds vacuously when the reach sets are empty, and
+    /// `output_cell_dependencies` is a filter predicate inside
+    /// `source_column_output_reach`, so returning nothing empties every set
+    /// rather than failing anything. Three mutants proved it: replacing the
+    /// body with `vec![]`, `vec![""]` or `vec!["xyzzy"]` survived the whole
+    /// suite. Both directions are pinned here -- the dependency set itself, and
+    /// one reach that must not be empty.
+    #[test]
+    fn output_cell_dependencies_are_the_rendered_fields_plus_the_row_set() {
+        let bindings = output_cell_bindings();
+        let mut checked_with_fields = 0;
+        for binding in &bindings {
+            let dependencies = output_cell_dependencies(binding);
+            assert_eq!(
+                &dependencies[..binding.from.len()],
+                binding.from,
+                "{}/{} dropped or reordered its rendered fields",
+                binding.output_kind,
+                binding.column
+            );
+            let expected_tail: &[&str] =
+                if ROW_ADDRESSED_OUTPUT_KINDS.contains(&binding.output_kind) {
+                    ROW_SET_FIELDS
+                } else {
+                    &[]
+                };
+            assert_eq!(
+                &dependencies[binding.from.len()..],
+                expected_tail,
+                "{}/{} carries the wrong row-set dependency",
+                binding.output_kind,
+                binding.column
+            );
+            if !binding.from.is_empty() {
+                checked_with_fields += 1;
+            }
+        }
+        assert!(
+            checked_with_fields > 0,
+            "no binding renders a field, so the prefix assertion proved nothing"
+        );
+
+        // The positive direction the reach test never stated: a supplied column
+        // the parser does read must reach the output cell it renders.
+        let reach = source_column_output_reach();
+        let participant = reach
+            .iter()
+            .find(|entry| entry.source_field == "raw_chronicle_csv.participant_id")
+            .expect("participant_id is read and must have a declared reach");
+        assert!(
+            participant.cells.iter().any(|cell| {
+                cell.output_kind == "app-csv" && cell.column == "participant_id"
+            }),
+            "participant_id must reach the app-csv column it renders"
+        );
+    }
+
     /// The exported contract is a product artifact, not internal metadata:
     /// `src/bin/export_pipeline_step_contract.rs` prints exactly these bytes and
     /// `web/scripts/generate_pipeline_graph_artifacts.mts` and
