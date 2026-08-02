@@ -8425,6 +8425,151 @@ mod tests {
         assert!(row.0.checkpoint_parts.classification.get().is_none());
     }
 
+    /// The browser sends option JSON carrying only the settings it means to
+    /// state, so every field with a serde default is a published product
+    /// default: omitting it has to produce exactly this value. The four
+    /// screen-gated crediting defaults and the compliance threshold are the
+    /// researcher-facing ones. `usage_session_mode` also has a documented
+    /// fallback, and `materialize_visualization_data`, when omitted, follows
+    /// whether either view surface is on.
+    #[test]
+    fn omitted_option_fields_take_their_published_defaults() {
+        let minimal = serde_json::json!({
+            "study_name": "Study",
+            "timezone": "UTC",
+            "usage_session_mode": "app_usage",
+            "include_app_output": true,
+            "include_screen_output": true,
+            "use_filter_file": false,
+            "use_apps_forcing_screen_open": false,
+            "use_app_codebook": false,
+            "correct_duplicate_event_timestamps": true,
+            "allow_stop_event_reuse": false,
+            "use_activity_stopped_as_fallback": true,
+            "apply_threshold_to_fallback": true,
+            "long_duration_threshold_ns": 43_200_000_000_000_i64,
+            "custom_app_engagement_duration": 300.0,
+            "long_data_time_gap_thresholds": [1.0],
+            "long_usage_duration_thresholds": [1.0],
+            "same_app_stop_types": ["Activity Paused"],
+            "other_stop_types": ["Activity Resumed"],
+            "interaction_types_to_remove": [],
+            "screen_auto_lock_timeout_seconds": 120.0,
+            "screen_auto_lock_tolerance_seconds": 30.0,
+            "screen_manual_lock_max_tail_seconds": 30.0,
+            "screen_keyguard_near_stop_seconds": 2.0,
+            "datetime_of_preprocessing": "2026-07-21 12:00:00 UTC",
+        });
+        let parsed: PipelineV2OptionsJson =
+            serde_json::from_value(minimal.clone()).expect("the minimal request parses");
+
+        assert_eq!(parsed.timezone_handling, "selected-convert");
+        assert_eq!(parsed.aggregate_shape, "wide");
+        assert_eq!(parsed.compliance_threshold_percent, 70.0);
+        assert_eq!(parsed.credited_session_cap_minutes, 360.0);
+        assert_eq!(parsed.device_liveness_gap_tolerance_minutes, 120.0);
+        assert_eq!(parsed.auto_lock_bridge_seconds, 120.0);
+        assert_eq!(parsed.no_witness_min_day_apps, 2);
+        assert_eq!(parsed.proximity_interval_ns, 0);
+        assert_eq!(parsed.minimum_usage_duration, 0.0);
+        assert_eq!(parsed.materialize_visualization_data, None);
+        assert!(parsed.interaction_type_remap.is_empty());
+        for (field, on) in [
+            ("deduplicate_exact_rows", parsed.deduplicate_exact_rows),
+            ("enable_plotting", parsed.enable_plotting),
+        ] {
+            assert!(on, "{field} defaults on");
+        }
+        for (field, on) in [
+            ("use_background_apps_file", parsed.use_background_apps_file),
+            ("include_category_column", parsed.include_category_column),
+            ("model_concurrent_usage", parsed.model_concurrent_usage),
+            (
+                "apply_minimum_usage_duration_to_concurrent_subintervals",
+                parsed.apply_minimum_usage_duration_to_concurrent_subintervals,
+            ),
+            (
+                "filter_zero_duration_sessions",
+                parsed.filter_zero_duration_sessions,
+            ),
+            (
+                "add_no_activity_placeholder_days",
+                parsed.add_no_activity_placeholder_days,
+            ),
+            (
+                "enable_study_window_filter",
+                parsed.enable_study_window_filter,
+            ),
+            ("enable_person_attribution", parsed.enable_person_attribution),
+            ("enable_day_coverage", parsed.enable_day_coverage),
+            ("enable_compliance_scoring", parsed.enable_compliance_scoring),
+            (
+                "enable_screen_gated_crediting",
+                parsed.enable_screen_gated_crediting,
+            ),
+            ("enable_aggregates", parsed.enable_aggregates),
+            ("enable_activity_heatmap", parsed.enable_activity_heatmap),
+            ("export_plots_as_svg", parsed.export_plots_as_svg),
+            (
+                "enable_interactive_timeline",
+                parsed.enable_interactive_timeline,
+            ),
+            (
+                "include_filtered_app_usage_in_plots",
+                parsed.include_filtered_app_usage_in_plots,
+            ),
+        ] {
+            assert!(!on, "{field} defaults off");
+        }
+
+        for (spelling, expected) in [
+            ("no_usage", UsageSessionMode::NoUsage),
+            ("screen_usage", UsageSessionMode::ScreenUsage),
+            ("app_and_screen_usage", UsageSessionMode::AppAndScreenUsage),
+            ("app_usage", UsageSessionMode::AppUsage),
+            ("something else entirely", UsageSessionMode::AppUsage),
+        ] {
+            let mut request = minimal.clone();
+            request["usage_session_mode"] = spelling.into();
+            let options = serde_json::from_value::<PipelineV2OptionsJson>(request)
+                .expect("the request parses")
+                .into_pipeline_options();
+            assert_eq!(
+                options.usage_session_mode, expected,
+                "usage_session_mode {spelling}",
+            );
+        }
+
+        for (plotting, timeline, expected) in [
+            (false, false, false),
+            (true, false, true),
+            (false, true, true),
+            (true, true, true),
+        ] {
+            let mut request = minimal.clone();
+            request["enable_plotting"] = plotting.into();
+            request["enable_interactive_timeline"] = timeline.into();
+            let options = serde_json::from_value::<PipelineV2OptionsJson>(request)
+                .expect("the request parses")
+                .into_pipeline_options();
+            assert_eq!(
+                options.materialize_visualization_data, expected,
+                "plotting={plotting} timeline={timeline}",
+            );
+        }
+
+        let mut request = minimal;
+        request["enable_plotting"] = true.into();
+        request["materialize_visualization_data"] = false.into();
+        let options = serde_json::from_value::<PipelineV2OptionsJson>(request)
+            .expect("the request parses")
+            .into_pipeline_options();
+        assert!(
+            !options.materialize_visualization_data,
+            "an explicit materialize_visualization_data has to win over the view settings",
+        );
+    }
+
     /// Two ways of asking the same question: which parts of the previous
     /// step's checkpoint may be carried into this one. One compares cached
     /// checkpoint parts on both sides, the other re-derives the previous side
