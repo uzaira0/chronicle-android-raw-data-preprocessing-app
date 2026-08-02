@@ -233,7 +233,7 @@ evidence.
    | `chronicle_preprocessing_runtime_wasm` | 95.19% | 94.12% | 75.00% | 95/94/70 | pass |
    | `chronicle_semantic_index_wasm` | 97.07% | 96.65% | 82.22% | 95/94/70 | pass |
    | `chronicle_app_usage_matcher` (`--no-default-features`) | 94.69% | 94.10% | 90.09% | 93/93/90 | pass |
-   | `chronicle_chrono_kernel_wasm` (`--features incremental-v2`) | 89.78% | 89.36% | 84.30% | 90/89/85 | **fails lines and functions** |
+   | `chronicle_chrono_kernel_wasm` (`--features incremental-v2`) | 96.04% | 95.30% | 92.33% | 90/89/85 | pass (was 89.78/89.36/84.30 before the mutation lane's tests) |
 
    The earlier `41.54%/40.80%/40.71%` kernel figure and `85.44%/84.53%/86.05%`
    matcher figure in this document, and the `90.84% lines / 90.21% regions`
@@ -252,10 +252,13 @@ evidence.
    (a delimiter the regexes cannot contain) and the script splits it manually
    rather than through `IFS`, because tab is IFS whitespace and `read` would
    collapse the matcher entry's deliberately empty features field. The three
-   thresholds are validated as numbers, so a malformed field exits 2 naming the
-   manifest instead of being passed to the coverage tool. The kernel gap itself
-   remains open: the gate now bites honestly at 89.78/89.36/84.30 against the
-   90/89/85 floor, and the floor is not to be lowered to make it pass.
+   exclusion expressions live in their own `@file` (one expression per line),
+   and an inline expression containing `(` or `{` is rejected with exit 2 rather
+   than silently truncated — the alternation case is now impossible to express
+   inline instead of merely fixed. The kernel gap that this exposed is closed:
+   the ratchet ran for the first time at 89.78/89.36/84.30 and the mutation
+   lane's kill tests lifted it to 96.04/95.30/92.33 against the unchanged
+   90/89/85 floor. The floor was not lowered.
 2. Closed 2026-08-01. All three engines are supported, and the two exclusions
    this item recorded turned out to be product defects rather than missing
    browser capabilities. Firefox 148 never settles `navigator.storage.persist()`
@@ -337,13 +340,45 @@ evidence.
    `jsHeapBytes` is Chromium-only and null elsewhere, process RSS is
    deliberately not reported because it is not attributable across engines, and
    no threshold is enforced.
-9. The all-authority mutation target is not clean. The semantic adapter,
-    product runtime and semantic
-    index have zero survivors, but a partial current chrono-kernel campaign
-    exposed surviving timestamp-formatting, CSV parsing/sorting, WASM-facade,
-    and existing `run_pipeline_v2*` wrapper mutants before the expensive
-    1,258-mutant campaign was stopped. The earlier seven-wrapper-only inventory
-    was incomplete; a full core-kernel mutation burn-down remains release debt.
+9. Mostly closed 2026-08-01; the matcher is the one remaining red. Evidence:
+   `docs/validation/KERNEL_MUTATION.md`.
+
+   - **chrono-kernel**: 2,771 tested, 2,069 caught, 702 unviable, **0 missed,
+     0 timeout**. 175 survivors are classified across 11 named classes over 113
+     expressions in `.semantic-federation/quality/kernel-mutation-exclusions.txt`
+     with no `accepted` entries; the seven `run_pipeline_v2*` field-deletion
+     mutants previously carried as equivalence debt are caught, not excluded.
+   - **product runtime**: first campaign ever run — 646 tested, 586 caught, 60
+     unviable, 0 missed, 0 timeout. A test written to kill one mutant exposed a
+     real defect: `build_runtime_step_executions` reused the previous run's
+     bound-input key whenever Salsa reported no execution, but the key binds
+     *declared* request fields and `split_concurrent` declares
+     `minimum_usage_duration` while only reading it when the concurrent
+     subintervals switch is on, so a warm review reported a different key than a
+     cold review of identical options. Fixed; the configuration influence ledger
+     gains 864 previously suppressed `changedCompatibilityInputKeyNodes` entries
+     across ten stages and loses none, with no observed-output field moving.
+   - **`chronicle_app_usage_matcher` — red, deliberately.** This campaign had
+     also never run: 704,021 mutants, 702,769 of them tuple-return replacements
+     for one PyO3 function, and its exclusions used the ` in <fn>` form, which
+     only matches operator mutants inside a body, so they excluded 35 of
+     704,021. Scoping the facade by return type leaves 245 core mutants that run
+     in about two minutes, and they do not pass: 176 caught, 35 unviable, **27
+     missed, 7 timeouts — 34 survivors**, in `split_overlapping_sessions` (14),
+     `match_sorted_..._with_proximity` (10), `match_legacy_..._with_proximity`
+     (5), `SparseOpenStarts` (4), and `is_compatible_open_start_for_stop` (1).
+     Those are comparison boundaries and open-start bookkeeping in the repo's
+     declared single source of truth for session matching. `make mutation-rust`
+     exits 3 on account of this crate alone; the other four entries are
+     zero-missed. It was sized and recorded rather than blanket-excluded green.
+
+   Three defects of one family had to be fixed before any of this could run:
+   two crates' campaigns never started because the manifest split truncated
+   their regexes; test-only code was hashed into the production implementation
+   digest (`build.rs` tested whether a token stream *starts with* `#[cfg(test)]`,
+   and a doc comment is an attribute — bisected to `405ed69`); and the gate died
+   in its own baseline after any `.semantic-federation` edit because
+   cargo-mutants' crate copy breaks the `../..` fallback in three build scripts.
 10. **Release blocker:** the engine work is done; the proof obligations around
     it are not. Splitting what `3c598ee` demonstrably landed from what is
     still owed:
@@ -381,6 +416,10 @@ evidence.
       injection sets; ephemeral WebKit is fail-closed by the capability gate;
       peak WASM memory and the 192 MiB reconstruction refusal are identical on
       all three engines (items 2 and 8).
+    - Chrono-kernel and product-runtime mutation (2026-08-01): both campaigns
+      run to zero missed and zero timeout, with every survivor classified
+      against a named exclusion class and the kernel coverage ratchet cleared at
+      96.04/95.30/92.33 against an unchanged 90/89/85 floor (items 1 and 9).
 
     Still open, and not softened by the above:
     - Witness coverage of the 7,756 structurally-declared-but-unwitnessed
@@ -393,12 +432,12 @@ evidence.
       source columns (1,682 executions recorded); the remaining 39 columns
       need catalog interventions before their declared reach can be crossed
       with configuration axes.
-    - Chrono-kernel mutation burn-down. The 1,258-mutant campaign was stopped
-      partway with surviving timestamp-formatting, CSV parsing/sorting,
-      WASM-facade, and `run_pipeline_v2*` wrapper mutants (see item 9).
-    - The chrono-kernel coverage ratchet itself: 89.78/89.36/84.30 against the
-      90/89/85 floor. The gate now runs (see item 1); it did not before, so
-      this is a newly visible gap rather than a new regression.
+    - `chronicle_app_usage_matcher` mutation: 34 survivors across
+      `split_overlapping_sessions`, both proximity matchers, `SparseOpenStarts`,
+      and `is_compatible_open_start_for_stop`, so `make mutation-rust` exits 3.
+      This is the repo's declared single source of truth for session matching
+      and the survivors sit on comparison boundaries and open-start
+      bookkeeping — the exact place an off-by-one would live (see item 9).
 
 Database migration, server-concurrency load, mobile-device, container, and
 cluster tests are not applicable: this proof is a local-first browser/WASM app
