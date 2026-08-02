@@ -8,17 +8,17 @@
   },
   "implementationReceipt": {
     "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
-    "implementationDigest": "sha256:4dae57256028ac64be1dd71c951f250366561c5db8a5aa9d0bbbb38b3413ff68",
+    "implementationDigest": "sha256:c3c839300cb7c40e7f5a294da63eb43426eff1d1b1a44af81efe23092538e442",
     "planDigest": "sha256:e6acec3530cef7f3e67443077affb86632db8485d771c3fa9a754dc810ff8e20",
-    "profileDigest": "sha256:855a8da1bae72abbb203cb6be00a0a5de0f06b277a9e9b950281dff470d5ab8b",
-    "profileLockDigest": "sha256:eb825eef578c47f27311d9ac15968e08f28e1be6841a436e953e40aa02993afb",
+    "profileDigest": "sha256:014dfe1a84dd0633d69eb070714c7e57e0a8e6fb2892146ca185fec4ae809644",
+    "profileLockDigest": "sha256:3b2aac27429e34500d13f028526ab5e66b14c096f688c73884aa4c09e98e0b70",
     "runtimeAuthorityDigest": "sha256:7598af2d710ac32563dd8e0bff49a9447e7f450c618c4689004025fbb6826ed4",
     "productContractDigest": "sha256:3855791ad25992d95e055d5c672253cb06ac3e4320463bc46f984b7bc8f05f95"
   },
   "cellEvidence": {
     "protocolVersion": "chronicle-output-cell-correspondence/v2",
     "path": "artifact-output-cell-correspondence.json.gz",
-    "contentDigest": "sha256:c6e5aac5a6233789919308bbb7b51c95ca3b0d799ee2ec563a43c426b3ff7acb",
+    "contentDigest": "sha256:230bcdeb12bd81f87ff2f47d20a90f75a63f1e010d1f85b1b617e3af76d8819d",
     "cases": 192,
     "changedCellAddresses": 202124
   },
@@ -9044,7 +9044,7 @@
         },
         {
           "nodeId": "score_compliance",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "outputs",
@@ -9205,7 +9205,7 @@
         },
         {
           "nodeId": "app_policy",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "device_state_timeline",
@@ -9307,7 +9307,7 @@
         },
         {
           "nodeId": "device_state_timeline",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "reconstruct_episodes",
@@ -9411,7 +9411,7 @@
         },
         {
           "nodeId": "reconstruct_episodes",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "categorize_apps",
@@ -9513,7 +9513,7 @@
         },
         {
           "nodeId": "categorize_apps",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "episode_annotations",
@@ -9629,7 +9629,7 @@
         },
         {
           "nodeId": "observation_window",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "attribute_person",
@@ -9637,7 +9637,7 @@
         },
         {
           "nodeId": "day_coverage",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "score_compliance",
@@ -9731,7 +9731,7 @@
         },
         {
           "nodeId": "attribute_person",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "day_coverage",
@@ -9829,7 +9829,7 @@
         },
         {
           "nodeId": "attribute_person",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "day_coverage",
@@ -9939,7 +9939,7 @@
         },
         {
           "nodeId": "outputs",
-          "status": "recomputed"
+          "status": "cached"
         }
       ]
     },
@@ -18407,7 +18407,7 @@
         },
         {
           "nodeId": "score_compliance",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "outputs",
@@ -18568,7 +18568,7 @@
         },
         {
           "nodeId": "app_policy",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "device_state_timeline",
@@ -18670,7 +18670,7 @@
         },
         {
           "nodeId": "device_state_timeline",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "reconstruct_episodes",
@@ -18774,7 +18774,7 @@
         },
         {
           "nodeId": "reconstruct_episodes",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "categorize_apps",
@@ -18876,7 +18876,7 @@
         },
         {
           "nodeId": "categorize_apps",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "episode_annotations",
@@ -18992,7 +18992,7 @@
         },
         {
           "nodeId": "observation_window",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "attribute_person",
@@ -19000,7 +19000,7 @@
         },
         {
           "nodeId": "day_coverage",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "score_compliance",
@@ -19094,7 +19094,7 @@
         },
         {
           "nodeId": "attribute_person",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "day_coverage",
@@ -19192,7 +19192,7 @@
         },
         {
           "nodeId": "attribute_person",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "day_coverage",
@@ -19302,7 +19302,7 @@
         },
         {
           "nodeId": "outputs",
-          "status": "recomputed"
+          "status": "cached"
         }
       ]
     },
@@ -27701,7 +27701,7 @@
         },
         {
           "nodeId": "score_compliance",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "outputs",
@@ -27862,7 +27862,7 @@
         },
         {
           "nodeId": "app_policy",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "device_state_timeline",
@@ -27964,7 +27964,7 @@
         },
         {
           "nodeId": "device_state_timeline",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "reconstruct_episodes",
@@ -28068,7 +28068,7 @@
         },
         {
           "nodeId": "reconstruct_episodes",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "categorize_apps",
@@ -28170,7 +28170,7 @@
         },
         {
           "nodeId": "categorize_apps",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "episode_annotations",
@@ -28286,7 +28286,7 @@
         },
         {
           "nodeId": "observation_window",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "attribute_person",
@@ -28294,7 +28294,7 @@
         },
         {
           "nodeId": "day_coverage",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "score_compliance",
@@ -28388,7 +28388,7 @@
         },
         {
           "nodeId": "attribute_person",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "day_coverage",
@@ -28486,7 +28486,7 @@
         },
         {
           "nodeId": "attribute_person",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "day_coverage",
@@ -28596,7 +28596,7 @@
         },
         {
           "nodeId": "outputs",
-          "status": "recomputed"
+          "status": "cached"
         }
       ]
     },
@@ -36916,7 +36916,7 @@
         },
         {
           "nodeId": "score_compliance",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "outputs",
@@ -37077,7 +37077,7 @@
         },
         {
           "nodeId": "app_policy",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "device_state_timeline",
@@ -37179,7 +37179,7 @@
         },
         {
           "nodeId": "device_state_timeline",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "reconstruct_episodes",
@@ -37283,7 +37283,7 @@
         },
         {
           "nodeId": "reconstruct_episodes",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "categorize_apps",
@@ -37385,7 +37385,7 @@
         },
         {
           "nodeId": "categorize_apps",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "episode_annotations",
@@ -37501,7 +37501,7 @@
         },
         {
           "nodeId": "observation_window",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "attribute_person",
@@ -37509,7 +37509,7 @@
         },
         {
           "nodeId": "day_coverage",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "score_compliance",
@@ -37603,7 +37603,7 @@
         },
         {
           "nodeId": "attribute_person",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "day_coverage",
@@ -37701,7 +37701,7 @@
         },
         {
           "nodeId": "attribute_person",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "day_coverage",
@@ -37811,7 +37811,7 @@
         },
         {
           "nodeId": "outputs",
-          "status": "recomputed"
+          "status": "cached"
         }
       ]
     },
@@ -46325,7 +46325,7 @@
         },
         {
           "nodeId": "score_compliance",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "outputs",
@@ -46486,7 +46486,7 @@
         },
         {
           "nodeId": "app_policy",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "device_state_timeline",
@@ -46588,7 +46588,7 @@
         },
         {
           "nodeId": "device_state_timeline",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "reconstruct_episodes",
@@ -46692,7 +46692,7 @@
         },
         {
           "nodeId": "reconstruct_episodes",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "categorize_apps",
@@ -46794,7 +46794,7 @@
         },
         {
           "nodeId": "categorize_apps",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "episode_annotations",
@@ -46910,7 +46910,7 @@
         },
         {
           "nodeId": "observation_window",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "attribute_person",
@@ -46918,7 +46918,7 @@
         },
         {
           "nodeId": "day_coverage",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "score_compliance",
@@ -47012,7 +47012,7 @@
         },
         {
           "nodeId": "attribute_person",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "day_coverage",
@@ -47110,7 +47110,7 @@
         },
         {
           "nodeId": "attribute_person",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "day_coverage",
@@ -47220,7 +47220,7 @@
         },
         {
           "nodeId": "outputs",
-          "status": "recomputed"
+          "status": "cached"
         }
       ]
     },
@@ -56028,7 +56028,7 @@
         },
         {
           "nodeId": "score_compliance",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "outputs",
@@ -56189,7 +56189,7 @@
         },
         {
           "nodeId": "app_policy",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "device_state_timeline",
@@ -56291,7 +56291,7 @@
         },
         {
           "nodeId": "device_state_timeline",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "reconstruct_episodes",
@@ -56395,7 +56395,7 @@
         },
         {
           "nodeId": "reconstruct_episodes",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "categorize_apps",
@@ -56497,7 +56497,7 @@
         },
         {
           "nodeId": "categorize_apps",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "episode_annotations",
@@ -56613,7 +56613,7 @@
         },
         {
           "nodeId": "observation_window",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "attribute_person",
@@ -56621,7 +56621,7 @@
         },
         {
           "nodeId": "day_coverage",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "score_compliance",
@@ -56715,7 +56715,7 @@
         },
         {
           "nodeId": "attribute_person",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "day_coverage",
@@ -56813,7 +56813,7 @@
         },
         {
           "nodeId": "attribute_person",
-          "status": "recomputed"
+          "status": "cached"
         },
         {
           "nodeId": "day_coverage",
@@ -56923,10 +56923,10 @@
         },
         {
           "nodeId": "outputs",
-          "status": "recomputed"
+          "status": "cached"
         }
       ]
     }
   ],
-  "caseSetDigest": "sha256:eb8f558bced732803624acc21530e8db8b467139c3e3f3bd62082f305590d907"
+  "caseSetDigest": "sha256:c71d1e892981e5ad0964c3636e2063168458b4cc62eab62a9ac6e37ce22d8db8"
 }
