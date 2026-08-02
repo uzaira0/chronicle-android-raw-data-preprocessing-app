@@ -24,6 +24,7 @@ import {
   processRawCsvChangedReviewBytesViaPool,
   processRawCsvReviewBytes,
   processRawCsvBytesViaPool,
+  probeWorkerWorkspaceCapability,
   warmRuntime,
 } from "@/lib/rustWorkerClient";
 import { BUILD_DATE, BUILD_SHA } from "@/lib/buildInfo";
@@ -125,6 +126,22 @@ function getInjectedRuntime(): BrowserProcessingRuntime | undefined {
       persistRustWorkspace: true,
     }
   );
+}
+
+/**
+ * The durable-workspace gate. Both contexts must hold: this thread reads the
+ * OPFS the UI shows, and the Rust worker performs every actual workspace write.
+ * A browser can grant one and deny the other (Safari private browsing denies
+ * both; a sandboxed or partitioned worker can deny only its own), so either
+ * failure closes the gate and the first concrete reason is what the user sees.
+ */
+async function probeDurableWorkspaceCapability(): Promise<OpfsCapability> {
+  const [mainThread, worker] = await Promise.all([
+    probeOpfsCapability(),
+    probeWorkerWorkspaceCapability(),
+  ]);
+  if (mainThread.status === "unavailable") return mainThread;
+  return worker;
 }
 
 const STEP_WEIGHTS: Record<ProgressStepKind, number> = {
@@ -385,7 +402,7 @@ export default function App(): ReactElement {
   // under disk pressure (best-effort; ignored where unsupported/denied).
   useEffect(() => {
     void requestPersistentStorage().finally(() => {
-      void probeOpfsCapability().then(setWorkspaceCapability);
+      void probeDurableWorkspaceCapability().then(setWorkspaceCapability);
     });
   }, []);
 
@@ -1175,7 +1192,7 @@ export default function App(): ReactElement {
       processingRef.current = false;
       return;
     }
-    const capability = await probeOpfsCapability();
+    const capability = await probeDurableWorkspaceCapability();
     setWorkspaceCapability(capability);
     if (capability.status === "unavailable") {
       setError(`Durable local workspace unavailable. ${capability.reason}`);
@@ -1572,7 +1589,7 @@ export default function App(): ReactElement {
         },
       }));
       try {
-        const capability = await probeOpfsCapability();
+        const capability = await probeDurableWorkspaceCapability();
         setWorkspaceCapability(capability);
         if (capability.status === "unavailable") {
           throw new Error(
@@ -2009,6 +2026,9 @@ export default function App(): ReactElement {
               inspections={fileInspections}
               isInspecting={isInspectingFiles}
               isRunning={isRunning}
+              durableWorkspaceUnavailable={
+                workspaceCapability?.status === "unavailable"
+              }
               displayMasker={demoDisplay}
               onProcess={() => {
                 void processUploadedFiles();

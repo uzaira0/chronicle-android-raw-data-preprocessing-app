@@ -9,6 +9,12 @@
 
 const STORE_DIRECTORY = "chronicle-preprocessing-runtime-v1";
 export const OPFS_WORKSPACES_DIRECTORY = "chronicle-preprocessing-workspaces-v1";
+/**
+ * Scratch directory for `probeOpfsCapability`. Deliberately a sibling of the
+ * workspace tree so a probe write can never collide with, or be mistaken for,
+ * a content-addressed object or a root slot.
+ */
+const OPFS_CAPABILITY_PROBE_DIRECTORY = "chronicle-capability-probe-v1";
 const OBJECTS_DIRECTORY = "objects";
 const ROOTS_DIRECTORY = "roots";
 const CLOSURE_MAGIC = new TextEncoder().encode("CHRONICLE-CLOSURE-V1\n");
@@ -96,8 +102,19 @@ async function writeFile(
   const handle = await directory.getFileHandle(name, { create: true });
   const writable = await handle.createWritable();
   try {
+    // Copy unless the view already spans its whole buffer. Two engine facts
+    // force this, and only one of them was previously handled:
+    //  - a SharedArrayBuffer-backed view is not an accepted BufferSource;
+    //  - WebKit's FileSystemWritableFileStream.write() IGNORES byteOffset and
+    //    byteLength and writes the ENTIRE underlying ArrayBuffer (measured on
+    //    WebKit 26.4: a 10-byte subarray of a 100-byte buffer wrote 100 bytes;
+    //    Chromium 147 and Firefox 148 wrote 10). `importRuntimeClosure` hands
+    //    this function subarray views over one archive buffer, so on Safari
+    //    every imported object was being written as the whole archive.
     const owned =
-      bytes.buffer instanceof ArrayBuffer
+      bytes.buffer instanceof ArrayBuffer &&
+      bytes.byteOffset === 0 &&
+      bytes.byteLength === bytes.buffer.byteLength
         ? (bytes as Uint8Array<ArrayBuffer>)
         : new Uint8Array(bytes);
     await writable.write(owned);
@@ -166,8 +183,18 @@ async function putObject(
   }
   await writeFile(directory, name, artifact.bytes);
   const stored = await readFile(directory, name);
-  if (stored.byteLength !== artifact.size || (await sha256(stored)) !== artifact.digest) {
-    throw new Error(`OPFS verification failed for ${artifact.kind}`);
+  if (stored.byteLength !== artifact.size) {
+    // Naming the observed size is what turned a WebKit corruption into a
+    // one-line diagnosis: "wrote 812, read back 6291456" is the engine storing
+    // a view's whole backing buffer, not a random I/O fault.
+    throw new Error(
+      `OPFS verification failed for ${artifact.kind}: wrote ${artifact.size} bytes, read back ${stored.byteLength}`,
+    );
+  }
+  if ((await sha256(stored)) !== artifact.digest) {
+    throw new Error(
+      `OPFS verification failed for ${artifact.kind}: ${artifact.size} bytes stored with a different digest`,
+    );
   }
 }
 
@@ -402,6 +429,73 @@ export async function openOpfsWorkspace(
   return workspaces.getDirectoryHandle(digestHex(workspaceId), { create: true });
 }
 
+function capabilityErrorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Prove the exact primitives this module persists with — `createWritable`
+ * followed by a verified `getFile` read-back — rather than only proving that
+ * the OPFS entry points exist.
+ *
+ * A browser that hands out a directory handle but refuses writes (private
+ * browsing, a denied or exhausted quota, a sandbox that stubs the API) would
+ * otherwise pass an existence-only probe and then lose the run at commit time.
+ * Removal is best-effort on purpose: durability never depends on deletion, only
+ * `garbageCollectRuntimeObjects` does, so a leftover 32-byte probe file must not
+ * be reported as a durability failure.
+ */
+async function probeVerifiedRoundTrip(
+  root: FileSystemDirectoryHandle,
+): Promise<string | null> {
+  // A unique name per probe: the boot probe, the worker probe and a second tab
+  // can all be in flight at once, and a shared file name would make them read
+  // back each other's random bytes and report a false failure.
+  const expected = crypto.getRandomValues(new Uint8Array(32));
+  const name = `round-trip-${Array.from(
+    crypto.getRandomValues(new Uint8Array(8)),
+    (byte) => byte.toString(16).padStart(2, "0"),
+  ).join("")}.bin`;
+  let probeDirectory: FileSystemDirectoryHandle;
+  try {
+    probeDirectory = await root.getDirectoryHandle(
+      OPFS_CAPABILITY_PROBE_DIRECTORY,
+      { create: true },
+    );
+  } catch (error) {
+    return `Origin-private file storage is readable but no directory can be created: ${capabilityErrorText(
+      error,
+    )}`;
+  }
+  try {
+    await writeFile(probeDirectory, name, expected);
+  } catch (error) {
+    return `Origin-private file storage is open but not writable: ${capabilityErrorText(
+      error,
+    )}`;
+  }
+  let readBack: Uint8Array;
+  try {
+    readBack = await readFile(probeDirectory, name);
+  } catch (error) {
+    return `Origin-private file storage accepted a write it cannot read back: ${capabilityErrorText(
+      error,
+    )}`;
+  }
+  if (
+    readBack.byteLength !== expected.byteLength ||
+    readBack.some((byte, index) => byte !== expected[index])
+  ) {
+    return "Origin-private file storage returned different bytes than were written, so verified persistence is impossible.";
+  }
+  try {
+    await probeDirectory.removeEntry(name);
+  } catch {
+    // Deletion is not a durability primitive; a stale probe file is harmless.
+  }
+  return null;
+}
+
 export async function probeOpfsCapability(): Promise<OpfsCapability> {
   try {
     if (!navigator.locks?.request) {
@@ -411,7 +505,11 @@ export async function probeOpfsCapability(): Promise<OpfsCapability> {
           "The Web Locks API is unavailable, so workspace commits cannot be serialized safely.",
       };
     }
-    await openOpfsRoot();
+    const root = await openOpfsRoot();
+    const roundTripFailure = await probeVerifiedRoundTrip(root);
+    if (roundTripFailure !== null) {
+      return { status: "unavailable", reason: roundTripFailure };
+    }
     const evictionProtected = navigator.storage.persisted
       ? await navigator.storage.persisted()
       : null;
@@ -419,9 +517,9 @@ export async function probeOpfsCapability(): Promise<OpfsCapability> {
   } catch (error) {
     return {
       status: "unavailable",
-      reason: `Origin-private file storage could not be opened: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
+      reason: `Origin-private file storage could not be opened: ${capabilityErrorText(
+        error,
+      )}`,
     };
   }
 }
