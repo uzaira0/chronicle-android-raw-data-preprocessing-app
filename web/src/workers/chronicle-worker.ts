@@ -17,6 +17,10 @@ import {
 } from "@/lib/rustPipelineRuntime";
 import type { RawFileInspection } from "@/lib/fileInspection";
 import {
+  probeOpfsCapability,
+  type OpfsCapability,
+} from "@/lib/opfsArtifactStore";
+import {
   processPersistedReviewWithRustAuthority,
   processRawCsvReviewWithRustAuthority,
   processRawCsvWithRustAuthority,
@@ -157,6 +161,15 @@ const api = {
   },
   planStageView(options: BrowserProcessingOptions) {
     return getRustPlanStageView(options);
+  },
+  /**
+   * Probe durable storage from the thread that actually persists it. Every
+   * workspace write in production happens here (this worker calls into
+   * rustPipelineRuntime.ts), so a main-thread-only probe can pass while the
+   * worker context is the one that has no OPFS.
+   */
+  probeWorkspaceCapability(): Promise<OpfsCapability> {
+    return probeOpfsCapability();
   },
   async verifyWorkspace(workspaceId: string) {
     return (await verifyPersistedRustWorkspace(workspaceId)) ?? null;

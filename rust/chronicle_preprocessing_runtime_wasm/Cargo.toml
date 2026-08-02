@@ -5,6 +5,24 @@ edition = "2021"
 license = "GPL-3.0-only"
 publish = false
 
+# DO NOT re-add `--merge-similar-functions`. Salsa 0.28 identifies each jar by
+# calling a per-jar `fn() -> TypeId` stored in `ErasedJar`, and compares the
+# result against `TypeId::of::<J>()` computed inline at the lookup site. Merging
+# those near-identical thunks breaks that identity, so the second
+# `salsa::Storage` built inside one WASM instance registers an incomplete jar
+# map. The next singleton-input access then panics in
+# `salsa-0.28.1/src/zalsa.rs:356` with "ingredient
+# `salsa::input::JarImpl<...UsageSupportInput>` was not registered", and because
+# this crate builds with `panic = "abort"` the browser only reports
+# "Unreachable code should not be executed (evaluating 't.execute_workspace')".
+# Measured against the production build: on WebKit 26.4 run 1 of a page
+# succeeded and every later run failed, with or without OPFS, for the same or a
+# different input, and a page reload cleared it; Chromium and Firefox passed all
+# four of those scenarios. zalsa.rs:356 is `lookup_jar_by_type`, which
+# `IngredientCache` only reaches once a SECOND database exists in the instance,
+# so only WebKit was taking that branch here. Dropping the flag fixed WebKit and
+# left the other two green, at +177,834 B of uncompressed WASM (gzip unchanged).
+# `web/e2e/durability-fault-injection.spec.ts` covers repeat runs per engine.
 [package.metadata.wasm-pack.profile.release]
 wasm-opt = [
     '-O3',
@@ -14,7 +32,6 @@ wasm-opt = [
     '--enable-mutable-globals',
     '--enable-sign-ext',
     '--enable-reference-types',
-    '--merge-similar-functions',
     '--vacuum',
     '--strip-producers',
 ]
@@ -30,7 +47,6 @@ wasm-opt = [
     '--enable-mutable-globals',
     '--enable-sign-ext',
     '--enable-reference-types',
-    '--merge-similar-functions',
     '--vacuum',
     '--strip-producers',
     '--debuginfo',

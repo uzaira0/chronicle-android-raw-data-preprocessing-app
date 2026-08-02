@@ -8,6 +8,7 @@ import type {
   RustStageView,
 } from "@/lib/types";
 import type { ChronicleWorkerApi } from "@/workers/chronicle-worker";
+import type { OpfsCapability } from "@/lib/opfsArtifactStore";
 import type { RawFileInspection } from "@/lib/fileInspection";
 export { comparisonSupportCacheKey } from "@/lib/comparisonSupportKey";
 import runtimeWasmUrl from "@/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm_bg.wasm?url";
@@ -183,11 +184,33 @@ export class WorkerPool {
   private readonly spawn: WorkerSpawn;
   private readonly maxTasksPerWorker: number;
   private terminated = false;
+  /**
+   * Rejects the moment {@link terminate} is called. Every in-flight task races
+   * it, because `Worker.terminate()` does NOT settle the Comlink RPC promises
+   * already awaiting a reply from that worker: the worker simply stops, no
+   * message ever comes back, and `onerror`/`onmessageerror` (which is all
+   * `slot.fault` watches) never fires. Without this, cancelling a batch left
+   * the caller's `await` pending forever — the run's `Promise.all` never
+   * resolved and the UI stayed wedged on "Processing…" with no way out. That is
+   * exactly the half-finished state cancellation exists to prevent, and
+   * `App.tsx`'s runner already documents the opposite contract ("a terminate()
+   * during cancel rejects the in-flight file").
+   */
+  private readonly aborted: Promise<never>;
+  private abort: () => void = () => {};
 
   constructor(
     size: number,
     spawnOrOptions: WorkerSpawn | WorkerPoolOptions = spawnWorker,
   ) {
+    this.aborted = new Promise<never>((_, reject) => {
+      this.abort = () =>
+        reject(new Error("Worker pool has been terminated."));
+    });
+    // Pre-handle so an un-raced abort (a pool terminated with nothing in
+    // flight) never surfaces as an unhandled rejection; racing still observes
+    // the same rejection.
+    this.aborted.catch(() => {});
     const options: WorkerPoolOptions =
       typeof spawnOrOptions === "function"
         ? { spawn: spawnOrOptions }
@@ -380,6 +403,9 @@ export class WorkerPool {
 
   terminate(): void {
     this.terminated = true;
+    // Settle in-flight tasks first: the workers below are about to stop without
+    // ever answering their pending RPCs.
+    this.abort();
     while (this.waiters.length) {
       this.waiters
         .shift()!
@@ -397,6 +423,30 @@ export class WorkerPool {
 
 export async function getRuntimeVersion(): Promise<string> {
   return onSharedWorker((api) => api.runtimeVersion());
+}
+
+/**
+ * Fail-closed durable-storage gate, evaluated in the worker that owns every
+ * production OPFS write. An unreachable worker is itself a hard stop: there is
+ * no other path that can persist a verified workspace, so it is reported as an
+ * unavailable capability rather than thrown into a caller that might continue.
+ */
+export async function probeWorkerWorkspaceCapability(): Promise<OpfsCapability> {
+  try {
+    // Explicit type argument: Comlink's Remote<> distributes over the
+    // ready/unavailable union, so inference would otherwise fix T to the
+    // "ready" arm alone and reject the failure arm the gate depends on.
+    return await onSharedWorker<OpfsCapability>((api) =>
+      api.probeWorkspaceCapability(),
+    );
+  } catch (error) {
+    return {
+      status: "unavailable",
+      reason: `The processing worker that owns durable storage could not be reached: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    };
+  }
 }
 
 /**

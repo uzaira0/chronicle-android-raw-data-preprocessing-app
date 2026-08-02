@@ -422,12 +422,53 @@ describe("WorkerPool", () => {
     // Both the in-flight blocker and the queued waiter are settled by
     // termination; the blocker's own late resolve is irrelevant by then.
     await expect(blocker).rejects.toThrow(/terminated/);
+    // Resolving the action AFTER terminate() must not resurrect the task: its
+    // worker is already gone, so the pool's abort has settled it as rejected.
     releaseBlocker();
+    await expect(blocker).rejects.toThrow(/terminated/);
     await expect(queued).rejects.toThrow(/terminated/);
     // A terminated pool refuses new work outright.
     await expect(pool.submit(() => Promise.resolve("late"))).rejects.toThrow(
       /terminated/,
     );
+  });
+
+  it("rejects the in-flight task on terminate even though its worker never answers", async () => {
+    // The real failure this pins: `Worker.terminate()` stops the worker without
+    // settling the Comlink RPC promises already awaiting a reply, and it does
+    // not fire onerror/onmessageerror either, so `slot.fault` stays pending
+    // too. Before the pool raced its own abort signal, cancelling a batch left
+    // this promise pending forever and the run's `Promise.all` never resolved —
+    // the UI sat on "Processing…" with the Cancel already clicked. Note there is
+    // deliberately no `resolve` here: an action that never settles is exactly
+    // what a terminated worker leaves behind.
+    const { spawn } = makeSpawn();
+    const pool = new WorkerPool(1, spawn);
+
+    const inFlight = pool.submit(() => new Promise<string>(() => {}));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    pool.terminate();
+
+    await expect(inFlight).rejects.toThrow(/terminated/);
+  });
+
+  it("rejects a task still waiting on worker readiness when the pool is terminated", async () => {
+    // Same hazard one step earlier: terminate() during `initializeRuntime`
+    // leaves `slot.ready` pending against a worker that is gone.
+    const worker = { terminate: vi.fn() };
+    const pool = new WorkerPool(1, () => ({
+      api: {} as RemoteApi,
+      worker,
+      ready: new Promise<void>(() => {}),
+    }));
+
+    const inFlight = pool.submit(() => Promise.resolve("never reached"));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    pool.terminate();
+
+    await expect(inFlight).rejects.toThrow(/terminated/);
   });
 
   it("rounds non-integer or sub-1 sizes up to a single worker", () => {
