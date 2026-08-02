@@ -113,8 +113,13 @@ test("@smoke @opfs verified workspace closure survives reload, imports into a fr
       mimeType: "application/vnd.chronicle.workspace",
       buffer: Buffer.from(reloadedArchive),
     });
+    // The fresh context imports into a worker that is still fetching and
+    // compiling the runtime WASM, so the first status can legitimately take
+    // longer than the 5 s default — same reason the reload assertion above
+    // carries its own timeout. Observed once as a Firefox flake at 5 s.
     await expect(restoredPage.getByTestId("workspace-backup-status")).toContainText(
       "Verified workspace restored at generation 1",
+      { timeout: 20_000 },
     );
 
     const corrupt = Uint8Array.from(reloadedArchive);
@@ -126,6 +131,7 @@ test("@smoke @opfs verified workspace closure survives reload, imports into a fr
     });
     await expect(restoredPage.getByTestId("workspace-backup-status")).toContainText(
       "digest mismatch",
+      { timeout: 20_000 },
     );
 
     await setInputFile(
