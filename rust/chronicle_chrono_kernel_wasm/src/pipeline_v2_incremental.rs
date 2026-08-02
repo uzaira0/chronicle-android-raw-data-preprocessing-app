@@ -11152,6 +11152,16 @@ mod tracked {
                 let expected = cold.execute(&csv(), options, support, full).unwrap();
                 assert_result_parity(&warm.result, &expected.result, options.usage_session_mode);
 
+                // Two engines running the same query graph agree even when the
+                // graph is wrong, so the full-output result is also checked
+                // against the sequential path, which computes the same 55 steps
+                // through separate code.
+                if full {
+                    let oracle = run_pipeline_v2_with_supports(&csv(), options, support)
+                        .unwrap_or_else(|error| panic!("{label}: sequential oracle: {error}"));
+                    assert_result_parity(&warm.result, &oracle, options.usage_session_mode);
+                }
+
                 let repeat = engine.execute(&csv(), options, support, full).unwrap();
                 assert!(
                     repeat.executed_steps.is_empty()
