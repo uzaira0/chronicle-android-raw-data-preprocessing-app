@@ -448,6 +448,7 @@ describe("artifact dependency tomography", () => {
     const cellEvidenceCases: Array<{
       caseId: string;
       changedComponents: string[];
+      sourceFields: string[];
       changedOutputCellAddresses: string[];
     }> = [];
     let receipt: Record<string, string> | undefined;
@@ -779,6 +780,7 @@ describe("artifact dependency tomography", () => {
         cellEvidenceCases.push({
           caseId,
           changedComponents: intervention.changedComponents,
+          sourceFields: intervention.sourceFields,
           changedOutputCellAddresses,
         });
         const report = {
@@ -840,10 +842,10 @@ describe("artifact dependency tomography", () => {
 
     const cellEvidenceSerialized = `${JSON.stringify(
       {
-        protocolVersion: "chronicle-output-cell-correspondence/v1",
+        protocolVersion: "chronicle-output-cell-correspondence/v2",
         implementationReceipt: receipt,
         claimBoundary:
-          "Exact changed canonical CSV/JSON output cell addresses for each named raw/support intervention. Binary exports and the Arrow lineage sidecar are digest-bound separately and are not interpreted as cells.",
+          "Exact changed canonical CSV/JSON output cell addresses for each named raw/support intervention. Each case also names the exact supplied source columns that intervention rewrote (sourceFields), in the Rust step contract's field namespace, using source.raw_row_set / source.raw_row_order for structural raw changes and an empty list for representation-only controls. Binary exports and the Arrow lineage sidecar are digest-bound separately and are not interpreted as cells.",
         cases: cellEvidenceCases.sort((left, right) =>
           left.caseId.localeCompare(right.caseId),
         ),
@@ -864,7 +866,7 @@ describe("artifact dependency tomography", () => {
       plan: { id: plan.plan_id, revision: plan.revision },
       implementationReceipt: receipt,
       cellEvidence: {
-        protocolVersion: "chronicle-output-cell-correspondence/v1",
+        protocolVersion: "chronicle-output-cell-correspondence/v2",
         path: "artifact-output-cell-correspondence.json.gz",
         contentDigest: cellEvidenceDigest,
         cases: cellEvidenceCases.length,
