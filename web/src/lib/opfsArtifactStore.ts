@@ -12,6 +12,14 @@ export const OPFS_WORKSPACES_DIRECTORY = "chronicle-preprocessing-workspaces-v1"
 const OBJECTS_DIRECTORY = "objects";
 const ROOTS_DIRECTORY = "roots";
 const CLOSURE_MAGIC = new TextEncoder().encode("CHRONICLE-CLOSURE-V1\n");
+const CLOSURE_ARCHIVE_MIME = "application/vnd.chronicle.workspace";
+/**
+ * How many payload bytes may sit in the JS heap before the archive builder
+ * hands them to blob storage. This is the export path's memory bound: peak heap
+ * is this budget plus the single object currently being read and hashed, never
+ * the size of the closure.
+ */
+const CLOSURE_STAGING_BYTES = 4 * 1024 * 1024;
 const MAX_CLOSURE_MANIFEST_BYTES = 16 * 1024 * 1024;
 const MAX_CLOSURE_OBJECTS = 100_000;
 const MAX_HISTORY_ROOTS = 10_000;
@@ -30,6 +38,20 @@ export type PersistedRuntimeArtifactMetadata = Omit<
   PersistedRuntimeArtifact,
   "bytes"
 >;
+
+/**
+ * An artifact whose bytes are produced on demand rather than held by the caller.
+ *
+ * Every object write goes through this shape, so persisting N artifacts never
+ * requires N live buffers: `read()` is called once, immediately before that one
+ * object is verified and placed, and its bytes are released before the next
+ * object is read. `PersistedRuntimeArtifact` callers are adapted by
+ * `eagerArtifactSource` and behave exactly as before.
+ */
+type PersistedRuntimeArtifactSource = PersistedRuntimeArtifactMetadata & {
+  digestVerified?: true;
+  read: () => Promise<Uint8Array>;
+};
 
 export type WorkspaceRootSlot = {
   protocolVersion: "chronicle-opfs-root/v1";
@@ -58,7 +80,8 @@ export type RuntimeClosureManifest = {
 
 export type RuntimeClosureInspection = {
   manifest: RuntimeClosureManifest;
-  object(digest: string): Uint8Array;
+  /** Read exactly one declared object out of the archive. */
+  object(digest: string): Promise<Uint8Array>;
 };
 
 export type OpfsCapability =
@@ -142,29 +165,52 @@ async function objectDirectory(
   };
 }
 
-async function putObject(
-  objects: FileSystemDirectoryHandle,
+function eagerArtifactSource(
   artifact: PersistedRuntimeArtifact,
-): Promise<void> {
-  if (artifact.bytes.byteLength !== artifact.size) {
+): PersistedRuntimeArtifactSource {
+  const { bytes, ...metadata } = artifact;
+  return { ...metadata, read: () => Promise.resolve(bytes) };
+}
+
+/**
+ * Read, verify, and write one object. Scoped separately from the read-back
+ * check below so the source bytes are unreachable before the stored copy is
+ * read: holding both at once doubled peak memory for the largest artifact in a
+ * closure for no added guarantee.
+ */
+async function writeVerifiedObject(
+  directory: FileSystemDirectoryHandle,
+  name: string,
+  artifact: PersistedRuntimeArtifactSource,
+): Promise<boolean> {
+  const bytes = await artifact.read();
+  if (bytes.byteLength !== artifact.size) {
     throw new Error(`artifact size mismatch for ${artifact.kind}`);
   }
   if (!artifact.digestVerified) {
-    const actual = await sha256(artifact.bytes);
+    const actual = await sha256(bytes);
     if (actual !== artifact.digest) {
       throw new Error(`artifact digest mismatch for ${artifact.kind}`);
     }
   }
-  const { directory, name } = await objectDirectory(objects, artifact.digest, true);
   try {
     const existing = await readFile(directory, name);
     if (existing.byteLength === artifact.size && (await sha256(existing)) === artifact.digest) {
-      return;
+      return true;
     }
   } catch {
     // Missing or unreadable objects are repaired by the verified write below.
   }
-  await writeFile(directory, name, artifact.bytes);
+  await writeFile(directory, name, bytes);
+  return false;
+}
+
+async function putObject(
+  objects: FileSystemDirectoryHandle,
+  artifact: PersistedRuntimeArtifactSource,
+): Promise<void> {
+  const { directory, name } = await objectDirectory(objects, artifact.digest, true);
+  if (await writeVerifiedObject(directory, name, artifact)) return;
   const stored = await readFile(directory, name);
   if (stored.byteLength !== artifact.size || (await sha256(stored)) !== artifact.digest) {
     throw new Error(`OPFS verification failed for ${artifact.kind}`);
@@ -185,7 +231,19 @@ export async function persistRuntimeObjects(
   artifacts: readonly PersistedRuntimeArtifact[],
 ): Promise<void> {
   const { objects } = await storeDirectories(root);
-  await Promise.all(artifacts.map((artifact) => putObject(objects, artifact)));
+  await Promise.all(
+    artifacts.map((artifact) => putObject(objects, eagerArtifactSource(artifact))),
+  );
+}
+
+/** Byte length of a stored object from filesystem metadata, without reading it. */
+async function storedObjectByteLength(
+  objects: FileSystemDirectoryHandle,
+  digest: string,
+): Promise<number> {
+  const { directory, name } = await objectDirectory(objects, digest, false);
+  const handle = await directory.getFileHandle(name);
+  return (await handle.getFile()).size;
 }
 
 async function readVerifiedObject(
@@ -448,9 +506,32 @@ export async function persistRuntimeWorkspace(
     slotArtifactDigests?: string[];
   },
 ): Promise<WorkspaceRootSlot> {
+  return persistRuntimeWorkspaceFromSources(root, {
+    ...input,
+    artifacts: input.artifacts.map(eagerArtifactSource),
+  });
+}
+
+/**
+ * The single persist implementation. Callers that already hold every buffer
+ * (normal execution commits) reach it through `persistRuntimeWorkspace`;
+ * callers streaming from an archive supply sources that read one object at a
+ * time. Nothing below ever retains an object's bytes past its own write.
+ */
+async function persistRuntimeWorkspaceFromSources(
+  root: FileSystemDirectoryHandle,
+  input: {
+    workspaceRootDigest: string;
+    previousWorkspaceRootDigest: string | null;
+    artifacts: readonly PersistedRuntimeArtifactSource[];
+    recoveredSlot?: WorkspaceRootSlot;
+    verifiedDetachedHistory?: boolean;
+    slotArtifactDigests?: string[];
+  },
+): Promise<WorkspaceRootSlot> {
   digestHex(input.workspaceRootDigest);
   const { objects, roots } = await storeDirectories(root);
-  const byDigest = new Map<string, PersistedRuntimeArtifact>();
+  const byDigest = new Map<string, PersistedRuntimeArtifactSource>();
   for (const artifact of input.artifacts) {
     const existing = byDigest.get(artifact.digest);
     if (existing && existing.size !== artifact.size) {
@@ -477,7 +558,7 @@ export async function persistRuntimeWorkspace(
       seen.add(rootDigest);
       const artifact = byDigest.get(rootDigest);
       const bytes: Uint8Array = artifact
-        ? artifact.bytes
+        ? await artifact.read()
         : await readVerifiedObject(objects, rootDigest);
       if ((await sha256(bytes)) !== rootDigest) {
         throw new Error(`incoming workspace root digest mismatch: ${rootDigest}`);
@@ -521,6 +602,39 @@ export async function persistRuntimeWorkspace(
 }
 
 /**
+ * Assemble the closure archive without ever holding it in the JS heap.
+ *
+ * Staged chunks are handed to a `Blob` once they reach `CLOSURE_STAGING_BYTES`;
+ * the Blob constructor copies them into browser-managed (disk-backed) blob
+ * storage and the JS references are dropped. The final `Blob` is a list of
+ * those parts by reference, so the archive can be many times larger than the
+ * heap that produced it.
+ */
+class ClosureArchiveBuilder {
+  private readonly parts: Blob[] = [];
+  private staged: BlobPart[] = [];
+  private stagedBytes = 0;
+
+  append(bytes: Uint8Array): void {
+    this.staged.push(bytes as BlobPart);
+    this.stagedBytes += bytes.byteLength;
+    if (this.stagedBytes >= CLOSURE_STAGING_BYTES) this.flush();
+  }
+
+  private flush(): void {
+    if (this.staged.length === 0) return;
+    this.parts.push(new Blob(this.staged));
+    this.staged = [];
+    this.stagedBytes = 0;
+  }
+
+  finish(): Blob {
+    this.flush();
+    return new Blob(this.parts, { type: CLOSURE_ARCHIVE_MIME });
+  }
+}
+
+/**
  * Advance the alternating root only after every listed object has already been
  * verified and placed in the content-addressed store.
  *
@@ -534,7 +648,7 @@ export async function commitPersistedRuntimeWorkspace(
   input: {
     workspaceRootDigest: string;
     previousWorkspaceRootDigest: string | null;
-    artifacts: PersistedRuntimeArtifactMetadata[];
+    artifacts: readonly PersistedRuntimeArtifactMetadata[];
     recoveredSlot?: WorkspaceRootSlot;
     verifiedDetachedHistory?: boolean;
     slotArtifactDigests?: string[];
@@ -830,10 +944,25 @@ export async function verifyRuntimeWorkspace(
   }
 }
 
+/**
+ * Stream the complete verified closure into a portable archive.
+ *
+ * Format (unchanged, `chronicle-runtime-closure/v1`): magic, a little-endian
+ * u32 manifest length, the manifest JSON, then every object's payload
+ * back-to-back in manifest order at the declared offsets. Because the manifest
+ * precedes the payload and declares each object's exact offset and size, the
+ * archive is consumable one object at a time in both directions — no version
+ * bump is needed to stream it, and archives written by the previous
+ * whole-buffer writer are byte-identical to these.
+ *
+ * Two passes over the object table keep peak heap flat: pass one reads only
+ * filesystem sizes so the manifest can be written first, pass two reads,
+ * digest-verifies, and appends one object at a time.
+ */
 export async function exportRuntimeClosure(
   root: FileSystemDirectoryHandle,
   slot: WorkspaceRootSlot,
-): Promise<Uint8Array> {
+): Promise<Blob> {
   await verifyRuntimeWorkspace(root, slot);
   const rootCommit = JSON.parse(
     new TextDecoder().decode(
@@ -853,14 +982,13 @@ export async function exportRuntimeClosure(
     root,
     slot.workspaceRootDigest,
   );
-  const payloads: Uint8Array[] = [];
+  const { objects: objectDirectoryHandle } = await storeDirectories(root);
   let offset = 0;
   const objects = [];
   for (const digest of sorted) {
-    const bytes = await readRuntimeObject(root, digest);
-    objects.push({ digest, size: bytes.byteLength, offset });
-    payloads.push(bytes);
-    offset += bytes.byteLength;
+    const size = await storedObjectByteLength(objectDirectoryHandle, digest);
+    objects.push({ digest, size, offset });
+    offset += size;
   }
   const manifest: RuntimeClosureManifest = {
     protocolVersion: "chronicle-runtime-closure/v1",
@@ -878,55 +1006,74 @@ export async function exportRuntimeClosure(
     throw new Error("runtime closure manifest is too large");
   }
   /* v8 ignore stop */
-  const archive = new Uint8Array(
-    CLOSURE_MAGIC.byteLength + 4 + manifestBytes.byteLength + offset,
-  );
-  archive.set(CLOSURE_MAGIC, 0);
-  new DataView(archive.buffer).setUint32(
+  const header = new Uint8Array(CLOSURE_MAGIC.byteLength + 4);
+  header.set(CLOSURE_MAGIC, 0);
+  new DataView(header.buffer).setUint32(
     CLOSURE_MAGIC.byteLength,
     manifestBytes.byteLength,
     true,
   );
-  const payloadStart = CLOSURE_MAGIC.byteLength + 4 + manifestBytes.byteLength;
-  archive.set(manifestBytes, CLOSURE_MAGIC.byteLength + 4);
-  for (let index = 0; index < payloads.length; index += 1) {
-    const payload = payloads[index];
-    const entry = objects[index];
-    // Unreachable: payloads and objects are appended in lockstep by the same
-    // loop above, so the shared index is always in range for both.
-    /* v8 ignore start */
-    if (payload === undefined || entry === undefined) {
-      throw new Error("runtime closure payload and object tables diverged");
+  const builder = new ClosureArchiveBuilder();
+  builder.append(header);
+  builder.append(manifestBytes);
+  for (const entry of objects) {
+    const payload = await readVerifiedObject(objectDirectoryHandle, entry.digest);
+    // The manifest was written from filesystem metadata. A payload that no
+    // longer matches its declared length would silently shift every later
+    // offset, so it fails the export instead.
+    if (payload.byteLength !== entry.size) {
+      throw new Error(`runtime closure object changed while exporting: ${entry.digest}`);
     }
-    /* v8 ignore stop */
-    archive.set(payload, payloadStart + entry.offset);
+    builder.append(payload);
   }
-  return archive;
+  return builder.finish();
 }
 
-function parseRuntimeClosure(archive: Uint8Array): RuntimeClosureInspection {
-  if (
-    archive.byteLength < CLOSURE_MAGIC.byteLength + 4 ||
-    !CLOSURE_MAGIC.every((byte, index) => archive[index] === byte)
-  ) {
+async function readArchiveRange(
+  archive: Blob,
+  start: number,
+  end: number,
+): Promise<Uint8Array> {
+  return new Uint8Array(await archive.slice(start, end).arrayBuffer());
+}
+
+/**
+ * Read and fully validate the archive framing and object table without reading
+ * a single payload byte, then expose an accessor that reads exactly one object
+ * on demand.
+ *
+ * Every structural check the whole-buffer parser made is made here, from the
+ * manifest plus `archive.size` alone: contiguous ascending offsets, no
+ * duplicate digests, non-negative safe-integer sizes, the root object present,
+ * and a total that lands exactly on the end of the archive. A truncated archive
+ * — including one cut in the middle of an object — therefore fails before any
+ * object is hashed and long before anything is written.
+ */
+async function openRuntimeClosure(archive: Blob): Promise<RuntimeClosureInspection> {
+  const headerSize = CLOSURE_MAGIC.byteLength + 4;
+  if (archive.size < headerSize) {
+    throw new Error("invalid runtime closure magic");
+  }
+  const header = await readArchiveRange(archive, 0, headerSize);
+  if (!CLOSURE_MAGIC.every((byte, index) => header[index] === byte)) {
     throw new Error("invalid runtime closure magic");
   }
   const manifestSize = new DataView(
-    archive.buffer,
-    archive.byteOffset,
-    archive.byteLength,
+    header.buffer,
+    header.byteOffset,
+    header.byteLength,
   ).getUint32(CLOSURE_MAGIC.byteLength, true);
   if (
     manifestSize === 0 ||
     manifestSize > MAX_CLOSURE_MANIFEST_BYTES ||
-    CLOSURE_MAGIC.byteLength + 4 + manifestSize > archive.byteLength
+    headerSize + manifestSize > archive.size
   ) {
     throw new Error("invalid runtime closure manifest size");
   }
-  const payloadStart = CLOSURE_MAGIC.byteLength + 4 + manifestSize;
+  const payloadStart = headerSize + manifestSize;
   const manifest = JSON.parse(
     new TextDecoder().decode(
-      archive.subarray(CLOSURE_MAGIC.byteLength + 4, payloadStart),
+      await readArchiveRange(archive, headerSize, payloadStart),
     ),
   ) as RuntimeClosureManifest;
   if (
@@ -950,7 +1097,7 @@ function parseRuntimeClosure(archive: Uint8Array): RuntimeClosureInspection {
       !Number.isSafeInteger(object.size) ||
       object.size < 0 ||
       object.offset !== expectedOffset ||
-      payloadStart + object.offset + object.size > archive.byteLength
+      payloadStart + object.offset + object.size > archive.size
     ) {
       throw new Error("invalid runtime closure object table");
     }
@@ -959,38 +1106,57 @@ function parseRuntimeClosure(archive: Uint8Array): RuntimeClosureInspection {
     expectedOffset += object.size;
   }
   if (
-    payloadStart + expectedOffset !== archive.byteLength ||
+    payloadStart + expectedOffset !== archive.size ||
     !seen.has(manifest.workspaceRootDigest)
   ) {
     throw new Error("runtime closure payload is incomplete");
   }
   return {
     manifest,
-    object(digest) {
+    async object(digest) {
       const entry = entriesByDigest.get(digest);
       if (!entry) throw new Error(`runtime closure object is missing: ${digest}`);
-      return archive.subarray(
+      const bytes = await readArchiveRange(
+        archive,
         payloadStart + entry.offset,
         payloadStart + entry.offset + entry.size,
       );
+      // `Blob.slice` clamps silently, so a source that shrank underneath an
+      // already-validated table would otherwise yield a short object.
+      if (bytes.byteLength !== entry.size) {
+        throw new Error(`runtime closure object is truncated: ${digest}`);
+      }
+      return bytes;
     },
   };
 }
 
-export function runtimeClosureWorkspaceId(archive: Uint8Array): string {
-  return parseRuntimeClosure(archive).manifest.workspaceId;
+export async function runtimeClosureWorkspaceId(archive: Blob): Promise<string> {
+  return (await openRuntimeClosure(archive)).manifest.workspaceId;
 }
 
+/**
+ * Import a portable closure, consuming it one object at a time.
+ *
+ * The fail-closed order is exactly the whole-buffer path's order, and nothing
+ * is written until all of it has passed: framing and object table, then every
+ * object rehashed against its declared digest, then the caller's semantic
+ * closure verification, then the workspace-identity and history checks. Only
+ * after that are objects placed (again one at a time, re-read from the
+ * archive), and the alternating root slot advances last, so a rejection at any
+ * point leaves no workspace state visible.
+ */
 export async function importRuntimeClosure(
   root: FileSystemDirectoryHandle,
-  archive: Uint8Array,
+  archive: Blob,
   verify: (closure: RuntimeClosureInspection) => Promise<void>,
 ): Promise<WorkspaceRootSlot> {
-  const closure = parseRuntimeClosure(archive);
-  const artifacts: PersistedRuntimeArtifact[] = [];
+  const closure = await openRuntimeClosure(archive);
+  const artifacts: PersistedRuntimeArtifactSource[] = [];
   for (const object of closure.manifest.objects) {
-    const bytes = closure.object(object.digest);
-    if ((await sha256(bytes)) !== object.digest) {
+    // Read, hash, compare, release. Only the verified metadata survives the
+    // iteration; the bytes are read again when this object is actually placed.
+    if ((await sha256(await closure.object(object.digest))) !== object.digest) {
       throw new Error(`runtime closure object digest mismatch: ${object.digest}`);
     }
     artifacts.push({
@@ -1000,7 +1166,7 @@ export async function importRuntimeClosure(
           : "closure-object",
       digest: object.digest,
       size: object.size,
-      bytes,
+      read: () => closure.object(object.digest),
       digestVerified: true,
     });
   }
@@ -1017,7 +1183,7 @@ export async function importRuntimeClosure(
       throw new Error("runtime closure history is cyclic or too large");
     }
     seenRoots.add(importedRoot);
-    const commit = decodeHistoryRoot(closure.object(importedRoot));
+    const commit = decodeHistoryRoot(await closure.object(importedRoot));
     if (commit.workspaceId !== closure.manifest.workspaceId) {
       throw new Error("runtime closure history crosses workspace identities");
     }
@@ -1027,7 +1193,7 @@ export async function importRuntimeClosure(
     throw new Error("runtime closure diverges from the existing workspace history");
   }
   const headCommit = decodeHistoryRoot(
-    closure.object(closure.manifest.workspaceRootDigest),
+    await closure.object(closure.manifest.workspaceRootDigest),
   );
   if (
     headCommit.workspaceId !== closure.manifest.workspaceId ||
@@ -1036,7 +1202,7 @@ export async function importRuntimeClosure(
   ) {
     throw new Error("runtime closure head does not match its outer manifest");
   }
-  return persistRuntimeWorkspace(root, {
+  return persistRuntimeWorkspaceFromSources(root, {
     workspaceRootDigest: closure.manifest.workspaceRootDigest,
     previousWorkspaceRootDigest:
       closure.manifest.previousWorkspaceRootDigest,
