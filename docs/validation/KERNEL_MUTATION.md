@@ -109,29 +109,41 @@ table before using them.
 
 Fixing the manifest defect below started
 `rust/chronicle_preprocessing_runtime_wasm`'s mutation gate for the first time.
-It reported **660** mutants, of which the previous configuration had never
-tested 17 and the run left **15** surviving. All 15 are resolved here.
+That first run left **15** survivors. Tightening the two over-broad
+expressions it inherited exposed **7** more mutants that had never been tested
+and do not survive, and **4** timeouts the old shape had swallowed. All 22 are
+resolved. On the current tree the crate has **660** mutants, **14** are
+excluded, and the remaining **646** are tested.
 
-Ten are **killed by tests written in this campaign**:
+**5 killed by tests written in this campaign:**
 
 | mutant | what it broke | test |
 | --- | --- | --- |
 | `lib.rs:396:16: delete !` in `inspect_raw_file_v1` | every resolvable timezone was reported as invalid; the existing "clean file" test never asserted the advisory's absence | `the_invalid_timezone_advisory_names_only_timezones_chronicle_cannot_resolve` |
-| `lib.rs:1781:37/:54/:74` in `build_runtime_step_executions` (3) | the code is gone — see the stale-key defect below | `a_warm_review_after_an_option_edit_projects_the_stages_a_cold_review_reports` |
-| `lib.rs:1999:30/:53/:56` in `project_product_stages` (3) | a warm run served stale or missing product-stage projections | the review test above, plus the artifact assertion added to `warm_workspace_reuses_tracked_results_and_option_change_recomputes_exact_cone` |
+| `lib.rs:1999:53: replace && with \|\|` and `:56: delete !` in `project_product_stages` | a warm review served a stale product-stage projection after an option edit | `a_warm_review_after_an_option_edit_projects_the_stages_a_cold_review_reports` |
+| `lib.rs:1999:30: delete !` in `project_product_stages` | a warm full repeat reused stage outputs and stopped publishing their artifacts | the stage-output assertion added to `warm_workspace_reuses_tracked_results_and_option_change_recomputes_exact_cone` |
 | `lib.rs:1073:17: replace && with \|\|` in `has_warm_review_input` | a warm review was claimed on a matching workspace root alone, resuming against a digest the engine never verified | `a_warm_review_needs_the_workspace_root_and_the_verified_input_together` |
-| 2 more `project_product_stages` siblings | same class | same tests |
 
-Five are **excluded with a written reason** in
-`.semantic-federation/quality/runtime-mutation-exclusions.txt`: three
-`EnvelopeTimer` bodies the gate never compiles (`query-timing` is not a default
-feature), and a `||`/`&&` precondition in `execute_incremental_pipeline` whose
-four disjuncts are each already forced false by
-`PreparedReviewWorkspace::execute_selected_base_native`. Two `source_scopes`
-mutants and one state-cache mutant join them on proven-equivalence grounds;
-one more is recorded as a **reachability limit rather than an equivalence** —
-`execute_prepared_workspace:3113` guards a 32 MiB cache bound whose operands
-are each pinned separately but cannot be driven apart from a request.
+**3 eliminated with the code they mutated:** `lib.rs:1781:37`, `:54` and `:74`
+in `build_runtime_step_executions` mutated the input-key reuse shortcut, which
+is gone — see the stale-key defect below. They are not excluded; they no
+longer exist.
+
+**14 excluded with a written reason** in
+`.semantic-federation/quality/runtime-mutation-exclusions.txt`:
+
+| class | mutants | why |
+| --- | ---: | --- |
+| Loop counters detected by timeout | 4 | the scan runs forever instead of answering; cargo-mutants detects them, but the gate fails on any timeout |
+| Diagnostics compiled out of the gate's feature set | 3 | `EnvelopeTimer` exists only under `query-timing`, which is not a default feature |
+| A precondition its callers already enforce | 3 | every disjunct of the warm-review guard in `execute_incremental_pipeline` is forced false by `PreparedReviewWorkspace::execute_selected_base_native`; the only other caller passes `false` |
+| Source scopes the product cannot produce | 2 | `coordinate_media_type` is a literal at every construction site and `application/json` appears only where `role_id` is literally `processing_options`; the options document is never a JSON array |
+| State cache at a capacity of one | 1 | `state_for` removes the revisited id from the LRU before the admission check, so `pop_front` evicts nothing either way while `MAX_INCREMENTAL_RUNTIME_STATES` is 1 |
+| **Not an equivalence — a bound the suite cannot cross** | 1 | `execute_prepared_workspace:3113` guards a 32 MiB cache bound; both operands are pinned separately but cannot be driven apart from a request |
+
+Every expression is anchored to one mutant (the precondition entry to three)
+and was checked against `cargo mutants --list` to match no mutant the suite
+kills.
 
 ### A stale bound-input key, found by a test written for a mutant
 
@@ -155,8 +167,16 @@ The runtime's old inline expression `src/lib\.rs:[0-9]+:1[37]: replace && with`
 matched 11 mutants. Only 3 survive. The other 8 — all six in
 `dependency_evidence_current`, one in `execute_incremental_pipeline` and one in
 `build_correspondence_index` — are caught, and blanketing them would have let a
-future regression there pass silently. They are tested again, and every
-expression in the new file was checked to match no mutant the suite kills.
+future regression there pass silently.
+
+The same shape appeared twice more and both were found by checking this file's
+own expressions the same way rather than trusting them:
+`replace \+= with .* in physical_data_row_count` and its sibling matched 10
+mutants of which only 4 time out, and an unanchored
+`replace EnvelopeTimer::start -> ...` also matched the
+`cfg(not(query-timing))` no-op at `lib.rs:90:9`, which is compiled and caught.
+All 7 are tested again, and every expression in the new file is anchored to
+the mutants it justifies.
 
 ## Three defects found outside the mutant list
 
