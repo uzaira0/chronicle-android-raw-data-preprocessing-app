@@ -676,6 +676,56 @@ mod tests {
         );
     }
 
+    /// Co-usage means two apps were open at the same instant. Sessions that
+    /// merely abut — one stopping exactly when the next starts — share no
+    /// time, so they must not be reported as a co-usage pair however the
+    /// active-session scan decides to retire the earlier one.
+    #[test]
+    fn sessions_that_only_abut_are_not_co_usage() {
+        let rows = sessions(&[
+            ("com.example.first", None, 0, Some(10), APP_USAGE),
+            ("com.example.second", None, 10, Some(20), APP_USAGE),
+        ]);
+        let (bytes, count) = co_usage_csv(&rows, "Study");
+        assert_eq!(count, 0, "abutting sessions were reported as co-usage");
+        assert_eq!(csv_rows(&bytes).len(), 1, "only the header may be written");
+
+        let overlapping = sessions(&[
+            ("com.example.first", None, 0, Some(10), APP_USAGE),
+            ("com.example.second", None, 9, Some(20), APP_USAGE),
+        ]);
+        let (bytes, count) = co_usage_csv(&overlapping, "Study");
+        assert_eq!(count, 1, "a one-minute overlap is co-usage");
+        let lines = csv_rows(&bytes);
+        assert!(
+            lines[1].contains(&"1".to_string()),
+            "expected one overlapping minute in {:?}",
+            lines[1]
+        );
+    }
+
+    /// The active window spans the first start to the last stop. A day whose
+    /// only session is instantaneous spans nothing, so it reports zero
+    /// minutes rather than a window.
+    #[test]
+    fn an_instantaneous_day_has_no_active_window() {
+        let rows = sessions(&[("com.example.blink", None, 5, Some(5), APP_USAGE)]);
+        let borrowed: Vec<&Row> = rows.iter().collect();
+        let summary = summarize(borrowed, Vec::new(), Vec::new());
+        assert_eq!(
+            summary.active_window_minutes, 0.0,
+            "a zero-length day reported an active window"
+        );
+        assert_eq!(summary.first_use_ns, summary.last_use_ns);
+
+        let spanned = sessions(&[("com.example.real", None, 5, Some(11), APP_USAGE)]);
+        let borrowed: Vec<&Row> = spanned.iter().collect();
+        assert_eq!(
+            summarize(borrowed, Vec::new(), Vec::new()).active_window_minutes,
+            6.0
+        );
+    }
+
     /// The top-apps table ranks by the whole day an app was used: foreground
     /// and background minutes added together, not one weighed against the
     /// other. An app with less foreground time can still outrank one with more.
