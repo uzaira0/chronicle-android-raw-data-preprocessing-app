@@ -204,7 +204,15 @@ const EXPECTED_SOURCE_COORDINATE_ROWS = 4_885;
 const EXPECTED_SOURCE_COORDINATE_BYTES = 37_866;
 const EXPECTED_RESULT_CELL_ROWS = 9_902;
 const EXPECTED_RESULT_CELL_BYTES = 45_810;
-const EXPECTED_INFLUENCE_WITNESS_BYTES = 64_658;
+// 64,658 -> 65,394 when the `exact-field` claim text was corrected: the class
+// carries the supplied value with surrounding whitespace removed, so the
+// metadata now says to compare trimmed source bytes rather than implying
+// `value_sha256` always equals `cell_value_sha256`. That is 352 characters of
+// schema metadata, which Arrow stores in both the schema message and the
+// footer, plus 8-byte alignment padding. The row count is deliberately
+// unchanged at 986 -- the witness DATA did not move, only what it says about
+// itself.
+const EXPECTED_INFLUENCE_WITNESS_BYTES = 65_394;
 
 function representativeSourceFixture(): Uint8Array {
   const rows = [

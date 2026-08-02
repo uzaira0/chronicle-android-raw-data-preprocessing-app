@@ -317,7 +317,7 @@ gap values and six calendar/DST joints; it also proved and fixed false coupling
 between row order, membership, and classification checkpoint components. See
 [the artifact dependency tomography proof](artifact-dependency-tomography.md).
 The two campaigns additionally compare canonical output cells on every warm
-and cold run. Digest-bound compressed sidecars retain 864,557 exact changed-cell
+and cold run. Digest-bound compressed sidecars retain 853,947 exact changed-cell
 addresses, yielding an empirical forward correspondence from each named
 raw/support mutation to affected CSV/JSON coordinates without turning large
 row/cell evidence into RDF or bloating the review ledger.
@@ -343,7 +343,7 @@ declared-transitive.
 
 `source-result-influence-arrow` makes those precision boundaries executable.
 Its protocol is now `chronicle-source-result-influence/v3` and it contains 986
-normalized witness rows in 64,658 bytes on the same fixture. The first
+normalized witness rows in 65,394 bytes on the same fixture. The first
 Cartesian prototype (measured on the development fixture during design) emitted
 240,540 rows and 13,759,858 bytes; normalization reduces the bridge by two
 orders of magnitude while preserving lossless joins into the source-coordinate,
@@ -512,7 +512,7 @@ of this table cited — by `make coverage-rust`, which exits 0 and prints
 | `chronicle_preprocessing_runtime_wasm` | 95.54% | 94.47% | 76.18% | 95/94/70 | pass |
 | `chronicle_semantic_index_wasm` | 96.97% | 96.51% | 80.85% | 95/94/70 | pass |
 | `chronicle_app_usage_matcher` (`--no-default-features`) | 94.69% | 94.10% | 90.09% | 93/93/90 | pass |
-| `chronicle_chrono_kernel_wasm` (`--features incremental-v2`) | 96.20% | 95.42% | 92.73% | 90/89/85 | pass |
+| `chronicle_chrono_kernel_wasm` (`--features incremental-v2`) | 96.24% | 95.47% | 92.80% | 90/89/85 | pass |
 
 Both facts this section previously recorded as release-blocking are closed, and
 neither was closed by moving a floor. The chrono kernel was below its own

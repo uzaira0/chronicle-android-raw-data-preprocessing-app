@@ -1527,9 +1527,36 @@ pub fn source_result_influence_witness_arrow(
 
     // Output cell families whose value is a verbatim copy of one supplied
     // column, grouped by the output kind that carries them.
+    //
+    // A contribution only survives if the raw export actually carries the
+    // supplied column. `csv_parse` looks its columns up by header name and
+    // substitutes the empty string for one that is absent, so the output cell
+    // still exists — but nothing supplied it, and claiming `exact-field` over
+    // it would name a `source_field` / `source_record_index` coordinate pair
+    // that has no cell behind it.
+    let raw_header_columns: BTreeSet<String> = sources
+        .iter()
+        .find(|source| source.role_id == "raw_chronicle_csv")
+        .and_then(|source| {
+            csv::ReaderBuilder::new()
+                .has_headers(true)
+                .from_reader(source.bytes)
+                .headers()
+                .ok()
+                .map(|headers| headers.iter().map(str::to_string).collect())
+        })
+        .unwrap_or_default();
     let exact_contributions = chronicle_chrono_kernel_wasm::step_contract::exact_cell_contributions();
     let mut exact_by_output_kind: BTreeMap<&str, Vec<_>> = BTreeMap::new();
     for contribution in &exact_contributions {
+        let supplied_column = contribution
+            .source_field
+            .split_once('.')
+            .map(|(_, column)| column)
+            .unwrap_or(contribution.source_field);
+        if !raw_header_columns.contains(supplied_column) {
+            continue;
+        }
         exact_by_output_kind
             .entry(contribution.output_kind)
             .or_default()
@@ -1898,7 +1925,7 @@ pub fn source_result_influence_witness_arrow(
     );
     metadata.insert(
         "claimBoundary".into(),
-        "Every row states its own strength in `precision`. `exact-field`: the result cell in `target_output_column` holds a verbatim copy of the supplied cell named by `source_field` in raw record `source_record_index`; the step contract shows that column has exactly one contributor along every declared write of it, and the kernel row lineage shows exactly one contributing raw record with no stop-event search. Whether the row exists and where it sits stay governed by the row-set and row-order dependencies the conservative rows carry, so the exact claim is about the value in an existing cell, not about its presence or position. `declared-column-scope`: the declared field edges connect `source_field` to the named `target_output_column`; it is a may-influence over-approximation and never asserts the cell did change. `conservative-row-lineage`: the inclusive raw-record range may contribute to that result row. `conservative-search-window`: the kernel scanned exactly that inclusive index range while selecting a stop event or establishing that none qualified, so events in it decided the row without appearing in its contributing range; the range is stated in the pipeline-internal ordering named by `source_index_space`, never in raw data rows, and it is not a raw-record claim. `declared-transitive`: plan reachability to a logical checkpoint. `unresolved`: an explicit gap where no lineage information of any kind exists for that scope. Absence of a row is never a non-influence claim.".into(),
+        "Every row states its own strength in `precision`. `exact-field`: the result cell in `target_output_column` carries the value of the supplied cell named by `source_field` in raw record `source_record_index`, with leading and trailing whitespace removed — every column that carries this class is trimmed once at parse and never otherwise transformed, so `value_sha256` in the source-coordinate index equals `cell_value_sha256` in the result-cell index only for supplied cells that have no surrounding whitespace; compare the trimmed source bytes, not the raw ones. The step contract shows that column has exactly one contributor along every declared write of it, and the kernel row lineage shows exactly one contributing raw record with no stop-event search. Whether the row exists and where it sits stay governed by the row-set and row-order dependencies the conservative rows carry, so the exact claim is about the value in an existing cell, not about its presence or position. `declared-column-scope`: the declared field edges connect `source_field` to the named `target_output_column`; it is a may-influence over-approximation and never asserts the cell did change. `conservative-row-lineage`: the inclusive raw-record range may contribute to that result row. `conservative-search-window`: the kernel scanned exactly that inclusive index range while selecting a stop event or establishing that none qualified, so events in it decided the row without appearing in its contributing range; the range is stated in the pipeline-internal ordering named by `source_index_space`, never in raw data rows, and it is not a raw-record claim. `declared-transitive`: plan reachability to a logical checkpoint. `unresolved`: an explicit gap where no lineage information of any kind exists for that scope. Absence of a row is never a non-influence claim.".into(),
     );
     metadata.insert(
         "sourceCoordinateJoin".into(),
@@ -3710,28 +3737,101 @@ mod tests {
             .collect::<BTreeSet<_>>();
         assert_eq!(
             exact_rows,
-            BTreeSet::from([
-                (
-                    Some("raw_chronicle_csv.participant_id".to_string()),
-                    Some("app-csv".to_string()),
-                    Some("participant_id".to_string()),
-                    1,
-                    0,
-                ),
-                (
-                    Some("raw_chronicle_csv.study_id".to_string()),
-                    Some("app-csv".to_string()),
-                    Some("study_id".to_string()),
-                    1,
-                    0,
-                ),
-            ])
+            BTreeSet::from([(
+                Some("raw_chronicle_csv.participant_id".to_string()),
+                Some("app-csv".to_string()),
+                Some("participant_id".to_string()),
+                1,
+                0,
+            )])
+        );
+        // This fixture's raw export is `participant_id,event_timestamp` — it has
+        // no `study_id` column. `csv_parse` looks its columns up by header name
+        // and substitutes the empty string for a missing one, so an app-csv
+        // `study_id` cell still exists; but there is no supplied cell behind it,
+        // so it must NOT be claimed exact. This assertion previously expected a
+        // `raw_chronicle_csv.study_id` row here and so pinned the over-claim.
+        assert!(
+            !exact_rows.iter().any(|(source_field, _, _, _, _)| {
+                source_field.as_deref() == Some("raw_chronicle_csv.study_id")
+            }),
+            "a column absent from the raw export has no supplied cell and can \
+             never carry the exact-field precision class"
         );
         assert!(
             !exact_rows
                 .iter()
                 .any(|(_, _, column, _, _)| column.as_deref() == Some("duration_seconds")),
             "a computed column must never carry the exact-field precision class"
+        );
+
+        // Positive control for the same guard. The suppression above must come
+        // from the raw header, not from dropping the contribution set wholesale:
+        // re-run the identical witness with a raw export that DOES carry
+        // `study_id` and the exact-field row has to reappear.
+        let raw_with_study =
+            b"participant_id,study_id,event_timestamp\nP01,S1,2026-01-01 00:00:00\n";
+        let sources_with_study = [
+            CanonicalSource {
+                role_id: "raw_chronicle_csv",
+                source_artifact_digest: &raw_digest,
+                source_media_type: "text/csv",
+                coordinate_media_type: "text/csv",
+                normalization: "identity-csv",
+                bytes: raw_with_study,
+            },
+            CanonicalSource {
+                role_id: "processing_options",
+                source_artifact_digest: &options_digest,
+                source_media_type: "application/json",
+                coordinate_media_type: "application/json",
+                normalization: "canonical-json",
+                bytes: options,
+            },
+        ];
+        let (with_study, _) = source_result_influence_witness_arrow(
+            &sources_with_study,
+            &outputs,
+            &lineages,
+            &plan,
+            &checkpoints,
+            &context,
+        )
+        .unwrap();
+        let mut study_reader = FileReader::try_new(Cursor::new(with_study), None).unwrap();
+        let study_batch = study_reader.next().unwrap().unwrap();
+        let study_precision = study_batch
+            .column(14)
+            .as_any()
+            .downcast_ref::<DictionaryArray<Int32Type>>()
+            .unwrap();
+        let study_precision_values = study_precision
+            .values()
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap();
+        let study_source_field = study_batch
+            .column(3)
+            .as_any()
+            .downcast_ref::<DictionaryArray<Int32Type>>()
+            .unwrap();
+        let study_source_field_values = study_source_field
+            .values()
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap();
+        assert!(
+            (0..study_batch.num_rows()).any(|index| {
+                study_precision_values.value(study_precision.keys().value(index) as usize)
+                    == "exact-field"
+                    && study_source_field.is_valid(index)
+                    && study_source_field_values
+                        .value(study_source_field.keys().value(index) as usize)
+                        == "raw_chronicle_csv.study_id"
+            }),
+            "with `study_id` present in the raw header the supplied cell exists, \
+             so the exact-field row must be emitted — the guard keys on the raw \
+             header rather than dropping the contribution unconditionally"
         );
 
         // Every exact-field row must name both coordinates; every row that is

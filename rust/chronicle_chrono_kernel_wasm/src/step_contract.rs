@@ -2911,12 +2911,20 @@ pub fn source_column_output_reach() -> Vec<PipelineSourceColumnReach> {
 }
 
 /// Complete dependency set of one output cell family: its rendered fields plus
-/// the row-set pseudo-fields when the cell is addressed by row index.
+/// the row-set pseudo-fields.
+///
+/// The tail is unconditional. Declaring a cell family *is* what makes an output
+/// row-addressed — an output without row addressing (a byte-identical derived
+/// artifact such as parquet or SPSS) declares no cell families at all, so every
+/// one of the 263 bindings is row-addressed. This used to test
+/// `ROW_ADDRESSED_OUTPUT_KINDS` here, which read as a live distinction but was a
+/// branch no binding could take: its false arm was never executed by any test or
+/// caller, so a mutant flipping it survived. The invariant is now asserted in
+/// `output_cell_dependencies_are_the_rendered_fields_plus_the_row_set` instead
+/// of implied by an unexercised conditional.
 pub fn output_cell_dependencies(binding: &PipelineOutputCellBinding) -> Vec<&'static str> {
     let mut fields = binding.from.to_vec();
-    if ROW_ADDRESSED_OUTPUT_KINDS.contains(&binding.output_kind) {
-        fields.extend_from_slice(ROW_SET_FIELDS);
-    }
+    fields.extend_from_slice(ROW_SET_FIELDS);
     fields
 }
 
@@ -3830,15 +3838,20 @@ mod tests {
                 binding.output_kind,
                 binding.column
             );
-            let expected_tail: &[&str] =
-                if ROW_ADDRESSED_OUTPUT_KINDS.contains(&binding.output_kind) {
-                    ROW_SET_FIELDS
-                } else {
-                    &[]
-                };
+            // The tail is unconditional in `output_cell_dependencies`, which is
+            // only sound while every cell binding is row-addressed. Assert that
+            // rather than reproduce the old conditional, whose false arm no
+            // binding ever took.
+            assert!(
+                ROW_ADDRESSED_OUTPUT_KINDS.contains(&binding.output_kind),
+                "{}/{} declares a cell family on an output kind that is not \
+                 row-addressed, but the row-set tail is appended unconditionally",
+                binding.output_kind,
+                binding.column
+            );
             assert_eq!(
                 &dependencies[binding.from.len()..],
-                expected_tail,
+                ROW_SET_FIELDS,
                 "{}/{} carries the wrong row-set dependency",
                 binding.output_kind,
                 binding.column

@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import argparse
+import gzip
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -15,6 +17,44 @@ PLAN_PATH = FEDERATION_ROOT / "semantic/resources/chronicle.plan.json"
 INVENTORY_PATH = REPOSITORY_ROOT / "docs/semantic-federation/behavior-inventory.json"
 IMPLEMENTATION_PLAN_PATH = (
     REPOSITORY_ROOT / "docs/semantic-federation/55-step-incremental-rust-plan.md"
+)
+
+# Changed-cell totals are the one class of published figure with no producer in
+# the prose: a campaign reruns, the checked ledger moves, and the four documents
+# that quote its total keep the old number indefinitely. That is exactly what
+# happened — the sidecars held 202,124 and 651,823 while the documents published
+# 204,370, 660,187, and a sum of 864,557. Derive all three from the checked
+# evidence and let no document publish a fourth value.
+GOLDEN_EVIDENCE_ROOT = (
+    REPOSITORY_ROOT / "web/src/lib/pipelineGraph/golden/family-expected"
+)
+CELL_EVIDENCE_CAMPAIGNS = (
+    ("artifact-influence-ledger.json", "artifact-output-cell-correspondence.json.gz"),
+    (
+        "raw-boundary-influence-ledger.json",
+        "raw-boundary-output-cell-correspondence.json.gz",
+    ),
+)
+# Every published spelling of the total, so a document cannot escape the gate by
+# rewording. The text is whitespace-normalized first because these sentences
+# wrap mid-phrase.
+CHANGED_CELL_CLAIM = re.compile(
+    r"([\d][\d,]*)\s+(?:exact\s+)?(?:"
+    r"canonical CSV/JSON cell addresses"
+    r"|changed[- ]cell addresses"
+    r"|changed canonical output-cell addresses"
+    r")"
+)
+# Documents that quote the combined total of both campaigns.
+CELL_EVIDENCE_TOTAL_DOCUMENTS = (
+    REPOSITORY_ROOT / "README.md",
+    REPOSITORY_ROOT / "web/combinatorial/README.md",
+    REPOSITORY_ROOT / "docs/semantic-federation/production-proof.md",
+    REPOSITORY_ROOT / "docs/semantic-federation/final-review-matrix.md",
+)
+# The document that quotes each campaign separately.
+CELL_EVIDENCE_PER_CAMPAIGN_DOCUMENT = (
+    REPOSITORY_ROOT / "docs/semantic-federation/artifact-dependency-tomography.md"
 )
 
 # The published influence-witness protocol. The Rust constant is the only
@@ -234,8 +274,14 @@ def check_source_shape() -> None:
     incremental = incremental_path.read_text(encoding="utf-8")
     import re
 
+    # Salsa accepts both `#[salsa::tracked]` and `#[salsa::tracked(...)]`. Every
+    # function in the kernel happens to use the parenthesized form today, so a
+    # pattern that required the parentheses matched all 79 and looked correct —
+    # but a new query written in the bare canonical form would be invisible here,
+    # and the "exactly 55 product / 24 internal" counts below would keep passing
+    # while the real split had moved. Accept both spellings.
     tracked_functions = re.findall(
-        r"#\[salsa::tracked\([^\]]*\)\]\s*fn\s+([a-z0-9_]+)\s*\(",
+        r"#\[salsa::tracked(?:\([^\]]*\))?\]\s*fn\s+([a-z0-9_]+)\s*\(",
         incremental,
     )
     product_queries = {
@@ -402,6 +448,83 @@ def check_published_protocol_version() -> str:
     return current
 
 
+def changed_cell_claims(text: str) -> list[int]:
+    """Every changed-cell count a document publishes, in document order."""
+    normalized = re.sub(r"\s+", " ", text)
+    return [
+        int(match.group(1).replace(",", ""))
+        for match in CHANGED_CELL_CLAIM.finditer(normalized)
+    ]
+
+
+def check_published_cell_evidence_counts() -> tuple[int, int, int]:
+    """Bind every published changed-cell figure to the checked sidecars.
+
+    The ledger's own recorded count is not trusted: it is recomputed from the
+    compressed sidecar, and the sidecar is checked against the digest the ledger
+    committed to. A campaign rerun therefore moves the documents or fails here.
+    """
+    totals: list[int] = []
+    for ledger_name, sidecar_name in CELL_EVIDENCE_CAMPAIGNS:
+        ledger = json.loads(
+            (GOLDEN_EVIDENCE_ROOT / ledger_name).read_text(encoding="utf-8")
+        )
+        evidence = ledger["cellEvidence"]
+        # The campaign hashes the serialized JSON it compressed, not the gzip
+        # container, so the receipt survives a re-compression at a different
+        # level. Decompress first or every comparison here is a false failure.
+        serialized = gzip.decompress(
+            (GOLDEN_EVIDENCE_ROOT / sidecar_name).read_bytes()
+        )
+        digest = "sha256:" + hashlib.sha256(serialized).hexdigest()
+        if evidence["contentDigest"] != digest:
+            fail(
+                f"{ledger_name} commits to {evidence['contentDigest']} but "
+                f"{sidecar_name} content hashes to {digest}"
+            )
+        cases = json.loads(serialized)["cases"]
+        observed = sum(len(case["changedOutputCellAddresses"]) for case in cases)
+        if len(cases) != evidence["cases"]:
+            fail(
+                f"{ledger_name} records {evidence['cases']} cases but "
+                f"{sidecar_name} holds {len(cases)}"
+            )
+        if observed != evidence["changedCellAddresses"]:
+            fail(
+                f"{ledger_name} records {evidence['changedCellAddresses']} changed "
+                f"cells but {sidecar_name} holds {observed}"
+            )
+        totals.append(observed)
+
+    combined = sum(totals)
+    permitted = set(totals) | {combined}
+
+    per_campaign = CELL_EVIDENCE_PER_CAMPAIGN_DOCUMENT.read_text(encoding="utf-8")
+    published = changed_cell_claims(per_campaign)
+    for expected in totals:
+        if expected not in published:
+            fail(
+                f"{CELL_EVIDENCE_PER_CAMPAIGN_DOCUMENT.name} does not publish the "
+                f"campaign's {expected} changed-cell addresses"
+            )
+    for document in CELL_EVIDENCE_TOTAL_DOCUMENTS:
+        if combined not in changed_cell_claims(document.read_text(encoding="utf-8")):
+            fail(
+                f"{document.name} does not publish the combined "
+                f"{combined} changed-cell addresses"
+            )
+
+    for document in documentation_files() + [REPOSITORY_ROOT / "web/combinatorial/README.md"]:
+        for claimed in changed_cell_claims(document.read_text(encoding="utf-8")):
+            if claimed not in permitted:
+                fail(
+                    f"{document.relative_to(REPOSITORY_ROOT)} publishes "
+                    f"{claimed} changed-cell addresses, which no checked sidecar "
+                    f"produces (evidence holds {sorted(permitted)})"
+                )
+    return totals[0], totals[1], combined
+
+
 def self_test() -> None:
     seeded = REPOSITORY_ROOT / "doc.md"
     stale = {seeded: "Its protocol is now `chronicle-source-result-influence/v2`."}
@@ -443,6 +566,24 @@ def self_test() -> None:
         fail("execution-claim checker self-test did not detect its seeded false claim")
     if contains_phrase("This repository is the first full implementation target.", phrase):
         fail("execution-claim checker self-test rejected the allowed wording")
+    # The drift this check exists for: a document keeps a superseded total.
+    # Parsing must see the number through every published spelling, including
+    # the ones that wrap across lines.
+    for wording, expected in (
+        ("sidecars retain 864,557 exact changed-cell\naddresses", 864557),
+        ("864,557 exact canonical CSV/JSON cell addresses changed by", 864557),
+        ("It contains 202,124 changed-cell addresses across", 202124),
+        ("and 651,823 changed canonical output-cell addresses in", 651823),
+        ("; 853,947 changed-cell addresses;", 853947),
+    ):
+        if changed_cell_claims(wording) != [expected]:
+            fail(
+                "changed-cell claim parser self-test missed a published spelling: "
+                f"{wording!r} parsed as {changed_cell_claims(wording)}"
+            )
+    if changed_cell_claims("the 192 cases and 55 steps carry no cell claim"):
+        fail("changed-cell claim parser self-test matched an unrelated number")
+
     print("execution_claims_self_test=passed")
 
 
@@ -457,11 +598,15 @@ def main() -> int:
     groups, steps = check_machine_state()
     check_source_shape()
     protocol = check_published_protocol_version()
+    artifact_cells, boundary_cells, combined_cells = check_published_cell_evidence_counts()
     print(
         "execution_claims=valid "
         f"groups={groups} declared_steps={steps} tracked_executors=1 "
         "independently_callable_steps=55 independently_cached_steps=55 "
         f"influence_protocol={protocol} "
+        f"changed_cells_artifact={artifact_cells} "
+        f"changed_cells_boundary={boundary_cells} "
+        f"changed_cells_total={combined_cells} "
         "physical_incrementality=runtime-cutover-active-release-blocked"
     )
     return 0
