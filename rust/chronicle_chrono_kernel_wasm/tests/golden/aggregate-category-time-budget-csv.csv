@@ -1,0 +1,5 @@
+study_id,study_name,participant_id,date,broad_app_category,foreground_minutes,background_minutes,total_minutes,session_count
+Study,Kernel Output Contract,P01,2026-03-07,Entertainment,179,0,179,2
+Study,Kernel Output Contract,P01,2026-03-07,Social,3,0,3,3
+Study,Kernel Output Contract,P01,2026-03-07,Unknown,13,5.5,18.5,5
+Study,Kernel Output Contract,P01,2026-03-08,Social,30,0,30,1
