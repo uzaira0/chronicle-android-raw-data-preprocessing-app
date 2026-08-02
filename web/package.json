@@ -40,6 +40,7 @@
     "benchmark:runtime-wasm": "node scripts/run-clean-env.mjs vite-node scripts/benchmark_runtime_wasm.mts",
     "measure:review-batch": "node scripts/measure_review_batch.mjs",
     "measure:unique-review-batch": "node scripts/measure_unique_review_batch.mjs",
+    "measure:browser-peak-memory": "node scripts/measure_browser_peak_memory.mjs",
     "generate:benchmark-fixture": "node scripts/run-clean-env.mjs vite-node scripts/generate_benchmark_fixture.mts",
     "build:wasm": "node scripts/build_wasm.mjs && node scripts/check_wasm_exports.mjs",
     "check:wasm-exports": "node scripts/check_wasm_exports.mjs",

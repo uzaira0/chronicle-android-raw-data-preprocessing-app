@@ -13,20 +13,20 @@ const allBrowserProjects = [
     // Playwright's WebKit contexts are ephemeral (private-mode semantics) and
     // WebKit denies OPFS there ("UnknownError: The operation failed for an
     // unknown transient reason") on the main thread AND in a dedicated worker.
-    // That is not a coverage hole here: it is the exact environment the
-    // fail-closed durable-workspace gate exists for, and
-    // durability-capability-gate.spec.ts asserts the refusal in it. Tests that
-    // need a real OPFS grant run in the webkit-durable project below.
-    grepInvert: /@opfs|@durability/,
+    // That is exactly the environment the fail-closed durable-workspace gate
+    // exists for, so this project runs ONLY the tests written for a
+    // storage-denied engine. It cannot run anything that processes a file,
+    // because the gate correctly refuses to process without durable storage —
+    // that refusal is the product behaviour, not a harness limitation.
+    grep: /@no-storage/,
   },
   {
-    // The same WebKit build DOES grant OPFS against an on-disk profile, so the
-    // durability suites run on WebKit through a persistent context (see
-    // e2e/durabilityContext.ts). Scoped to the storage-dependent tests because
-    // launching a persistent context per test is not free.
+    // The same WebKit build DOES grant OPFS against an on-disk profile, so this
+    // is WebKit's real coverage: everything except the storage-denied tests
+    // above, through a persistent context (see e2e/durabilityContext.ts).
     name: "webkit-durable",
     use: { ...devices["Desktop Safari"], durableProfile: true },
-    grep: /@opfs|@durability/,
+    grepInvert: /@no-storage/,
     // One at a time, because Playwright's WebKit keeps origin-private storage
     // OUTSIDE the profile directory: two persistent contexts with different
     // userDataDirs read and write the SAME OPFS (measured — a marker written by
