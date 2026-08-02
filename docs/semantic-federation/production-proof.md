@@ -23,8 +23,8 @@ sections after execution. The generated empirical evidence is no longer stale:
 all six implementation-bound dependency ledgers and the dependency certificate
 were regenerated with `make dependency-evidence` and landed in `3c598ee`
 (PR #88), and `cargo test --locked --manifest-path
-rust/chronicle_preprocessing_runtime_wasm/Cargo.toml` now passes 60 tests with
-zero stale-receipt failures. The authoritative live status and remaining checks
+rust/chronicle_preprocessing_runtime_wasm/Cargo.toml` now reports `60 passed;
+0 failed; 1 ignored`, with zero stale-receipt failures. The authoritative live status and remaining checks
 are in the [55-step incremental Rust plan](55-step-incremental-rust-plan.md).
 This document is still not a completed production claim: the open blockers
 below — exact raw-field/support-record contribution, cross-browser durability,

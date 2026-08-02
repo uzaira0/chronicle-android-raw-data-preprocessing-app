@@ -126,7 +126,7 @@ evidence.
 |---|---|---|---|---|---|---|---|---|---|
 | Profile and lock protocol | deterministic fixtures | schema and digest tests | tamper, cycle, license, missing resource | offline exact closure | scaffold smoke | secret/license checks | resolve budget | no product ontology in protocol | Verified by federation gates |
 | Rust product contract | 15-node plan fixture | binding and graph tests | unknown/duplicate/cyclic bindings | generated-registry drift | native/WASM contract load | profiles cannot inject code | compile/build budget | Chronicle-owned semantics | Verified |
-| Rust preprocessing runtime | synthetic raw CSVs | Rust suites | malformed request/artifact states | native/WASM and cold/incremental parity suites | full browser processing | bounded inputs and fail-closed digests | browser baseline, cached digest | property/mutation checks | Verified; the crate itself clears its 95/94/70 floor at 95.19%/94.12%/75.00% and its suite passes 60/60. The coverage debt in item 1 below is the chrono kernel, not this crate |
+| Rust preprocessing runtime | synthetic raw CSVs | Rust suites | malformed request/artifact states | native/WASM and cold/incremental parity suites | full browser processing | bounded inputs and fail-closed digests | browser baseline, cached digest | property/mutation checks | Verified; the crate itself clears its 95/94/70 floor at 95.19%/94.12%/75.00% and its suite reports `60 passed; 0 failed; 1 ignored`. The coverage debt in item 1 below is the chrono kernel, not this crate |
 | Incremental materializer | warm/cold replay | node/role/status tests | changed support/config/input cones | persisted prior-root execution | graph/status/explanation views | immutable assignment evidence | declared-cone checks | deterministic replay | Role/qualification behavior verified; tracked runtime integration active |
 | Physical 55-step executor | fused Rust oracle | one callable/query test per step | missing/duplicate/untracked input and under/over-invalidation | real intermediate and terminal cache | actual execution events in graph/status/explanation views | cache cannot bypass input/contract verification | cold/no-change/upstream/middle/downstream/binding budgets | random mutation sequences, early cutoff, native/WASM parity | 55 queries and four-mode parity verified; root-bound cache persistence is implemented; the read-set campaigns now run against actual Salsa events and were regenerated in `3c598ee`. Remaining release blockers: cross-browser real-WASM reload/crash proof, randomized change sequences, and the chrono-kernel coverage/mutation debt |
 | OPFS durability | alternating-root fixtures | store tests | corruption, missing objects, both roots bad | closure export/import and verification | reload/recovery browser flows | digest/path/size/object limits | GC retains two roots | crash/fault-injection matrix | Verified in Chromium |
@@ -268,7 +268,8 @@ evidence.
     - All six empirical dependency campaigns regenerated against actual Salsa
       execution events with `make dependency-evidence`, together with
       `.semantic-federation/proofs/dependency-certificate.json`. The runtime
-      suite passes 60/60 with no stale-receipt failures.
+      suite reports `60 passed; 0 failed; 1 ignored` with no stale-receipt
+      failures.
     - `make gate-truth` reports all eight seeded-defect gates firing, and
       `make security` passes every scanner. A step is reported cached only when
       its tracked body did not execute.
