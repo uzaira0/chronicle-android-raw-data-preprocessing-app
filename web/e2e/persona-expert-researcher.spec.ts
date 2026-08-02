@@ -159,10 +159,15 @@ test("saves a named preset and a named config, then exports the whole config", a
 
 test("drives the full review + A/B comparison workflow in the View tab", async ({ page }) => {
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_AND_SCREEN_RAW_CSV, "text/csv");
+  // Per-session timeline geometry is opt-in (it is the heavy part of a result),
+  // so Arm A only has a scene to draw when this is on. The closing assertion —
+  // exactly ONE scene after the comparison — is only meaningful with a scene.
+  await page.getByTestId("toggle-enableInteractiveTimeline").check();
   await processFiles(page);
 
   await page.getByRole("tab", { name: /View/i }).click();
   await expect(page.getByTestId("timeline-view")).toBeVisible();
+  await expect(page.getByTestId("timeline-view-participant-title")).toHaveCount(1);
   await expect(page.getByTestId("review-rail")).toBeVisible();
   await expect(page.getByTestId("review-metrics")).toBeVisible();
 
@@ -184,6 +189,7 @@ test("drives the full review + A/B comparison workflow in the View tab", async (
   await expect(page.getByTestId("review-compare-no-overlap")).toContainText(
     "fast comparison updated the Δ metrics",
   );
+  // Arm A's single scene stays; no second scene is materialized for B.
   await expect(page.getByTestId("timeline-view-participant-title")).toHaveCount(1);
   assertNoExternalRequests(requestTracker);
 });

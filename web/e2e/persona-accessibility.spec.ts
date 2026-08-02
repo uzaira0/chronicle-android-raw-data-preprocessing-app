@@ -8,6 +8,7 @@ import {
   installDeterministicRuntime,
   processFiles,
   setInputFile,
+  setTheme,
   trackExternalRequests,
 } from "./helpers";
 
@@ -51,8 +52,12 @@ test("the review (View) surface and the compare drawer have no serious axe viola
 
   await page.getByRole("tab", { name: /View/i }).click();
   await expect(page.getByTestId("timeline-view")).toBeVisible();
-  const viewScan = await new AxeBuilder({ page }).analyze();
-  expect(seriousViolations(viewScan)).toEqual([]);
+  for (const theme of ["light", "dark"] as const) {
+    await setTheme(page, theme);
+    const viewScan = await new AxeBuilder({ page }).analyze();
+    expect(seriousViolations(viewScan), `${theme}: review surface`).toEqual([]);
+  }
+  await setTheme(page, "light");
 
   // Open the A/B compare drawer and re-scan — the drawer is an inline disclosure
   // (not a modal), so it must remain in the normal reading + tab order.
@@ -66,33 +71,60 @@ test("the review (View) surface and the compare drawer have no serious axe viola
   // The drawer closes from the keyboard-reachable Close control.
   await drawer.getByRole("button", { name: /Close/i }).click();
   await expect(drawer).toBeHidden();
+
+  // Running the comparison adds the B and Δ metric cards, whose arm-coloured
+  // headings are the only place those identity colours are used as text.
+  await page.getByTestId("review-compare-toggle").click();
+  await expect(drawer).toBeVisible();
+  await drawer.getByTestId("minimum-usage-duration-input").fill("999999");
+  await page.getByTestId("review-run-comparison").click();
+  await expect(page.getByTestId("review-mcard-delta")).toBeVisible();
+  for (const theme of ["light", "dark"] as const) {
+    await setTheme(page, theme);
+    const comparedScan = await new AxeBuilder({ page }).analyze();
+    expect(seriousViolations(comparedScan), `${theme}: compared review surface`).toEqual([]);
+  }
+  await setTheme(page, "light");
   assertNoExternalRequests(requestTracker);
 });
 
 test("the Graph panel has no serious axe violations at either scale, before and after a run", async ({
   page,
 }) => {
-  // Pre-run: the declared DAG (steps scale is the default).
-  await page.getByRole("tab", { name: /Graph/i }).click();
-  await expect(page.getByTestId("graph-canvas")).toBeVisible();
-  const stepsScan = await new AxeBuilder({ page }).analyze();
-  expect(seriousViolations(stepsScan)).toEqual([]);
+  // Both themes: the per-group accent tokens are tuned per theme, and the Graph
+  // node labels/badges are the smallest text in the app (~10px), so a token that
+  // only clears AA on white is a real dark-mode defect here.
+  for (const theme of ["light", "dark"] as const) {
+    await setTheme(page, theme);
 
-  await page.getByTestId("graph-scale-units").click();
-  await expect(page.getByTestId("graph-scale-units")).toHaveAttribute("aria-pressed", "true");
-  const unitsScan = await new AxeBuilder({ page }).analyze();
-  expect(seriousViolations(unitsScan)).toEqual([]);
+    // Pre-run: the declared DAG (steps scale is the default).
+    await page.getByRole("tab", { name: /Graph/i }).click();
+    await expect(page.getByTestId("graph-canvas")).toBeVisible();
+    const stepsScan = await new AxeBuilder({ page }).analyze();
+    expect(seriousViolations(stepsScan), `${theme}: graph steps scale`).toEqual([]);
+
+    await page.getByTestId("graph-scale-units").click();
+    await expect(page.getByTestId("graph-scale-units")).toHaveAttribute("aria-pressed", "true");
+    const unitsScan = await new AxeBuilder({ page }).analyze();
+    expect(seriousViolations(unitsScan), `${theme}: graph units scale`).toEqual([]);
+    await page.getByTestId("graph-scale-steps").click();
+  }
 
   // Post-run: nodes now carry execution-ledger metrics (rows in→out, duration)
   // and possible expectation-warning badges — those additions must stay clean.
+  await setTheme(page, "light");
   await page.getByRole("tab", { name: /^Files$/i }).click();
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_AND_SCREEN_RAW_CSV, "text/csv");
   await processFiles(page);
-  await page.getByRole("tab", { name: /Graph/i }).click();
-  await expect(page.getByTestId("graph-canvas")).toBeVisible();
-  await expect(page.getByTestId("graph-node-metrics").first()).toBeVisible();
-  const postRunScan = await new AxeBuilder({ page }).analyze();
-  expect(seriousViolations(postRunScan)).toEqual([]);
+  for (const theme of ["light", "dark"] as const) {
+    await setTheme(page, theme);
+    await page.getByRole("tab", { name: /Graph/i }).click();
+    await expect(page.getByTestId("graph-canvas")).toBeVisible();
+    await expect(page.getByTestId("graph-node-metrics").first()).toBeVisible();
+    const postRunScan = await new AxeBuilder({ page }).analyze();
+    expect(seriousViolations(postRunScan), `${theme}: graph after a run`).toEqual([]);
+  }
+  await setTheme(page, "light");
   assertNoExternalRequests(requestTracker);
 });
 
@@ -195,6 +227,9 @@ test("the timeline waterfall is fully keyboard-operable: move + zoom by arrows (
   page,
 }) => {
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_AND_SCREEN_RAW_CSV, "text/csv");
+  // The waterfall canvas only exists when the opt-in per-session timeline
+  // geometry was generated; without it the View tab has metrics but no scene.
+  await page.getByTestId("toggle-enableInteractiveTimeline").check();
   await processFiles(page);
   await page.getByRole("tab", { name: /View/i }).click();
   await expect(page.getByTestId("timeline-view")).toBeVisible();
