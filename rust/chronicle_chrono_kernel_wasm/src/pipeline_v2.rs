@@ -8480,6 +8480,88 @@ mod tests {
         assert_eq!(digest.to_string(), TEXT);
     }
 
+    /// A persisted row carries three hand-written codecs. Each has to name the
+    /// shape it wants when a stored row is corrupt, and the codebook codec has
+    /// to keep the exact field vector it was handed: the shared all-none vector
+    /// is an allocation shortcut for the one length that is entirely empty,
+    /// never a substitute for a row that carries real codebook values.
+    #[test]
+    fn row_payload_codecs_keep_their_values_and_name_what_they_expect() {
+        #[derive(Debug, serde::Deserialize)]
+        struct Codebook {
+            #[serde(deserialize_with = "deserialize_codebook_fields")]
+            fields: Arc<Vec<Option<String>>>,
+        }
+
+        #[derive(Debug, serde::Deserialize)]
+        struct Searches {
+            #[serde(deserialize_with = "deserialize_lineage_searches")]
+            searches: Arc<SmallVec<[LineageSearchEvidence; 1]>>,
+        }
+
+        fn codebook(fields: &[Option<String>]) -> Arc<Vec<Option<String>>> {
+            let encoded = serde_json::to_string(fields).expect("encode codebook fields");
+            serde_json::from_str::<Codebook>(&format!(r#"{{"fields":{encoded}}}"#))
+                .expect("decode codebook fields")
+                .fields
+        }
+
+        let width = CODEBOOK_RENAME_PAIRS.len();
+        let blank = vec![None; width];
+        assert!(
+            Arc::ptr_eq(&codebook(&blank), empty_codebook_fields_ref()),
+            "a row with no codebook values shares the one empty vector",
+        );
+
+        let mut populated = blank.clone();
+        populated[0] = Some("Social".to_string());
+        assert_eq!(
+            codebook(&populated).as_ref(),
+            &populated,
+            "a populated codebook field survives the round trip",
+        );
+
+        let short = vec![None; 2];
+        assert_eq!(
+            codebook(&short).as_ref(),
+            &short,
+            "a field vector of another length keeps its own length",
+        );
+
+        let empty_searches = |label: &str| {
+            serde_json::from_str::<Searches>(r#"{"searches":[]}"#)
+                .unwrap_or_else(|error| panic!("{label}: {error}"))
+                .searches
+        };
+        assert!(
+            Arc::ptr_eq(&empty_searches("first"), &empty_searches("second")),
+            "a row with no lineage searches shares the one empty list",
+        );
+
+        for (document, wanted) in [
+            (
+                r#"{"fields":5}"#,
+                "the fixed Chronicle codebook field sequence",
+            ),
+            (r#"{"searches":5}"#, "a sequence of lineage-search records"),
+        ] {
+            let error = if document.contains("fields") {
+                serde_json::from_str::<Codebook>(document).unwrap_err()
+            } else {
+                serde_json::from_str::<Searches>(document).unwrap_err()
+            };
+            assert!(error.to_string().contains(wanted), "{error}");
+        }
+        let ranges = serde_json::from_str::<SourceDataRows>("5")
+            .expect_err("a number is not a source-row range list");
+        assert!(
+            ranges
+                .to_string()
+                .contains("a sequence of source-data row ranges"),
+            "{ranges}",
+        );
+    }
+
     /// The checkpoint fingerprint streams serde events into xxh3 through two
     /// internal buffers: a 4 KiB sink buffer and a 64-byte stack buffer for
     /// `Display` values. Where a payload happens to land in those buffers must
@@ -10258,6 +10340,39 @@ mod tests {
         assert_eq!(ecma_to_precision(f64::NAN, 3), "NaN");
         assert_eq!(ecma_to_precision(f64::INFINITY, 3), "Infinity");
         assert_eq!(ecma_to_precision(f64::NEG_INFINITY, 3), "-Infinity");
+
+        // JS accepts up to 100 significant digits. Past the digits the
+        // high-precision render supplies, the rest are zeros - checked on
+        // values that are exact in binary so the expectation is unambiguous.
+        for (value, expected) in [
+            (1.0_f64, format!("1.{}", "0".repeat(34))),
+            (0.5, format!("0.5{}", "0".repeat(34))),
+            (1024.0, format!("1024.{}", "0".repeat(31))),
+        ] {
+            assert_eq!(
+                ecma_to_precision(value, 35),
+                expected,
+                "({value}).toPrecision(35)",
+            );
+        }
+    }
+
+    /// Rows are written in timestamp order and overwhelmingly share a local
+    /// date, so the date string is memoized. The memo has to answer for the
+    /// date it was asked about: a year, month, or day change all have to miss.
+    #[test]
+    fn the_local_date_memo_answers_only_for_the_date_it_was_asked_about() {
+        let mut memo = LocalDateMemo::default();
+        for (year, month, day, expected) in [
+            (2026, 3, 7, "2026-03-07"),
+            (2026, 3, 7, "2026-03-07"),
+            (2025, 3, 7, "2025-03-07"),
+            (2025, 4, 7, "2025-04-07"),
+            (2025, 4, 8, "2025-04-08"),
+            (2026, 3, 7, "2026-03-07"),
+        ] {
+            assert_eq!(memo.date_string(year, month, day).as_str(), expected);
+        }
     }
 
     /// Expectations are `node -e "console.log((<value>).toExponential())"`.
