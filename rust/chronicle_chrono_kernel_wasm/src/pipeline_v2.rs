@@ -11257,6 +11257,38 @@ mod tests {
         );
     }
 
+    /// Screen-gated crediting can only witness a device that reports both
+    /// screen states: with one alone there is no way to tell a lit screen from
+    /// a dark one, so the participant has no usable witness and falls to the
+    /// no-witness rules instead of being credited from a half-signal.
+    #[test]
+    fn screen_credit_capability_needs_both_screen_states() {
+        let capable = |kinds: &[&str]| {
+            let stamps = [
+                "2026-03-07 10:00:00",
+                "2026-03-07 10:01:00",
+                "2026-03-07 10:02:00",
+            ];
+            let events: Vec<(&str, &str, &str)> = kinds
+                .iter()
+                .enumerate()
+                .map(|(index, kind)| (stamps[index], *kind, "com.example.chat"))
+                .collect();
+            let rows = rows_from_events(&events);
+            build_screen_credit_substrate(&rows)
+                .expect("screen credit substrate")
+                .capable
+                .contains("P01")
+        };
+        assert!(capable(&["Screen Interactive", "Screen Non-Interactive"]));
+        assert!(!capable(&["Screen Interactive", "Screen Interactive"]));
+        assert!(!capable(&[
+            "Screen Non-Interactive",
+            "Screen Non-Interactive",
+        ]));
+        assert!(!capable(&["Activity Resumed", "Activity Paused"]));
+    }
+
     /// A filtered app-usage row keeps its label but must not keep its timing:
     /// a start, stop, or duration left behind would let a filtered row be
     /// counted as usage downstream. Any one of the four fields being present is
