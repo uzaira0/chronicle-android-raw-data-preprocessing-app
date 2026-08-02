@@ -11355,22 +11355,35 @@ mod tracked {
                 ),
             ];
 
-            let mut engine = TrackedEngine::default();
-            for (label, bytes, support) in cases {
-                let warm = engine.execute(&bytes, &options, support, true).unwrap();
-                let mut cold = TrackedEngine::default();
-                let expected = cold.execute(&bytes, &options, support, true).unwrap();
-                assert_result_parity(&warm.result, &expected.result, options.usage_session_mode);
+            // Review is the mode where the fused annotation and reconstruction
+            // values live, and an input edit is the only thing that moves them,
+            // so both cones see every edit.
+            for full in [true, false] {
+                let mut engine = TrackedEngine::default();
+                for (label, bytes, support) in &cases {
+                    let warm = engine.execute(bytes, &options, *support, full).unwrap();
+                    let mut cold = TrackedEngine::default();
+                    let expected = cold.execute(bytes, &options, *support, full).unwrap();
+                    assert_result_parity(
+                        &warm.result,
+                        &expected.result,
+                        options.usage_session_mode,
+                    );
 
-                let repeat = engine.execute(&bytes, &options, support, true).unwrap();
-                assert!(
-                    repeat.executed_steps.is_empty()
-                        && repeat.internal_executed_queries.is_empty(),
-                    "{label}: repeating an unchanged request reran {:?} / {:?}",
-                    repeat.executed_steps,
-                    repeat.internal_executed_queries,
-                );
-                assert_result_parity(&repeat.result, &expected.result, options.usage_session_mode);
+                    let repeat = engine.execute(bytes, &options, *support, full).unwrap();
+                    assert!(
+                        repeat.executed_steps.is_empty()
+                            && repeat.internal_executed_queries.is_empty(),
+                        "{label} full={full}: repeating an unchanged request reran {:?} / {:?}",
+                        repeat.executed_steps,
+                        repeat.internal_executed_queries,
+                    );
+                    assert_result_parity(
+                        &repeat.result,
+                        &expected.result,
+                        options.usage_session_mode,
+                    );
+                }
             }
         }
 
