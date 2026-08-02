@@ -12633,6 +12633,174 @@ mod tests {
             lineage_search_range_digest(&strings, 0, 1),
         );
     }
+
+    fn empty_step_recorder<'a>(
+        digests: &'a mut BTreeMap<String, String>,
+        checkpoints: &'a mut BTreeMap<String, LogicalStageCheckpoint>,
+    ) -> StepCheckpointRecorder<'a> {
+        StepCheckpointRecorder {
+            digests,
+            checkpoints,
+            next_step_index: 0,
+            error: None,
+            last_row_parts: None,
+            last_row_checkpoint: None,
+        }
+    }
+
+    /// The step checkpoints are the pipeline's claim about what it executed, so
+    /// they are bound to the declared step sequence: each one has to be the next
+    /// step the contract names, a step may not be recorded twice, and a run that
+    /// stops early is reported rather than passed off as a complete set.
+    #[test]
+    fn the_step_recorder_binds_every_checkpoint_to_the_declared_step_sequence() {
+        let record = |steps: &[&str]| {
+            let mut digests = BTreeMap::new();
+            let mut checkpoints = BTreeMap::new();
+            let mut recorder = empty_step_recorder(&mut digests, &mut checkpoints);
+            for step in steps {
+                recorder.state(step, "state");
+            }
+            recorder.finish()
+        };
+
+        let declared = crate::step_contract::PIPELINE_STEPS
+            .iter()
+            .map(|step| step.id)
+            .collect::<Vec<_>>();
+        let total = declared.len();
+
+        assert_eq!(record(&declared), Ok(()));
+        assert_eq!(
+            record(&[]),
+            Err(format!(
+                "pipeline step checkpoint sequence stopped at 0 of {total} steps"
+            )),
+        );
+        assert_eq!(
+            record(&declared[..1]),
+            Err(format!(
+                "pipeline step checkpoint sequence stopped at 1 of {total} steps"
+            )),
+        );
+        assert_eq!(
+            record(&[declared[1], declared[0]]),
+            Err(format!(
+                "pipeline step checkpoint order mismatch at 0: expected {:?}, recorded {:?}",
+                declared[0], declared[1],
+            )),
+        );
+        let mut repeated = declared.clone();
+        repeated.push(declared[total - 1]);
+        assert_eq!(
+            record(&repeated),
+            Err(format!(
+                "unexpected extra pipeline step checkpoint {:?}",
+                declared[total - 1],
+            )),
+        );
+    }
+
+    /// A step hands the next one the row components it just computed so the
+    /// next checkpoint can reuse them instead of hashing the same table again.
+    /// That offer is only good for the exact table it recorded: a different row
+    /// count is a different table, and once the components are taken the offer
+    /// is withdrawn.
+    #[test]
+    fn the_step_recorder_only_offers_row_components_for_the_table_it_recorded() {
+        let rows = app_csv_rows();
+        assert!(rows.len() > 1, "the fixture has a table to shorten");
+        let first_step = crate::step_contract::PIPELINE_STEPS[0].id;
+
+        let mut digests = BTreeMap::new();
+        let mut checkpoints = BTreeMap::new();
+        let mut recorder = empty_step_recorder(&mut digests, &mut checkpoints);
+        assert!(recorder.last_row_parts().is_none());
+        assert!(recorder.reusable_row_components(&rows).is_none());
+
+        recorder.rows(first_step, &rows);
+        assert_eq!(recorder.last_row_parts().map(<[_]>::len), Some(rows.len()));
+        let (parts, checkpoint) = recorder
+            .reusable_row_components(&rows)
+            .expect("the table that was just recorded");
+        assert_eq!(parts.len(), rows.len());
+        assert_eq!(checkpoint.node_id, first_step);
+        assert!(
+            recorder
+                .reusable_row_components(&rows[..rows.len() - 1])
+                .is_none(),
+            "a shorter table is not the table that was recorded",
+        );
+
+        assert_eq!(
+            recorder.take_last_row_parts().map(|parts| parts.len()),
+            Some(rows.len()),
+        );
+        assert!(recorder.last_row_parts().is_none());
+        assert!(recorder.reusable_row_components(&rows).is_none());
+    }
+
+    /// Supplying a canonical row order is a caller's claim that the order is
+    /// already sorted by source identity, and the checkpoint trusts it instead
+    /// of sorting again. A wrong claim would commit a membership digest for the
+    /// wrong row sequence, so the claim is checked rather than assumed.
+    #[cfg(debug_assertions)]
+    #[test]
+    #[should_panic(expected = "assertion failed")]
+    fn a_supplied_canonical_row_order_that_is_not_sorted_is_refused() {
+        let rows = app_csv_rows();
+        let parts = row_checkpoint_parts_for_rows(&rows);
+        let reversed = (0..rows.len()).rev().collect::<Vec<_>>();
+        logical_stage_checkpoint_with_group_parts(
+            "test_stage",
+            &[("rows", &rows)],
+            &[],
+            Some(&[parts.as_slice()]),
+            None,
+            Some(&reversed),
+        );
+    }
+
+    /// When the genre collapse consumes its source columns the export blanks
+    /// them, so the classification checkpoint has to blank the same columns —
+    /// otherwise two rows that export identically would commit different
+    /// digests. A row whose columns were not consumed still commits them.
+    #[test]
+    fn the_classification_checkpoint_masks_exactly_the_consumed_genre_columns() {
+        let classification = |value: Option<&str>, cleared: bool, slot: usize| {
+            let mut row = app_csv_rows().remove(0);
+            {
+                let data = row.edit_all();
+                let mut fields = vec![None; CODEBOOK_RENAME_PAIRS.len()];
+                fields[slot] = value.map(str::to_owned);
+                data.codebook_fields = Arc::new(fields);
+                data.codebook_genre_fields_cleared = cleared;
+            }
+            let mut scratch = RowCheckpointScratch::default();
+            row_checkpoint_parts(&row, &mut scratch).classification
+        };
+
+        let consumed = COLLAPSED_GENRE_FIELD_INDICES[0];
+        let untouched = (0..CODEBOOK_RENAME_PAIRS.len())
+            .find(|index| !COLLAPSED_GENRE_FIELD_INDICES.contains(index))
+            .expect("a codebook column outside the genre collapse");
+
+        assert_eq!(
+            classification(Some("Social"), true, consumed),
+            classification(None, true, consumed),
+            "a consumed genre column is blank in the digest, as it is in the export",
+        );
+        assert_ne!(
+            classification(Some("Social"), false, consumed),
+            classification(None, false, consumed),
+            "a genre column that was never consumed still commits its value",
+        );
+        assert_ne!(
+            classification(Some("Social"), true, untouched),
+            classification(None, true, untouched),
+            "the collapse consumes only the genre columns",
+        );
+    }
 }
 
 /// Exact product-output contract for the fused cold-oracle pipeline.
