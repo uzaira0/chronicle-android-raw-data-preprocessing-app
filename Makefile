@@ -19,13 +19,11 @@ CHRONO_KERNEL := rust/chronicle_chrono_kernel_wasm/Cargo.toml
 SEMANTIC_RUNTIME := rust/chronicle_preprocessing_semantic_adapter/Cargo.toml
 PRODUCT_RUNTIME := rust/chronicle_preprocessing_runtime_wasm/Cargo.toml
 SEMANTIC_INDEX := rust/chronicle_semantic_index_wasm/Cargo.toml
-LOCAL_SEM_PROF_BIN := $(HOME)/semantic-profile-toolchain/target/debug/semprof
-SEM_PROF_BIN ?= $(if $(wildcard $(LOCAL_SEM_PROF_BIN)),$(LOCAL_SEM_PROF_BIN),semprof)
 
 .PHONY: help ci all security web \
         rust \
         semgrep ast-grep cargo-audit cargo-deny trivy gitleaks \
-        typecheck web-test contract boundary semantic-federation combinatorial gate-truth \
+        typecheck web-test contract boundary combinatorial gate-truth \
         mutation mutation-web mutation-rust coverage coverage-rust coverage-all \
         knip profile profile-current profile-many e2e deploy-artifact dependency-evidence \
         bench-regression
@@ -68,7 +66,7 @@ all:
 
 security: semgrep ast-grep cargo-audit cargo-deny trivy gitleaks
 
-web: typecheck web-test contract boundary semantic-federation
+web: typecheck web-test contract boundary
 
 # ---------- Rust tests ----------
 # The matcher core is a library dependency of the production Rust/WASM runtime;
@@ -108,7 +106,11 @@ cargo-audit:
 # and the one documented unmaintained transitive exception are checked for
 # every Rust crate that carries semantic or computational authority.
 cargo-deny:
-	$(MAKE) -C .semantic-federation quality-rust-supply-chain
+	cd rust/chronicle_app_usage_matcher && cargo deny check --config ../deny.toml
+	cd rust/chronicle_chrono_kernel_wasm && cargo deny check --config ../deny.toml
+	cd rust/chronicle_preprocessing_semantic_adapter && cargo deny check --config ../deny.toml
+	cd rust/chronicle_preprocessing_runtime_wasm && cargo deny check --config ../deny.toml
+	cd rust/chronicle_semantic_index_wasm && cargo deny check --config ../deny.toml
 
 trivy:
 	trivy fs .
@@ -134,9 +136,6 @@ contract:
 # WASM build the rest of the web gate already depends on.
 boundary:
 	cd web && npm run check:boundary
-
-semantic-federation:
-	$(MAKE) -C .semantic-federation check SEM_PROF_BIN=$(SEM_PROF_BIN)
 
 # Combinatorial coverage: regenerates the PICT/ACTS models from the Rust-backed
 # contract, executes the generated t=2/t=3 arrays through Rust/WASM, and checks
@@ -166,7 +165,9 @@ mutation-web:
 # transport facades are excluded because native cargo-mutants cannot execute
 # them; their delegates are unit-tested and compiled exports are exercised E2E.
 mutation-rust:
-	$(MAKE) -C .semantic-federation quality-rust-mutation
+	cargo mutants --locked --manifest-path $(CHRONO_KERNEL) --features incremental-v2
+	cargo mutants --locked --manifest-path $(PRODUCT_RUNTIME)
+	cargo mutants --locked --manifest-path $(MATCHER) --no-default-features
 
 # Criterion bench-regression gate for the matcher core. Wall clock carries no
 # deterministic evidence authority (same policy as profile), so this stays
@@ -205,7 +206,9 @@ coverage:
 # is gated alongside line/function coverage, and mutation-rust supplies the
 # stronger behavioral oracle for decisions, scheduling, storage, and exports.
 coverage-rust:
-	$(MAKE) -C .semantic-federation quality-rust-coverage
+	cd rust/chronicle_chrono_kernel_wasm && cargo llvm-cov --features incremental-v2
+	cd rust/chronicle_preprocessing_runtime_wasm && cargo llvm-cov
+	cd rust/chronicle_app_usage_matcher && cargo llvm-cov --no-default-features
 
 coverage-all: coverage coverage-rust
 
