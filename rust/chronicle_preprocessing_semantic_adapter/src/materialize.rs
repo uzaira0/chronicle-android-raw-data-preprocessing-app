@@ -298,7 +298,7 @@ mod tests {
             "use_filter_file": true
         });
         let result = evaluate_materialization(
-            &plan,
+            plan,
             &assignments,
             &options,
             &BTreeSet::new(),
@@ -318,7 +318,7 @@ mod tests {
     #[test]
     fn disabled_family_branch_is_not_applicable_instead_of_missing() {
         let result = evaluate_materialization(
-            &embedded_plan(),
+            embedded_plan(),
             &BTreeMap::new(),
             &serde_json::json!({"process_screen_usage": false}),
             &BTreeSet::new(),
@@ -337,7 +337,7 @@ mod tests {
 
         let plan = embedded_plan();
         let missing = evaluate_materialization(
-            &plan,
+            plan,
             &BTreeMap::new(),
             &serde_json::json!({"process_app_usage": true, "process_screen_usage": false}),
             &BTreeSet::new(),
@@ -360,7 +360,7 @@ mod tests {
             ),
         ]);
         let ready_then_blocked = evaluate_materialization(
-            &plan,
+            plan,
             &assignments,
             &serde_json::json!({"process_app_usage": true, "process_screen_usage": false}),
             &BTreeSet::new(),
@@ -385,7 +385,7 @@ mod tests {
 
         let satisfied: BTreeSet<_> = plan.nodes.iter().map(|node| node.node_id.clone()).collect();
         let complete = evaluate_materialization(
-            &plan,
+            plan,
             &assignments,
             &serde_json::json!({"process_app_usage": true, "process_screen_usage": false}),
             &satisfied,
@@ -409,7 +409,7 @@ mod tests {
             ),
         ]);
         let result = evaluate_materialization(
-            &embedded_plan(),
+            embedded_plan(),
             &assignments,
             &serde_json::json!({"process_app_usage": true, "process_screen_usage": true}),
             &BTreeSet::new(),
@@ -450,7 +450,7 @@ mod tests {
         });
 
         let explicit_failure = evaluate_materialization(
-            &plan,
+            plan,
             &base_assignments,
             &options,
             &BTreeSet::new(),
@@ -466,7 +466,7 @@ mod tests {
         let mut assignments = base_assignments;
         assignments.insert("filter_file".into(), invalid_support);
         let invalid_support_result = evaluate_materialization(
-            &plan,
+            plan,
             &assignments,
             &serde_json::json!({
                 "process_app_usage": true,
@@ -489,7 +489,7 @@ mod tests {
     #[test]
     fn qualification_requiredness_is_the_materialization_authority() {
         let result = evaluate_materialization(
-            &embedded_plan(),
+            embedded_plan(),
             &BTreeMap::new(),
             &serde_json::json!({"use_filter_file": true}),
             &BTreeSet::new(),
@@ -533,7 +533,7 @@ mod tests {
         let satisfied = plan.nodes.iter().map(|node| node.node_id.clone()).collect();
         let invalid = BTreeSet::from(["normalize_timezones".to_string()]);
         let result = evaluate_materialization(
-            &plan,
+            plan,
             &assignments,
             &serde_json::json!({"process_app_usage": true, "process_screen_usage": false}),
             &satisfied,

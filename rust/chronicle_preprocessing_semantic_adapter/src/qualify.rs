@@ -445,7 +445,7 @@ mod tests {
     #[test]
     fn exact_typed_channel_is_accepted_without_filename_inference() {
         let report = qualify_candidates(
-            &embedded_plan(),
+            embedded_plan(),
             &[candidate("raw", &["raw_chronicle_csv"], "text/csv")],
             &serde_json::json!({}),
         );
@@ -471,7 +471,7 @@ mod tests {
             "missing app_package_name".into(),
         );
         let report = qualify_candidates(
-            &embedded_plan(),
+            embedded_plan(),
             &[invalid],
             &serde_json::json!({"use_filter_file": true}),
         );
@@ -495,7 +495,7 @@ mod tests {
             .qualifiers
             .insert("content_validation".into(), "failed".into());
         let report = qualify_candidates(
-            &embedded_plan(),
+            embedded_plan(),
             &[
                 candidate("valid", &["filter_file"], "text/csv"),
                 failed_competitor,
@@ -517,7 +517,7 @@ mod tests {
     #[test]
     fn multiply_asserted_candidate_fails_closed_as_ambiguous() {
         let report = qualify_candidates(
-            &embedded_plan(),
+            embedded_plan(),
             &[candidate(
                 "support",
                 &["filter_file", "background_apps_file"],
@@ -541,12 +541,12 @@ mod tests {
         let left = candidate("left", &["filter_file"], "text/csv");
         let right = candidate("right", &["filter_file"], "text/csv");
         let forward = qualify_candidates(
-            &embedded_plan(),
+            embedded_plan(),
             &[left.clone(), right.clone()],
             &serde_json::json!({"use_filter_file": true}),
         );
         let reverse = qualify_candidates(
-            &embedded_plan(),
+            embedded_plan(),
             &[right, left],
             &serde_json::json!({"use_filter_file": true}),
         );
@@ -562,17 +562,17 @@ mod tests {
     fn configuration_changes_the_requirement_not_the_candidate_identity() {
         let candidate = candidate("filter", &["filter_file"], "text/csv");
         let disabled = qualify_candidates(
-            &embedded_plan(),
+            embedded_plan(),
             &[],
             &serde_json::json!({"use_filter_file": false}),
         );
         let enabled = qualify_candidates(
-            &embedded_plan(),
+            embedded_plan(),
             &[],
             &serde_json::json!({"use_filter_file": true}),
         );
         let supplied = qualify_candidates(
-            &embedded_plan(),
+            embedded_plan(),
             &[candidate],
             &serde_json::json!({"use_filter_file": true}),
         );
@@ -609,10 +609,10 @@ mod tests {
             disabled_options[option_key] = Value::Bool(false);
             let mut enabled_options = serde_json::json!({});
             enabled_options[option_key] = Value::Bool(true);
-            let disabled = qualify_candidates(&plan, &[], &disabled_options);
-            let enabled = qualify_candidates(&plan, &[], &enabled_options);
+            let disabled = qualify_candidates(plan, &[], &disabled_options);
+            let enabled = qualify_candidates(plan, &[], &enabled_options);
             let supplied = qualify_candidates(
-                &plan,
+                plan,
                 &[candidate(
                     &role.role_id,
                     &[&role.role_id],
@@ -666,7 +666,7 @@ mod tests {
     fn invalid_media_and_digest_are_rejected_with_exact_rule_failures() {
         let mut invalid = candidate("raw", &["raw_chronicle_csv"], "application/json");
         invalid.artifact.digest = "sha256:not-a-digest".into();
-        let report = qualify_candidates(&embedded_plan(), &[invalid], &serde_json::json!({}));
+        let report = qualify_candidates(embedded_plan(), &[invalid], &serde_json::json!({}));
         assert_eq!(report.traces[0].decision, QualificationDecision::Rejected);
         let failed = report.traces[0]
             .rule_evaluations
@@ -693,7 +693,7 @@ mod tests {
 
         for invalid in [&wrong_media, &wrong_digest] {
             let report = qualify_candidates(
-                &plan,
+                plan,
                 &[
                     candidate("valid", &["filter_file"], "text/csv"),
                     invalid.clone(),
@@ -721,7 +721,7 @@ mod tests {
         // accidentally share the same artifact identity in future fixtures.
         wrong_media.artifact.digest = artifact("wrong-media-2", "application/json").digest;
         assert_eq!(
-            qualify_candidates(&plan, &[wrong_media], &serde_json::json!({})).traces[0].decision,
+            qualify_candidates(plan, &[wrong_media], &serde_json::json!({})).traces[0].decision,
             QualificationDecision::Rejected
         );
     }
@@ -733,7 +733,7 @@ mod tests {
         invalid.artifact.digest = format!("sha256:{}", "g".repeat(64));
 
         let report = qualify_candidates(
-            &embedded_plan(),
+            embedded_plan(),
             &[invalid, valid],
             &serde_json::json!({"use_filter_file": true}),
         );
@@ -756,7 +756,7 @@ mod tests {
     #[test]
     fn qualification_explanation_ids_are_sha256_content_identities() {
         let report = qualify_candidates(
-            &embedded_plan(),
+            embedded_plan(),
             &[candidate("raw", &["raw_chronicle_csv"], "text/csv")],
             &serde_json::json!({}),
         );
@@ -802,7 +802,7 @@ mod tests {
             ),
         ];
         for (rule_id, candidates) in cases {
-            let report = qualify_candidates(&plan, &candidates, &serde_json::json!({}));
+            let report = qualify_candidates(plan, &candidates, &serde_json::json!({}));
             assert!(
                 report.traces.iter().any(|trace| {
                     trace.decision != QualificationDecision::Accepted

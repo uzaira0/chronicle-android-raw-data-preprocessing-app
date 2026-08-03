@@ -5106,6 +5106,105 @@ fn apply_codebook_annotations(
     }
 }
 
+fn walk_app_usage_detail_columns_with_pre(
+    rows: &mut [Row],
+    custom_app_engagement_duration: f64,
+    mut before_row: impl FnMut(&mut Row),
+    mut after_row: impl FnMut(&mut Row),
+) {
+    fn metrics(
+        previous: Option<(i64, &SharedString)>,
+        start: i64,
+        package: &SharedString,
+        custom_duration: f64,
+    ) -> (i32, i32, i32, f64) {
+        let Some((previous_stop, previous_package)) = previous else {
+            return (1, 1, 0, 0.0);
+        };
+        let gap_seconds = start.wrapping_sub(previous_stop) as f64 / 1_000_000_000.0;
+        (
+            i32::from(gap_seconds > 30.0),
+            i32::from(gap_seconds > custom_duration),
+            i32::from(package != previous_package),
+            gap_seconds / 3600.0,
+        )
+    }
+
+    let mut previous_any: Option<(i64, SharedString)> = None;
+    let mut previous_valid: Option<(i64, SharedString)> = None;
+    for row in rows {
+        before_row(row);
+        let is_primary = row.usage_layer.as_deref() != Some("secondary");
+        let is_valid = is_primary && row.interaction_type == APP_USAGE;
+        let is_any = is_valid || (is_primary && row.interaction_type == FILTERED_APP_USAGE);
+        if !is_any {
+            after_row(row);
+            continue;
+        }
+        let start = row.start_timestamp_ns.unwrap_or(i64::MIN);
+        let stop = row.stop_timestamp_ns.unwrap_or(i64::MIN);
+        let package = row.app_package_name.clone();
+        let (engage_30, engage_custom, switched, gap_hours) = metrics(
+            previous_any
+                .as_ref()
+                .map(|(previous_stop, previous_package)| (*previous_stop, previous_package)),
+            start,
+            &package,
+            custom_app_engagement_duration,
+        );
+        let valid_metrics = is_valid.then(|| {
+            metrics(
+                previous_valid
+                    .as_ref()
+                    .map(|(previous_stop, previous_package)| (*previous_stop, previous_package)),
+                start,
+                &package,
+                custom_app_engagement_duration,
+            )
+        });
+        let any_classification_changed = row.any_app_new_engage_30s != engage_30
+            || row.any_app_new_engage_custom != engage_custom
+            || row.any_app_switched_app != switched;
+        let any_temporal_changed =
+            row.any_app_usage_time_gap_hours.to_bits() != gap_hours.to_bits();
+        let valid_classification_changed =
+            valid_metrics.is_some_and(|(engage_30, engage_custom, switched, _)| {
+                row.valid_app_new_engage_30s != engage_30
+                    || row.valid_app_new_engage_custom != engage_custom
+                    || row.valid_app_switched_app != switched
+            });
+        let valid_temporal_changed = valid_metrics.is_some_and(|(_, _, _, gap_hours)| {
+            row.valid_app_usage_time_gap_hours.to_bits() != gap_hours.to_bits()
+        });
+        if any_classification_changed
+            || any_temporal_changed
+            || valid_classification_changed
+            || valid_temporal_changed
+        {
+            let data = row.edit_components(
+                false,
+                any_temporal_changed || valid_temporal_changed,
+                any_classification_changed || valid_classification_changed,
+            );
+            data.any_app_new_engage_30s = engage_30;
+            data.any_app_new_engage_custom = engage_custom;
+            data.any_app_switched_app = switched;
+            data.any_app_usage_time_gap_hours = gap_hours;
+            if let Some((engage_30, engage_custom, switched, gap_hours)) = valid_metrics {
+                data.valid_app_new_engage_30s = engage_30;
+                data.valid_app_new_engage_custom = engage_custom;
+                data.valid_app_switched_app = switched;
+                data.valid_app_usage_time_gap_hours = gap_hours;
+            }
+        }
+        previous_any = Some((stop, package.clone()));
+        if is_valid {
+            previous_valid = Some((stop, package));
+        }
+        after_row(row);
+    }
+}
+
 fn walk_app_usage_detail_columns(
     rows: &mut [Row],
     custom_app_engagement_duration: f64,
@@ -5328,6 +5427,76 @@ fn apply_review_annotations_one_pass(
         mark_app_usage_flags_row(row, &thresholds);
         clear_filtered_usage_timing_row(row);
     });
+}
+
+#[allow(private_interfaces)]
+pub(super) fn apply_static_review_annotations_fused(
+    rows: &mut [Row],
+    filtered_packages: &BTreeSet<String>,
+    codebook_enabled: bool,
+    codebook_map: &HashMap<String, CodebookEntry>,
+    custom_app_engagement_duration: f64,
+    long_data_time_gap_thresholds: &[f64],
+    long_usage_duration_thresholds: &[f64],
+) {
+    // Single fused pass: junk relabel + codebook are applied per-row BEFORE
+    // the engagement walk reads interaction_type (which junk_downstream_mark
+    // changes from APP_USAGE to FILTERED_APP_USAGE). The engagement walk
+    // carries sequential state (previous_any/previous_valid) across rows.
+    // After each row's engagement columns are computed, flags + clear run.
+    let has_junk = !filtered_packages.is_empty();
+    let broad_indices = codebook_enabled.then(|| [
+        codebook_col_index("bcm_play_store_broad_app_category").unwrap(),
+        codebook_col_index("usc_broad_app_category").unwrap(),
+        codebook_col_index("babyemu_broad_app_category").unwrap(),
+        codebook_col_index("bcm_cnrc_heuristic_category").unwrap(),
+    ]);
+    let genre_indices = codebook_enabled.then(|| [
+        codebook_col_index("babyemu_genreId_scraped").unwrap(),
+        codebook_col_index("babyemu_genreId_manual").unwrap(),
+        codebook_col_index("bcm_play_store_genreId").unwrap(),
+        codebook_col_index("usc_genreId").unwrap(),
+    ]);
+    let thresholds = prepare_usage_flags(
+        long_data_time_gap_thresholds,
+        long_usage_duration_thresholds,
+    );
+    walk_app_usage_detail_columns_with_pre(
+        rows,
+        custom_app_engagement_duration,
+        |row| {
+            if has_junk && filtered_packages.contains(row.app_package_name.as_str()) {
+                if row.interaction_type == APP_USAGE {
+                    row.edit_classification().interaction_type = FILTERED_APP_USAGE.into();
+                    let temporal = row.edit_temporal();
+                    temporal.duration_seconds = None;
+                    temporal.duration_minutes = None;
+                } else if row.interaction_type == ACTIVITY_STOPPED {
+                    row.edit_classification().interaction_type = FILTERED_STOPPED.into();
+                    let temporal = row.edit_temporal();
+                    temporal.start_timestamp_ns = None;
+                    temporal.stop_timestamp_ns = None;
+                    temporal.duration_seconds = None;
+                    temporal.duration_minutes = None;
+                } else {
+                    let temporal = row.edit_temporal();
+                    temporal.start_timestamp_ns = None;
+                    temporal.stop_timestamp_ns = None;
+                    temporal.duration_seconds = None;
+                    temporal.duration_minutes = None;
+                }
+            }
+            if let (Some(broad), Some(genre)) = (broad_indices, genre_indices) {
+                join_codebook_row(row, codebook_map);
+                derive_broad_category_row(row, broad);
+                collapse_genre_row(row, genre);
+            }
+        },
+        |row| {
+            mark_app_usage_flags_row(row, &thresholds);
+            clear_filtered_usage_timing_row(row);
+        },
+    );
 }
 
 fn add_no_activity_placeholder_rows(mut app_rows: Vec<Row>, raw_rows: &[Row]) -> Vec<Row> {

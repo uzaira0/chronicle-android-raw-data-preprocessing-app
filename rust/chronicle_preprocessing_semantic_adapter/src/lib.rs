@@ -29,12 +29,15 @@ pub use qualify::{
     QualificationReport, QualificationRuleEvaluation, QualificationTrace, RoleRequirementTrace,
 };
 
-pub fn embedded_plan() -> ChroniclePlan {
-    serde_json::from_str(include_str!(concat!(
-        env!("OUT_DIR"),
-        "/chronicle.plan.json"
-    )))
-    .expect("build.rs validated embedded preprocessing-app plan")
+pub fn embedded_plan() -> &'static ChroniclePlan {
+    static PLAN: std::sync::OnceLock<ChroniclePlan> = std::sync::OnceLock::new();
+    PLAN.get_or_init(|| {
+        serde_json::from_str(include_str!(concat!(
+            env!("OUT_DIR"),
+            "/chronicle.plan.json"
+        )))
+        .expect("build.rs validated embedded preprocessing-app plan")
+    })
 }
 
 pub fn embedded_plan_bytes() -> &'static [u8] {
@@ -53,12 +56,15 @@ pub fn embedded_profile_lock_bytes() -> &'static [u8] {
     include_bytes!(concat!(env!("OUT_DIR"), "/semantic-profile.lock"))
 }
 
-pub fn embedded_dependency_certificate() -> DependencyCertificate {
-    serde_json::from_str(include_str!(concat!(
-        env!("OUT_DIR"),
-        "/dependency-certificate.json"
-    )))
-    .expect("build.rs validated embedded dependency certificate")
+pub fn embedded_dependency_certificate() -> &'static DependencyCertificate {
+    static CERT: std::sync::OnceLock<DependencyCertificate> = std::sync::OnceLock::new();
+    CERT.get_or_init(|| {
+        serde_json::from_str(include_str!(concat!(
+            env!("OUT_DIR"),
+            "/dependency-certificate.json"
+        )))
+        .expect("build.rs validated embedded dependency certificate")
+    })
 }
 
 pub fn embedded_dependency_certificate_bytes() -> &'static [u8] {
