@@ -40,6 +40,10 @@ type WorkerSlot = {
   retired: boolean;
   completedTasks: number;
   terminated: boolean;
+  /** Last support-cache key confirmed loaded on this worker. */
+  lastSupportCacheKey: string | undefined;
+  /** SHA-256 of the last reviewed input, for workspace affinity in acquire(). */
+  lastInputSha256: string | undefined;
 };
 
 /** Never settles — stand-in fault for spawns (e.g. test stubs) that provide none. */
@@ -115,6 +119,7 @@ type SharedWorker = {
   ready: Promise<void>;
 };
 let sharedWorker: SharedWorker | null = null;
+let sharedWorkerSupportCacheKey: string | undefined;
 
 function getSharedWorker(): SharedWorker {
   if (!sharedWorker) {
@@ -131,7 +136,10 @@ function getSharedWorker(): SharedWorker {
     // one-off crash. A normal processing rejection doesn't reject `fault`, so a
     // healthy worker is never evicted.
     entry.fault.catch(() => {
-      if (sharedWorker === entry) sharedWorker = null;
+      if (sharedWorker === entry) {
+        sharedWorker = null;
+        sharedWorkerSupportCacheKey = undefined;
+      }
       try {
         worker.terminate();
       } catch {
@@ -247,6 +255,8 @@ export class WorkerPool {
       retired: false,
       completedTasks: 0,
       terminated: false,
+      lastSupportCacheKey: undefined,
+      lastInputSha256: undefined,
     };
   }
 
@@ -293,11 +303,18 @@ export class WorkerPool {
     }
   }
 
-  private acquire(): Promise<WorkerSlot> {
+  private acquire(preferSha256?: string): Promise<WorkerSlot> {
     if (this.terminated) {
       return Promise.reject(new Error("Worker pool has been terminated."));
     }
-    let idle = this.slots.find((slot) => !slot.busy && !slot.dead);
+    let idle: WorkerSlot | undefined;
+    if (preferSha256) {
+      idle = this.slots.find(
+        (slot) =>
+          !slot.busy && !slot.dead && slot.lastInputSha256 === preferSha256,
+      );
+    }
+    idle ??= this.slots.find((slot) => !slot.busy && !slot.dead);
     if (!idle) {
       const retired = this.slots.find((slot) => !slot.busy && slot.retired);
       if (retired) idle = this.replaceSlot(retired);
@@ -373,26 +390,31 @@ export class WorkerPool {
 
   async submit<T>(
     action: (api: Comlink.Remote<ChronicleWorkerApi>) => Promise<T>,
+    preferSha256?: string,
   ): Promise<T> {
-    const slot = await this.acquire();
+    const slot = await this.acquire(preferSha256);
     return this.runOnSlot(slot, async () => {
       // Race the worker's fault so a dead worker rejects loudly, not silently.
       await Promise.race([slot.ready, slot.fault]);
+      if (preferSha256) slot.lastInputSha256 = preferSha256;
       return action(slot.api);
     });
   }
 
-  async submitWithSetup<T>(
-    hasSetup: (api: Comlink.Remote<ChronicleWorkerApi>) => Promise<boolean>,
+  async submitWithSupportCache<T>(
+    supportCacheKey: string,
     setup: (api: Comlink.Remote<ChronicleWorkerApi>) => Promise<unknown>,
     action: (api: Comlink.Remote<ChronicleWorkerApi>) => Promise<T>,
+    inputSha256?: string,
   ): Promise<T> {
-    const slot = await this.acquire();
+    const slot = await this.acquire(inputSha256);
     return this.runOnSlot(slot, async () => {
       await Promise.race([slot.ready, slot.fault]);
-      if (!(await Promise.race([hasSetup(slot.api), slot.fault]))) {
+      if (slot.lastSupportCacheKey !== supportCacheKey) {
         await Promise.race([setup(slot.api), slot.fault]);
+        slot.lastSupportCacheKey = supportCacheKey;
       }
+      if (inputSha256) slot.lastInputSha256 = inputSha256;
       return action(slot.api);
     });
   }
@@ -589,40 +611,21 @@ export async function processRawCsvChangedReviewBytesViaPool(
   runtime?: BrowserProcessingRuntime,
   verifiedInputSha256?: string,
 ): Promise<ProcessedFileResult> {
-  return pool.submit((api) =>
-    api.processReviewCsvBytes(
-      inputFileName,
-      Comlink.transfer(csvBytes, [csvBytes]),
-      changedOptions,
-      changedSupportFiles,
-      runtime,
-      verifiedInputSha256,
-    ),
+  return pool.submit(
+    (api) =>
+      api.processReviewCsvBytes(
+        inputFileName,
+        Comlink.transfer(csvBytes, [csvBytes]),
+        changedOptions,
+        changedSupportFiles,
+        runtime,
+        verifiedInputSha256,
+      ),
+    verifiedInputSha256,
   );
 }
 
 /** Pool variant of the metadata-first persisted review probe. */
-export async function processPersistedReviewViaPool(
-  pool: WorkerPool,
-  inputFileName: string,
-  inputSizeBytes: number,
-  options: BrowserProcessingOptions,
-  supportFiles: BrowserSupportFiles | undefined,
-  runtime: BrowserProcessingRuntime | undefined,
-  verifiedInputSha256: string,
-): Promise<ProcessedFileResult | null> {
-  return pool.submit((api) =>
-    api.processPersistedReview(
-      inputFileName,
-      inputSizeBytes,
-      options,
-      supportFiles,
-      runtime,
-      verifiedInputSha256,
-    ),
-  );
-}
-
 /**
  * Keep one comparison file on one worker while trying OPFS and, only on a
  * verified miss, falling back to its raw bytes. Releasing the slot between the
@@ -728,14 +731,15 @@ export async function processPersistedOrRawChangedReviewViaPool(
     );
   };
   if (!supportCacheKey) return pool.submit(action);
-  return pool.submitWithSetup(
-    (api) => api.hasComparisonSupportFiles(supportCacheKey),
+  return pool.submitWithSupportCache(
+    supportCacheKey,
     (api) =>
       api.cacheComparisonSupportFiles(
         supportCacheKey,
         changedSupportFiles ?? {},
       ),
     action,
+    verifiedInputSha256,
   );
 }
 
@@ -757,11 +761,12 @@ export async function processPersistedOrRawChangedReview(
   const knownReviewSummaryDigests =
     knownReviewSummaryDigestsFor(verifiedInputSha256);
   return onSharedWorker(async (api) => {
-    if (!(await api.hasComparisonSupportFiles(supportCacheKey))) {
+    if (sharedWorkerSupportCacheKey !== supportCacheKey) {
       await api.cacheComparisonSupportFiles(
         supportCacheKey,
         changedSupportFiles ?? {},
       );
+      sharedWorkerSupportCacheKey = supportCacheKey;
     }
     const persisted = await api.processPersistedReview(
       inputFileName,
@@ -807,16 +812,19 @@ export async function processRawCsvBytesViaPool(
   onProgress?: (event: ProgressEvent) => void,
   verifiedInputSha256?: string,
 ): Promise<ProcessedFileResult> {
-  return pool.submit(async (api) => {
-    const proxied = onProgress ? Comlink.proxy(onProgress) : undefined;
-    return api.processRawCsvBytes(
-      inputFileName,
-      Comlink.transfer(csvBytes, [csvBytes]),
-      options,
-      supportFiles,
-      runtime,
-      proxied,
-      verifiedInputSha256,
-    );
-  });
+  return pool.submit(
+    async (api) => {
+      const proxied = onProgress ? Comlink.proxy(onProgress) : undefined;
+      return api.processRawCsvBytes(
+        inputFileName,
+        Comlink.transfer(csvBytes, [csvBytes]),
+        options,
+        supportFiles,
+        runtime,
+        proxied,
+        verifiedInputSha256,
+      );
+    },
+    verifiedInputSha256,
+  );
 }

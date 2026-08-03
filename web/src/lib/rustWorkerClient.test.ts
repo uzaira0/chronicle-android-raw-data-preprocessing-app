@@ -12,7 +12,6 @@ import {
   probeWorkerWorkspaceCapability,
   processPersistedReview,
   processPersistedOrRawChangedReviewViaPool,
-  processPersistedReviewViaPool,
   processRawCsvBytes,
   processRawCsvChangedReviewBytesViaPool,
   processRawCsvReviewBytes,
@@ -184,8 +183,8 @@ describe("WorkerPool", () => {
     const neverSettles = new Promise<string>(() => {});
 
     const inFlight = pool.submit(() => neverSettles);
-    const withSetup = pool.submitWithSetup(
-      () => Promise.resolve(false),
+    const withSetup = pool.submitWithSupportCache(
+      "test-key",
       () => neverSettles,
       () => neverSettles,
     );
@@ -699,24 +698,6 @@ describe("pool entry points", () => {
     expect(calls).toEqual([
       `changed:pair.csv:${bytes.byteLength}:${"1".repeat(64)}`,
     ]);
-    pool.terminate();
-  });
-
-  it("probes a persisted Arm-B base without transferring raw bytes", async () => {
-    const { spawn, calls, result } = stubSpawn();
-    const pool = new WorkerPool(8, spawn);
-    await expect(
-      processPersistedReviewViaPool(
-        pool,
-        "pair.csv",
-        19_018_650,
-        {} as BrowserProcessingOptions,
-        undefined,
-        undefined,
-        "1".repeat(64),
-      ),
-    ).resolves.toBe(result);
-    expect(calls).toEqual([`persisted:pair.csv:19018650:${"1".repeat(64)}`]);
     pool.terminate();
   });
 
@@ -1449,6 +1430,7 @@ describe("review summary reuse cache (ETag semantics for the 2+ MB summary)", ()
       const second = await run();
       expect(load).toHaveBeenCalledTimes(1);
       expect(api.cacheComparisonSupportFiles).toHaveBeenCalledTimes(1);
+      expect(api.hasComparisonSupportFiles).not.toHaveBeenCalled();
       expect(persistedCalls[1]).toEqual(["digest-shared"]);
       expect(second.reviewSummaryReused).toBe(true);
       expect(second.reviewSummaryJsonBytes).toBe(bytes);
