@@ -64,6 +64,8 @@ export function execute_workspace_with_review_base(request_json: string, csv_byt
  */
 export function execute_workspace_with_review_bases(request_json: string, csv_bytes: Uint8Array, review_base_bytes: Uint8Array, reconstruction_base_bytes: Uint8Array, support_files: RuntimeSupportFiles): RuntimeHandle;
 
+export function get_comparison_cache_retained(): number;
+
 export function implementation_build_digest(): string;
 
 /**
@@ -100,6 +102,8 @@ export function runtime_identity_json(): string;
 
 export function runtime_version(): string;
 
+export function set_comparison_cache_capacity(capacity: number): void;
+
 export function verify_evidence_journal_cbor(bytes: Uint8Array): number;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
@@ -133,7 +137,9 @@ export interface InitOutput {
     readonly runtimesupportfiles_new: () => number;
     readonly runtimesupportfiles_put: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly runtimesupportfiles_put_with_name: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
+    readonly set_comparison_cache_capacity: (a: number) => void;
     readonly verify_evidence_journal_cbor: (a: number, b: number, c: number) => void;
+    readonly get_comparison_cache_retained: () => number;
     readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
     readonly __wbindgen_export: (a: number, b: number, c: number) => void;
     readonly __wbindgen_export2: (a: number, b: number) => number;

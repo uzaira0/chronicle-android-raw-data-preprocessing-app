@@ -419,6 +419,16 @@ export class WorkerPool {
     });
   }
 
+  async setComparisonCacheCapacity(capacity: number): Promise<void> {
+    await Promise.all(
+      this.slots
+        .filter((slot) => !slot.dead && !slot.terminated)
+        .map((slot) =>
+          slot.ready.then(() => slot.api.setComparisonCacheCapacity(capacity)),
+        ),
+    );
+  }
+
   terminate(): void {
     this.terminated = true;
     // Settle every submission FIRST — before killing the workers that owe them a

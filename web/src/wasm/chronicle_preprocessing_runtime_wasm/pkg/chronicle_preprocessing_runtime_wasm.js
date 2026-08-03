@@ -410,6 +410,14 @@ export function execute_workspace_with_review_bases(request_json, csv_bytes, rev
 }
 
 /**
+ * @returns {number}
+ */
+export function get_comparison_cache_retained() {
+    const ret = wasm.get_comparison_cache_retained();
+    return ret >>> 0;
+}
+
+/**
  * @returns {string}
  */
 export function implementation_build_digest() {
@@ -641,6 +649,13 @@ export function runtime_version() {
         wasm.__wbindgen_add_to_stack_pointer(16);
         wasm.__wbindgen_export(deferred1_0, deferred1_1, 1);
     }
+}
+
+/**
+ * @param {number} capacity
+ */
+export function set_comparison_cache_capacity(capacity) {
+    wasm.set_comparison_cache_capacity(capacity);
 }
 
 /**

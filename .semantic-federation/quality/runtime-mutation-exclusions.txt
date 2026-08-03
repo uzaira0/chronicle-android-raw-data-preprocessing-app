@@ -87,14 +87,14 @@ src/lib\.rs:61:9: replace EnvelopeTimer::start -> Self with Default::default\(\)
 # deleting the arm cannot change a scope the runtime computes.
 :17: delete match arm serde_json::Value::Array\(values\) in source_scopes$
 
-# --- State cache at a capacity of one --------------------------------------
-# `if !self.states.contains_key(id) && self.states.len() >= MAX` decides
-# whether to evict before admitting. MAX_INCREMENTAL_RUNTIME_STATES is 1, and
-# state_for removes the requested id from the LRU list before this check, so
-# on a revisit the list is empty and pop_front() evicts nothing whichever way
-# the check reads. incremental_workspace_cache_is_bounded pins the capacity at
-# 1 so raising it breaks that test rather than silently invalidating this
-# entry.
+# --- State cache at a default capacity of one --------------------------------
+# `if !self.states.contains_key(id) && self.states.len() >= self.max_states`
+# decides whether to evict before admitting. DEFAULT_MAX_INCREMENTAL_RUNTIME_STATES
+# is 1, and state_for removes the requested id from the LRU list before this
+# check, so on a revisit the list is empty and pop_front() evicts nothing
+# whichever way the check reads. incremental_workspace_cache_is_bounded pins the
+# default capacity at 1 so raising it breaks that test rather than silently
+# invalidating this entry.
 :13: replace && with \|\| in IncrementalRuntimeStateCache::state_for$
 
 # --- Not an equivalence: a bound the suite cannot cross --------------------
