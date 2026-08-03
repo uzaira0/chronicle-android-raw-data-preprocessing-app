@@ -305,3 +305,30 @@ rust/chronicle_app_usage_matcher/fuzz/artifacts/
 rust/chronicle_app_usage_matcher/fuzz/corpus/
 # Automation proposals — design docs, not source code
 automation-proposals/
+
+# AI-generated scaffolding and internal planning docs
+.semantic-federation/
+docs/semantic-federation/
+docs/pipeline-graph/
+docs/superpowers/
+docs/dag-validate-ontologize-productize-research.md
+docs/deferred-semantic-quirks.md
+docs/rust-port-design-memo.md
+docs/rust-port-wave-2.md
+HANDOFF.md
+FEATURE_IDEAS.md
+docs/handoff-*
+
+# Stale Python packaging leftovers (Python engine removed)
+__init__.py
+MANIFEST.in
+
+# Premature metadata
+.zenodo.json
+CITATION.cff
+CHANGELOG.md
+
+# Scratch logs and patches
+.tmp-*
+.make-all*
+*.patch

@@ -44,7 +44,7 @@ const CELL_EVIDENCE_FILE = join(
 );
 const PLAN_FILE = fileURLToPath(
   new URL(
-    "../../../../../.semantic-federation/semantic/resources/chronicle.plan.json",
+    "../../../testSupport/chronicle-plan.json",
     import.meta.url,
   ),
 );
