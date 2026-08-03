@@ -82,6 +82,26 @@ export function computeSafeConcurrency(input: {
   return Math.max(1, Math.min(fileCount, cores, memoryCap));
 }
 
+const WARM_REVIEW_WORKER_BYTES = 38 * 1024 * 1024;
+const COMPARISON_BUDGET_FRACTION = 0.15;
+
+export function computeSafeComparisonPoolSize(input: {
+  uniqueFileCount: number;
+  hardCap: number;
+  deviceMemory: number | undefined;
+}): number {
+  const { uniqueFileCount, hardCap, deviceMemory } = input;
+  if (uniqueFileCount <= 0) return 0;
+  const reportedGiB = deviceMemory && deviceMemory > 0 ? deviceMemory : 8;
+  const comparisonBudget =
+    reportedGiB * 1024 * 1024 * 1024 * COMPARISON_BUDGET_FRACTION;
+  const memoryLimit = Math.max(
+    1,
+    Math.floor(comparisonBudget / (WARM_REVIEW_WORKER_BYTES + WORKER_BASELINE_BYTES)),
+  );
+  return Math.min(uniqueFileCount, hardCap, memoryLimit);
+}
+
 /** `navigator.deviceMemory` if the browser exposes it, else undefined. */
 export function readDeviceMemory(): number | undefined {
   if (typeof navigator === "undefined") return undefined;

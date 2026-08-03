@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   computeAdaptiveLaneTarget,
+  computeSafeComparisonPoolSize,
   computeSafeConcurrency,
   deviceMemoryBudgetScale,
   readDeviceMemory,
@@ -216,5 +217,66 @@ describe("readDeviceMemory", () => {
   it("returns undefined when navigator is unavailable", () => {
     vi.stubGlobal("navigator", undefined);
     expect(readDeviceMemory()).toBeUndefined();
+  });
+});
+
+describe("computeSafeComparisonPoolSize", () => {
+  it("returns 0 when there are no unique files", () => {
+    expect(
+      computeSafeComparisonPoolSize({
+        uniqueFileCount: 0,
+        hardCap: 7,
+        deviceMemory: 8,
+      }),
+    ).toBe(0);
+  });
+
+  it("respects the hard cap", () => {
+    expect(
+      computeSafeComparisonPoolSize({
+        uniqueFileCount: 100,
+        hardCap: 7,
+        deviceMemory: 8,
+      }),
+    ).toBe(7);
+  });
+
+  it("caps to unique file count when fewer than hard cap", () => {
+    expect(
+      computeSafeComparisonPoolSize({
+        uniqueFileCount: 3,
+        hardCap: 7,
+        deviceMemory: 8,
+      }),
+    ).toBe(3);
+  });
+
+  it("reduces pool size on a low-memory device", () => {
+    const highMem = computeSafeComparisonPoolSize({
+      uniqueFileCount: 100,
+      hardCap: 16,
+      deviceMemory: 8,
+    });
+    const lowMem = computeSafeComparisonPoolSize({
+      uniqueFileCount: 100,
+      hardCap: 16,
+      deviceMemory: 2,
+    });
+    expect(lowMem).toBeLessThan(highMem);
+    expect(lowMem).toBeGreaterThanOrEqual(1);
+  });
+
+  it("defaults to 8 GiB when deviceMemory is unknown", () => {
+    const withMemory = computeSafeComparisonPoolSize({
+      uniqueFileCount: 100,
+      hardCap: 16,
+      deviceMemory: 8,
+    });
+    const withoutMemory = computeSafeComparisonPoolSize({
+      uniqueFileCount: 100,
+      hardCap: 16,
+      deviceMemory: undefined,
+    });
+    expect(withoutMemory).toBe(withMemory);
   });
 });
