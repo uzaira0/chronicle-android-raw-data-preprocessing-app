@@ -36,6 +36,7 @@ import { clearLastRun, loadLastRun, saveLastRun } from "@/lib/lastRunStore";
 import {
   computeAdaptiveLaneTarget,
   computeSafeConcurrency,
+  computeSafeComparisonPoolSize,
   readDeviceMemory,
 } from "@/lib/concurrency";
 import { clearCachedRun as clearCachedRunData } from "@/lib/localDataReset";
@@ -312,7 +313,6 @@ export default function App(): ReactElement {
     size: number;
     pool: WorkerPool;
   } | null>(null);
-  const comparisonPoolIdleTimerRef = useRef<number | null>(null);
   // Holds the pending "flash the jumped-to setting" timer so a rapid second jump
   // to the same card cancels the first timer instead of cutting its flash short.
   const flashTimerRef = useRef<number | null>(null);
@@ -334,20 +334,12 @@ export default function App(): ReactElement {
     JSON.stringify(options) !== JSON.stringify(resultsOptions);
 
   const disposeComparisonPool = useCallback((): void => {
-    if (comparisonPoolIdleTimerRef.current !== null) {
-      window.clearTimeout(comparisonPoolIdleTimerRef.current);
-      comparisonPoolIdleTimerRef.current = null;
-    }
     comparisonPoolRef.current?.pool.terminate();
     comparisonPoolRef.current = null;
     comparisonWarmupRef.current = null;
   }, []);
 
   const getComparisonPool = useCallback((size: number): WorkerPool | null => {
-    if (comparisonPoolIdleTimerRef.current !== null) {
-      window.clearTimeout(comparisonPoolIdleTimerRef.current);
-      comparisonPoolIdleTimerRef.current = null;
-    }
     if (size <= 0) {
       comparisonPoolRef.current?.pool.terminate();
       comparisonPoolRef.current = null;
@@ -360,16 +352,6 @@ export default function App(): ReactElement {
     comparisonPoolRef.current = { size, pool };
     return pool;
   }, []);
-
-  const releaseComparisonPoolWhenIdle = useCallback((): void => {
-    if (comparisonPoolIdleTimerRef.current !== null) {
-      window.clearTimeout(comparisonPoolIdleTimerRef.current);
-    }
-    comparisonPoolIdleTimerRef.current = window.setTimeout(
-      disposeComparisonPool,
-      120_000,
-    );
-  }, [disposeComparisonPool]);
 
   useEffect(() => disposeComparisonPool, [disposeComparisonPool]);
 
@@ -846,20 +828,16 @@ export default function App(): ReactElement {
       if (comparisonWarmupRef.current?.key === key) {
         return comparisonWarmupRef.current.promise;
       }
-      const backgroundWorkerCount = Math.min(
-        COMPARISON_WORKER_LIMIT - 1,
-        Math.max(
-          0,
-          new Set(
-            results
-              .map((result) => result.inputSha256)
-              .filter((digest): digest is string => !!digest),
-          ).size - 1,
-        ),
-      );
-      // Constructing the background pool starts WASM initialization while the
-      // drawer is open. Do not execute Arm A on every worker: configuration is
-      // part of the cache key, so that speculative work cannot warm changed B.
+      const uniqueResultDigests = new Set(
+        results
+          .map((result) => result.inputSha256)
+          .filter((digest): digest is string => !!digest),
+      ).size;
+      const backgroundWorkerCount = computeSafeComparisonPoolSize({
+        uniqueFileCount: Math.max(0, uniqueResultDigests - 1),
+        hardCap: COMPARISON_WORKER_LIMIT - 1,
+        deviceMemory: readDeviceMemory(),
+      });
       getComparisonPool(backgroundWorkerCount);
       const supportInputs = supportFileInputList<File | null>({
         filterFile,
@@ -1045,10 +1023,11 @@ export default function App(): ReactElement {
         });
         onResults?.(labeledResults);
       };
-      const backgroundWorkerCount = Math.min(
-        COMPARISON_WORKER_LIMIT - 1,
-        schedule.length,
-      );
+      const backgroundWorkerCount = computeSafeComparisonPoolSize({
+        uniqueFileCount: schedule.length,
+        hardCap: COMPARISON_WORKER_LIMIT - 1,
+        deviceMemory: readDeviceMemory(),
+      });
       const pool = getComparisonPool(backgroundWorkerCount);
       let cursor = 0;
       const runner = async (): Promise<void> => {
@@ -1103,14 +1082,10 @@ export default function App(): ReactElement {
           );
         }
       })();
-      try {
-        await Promise.all([
-          activeTask,
-          ...Array.from({ length: backgroundWorkerCount }, () => runner()),
-        ]);
-      } finally {
-        releaseComparisonPoolWhenIdle();
-      }
+      await Promise.all([
+        activeTask,
+        ...Array.from({ length: backgroundWorkerCount }, () => runner()),
+      ]);
       const successful = completed.filter(
         (result): result is ProcessedFileResult => !!result,
       );
@@ -1141,7 +1116,6 @@ export default function App(): ReactElement {
       executeComparisonReview,
       getComparisonPool,
       prepareComparison,
-      releaseComparisonPoolWhenIdle,
     ],
   );
 
@@ -1488,10 +1462,11 @@ export default function App(): ReactElement {
           }
         }
         if (uniqueDigests.size > 0) {
-          const poolSize = Math.min(
-            uniqueDigests.size,
-            COMPARISON_WORKER_LIMIT - 1,
-          );
+          const poolSize = computeSafeComparisonPoolSize({
+            uniqueFileCount: uniqueDigests.size,
+            hardCap: COMPARISON_WORKER_LIMIT - 1,
+            deviceMemory: readDeviceMemory(),
+          });
           void (async () => {
             try {
               const warmPool = getComparisonPool(poolSize);
@@ -1519,7 +1494,6 @@ export default function App(): ReactElement {
                   ).catch(() => {}),
                 ),
               );
-              releaseComparisonPoolWhenIdle();
             } catch {
               // Pre-warm is best-effort; never surface to the user.
             }
