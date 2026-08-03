@@ -1,7 +1,0 @@
-{
-  "repository": "https://github.com/uzaira0/semantic-profile-toolchain",
-  "commit": "d46708a14c49143e783b3ec251850a13c5623533",
-  "package": "semprof-cli",
-  "binary": "semprof",
-  "version": "0.1.0"
-}

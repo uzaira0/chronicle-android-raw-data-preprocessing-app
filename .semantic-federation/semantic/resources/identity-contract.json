@@ -1,6 +1,0 @@
-{
-  "profile_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing",
-  "namespace": "urn:uzaira0:semantic-federation:chronicle-preprocessing:",
-  "identity_mode": "exact-identifier-and-version",
-  "label_identity_forbidden": true
-}
