@@ -2,8 +2,9 @@ use chronicle_chrono_kernel_wasm::pipeline_v2::{
     IncrementalPipelineV2Engine, PipelineV2OptionsJson, PipelineV2SupportFiles,
 };
 use chronicle_preprocessing_runtime_wasm::{
-    execute_workspace_native, execute_workspace_native_with_review_bases, RuntimeArtifactMetadata,
-    RuntimeRequest, RuntimeSupportFiles, EXECUTE_WORKSPACE_COMMAND, QUERY_REVIEW_COMMAND,
+    execute_workspace_native, execute_workspace_native_warm_review,
+    execute_workspace_native_with_review_bases, RuntimeArtifactMetadata, RuntimeRequest,
+    RuntimeSupportFiles, EXECUTE_WORKSPACE_COMMAND, QUERY_REVIEW_COMMAND,
     RUNTIME_PROTOCOL_VERSION,
 };
 use sha2::{Digest, Sha256};
@@ -251,7 +252,17 @@ fn main() -> Result<(), String> {
         let request_json = serde_json::to_string(&request)
             .map_err(|error| format!("serialize profile request: {error}"))?;
         let execute_started = Instant::now();
-        let mut handle = if arguments.review_bases_dir.is_some() {
+        let warm_review = arguments.review
+            && iteration > 0
+            && review_base.is_empty()
+            && reconstruction_base.is_empty();
+        let mut handle = if warm_review {
+            execute_workspace_native_warm_review(
+                &request_json,
+                raw.len() as u64,
+                &support_files,
+            )?
+        } else if arguments.review_bases_dir.is_some() {
             execute_workspace_native_with_review_bases(
                 &request_json,
                 &raw,

@@ -5780,27 +5780,17 @@ mod tracked {
         let clone_timer = QueryTimer::start("review_static_clone_rows");
         let mut rows = (*prepared.rows).clone();
         clone_timer.finish();
-        if !prepared.filtered_packages.is_empty() {
-            let junk_timer = QueryTimer::start("review_static_junk_downstream_mark");
-            rows = super::junk_downstream_mark(
-                rows,
-                &prepared.filtered_packages,
-                &AHashSet::new(),
-            );
-            junk_timer.finish();
-        }
-        let codebook_timer = QueryTimer::start("review_static_codebook_annotations");
-        super::apply_codebook_annotations(&mut rows, enabled, &codebook);
-        codebook_timer.finish();
-        let detail_timer = QueryTimer::start("review_static_detail_columns");
-        super::add_app_usage_detail_columns(&mut rows, custom_engagement_duration);
-        detail_timer.finish();
-        let flags_timer = QueryTimer::start("review_static_usage_flags");
-        super::mark_app_usage_flags(&mut rows, &long_gap_thresholds, &long_usage_thresholds);
-        flags_timer.finish();
-        let clear_timer = QueryTimer::start("review_static_clear_filtered_timing");
-        super::clear_filtered_usage_timing(&mut rows);
-        clear_timer.finish();
+        let fused_timer = QueryTimer::start("review_static_annotations_fused");
+        super::apply_static_review_annotations_fused(
+            &mut rows,
+            &prepared.filtered_packages,
+            enabled,
+            &codebook,
+            custom_engagement_duration,
+            &long_gap_thresholds,
+            &long_usage_thresholds,
+        );
+        fused_timer.finish();
         for step in [
             "codebook_join",
             "derive_broad_category",
@@ -6071,12 +6061,8 @@ mod tracked {
         let background_checkpoint_value = background.iter().cloned().collect::<BTreeSet<_>>();
         let reconstructed = review_reconstructed_rows(db, raw, early, config, support)?;
 
-        let section_timer = QueryTimer::start("review_reconstruction_apply_matcher_output");
-        section_timer.finish();
         let apply_matcher_output = reconstructed.apply_matcher_output.clone();
 
-        let section_timer = QueryTimer::start("review_reconstruction_relabel_usage_with_floor");
-        section_timer.finish();
         let relabel_usage_with_floor = review_derived_checkpoint(
             "relabel_usage_with_floor",
             &[
@@ -6089,8 +6075,6 @@ mod tracked {
         )?;
         db.record_fused_product_step("relabel_usage_with_floor");
 
-        let section_timer = QueryTimer::start("review_reconstruction_junk_downstream_mark");
-        section_timer.finish();
         let junk_downstream_mark = review_derived_checkpoint(
             "junk_downstream_mark",
             &[
@@ -6103,8 +6087,6 @@ mod tracked {
         )?;
         db.record_fused_product_step("junk_downstream_mark");
 
-        let section_timer = QueryTimer::start("review_reconstruction_sort_episodes");
-        section_timer.finish();
         let sort_episodes = review_derived_checkpoint(
             "sort_episodes",
             &[("rows", &junk_downstream_mark)],
@@ -6112,8 +6094,6 @@ mod tracked {
         )?;
         db.record_fused_product_step("sort_episodes");
 
-        let section_timer = QueryTimer::start("review_reconstruction_split_concurrent");
-        section_timer.finish();
         let section_timer = QueryTimer::start("review_reconstruction_checkpoint");
         let split_concurrent = reconstructed.split_concurrent.clone();
         section_timer.finish();
