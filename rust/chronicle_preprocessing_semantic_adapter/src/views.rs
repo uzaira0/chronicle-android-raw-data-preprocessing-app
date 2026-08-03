@@ -249,7 +249,7 @@ mod tests {
         let options = serde_json::json!({});
         let root_digest = format!("sha256:{:0>64}", 1);
         let view = stage_view(StageViewInput {
-            plan: &plan,
+            plan,
             materialization: &materialization,
             executions: &executions,
             step_statuses: &step_statuses,
@@ -318,7 +318,7 @@ mod tests {
             "process_screen_usage": false
         });
         let view = stage_view(StageViewInput {
-            plan: &plan,
+            plan,
             materialization: &materialization,
             executions: &[],
             step_statuses: &BTreeMap::new(),

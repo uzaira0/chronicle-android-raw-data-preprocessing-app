@@ -137,20 +137,23 @@ const SUPPORT_ROLES: &[&str] = &[
 ];
 
 fn persisted_base_runtime_identity() -> [u8; 32] {
-    let mut digest = Sha256::new();
-    for value in [
-        IMPLEMENTATION_BUILD_DIGEST,
-        BUILD_ENVIRONMENT_DIGEST,
-        EMBEDDED_PRODUCT_CONTRACT_SHA256,
-        EMBEDDED_RUNTIME_AUTHORITY_SHA256,
-        EMBEDDED_PLAN_SHA256,
-        EMBEDDED_PROFILE_LOCK_SHA256,
-        EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256,
-    ] {
-        digest.update((value.len() as u64).to_le_bytes());
-        digest.update(value.as_bytes());
-    }
-    digest.finalize().into()
+    static IDENTITY: OnceLock<[u8; 32]> = OnceLock::new();
+    *IDENTITY.get_or_init(|| {
+        let mut digest = Sha256::new();
+        for value in [
+            IMPLEMENTATION_BUILD_DIGEST,
+            BUILD_ENVIRONMENT_DIGEST,
+            EMBEDDED_PRODUCT_CONTRACT_SHA256,
+            EMBEDDED_RUNTIME_AUTHORITY_SHA256,
+            EMBEDDED_PLAN_SHA256,
+            EMBEDDED_PROFILE_LOCK_SHA256,
+            EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256,
+        ] {
+            digest.update((value.len() as u64).to_le_bytes());
+            digest.update(value.as_bytes());
+        }
+        digest.finalize().into()
+    })
 }
 
 fn wrap_persisted_base(payload: Vec<u8>, magic: &[u8; 8]) -> Vec<u8> {
@@ -542,7 +545,7 @@ pub fn plan_stage_view_native(options_json: &str) -> Result<String, String> {
     let semantic_options = semantic_options_value(&options)?;
     let plan = embedded_plan();
     let materialization = evaluate_materialization(
-        &plan,
+        plan,
         &BTreeMap::new(),
         &semantic_options,
         &BTreeSet::new(),
@@ -559,7 +562,7 @@ pub fn plan_stage_view_native(options_json: &str) -> Result<String, String> {
     );
     serde_json::to_string(&stage_view(
         chronicle_preprocessing_semantic_adapter::views::StageViewInput {
-            plan: &plan,
+            plan,
             materialization: &materialization,
             executions: &[],
             step_statuses: &BTreeMap::new(),
@@ -985,6 +988,7 @@ struct IngressMaterialization {
 struct PreparedRuntimeWorkspace {
     request: RuntimeRequest,
     options_value: Value,
+    exact_options_value: Value,
     options_bytes: Vec<u8>,
     options_digest: String,
     resolved_support: Arc<ResolvedSupportFiles>,
@@ -2105,6 +2109,7 @@ fn execute_incremental_pipeline(
     verified_persisted_input: bool,
     persisted_bases: PersistedReviewBases<'_>,
     options_value: &Value,
+    exact_options_value: Value,
     options: &PipelineV2Options,
     support: &ResolvedSupportFiles,
 ) -> Result<IncrementalPipelineExecution, String> {
@@ -2123,10 +2128,10 @@ fn execute_incremental_pipeline(
         }
         let timer = EnvelopeTimer::start("cache_decision_evaluate");
         let certificate = embedded_dependency_certificate();
-        let empirical_evidence_current = dependency_evidence_current(&certificate);
+        let empirical_evidence_current = dependency_evidence_current(certificate);
         let cache_decision = evaluate_dependency_cache_decision(
-            &plan,
-            Some(&certificate),
+            plan,
+            Some(certificate),
             Some(EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256),
             Some(EMBEDDED_PLAN_SHA256),
             empirical_evidence_current,
@@ -2263,12 +2268,10 @@ fn execute_incremental_pipeline(
         timer.finish();
         let timer = EnvelopeTimer::start("step_executions_build");
         let previous_step_observations = state.previous_step_observations.clone();
-        let exact_options = serde_json::to_value(&request.options)
-            .map_err(|error| format!("serialize exact Rust options for step scheduler: {error}"))?;
         let step_executions = build_runtime_step_executions(
-            &plan,
+            plan,
             options_value,
-            &exact_options,
+            &exact_options_value,
             ingress_assignments,
             &tracked_execution.result,
             &mut RuntimeStepExecutionState {
@@ -2305,7 +2308,7 @@ fn execute_incremental_pipeline(
         let timer = EnvelopeTimer::start("project_product_stages");
         let result = tracked_execution.result;
         let (executions, node_artifacts) = project_product_stages(
-            &plan,
+            plan,
             options_value,
             &result,
             &step_executions,
@@ -2863,6 +2866,7 @@ fn prepare_runtime_workspace_verified(
     Ok(PreparedRuntimeWorkspace {
         request,
         options_value,
+        exact_options_value,
         options_bytes,
         options_digest,
         resolved_support,
@@ -2876,11 +2880,11 @@ fn prepared_cache_decision(
 ) -> Result<DependencyCacheDecision, String> {
     let certificate = embedded_dependency_certificate();
     evaluate_dependency_cache_decision(
-        &embedded_plan(),
-        Some(&certificate),
+        embedded_plan(),
+        Some(certificate),
         Some(EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256),
         Some(EMBEDDED_PLAN_SHA256),
-        dependency_evidence_current(&certificate),
+        dependency_evidence_current(certificate),
         &prepared.options_value,
         &prepared.ingress.assignments,
     )
@@ -2936,6 +2940,22 @@ pub fn execute_workspace_native_with_review_bases(
     )
 }
 
+/// Skip the SHA-256 re-hash of the raw CSV when the caller knows the engine
+/// already has verified input for this workspace (warm review iteration).
+/// Falls back to the full-verify path if the engine state doesn't confirm.
+pub fn execute_workspace_native_warm_review(
+    request_json: &str,
+    input_size_bytes: u64,
+    support_files: &RuntimeSupportFiles,
+) -> Result<RuntimeHandle, String> {
+    let prepared = prepare_runtime_workspace_from_persisted_input(
+        request_json,
+        input_size_bytes,
+        support_files,
+    )?;
+    execute_prepared_workspace(prepared, &[], None, true, true, &[], &[])
+}
+
 fn required_view_contract_matches(
     kind: &str,
     view: &Value,
@@ -2962,6 +2982,7 @@ fn execute_prepared_workspace(
     let PreparedRuntimeWorkspace {
         request,
         options_value,
+        exact_options_value,
         options_bytes,
         options_digest,
         resolved_support,
@@ -2989,6 +3010,7 @@ fn execute_prepared_workspace(
             warm_verified_input,
         },
         &options_value,
+        exact_options_value,
         &pipeline_options,
         &resolved_support,
     )?;
@@ -3129,7 +3151,7 @@ fn execute_prepared_workspace(
                 &options_bytes,
                 &ingress.assignments,
                 &resolved_support,
-                &plan,
+                plan,
             )?;
             if source_coordinate_artifacts.len() != 2 {
                 return Err("source-coordinate generator emitted an invalid artifact count".into());
@@ -3202,14 +3224,14 @@ fn execute_prepared_workspace(
         .map(|execution| execution.node_id.clone())
         .collect();
     let materialization = evaluate_materialization(
-        &plan,
+        plan,
         &ingress.assignments,
         &options_value,
         &satisfied_nodes,
         &BTreeSet::new(),
     );
     let execution_ledger_bytes = build_execution_ledger(
-        &plan,
+        plan,
         &node_executions,
         &step_executions,
         &options_value,
@@ -3247,7 +3269,7 @@ fn execute_prepared_workspace(
         vec![ingress.input.digest.clone(), options_digest.clone()],
     ));
     let correspondence_bytes = build_correspondence_index(CorrespondenceIndexInputs {
-        plan: &plan,
+        plan,
         assignments: &ingress.assignments,
         materialization: &materialization,
         node_executions: &node_executions,
@@ -3393,7 +3415,7 @@ fn execute_prepared_workspace(
             "stage-view-json",
             encode_view(&stage_view(
                 chronicle_preprocessing_semantic_adapter::views::StageViewInput {
-                    plan: &plan,
+                    plan,
                     materialization: &materialization,
                     executions: &node_executions,
                     step_statuses: &step_statuses,
@@ -3734,7 +3756,7 @@ fn materialize_ingress(
         )?;
     }
     let materialization = evaluate_materialization(
-        &plan,
+        plan,
         &assignments,
         options,
         &BTreeSet::new(),
@@ -5382,7 +5404,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         let plan = embedded_plan();
         let mut cache = BTreeMap::new();
         let cold = build_runtime_step_executions(
-            &plan,
+            plan,
             &semantic_options,
             &exact_options,
             &BTreeMap::new(),
@@ -5408,7 +5430,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
             .clone();
         cache.get_mut(&applicable).unwrap().output_digest = format!("sha256:{}", "f".repeat(64));
         let error = build_runtime_step_executions(
-            &plan,
+            plan,
             &semantic_options,
             &exact_options,
             &BTreeMap::new(),
@@ -5429,7 +5451,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
 
     #[test]
     fn dependency_evidence_requires_every_receipt_identity_field() {
-        let mut certificate = embedded_dependency_certificate();
+        let mut certificate = embedded_dependency_certificate().clone();
         let receipt = &mut certificate.evidence.implementation_receipt;
         receipt.implementation = "chronicle_preprocessing_runtime_wasm/0.1.0".into();
         receipt.implementation_digest = IMPLEMENTATION_BUILD_DIGEST.into();
@@ -5861,7 +5883,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         let assignments = BTreeMap::from([(assignment.role_id.clone(), assignment.clone())]);
         let mut materialization =
             chronicle_preprocessing_semantic_adapter::evaluate_materialization(
-                &plan,
+                plan,
                 &assignments,
                 &serde_json::json!({}),
                 &BTreeSet::new(),
@@ -5877,7 +5899,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
 
         let index: Value = serde_json::from_slice(
             &build_correspondence_index(CorrespondenceIndexInputs {
-                plan: &plan,
+                plan,
                 assignments: &assignments,
                 materialization: &materialization,
                 node_executions: &[],
@@ -6055,13 +6077,13 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         );
         assert_eq!(
             manifest.dependency_cache_decision.mode,
-            if dependency_evidence_current(&embedded_dependency_certificate()) {
+            if dependency_evidence_current(embedded_dependency_certificate()) {
                 chronicle_preprocessing_semantic_adapter::DependencyCacheMode::CertifiedNarrow
             } else {
                 chronicle_preprocessing_semantic_adapter::DependencyCacheMode::ConservativeFull
             }
         );
-        if dependency_evidence_current(&embedded_dependency_certificate()) {
+        if dependency_evidence_current(embedded_dependency_certificate()) {
             assert!(manifest
                 .dependency_cache_decision
                 .reasons
@@ -6673,7 +6695,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
             .filter(|execution| execution.status == ExecutionStatus::Recomputed)
             .map(|execution| execution.node_id.as_str())
             .collect();
-        let evidence_current = dependency_evidence_current(&embedded_dependency_certificate());
+        let evidence_current = dependency_evidence_current(embedded_dependency_certificate());
         if evidence_current {
             assert_eq!(recomputed, BTreeSet::from(["day_coverage", "outputs"]));
         } else {
@@ -7350,8 +7372,8 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         let csv = mixed_timezone_csv();
         let expected_touched = embedded_plan()
             .nodes
-            .into_iter()
-            .map(|node| node.node_id)
+            .iter()
+            .map(|node| node.node_id.clone())
             .filter(|node_id| node_id != "parse_events")
             .collect::<BTreeSet<_>>();
 
@@ -7424,7 +7446,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
                     .map(|execution| execution.node_id.clone())
                     .collect::<BTreeSet<_>>();
                 let evidence_current =
-                    dependency_evidence_current(&embedded_dependency_certificate());
+                    dependency_evidence_current(embedded_dependency_certificate());
                 if evidence_current {
                     assert!(
                         touched == expected_touched,
@@ -8048,7 +8070,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
             .collect::<BTreeMap<_, _>>();
         let mut previous_stage_outputs = BTreeMap::new();
         let (executions, _artifacts) = project_product_stages(
-            &plan,
+            plan,
             &semantic_options,
             &result,
             &step_executions,
@@ -8092,7 +8114,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
             .collect::<BTreeMap<_, _>>();
         let mut previous_stage_outputs = BTreeMap::new();
         let (executions, _artifacts) = project_product_stages(
-            &plan,
+            plan,
             &semantic_options,
             &result,
             &with_execution,
@@ -8173,7 +8195,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         let mut previous_stage_inputs = BTreeMap::new();
         let mut previous_stage_outputs = BTreeMap::new();
         let (executions, _artifacts) = project_product_stages(
-            &plan,
+            plan,
             &semantic_options,
             &result,
             &step_executions,
@@ -8508,7 +8530,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
 
         let plan = embedded_plan();
         let ledger: Value = serde_json::from_slice(
-            &build_execution_ledger(&plan, &[], &[], &serde_json::json!({}), "now").unwrap(),
+            &build_execution_ledger(plan, &[], &[], &serde_json::json!({}), "now").unwrap(),
         )
         .unwrap();
         assert!(ledger
