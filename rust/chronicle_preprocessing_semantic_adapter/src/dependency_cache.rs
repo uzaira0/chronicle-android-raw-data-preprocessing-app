@@ -201,12 +201,12 @@ mod tests {
         let plan = embedded_plan();
         let certificate = embedded_dependency_certificate();
         let decision = evaluate_dependency_cache_decision(
-            &plan,
-            Some(&certificate),
+            plan,
+            Some(certificate),
             Some(EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256),
             Some(EMBEDDED_PLAN_SHA256),
             true,
-            &complete_options(&certificate),
+            &complete_options(certificate),
             &BTreeMap::new(),
         )
         .unwrap();
@@ -221,9 +221,9 @@ mod tests {
     fn missing_stale_or_unknown_contract_information_falls_back_to_full_recomputation() {
         let plan = embedded_plan();
         let certificate = embedded_dependency_certificate();
-        let options = complete_options(&certificate);
+        let options = complete_options(certificate);
         let missing_certificate = evaluate_dependency_cache_decision(
-            &plan,
+            plan,
             None,
             None,
             Some(EMBEDDED_PLAN_SHA256),
@@ -238,8 +238,8 @@ mod tests {
         );
 
         let stale_evidence = evaluate_dependency_cache_decision(
-            &plan,
-            Some(&certificate),
+            plan,
+            Some(certificate),
             Some(EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256),
             Some(EMBEDDED_PLAN_SHA256),
             false,
@@ -264,8 +264,8 @@ mod tests {
             .unwrap()
             .insert("unknown-option".into(), Value::Bool(true));
         let decision = evaluate_dependency_cache_decision(
-            &plan,
-            Some(&certificate),
+            plan,
+            Some(certificate),
             Some(EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256),
             Some(EMBEDDED_PLAN_SHA256),
             true,
@@ -279,12 +279,12 @@ mod tests {
             .iter()
             .any(|reason| reason == "dependency_option_unknown"));
 
-        let mut missing = complete_options(&certificate);
+        let mut missing = complete_options(certificate);
         let removed = certificate.structural_contract.cache_relevant_option_keys[0].clone();
         missing.as_object_mut().unwrap().remove(&removed);
         let decision = evaluate_dependency_cache_decision(
-            &plan,
-            Some(&certificate),
+            plan,
+            Some(certificate),
             Some(EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256),
             Some(EMBEDDED_PLAN_SHA256),
             true,
@@ -319,12 +319,12 @@ mod tests {
         let known_role = certificate.structural_contract.role_ids[0].clone();
         let known_assignments = BTreeMap::from([(known_role.clone(), assignment(&known_role))]);
         let known = evaluate_dependency_cache_decision(
-            &plan,
-            Some(&certificate),
+            plan,
+            Some(certificate),
             Some(EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256),
             Some(EMBEDDED_PLAN_SHA256),
             true,
-            &complete_options(&certificate),
+            &complete_options(certificate),
             &known_assignments,
         )
         .unwrap();
@@ -337,12 +337,12 @@ mod tests {
         let unknown_assignments =
             BTreeMap::from([("unknown-role".into(), assignment("unknown-role"))]);
         let unknown = evaluate_dependency_cache_decision(
-            &plan,
-            Some(&certificate),
+            plan,
+            Some(certificate),
             Some(EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256),
             Some(EMBEDDED_PLAN_SHA256),
             true,
-            &complete_options(&certificate),
+            &complete_options(certificate),
             &unknown_assignments,
         )
         .unwrap();

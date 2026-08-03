@@ -3167,7 +3167,7 @@ mod tests {
 
         let plan = crate::embedded_plan();
         let closure =
-            downstream_closure(&plan, BTreeSet::from(["normalize_timezones".to_string()]));
+            downstream_closure(plan, BTreeSet::from(["normalize_timezones".to_string()]));
         assert_eq!(closure.len(), 14);
         assert!(closure.contains("normalize_timezones"));
         assert!(closure.contains("outputs"));
@@ -3184,7 +3184,7 @@ mod tests {
                 normalization: "canonical-json",
                 bytes: options,
             }],
-            &plan,
+            plan,
         )
         .unwrap();
         assert_eq!(scopes.len(), 1);
@@ -3205,7 +3205,7 @@ mod tests {
                 normalization: "canonical-json",
                 bytes: renamed_options,
             }],
-            &plan,
+            plan,
         )
         .unwrap();
         assert_eq!(renamed_scopes.len(), 2);
@@ -3530,7 +3530,7 @@ mod tests {
             &sources,
             &outputs,
             &lineages,
-            &plan,
+            plan,
             &checkpoints,
             &context,
         )
@@ -3539,7 +3539,7 @@ mod tests {
             &sources,
             &outputs,
             &lineages,
-            &plan,
+            plan,
             &checkpoints,
             &context,
         )
@@ -3793,7 +3793,7 @@ mod tests {
             &sources_with_study,
             &outputs,
             &lineages,
-            &plan,
+            plan,
             &checkpoints,
             &context,
         )
@@ -3938,7 +3938,7 @@ mod tests {
             &sources,
             &outputs,
             &lineages,
-            &plan,
+            plan,
             &checkpoints,
             &context,
         )
