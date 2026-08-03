@@ -1037,27 +1037,34 @@ struct PreviousStepObservation {
     applicable: bool,
 }
 
-// A WASM worker processes one workspace at a time. Retaining eight complete
-// pipeline results kept hundreds of megabytes (or more) alive when a batch
-// worker moved between files. Preserve warm incremental reuse for the current
-// workspace and evict the previous workspace before accepting another.
-const MAX_INCREMENTAL_RUNTIME_STATES: usize = 1;
-// Retaining a complete correspondence index inside every worker defeats the
-// file-level worker pool's memory bound. Small warm workspaces still reuse
-// immutable exports; large exports move directly to the caller and OPFS.
+// Default Salsa engine retention: one workspace at a time. When the caller
+// enables comparison pre-caching, this is raised so each worker retains
+// engines for many files simultaneously — warm review (1.9 ms) instead of
+// cold (61 ms) on the first comparison.
+const DEFAULT_MAX_INCREMENTAL_RUNTIME_STATES: usize = 1;
 const MAX_STABLE_ARTIFACT_CACHE_BYTES: u64 = 32 * 1024 * 1024;
 
-#[derive(Default)]
 struct IncrementalRuntimeStateCache {
     states: BTreeMap<String, IncrementalRuntimeState>,
     lru: VecDeque<String>,
+    max_states: usize,
+}
+
+impl Default for IncrementalRuntimeStateCache {
+    fn default() -> Self {
+        Self {
+            states: BTreeMap::new(),
+            lru: VecDeque::new(),
+            max_states: DEFAULT_MAX_INCREMENTAL_RUNTIME_STATES,
+        }
+    }
 }
 
 impl IncrementalRuntimeStateCache {
     fn state_for(&mut self, workspace_id: &str) -> &mut IncrementalRuntimeState {
         self.lru.retain(|candidate| candidate != workspace_id);
         if !self.states.contains_key(workspace_id)
-            && self.states.len() >= MAX_INCREMENTAL_RUNTIME_STATES
+            && self.states.len() >= self.max_states
         {
             if let Some(evicted) = self.lru.pop_front() {
                 self.states.remove(&evicted);
@@ -1081,6 +1088,28 @@ impl IncrementalRuntimeStateCache {
             state.last_workspace_root.as_deref() == workspace_root_digest
                 && state.incremental_engine.has_verified_input(input_digest)
         })
+    }
+
+    fn set_capacity(&mut self, capacity: usize) {
+        self.max_states = capacity.max(1);
+        while self.states.len() > self.max_states {
+            if let Some(evicted) = self.lru.pop_front() {
+                self.states.remove(&evicted);
+            } else {
+                break;
+            }
+        }
+    }
+
+    fn compact_all(&mut self) {
+        for state in self.states.values_mut() {
+            state.stable_artifact_bundle = None;
+            state.previous_stage_outputs.clear();
+        }
+    }
+
+    fn retained_count(&self) -> usize {
+        self.states.len()
     }
 }
 
@@ -1164,6 +1193,20 @@ fn stable_artifacts_fit_cache(
 thread_local! {
     static INCREMENTAL_RUNTIME_STATES: RefCell<IncrementalRuntimeStateCache> =
         RefCell::new(IncrementalRuntimeStateCache::default());
+}
+
+#[wasm_bindgen]
+pub fn set_comparison_cache_capacity(capacity: usize) {
+    INCREMENTAL_RUNTIME_STATES.with(|states| {
+        let mut cache = states.borrow_mut();
+        cache.set_capacity(capacity);
+        cache.compact_all();
+    });
+}
+
+#[wasm_bindgen]
+pub fn get_comparison_cache_retained() -> usize {
+    INCREMENTAL_RUNTIME_STATES.with(|states| states.borrow().retained_count())
 }
 
 #[cfg(test)]
@@ -6896,7 +6939,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
     fn incremental_workspace_cache_is_bounded() {
         reset_tracked_execution_count();
         let csv = csv();
-        for index in 0..(MAX_INCREMENTAL_RUNTIME_STATES + 3) {
+        for index in 0..(DEFAULT_MAX_INCREMENTAL_RUNTIME_STATES + 3) {
             let marker = char::from_digit((index % 10) as u32, 10).unwrap();
             let request_value = request_for_workspace(&csv, marker);
             execute_workspace_native(
@@ -6907,15 +6950,48 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
             .unwrap();
         }
         INCREMENTAL_RUNTIME_STATES.with(|states| {
-            assert_eq!(states.borrow().states.len(), MAX_INCREMENTAL_RUNTIME_STATES);
+            assert_eq!(states.borrow().states.len(), DEFAULT_MAX_INCREMENTAL_RUNTIME_STATES);
         });
-        // Pinned because an exclusion depends on it: at a capacity of one,
-        // `state_for` removes the revisited id from the LRU list before the
-        // admission check, so the list is empty and `pop_front` evicts nothing
-        // however that check is written. Raising the capacity makes the
-        // admission check load-bearing again — see the state-cache entry in
-        // .semantic-federation/quality/runtime-mutation-exclusions.txt.
-        assert_eq!(MAX_INCREMENTAL_RUNTIME_STATES, 1);
+        assert_eq!(DEFAULT_MAX_INCREMENTAL_RUNTIME_STATES, 1);
+    }
+
+    #[test]
+    fn set_capacity_raises_and_compacts_state_cache() {
+        reset_tracked_execution_count();
+        let csv = csv();
+        INCREMENTAL_RUNTIME_STATES.with(|states| {
+            states.borrow_mut().set_capacity(4);
+        });
+        for index in 0..4 {
+            let marker = char::from_digit(index as u32, 10).unwrap();
+            let request_value = request_for_workspace(&csv, marker);
+            execute_workspace_native(
+                &request_value.to_string(),
+                &csv,
+                &RuntimeSupportFiles::default(),
+            )
+            .unwrap();
+        }
+        INCREMENTAL_RUNTIME_STATES.with(|states| {
+            let cache = states.borrow();
+            assert_eq!(cache.retained_count(), 4);
+        });
+        INCREMENTAL_RUNTIME_STATES.with(|states| {
+            states.borrow_mut().compact_all();
+            let cache = states.borrow();
+            assert_eq!(cache.retained_count(), 4);
+            for state in cache.states.values() {
+                assert!(state.stable_artifact_bundle.is_none());
+                assert!(state.previous_stage_outputs.is_empty());
+            }
+        });
+        INCREMENTAL_RUNTIME_STATES.with(|states| {
+            states.borrow_mut().set_capacity(2);
+            assert_eq!(states.borrow().retained_count(), 2);
+        });
+        INCREMENTAL_RUNTIME_STATES.with(|states| {
+            states.borrow_mut().set_capacity(DEFAULT_MAX_INCREMENTAL_RUNTIME_STATES);
+        });
     }
 
     /// A warm review resumes from Salsa state already in this worker instead

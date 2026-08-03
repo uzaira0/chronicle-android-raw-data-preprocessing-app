@@ -123,6 +123,8 @@ type KernelModule = {
     supportFiles: RuntimeSupportFilesHandle,
   ): PreparedReviewWorkspaceHandle;
   verify_evidence_journal_cbor(bytes: Uint8Array): number;
+  set_comparison_cache_capacity(capacity: number): void;
+  get_comparison_cache_retained(): number;
 };
 
 /**
@@ -1672,6 +1674,16 @@ function captureWasmMemory(initOutput: unknown): void {
  */
 export function rustWasmMemoryBytes(): number | null {
   return kernelWasmMemory ? kernelWasmMemory.buffer.byteLength : null;
+}
+
+export async function setComparisonCacheCapacity(
+  capacity: number,
+): Promise<void> {
+  (await loadKernel()).set_comparison_cache_capacity(capacity);
+}
+
+export async function getComparisonCacheRetained(): Promise<number> {
+  return (await loadKernel()).get_comparison_cache_retained();
 }
 
 export async function getRustRuntimeVersion(): Promise<string> {

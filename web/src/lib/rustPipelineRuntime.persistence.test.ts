@@ -424,6 +424,8 @@ const kernel = {
   prepare_persisted_workspace_review: vi.fn(),
   prepare_workspace_review: vi.fn(),
   verify_evidence_journal_cbor: vi.fn(() => 1),
+  set_comparison_cache_capacity: vi.fn(),
+  get_comparison_cache_retained: vi.fn(() => 0),
 };
 
 beforeEach(() => {

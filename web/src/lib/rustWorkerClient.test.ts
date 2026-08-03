@@ -110,6 +110,8 @@ function stubSpawn(
         );
         return Promise.resolve(result);
       },
+      setComparisonCacheCapacity: () => Promise.resolve(),
+      getComparisonCacheRetained: () => Promise.resolve(0),
       ...overrides,
     } as unknown as RemoteApi;
     return {
@@ -636,6 +638,20 @@ describe("WorkerPool", () => {
     await expect(waiting).rejects.toThrow("All Chronicle workers have failed.");
     pool.terminate();
     gate.resolve({} as ProcessedFileResult);
+  });
+
+  it("setComparisonCacheCapacity fans out to every live worker", async () => {
+    const capacities: number[] = [];
+    const { spawn } = stubSpawn({
+      setComparisonCacheCapacity: (cap: number) => {
+        capacities.push(cap);
+        return Promise.resolve();
+      },
+    });
+    const pool = new WorkerPool(3, spawn);
+    await pool.setComparisonCacheCapacity(5);
+    expect(capacities).toEqual([5, 5, 5]);
+    pool.terminate();
   });
 });
 
