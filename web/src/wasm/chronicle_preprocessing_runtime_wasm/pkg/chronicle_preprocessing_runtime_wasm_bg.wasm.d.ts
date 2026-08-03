@@ -28,7 +28,9 @@ export const runtimehandle_take_artifact_bytes: (a: number, b: number, c: number
 export const runtimesupportfiles_new: () => number;
 export const runtimesupportfiles_put: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
 export const runtimesupportfiles_put_with_name: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
+export const set_comparison_cache_capacity: (a: number) => void;
 export const verify_evidence_journal_cbor: (a: number, b: number, c: number) => void;
+export const get_comparison_cache_retained: () => number;
 export const __wbindgen_add_to_stack_pointer: (a: number) => number;
 export const __wbindgen_export: (a: number, b: number, c: number) => void;
 export const __wbindgen_export2: (a: number, b: number) => number;

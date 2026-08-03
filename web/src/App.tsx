@@ -1472,6 +1472,61 @@ export default function App(): ReactElement {
       if (successful.length) {
         setResultsOptions(runOptions);
       }
+
+      // Pre-warm comparison pool: seed each worker's Salsa engine with Arm A
+      // so the researcher's first comparison hits the warm incremental path
+      // (~2 ms) instead of cold (~60 ms).
+      if (successful.length > 1 && !cancelRequestedRef.current) {
+        const uniqueDigests = new Map<
+          string,
+          { file: File; sizeBytes: number }
+        >();
+        for (const file of uploadedFiles) {
+          const digest = verifiedInputDigestByFileRef.current.get(file);
+          if (digest && !uniqueDigests.has(digest)) {
+            uniqueDigests.set(digest, { file, sizeBytes: file.size });
+          }
+        }
+        if (uniqueDigests.size > 0) {
+          const poolSize = Math.min(
+            uniqueDigests.size,
+            COMPARISON_WORKER_LIMIT - 1,
+          );
+          void (async () => {
+            try {
+              const warmPool = getComparisonPool(poolSize);
+              if (!warmPool) return;
+              const capacityPerWorker = Math.ceil(
+                uniqueDigests.size / poolSize,
+              );
+              await warmPool.setComparisonCacheCapacity(capacityPerWorker);
+              const warmSupportCacheKey =
+                await comparisonSupportCacheKey(supportFiles);
+              const entries = Array.from(uniqueDigests.entries());
+              const warmRuntime = getInjectedRuntime();
+              await Promise.all(
+                entries.map(([digest, { file, sizeBytes }]) =>
+                  processPersistedOrRawChangedReviewViaPool(
+                    warmPool,
+                    file.name,
+                    sizeBytes,
+                    () => file.arrayBuffer(),
+                    runOptions,
+                    supportFiles,
+                    warmRuntime,
+                    digest,
+                    warmSupportCacheKey,
+                  ).catch(() => {}),
+                ),
+              );
+              releaseComparisonPoolWhenIdle();
+            } catch {
+              // Pre-warm is best-effort; never surface to the user.
+            }
+          })();
+        }
+      }
+
       const nextTimezones = Array.from(
         new Set(successful.flatMap((result) => result.availableTimezones)),
       ).sort((left, right) => left.localeCompare(right));

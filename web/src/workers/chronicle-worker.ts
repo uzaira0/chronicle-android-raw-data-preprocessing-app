@@ -14,6 +14,8 @@ import {
   readPersistedRustWorkspaceHead,
   readVerifiedSemanticIndexSnapshot,
   rustWasmMemoryBytes,
+  setComparisonCacheCapacity,
+  getComparisonCacheRetained,
 } from "@/lib/rustPipelineRuntime";
 import type { RawFileInspection } from "@/lib/fileInspection";
 import {
@@ -216,6 +218,12 @@ const api = {
   },
   async runtimeVersion(): Promise<string> {
     return getRustRuntimeVersion();
+  },
+  async setComparisonCacheCapacity(capacity: number): Promise<void> {
+    return setComparisonCacheCapacity(capacity);
+  },
+  async getComparisonCacheRetained(): Promise<number> {
+    return getComparisonCacheRetained();
   },
   hasComparisonSupportFiles(key: string): boolean {
     return comparisonSupportFiles.has(key);
