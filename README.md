@@ -1,80 +1,58 @@
 # Chronicle Android Raw Data Preprocessing App
 
-An application for preprocessing and plotting Chronicle Android raw data.
+A browser-based tool for preprocessing and visualizing [Chronicle](https://getmethodic.com/) Android screen-time data. Upload raw Chronicle CSV exports, configure preprocessing options, and download cleaned datasets and interactive timeline plots — all locally in the browser with no server or account required.
 
-The browser application is the first full implementation target for the
-generalized semantic-federation scaffold. Browser computation is Rust/WASM, and
-all 55 preprocessing transformations now exist as individually tracked Salsa
-computations that match the complete Rust oracle in every usage mode. The
-stateful kernel skips every step on an unchanged call and runs only
-`assemble_result` for an output-only study-name change.
+**[Launch the app](https://uzaira0.github.io/chronicle-android-raw-data-preprocessing-app/)**
 
-The runtime computes through the 55 tracked product queries and reports their actual
-execution events. The 15 groups are display summaries, not another scheduler.
-Persisted Salsa snapshots were removed after profiling showed that restoring
-one was slower and much larger than recalculating from the verified inputs.
-OPFS keeps the source, configuration, results, history, evidence, and views;
-the in-worker Salsa database is only a fast disposable cache.
+## What it does
 
-See the
-[55-step incremental Rust plan](docs/semantic-federation/55-step-incremental-rust-plan.md)
-for the current/target distinction, exact implementation backlog, and release
-checks. The separate
-[production proof](docs/semantic-federation/production-proof.md) records what
-the existing semantic, storage, provenance, and browser boundaries already
-prove.
+- **Preprocesses** raw Chronicle app-usage and screen-usage exports into research-ready CSV files
+- **Plots** interactive timelines of app usage, screen state, and activity heatmaps
+- **Runs entirely in-browser** — your data never leaves your machine
+- **Handles batches** — process hundreds of participant files in parallel
+- **Compares configurations** — A/B comparison mode lets you test how different settings affect results
+- **Works offline** — installable as a PWA, works without internet after first load
 
-The executable variability proof uses a contract-derived Rust/WASM campaign
-over all 46 computational options,
-separate proofs for the eight annotation/view/execution axes, catalog-derived
-synthetic corpora, explicit binding/qualification holes, and
-incremental-versus-cold replay. The existing checked controlled-intervention ledger holds
-all other inputs constant across every ordered value transition, records the
-exact observed invalidation/state/output effects, compares all 15 logical-stage
-checkpoints with an independent cold Rust target, and requires a concrete
-activating case for every computational axis. The model preserves enum, numeric, list,
-and string equivalence domains; it does not reduce non-boolean settings to
-flags. Declared logical propagation is exact for the recorded test scope. Those
-ledgers have been regenerated on the physical Salsa engine (see the campaign
-status table in `docs/semantic-federation/55-step-incremental-rust-plan.md`);
-regenerate them again after any change to the tracked query set.
+## Preprocessing features
 
-The companion
-[artifact dependency tomography](docs/semantic-federation/artifact-dependency-tomography.md)
-holds configuration constant while changing every raw column, raw row shape,
-and support-artifact role one at a time across all six synthetic corpora. Its
-checked 192-case ledger compares all warm checkpoints and outputs with cold
-Rust targets, records context-dependent convergence, and separates
-computational equivalence from exact source/correspondence identity. A second
-162-case boundary ledger probes 21 adjacent timestamp gaps and six calendar/DST
-joints across those same corpora. Compressed digest-bound sidecars retain the
-853,947 exact canonical CSV/JSON cell addresses changed by those controlled
-interventions. A model-mutation gate also deletes or reverses every declared
-DAG edge and deletes every recorded option and input-role binding; all 116
-mutants must be killed by an attributed empirical or structural test case.
+- Filter apps using a custom filter file
+- Configurable minimum usage duration threshold
+- Customizable app engagement duration estimation
+- Configurable thresholds for flagging long-running usage or data gaps
+- Timezone removal and conversion
+- Configurable interaction-type stop events and removal
+- App categorization from codebook files
+- Screen-gated usage crediting (opt-in) for research studies
 
-Not affiliated with GetMethodic/Chronicle, please visit them here: https://getmethodic.com/
+## Getting started
 
-Credits:
-- GetMethodic/Chronicle for their app, website, and providing their original preprocessing code: https://github.com/methodic-labs/chronicle-processing
-- Anil Kumar Vadathya, MS for writing our original custom preprocessing code (https://github.com/anilrgukt)
-- Heidi Weeks, PhD (https://radesky.lab.medicine.umich.edu/home) for writing the original plotting code in R and providing apps for the app codebook
-- Josh Culverhouse, PhD (https://sc.edu/study/colleges_schools/public_health/research/research_centers/acoi/) for modifying and helping to convert the plotting code to Python, providing apps for the app codebook, and helping to test the code significantly
-- Lindon Camaj, MS (https://github.com/lindoncamaj) for providing the app scraping code used to obtain app store categories and other info for apps
+Visit the [live app](https://uzaira0.github.io/chronicle-android-raw-data-preprocessing-app/) — no installation needed. Or run locally:
 
-## Preprocessing Features
-- Labeling usage differently for filtered apps defined in a file
-- Custom definition of the minimum duration in seconds required to include an instance of app usage
-- Custom app engagement duration estimation
-- Custom hour thresholds for flagging potentially erroneous instances of long-running app usage or data gaps
-- Custom timezone removal/conversion
-- Custom configuration of which interaction types to stop usage at
-- Custom configuration of which interaction types to remove from the final preprocessed output
-- Various columns to help with sorting and filtering the final preprocessed output
-- App categorization columns
+```bash
+cd web
+npm install
+npm run dev
+```
 
-## Plotting Features
-- Including or excluding filtered app usage defined in the preprocessing
-- Custom loading of app codebooks to color apps in plots based on their categories
-- Marking device shutdown and device startup events
-- Marking data time gaps (WIP)
+## Development
+
+```bash
+make all     # full local CI: rust tests, web checks, e2e, security, deploy validation
+make web     # typecheck + unit tests + contract check
+make ci      # rust tests + security scanners
+make help    # list all targets
+```
+
+The preprocessing engine is written in Rust, compiled to WebAssembly, and runs in web workers for parallel file processing. The web UI is React + Vite.
+
+## Not affiliated with Chronicle
+
+This is an independent research tool. Chronicle is made by [GetMethodic](https://getmethodic.com/).
+
+## Credits
+
+- [GetMethodic/Chronicle](https://github.com/methodic-labs/chronicle-processing) for their app and original preprocessing code
+- Anil Kumar Vadathya, MS for writing our original custom preprocessing code ([GitHub](https://github.com/anilrgukt))
+- Heidi Weeks, PhD ([Radesky Lab](https://radesky.lab.medicine.umich.edu/home)) for the original plotting code and app codebook
+- Josh Culverhouse, PhD ([ACOI](https://sc.edu/study/colleges_schools/public_health/research/research_centers/acoi/)) for converting plotting code to Python, codebook contributions, and extensive testing
+- Lindon Camaj, MS ([GitHub](https://github.com/lindoncamaj)) for app store scraping code used to obtain app categories

@@ -1,4 +1,4 @@
-import productPlan from "../../../.semantic-federation/semantic/resources/chronicle.plan.json";
+import productPlan from "./chronicle-plan.json";
 
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import type {
