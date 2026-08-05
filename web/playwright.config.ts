@@ -38,6 +38,13 @@ const allBrowserProjects = [
   },
 ];
 
+const webServerTimeoutMs = Number(
+  process.env.PLAYWRIGHT_WEB_SERVER_TIMEOUT_MS ?? "600000",
+);
+if (!Number.isSafeInteger(webServerTimeoutMs) || webServerTimeoutMs < 1) {
+  throw new Error("PLAYWRIGHT_WEB_SERVER_TIMEOUT_MS must be a positive integer");
+}
+
 // There is no separate "smoke projects" list: Playwright ANDs a CLI --grep with
 // each project's own grep/grepInvert, so `npm run test:e2e:smoke` already
 // narrows every project below to its @smoke subset. A second list would be a
@@ -61,7 +68,7 @@ export default defineConfig<DurabilityFixtures>({
         command: "sh -c 'npm run build && npm run preview'",
         url: "http://127.0.0.1:4173",
         reuseExistingServer: !process.env.CI,
-        timeout: 120_000,
+        timeout: webServerTimeoutMs,
         cwd: ".",
       },
   projects: allBrowserProjects,
