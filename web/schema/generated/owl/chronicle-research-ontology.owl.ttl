@@ -18,7 +18,7 @@ PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
     dcterms:license "MIT" ;
     dcterms:title "Chronicle Android Usage Measurement — Research Ontology (core module)" ;
     rdfs:seeAlso <https://doi.org/10.1177/21522715261417288> ;
-    skos:definition """Core entity model for the Android UsageStatsManager event-log -> usage-measurement research ontology. Implements the D4 five-way split from docs/pipeline-graph/13-research-ontology-design.md (occurrence / record / optional logging-observation / assertion / execution / interval) so provenance can always distinguish what was OBSERVED from what was RECONSTRUCTED, and so absence and unresolved attribution can never silently drop from denominators.
+    skos:definition """Core entity model for the Android UsageStatsManager event-log -> usage-measurement research ontology. Implements the D4 five-way split from docs/workflow/research-ontology-design.md (occurrence / record / optional logging-observation / assertion / execution / interval) so provenance can always distinguish what was OBSERVED from what was RECONSTRUCTED, and so absence and unresolved attribution can never silently drop from denominators.
 Backbone (D2, upper-neutral): SOSA/SSN + OWL-Time + PROV-O + P-Plan. BFO-vs-DOLCE is deliberately deferred and, when needed, bridged via SSSOM — this module asserts only the free, standards-grounded mappings. This is the FOUNDATION module: SHACL axioms, BCIO/Shaleha close-mappings, DQV quality, and generator wiring are later build-order steps (doc 13 §"Prioritized build order").""" ;
     skos:note "Screen-use measurement framework alignment (Shaleha, Roque, Andrews, Calfee & Lee 2026, doi:10.1177/21522715261417288): this ontology's measures sit on the framework's OBJECTIVE-LOG / passive-sensing modality axis. Referenced, not class-mapped, because the framework has no stable class IRIs." ;
 .
@@ -26,7 +26,7 @@ Backbone (D2, upper-neutral): SOSA/SSN + OWL-Time + PROV-O + P-Plan. BFO-vs-DOLC
 chron:CoverageAssessment
     a owl:Class ;
     rdfs:label "CoverageAssessment" ;
-    rdfs:subClassOf 
+    rdfs:subClassOf
         [
             a owl:Restriction ;
             owl:minCardinality 0 ;
@@ -154,7 +154,7 @@ chron:CoverageAssessment
 chron:EffectiveUsageMeasure
     a owl:Class ;
     rdfs:label "EffectiveUsageMeasure" ;
-    rdfs:subClassOf 
+    rdfs:subClassOf
         [
             a owl:Restriction ;
             owl:minCardinality 0 ;
@@ -163,6 +163,11 @@ chron:EffectiveUsageMeasure
         [
             a owl:Restriction ;
             owl:minCardinality 0 ;
+            owl:onProperty chron:produced_by ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom chron:OperationExecution ;
             owl:onProperty chron:produced_by ;
         ] ,
         [
@@ -217,11 +222,6 @@ chron:EffectiveUsageMeasure
         ] ,
         [
             a owl:Restriction ;
-            owl:allValuesFrom chron:NodeExecution ;
-            owl:onProperty chron:produced_by ;
-        ] ,
-        [
-            a owl:Restriction ;
             owl:minCardinality 0 ;
             owl:onProperty chron:coverage_policy ;
         ] ,
@@ -268,7 +268,7 @@ chron:EffectiveUsageMeasure
 chron:GlanceAssertion
     a owl:Class ;
     rdfs:label "GlanceAssertion" ;
-    rdfs:subClassOf 
+    rdfs:subClassOf
         [
             a owl:Restriction ;
             owl:minCardinality 0 ;
@@ -337,7 +337,7 @@ chron:GlanceAssertion
 chron:LoggingObservation
     a owl:Class ;
     rdfs:label "LoggingObservation" ;
-    rdfs:subClassOf 
+    rdfs:subClassOf
         [
             a owl:Restriction ;
             owl:minCardinality 0 ;
@@ -373,44 +373,154 @@ chron:LoggingObservation
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 
-chron:PipelinePlan
+chron:QueryExecution
     a owl:Class ;
-    rdfs:label "PipelinePlan" ;
-    rdfs:subClassOf 
+    rdfs:label "QueryExecution" ;
+    rdfs:subClassOf
         [
             a owl:Restriction ;
-            owl:allValuesFrom xsd:string ;
-            owl:onProperty chron:plan_id ;
+            owl:minCardinality 0 ;
+            owl:onProperty chron:used_parameter_set ;
         ] ,
         [
             a owl:Restriction ;
             owl:maxCardinality 1 ;
-            owl:onProperty chron:plan_id ;
+            owl:onProperty chron:used_parameter_set ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom xsd:string ;
+            owl:onProperty chron:query_input_key ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:maxCardinality 1 ;
+            owl:onProperty chron:query_input_key ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom xsd:string ;
+            owl:onProperty chron:query_output_digest ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:maxCardinality 1 ;
+            owl:onProperty chron:query_output_digest ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:maxCardinality 1 ;
+            owl:onProperty chron:executes_query ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:maxCardinality 1 ;
+            owl:onProperty chron:execution_started_at ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom xsd:dateTime ;
+            owl:onProperty chron:execution_started_at ;
         ] ,
         [
             a owl:Restriction ;
             owl:minCardinality 1 ;
-            owl:onProperty chron:plan_id ;
+            owl:onProperty chron:query_input_key ;
         ] ,
         [
             a owl:Restriction ;
-            owl:minCardinality 0 ;
-            owl:onProperty chron:steps ;
+            owl:allValuesFrom chron:ParameterSet ;
+            owl:onProperty chron:used_parameter_set ;
         ] ,
         [
             a owl:Restriction ;
-            owl:allValuesFrom chron:StepDefinition ;
-            owl:onProperty chron:steps ;
+            owl:minCardinality 1 ;
+            owl:onProperty chron:query_output_digest ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:minCardinality 1 ;
+            owl:onProperty chron:executes_query ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:minCardinality 1 ;
+            owl:onProperty chron:execution_started_at ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom chron:QueryExecutionStatus ;
+            owl:onProperty chron:query_execution_status ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom chron:OperationExecution ;
+            owl:onProperty chron:part_of_execution ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:maxCardinality 1 ;
+            owl:onProperty chron:query_execution_status ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom xsd:string ;
+            owl:onProperty chron:query_reason_id ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:maxCardinality 1 ;
+            owl:onProperty chron:query_reason_id ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:maxCardinality 1 ;
+            owl:onProperty chron:part_of_execution ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom chron:QueryDefinition ;
+            owl:onProperty chron:executes_query ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:minCardinality 1 ;
+            owl:onProperty chron:query_execution_status ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:maxCardinality 1 ;
+            owl:onProperty chron:execution_ended_at ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom xsd:dateTime ;
+            owl:onProperty chron:execution_ended_at ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:minCardinality 1 ;
+            owl:onProperty chron:query_reason_id ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:minCardinality 1 ;
+            owl:onProperty chron:part_of_execution ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:minCardinality 1 ;
+            owl:onProperty chron:execution_ended_at ;
         ] ;
-    skos:broadMatch pplan:Plan ;
-    skos:definition "The prospective processing workflow. A p-plan:Plan / prov:Plan." ;
+    skos:broadMatch prov:Activity ;
+    skos:definition "Retrospective evidence for one physical query. Kept distinct from OperationExecution because a fused query can realize several semantic operations with different applicability." ;
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 
 chron:UsageEpisodeAssertion
     a owl:Class ;
     rdfs:label "UsageEpisodeAssertion" ;
-    rdfs:subClassOf 
+    rdfs:subClassOf
         [
             a owl:Restriction ;
             owl:minCardinality 0 ;
@@ -509,7 +619,7 @@ chron:UsageEpisodeAssertion
 chron:UsageSessionAssertion
     a owl:Class ;
     rdfs:label "UsageSessionAssertion" ;
-    rdfs:subClassOf 
+    rdfs:subClassOf
         [
             a owl:Restriction ;
             owl:minCardinality 0 ;
@@ -575,10 +685,54 @@ chron:UsageSessionAssertion
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 
+chron:WorkflowPlan
+    a owl:Class ;
+    rdfs:label "WorkflowPlan" ;
+    rdfs:subClassOf
+        [
+            a owl:Restriction ;
+            owl:minCardinality 0 ;
+            owl:onProperty chron:operations ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom chron:OperationDefinition ;
+            owl:onProperty chron:operations ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom xsd:string ;
+            owl:onProperty chron:plan_id ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:maxCardinality 1 ;
+            owl:onProperty chron:plan_id ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:minCardinality 0 ;
+            owl:onProperty chron:queries ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:minCardinality 1 ;
+            owl:onProperty chron:plan_id ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom chron:QueryDefinition ;
+            owl:onProperty chron:queries ;
+        ] ;
+    skos:broadMatch pplan:Plan ;
+    skos:definition "The prospective processing workflow. A p-plan:Plan / prov:Plan." ;
+    skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
+.
+
 chron:AttributionAssertion
     a owl:Class ;
     rdfs:label "AttributionAssertion" ;
-    rdfs:subClassOf 
+    rdfs:subClassOf
         [
             a owl:Restriction ;
             owl:minCardinality 0 ;
@@ -807,79 +961,10 @@ chron:AttributionAssertion
     rdfs:subClassOf chron:MeasurementLayer ;
 .
 
-chron:NodeExecution
-    a owl:Class ;
-    rdfs:label "NodeExecution" ;
-    rdfs:subClassOf 
-        [
-            a owl:Restriction ;
-            owl:minCardinality 0 ;
-            owl:onProperty chron:used_parameter_set ;
-        ] ,
-        [
-            a owl:Restriction ;
-            owl:minCardinality 0 ;
-            owl:onProperty chron:ended_at ;
-        ] ,
-        [
-            a owl:Restriction ;
-            owl:allValuesFrom xsd:string ;
-            owl:onProperty chron:ended_at ;
-        ] ,
-        [
-            a owl:Restriction ;
-            owl:maxCardinality 1 ;
-            owl:onProperty chron:used_parameter_set ;
-        ] ,
-        [
-            a owl:Restriction ;
-            owl:maxCardinality 1 ;
-            owl:onProperty chron:ended_at ;
-        ] ,
-        [
-            a owl:Restriction ;
-            owl:minCardinality 0 ;
-            owl:onProperty chron:executes_step ;
-        ] ,
-        [
-            a owl:Restriction ;
-            owl:allValuesFrom chron:ParameterSet ;
-            owl:onProperty chron:used_parameter_set ;
-        ] ,
-        [
-            a owl:Restriction ;
-            owl:minCardinality 0 ;
-            owl:onProperty chron:started_at ;
-        ] ,
-        [
-            a owl:Restriction ;
-            owl:maxCardinality 1 ;
-            owl:onProperty chron:executes_step ;
-        ] ,
-        [
-            a owl:Restriction ;
-            owl:allValuesFrom xsd:string ;
-            owl:onProperty chron:started_at ;
-        ] ,
-        [
-            a owl:Restriction ;
-            owl:maxCardinality 1 ;
-            owl:onProperty chron:started_at ;
-        ] ,
-        [
-            a owl:Restriction ;
-            owl:allValuesFrom chron:StepDefinition ;
-            owl:onProperty chron:executes_step ;
-        ] ;
-    skos:broadMatch prov:Activity ;
-    skos:definition "A retrospective execution of a StepDefinition. A prov:Activity." ;
-    skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
-.
-
 chron:ParameterBinding
     a owl:Class ;
     rdfs:label "ParameterBinding" ;
-    rdfs:subClassOf 
+    rdfs:subClassOf
         [
             a owl:Restriction ;
             owl:minCardinality 0 ;
@@ -917,7 +1002,7 @@ chron:ParameterBinding
 chron:PlatformEventOccurrence
     a owl:Class ;
     rdfs:label "PlatformEventOccurrence" ;
-    rdfs:subClassOf 
+    rdfs:subClassOf
         [
             a owl:Restriction ;
             owl:minCardinality 0 ;
@@ -952,10 +1037,45 @@ chron:PlatformEventOccurrence
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 
+<https://w3id.org/chronicle-usage-ontology/core/QueryExecutionStatus#bypassed>
+    a owl:Class ;
+    rdfs:label "bypassed" ;
+    rdfs:subClassOf chron:QueryExecutionStatus ;
+    skos:definition "Not applicable for the supplied inputs and configuration." ;
+.
+
+<https://w3id.org/chronicle-usage-ontology/core/QueryExecutionStatus#cached>
+    a owl:Class ;
+    rdfs:label "cached" ;
+    rdfs:subClassOf chron:QueryExecutionStatus ;
+    skos:definition "Reused from a compatible in-memory or durable checkpoint." ;
+.
+
+<https://w3id.org/chronicle-usage-ontology/core/QueryExecutionStatus#error>
+    a owl:Class ;
+    rdfs:label "error" ;
+    rdfs:subClassOf chron:QueryExecutionStatus ;
+    skos:definition "Evaluation failed." ;
+.
+
+<https://w3id.org/chronicle-usage-ontology/core/QueryExecutionStatus#recomputed>
+    a owl:Class ;
+    rdfs:label "recomputed" ;
+    rdfs:subClassOf chron:QueryExecutionStatus ;
+    skos:definition "Evaluated during this run." ;
+.
+
+<https://w3id.org/chronicle-usage-ontology/core/QueryExecutionStatus#skipped>
+    a owl:Class ;
+    rdfs:label "skipped" ;
+    rdfs:subClassOf chron:QueryExecutionStatus ;
+    skos:definition "Intentionally omitted by the execution mode." ;
+.
+
 chron:ReconstructionStrategy
     a owl:Class ;
     rdfs:label "ReconstructionStrategy" ;
-    rdfs:subClassOf 
+    rdfs:subClassOf
         [
             a owl:Restriction ;
             owl:minCardinality 0 ;
@@ -1045,7 +1165,7 @@ chron:ReconstructionStrategy
 chron:UsageEventRecord
     a owl:Class ;
     rdfs:label "UsageEventRecord" ;
-    rdfs:subClassOf 
+    rdfs:subClassOf
         [
             a owl:Restriction ;
             owl:minCardinality 0 ;
@@ -1179,11 +1299,27 @@ chron:bindings
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 
+chron:configuration_dependencies
+    a owl:DatatypeProperty ;
+    rdfs:label "configuration_dependencies" ;
+    rdfs:range xsd:string ;
+    skos:definition "Direct configuration fields read by this operation." ;
+    skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
+.
+
 chron:consumes
     a owl:DatatypeProperty ;
     rdfs:label "consumes" ;
     rdfs:range xsd:string ;
-    skos:definition "Channels/inputs the step reads." ;
+    skos:definition "Channels or inputs the operation reads." ;
+    skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
+.
+
+chron:data_effects
+    a owl:DatatypeProperty ;
+    rdfs:label "data_effects" ;
+    rdfs:range xsd:string ;
+    skos:definition "Declared effects such as preserve, drop, split, classify, or encode." ;
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 
@@ -1191,7 +1327,15 @@ chron:depends_on
     a owl:DatatypeProperty ;
     rdfs:label "depends_on" ;
     rdfs:range xsd:string ;
-    skos:definition "Steps that must precede this one." ;
+    skos:definition "Operations that must precede this one." ;
+    skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
+.
+
+chron:operations
+    a owl:ObjectProperty ;
+    rdfs:label "operations" ;
+    rdfs:range chron:OperationDefinition ;
+    skos:definition "Semantic operations in the workflow." ;
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 
@@ -1199,15 +1343,47 @@ chron:produces
     a owl:DatatypeProperty ;
     rdfs:label "produces" ;
     rdfs:range xsd:string ;
-    skos:definition "Channels/outputs the step produces." ;
+    skos:definition "Channels or outputs the operation produces." ;
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 
-chron:steps
+chron:queries
     a owl:ObjectProperty ;
-    rdfs:label "steps" ;
-    rdfs:range chron:StepDefinition ;
-    skos:definition "Steps of the plan." ;
+    rdfs:label "queries" ;
+    rdfs:range chron:QueryDefinition ;
+    skos:definition "Physical queries in the workflow." ;
+    skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
+.
+
+chron:query_dependencies
+    a owl:ObjectProperty ;
+    rdfs:label "query_dependencies" ;
+    rdfs:range chron:QueryDefinition ;
+    skos:definition "Direct upstream physical queries." ;
+    skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
+.
+
+chron:query_outputs
+    a owl:DatatypeProperty ;
+    rdfs:label "query_outputs" ;
+    rdfs:range xsd:string ;
+    skos:definition "Independently identified output artifacts or ports." ;
+    skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
+.
+
+chron:query_request_fields
+    a owl:DatatypeProperty ;
+    rdfs:label "query_request_fields" ;
+    rdfs:range xsd:string ;
+    skos:definition "Exact request fields read by the query." ;
+    skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
+.
+
+chron:realizes_operations
+    a owl:ObjectProperty ;
+    rdfs:label "realizes_operations" ;
+    rdfs:range chron:OperationDefinition ;
+    skos:definition "Semantic operations this query may realize." ;
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 
@@ -1351,7 +1527,15 @@ chron:engine
     a owl:DatatypeProperty ;
     rdfs:label "engine" ;
     rdfs:range xsd:string ;
-    skos:definition "Named algorithm/engine the step realizes." ;
+    skos:definition "Named algorithm or engine the operation realizes." ;
+    skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
+.
+
+chron:epistemic_role
+    a owl:DatatypeProperty ;
+    rdfs:label "epistemic_role" ;
+    rdfs:range xsd:string ;
+    skos:definition "Whether the operation observes, infers, applies policy, or presents." ;
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 
@@ -1363,11 +1547,43 @@ chron:event_timestamp_ns
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 
-chron:executes_step
+chron:executes_operation
     a owl:ObjectProperty ;
-    rdfs:label "executes_step" ;
-    rdfs:range chron:StepDefinition ;
-    skos:definition "The StepDefinition this execution runs." ;
+    rdfs:label "executes_operation" ;
+    rdfs:range chron:OperationDefinition ;
+    skos:definition "The OperationDefinition this execution realizes." ;
+    skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
+.
+
+chron:executes_query
+    a owl:ObjectProperty ;
+    rdfs:label "executes_query" ;
+    rdfs:range chron:QueryDefinition ;
+    skos:definition "The QueryDefinition this execution realizes." ;
+    skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
+.
+
+chron:execution_ended_at
+    a owl:DatatypeProperty ;
+    rdfs:label "execution_ended_at" ;
+    rdfs:range xsd:dateTime ;
+    skos:definition "Evidence timestamp for the query execution." ;
+    skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
+.
+
+chron:execution_id
+    a owl:DatatypeProperty ;
+    rdfs:label "execution_id" ;
+    rdfs:range xsd:string ;
+    skos:definition "Stable workflow-execution identifier." ;
+    skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
+.
+
+chron:execution_started_at
+    a owl:DatatypeProperty ;
+    rdfs:label "execution_started_at" ;
+    rdfs:range xsd:dateTime ;
+    skos:definition "Evidence timestamp for the query execution." ;
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 
@@ -1435,6 +1651,22 @@ chron:on_shared_device
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 
+chron:operation_id
+    a owl:DatatypeProperty ;
+    rdfs:label "operation_id" ;
+    rdfs:range xsd:string ;
+    skos:definition "Stable semantic operation identifier." ;
+    skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
+.
+
+chron:operation_role
+    a owl:DatatypeProperty ;
+    rdfs:label "operation_role" ;
+    rdfs:range xsd:string ;
+    skos:definition "Semantic responsibility of the operation." ;
+    skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
+.
+
 chron:parameter_set_sha256
     a owl:DatatypeProperty ;
     rdfs:label "parameter_set_sha256" ;
@@ -1443,11 +1675,19 @@ chron:parameter_set_sha256
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 
-chron:part_of_step
+chron:part_of_execution
     a owl:ObjectProperty ;
-    rdfs:label "part_of_step" ;
-    rdfs:range chron:StepDefinition ;
-    skos:definition "The coarser-scale step this step is a proper part of (recursive composition — no separate \"substep\" class; scale is arbitrary). Referenced by step_id, not inlined." ;
+    rdfs:label "part_of_execution" ;
+    rdfs:range chron:OperationExecution ;
+    skos:definition "Root workflow execution containing this query execution." ;
+    skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
+.
+
+chron:part_of_operation
+    a owl:ObjectProperty ;
+    rdfs:label "part_of_operation" ;
+    rdfs:range chron:OperationDefinition ;
+    skos:definition "The coarser semantic operation this operation is a proper part of. Referenced by operation_id, not inlined." ;
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 
@@ -1470,8 +1710,56 @@ chron:policy_treatment
 chron:produced_by
     a owl:ObjectProperty ;
     rdfs:label "produced_by" ;
-    rdfs:range chron:NodeExecution ;
-    skos:definition "The node execution that produced this measure." ;
+    rdfs:range chron:OperationExecution ;
+    skos:definition "The operation execution that produced this measure." ;
+    skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
+.
+
+chron:query_execution_status
+    a owl:ObjectProperty ;
+    rdfs:label "query_execution_status" ;
+    rdfs:range chron:QueryExecutionStatus ;
+    skos:definition "Observed physical execution state." ;
+    skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
+.
+
+chron:query_group_id
+    a owl:DatatypeProperty ;
+    rdfs:label "query_group_id" ;
+    rdfs:range xsd:string ;
+    skos:definition "Presentation-only query-group identity." ;
+    skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
+.
+
+chron:query_id
+    a owl:DatatypeProperty ;
+    rdfs:label "query_id" ;
+    rdfs:range xsd:string ;
+    skos:definition "Stable physical-query identifier." ;
+    skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
+.
+
+chron:query_input_key
+    a owl:DatatypeProperty ;
+    rdfs:label "query_input_key" ;
+    rdfs:range xsd:string ;
+    skos:definition "Content identity of the query's exact effective inputs." ;
+    skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
+.
+
+chron:query_output_digest
+    a owl:DatatypeProperty ;
+    rdfs:label "query_output_digest" ;
+    rdfs:range xsd:string ;
+    skos:definition "Content identity of the query output." ;
+    skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
+.
+
+chron:query_reason_id
+    a owl:DatatypeProperty ;
+    rdfs:label "query_reason_id" ;
+    rdfs:range xsd:string ;
+    skos:definition "Stable identity of the evidence supporting the state." ;
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 
@@ -1515,14 +1803,6 @@ chron:started_at
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 
-chron:step_id
-    a owl:DatatypeProperty ;
-    rdfs:label "step_id" ;
-    rdfs:range xsd:string ;
-    skos:definition "Step identifier (= graph node id)." ;
-    skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
-.
-
 chron:strategy_id
     a owl:DatatypeProperty ;
     rdfs:label "strategy_id" ;
@@ -1559,14 +1839,98 @@ chron:verb
     a owl:DatatypeProperty ;
     rdfs:label "verb" ;
     rdfs:range xsd:string ;
-    skos:definition "Action the step performs." ;
+    skos:definition "Action the operation performs." ;
+    skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
+.
+
+chron:OperationExecution
+    a owl:Class ;
+    rdfs:label "OperationExecution" ;
+    rdfs:subClassOf
+        [
+            a owl:Restriction ;
+            owl:minCardinality 0 ;
+            owl:onProperty chron:used_parameter_set ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:minCardinality 0 ;
+            owl:onProperty chron:ended_at ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom xsd:string ;
+            owl:onProperty chron:ended_at ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:maxCardinality 1 ;
+            owl:onProperty chron:used_parameter_set ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:maxCardinality 1 ;
+            owl:onProperty chron:ended_at ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:minCardinality 0 ;
+            owl:onProperty chron:executes_operation ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom chron:OperationDefinition ;
+            owl:onProperty chron:executes_operation ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom chron:ParameterSet ;
+            owl:onProperty chron:used_parameter_set ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:maxCardinality 1 ;
+            owl:onProperty chron:executes_operation ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:minCardinality 0 ;
+            owl:onProperty chron:started_at ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom xsd:string ;
+            owl:onProperty chron:execution_id ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:maxCardinality 1 ;
+            owl:onProperty chron:execution_id ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom xsd:string ;
+            owl:onProperty chron:started_at ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:maxCardinality 1 ;
+            owl:onProperty chron:started_at ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:minCardinality 1 ;
+            owl:onProperty chron:execution_id ;
+        ] ;
+    skos:broadMatch prov:Activity ;
+    skos:definition "A retrospective execution of an OperationDefinition. A prov:Activity." ;
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 
 chron:ReconstructionExecution
     a owl:Class ;
     rdfs:label "ReconstructionExecution" ;
-    rdfs:subClassOf 
+    rdfs:subClassOf
         [
             a owl:Restriction ;
             owl:minCardinality 0 ;
@@ -1610,46 +1974,12 @@ chron:AttributionStatus
         <https://w3id.org/chronicle-usage-ontology/core/AttributionStatus#known_non_target>
         <https://w3id.org/chronicle-usage-ontology/core/AttributionStatus#unresolved>
     ) ;
-    skos:definition "Attribution status of an App-Usage assertion — the compliance denominator contract. Chronicle uses a CLOSED attribution vocabulary: \"Target Child\", \"Other\", or \"None\"/blank (survey answers arrive as \"Other (From Survey)\"). Mirrors classifyAttribution() in web/src/lib/stages/attributePerson.ts (the runtime SSOT). NEVER a null person and NEVER an \"unknown person\" class." ;
+    skos:definition "Attribution status of an App-Usage assertion — the compliance denominator contract. Chronicle uses a CLOSED attribution vocabulary: \"Target Child\", \"Other\", or \"None\"/blank (survey answers arrive as \"Other (From Survey)\"). Mirrors Rust attribution in pipeline_v2_incremental.rs (the runtime source of truth). NEVER a null person and NEVER an \"unknown person\" class." ;
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
     linkml:permissible_values
         <https://w3id.org/chronicle-usage-ontology/core/AttributionStatus#known_non_target> ,
         <https://w3id.org/chronicle-usage-ontology/core/AttributionStatus#target> ,
         <https://w3id.org/chronicle-usage-ontology/core/AttributionStatus#unresolved> ;
-.
-
-chron:ParameterSet
-    a owl:Class ;
-    rdfs:label "ParameterSet" ;
-    rdfs:subClassOf 
-        [
-            a owl:Restriction ;
-            owl:minCardinality 0 ;
-            owl:onProperty chron:parameter_set_sha256 ;
-        ] ,
-        [
-            a owl:Restriction ;
-            owl:allValuesFrom xsd:string ;
-            owl:onProperty chron:parameter_set_sha256 ;
-        ] ,
-        [
-            a owl:Restriction ;
-            owl:maxCardinality 1 ;
-            owl:onProperty chron:parameter_set_sha256 ;
-        ] ,
-        [
-            a owl:Restriction ;
-            owl:minCardinality 0 ;
-            owl:onProperty chron:bindings ;
-        ] ,
-        [
-            a owl:Restriction ;
-            owl:allValuesFrom chron:ParameterBinding ;
-            owl:onProperty chron:bindings ;
-        ] ;
-    skos:broadMatch prov:Entity ;
-    skos:definition "A content-addressed configuration entity — a set of ParameterBindings over the plan's variables. NOT a Plan: the plan is the workflow; this binds its variables." ;
-    skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 
 chron:ReconstructionStrategyId
@@ -1686,117 +2016,116 @@ chron:CoverageCause
         <https://w3id.org/chronicle-usage-ontology/core/CoverageCause#unknown> ;
 .
 
-chron:StepDefinition
+chron:ParameterSet
     a owl:Class ;
-    rdfs:label "StepDefinition" ;
-    rdfs:subClassOf 
+    rdfs:label "ParameterSet" ;
+    rdfs:subClassOf
         [
             a owl:Restriction ;
             owl:minCardinality 0 ;
-            owl:onProperty chron:verb ;
+            owl:onProperty chron:parameter_set_sha256 ;
         ] ,
         [
             a owl:Restriction ;
             owl:allValuesFrom xsd:string ;
-            owl:onProperty chron:verb ;
+            owl:onProperty chron:parameter_set_sha256 ;
         ] ,
         [
             a owl:Restriction ;
             owl:maxCardinality 1 ;
-            owl:onProperty chron:verb ;
+            owl:onProperty chron:parameter_set_sha256 ;
         ] ,
         [
             a owl:Restriction ;
             owl:minCardinality 0 ;
-            owl:onProperty chron:is_fatal ;
+            owl:onProperty chron:bindings ;
         ] ,
         [
             a owl:Restriction ;
+            owl:allValuesFrom chron:ParameterBinding ;
+            owl:onProperty chron:bindings ;
+        ] ;
+    skos:broadMatch prov:Entity ;
+    skos:definition "A content-addressed configuration entity — a set of ParameterBindings over the plan's variables. NOT a Plan: the plan is the workflow; this binds its variables." ;
+    skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
+.
+
+chron:QueryDefinition
+    a owl:Class ;
+    rdfs:label "QueryDefinition" ;
+    rdfs:subClassOf
+        [
+            a owl:Restriction ;
             owl:minCardinality 0 ;
-            owl:onProperty chron:engine ;
+            owl:onProperty chron:query_request_fields ;
         ] ,
         [
             a owl:Restriction ;
             owl:allValuesFrom xsd:string ;
-            owl:onProperty chron:step_id ;
+            owl:onProperty chron:query_request_fields ;
         ] ,
         [
             a owl:Restriction ;
             owl:minCardinality 0 ;
-            owl:onProperty chron:part_of_step ;
+            owl:onProperty chron:query_outputs ;
         ] ,
         [
             a owl:Restriction ;
-            owl:maxCardinality 1 ;
-            owl:onProperty chron:step_id ;
+            owl:minCardinality 0 ;
+            owl:onProperty chron:query_dependencies ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:minCardinality 0 ;
+            owl:onProperty chron:realizes_operations ;
         ] ,
         [
             a owl:Restriction ;
             owl:allValuesFrom xsd:string ;
-            owl:onProperty chron:engine ;
+            owl:onProperty chron:query_outputs ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom xsd:string ;
+            owl:onProperty chron:query_id ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom chron:OperationDefinition ;
+            owl:onProperty chron:realizes_operations ;
         ] ,
         [
             a owl:Restriction ;
             owl:maxCardinality 1 ;
-            owl:onProperty chron:is_fatal ;
+            owl:onProperty chron:query_id ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom xsd:string ;
+            owl:onProperty chron:query_group_id ;
         ] ,
         [
             a owl:Restriction ;
             owl:maxCardinality 1 ;
-            owl:onProperty chron:engine ;
-        ] ,
-        [
-            a owl:Restriction ;
-            owl:allValuesFrom xsd:boolean ;
-            owl:onProperty chron:is_fatal ;
-        ] ,
-        [
-            a owl:Restriction ;
-            owl:maxCardinality 1 ;
-            owl:onProperty chron:part_of_step ;
+            owl:onProperty chron:query_group_id ;
         ] ,
         [
             a owl:Restriction ;
             owl:minCardinality 1 ;
-            owl:onProperty chron:step_id ;
+            owl:onProperty chron:query_id ;
         ] ,
         [
             a owl:Restriction ;
-            owl:minCardinality 0 ;
-            owl:onProperty chron:consumes ;
+            owl:minCardinality 1 ;
+            owl:onProperty chron:query_group_id ;
         ] ,
         [
             a owl:Restriction ;
-            owl:minCardinality 0 ;
-            owl:onProperty chron:depends_on ;
-        ] ,
-        [
-            a owl:Restriction ;
-            owl:minCardinality 0 ;
-            owl:onProperty chron:produces ;
-        ] ,
-        [
-            a owl:Restriction ;
-            owl:allValuesFrom xsd:string ;
-            owl:onProperty chron:consumes ;
-        ] ,
-        [
-            a owl:Restriction ;
-            owl:allValuesFrom chron:StepDefinition ;
-            owl:onProperty chron:part_of_step ;
-        ] ,
-        [
-            a owl:Restriction ;
-            owl:allValuesFrom xsd:string ;
-            owl:onProperty chron:depends_on ;
-        ] ,
-        [
-            a owl:Restriction ;
-            owl:allValuesFrom xsd:string ;
-            owl:onProperty chron:produces ;
+            owl:allValuesFrom chron:QueryDefinition ;
+            owl:onProperty chron:query_dependencies ;
         ] ;
     skos:broadMatch pplan:Step ;
-    skos:definition "One processing step in the plan (a graph node) at ANY scale — a p-plan:Step. Steps compose recursively via part_of_step: a coarse step (an execution/memoization unit) and the fine-grained transformations inside it are the SAME kind of thing, because the step boundary is an arbitrary scale choice, not an ontological distinction. Follows the ProcessingStep shape (id/verb/engine/consumes/produces/depends_on)." ;
+    skos:definition "One physical computation and memoization boundary. Its realizes_operations links are prospective mappings and do not imply that those semantic operations were applied in a particular run." ;
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 
@@ -1824,18 +2153,30 @@ chron:event_code
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 
-chron:used_parameter_set
-    a owl:ObjectProperty ;
-    rdfs:label "used_parameter_set" ;
-    rdfs:range chron:ParameterSet ;
-    skos:definition "The ParameterSet the execution used." ;
+chron:QueryExecutionStatus
+    a owl:Class ;
+    rdfs:label "QueryExecutionStatus" ;
+    owl:unionOf (
+        <https://w3id.org/chronicle-usage-ontology/core/QueryExecutionStatus#cached>
+        <https://w3id.org/chronicle-usage-ontology/core/QueryExecutionStatus#recomputed>
+        <https://w3id.org/chronicle-usage-ontology/core/QueryExecutionStatus#error>
+        <https://w3id.org/chronicle-usage-ontology/core/QueryExecutionStatus#skipped>
+        <https://w3id.org/chronicle-usage-ontology/core/QueryExecutionStatus#bypassed>
+    ) ;
+    skos:definition "Observed state of one physical query in a runtime execution." ;
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
+    linkml:permissible_values
+        <https://w3id.org/chronicle-usage-ontology/core/QueryExecutionStatus#bypassed> ,
+        <https://w3id.org/chronicle-usage-ontology/core/QueryExecutionStatus#cached> ,
+        <https://w3id.org/chronicle-usage-ontology/core/QueryExecutionStatus#error> ,
+        <https://w3id.org/chronicle-usage-ontology/core/QueryExecutionStatus#recomputed> ,
+        <https://w3id.org/chronicle-usage-ontology/core/QueryExecutionStatus#skipped> ;
 .
 
 chron:UsageInterval
     a owl:Class ;
     rdfs:label "UsageInterval" ;
-    rdfs:subClassOf 
+    rdfs:subClassOf
         [
             a owl:Restriction ;
             owl:minCardinality 0 ;
@@ -1934,6 +2275,170 @@ chron:EndpointStatus
         <https://w3id.org/chronicle-usage-ontology/core/EndpointStatus#unobserved> ;
 .
 
+chron:OperationDefinition
+    a owl:Class ;
+    rdfs:label "OperationDefinition" ;
+    rdfs:subClassOf
+        [
+            a owl:Restriction ;
+            owl:minCardinality 0 ;
+            owl:onProperty chron:verb ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:minCardinality 0 ;
+            owl:onProperty chron:part_of_operation ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom xsd:string ;
+            owl:onProperty chron:verb ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:maxCardinality 1 ;
+            owl:onProperty chron:verb ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:minCardinality 0 ;
+            owl:onProperty chron:is_fatal ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:minCardinality 0 ;
+            owl:onProperty chron:engine ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom chron:OperationDefinition ;
+            owl:onProperty chron:part_of_operation ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:minCardinality 0 ;
+            owl:onProperty chron:epistemic_role ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:maxCardinality 1 ;
+            owl:onProperty chron:part_of_operation ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom xsd:string ;
+            owl:onProperty chron:engine ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:maxCardinality 1 ;
+            owl:onProperty chron:is_fatal ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:maxCardinality 1 ;
+            owl:onProperty chron:engine ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom xsd:string ;
+            owl:onProperty chron:epistemic_role ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:minCardinality 0 ;
+            owl:onProperty chron:data_effects ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:maxCardinality 1 ;
+            owl:onProperty chron:epistemic_role ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom xsd:boolean ;
+            owl:onProperty chron:is_fatal ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:minCardinality 0 ;
+            owl:onProperty chron:operation_role ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:minCardinality 0 ;
+            owl:onProperty chron:configuration_dependencies ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom xsd:string ;
+            owl:onProperty chron:operation_id ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:maxCardinality 1 ;
+            owl:onProperty chron:operation_id ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:minCardinality 0 ;
+            owl:onProperty chron:consumes ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom xsd:string ;
+            owl:onProperty chron:data_effects ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom xsd:string ;
+            owl:onProperty chron:operation_role ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom xsd:string ;
+            owl:onProperty chron:configuration_dependencies ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:minCardinality 0 ;
+            owl:onProperty chron:depends_on ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:maxCardinality 1 ;
+            owl:onProperty chron:operation_role ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:minCardinality 0 ;
+            owl:onProperty chron:produces ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:minCardinality 1 ;
+            owl:onProperty chron:operation_id ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom xsd:string ;
+            owl:onProperty chron:consumes ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom xsd:string ;
+            owl:onProperty chron:depends_on ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom xsd:string ;
+            owl:onProperty chron:produces ;
+        ] ;
+    skos:broadMatch pplan:Step ;
+    skos:definition "One semantic operation in the workflow at any useful scale. Operations compose recursively via part_of_operation so a coarse responsibility and its independently invalidatable transformations share one model without forcing presentation and execution boundaries to coincide." ;
+    skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
+.
+
 chron:measurement_layer
     a owl:ObjectProperty ;
     rdfs:label "measurement_layer" ;
@@ -1947,6 +2452,14 @@ chron:reconstructed_by
     rdfs:label "reconstructed_by" ;
     rdfs:range chron:ReconstructionExecution ;
     skos:definition "The execution that produced this assertion." ;
+    skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
+.
+
+chron:used_parameter_set
+    a owl:ObjectProperty ;
+    rdfs:label "used_parameter_set" ;
+    rdfs:range chron:ParameterSet ;
+    skos:definition "The ParameterSet the execution used." ;
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 

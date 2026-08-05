@@ -34,6 +34,13 @@ import { chromium, firefox, webkit } from "@playwright/test";
 const LAUNCHERS = { chromium, firefox, webkit };
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:4287";
 const PROFILE_ROOT = path.resolve(process.cwd(), ".tmp/memory-profiles");
+const LAST_RUN_DATABASE = {
+  name: "chronicle-workflow-last-run-v1",
+  version: 1,
+  storeName: "lastRun",
+  recordId: "last",
+};
+const CURRENT_DATABASE_NAMES = [LAST_RUN_DATABASE.name, "chronicle-projects"];
 /** How long one engine may take on one file before the run is recorded as unfinished. */
 const RUN_TIMEOUT_MS = Number(process.env.MEASURE_RUN_TIMEOUT_MS ?? 15 * 60_000);
 
@@ -63,7 +70,7 @@ async function measure(engineName, fixturePath, fixtureBytes) {
     // Reach the origin without booting the app, then clear it, so the run below
     // is a cold first execution rather than a resume from a previous profile.
     await page.goto(`${BASE_URL}/robots.txt`);
-    await page.evaluate(async () => {
+    await page.evaluate(async (currentDatabaseNames) => {
       const root = await navigator.storage.getDirectory().catch(() => null);
       if (root) {
         /** @type {string[]} */
@@ -76,7 +83,7 @@ async function measure(engineName, fixturePath, fixtureBytes) {
           await root.removeEntry(key, { recursive: true }).catch(() => {});
         }
       }
-      for (const name of ["chronicle-last-run", "chronicle-projects"]) {
+      for (const name of currentDatabaseNames) {
         await new Promise((resolve) => {
           const request = indexedDB.deleteDatabase(name);
           request.onsuccess = resolve;
@@ -84,7 +91,7 @@ async function measure(engineName, fixturePath, fixtureBytes) {
           request.onblocked = resolve;
         });
       }
-    });
+    }, CURRENT_DATABASE_NAMES);
 
     await page.goto(BASE_URL);
     await page
@@ -151,17 +158,21 @@ async function measure(engineName, fixturePath, fixtureBytes) {
       .waitFor({ timeout: 60_000 });
     const elapsedMs = Date.now() - started;
 
-    const measurement = await page.evaluate(async () => {
+    const measurement = await page.evaluate(async (lastRunDatabase) => {
       /** @type {any} */
       const record = await new Promise((resolve, reject) => {
-        const open = indexedDB.open("chronicle-last-run", 1);
-        open.onerror = () => reject(new Error("cannot open chronicle-last-run"));
+        const open = indexedDB.open(
+          lastRunDatabase.name,
+          lastRunDatabase.version,
+        );
+        open.onerror = () =>
+          reject(new Error(`cannot open ${lastRunDatabase.name}`));
         open.onsuccess = () => {
           const db = open.result;
           const request = db
-            .transaction("lastRun", "readonly")
-            .objectStore("lastRun")
-            .get("last");
+            .transaction(lastRunDatabase.storeName, "readonly")
+            .objectStore(lastRunDatabase.storeName)
+            .get(lastRunDatabase.recordId);
           request.onsuccess = () => {
             db.close();
             resolve(request.result ?? null);
@@ -185,7 +196,7 @@ async function measure(engineName, fixturePath, fixtureBytes) {
         jsHeapBytes: typeof memory?.usedJSHeapSize === "number" ? memory.usedJSHeapSize : null,
         hardwareConcurrency: navigator.hardwareConcurrency ?? null,
       };
-    });
+    }, LAST_RUN_DATABASE);
 
     return {
       engine: engineName,
@@ -240,7 +251,7 @@ process.stdout.write(
       fixtureBytes,
       mechanics: {
         wasmMemoryBytes:
-          "ProcessedFileResult.workerWasmMemoryBytes, recorded by the processing worker from rustWasmMemoryBytes() (WebAssembly.Memory.buffer.byteLength) when the file finished, then read back from the app's chronicle-last-run IndexedDB record. WASM linear memory never shrinks, so this is the run's high-water mark, and it is equally exact on all three engines.",
+          "ProcessedFileResult.workerWasmMemoryBytes, recorded by the processing worker from rustWasmMemoryBytes() (WebAssembly.Memory.buffer.byteLength) when the file finished, then read back from the app's current workflow-namespaced IndexedDB last-run record. WASM linear memory never shrinks, so this is the run's high-water mark, and it is equally exact on all three engines.",
         jsHeapBytes:
           "performance.memory.usedJSHeapSize. Chromium-only, main thread only, says nothing about the worker's WASM heap. null on Firefox and WebKit, which expose no equivalent to page script.",
         processRss:

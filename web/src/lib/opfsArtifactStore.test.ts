@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import {
   collectRuntimeHistoryDigests,
   commitPersistedRuntimeWorkspace,
+  detectLegacyOpfsState,
   garbageCollectRuntimeObjects,
   exportRuntimeClosure,
   importRuntimeClosure,
@@ -23,6 +24,10 @@ import {
   type WorkspaceRootSlot,
   verifyRuntimeWorkspace,
 } from "@/lib/opfsArtifactStore";
+import {
+  encodeWorkflowClosureMagic,
+  WORKFLOW_CLOSURE_PROTOCOL_VERSION,
+} from "@/lib/workflowClosureProtocol";
 
 /**
  * Geometry of the last BufferSource handed to `write()`. WebKit's
@@ -185,7 +190,7 @@ function objectFile(
 ): MemoryFileHandle {
   const hex = objectDigest.slice(7);
   return root.directories
-    .get("chronicle-preprocessing-runtime-v1")!
+    .get("chronicle-workflow-runtime-v1")!
     .directories.get("objects")!
     .directories.get(hex.slice(0, 2))!
     .files.get(hex.slice(2))!;
@@ -238,16 +243,14 @@ function archiveWithSliceHook(
 }
 
 /**
- * The pre-streaming whole-buffer `exportRuntimeClosure`, kept verbatim as the
- * byte-compatibility oracle. Archives already sitting in users' backups were
- * written by exactly this code, so the streaming writer must still produce the
- * same bytes and the streaming importer must still accept them.
+ * A whole-buffer implementation of the current workflow archive, retained as
+ * a byte-compatibility oracle for the streaming writer.
  */
-async function legacyExportRuntimeClosure(
+async function wholeBufferExportRuntimeClosure(
   root: FileSystemDirectoryHandle,
   slot: WorkspaceRootSlot,
 ): Promise<Uint8Array> {
-  const magic = new TextEncoder().encode("CHRONICLE-CLOSURE-V1\n");
+  const magic = encodeWorkflowClosureMagic();
   const rootCommit = JSON.parse(
     new TextDecoder().decode(
       await readRuntimeObject(root, slot.workspaceRootDigest),
@@ -268,7 +271,7 @@ async function legacyExportRuntimeClosure(
   }
   const manifestBytes = new TextEncoder().encode(
     JSON.stringify({
-      protocolVersion: "chronicle-runtime-closure/v1",
+      protocolVersion: WORKFLOW_CLOSURE_PROTOCOL_VERSION,
       workspaceId: rootCommit.workspaceId,
       workspaceRootDigest: slot.workspaceRootDigest,
       previousWorkspaceRootDigest: slot.previousWorkspaceRootDigest,
@@ -298,7 +301,7 @@ function buildTestClosureArchive(
   previousWorkspaceRootDigest: string | null,
   artifacts: readonly PersistedRuntimeArtifact[],
 ): Uint8Array {
-  const magic = new TextEncoder().encode("CHRONICLE-CLOSURE-V1\n");
+  const magic = encodeWorkflowClosureMagic();
   let offset = 0;
   const objects = artifacts.map((value) => {
     const entry = { digest: value.digest, size: value.size, offset };
@@ -307,7 +310,7 @@ function buildTestClosureArchive(
   });
   const manifestBytes = new TextEncoder().encode(
     JSON.stringify({
-      protocolVersion: "chronicle-runtime-closure/v1",
+      protocolVersion: WORKFLOW_CLOSURE_PROTOCOL_VERSION,
       workspaceId,
       workspaceRootDigest,
       previousWorkspaceRootDigest,
@@ -334,6 +337,30 @@ function buildTestClosureArchive(
 }
 
 describe("OPFS content-addressed runtime workspace", () => {
+  it("detects legacy namespaces without reading or modifying them", async () => {
+    const root = new MemoryDirectoryHandle();
+    const legacy = new MemoryDirectoryHandle();
+    legacy.files.set("opaque-object", new MemoryFileHandle());
+    root.directories.set("chronicle-preprocessing-runtime-v1", legacy);
+
+    await expect(detectLegacyOpfsState(rootHandle(root))).resolves.toEqual({
+      detected: true,
+      directoryNames: ["chronicle-preprocessing-runtime-v1"],
+    });
+    expect(legacy.files.get("opaque-object")?.reads).toBe(0);
+    expect(root.directories.has("chronicle-workflow-runtime-v1")).toBe(false);
+  });
+
+  it("reports no legacy state without creating legacy directories", async () => {
+    const root = new MemoryDirectoryHandle();
+
+    await expect(detectLegacyOpfsState(rootHandle(root))).resolves.toEqual({
+      detected: false,
+      directoryNames: [],
+    });
+    expect(root.directories.size).toBe(0);
+  });
+
   it("reads only an untrusted prefix and leaves full digest verification to the selected read", async () => {
     const root = new MemoryDirectoryHandle();
     const value = await artifact("review-base", "0123456789abcdef");
@@ -723,7 +750,7 @@ describe("OPFS content-addressed runtime workspace", () => {
       artifacts: [rootArtifact, payload],
     });
     const archive = await exportRuntimeClosure(rootHandle(source), slot);
-    expect(archive.type).toBe("application/vnd.chronicle.workspace");
+    expect(archive.type).toBe("application/vnd.chronicle.workflow-workspace");
     await expect(runtimeClosureWorkspaceId(archive)).resolves.toBe(workspaceId);
     const destination = new MemoryDirectoryHandle();
     let verified = false;
@@ -778,17 +805,17 @@ describe("OPFS content-addressed runtime workspace", () => {
       values.push(rootArtifact, payload);
     }
 
-    const legacy = await legacyExportRuntimeClosure(rootHandle(source), slot!);
+    const wholeBuffer = await wholeBufferExportRuntimeClosure(rootHandle(source), slot!);
     const streamed = await exportRuntimeClosure(rootHandle(source), slot!);
     // Byte-for-byte, not merely "parses the same": an archive written by the
     // shipped whole-buffer exporter is exactly what this exporter now writes,
     // so the format needed no version bump and no backup was invalidated.
-    expect(await blobBytes(streamed)).toEqual(legacy);
+    expect(await blobBytes(streamed)).toEqual(wholeBuffer);
 
     const destination = new MemoryDirectoryHandle();
     const imported = await importRuntimeClosure(
       rootHandle(destination),
-      asArchive(legacy),
+      asArchive(wholeBuffer),
       () => Promise.resolve(),
     );
     expect(imported.workspaceRootDigest).toBe(slot!.workspaceRootDigest);
@@ -879,9 +906,9 @@ describe("OPFS content-addressed runtime workspace", () => {
     // archive is byte-identical to the whole-buffer writer's output. Compared
     // by digest because element-wise deep equality over megabytes of typed
     // array costs seconds and proves nothing extra.
-    const legacy = await legacyExportRuntimeClosure(rootHandle(source), slot);
-    expect(archive.size).toBe(legacy.byteLength);
-    expect(await digest(await blobBytes(archive))).toBe(await digest(legacy));
+    const wholeBuffer = await wholeBufferExportRuntimeClosure(rootHandle(source), slot);
+    expect(archive.size).toBe(wholeBuffer.byteLength);
+    expect(await digest(await blobBytes(archive))).toBe(await digest(wholeBuffer));
 
     const destination = new MemoryDirectoryHandle();
     const imported = await importRuntimeClosure(
@@ -973,7 +1000,7 @@ describe("OPFS content-addressed runtime workspace", () => {
       ).rejects.toThrow(/invalid runtime closure object table/);
       // Nothing may have been placed, and no root slot may exist.
       expect(
-        destination.directories.get("chronicle-preprocessing-runtime-v1"),
+        destination.directories.get("chronicle-workflow-runtime-v1"),
       ).toBeUndefined();
     }
 
@@ -988,7 +1015,7 @@ describe("OPFS content-addressed runtime workspace", () => {
       ),
     ).rejects.toThrow(/payload is incomplete/);
     expect(
-      overlong.directories.get("chronicle-preprocessing-runtime-v1"),
+      overlong.directories.get("chronicle-workflow-runtime-v1"),
     ).toBeUndefined();
 
     // A digest that no longer matches its object is rejected before any write,
@@ -1002,7 +1029,7 @@ describe("OPFS content-addressed runtime workspace", () => {
       ),
     ).rejects.toThrow(/digest mismatch/);
     expect(
-      tampered.directories.get("chronicle-preprocessing-runtime-v1"),
+      tampered.directories.get("chronicle-workflow-runtime-v1"),
     ).toBeUndefined();
   });
 
@@ -1428,7 +1455,7 @@ describe("OPFS content-addressed runtime workspace", () => {
     );
     await persistRuntimeObjects(rootHandle(root), [priorRoot, nextRoot]);
     const roots = root.directories
-      .get("chronicle-preprocessing-runtime-v1")!
+      .get("chronicle-workflow-runtime-v1")!
       .directories.get("roots")!;
     const changedAfterWrite = new MemoryFileHandle();
     changedAfterWrite.nextWriteTransform = async (bytes) => {
@@ -1530,7 +1557,7 @@ describe("OPFS content-addressed runtime workspace", () => {
     ).resolves.toMatchObject({ generation: 2 });
 
     const roots = root.directories
-      .get("chronicle-preprocessing-runtime-v1")!
+      .get("chronicle-workflow-runtime-v1")!
       .directories.get("roots")!;
     roots.files.get("root-a.json")!.bytes = new TextEncoder().encode(
       JSON.stringify({ protocolVersion: "bad", generation: 1 }),
@@ -1825,7 +1852,7 @@ describe("OPFS content-addressed runtime workspace", () => {
     const second = await openOpfsWorkspace(`sha256:${"2".repeat(64)}`);
     expect(first).not.toBe(second);
     expect(
-      root.directories.get("chronicle-preprocessing-workspaces-v1")?.directories
+      root.directories.get("chronicle-workflow-workspaces-v1")?.directories
         .size,
     ).toBe(2);
   });
@@ -1846,7 +1873,7 @@ describe("OPFS content-addressed runtime workspace", () => {
     const valid = await blobBytes(
       await exportRuntimeClosure(rootHandle(source), slot),
     );
-    const magic = new TextEncoder().encode("CHRONICLE-CLOSURE-V1\n");
+    const magic = encodeWorkflowClosureMagic();
 
     await expect(
       runtimeClosureWorkspaceId(asArchive(new Uint8Array([1, 2, 3]))),
@@ -2015,7 +2042,7 @@ describe("OPFS content-addressed runtime workspace", () => {
     const payload = await artifact("blob", "seven-byte-ish payload");
     const hex = payload.digest.slice(7);
     const store = (await root.getDirectoryHandle(
-      "chronicle-preprocessing-runtime-v1",
+      "chronicle-workflow-runtime-v1",
       { create: true },
     )) as unknown as MemoryDirectoryHandle;
     const objects = (await store.getDirectoryHandle("objects", {

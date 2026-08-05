@@ -49,7 +49,9 @@ fn samples(iterations: usize, mut body: impl FnMut()) -> Vec<Duration> {
 }
 
 fn minimum_ms(values: &[Duration]) -> f64 {
-    values.first().map_or(0.0, |value| value.as_secs_f64() * 1_000.0)
+    values
+        .first()
+        .map_or(0.0, |value| value.as_secs_f64() * 1_000.0)
 }
 
 fn median_ms(values: &[Duration]) -> f64 {

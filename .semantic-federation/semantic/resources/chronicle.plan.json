@@ -7,7 +7,7 @@
     "browser_selector": "typescript-worker-calls-rust-execute-workspace",
     "active_logical_authority": "rust-composed-runtime",
     "physical_execution": "salsa-tracked-rust-pipeline-v2",
-    "logical_execution_evidence": "salsa-actual-step-events-grouped-into-15-product-views",
+    "logical_execution_evidence": "salsa-actual-query-events-grouped-into-query-group-views",
     "workspace_authority": "rust-root-and-closure-contract-with-opfs-browser-io-adapter",
     "semantic_index": "derived-rust-oxigraph-registered-queries-only",
     "typescript_boundary": "interaction-visualization-and-browser-io-only",
@@ -179,14 +179,14 @@
       "qualification": "reserved-support"
     }
   ],
-  "nodes": [
+  "query_groups": [
     {
-      "node_id": "parse_events",
+      "query_group_id": "parse_events",
       "label": "Event parsing",
       "section": "preprocess",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/parse_events/v1",
-      "input_nodes": [],
-      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/parse_events",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/parse_events/v1",
+      "input_query_groups": [],
+      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/query-group-output/parse_events",
       "knobs": [
         {
           "option_key": "interaction_type_remap",
@@ -208,18 +208,18 @@
       "can_bypass": false,
       "early_cutoff": true,
       "determinism": "semantic",
-      "implementation_status": "rust-wasm-product-stage-projection",
+      "implementation_status": "rust-wasm-query-group-projection",
       "physical_execution_authority": false
     },
     {
-      "node_id": "normalize_timezones",
+      "query_group_id": "normalize_timezones",
       "label": "Timezone normalization",
       "section": "preprocess",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/normalize_timezones/v1",
-      "input_nodes": [
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/normalize_timezones/v1",
+      "input_query_groups": [
         "parse_events"
       ],
-      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/normalize_timezones",
+      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/query-group-output/normalize_timezones",
       "knobs": [
         {
           "option_key": "selected_timezone",
@@ -237,18 +237,18 @@
       "can_bypass": false,
       "early_cutoff": true,
       "determinism": "semantic",
-      "implementation_status": "rust-wasm-product-stage-projection",
+      "implementation_status": "rust-wasm-query-group-projection",
       "physical_execution_authority": false
     },
     {
-      "node_id": "dedup_and_order",
-      "label": "Event dedup & ordering",
+      "query_group_id": "dedup_and_order",
+      "label": "Event deduplication and ordering",
       "section": "preprocess",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/dedup_and_order/v1",
-      "input_nodes": [
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/dedup_and_order/v1",
+      "input_query_groups": [
         "normalize_timezones"
       ],
-      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/dedup_and_order",
+      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/query-group-output/dedup_and_order",
       "knobs": [
         {
           "option_key": "deduplicate_exact_rows",
@@ -274,18 +274,18 @@
       "can_bypass": false,
       "early_cutoff": true,
       "determinism": "semantic",
-      "implementation_status": "rust-wasm-product-stage-projection",
+      "implementation_status": "rust-wasm-query-group-projection",
       "physical_execution_authority": false
     },
     {
-      "node_id": "app_policy",
-      "label": "App policy — tag filtered packages",
+      "query_group_id": "app_policy",
+      "label": "App inclusion policy",
       "section": "clean",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/app_policy/v1",
-      "input_nodes": [
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/app_policy/v1",
+      "input_query_groups": [
         "dedup_and_order"
       ],
-      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/app_policy",
+      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/query-group-output/app_policy",
       "knobs": [
         {
           "option_key": "use_filter_file",
@@ -302,18 +302,18 @@
       "can_bypass": true,
       "early_cutoff": true,
       "determinism": "semantic",
-      "implementation_status": "rust-wasm-product-stage-projection",
+      "implementation_status": "rust-wasm-query-group-projection",
       "physical_execution_authority": false
     },
     {
-      "node_id": "device_state_timeline",
-      "label": "Device-state timeline (screen sessions)",
+      "query_group_id": "device_state_timeline",
+      "label": "Screen-session reconstruction",
       "section": "preprocess",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/device_state_timeline/v1",
-      "input_nodes": [
-        "app_policy"
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/device_state_timeline/v1",
+      "input_query_groups": [
+        "dedup_and_order"
       ],
-      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/device_state_timeline",
+      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/query-group-output/device_state_timeline",
       "knobs": [
         {
           "option_key": "process_screen_usage",
@@ -350,18 +350,19 @@
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
-      "implementation_status": "rust-wasm-product-stage-projection",
+      "implementation_status": "rust-wasm-query-group-projection",
       "physical_execution_authority": false
     },
     {
-      "node_id": "reconstruct_episodes",
+      "query_group_id": "reconstruct_episodes",
       "label": "Usage-episode reconstruction",
       "section": "preprocess",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/reconstruct_episodes/v1",
-      "input_nodes": [
-        "app_policy"
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/reconstruct_episodes/v1",
+      "input_query_groups": [
+        "app_policy",
+        "dedup_and_order"
       ],
-      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/reconstruct_episodes",
+      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/query-group-output/reconstruct_episodes",
       "knobs": [
         {
           "option_key": "process_app_usage",
@@ -422,18 +423,18 @@
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
-      "implementation_status": "rust-wasm-product-stage-projection",
+      "implementation_status": "rust-wasm-query-group-projection",
       "physical_execution_authority": false
     },
     {
-      "node_id": "categorize_apps",
+      "query_group_id": "categorize_apps",
       "label": "App categorization",
       "section": "preprocess",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/categorize_apps/v1",
-      "input_nodes": [
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/categorize_apps/v1",
+      "input_query_groups": [
         "reconstruct_episodes"
       ],
-      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/categorize_apps",
+      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/query-group-output/categorize_apps",
       "knobs": [
         {
           "option_key": "process_app_usage",
@@ -463,18 +464,18 @@
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
-      "implementation_status": "rust-wasm-product-stage-projection",
+      "implementation_status": "rust-wasm-query-group-projection",
       "physical_execution_authority": false
     },
     {
-      "node_id": "episode_annotations",
-      "label": "Episode annotation (engagement & flags)",
+      "query_group_id": "episode_annotations",
+      "label": "Episode annotation",
       "section": "preprocess",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/episode_annotations/v1",
-      "input_nodes": [
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/episode_annotations/v1",
+      "input_query_groups": [
         "categorize_apps"
       ],
-      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/episode_annotations",
+      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/query-group-output/episode_annotations",
       "knobs": [
         {
           "option_key": "process_app_usage",
@@ -501,19 +502,19 @@
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
-      "implementation_status": "rust-wasm-product-stage-projection",
+      "implementation_status": "rust-wasm-query-group-projection",
       "physical_execution_authority": false
     },
     {
-      "node_id": "interval_cleaning",
-      "label": "Interval cleaning (blank & drop)",
+      "query_group_id": "interval_cleaning",
+      "label": "Interval cleaning",
       "section": "clean",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/interval_cleaning/v1",
-      "input_nodes": [
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/interval_cleaning/v1",
+      "input_query_groups": [
         "episode_annotations",
         "reconstruct_episodes"
       ],
-      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/interval_cleaning",
+      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/query-group-output/interval_cleaning",
       "knobs": [
         {
           "option_key": "process_app_usage",
@@ -566,19 +567,19 @@
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
-      "implementation_status": "rust-wasm-product-stage-projection",
+      "implementation_status": "rust-wasm-query-group-projection",
       "physical_execution_authority": false
     },
     {
-      "node_id": "effective_usage",
-      "label": "Effective usage (screen-gated credit)",
+      "query_group_id": "effective_usage",
+      "label": "Screen-gated usage credit",
       "section": "clean",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/effective_usage/v1",
-      "input_nodes": [
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/effective_usage/v1",
+      "input_query_groups": [
         "app_policy",
         "interval_cleaning"
       ],
-      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/effective_usage",
+      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/query-group-output/effective_usage",
       "knobs": [
         {
           "option_key": "process_app_usage",
@@ -622,18 +623,18 @@
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
-      "implementation_status": "rust-wasm-product-stage-projection",
+      "implementation_status": "rust-wasm-query-group-projection",
       "physical_execution_authority": false
     },
     {
-      "node_id": "observation_window",
-      "label": "Observation-window filtering",
+      "query_group_id": "observation_window",
+      "label": "Observation-window assessment",
       "section": "analyze",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/observation_window/v1",
-      "input_nodes": [
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/observation_window/v1",
+      "input_query_groups": [
         "interval_cleaning"
       ],
-      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/observation_window",
+      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/query-group-output/observation_window",
       "knobs": [
         {
           "option_key": "process_app_usage",
@@ -663,18 +664,18 @@
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
-      "implementation_status": "rust-wasm-product-stage-projection",
+      "implementation_status": "rust-wasm-query-group-projection",
       "physical_execution_authority": false
     },
     {
-      "node_id": "attribute_person",
-      "label": "Person attribution (shared devices)",
+      "query_group_id": "attribute_person",
+      "label": "Person attribution",
       "section": "analyze",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/attribute_person/v1",
-      "input_nodes": [
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/attribute_person/v1",
+      "input_query_groups": [
         "observation_window"
       ],
-      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/attribute_person",
+      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/query-group-output/attribute_person",
       "knobs": [
         {
           "option_key": "process_app_usage",
@@ -705,19 +706,19 @@
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
-      "implementation_status": "rust-wasm-product-stage-projection",
+      "implementation_status": "rust-wasm-query-group-projection",
       "physical_execution_authority": false
     },
     {
-      "node_id": "day_coverage",
-      "label": "Day coverage & placeholders",
+      "query_group_id": "day_coverage",
+      "label": "Day coverage",
       "section": "analyze",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/day_coverage/v1",
-      "input_nodes": [
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/day_coverage/v1",
+      "input_query_groups": [
         "app_policy",
         "attribute_person"
       ],
-      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/day_coverage",
+      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/query-group-output/day_coverage",
       "knobs": [
         {
           "option_key": "process_app_usage",
@@ -760,19 +761,19 @@
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
-      "implementation_status": "rust-wasm-product-stage-projection",
+      "implementation_status": "rust-wasm-query-group-projection",
       "physical_execution_authority": false
     },
     {
-      "node_id": "score_compliance",
-      "label": "Compliance scoring",
+      "query_group_id": "score_compliance",
+      "label": "Compliance assessment",
       "section": "analyze",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/score_compliance/v1",
-      "input_nodes": [
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/score_compliance/v1",
+      "input_query_groups": [
         "attribute_person",
         "day_coverage"
       ],
-      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/score_compliance",
+      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/query-group-output/score_compliance",
       "knobs": [
         {
           "option_key": "process_app_usage",
@@ -807,15 +808,15 @@
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
-      "implementation_status": "rust-wasm-product-stage-projection",
+      "implementation_status": "rust-wasm-query-group-projection",
       "physical_execution_authority": false
     },
     {
-      "node_id": "outputs",
-      "label": "Outputs",
+      "query_group_id": "outputs",
+      "label": "Deliverables",
       "section": "output",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/outputs/v1",
-      "input_nodes": [
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/outputs/v1",
+      "input_query_groups": [
         "app_policy",
         "attribute_person",
         "categorize_apps",
@@ -831,7 +832,7 @@
         "reconstruct_episodes",
         "score_compliance"
       ],
-      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/outputs",
+      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/query-group-output/outputs",
       "knobs": [
         {
           "option_key": "study_name",
@@ -865,18 +866,18 @@
       "can_bypass": false,
       "early_cutoff": false,
       "determinism": "semantic",
-      "implementation_status": "rust-wasm-product-stage-projection",
+      "implementation_status": "rust-wasm-query-group-projection",
       "physical_execution_authority": false
     }
   ],
-  "steps": [
+  "queries": [
     {
-      "step_id": "parse_remap_config",
-      "unit_id": "parse_events",
-      "label": "Parse remap config",
-      "description": "Parse the interaction-type remap option into a lookup map.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/parse_remap_config/v1",
-      "input_steps": [],
+      "query_id": "validate_remap_rules",
+      "query_group_id": "parse_events",
+      "label": "Validate remapping rules",
+      "description": "Validate the configured interaction-name remapping before it is used.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/validate_remap_rules/v1",
+      "input_queries": [],
       "request_fields": [
         "interaction_type_remap"
       ],
@@ -887,18 +888,18 @@
       "can_bypass": false,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "parse_remap_config",
+        "entrypoint": "validate_remap_rules",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "csv_parse",
-      "unit_id": "parse_events",
-      "label": "CSV parse",
-      "description": "Parse the raw Chronicle CSV text into header-keyed rows (throws on parse errors).",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/csv_parse/v1",
-      "input_steps": [],
+      "query_id": "decode_source_records",
+      "query_group_id": "parse_events",
+      "label": "Decode source records",
+      "description": "Decode Chronicle CSV rows without applying measurement policy.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/decode_source_records/v1",
+      "input_queries": [],
       "request_fields": [],
       "source_role_bindings": [
         {
@@ -912,19 +913,19 @@
       "can_bypass": false,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "csv_parse",
+        "entrypoint": "decode_source_records",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "drop_empty_timestamp",
-      "unit_id": "parse_events",
-      "label": "Drop empty timestamps",
-      "description": "Drop raw rows with no event timestamp — unusable by every downstream step.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/drop_empty_timestamp/v1",
-      "input_steps": [
-        "csv_parse"
+      "query_id": "remove_missing_timestamps",
+      "query_group_id": "parse_events",
+      "label": "Remove records without timestamps",
+      "description": "Remove source records that cannot be placed on a timeline.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/remove_missing_timestamps/v1",
+      "input_queries": [
+        "decode_source_records"
       ],
       "request_fields": [],
       "source_role_bindings": [],
@@ -934,19 +935,19 @@
       "can_bypass": false,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "drop_empty_timestamp",
+        "entrypoint": "remove_missing_timestamps",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "detect_device_model",
-      "unit_id": "parse_events",
-      "label": "Detect device model",
-      "description": "Classify the stream as Amazon Fire vs Android from package-name evidence.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/detect_device_model/v1",
-      "input_steps": [
-        "drop_empty_timestamp"
+      "query_id": "attach_device_models",
+      "query_group_id": "parse_events",
+      "label": "Summarize device models",
+      "description": "Derive device-model evidence from the retained source records.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/attach_device_models/v1",
+      "input_queries": [
+        "remove_missing_timestamps"
       ],
       "request_fields": [],
       "source_role_bindings": [],
@@ -956,18 +957,18 @@
       "can_bypass": false,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "detect_device_model",
+        "entrypoint": "attach_device_models",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "resolve_preproc_datetime",
-      "unit_id": "parse_events",
-      "label": "Resolve run datetime",
-      "description": "Resolve the datetime-of-preprocessing stamp (runtime-pinned for reproducibility).",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/resolve_preproc_datetime/v1",
-      "input_steps": [],
+      "query_id": "bind_processing_timestamp",
+      "query_group_id": "parse_events",
+      "label": "bind processing timestamp",
+      "description": "Internal runtime query.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/bind_processing_timestamp/v1",
+      "input_queries": [],
       "request_fields": [
         "datetime_of_preprocessing"
       ],
@@ -978,21 +979,21 @@
       "can_bypass": false,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "resolve_preproc_datetime",
+        "entrypoint": "bind_processing_timestamp",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "build_canonical_rows",
-      "unit_id": "parse_events",
-      "label": "Build canonical rows",
-      "description": "Build typed canonical rows: normalize strings, remap interaction types, parse ns timestamps, stamp calendar columns.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/build_canonical_rows/v1",
-      "input_steps": [
-        "drop_empty_timestamp",
-        "detect_device_model",
-        "parse_remap_config"
+      "query_id": "canonicalize_source_rows",
+      "query_group_id": "parse_events",
+      "label": "Decode record fields",
+      "description": "Convert source values into the typed internal row representation.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/canonicalize_source_rows/v1",
+      "input_queries": [
+        "remove_missing_timestamps",
+        "attach_device_models",
+        "validate_remap_rules"
       ],
       "request_fields": [
         "timezone"
@@ -1004,19 +1005,19 @@
       "can_bypass": false,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "build_canonical_rows",
+        "entrypoint": "canonicalize_source_rows",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "stable_sort",
-      "unit_id": "parse_events",
-      "label": "Stable sort",
-      "description": "Sort rows by event timestamp, ties broken by original row index.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/stable_sort/v1",
-      "input_steps": [
-        "build_canonical_rows"
+      "query_id": "order_source_records",
+      "query_group_id": "parse_events",
+      "label": "Order source records",
+      "description": "Establish the deterministic event order required downstream.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/order_source_records/v1",
+      "input_queries": [
+        "canonicalize_source_rows"
       ],
       "request_fields": [],
       "source_role_bindings": [],
@@ -1026,19 +1027,19 @@
       "can_bypass": false,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "stable_sort",
+        "entrypoint": "order_source_records",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "collect_timezones",
-      "unit_id": "parse_events",
-      "label": "Collect timezones",
-      "description": "Collect the distinct, sorted timezones present in the file (drives the timezone picker).",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/collect_timezones/v1",
-      "input_steps": [
-        "stable_sort"
+      "query_id": "collect_timezone_observations",
+      "query_group_id": "parse_events",
+      "label": "Collect timezone observations",
+      "description": "Collect timezone evidence without selecting a policy.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/collect_timezone_observations/v1",
+      "input_queries": [
+        "order_source_records"
       ],
       "request_fields": [],
       "source_role_bindings": [],
@@ -1048,19 +1049,19 @@
       "can_bypass": false,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "collect_timezones",
+        "entrypoint": "collect_timezone_observations",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "compute_dominant_timezone",
-      "unit_id": "normalize_timezones",
-      "label": "Dominant timezone",
-      "description": "Find the most frequent timezone across the rows (the primary clock).",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/compute_dominant_timezone/v1",
-      "input_steps": [
-        "stable_sort"
+      "query_id": "estimate_dominant_timezone",
+      "query_group_id": "normalize_timezones",
+      "label": "Estimate the dominant timezone",
+      "description": "Estimate the dominant timezone from observed values.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/estimate_dominant_timezone/v1",
+      "input_queries": [
+        "order_source_records"
       ],
       "request_fields": [],
       "source_role_bindings": [],
@@ -1070,20 +1071,20 @@
       "can_bypass": false,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "compute_dominant_timezone",
+        "entrypoint": "estimate_dominant_timezone",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "select_timezone_strategy",
-      "unit_id": "normalize_timezones",
-      "label": "Select strategy",
-      "description": "Pick the target timezone and (for filter strategies) the surviving rows, per the timezone-handling setting.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/select_timezone_strategy/v1",
-      "input_steps": [
-        "stable_sort",
-        "compute_dominant_timezone"
+      "query_id": "resolve_timezone_strategy",
+      "query_group_id": "normalize_timezones",
+      "label": "Resolve timezone policy",
+      "description": "Resolve the configured timezone handling policy.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/resolve_timezone_strategy/v1",
+      "input_queries": [
+        "order_source_records",
+        "estimate_dominant_timezone"
       ],
       "request_fields": [
         "timezone",
@@ -1096,19 +1097,19 @@
       "can_bypass": false,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "select_timezone_strategy",
+        "entrypoint": "resolve_timezone_strategy",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "restamp_rows",
-      "unit_id": "normalize_timezones",
-      "label": "Restamp rows",
-      "description": "Restamp every surviving row onto the target timezone and recompute its calendar columns.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/restamp_rows/v1",
-      "input_steps": [
-        "select_timezone_strategy"
+      "query_id": "standardize_event_clock",
+      "query_group_id": "normalize_timezones",
+      "label": "Standardize event clocks",
+      "description": "Restamp event times using the resolved timezone policy.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/standardize_event_clock/v1",
+      "input_queries": [
+        "resolve_timezone_strategy"
       ],
       "request_fields": [],
       "source_role_bindings": [],
@@ -1118,20 +1119,20 @@
       "can_bypass": false,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "restamp_rows",
+        "entrypoint": "standardize_event_clock",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "row_count_report",
-      "unit_id": "normalize_timezones",
-      "label": "Row-count report",
-      "description": "Before/after/removed row counts for the timezone step's report.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/row_count_report/v1",
-      "input_steps": [
-        "stable_sort",
-        "select_timezone_strategy"
+      "query_id": "summarize_row_selection",
+      "query_group_id": "normalize_timezones",
+      "label": "Summarize row selection",
+      "description": "Report record counts before and after timezone selection.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/summarize_row_selection/v1",
+      "input_queries": [
+        "order_source_records",
+        "resolve_timezone_strategy"
       ],
       "request_fields": [],
       "source_role_bindings": [],
@@ -1141,19 +1142,19 @@
       "can_bypass": false,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "row_count_report",
+        "entrypoint": "summarize_row_selection",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "exact_dedupe",
-      "unit_id": "dedup_and_order",
-      "label": "Exact dedupe",
-      "description": "Collapse exact-duplicate raw rows (same participant, timestamp, app, interaction type), keeping the first. Gated by deduplicateExactRows.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/exact_dedupe/v1",
-      "input_steps": [
-        "restamp_rows"
+      "query_id": "coalesce_duplicate_event_keys",
+      "query_group_id": "dedup_and_order",
+      "label": "Coalesce duplicate event keys",
+      "description": "Retain the first matching event-key row and merge its lineage.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/coalesce_duplicate_event_keys/v1",
+      "input_queries": [
+        "standardize_event_clock"
       ],
       "request_fields": [
         "deduplicate_exact_rows"
@@ -1165,19 +1166,19 @@
       "can_bypass": false,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "exact_dedupe",
+        "entrypoint": "coalesce_duplicate_event_keys",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "count_dup_groups",
-      "unit_id": "dedup_and_order",
-      "label": "Count duplicate groups",
-      "description": "Count same-timestamp event groups before correction, for the run report.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/count_dup_groups/v1",
-      "input_steps": [
-        "exact_dedupe"
+      "query_id": "summarize_duplicate_groups",
+      "query_group_id": "dedup_and_order",
+      "label": "Summarize duplicate groups",
+      "description": "Report groups that shared the deduplication key.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/summarize_duplicate_groups/v1",
+      "input_queries": [
+        "coalesce_duplicate_event_keys"
       ],
       "request_fields": [],
       "source_role_bindings": [],
@@ -1187,19 +1188,19 @@
       "can_bypass": false,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "count_dup_groups",
+        "entrypoint": "summarize_duplicate_groups",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "nudge_duplicate_timestamps",
-      "unit_id": "dedup_and_order",
-      "label": "Nudge duplicate timestamps",
-      "description": "Nudge same-timestamp events apart (resume-first priority order) so event ordering is deterministic. Gated by correctDuplicateEventTimestamps.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/nudge_duplicate_timestamps/v1",
-      "input_steps": [
-        "exact_dedupe"
+      "query_id": "disambiguate_duplicate_timestamps",
+      "query_group_id": "dedup_and_order",
+      "label": "Disambiguate duplicate timestamps",
+      "description": "Apply versioned event precedence when timestamps collide.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/disambiguate_duplicate_timestamps/v1",
+      "input_queries": [
+        "coalesce_duplicate_event_keys"
       ],
       "request_fields": [
         "correct_duplicate_event_timestamps",
@@ -1213,19 +1214,19 @@
       "can_bypass": false,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "nudge_duplicate_timestamps",
+        "entrypoint": "disambiguate_duplicate_timestamps",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "mark_data_time_gaps",
-      "unit_id": "dedup_and_order",
-      "label": "Mark data-time gaps",
-      "description": "Stamp each row with the gap (hours) since the previous event in the stream.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/mark_data_time_gaps/v1",
-      "input_steps": [
-        "nudge_duplicate_timestamps"
+      "query_id": "derive_time_gap_evidence",
+      "query_group_id": "dedup_and_order",
+      "label": "Derive timeline gaps",
+      "description": "Measure gaps between ordered events for later rules.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/derive_time_gap_evidence/v1",
+      "input_queries": [
+        "disambiguate_duplicate_timestamps"
       ],
       "request_fields": [],
       "source_role_bindings": [],
@@ -1235,19 +1236,19 @@
       "can_bypass": false,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "mark_data_time_gaps",
+        "entrypoint": "derive_time_gap_evidence",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "tag_filtered_packages",
-      "unit_id": "app_policy",
-      "label": "Tag filtered packages",
-      "description": "TAGGING ONLY: relabel filter-listed packages' raw events 'Filtered App *' so the list is visible downstream. Nothing is dropped or blanked here.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/tag_filtered_packages/v1",
-      "input_steps": [
-        "mark_data_time_gaps"
+      "query_id": "mark_app_policy_matches",
+      "query_group_id": "app_policy",
+      "label": "Match app-exclusion rows",
+      "description": "Identify source rows matching the configured app exclusion evidence.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/mark_app_policy_matches/v1",
+      "input_queries": [
+        "derive_time_gap_evidence"
       ],
       "request_fields": [
         "use_filter_file"
@@ -1270,19 +1271,19 @@
       "can_bypass": false,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "tag_filtered_packages",
+        "entrypoint": "mark_app_policy_matches",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "collect_keyguard_timestamps",
-      "unit_id": "device_state_timeline",
-      "label": "Collect keyguard timestamps",
-      "description": "Sorted timestamps of every keyguard-shown event — the lock-screen evidence stream.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/collect_keyguard_timestamps/v1",
-      "input_steps": [
-        "tag_filtered_packages"
+      "query_id": "index_keyguard_events",
+      "query_group_id": "device_state_timeline",
+      "label": "Index keyguard events",
+      "description": "Build reusable keyguard evidence for screen reconstruction.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/index_keyguard_events/v1",
+      "input_queries": [
+        "derive_time_gap_evidence"
       ],
       "request_fields": [],
       "source_role_bindings": [],
@@ -1293,19 +1294,19 @@
       "can_bypass": true,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "collect_keyguard_timestamps",
+        "entrypoint": "index_keyguard_events",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "walk_screen_state_machine",
-      "unit_id": "device_state_timeline",
-      "label": "Walk screen state machine",
-      "description": "CLOSED —screen-start→ OPEN —screen-stop→ CLOSED, accumulating keyguard/unlock/foreground evidence; emits one close per session.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/walk_screen_state_machine/v1",
-      "input_steps": [
-        "tag_filtered_packages"
+      "query_id": "infer_screen_session_skeletons",
+      "query_group_id": "device_state_timeline",
+      "label": "Infer screen-session skeletons",
+      "description": "Reconstruct policy-neutral screen-session candidates.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/infer_screen_session_skeletons/v1",
+      "input_queries": [
+        "derive_time_gap_evidence"
       ],
       "request_fields": [],
       "source_role_bindings": [],
@@ -1316,21 +1317,21 @@
       "can_bypass": true,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "walk_screen_state_machine",
+        "entrypoint": "infer_screen_session_skeletons",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "build_classified_sessions",
-      "unit_id": "device_state_timeline",
-      "label": "Build & classify sessions",
-      "description": "Materialize each close as a 'Screen Usage' row and classify its end reason (manual/auto lock, kept-awake, lock-screen-only, …) with a confidence.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/build_classified_sessions/v1",
-      "input_steps": [
-        "tag_filtered_packages",
-        "walk_screen_state_machine",
-        "collect_keyguard_timestamps"
+      "query_id": "classify_screen_sessions",
+      "query_group_id": "device_state_timeline",
+      "label": "Derive screen-session evidence",
+      "description": "Derive reusable evidence features for candidate screen sessions.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/classify_screen_sessions/v1",
+      "input_queries": [
+        "derive_time_gap_evidence",
+        "infer_screen_session_skeletons",
+        "index_keyguard_events"
       ],
       "request_fields": [
         "use_apps_forcing_screen_open",
@@ -1358,19 +1359,19 @@
       "can_bypass": true,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "build_classified_sessions",
+        "entrypoint": "classify_screen_sessions",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "compute_junk_packages",
-      "unit_id": "reconstruct_episodes",
-      "label": "Compute junk packages",
-      "description": "The junk (filter-listed) package set, derived entirely from upstream rows carrying a Filtered-* event.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/compute_junk_packages/v1",
-      "input_steps": [
-        "tag_filtered_packages"
+      "query_id": "resolve_excluded_packages",
+      "query_group_id": "reconstruct_episodes",
+      "label": "Resolve excluded app packages",
+      "description": "Convert matching source rows into the effective package exclusion set.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/resolve_excluded_packages/v1",
+      "input_queries": [
+        "mark_app_policy_matches"
       ],
       "request_fields": [],
       "source_role_bindings": [],
@@ -1381,20 +1382,19 @@
       "can_bypass": true,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "compute_junk_packages",
+        "entrypoint": "resolve_excluded_packages",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "junk_blind_fold",
-      "unit_id": "reconstruct_episodes",
-      "label": "Junk-blind fold",
-      "description": "Fold pre-relabeled junk events back to their Activity equivalents so the matcher sees every app identically (junk-BLIND matching).",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/junk_blind_fold/v1",
-      "input_steps": [
-        "tag_filtered_packages",
-        "compute_junk_packages"
+      "query_id": "mask_excluded_app_events",
+      "query_group_id": "reconstruct_episodes",
+      "label": "Mask excluded app events",
+      "description": "Preserve current matching behavior while policy-neutral reconstruction is introduced.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/mask_excluded_app_events/v1",
+      "input_queries": [
+        "derive_time_gap_evidence"
       ],
       "request_fields": [],
       "source_role_bindings": [],
@@ -1405,19 +1405,19 @@
       "can_bypass": true,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "junk_blind_fold",
+        "entrypoint": "mask_excluded_app_events",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "build_matcher_input",
-      "unit_id": "reconstruct_episodes",
-      "label": "Build matcher input",
-      "description": "Factorize app codes and build the resumed/stop/background masks the matcher consumes (throws when the file has no app events).",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/build_matcher_input/v1",
-      "input_steps": [
-        "junk_blind_fold"
+      "query_id": "build_app_event_index",
+      "query_group_id": "reconstruct_episodes",
+      "label": "Resolve matcher masks",
+      "description": "Apply configured stop and background-event rules to matcher inputs.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/build_app_event_index/v1",
+      "input_queries": [
+        "mask_excluded_app_events"
       ],
       "request_fields": [
         "same_app_stop_types",
@@ -1444,19 +1444,19 @@
       "can_bypass": true,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "build_matcher_input",
+        "entrypoint": "build_app_event_index",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "run_matcher",
-      "unit_id": "reconstruct_episodes",
-      "label": "Run matcher",
-      "description": "Pair resumes with stops (WASM matcher; JS matcher when the proximity glue is on).",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/run_matcher/v1",
-      "input_steps": [
-        "build_matcher_input"
+      "query_id": "match_app_episodes",
+      "query_group_id": "reconstruct_episodes",
+      "label": "Match app episodes",
+      "description": "Infer candidate usage episodes from indexed events.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/match_app_episodes/v1",
+      "input_queries": [
+        "build_app_event_index"
       ],
       "request_fields": [
         "allow_stop_event_reuse",
@@ -1473,21 +1473,21 @@
       "can_bypass": true,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "run_matcher",
+        "entrypoint": "match_app_episodes",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "apply_matcher_output",
-      "unit_id": "reconstruct_episodes",
-      "label": "Apply matcher output",
-      "description": "Stamp episode start/stop timestamps from the matcher pairings; mark unmatched resumes 'End of Usage Missing'.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/apply_matcher_output/v1",
-      "input_steps": [
-        "junk_blind_fold",
-        "run_matcher",
-        "compute_junk_packages"
+      "query_id": "materialize_candidate_episodes",
+      "query_group_id": "reconstruct_episodes",
+      "label": "Materialize candidate episodes",
+      "description": "Materialize matcher results and missing-end evidence.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/materialize_candidate_episodes/v1",
+      "input_queries": [
+        "mask_excluded_app_events",
+        "match_app_episodes",
+        "resolve_excluded_packages"
       ],
       "request_fields": [],
       "source_role_bindings": [],
@@ -1498,20 +1498,20 @@
       "can_bypass": true,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "apply_matcher_output",
+        "entrypoint": "materialize_candidate_episodes",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "relabel_usage_with_floor",
-      "unit_id": "reconstruct_episodes",
-      "label": "Relabel usage + floor",
-      "description": "Drop pauses/unmatched resumes, relabel matched resumes as usage episodes, and apply the minimum-duration floor.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/relabel_usage_with_floor/v1",
-      "input_steps": [
-        "apply_matcher_output",
-        "compute_junk_packages"
+      "query_id": "classify_episode_durations",
+      "query_group_id": "reconstruct_episodes",
+      "label": "Discard structural event rows",
+      "description": "Remove event-only rows after their structural information has been consumed.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/classify_episode_durations/v1",
+      "input_queries": [
+        "materialize_candidate_episodes",
+        "resolve_excluded_packages"
       ],
       "request_fields": [
         "minimum_usage_duration"
@@ -1524,20 +1524,20 @@
       "can_bypass": true,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "relabel_usage_with_floor",
+        "entrypoint": "classify_episode_durations",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "junk_downstream_mark",
-      "unit_id": "reconstruct_episodes",
-      "label": "Junk downstream mark",
-      "description": "The ONE lossy filter decision, after matching: relabel junk apps' own episodes 'Filtered App Usage' (background junk keeps real timing).",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/junk_downstream_mark/v1",
-      "input_steps": [
-        "relabel_usage_with_floor",
-        "compute_junk_packages"
+      "query_id": "apply_app_inclusion_policy",
+      "query_group_id": "reconstruct_episodes",
+      "label": "Apply app inclusion policy",
+      "description": "Apply the effective package set to reconstructed episodes.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/apply_app_inclusion_policy/v1",
+      "input_queries": [
+        "classify_episode_durations",
+        "resolve_excluded_packages"
       ],
       "request_fields": [
         "use_background_apps_file"
@@ -1561,19 +1561,19 @@
       "can_bypass": true,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "junk_downstream_mark",
+        "entrypoint": "apply_app_inclusion_policy",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "sort_episodes",
-      "unit_id": "reconstruct_episodes",
-      "label": "Sort episodes",
-      "description": "Re-sort rows by event timestamp after the relabels.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/sort_episodes/v1",
-      "input_steps": [
-        "junk_downstream_mark"
+      "query_id": "order_app_episodes",
+      "query_group_id": "reconstruct_episodes",
+      "label": "Order app episodes",
+      "description": "Establish deterministic episode order for downstream interval logic.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/order_app_episodes/v1",
+      "input_queries": [
+        "apply_app_inclusion_policy"
       ],
       "request_fields": [],
       "source_role_bindings": [],
@@ -1584,20 +1584,20 @@
       "can_bypass": true,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "sort_episodes",
+        "entrypoint": "order_app_episodes",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "split_concurrent",
-      "unit_id": "reconstruct_episodes",
-      "label": "Split concurrent sessions",
-      "description": "Phase 2 (concurrent modeling / background apps only): layer overlapping sessions into primary/secondary sub-intervals.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/split_concurrent/v1",
-      "input_steps": [
-        "sort_episodes",
-        "compute_junk_packages"
+      "query_id": "segment_concurrent_usage",
+      "query_group_id": "reconstruct_episodes",
+      "label": "Segment concurrent usage",
+      "description": "Split overlapping usage into concurrent segments.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/segment_concurrent_usage/v1",
+      "input_queries": [
+        "order_app_episodes",
+        "resolve_excluded_packages"
       ],
       "request_fields": [
         "model_concurrent_usage",
@@ -1624,19 +1624,19 @@
       "can_bypass": true,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "split_concurrent",
+        "entrypoint": "segment_concurrent_usage",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "codebook_join",
-      "unit_id": "categorize_apps",
-      "label": "Codebook join",
-      "description": "Join each episode's package against the app codebook: null-fill output columns, copy matched records through the rename map, stamp Unknown sentinels.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/codebook_join/v1",
-      "input_steps": [
-        "split_concurrent"
+      "query_id": "join_app_codebook",
+      "query_group_id": "categorize_apps",
+      "label": "Join the app codebook",
+      "description": "Attach supplied app metadata to reconstructed episodes.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/join_app_codebook/v1",
+      "input_queries": [
+        "segment_concurrent_usage"
       ],
       "request_fields": [
         "use_app_codebook"
@@ -1660,19 +1660,19 @@
       "can_bypass": true,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "codebook_join",
+        "entrypoint": "join_app_codebook",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "derive_broad_category",
-      "unit_id": "categorize_apps",
-      "label": "Derive broad category",
-      "description": "Coalesce the per-source category columns onto the palette vocabulary (desktop order) for every row with a codebook record.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/derive_broad_category/v1",
-      "input_steps": [
-        "codebook_join"
+      "query_id": "derive_broad_category",
+      "query_group_id": "categorize_apps",
+      "label": "Derive broad app categories",
+      "description": "Derive the broad analysis category from app metadata.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/derive_broad_category/v1",
+      "input_queries": [
+        "join_app_codebook"
       ],
       "request_fields": [
         "use_app_codebook"
@@ -1691,12 +1691,12 @@
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "collapse_genre",
-      "unit_id": "categorize_apps",
-      "label": "Collapse genre ids",
-      "description": "Reconcile per-source genre ids: agreement promotes the genre, disagreement yields null, none yields Unknown.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/collapse_genre/v1",
-      "input_steps": [
+      "query_id": "collapse_app_genre",
+      "query_group_id": "categorize_apps",
+      "label": "Collapse app genres",
+      "description": "Collapse detailed genres into the configured reporting vocabulary.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/collapse_app_genre/v1",
+      "input_queries": [
         "derive_broad_category"
       ],
       "request_fields": [
@@ -1710,19 +1710,19 @@
       "can_bypass": true,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "collapse_genre",
+        "entrypoint": "collapse_app_genre",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "engagement_walk",
-      "unit_id": "episode_annotations",
-      "label": "Engagement walk",
-      "description": "Sequential walk over foreground episodes computing new-engagement (30 s / custom), app switches, and inter-episode gaps — any-app and valid-app variants.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/engagement_walk/v1",
-      "input_steps": [
-        "collapse_genre"
+      "query_id": "derive_engagement_basis",
+      "query_group_id": "episode_annotations",
+      "label": "Derive engagement evidence",
+      "description": "Build threshold-independent engagement transitions and gaps.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/derive_engagement_basis/v1",
+      "input_queries": [
+        "collapse_app_genre"
       ],
       "request_fields": [
         "custom_app_engagement_duration"
@@ -1735,19 +1735,19 @@
       "can_bypass": true,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "engagement_walk",
+        "entrypoint": "derive_engagement_basis",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "flag_and_retain",
-      "unit_id": "episode_annotations",
-      "label": "Flag & retain",
-      "description": "Stamp quality flags for long usage sessions and long data gaps — flag, never drop.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/flag_and_retain/v1",
-      "input_steps": [
-        "engagement_walk"
+      "query_id": "apply_episode_flags",
+      "query_group_id": "episode_annotations",
+      "label": "Flag long usage",
+      "description": "Apply long-usage thresholds.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/apply_episode_flags/v1",
+      "input_queries": [
+        "derive_engagement_basis"
       ],
       "request_fields": [
         "long_data_time_gap_thresholds",
@@ -1761,20 +1761,20 @@
       "can_bypass": true,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "flag_and_retain",
+        "entrypoint": "apply_episode_flags",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "blank_junk_timing",
-      "unit_id": "interval_cleaning",
-      "label": "Blank junk timing",
-      "description": "The SOLE blanking site: null start/stop/duration on 'Filtered App Usage' rows, after the engagement walk has read their real timing.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/blank_junk_timing/v1",
-      "input_steps": [
-        "flag_and_retain",
-        "compute_junk_packages"
+      "query_id": "suppress_excluded_timing",
+      "query_group_id": "interval_cleaning",
+      "label": "Suppress excluded timing",
+      "description": "Blank timing values excluded from measurement.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/suppress_excluded_timing/v1",
+      "input_queries": [
+        "apply_episode_flags",
+        "resolve_excluded_packages"
       ],
       "request_fields": [],
       "source_role_bindings": [],
@@ -1785,19 +1785,19 @@
       "can_bypass": true,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "blank_junk_timing",
+        "entrypoint": "suppress_excluded_timing",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "drop_selected_types",
-      "unit_id": "interval_cleaning",
-      "label": "Drop selected types",
-      "description": "Drop the event types selected for removal — kept when they witness a large data gap.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/drop_selected_types/v1",
-      "input_steps": [
-        "blank_junk_timing"
+      "query_id": "remove_selected_interaction_types",
+      "query_group_id": "interval_cleaning",
+      "label": "Remove selected interaction types",
+      "description": "Remove rows selected by interaction-type policy while preserving gap exceptions.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/remove_selected_interaction_types/v1",
+      "input_queries": [
+        "suppress_excluded_timing"
       ],
       "request_fields": [
         "interaction_types_to_remove",
@@ -1811,19 +1811,19 @@
       "can_bypass": true,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "drop_selected_types",
+        "entrypoint": "remove_selected_interaction_types",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "drop_zero_duration",
-      "unit_id": "interval_cleaning",
-      "label": "Drop zero-duration",
-      "description": "Optionally drop zero-duration usage episodes (null-duration rows are kept). Gated by filterZeroDurationSessions.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/drop_zero_duration/v1",
-      "input_steps": [
-        "drop_selected_types"
+      "query_id": "remove_zero_duration_rows",
+      "query_group_id": "interval_cleaning",
+      "label": "Remove zero-duration rows",
+      "description": "Remove rows with a zero measured duration when enabled.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/remove_zero_duration_rows/v1",
+      "input_queries": [
+        "remove_selected_interaction_types"
       ],
       "request_fields": [
         "filter_zero_duration_sessions"
@@ -1836,19 +1836,19 @@
       "can_bypass": true,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "drop_zero_duration",
+        "entrypoint": "remove_zero_duration_rows",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "partition_credit_sessions",
-      "unit_id": "effective_usage",
-      "label": "Partition sessions",
-      "description": "Split the cleaned rows into credit-eligible App-Usage sessions (positive duration) vs pass-through rest.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/partition_credit_sessions/v1",
-      "input_steps": [
-        "drop_zero_duration"
+      "query_id": "identify_credit_eligible_sessions",
+      "query_group_id": "effective_usage",
+      "label": "Identify credit-eligible sessions",
+      "description": "Partition reconstructed sessions by credit eligibility.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/identify_credit_eligible_sessions/v1",
+      "input_queries": [
+        "remove_zero_duration_rows"
       ],
       "request_fields": [],
       "source_role_bindings": [],
@@ -1868,19 +1868,19 @@
       "can_bypass": true,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "partition_credit_sessions",
+        "entrypoint": "identify_credit_eligible_sessions",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "build_liveness_substrate",
-      "unit_id": "effective_usage",
-      "label": "Build liveness substrate",
-      "description": "Per participant: screen ON/OFF change points, boot timestamps, all event timestamps, and screen-capability — from the RAW event stream.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/build_liveness_substrate/v1",
-      "input_steps": [
-        "tag_filtered_packages"
+      "query_id": "build_activity_witness_indexes",
+      "query_group_id": "effective_usage",
+      "label": "Index device activity",
+      "description": "Build device-activity witness intervals.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/build_activity_witness_indexes/v1",
+      "input_queries": [
+        "mark_app_policy_matches"
       ],
       "request_fields": [],
       "source_role_bindings": [],
@@ -1900,20 +1900,20 @@
       "can_bypass": true,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "build_liveness_substrate",
+        "entrypoint": "build_activity_witness_indexes",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "report_screen_incapable",
-      "unit_id": "effective_usage",
-      "label": "Report screen-incapable",
-      "description": "Participants whose stream carries no usable screen change points.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/report_screen_incapable/v1",
-      "input_steps": [
-        "partition_credit_sessions",
-        "build_liveness_substrate"
+      "query_id": "assess_screen_evidence_capability",
+      "query_group_id": "effective_usage",
+      "label": "Assess screen evidence capability",
+      "description": "Report participants for whom screen evidence can support crediting.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/assess_screen_evidence_capability/v1",
+      "input_queries": [
+        "identify_credit_eligible_sessions",
+        "build_activity_witness_indexes"
       ],
       "request_fields": [],
       "source_role_bindings": [],
@@ -1933,19 +1933,19 @@
       "can_bypass": true,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "report_screen_incapable",
+        "entrypoint": "assess_screen_evidence_capability",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "count_day_apps",
-      "unit_id": "effective_usage",
-      "label": "Count day apps",
-      "description": "Distinct apps per (participant, date) — the no-witness fallback gate.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/count_day_apps/v1",
-      "input_steps": [
-        "partition_credit_sessions"
+      "query_id": "summarize_daily_apps",
+      "query_group_id": "effective_usage",
+      "label": "Summarize daily apps",
+      "description": "Report daily app evidence consumed by credit policy.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/summarize_daily_apps/v1",
+      "input_queries": [
+        "identify_credit_eligible_sessions"
       ],
       "request_fields": [],
       "source_role_bindings": [],
@@ -1965,21 +1965,21 @@
       "can_bypass": true,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "count_day_apps",
+        "entrypoint": "summarize_daily_apps",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "credit_sessions",
-      "unit_id": "effective_usage",
-      "label": "Credit sessions",
-      "description": "Per session: cap the end, intersect device-alive with screen-creditable intervals (auto-lock bridging), apply the no-witness fallback.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/credit_sessions/v1",
-      "input_steps": [
-        "partition_credit_sessions",
-        "build_liveness_substrate",
-        "count_day_apps"
+      "query_id": "derive_credited_intervals",
+      "query_group_id": "effective_usage",
+      "label": "Cap candidate intervals",
+      "description": "Apply session caps before evidence intersection.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/derive_credited_intervals/v1",
+      "input_queries": [
+        "identify_credit_eligible_sessions",
+        "build_activity_witness_indexes",
+        "summarize_daily_apps"
       ],
       "request_fields": [
         "credited_session_cap_minutes",
@@ -2004,21 +2004,21 @@
       "can_bypass": true,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "credit_sessions",
+        "entrypoint": "derive_credited_intervals",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "emit_credited_rows",
-      "unit_id": "effective_usage",
-      "label": "Emit credited rows",
-      "description": "Rewrite each session into one clone row per credited interval, recomputing duration and calendar columns.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/emit_credited_rows/v1",
-      "input_steps": [
-        "partition_credit_sessions",
-        "build_liveness_substrate",
-        "credit_sessions"
+      "query_id": "materialize_credited_rows",
+      "query_group_id": "effective_usage",
+      "label": "Materialize credited rows",
+      "description": "Emit scientific credited intervals separately from lineage-search evidence.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/materialize_credited_rows/v1",
+      "input_queries": [
+        "identify_credit_eligible_sessions",
+        "build_activity_witness_indexes",
+        "derive_credited_intervals"
       ],
       "request_fields": [],
       "source_role_bindings": [],
@@ -2038,21 +2038,21 @@
       "can_bypass": true,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "emit_credited_rows",
+        "entrypoint": "materialize_credited_rows",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "assemble_credit_result",
-      "unit_id": "effective_usage",
-      "label": "Assemble credit result",
-      "description": "Credited rows first, then the pass-through rest, plus the credit report.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/assemble_credit_result/v1",
-      "input_steps": [
-        "partition_credit_sessions",
-        "report_screen_incapable",
-        "emit_credited_rows"
+      "query_id": "assemble_credit_outputs",
+      "query_group_id": "effective_usage",
+      "label": "Assemble credit outputs",
+      "description": "Expose credited rows, metrics, and capability evidence through typed ports.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/assemble_credit_outputs/v1",
+      "input_queries": [
+        "identify_credit_eligible_sessions",
+        "assess_screen_evidence_capability",
+        "materialize_credited_rows"
       ],
       "request_fields": [],
       "source_role_bindings": [],
@@ -2072,19 +2072,19 @@
       "can_bypass": true,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "assemble_credit_result",
+        "entrypoint": "assemble_credit_outputs",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "resolve_participant_windows",
-      "unit_id": "observation_window",
+      "query_id": "resolve_participant_windows",
+      "query_group_id": "observation_window",
       "label": "Resolve participant windows",
-      "description": "Resolve each participant to their study window (exact id, then numerical id) from the study-dates file.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/resolve_participant_windows/v1",
-      "input_steps": [
-        "drop_zero_duration"
+      "description": "Resolve participant-specific observation windows.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/resolve_participant_windows/v1",
+      "input_queries": [
+        "remove_zero_duration_rows"
       ],
       "request_fields": [],
       "source_role_bindings": [
@@ -2106,13 +2106,13 @@
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "filter_rows_to_window",
-      "unit_id": "observation_window",
-      "label": "Filter rows to window",
-      "description": "Keep rows whose local date falls inside the participant's [start, end] window; participants without a window are kept whole and reported.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/filter_rows_to_window/v1",
-      "input_steps": [
-        "drop_zero_duration",
+      "query_id": "apply_participant_windows",
+      "query_group_id": "observation_window",
+      "label": "Apply participant windows",
+      "description": "Retain rows inside each participant observation window.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/apply_participant_windows/v1",
+      "input_queries": [
+        "remove_zero_duration_rows",
         "resolve_participant_windows"
       ],
       "request_fields": [
@@ -2137,19 +2137,19 @@
       "can_bypass": true,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "filter_rows_to_window",
+        "entrypoint": "apply_participant_windows",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "resolve_sharing_status",
-      "unit_id": "attribute_person",
-      "label": "Resolve sharing status",
-      "description": "Resolve every participant to Shared / Non-Shared from the device-sharing file (throws on gaps — never defaults).",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/resolve_sharing_status/v1",
-      "input_steps": [
-        "filter_rows_to_window"
+      "query_id": "resolve_sharing_status",
+      "query_group_id": "attribute_person",
+      "label": "Resolve device sharing",
+      "description": "Resolve device-sharing evidence for person attribution.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/resolve_sharing_status/v1",
+      "input_queries": [
+        "apply_participant_windows"
       ],
       "request_fields": [
         "enable_person_attribution"
@@ -2179,12 +2179,12 @@
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "build_survey_lookup",
-      "unit_id": "attribute_person",
-      "label": "Build survey lookup",
-      "description": "(participant, exact event timestamp) → user map from survey answers; later rows win.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/build_survey_lookup/v1",
-      "input_steps": [],
+      "query_id": "index_survey_responses",
+      "query_group_id": "attribute_person",
+      "label": "Index survey responses",
+      "description": "Build optional survey evidence for person attribution.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/index_survey_responses/v1",
+      "input_queries": [],
       "request_fields": [
         "enable_person_attribution"
       ],
@@ -2207,21 +2207,21 @@
       "can_bypass": true,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "build_survey_lookup",
+        "entrypoint": "index_survey_responses",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "attribute_rows",
-      "unit_id": "attribute_person",
-      "label": "Attribute rows",
-      "description": "Fill null usernames (kids-shell → Target Child), apply survey relabels, re-mark non-target App Usage on shared devices.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/attribute_rows/v1",
-      "input_steps": [
-        "filter_rows_to_window",
+      "query_id": "classify_person_attribution",
+      "query_group_id": "attribute_person",
+      "label": "Infer the default person",
+      "description": "Apply the built-in default and kids-shell attribution rules.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/classify_person_attribution/v1",
+      "input_queries": [
+        "apply_participant_windows",
         "resolve_sharing_status",
-        "build_survey_lookup"
+        "index_survey_responses"
       ],
       "request_fields": [
         "enable_person_attribution"
@@ -2234,20 +2234,20 @@
       "can_bypass": true,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "attribute_rows",
+        "entrypoint": "classify_person_attribution",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "inject_placeholders",
-      "unit_id": "day_coverage",
-      "label": "Inject placeholders",
-      "description": "Inject one zero-duration 'No Activity' placeholder per participant-day that has raw events but no usage. Gated by addNoActivityPlaceholderDays.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/inject_placeholders/v1",
-      "input_steps": [
-        "attribute_rows",
-        "tag_filtered_packages"
+      "query_id": "synthesize_placeholder_rows",
+      "query_group_id": "day_coverage",
+      "label": "Add missing-day placeholders",
+      "description": "Create explicitly synthetic rows for missing participant days.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/synthesize_placeholder_rows/v1",
+      "input_queries": [
+        "classify_person_attribution",
+        "mark_app_policy_matches"
       ],
       "request_fields": [
         "add_no_activity_placeholder_days"
@@ -2260,19 +2260,19 @@
       "can_bypass": true,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "inject_placeholders",
+        "entrypoint": "synthesize_placeholder_rows",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "build_raw_date_index",
-      "unit_id": "day_coverage",
-      "label": "Build raw date index",
-      "description": "Per-participant set of raw event dates — the 'device was alive' evidence.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/build_raw_date_index/v1",
-      "input_steps": [
-        "tag_filtered_packages"
+      "query_id": "index_raw_dates",
+      "query_group_id": "day_coverage",
+      "label": "Index observed dates",
+      "description": "Index pre-window source dates used by coverage and placeholders.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/index_raw_dates/v1",
+      "input_queries": [
+        "mark_app_policy_matches"
       ],
       "request_fields": [],
       "source_role_bindings": [],
@@ -2283,20 +2283,20 @@
       "can_bypass": true,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "build_raw_date_index",
+        "entrypoint": "index_raw_dates",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "build_coverage_table",
-      "unit_id": "day_coverage",
-      "label": "Build coverage table",
-      "description": "Classify every spine day usage / no_activity / no_data (hard invariant: a data day the spine misses is an error). Gated by enableDayCoverage.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/build_coverage_table/v1",
-      "input_steps": [
-        "inject_placeholders",
-        "build_raw_date_index"
+      "query_id": "build_participant_day_coverage",
+      "query_group_id": "day_coverage",
+      "label": "Build the participant-day spine",
+      "description": "Create the participant-day domain used for coverage.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/build_participant_day_coverage/v1",
+      "input_queries": [
+        "synthesize_placeholder_rows",
+        "index_raw_dates"
       ],
       "request_fields": [],
       "source_role_bindings": [
@@ -2321,19 +2321,19 @@
       "can_bypass": true,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "build_coverage_table",
+        "entrypoint": "build_participant_day_coverage",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "accumulate_attribution_minutes",
-      "unit_id": "score_compliance",
-      "label": "Accumulate attribution minutes",
-      "description": "Bucket known vs unknown attributed minutes per (participant, day) using the attribution SSOT.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/accumulate_attribution_minutes/v1",
-      "input_steps": [
-        "inject_placeholders"
+      "query_id": "aggregate_attribution_minutes",
+      "query_group_id": "score_compliance",
+      "label": "Aggregate attributed minutes",
+      "description": "Build threshold-independent participant-day attribution totals.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/aggregate_attribution_minutes/v1",
+      "input_queries": [
+        "synthesize_placeholder_rows"
       ],
       "request_fields": [],
       "source_role_bindings": [],
@@ -2353,20 +2353,52 @@
       "can_bypass": true,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "accumulate_attribution_minutes",
+        "entrypoint": "aggregate_attribution_minutes",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "score_days",
-      "unit_id": "score_compliance",
-      "label": "Score days",
-      "description": "known/(known+unknown)×100 per shared-device day vs the threshold; Non-Shared days are 100; zero-usage days flagged.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/score_days/v1",
-      "input_steps": [
-        "accumulate_attribution_minutes",
-        "attribute_rows"
+      "query_id": "compute_attribution_completeness",
+      "query_group_id": "score_compliance",
+      "label": "Compute completeness",
+      "description": "Compute threshold-independent completeness percentages and zero-use evidence.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/compute_attribution_completeness/v1",
+      "input_queries": [
+        "aggregate_attribution_minutes",
+        "classify_person_attribution"
+      ],
+      "request_fields": [],
+      "source_role_bindings": [],
+      "applicability": {
+        "kind": "all",
+        "terms": [
+          {
+            "kind": "option-true",
+            "option_key": "process_app_usage"
+          },
+          {
+            "kind": "option-true",
+            "option_key": "enable_compliance_scoring"
+          }
+        ]
+      },
+      "can_bypass": true,
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "compute_attribution_completeness",
+        "tracking": "salsa-query"
+      },
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
+    },
+    {
+      "query_id": "classify_compliance_days",
+      "query_group_id": "score_compliance",
+      "label": "Apply the compliance threshold",
+      "description": "Classify participant days using the configured threshold.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/classify_compliance_days/v1",
+      "input_queries": [
+        "compute_attribution_completeness"
       ],
       "request_fields": [
         "compliance_threshold_percent"
@@ -2388,72 +2420,73 @@
       "can_bypass": true,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "score_days",
+        "entrypoint": "classify_compliance_days",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "step_id": "assemble_result",
-      "unit_id": "outputs",
-      "label": "Assemble result",
-      "description": "Assemble everything the run produced — app rows, screen sessions, credited usage, window/attribution/coverage/compliance reports — into the downloadable result set.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/assemble_result/v1",
-      "input_steps": [
-        "parse_remap_config",
-        "csv_parse",
-        "drop_empty_timestamp",
-        "detect_device_model",
-        "resolve_preproc_datetime",
-        "build_canonical_rows",
-        "stable_sort",
-        "collect_timezones",
-        "compute_dominant_timezone",
-        "select_timezone_strategy",
-        "restamp_rows",
-        "row_count_report",
-        "exact_dedupe",
-        "count_dup_groups",
-        "nudge_duplicate_timestamps",
-        "mark_data_time_gaps",
-        "tag_filtered_packages",
-        "collect_keyguard_timestamps",
-        "walk_screen_state_machine",
-        "build_classified_sessions",
-        "compute_junk_packages",
-        "junk_blind_fold",
-        "build_matcher_input",
-        "run_matcher",
-        "apply_matcher_output",
-        "relabel_usage_with_floor",
-        "junk_downstream_mark",
-        "sort_episodes",
-        "split_concurrent",
-        "codebook_join",
+      "query_id": "assemble_result_manifest",
+      "query_group_id": "outputs",
+      "label": "Build the app table",
+      "description": "Project the scientific app-usage table.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/assemble_result_manifest/v1",
+      "input_queries": [
+        "validate_remap_rules",
+        "decode_source_records",
+        "remove_missing_timestamps",
+        "attach_device_models",
+        "bind_processing_timestamp",
+        "canonicalize_source_rows",
+        "order_source_records",
+        "collect_timezone_observations",
+        "estimate_dominant_timezone",
+        "resolve_timezone_strategy",
+        "standardize_event_clock",
+        "summarize_row_selection",
+        "coalesce_duplicate_event_keys",
+        "summarize_duplicate_groups",
+        "disambiguate_duplicate_timestamps",
+        "derive_time_gap_evidence",
+        "mark_app_policy_matches",
+        "index_keyguard_events",
+        "infer_screen_session_skeletons",
+        "classify_screen_sessions",
+        "resolve_excluded_packages",
+        "mask_excluded_app_events",
+        "build_app_event_index",
+        "match_app_episodes",
+        "materialize_candidate_episodes",
+        "classify_episode_durations",
+        "apply_app_inclusion_policy",
+        "order_app_episodes",
+        "segment_concurrent_usage",
+        "join_app_codebook",
         "derive_broad_category",
-        "collapse_genre",
-        "engagement_walk",
-        "flag_and_retain",
-        "blank_junk_timing",
-        "drop_selected_types",
-        "drop_zero_duration",
-        "partition_credit_sessions",
-        "build_liveness_substrate",
-        "report_screen_incapable",
-        "count_day_apps",
-        "credit_sessions",
-        "emit_credited_rows",
-        "assemble_credit_result",
+        "collapse_app_genre",
+        "derive_engagement_basis",
+        "apply_episode_flags",
+        "suppress_excluded_timing",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "identify_credit_eligible_sessions",
+        "build_activity_witness_indexes",
+        "assess_screen_evidence_capability",
+        "summarize_daily_apps",
+        "derive_credited_intervals",
+        "materialize_credited_rows",
+        "assemble_credit_outputs",
         "resolve_participant_windows",
-        "filter_rows_to_window",
+        "apply_participant_windows",
         "resolve_sharing_status",
-        "build_survey_lookup",
-        "attribute_rows",
-        "inject_placeholders",
-        "build_raw_date_index",
-        "build_coverage_table",
-        "accumulate_attribution_minutes",
-        "score_days"
+        "index_survey_responses",
+        "classify_person_attribution",
+        "synthesize_placeholder_rows",
+        "index_raw_dates",
+        "build_participant_day_coverage",
+        "aggregate_attribution_minutes",
+        "compute_attribution_completeness",
+        "classify_compliance_days"
       ],
       "request_fields": [
         "study_name",
@@ -2503,7 +2536,7 @@
       "can_bypass": false,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "assemble_result",
+        "entrypoint": "assemble_result_manifest",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"

@@ -27,8 +27,8 @@ import {
 import {
   outputCellDependencies,
   outputColumnMatches,
-  type RustStepContract,
-} from "@/testSupport/rustStepContract";
+  type RustWorkflowContract,
+} from "@/testSupport/workflowContract";
 import {
   captureCanonicalOutputCells,
   changedCellAddresses,
@@ -60,11 +60,11 @@ type RuntimeManifest = {
   productContractDigest: string;
   openObligations: unknown[];
   processingSummary: {
-    logicalStageDigests: Record<string, string>;
-    pipelineStepDigests: Record<string, string>;
+    workflowQueryGroupDigests: Record<string, string>;
+    workflowQueryDigests: Record<string, string>;
     [key: string]: unknown;
   };
-  stepExecutions: Array<{ step_id: string; status: string }>;
+  queryExecutions: Array<{ query_id: string; status: string }>;
 };
 
 type AxisValue = { label: string; value: unknown };
@@ -75,17 +75,19 @@ const catalog = buildSyntheticCatalog({
   backgroundCsv,
   forcingScreenOpenCsv: forcingCsv,
 });
-let stepContract: RustStepContract;
+let workflowContract: RustWorkflowContract;
 
 beforeAll(() => {
   runtime.initSync({ module: dependencyCampaignRuntimeBytes() });
-  stepContract = JSON.parse(
-    runtime.pipeline_step_contract_json(),
-  ) as RustStepContract;
-  expect(stepContract.protocolVersion).toBe(
-    "chronicle-preprocessing-step-contract/v3",
+  workflowContract = JSON.parse(
+    runtime.workflow_contract_json(),
+  ) as RustWorkflowContract;
+  expect(workflowContract.protocolVersion).toBe(
+    "chronicle-workflow-contract/v1",
   );
-  expect(stepContract.steps).toHaveLength(55);
+  const queryIds = workflowContract.execution.queries.map(({ id }) => id);
+  expect(queryIds.length).toBeGreaterThan(0);
+  expect(new Set(queryIds).size).toBe(queryIds.length);
 });
 
 function sha256Uri(value: string): string {
@@ -164,7 +166,7 @@ function execute(
 
 /** Forward closure of the declared field edges from one supplied column. */
 function reachableFields(seed: string): Set<string> {
-  const edges = stepContract.steps.flatMap((step) => step.fieldEdges);
+  const edges = workflowContract.execution.queries.flatMap((query) => query.fieldEdges);
   const reached = new Set([seed]);
   let grew = true;
   while (grew) {
@@ -181,17 +183,17 @@ function reachableFields(seed: string): Set<string> {
 }
 
 /**
- * The declared step cone of a supplied column: every step that reads or writes
+ * The declared query cone of a supplied column: every query that reads or writes
  * a field the column can reach. It selects which configuration axes are
  * predicted to interact with the column; it is not itself asserted against
- * step checkpoint digests, because a step's checkpoint also moves when it
+ * query checkpoint digests, because a query's checkpoint also moves when it
  * merely carries a changed field through its output records without reading it.
  */
-function declaredStepCone(sourceField: string): string[] {
+function declaredQueryCone(sourceField: string): string[] {
   const reached = reachableFields(sourceField);
-  return stepContract.steps
-    .filter((step) =>
-      [...step.fieldReads, ...step.fieldWrites].some((field) =>
+  return workflowContract.execution.queries
+    .filter((query) =>
+      [...query.fieldReads, ...query.fieldWrites].some((field) =>
         reached.has(field),
       ),
     )
@@ -208,9 +210,9 @@ function declaredStepCone(sourceField: string): string[] {
 function declaredCellReach(sourceField: string): Set<string> {
   const reached = reachableFields(sourceField);
   return new Set(
-    stepContract.outputCellBindings
+    workflowContract.semantic.outputCellBindings
       .filter((binding) =>
-        outputCellDependencies(stepContract, binding).some((field) =>
+        outputCellDependencies(workflowContract, binding).some((field) =>
           reached.has(field),
         ),
       )
@@ -248,10 +250,10 @@ function coveringFamily(
   return undefined;
 }
 
-function changedSteps(source: Observation, target: Observation): string[] {
+function changedQueries(source: Observation, target: Observation): string[] {
   return changedKeys(
-    source.manifest.processingSummary.pipelineStepDigests,
-    target.manifest.processingSummary.pipelineStepDigests,
+    source.manifest.processingSummary.workflowQueryDigests,
+    target.manifest.processingSummary.workflowQueryDigests,
   );
 }
 
@@ -331,7 +333,7 @@ describe("per-field mixed source × configuration tomography", () => {
         const rewritten = interventionColumns(
           buildArtifactInterventions({ corpus, catalog }),
         );
-        // A supplied column no step declares as read has no reach to cross with
+        // A supplied column no query declares as read has no reach to cross with
         // configuration. `filter_file.app_filter_category` is the checked
         // example: only the review UI renders it. Such columns are reported so
         // the aggregate names them instead of silently dropping them.
@@ -367,7 +369,7 @@ describe("per-field mixed source × configuration tomography", () => {
         }>;
       };
       expect(aggregate.protocolVersion).toBe(
-        "chronicle-field-mixed-tomography-aggregate/v1",
+        "chronicle-field-mixed-tomography-aggregate/v2",
       );
       for (const column of aggregate.columnsWithoutDeclaredReach) {
         expect(
@@ -385,15 +387,15 @@ describe("per-field mixed source × configuration tomography", () => {
 
   it("proves the declared reach of one source column across the configuration axes", () => {
     const baseOptions = ALL_ON;
-    const cone = declaredStepCone(SHARD_COLUMN);
+    const cone = declaredQueryCone(SHARD_COLUMN);
     expect(
       cone.length,
-      `${SHARD_COLUMN}: a column with no declared step cone cannot be campaigned`,
+      `${SHARD_COLUMN}: a column with no declared query cone cannot be campaigned`,
     ).toBeGreaterThan(0);
 
     // Find a corpus whose intervention on exactly this column is not inert.
     // A candidate that already moves canonical cells at the base configuration
-    // is preferred; one that only moves a logical stage checkpoint is accepted,
+    // is preferred; one that only moves a workflow query-group checkpoint is accepted,
     // because a column can be silent at the base configuration and visible
     // under another value of an axis the cross is about to execute.
     type Selection = {
@@ -438,8 +440,8 @@ describe("per-field mixed source × configuration tomography", () => {
         activationExecutions += 1;
         const movedStages =
           changedKeys(
-            baseline.manifest.processingSummary.logicalStageDigests,
-            observed.manifest.processingSummary.logicalStageDigests,
+            baseline.manifest.processingSummary.workflowQueryGroupDigests,
+            observed.manifest.processingSummary.workflowQueryGroupDigests,
           ).length > 0;
         if (!movedStages) continue;
         const movedCellsAtBase =
@@ -468,9 +470,9 @@ describe("per-field mixed source × configuration tomography", () => {
     const predicted: Array<{ key: string; alternate: AxisValue }> = [];
     const unpredicted: Array<{ key: string; alternate: AxisValue }> = [];
     const coneRequestFields = new Set(
-      stepContract.steps
-        .filter((step) => coneSet.has(step.id))
-        .flatMap((step) => step.requestFields),
+      workflowContract.execution.queries
+        .filter((query) => coneSet.has(query.id))
+        .flatMap((query) => query.requestFields),
     );
     for (const axis of axes) {
       const moved = exactFieldsMovedBy(baseOptions, axis.key, axis.alternate);
@@ -503,10 +505,10 @@ describe("per-field mixed source × configuration tomography", () => {
 
     const observations: Array<Record<string, unknown>> = [];
     const witnessedFamilies = new Set(baseMoved.families);
-    // Step checkpoints are recorded as context only. A step's checkpoint also
+    // Query checkpoints are recorded as context only. A query's checkpoint also
     // moves when it merely carries a changed field through its records, so it
     // is a coarser signal than the cell-level claim being gated here.
-    const observedSteps = new Set(changedSteps(baseSource, baseTarget));
+    const observedQueries = new Set(changedQueries(baseSource, baseTarget));
 
     let executions = 2;
     const runAxis = (
@@ -518,8 +520,8 @@ describe("per-field mixed source × configuration tomography", () => {
       const axisSource = execute(chosen.source, options, `src-${axisId}`);
       const axisTarget = execute(chosen.target, options, `tgt-${axisId}`);
       executions += 2;
-      for (const step of changedSteps(axisSource, axisTarget)) {
-        observedSteps.add(step);
+      for (const query of changedQueries(axisSource, axisTarget)) {
+        observedQueries.add(query);
       }
       const moved = movedFamilies(declaredReach, axisSource, axisTarget);
       for (const family of moved.families) witnessedFamilies.add(family);
@@ -546,7 +548,7 @@ describe("per-field mixed source × configuration tomography", () => {
     for (const axis of predicted) {
       runAxis(axis, true);
     }
-    // A control axis is one no step in the declared cone reads. It may still
+    // A control axis is one no query in the declared cone reads. It may still
     // change how many rows exist, so a family it stops moving is recorded;
     // a family it *introduces* would mean the column reaches further under
     // that configuration than the declaration allows, and is a violation.
@@ -581,10 +583,10 @@ describe("per-field mixed source × configuration tomography", () => {
 
     const declaredFamilies = [...declaredReach].sort();
     const ledger = {
-      protocolVersion: "chronicle-field-mixed-tomography/v1",
+      protocolVersion: "chronicle-field-mixed-tomography/v2",
       sourceField: SHARD_COLUMN,
       claimBoundary:
-        "One supplied source column, one empirically branch-activating intervention on it, crossed with every computational configuration axis the field-level step contract predicts can interact with that column, plus a deterministic control sample of axes it predicts cannot. Under every configuration executed, every canonical output cell the intervention changes belongs to a declared output-cell family of that column, and no control axis introduces a family the base configuration did not move. Declared families no configuration moved are listed, not asserted: a declared edge no run exercised is not evidence the edge is unreal. Changed step checkpoints are recorded as context only, because a step checkpoint also moves when the step merely carries a changed field through its records.",
+        "One supplied source column, one empirically branch-activating intervention on it, crossed with every computational configuration axis the field-level workflow contract predicts can interact with that column, plus a deterministic control sample of axes it predicts cannot. Under every configuration executed, every canonical output cell the intervention changes belongs to a declared output-cell family of that column, and no control axis introduces a family the base configuration did not move. Declared families no configuration moved are listed, not asserted: a declared edge no run exercised is not evidence the edge is unreal. Changed query checkpoints are recorded as context only, because a query checkpoint also moves when the query merely carries a changed field through its records.",
       implementationReceipt: {
         implementation: baseSource.manifest.implementation,
         implementationDigest: baseSource.manifest.implementationDigest,
@@ -602,7 +604,7 @@ describe("per-field mixed source × configuration tomography", () => {
         sourceFields: chosen.intervention.sourceFields,
         movedCanonicalCellsAtBaseConfiguration: chosen.movedCellsAtBase,
       },
-      declaredStepCone: cone,
+      declaredQueryCone: cone,
       declaredCellFamilies: declaredFamilies,
       coverage: {
         computationalAxes: axes.length,
@@ -621,9 +623,9 @@ describe("per-field mixed source × configuration tomography", () => {
       structurallyDeclaredButUnwitnessedFamilies: declaredFamilies.filter(
         (family) => !witnessedFamilies.has(family),
       ),
-      observedStepsAcrossAllConfigurations: [...observedSteps].sort(),
-      stepsOutsideDeclaredConeCarryingChangedFields: [...observedSteps]
-        .filter((step) => !coneSet.has(step))
+      observedQueriesAcrossAllConfigurations: [...observedQueries].sort(),
+      queriesOutsideDeclaredConeCarryingChangedFields: [...observedQueries]
+        .filter((query) => !coneSet.has(query))
         .sort(),
       axisObservations: observations,
     };

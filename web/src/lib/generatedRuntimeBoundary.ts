@@ -32,33 +32,12 @@ export type DependencyCacheMode = "certified_narrow" | "conservative_full";
 
 export type ExecutionStatus = "cached" | "recomputed" | "error" | "skipped" | "bypassed";
 
-export type LogicalStageCheckpoint = {
-  protocolVersion: string;
-  nodeId: string;
-  rowMembershipDigest: string;
-  rowOrderDigest: string;
-  temporalStateDigest: string;
-  classificationDigest: string;
-  payloadDigest: string;
-  schemaDigest: string;
-  terminalDigest: string;
-};
-
 export type MaterializationState = "open" | "ready" | "satisfied" | "blocked" | "invalid" | "not_applicable";
-
-export type NodeExecution = {
-  node_id: string;
-  capability_id: string;
-  status: ExecutionStatus;
-  input_key: string;
-  output: ArtifactRef | null;
-  reason_id: string;
-};
 
 export type OpenObligation = {
   obligation_id: string;
   role_id: string;
-  node_id: string | null;
+  query_group_id: string | null;
   state: MaterializationState;
   reason_id: string;
 };
@@ -82,6 +61,15 @@ export type QualificationTrace = {
   selected_role_id: string | null;
   decision: QualificationDecision;
   rule_evaluations: QualificationRuleEvaluation[];
+  reason_id: string;
+};
+
+export type QueryGroupExecution = {
+  query_group_id: string;
+  capability_id: string;
+  status: ExecutionStatus;
+  input_key: string;
+  output: ArtifactRef | null;
   reason_id: string;
 };
 
@@ -111,8 +99,8 @@ export type ReviewRuntimeManifest = {
   rowsRemovedByTimezone: number;
   duplicateTimestampsCorrected: number;
   exactDuplicateRowsRemoved: number;
-  nodeExecutions: NodeExecution[];
-  stepExecutions: RuntimeStepExecution[];
+  queryGroupExecutions: QueryGroupExecution[];
+  queryExecutions: RuntimeQueryExecution[];
   cacheSources: string[];
   reviewSummaryDigest: string;
   comparisonDigest: string;
@@ -183,8 +171,8 @@ export type RuntimeManifest = {
   requirementTraces: RoleRequirementTrace[];
   openObligations: OpenObligation[];
   stateReasons: StateReason[];
-  nodeExecutions: NodeExecution[];
-  stepExecutions: RuntimeStepExecution[];
+  queryGroupExecutions: QueryGroupExecution[];
+  queryExecutions: RuntimeQueryExecution[];
   artifacts: RuntimeArtifactMetadata[];
   counts: RuntimeCounts;
   processingSummary: RuntimeProcessingSummary;
@@ -200,19 +188,19 @@ export type RuntimeProcessingSummary = {
   rowsRemovedByTimezone: number;
   timezoneRetainedSourceRowsDigest: string;
   timezoneStageDigest: string;
-  logicalStageDigests: Record<string, string>;
-  logicalStageCheckpoints: Record<string, LogicalStageCheckpoint>;
-  pipelineStepDigests: Record<string, string>;
-  pipelineStepCheckpoints: Record<string, LogicalStageCheckpoint>;
+  workflowQueryGroupDigests: Record<string, string>;
+  workflowQueryGroupCheckpoints: Record<string, WorkflowCheckpoint>;
+  workflowQueryDigests: Record<string, string>;
+  workflowQueryCheckpoints: Record<string, WorkflowCheckpoint>;
   publishedOutputsDigest: string;
   provenanceDigest: string;
   duplicateTimestampsCorrected: number;
   exactDuplicateRowsRemoved: number;
 };
 
-export type RuntimeStepExecution = {
-  step_id: string;
-  unit_id: string;
+export type RuntimeQueryExecution = {
+  query_id: string;
+  query_group_id: string;
   status: ExecutionStatus;
   input_key: string;
   output_digest: string;
@@ -225,6 +213,18 @@ export type StateReason = {
   state: MaterializationState;
   source_id: string;
   message: string;
+};
+
+export type WorkflowCheckpoint = {
+  protocolVersion: string;
+  subjectId: string;
+  rowMembershipDigest: string;
+  rowOrderDigest: string;
+  temporalStateDigest: string;
+  classificationDigest: string;
+  payloadDigest: string;
+  schemaDigest: string;
+  terminalDigest: string;
 };
 
 export const RUNTIME_BOUNDARY_MODEL: BoundaryModel = {
@@ -356,74 +356,6 @@ export const RUNTIME_BOUNDARY_MODEL: BoundaryModel = {
         "bypassed"
       ]
     },
-    "LogicalStageCheckpoint": {
-      "fields": [
-        {
-          "name": "protocolVersion",
-          "rustName": "protocol_version",
-          "value": {
-            "kind": "string"
-          }
-        },
-        {
-          "name": "nodeId",
-          "rustName": "node_id",
-          "value": {
-            "kind": "string"
-          }
-        },
-        {
-          "name": "rowMembershipDigest",
-          "rustName": "row_membership_digest",
-          "value": {
-            "kind": "string"
-          }
-        },
-        {
-          "name": "rowOrderDigest",
-          "rustName": "row_order_digest",
-          "value": {
-            "kind": "string"
-          }
-        },
-        {
-          "name": "temporalStateDigest",
-          "rustName": "temporal_state_digest",
-          "value": {
-            "kind": "string"
-          }
-        },
-        {
-          "name": "classificationDigest",
-          "rustName": "classification_digest",
-          "value": {
-            "kind": "string"
-          }
-        },
-        {
-          "name": "payloadDigest",
-          "rustName": "payload_digest",
-          "value": {
-            "kind": "string"
-          }
-        },
-        {
-          "name": "schemaDigest",
-          "rustName": "schema_digest",
-          "value": {
-            "kind": "string"
-          }
-        },
-        {
-          "name": "terminalDigest",
-          "rustName": "terminal_digest",
-          "value": {
-            "kind": "string"
-          }
-        }
-      ],
-      "kind": "struct"
-    },
     "MaterializationState": {
       "kind": "enum",
       "label": "materialization state",
@@ -435,58 +367,6 @@ export const RUNTIME_BOUNDARY_MODEL: BoundaryModel = {
         "invalid",
         "not_applicable"
       ]
-    },
-    "NodeExecution": {
-      "fields": [
-        {
-          "name": "node_id",
-          "rustName": "node_id",
-          "value": {
-            "kind": "string"
-          }
-        },
-        {
-          "name": "capability_id",
-          "rustName": "capability_id",
-          "value": {
-            "kind": "string"
-          }
-        },
-        {
-          "name": "status",
-          "rustName": "status",
-          "value": {
-            "kind": "enum",
-            "name": "ExecutionStatus"
-          }
-        },
-        {
-          "name": "input_key",
-          "rustName": "input_key",
-          "value": {
-            "kind": "sha256Digest"
-          }
-        },
-        {
-          "name": "output",
-          "rustName": "output",
-          "value": {
-            "inner": {
-              "kind": "struct",
-              "name": "ArtifactRef"
-            },
-            "kind": "nullable"
-          }
-        },
-        {
-          "name": "reason_id",
-          "rustName": "reason_id",
-          "value": {
-            "kind": "string"
-          }
-        }
-      ],
-      "kind": "struct"
     },
     "OpenObligation": {
       "fields": [
@@ -505,8 +385,8 @@ export const RUNTIME_BOUNDARY_MODEL: BoundaryModel = {
           }
         },
         {
-          "name": "node_id",
-          "rustName": "node_id",
+          "name": "query_group_id",
+          "rustName": "query_group_id",
           "value": {
             "inner": {
               "kind": "string"
@@ -648,6 +528,58 @@ export const RUNTIME_BOUNDARY_MODEL: BoundaryModel = {
               "name": "QualificationRuleEvaluation"
             },
             "kind": "array"
+          }
+        },
+        {
+          "name": "reason_id",
+          "rustName": "reason_id",
+          "value": {
+            "kind": "string"
+          }
+        }
+      ],
+      "kind": "struct"
+    },
+    "QueryGroupExecution": {
+      "fields": [
+        {
+          "name": "query_group_id",
+          "rustName": "query_group_id",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "capability_id",
+          "rustName": "capability_id",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "status",
+          "rustName": "status",
+          "value": {
+            "kind": "enum",
+            "name": "ExecutionStatus"
+          }
+        },
+        {
+          "name": "input_key",
+          "rustName": "input_key",
+          "value": {
+            "kind": "sha256Digest"
+          }
+        },
+        {
+          "name": "output",
+          "rustName": "output",
+          "value": {
+            "inner": {
+              "kind": "struct",
+              "name": "ArtifactRef"
+            },
+            "kind": "nullable"
           }
         },
         {
@@ -846,23 +778,23 @@ export const RUNTIME_BOUNDARY_MODEL: BoundaryModel = {
           }
         },
         {
-          "name": "nodeExecutions",
-          "rustName": "node_executions",
+          "name": "queryGroupExecutions",
+          "rustName": "query_group_executions",
           "value": {
             "items": {
               "kind": "struct",
-              "name": "NodeExecution"
+              "name": "QueryGroupExecution"
             },
             "kind": "array"
           }
         },
         {
-          "name": "stepExecutions",
-          "rustName": "step_executions",
+          "name": "queryExecutions",
+          "rustName": "query_executions",
           "value": {
             "items": {
               "kind": "struct",
-              "name": "RuntimeStepExecution"
+              "name": "RuntimeQueryExecution"
             },
             "kind": "array"
           }
@@ -1334,23 +1266,23 @@ export const RUNTIME_BOUNDARY_MODEL: BoundaryModel = {
           }
         },
         {
-          "name": "nodeExecutions",
-          "rustName": "node_executions",
+          "name": "queryGroupExecutions",
+          "rustName": "query_group_executions",
           "value": {
             "items": {
               "kind": "struct",
-              "name": "NodeExecution"
+              "name": "QueryGroupExecution"
             },
             "kind": "array"
           }
         },
         {
-          "name": "stepExecutions",
-          "rustName": "step_executions",
+          "name": "queryExecutions",
+          "rustName": "query_executions",
           "value": {
             "items": {
               "kind": "struct",
-              "name": "RuntimeStepExecution"
+              "name": "RuntimeQueryExecution"
             },
             "kind": "array"
           }
@@ -1454,8 +1386,8 @@ export const RUNTIME_BOUNDARY_MODEL: BoundaryModel = {
           }
         },
         {
-          "name": "logicalStageDigests",
-          "rustName": "logical_stage_digests",
+          "name": "workflowQueryGroupDigests",
+          "rustName": "workflow_query_group_digests",
           "value": {
             "kind": "map",
             "values": {
@@ -1464,19 +1396,19 @@ export const RUNTIME_BOUNDARY_MODEL: BoundaryModel = {
           }
         },
         {
-          "name": "logicalStageCheckpoints",
-          "rustName": "logical_stage_checkpoints",
+          "name": "workflowQueryGroupCheckpoints",
+          "rustName": "workflow_query_group_checkpoints",
           "value": {
             "kind": "map",
             "values": {
               "kind": "struct",
-              "name": "LogicalStageCheckpoint"
+              "name": "WorkflowCheckpoint"
             }
           }
         },
         {
-          "name": "pipelineStepDigests",
-          "rustName": "pipeline_step_digests",
+          "name": "workflowQueryDigests",
+          "rustName": "workflow_query_digests",
           "value": {
             "kind": "map",
             "values": {
@@ -1485,13 +1417,13 @@ export const RUNTIME_BOUNDARY_MODEL: BoundaryModel = {
           }
         },
         {
-          "name": "pipelineStepCheckpoints",
-          "rustName": "pipeline_step_checkpoints",
+          "name": "workflowQueryCheckpoints",
+          "rustName": "workflow_query_checkpoints",
           "value": {
             "kind": "map",
             "values": {
               "kind": "struct",
-              "name": "LogicalStageCheckpoint"
+              "name": "WorkflowCheckpoint"
             }
           }
         },
@@ -1526,18 +1458,18 @@ export const RUNTIME_BOUNDARY_MODEL: BoundaryModel = {
       ],
       "kind": "struct"
     },
-    "RuntimeStepExecution": {
+    "RuntimeQueryExecution": {
       "fields": [
         {
-          "name": "step_id",
-          "rustName": "step_id",
+          "name": "query_id",
+          "rustName": "query_id",
           "value": {
             "kind": "string"
           }
         },
         {
-          "name": "unit_id",
-          "rustName": "unit_id",
+          "name": "query_group_id",
+          "rustName": "query_group_id",
           "value": {
             "kind": "string"
           }
@@ -1608,6 +1540,74 @@ export const RUNTIME_BOUNDARY_MODEL: BoundaryModel = {
         {
           "name": "message",
           "rustName": "message",
+          "value": {
+            "kind": "string"
+          }
+        }
+      ],
+      "kind": "struct"
+    },
+    "WorkflowCheckpoint": {
+      "fields": [
+        {
+          "name": "protocolVersion",
+          "rustName": "protocol_version",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "subjectId",
+          "rustName": "subject_id",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "rowMembershipDigest",
+          "rustName": "row_membership_digest",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "rowOrderDigest",
+          "rustName": "row_order_digest",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "temporalStateDigest",
+          "rustName": "temporal_state_digest",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "classificationDigest",
+          "rustName": "classification_digest",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "payloadDigest",
+          "rustName": "payload_digest",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "schemaDigest",
+          "rustName": "schema_digest",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "terminalDigest",
+          "rustName": "terminal_digest",
           "value": {
             "kind": "string"
           }

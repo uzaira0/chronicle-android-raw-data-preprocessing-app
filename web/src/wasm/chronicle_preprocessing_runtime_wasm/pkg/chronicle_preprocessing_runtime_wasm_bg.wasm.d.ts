@@ -12,8 +12,7 @@ export const execute_workspace_with_review_base: (a: number, b: number, c: numbe
 export const execute_workspace_with_review_bases: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => void;
 export const implementation_build_digest: (a: number) => void;
 export const inspect_raw_file_v1: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
-export const pipeline_step_contract_json: (a: number) => void;
-export const plan_stage_view_json: (a: number, b: number, c: number) => void;
+export const plan_workflow_explorer_view_json: (a: number, b: number, c: number) => void;
 export const prepare_persisted_workspace_review: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => void;
 export const prepare_workspace_review: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => void;
 export const preparedreviewworkspace_execute_selected_base: (a: number, b: number, c: number, d: number) => void;
@@ -30,6 +29,7 @@ export const runtimesupportfiles_put: (a: number, b: number, c: number, d: numbe
 export const runtimesupportfiles_put_with_name: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
 export const set_comparison_cache_capacity: (a: number) => void;
 export const verify_evidence_journal_cbor: (a: number, b: number, c: number) => void;
+export const workflow_contract_json: (a: number) => void;
 export const get_comparison_cache_retained: () => number;
 export const __wbindgen_add_to_stack_pointer: (a: number) => number;
 export const __wbindgen_export: (a: number, b: number, c: number) => void;

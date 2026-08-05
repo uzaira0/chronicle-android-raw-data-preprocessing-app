@@ -5,7 +5,8 @@ import type {
   BrowserSupportFiles,
   ProcessedFileResult,
   ProgressEvent,
-  RustStageView,
+  RustWorkflowExplorerView,
+  WorkflowExplorerSupportRole,
 } from "@/lib/types";
 import type { ChronicleWorkerApi } from "@/workers/chronicle-worker";
 import type { OpfsCapability } from "@/lib/opfsArtifactStore";
@@ -509,10 +510,11 @@ export async function warmRuntime(): Promise<void> {
   }
 }
 
-export async function getPlanStageView(
+export async function getWorkflowExplorerView(
   options: BrowserProcessingOptions,
-): Promise<RustStageView> {
-  return onSharedWorker((api) => api.planStageView(options));
+  supportRoles: WorkflowExplorerSupportRole[] = [],
+): Promise<RustWorkflowExplorerView> {
+  return onSharedWorker((api) => api.workflowExplorerView(options, supportRoles));
 }
 
 export async function discoverTimezonesBytes(

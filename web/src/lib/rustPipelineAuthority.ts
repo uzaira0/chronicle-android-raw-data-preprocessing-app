@@ -28,7 +28,7 @@ import type {
   ProgressEvent,
   ProgressStepKind,
   ReviewSummary,
-  RustStageView,
+  RustWorkflowExplorerView,
   TimelineViewData,
 } from "@/lib/types";
 import type { RustExecutionLedger } from "@/lib/rustExecutionRecords";
@@ -815,7 +815,12 @@ export async function processRawCsvWithRustAuthority(
       "application/json",
     ],
     ["execution-ledger-json", " Execution Ledger.json", "application/json"],
-    ["stage-view-json", " Stage View.json", "application/json"],
+    [
+      "workflow-provenance-jsonld",
+      " Workflow Provenance.jsonld",
+      "application/ld+json",
+    ],
+    ["workflow-explorer-view-json", " Workflow Explorer.json", "application/json"],
     [
       "semantic-index-source-json",
       " Semantic Index Source.json",
@@ -906,9 +911,9 @@ export async function processRawCsvWithRustAuthority(
     execution,
     "execution-ledger-json",
   );
-  const rustStageView = parseJsonArtifact<RustStageView>(
+  const workflowExplorerView = parseJsonArtifact<RustWorkflowExplorerView>(
     execution,
-    "stage-view-json",
+    "workflow-explorer-view-json",
   );
   return {
     inputFileName,
@@ -935,7 +940,7 @@ export async function processRawCsvWithRustAuthority(
     persistedTimelineRequest,
     reviewSummary,
     executionLedger,
-    rustStageView,
+    workflowExplorerView,
     rustRuntimeReceipt: {
       protocolVersion: "chronicle-preprocessing-runtime/v1",
       workspaceId: execution.workspaceId,
@@ -1049,11 +1054,11 @@ function reviewExecutionResult(
       suppliedReviewBaseBytes: execution.suppliedReviewBaseBytes,
       suppliedReconstructionBaseBytes:
         execution.suppliedReconstructionBaseBytes,
-      recomputedStepIds: execution.recomputedStepIds,
-      cachedStepIds: execution.cachedStepIds,
-      bypassedStepIds: execution.bypassedStepIds,
-      skippedStepIds: execution.skippedStepIds,
-      errorStepIds: execution.errorStepIds,
+      recomputedQueryIds: execution.recomputedQueryIds,
+      cachedQueryIds: execution.cachedQueryIds,
+      bypassedQueryIds: execution.bypassedQueryIds,
+      skippedQueryIds: execution.skippedQueryIds,
+      errorQueryIds: execution.errorQueryIds,
     },
   };
 }

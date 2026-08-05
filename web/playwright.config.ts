@@ -6,7 +6,14 @@ delete process.env.FORCE_COLOR;
 
 const allBrowserProjects = [
   { name: "chromium", use: { ...devices["Desktop Chrome"] } },
-  { name: "firefox", use: { ...devices["Desktop Firefox"] } },
+  {
+    name: "firefox",
+    use: { ...devices["Desktop Firefox"] },
+    // Each processing smoke test initializes the production WASM runtime.
+    // Concurrent Firefox workers contend heavily enough to exceed interaction
+    // timeouts on release runners, while the same tests are stable serially.
+    workers: 1,
+  },
   {
     name: "webkit",
     use: { ...devices["Desktop Safari"] },
@@ -21,9 +28,9 @@ const allBrowserProjects = [
     grep: /@no-storage/,
   },
   {
-    // The same WebKit build DOES grant OPFS against an on-disk profile, so this
-    // is WebKit's real coverage: everything except the storage-denied tests
-    // above, through a persistent context (see e2e/durabilityContext.ts).
+    // WebKit builds that expose OPFS can grant it against an on-disk profile,
+    // so this project exercises that durable path. The fixture capability-checks
+    // the persistent context and skips it on Linux WPE builds that omit OPFS.
     name: "webkit-durable",
     use: { ...devices["Desktop Safari"], durableProfile: true },
     grepInvert: /@no-storage/,
@@ -37,6 +44,13 @@ const allBrowserProjects = [
     workers: 1,
   },
 ];
+
+const webServerTimeoutMs = Number(
+  process.env.PLAYWRIGHT_WEB_SERVER_TIMEOUT_MS ?? "600000",
+);
+if (!Number.isSafeInteger(webServerTimeoutMs) || webServerTimeoutMs < 1) {
+  throw new Error("PLAYWRIGHT_WEB_SERVER_TIMEOUT_MS must be a positive integer");
+}
 
 // There is no separate "smoke projects" list: Playwright ANDs a CLI --grep with
 // each project's own grep/grepInvert, so `npm run test:e2e:smoke` already
@@ -61,7 +75,7 @@ export default defineConfig<DurabilityFixtures>({
         command: "sh -c 'npm run build && npm run preview'",
         url: "http://127.0.0.1:4173",
         reuseExistingServer: !process.env.CI,
-        timeout: 120_000,
+        timeout: webServerTimeoutMs,
         cwd: ".",
       },
   projects: allBrowserProjects,

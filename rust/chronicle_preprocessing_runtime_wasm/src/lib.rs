@@ -6,20 +6,22 @@
 //! content-addressed artifacts, role assignments, obligations, and evidence.
 
 mod binary_exports;
+pub mod workflow_provenance;
 
 use calamine::{Reader, Xlsx};
 use chronicle_chrono_kernel_wasm::pipeline_v2::{
     discover_timezones_v2_native, reconstruction_base_header_bytes, review_base_header_bytes,
-    select_persisted_review_base, IncrementalPipelineV2Engine, LogicalStageCheckpoint,
-    PersistedReviewBaseSelection, PipelineV2Options, PipelineV2OptionsJson, PipelineV2Result,
-    PipelineV2SupportFiles,
+    select_persisted_review_base, IncrementalPipelineV2Engine, PersistedReviewBaseSelection,
+    PipelineV2Options, PipelineV2OptionsJson, PipelineV2Result, PipelineV2SupportFiles,
+    WorkflowCheckpoint,
 };
 #[cfg(test)]
 use chronicle_chrono_kernel_wasm::pipeline_v2::{
     run_pipeline_v2_with_supports, TIMEZONE_HANDLING_MODES,
 };
-use chronicle_chrono_kernel_wasm::step_contract::{
-    step_request_fields, step_source_role_bindings, PipelineSourceRolePredicate, PIPELINE_STEPS,
+use chronicle_chrono_kernel_wasm::workflow_contract::{
+    query_request_fields, query_source_role_bindings, ApplicabilityExpression,
+    QuerySourceRolePredicate, ReviewBehavior, WorkflowContractDigests, WORKFLOW_QUERIES,
 };
 use chronicle_chrono_kernel_wasm::{
     is_recognized_interaction_type, is_valid_chronicle_timezone, parse_chronicle_timestamp_ns,
@@ -29,9 +31,9 @@ use chronicle_preprocessing_semantic_adapter::{
     embedded_plan_bytes, embedded_profile_bytes, embedded_profile_lock_bytes,
     embedded_runtime_authority_bytes, evaluate_dependency_cache_decision, evaluate_materialization,
     journal::{EvidenceJournal, Transition},
-    views::{artifact_view, encode_view, explanation_view, obligation_view, stage_view},
+    views::{artifact_view, encode_view, explanation_view, obligation_view},
     ArtifactRef, DependencyCacheDecision, DependencyCacheMode, ExecutionStatus,
-    MaterializationState, NodeExecution, RoleAssignment, Sha256Digest, CERTIFIED_OPTION_KEYS,
+    MaterializationState, QueryGroupExecution, RoleAssignment, Sha256Digest, CERTIFIED_OPTION_KEYS,
     EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256, EMBEDDED_PLAN_SHA256, EMBEDDED_PRODUCT_CONTRACT_SHA256,
     EMBEDDED_PROFILE_LOCK_SHA256, EMBEDDED_PROFILE_SHA256, EMBEDDED_RUNTIME_AUTHORITY_SHA256,
 };
@@ -105,9 +107,9 @@ const MAX_RECONSTRUCTION_BASE_ENCODED_BYTES: usize = 96 * 1024 * 1024;
 const MAX_COMBINED_PERSISTED_BASE_ENCODED_BYTES: usize = 128 * 1024 * 1024;
 const REQUIRED_VIEWS: [(&str, &str, &str); 4] = [
     (
-        "stage-view-json",
-        "chronicle.stage.v1",
-        "urn:chronicle:view:stage:v1",
+        "workflow-explorer-view-json",
+        "chronicle-workflow-explorer/v1",
+        "urn:chronicle:view:workflow-explorer:v1",
     ),
     (
         "artifact-view-json",
@@ -525,54 +527,565 @@ pub fn runtime_identity_json() -> String {
 }
 
 #[wasm_bindgen]
-pub fn pipeline_step_contract_json() -> String {
-    serde_json::to_string(&chronicle_chrono_kernel_wasm::step_contract::pipeline_step_contract())
-        .expect("Rust pipeline step contract is serializable")
+pub fn workflow_contract_json() -> String {
+    serde_json::to_string(&chronicle_chrono_kernel_wasm::workflow_contract::workflow_contract())
+        .expect("Rust workflow contract is serializable")
 }
 
-/// Project the embedded product plan for interaction before any raw artifact
-/// has been ingested. The projection is produced by the same Rust adapter and
-/// option vocabulary used during execution, so the browser never needs a
-/// second TypeScript topology or applicability implementation.
-#[wasm_bindgen]
-pub fn plan_stage_view_json(options_json: &str) -> Result<String, JsValue> {
-    plan_stage_view_native(options_json).map_err(|error| JsValue::from_str(&error))
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkflowExplorerSupportRole {
+    pub role_id: String,
+    pub present: bool,
+    #[serde(default)]
+    pub digest: Option<Sha256Digest>,
 }
 
-pub fn plan_stage_view_native(options_json: &str) -> Result<String, String> {
-    let options: PipelineV2OptionsJson = serde_json::from_str(options_json)
-        .map_err(|error| format!("invalid plan-view options: {error}"))?;
-    let semantic_options = semantic_options_value(&options)?;
-    let plan = embedded_plan();
-    let materialization = evaluate_materialization(
-        plan,
-        &BTreeMap::new(),
-        &semantic_options,
-        &BTreeSet::new(),
-        &BTreeSet::new(),
-    );
-    let projection_root = sha256(
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkflowExplorerRequest {
+    pub options: Value,
+    #[serde(default)]
+    pub support_roles: Vec<WorkflowExplorerSupportRole>,
+    #[serde(default)]
+    pub selected_run_root: Option<Sha256Digest>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkflowExplorerPhaseState {
+    pub phase_id: String,
+    pub label: String,
+    pub description: String,
+    pub display_order: u16,
+    pub input_phase_ids: Vec<String>,
+    pub applicable: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkflowExplorerOperationState {
+    pub operation_id: String,
+    pub label: String,
+    pub description: String,
+    pub phase_id: String,
+    pub role: String,
+    pub epistemic_role: String,
+    pub input_artifact_ids: Vec<String>,
+    pub output_artifact_ids: Vec<String>,
+    pub data_effects: Vec<String>,
+    pub applicable: bool,
+    pub run_state: String,
+    pub off_reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkflowExplorerArtifactState {
+    pub artifact_id: String,
+    pub label: String,
+    pub kind: String,
+    pub producer_operation_id: Option<String>,
+    pub consumer_operation_ids: Vec<String>,
+    pub run_state: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkflowExplorerQueryState {
+    pub query_id: String,
+    pub query_group_id: String,
+    pub input_query_ids: Vec<String>,
+    pub operation_ids: Vec<String>,
+    pub output_artifact_ids: Vec<String>,
+    pub applicability: String,
+    pub physical_state: String,
+    pub reuse_reason: Option<String>,
+    pub checkpoint_source: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkflowExplorerDecisionImpact {
+    pub input_id: String,
+    pub input_kind: String,
+    pub direct_query_ids: Vec<String>,
+    pub affected_operation_ids: Vec<String>,
+    pub affected_artifact_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkflowExplorerView {
+    pub protocol_version: String,
+    pub view_id: String,
+    pub schema_id: String,
+    pub revision: u64,
+    pub root_digest: Sha256Digest,
+    pub selected_run_root: Option<Sha256Digest>,
+    pub contract_digests: WorkflowContractDigests,
+    pub phases: Vec<WorkflowExplorerPhaseState>,
+    pub operations: Vec<WorkflowExplorerOperationState>,
+    pub artifacts: Vec<WorkflowExplorerArtifactState>,
+    pub queries: Vec<WorkflowExplorerQueryState>,
+    pub decisions: Vec<WorkflowExplorerDecisionImpact>,
+}
+
+fn serialized_enum<T: Serialize>(value: T) -> String {
+    serde_json::to_value(value)
+        .expect("workflow enum is serializable")
+        .as_str()
+        .expect("workflow enum serializes as a string")
+        .to_string()
+}
+
+fn evaluate_workflow_applicability(
+    expression: &ApplicabilityExpression,
+    options: &Value,
+    support_roles: &BTreeSet<&str>,
+) -> bool {
+    match expression {
+        ApplicabilityExpression::Always => true,
+        ApplicabilityExpression::OptionTrue { option_key } => options
+            .get(*option_key)
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        ApplicabilityExpression::OptionBooleanEquals { option_key, value } => options
+            .get(*option_key)
+            .and_then(Value::as_bool)
+            .is_some_and(|actual| actual == *value),
+        ApplicabilityExpression::OptionStringEquals { option_key, value } => options
+            .get(*option_key)
+            .and_then(Value::as_str)
+            .is_some_and(|actual| actual == *value),
+        ApplicabilityExpression::ArrayNonempty { option_key } => options
+            .get(*option_key)
+            .and_then(Value::as_array)
+            .is_some_and(|value| !value.is_empty()),
+        ApplicabilityExpression::StringNonempty { option_key } => options
+            .get(*option_key)
+            .and_then(Value::as_str)
+            .is_some_and(|value| !value.is_empty()),
+        ApplicabilityExpression::SupportPresent { role_id } => support_roles.contains(role_id),
+        ApplicabilityExpression::All { terms } => terms
+            .iter()
+            .all(|term| evaluate_workflow_applicability(term, options, support_roles)),
+        ApplicabilityExpression::Any { terms } => terms
+            .iter()
+            .any(|term| evaluate_workflow_applicability(term, options, support_roles)),
+        ApplicabilityExpression::Not { term } => {
+            !evaluate_workflow_applicability(term, options, support_roles)
+        }
+    }
+}
+
+fn workflow_phase_applicable<'a, I>(
+    phase_id: &str,
+    operations: I,
+    options: &Value,
+    support_roles: &BTreeSet<&str>,
+) -> bool
+where
+    I: IntoIterator<Item = (&'a str, &'a ApplicabilityExpression)>,
+{
+    operations
+        .into_iter()
+        .any(|(operation_phase_id, applicability)| {
+            operation_phase_id == phase_id
+                && evaluate_workflow_applicability(applicability, options, support_roles)
+        })
+}
+
+fn explorer_query_state(
+    execution: Option<&RuntimeQueryExecution>,
+) -> (&'static str, Option<String>) {
+    match execution.map(|execution| execution.status) {
+        Some(ExecutionStatus::Recomputed) => ("executed", None),
+        Some(ExecutionStatus::Cached) => ("memoized", Some("same_effective_inputs".into())),
+        Some(ExecutionStatus::Skipped) => ("omitted", Some("review_not_requested".into())),
+        Some(ExecutionStatus::Bypassed) => ("omitted", Some("not_applicable".into())),
+        Some(ExecutionStatus::Error) => ("error", None),
+        None => ("not_observed", None),
+    }
+}
+
+fn is_workflow_support_role(role_id: &str) -> bool {
+    role_id != "processing_options"
+}
+
+fn build_workflow_explorer_view(
+    request: &WorkflowExplorerRequest,
+    query_executions: &[RuntimeQueryExecution],
+    revision: u64,
+    run_root: Option<&str>,
+) -> Result<WorkflowExplorerView, String> {
+    let exact_options: PipelineV2OptionsJson = serde_json::from_value(request.options.clone())
+        .map_err(|error| format!("invalid workflow-explorer options: {error}"))?;
+    let semantic_options = semantic_options_value(&exact_options)?;
+    let contract = chronicle_chrono_kernel_wasm::workflow_contract::workflow_contract();
+    let known_roles = contract
+        .semantic
+        .root_roles
+        .iter()
+        .map(|role| role.role_id)
+        .collect::<BTreeSet<_>>();
+    let unknown_roles = request
+        .support_roles
+        .iter()
+        .map(|role| role.role_id.as_str())
+        .filter(|role| !known_roles.contains(role))
+        .collect::<Vec<_>>();
+    if !unknown_roles.is_empty() {
+        return Err(format!("unknown workflow support roles: {unknown_roles:?}"));
+    }
+    let present_roles = request
+        .support_roles
+        .iter()
+        .filter(|role| role.present)
+        .map(|role| role.role_id.as_str())
+        .collect::<BTreeSet<_>>();
+    let execution_by_query = query_executions
+        .iter()
+        .map(|execution| (execution.query_id.as_str(), execution))
+        .collect::<BTreeMap<_, _>>();
+    let mut operation_run_states = BTreeMap::<&str, String>::new();
+    let operations = contract
+        .semantic
+        .operations
+        .iter()
+        .map(|operation| {
+            let applicable = evaluate_workflow_applicability(
+                &operation.applicability,
+                &semantic_options,
+                &present_roles,
+            );
+            let executions = operation
+                .query_ids
+                .iter()
+                .filter_map(|query_id| execution_by_query.get(query_id).copied())
+                .collect::<Vec<_>>();
+            let run_state = if !applicable {
+                "not_applicable"
+            } else if executions
+                .iter()
+                .any(|execution| execution.status == ExecutionStatus::Error)
+            {
+                "error"
+            } else {
+                // Query execution is physical evidence only. A fused query can
+                // realize several operations with different applicability and
+                // no-op paths, so it cannot truthfully prove that any one
+                // semantic operation was applied. Operation-specific evidence
+                // may promote this state in a later protocol; until then the
+                // honest state is not observed.
+                "not_observed"
+            };
+            operation_run_states.insert(operation.id, run_state.to_string());
+            WorkflowExplorerOperationState {
+                operation_id: operation.id.to_string(),
+                label: operation.label.to_string(),
+                description: operation.description.to_string(),
+                phase_id: operation.phase_id.to_string(),
+                role: serialized_enum(operation.role),
+                epistemic_role: serialized_enum(operation.epistemic_role),
+                input_artifact_ids: operation.input_artifacts.clone(),
+                output_artifact_ids: operation.output_artifacts.clone(),
+                data_effects: operation
+                    .data_effects
+                    .iter()
+                    .map(|effect| serialized_enum(*effect))
+                    .collect(),
+                applicable,
+                run_state: run_state.to_string(),
+                off_reason: (!applicable)
+                    .then(|| "off because its applicability rule is false".into()),
+            }
+        })
+        .collect::<Vec<_>>();
+
+    let operation_by_id = contract
+        .semantic
+        .operations
+        .iter()
+        .map(|operation| (operation.id, operation))
+        .collect::<BTreeMap<_, _>>();
+    let mut phase_inputs = BTreeMap::<&str, BTreeSet<&str>>::new();
+    for operation in &contract.semantic.operations {
+        for input in &operation.input_artifacts {
+            let Some(artifact) = contract
+                .semantic
+                .artifacts
+                .iter()
+                .find(|artifact| artifact.id == *input)
+            else {
+                continue;
+            };
+            let Some(producer) = artifact
+                .producer_operation_id
+                .and_then(|producer| operation_by_id.get(producer))
+            else {
+                continue;
+            };
+            if producer.phase_id != operation.phase_id {
+                phase_inputs
+                    .entry(operation.phase_id)
+                    .or_default()
+                    .insert(producer.phase_id);
+            }
+        }
+    }
+    let phases = contract
+        .presentation
+        .phases
+        .iter()
+        .map(|phase| WorkflowExplorerPhaseState {
+            phase_id: phase.id.to_string(),
+            label: phase.label.to_string(),
+            description: phase.description.to_string(),
+            display_order: phase.display_order,
+            input_phase_ids: phase_inputs
+                .get(phase.id)
+                .into_iter()
+                .flat_map(|inputs| inputs.iter())
+                .map(|input| (*input).to_string())
+                .collect(),
+            applicable: workflow_phase_applicable(
+                phase.id,
+                contract
+                    .semantic
+                    .operations
+                    .iter()
+                    .map(|operation| (operation.phase_id, &operation.applicability)),
+                &semantic_options,
+                &present_roles,
+            ),
+        })
+        .collect::<Vec<_>>();
+
+    let artifacts = contract
+        .semantic
+        .artifacts
+        .iter()
+        .map(|artifact| {
+            let run_state = artifact
+                .producer_operation_id
+                .and_then(|producer| operation_run_states.get(producer))
+                .map(|state| match state.as_str() {
+                    "not_applicable" => "absent",
+                    "error" => "error",
+                    _ => "not_observed",
+                })
+                .unwrap_or("not_observed");
+            WorkflowExplorerArtifactState {
+                artifact_id: artifact.id.clone(),
+                label: artifact.label.clone(),
+                kind: serialized_enum(artifact.kind),
+                producer_operation_id: artifact.producer_operation_id.map(str::to_string),
+                consumer_operation_ids: artifact
+                    .consumer_operation_ids
+                    .iter()
+                    .map(|id| (*id).to_string())
+                    .collect(),
+                run_state: run_state.to_string(),
+            }
+        })
+        .collect::<Vec<_>>();
+
+    let queries = contract
+        .execution
+        .queries
+        .iter()
+        .map(|query| {
+            let applicable = evaluate_workflow_applicability(
+                &query.applicability,
+                &semantic_options,
+                &present_roles,
+            );
+            let execution = execution_by_query.get(query.id).copied();
+            let (physical_state, reuse_reason) = explorer_query_state(execution);
+            WorkflowExplorerQueryState {
+                query_id: query.id.to_string(),
+                query_group_id: query.group.to_string(),
+                input_query_ids: query.inputs.iter().map(|id| (*id).to_string()).collect(),
+                operation_ids: query
+                    .operation_ids
+                    .iter()
+                    .map(|id| (*id).to_string())
+                    .collect(),
+                output_artifact_ids: query.output_ports.clone(),
+                applicability: if applicable {
+                    "applicable"
+                } else {
+                    "not_applicable"
+                }
+                .into(),
+                physical_state: physical_state.into(),
+                reuse_reason,
+                checkpoint_source: execution
+                    .filter(|execution| execution.status == ExecutionStatus::Cached)
+                    .map(|_| "memory_or_persisted_base".into()),
+            }
+        })
+        .collect::<Vec<_>>();
+
+    let mut impacts = BTreeMap::<(String, String), WorkflowExplorerDecisionImpact>::new();
+    for query in &contract.execution.queries {
+        for field in query.request_fields {
+            let impact = impacts
+                .entry(("option".into(), (*field).to_string()))
+                .or_insert_with(|| WorkflowExplorerDecisionImpact {
+                    input_id: (*field).to_string(),
+                    input_kind: "option".into(),
+                    direct_query_ids: Vec::new(),
+                    affected_operation_ids: Vec::new(),
+                    affected_artifact_ids: Vec::new(),
+                });
+            impact.direct_query_ids.push(query.id.to_string());
+        }
+        for role in query.source_roles {
+            let impact = impacts
+                .entry(("support".into(), (*role).to_string()))
+                .or_insert_with(|| WorkflowExplorerDecisionImpact {
+                    input_id: (*role).to_string(),
+                    input_kind: "support".into(),
+                    direct_query_ids: Vec::new(),
+                    affected_operation_ids: Vec::new(),
+                    affected_artifact_ids: Vec::new(),
+                });
+            impact.direct_query_ids.push(query.id.to_string());
+        }
+    }
+    // Some output encoders live in the runtime rather than a kernel query.
+    // Their settings/supports still belong in Decisions even though they have
+    // no direct physical query to report.
+    for operation in &contract.semantic.operations {
+        for dependency in &operation.config_dependencies {
+            impacts
+                .entry(("option".into(), dependency.field.clone()))
+                .or_insert_with(|| WorkflowExplorerDecisionImpact {
+                    input_id: dependency.field.clone(),
+                    input_kind: "option".into(),
+                    direct_query_ids: Vec::new(),
+                    affected_operation_ids: Vec::new(),
+                    affected_artifact_ids: Vec::new(),
+                });
+        }
+        for artifact_id in &operation.input_artifacts {
+            let Some(role_id) = artifact_id.strip_prefix("source.") else {
+                continue;
+            };
+            impacts
+                .entry(("support".into(), role_id.to_string()))
+                .or_insert_with(|| WorkflowExplorerDecisionImpact {
+                    input_id: role_id.to_string(),
+                    input_kind: "support".into(),
+                    direct_query_ids: Vec::new(),
+                    affected_operation_ids: Vec::new(),
+                    affected_artifact_ids: Vec::new(),
+                });
+        }
+    }
+    let mut decisions = impacts.into_values().collect::<Vec<_>>();
+    for impact in &mut decisions {
+        impact.direct_query_ids.sort();
+        impact.direct_query_ids.dedup();
+        // Query reachability explains physical cache reconsideration, but it
+        // is not the semantic operation graph. Start semantic impact at the
+        // operation's own declared option/support dependency, then follow
+        // typed artifact consumers. This keeps fused physical queries from
+        // falsely making every co-located operation a direct dependency.
+        let source_artifact =
+            (impact.input_kind == "support").then(|| format!("source.{}", impact.input_id));
+        let mut affected_operations = contract
+            .semantic
+            .operations
+            .iter()
+            .filter(|operation| {
+                if impact.input_kind == "option" {
+                    operation
+                        .config_dependencies
+                        .iter()
+                        .any(|dependency| dependency.field == impact.input_id)
+                } else {
+                    source_artifact
+                        .as_ref()
+                        .is_some_and(|source| operation.input_artifacts.contains(source))
+                }
+            })
+            .map(|operation| operation.id)
+            .collect::<BTreeSet<_>>();
+        // Contract operations are topologically ordered, so one forward pass
+        // computes the complete downstream closure. Repeating to a fixed point
+        // adds no reachability and obscures that ordering guarantee.
+        for operation in &contract.semantic.operations {
+            if operation
+                .input_artifacts
+                .iter()
+                .filter_map(|input| {
+                    contract
+                        .semantic
+                        .artifacts
+                        .iter()
+                        .find(|artifact| artifact.id == *input)
+                })
+                .filter_map(|artifact| artifact.producer_operation_id)
+                .any(|producer| affected_operations.contains(producer))
+            {
+                affected_operations.insert(operation.id);
+            }
+        }
+        for operation_id in affected_operations {
+            let operation = operation_by_id[operation_id];
+            impact.affected_operation_ids.push(operation_id.to_string());
+            impact
+                .affected_artifact_ids
+                .extend(operation.output_artifacts.clone());
+        }
+        impact.affected_operation_ids.sort();
+        impact.affected_operation_ids.dedup();
+        impact.affected_artifact_ids.sort();
+        impact.affected_artifact_ids.dedup();
+    }
+    let selected_run_root = run_root
+        .map(str::to_string)
+        .or_else(|| request.selected_run_root.clone());
+    let planned_root_digest = sha256(
         &serde_jcs::to_vec(&serde_json::json!({
-            "command": "GetPlanView",
-            "planDigest": EMBEDDED_PLAN_SHA256,
-            "profileLockDigest": EMBEDDED_PROFILE_LOCK_SHA256,
-            "options": semantic_options,
+            "protocol": "chronicle-workflow-explorer/v1",
+            "workspaceCompatibility": contract.digests.workspace_compatibility,
+            "options": request.options,
+            "supports": request.support_roles,
+            "selectedRunRoot": selected_run_root,
         }))
-        .map_err(|error| format!("canonicalize plan view root: {error}"))?,
+        .map_err(|error| format!("canonicalize workflow explorer root: {error}"))?,
     );
-    serde_json::to_string(&stage_view(
-        chronicle_preprocessing_semantic_adapter::views::StageViewInput {
-            plan,
-            materialization: &materialization,
-            executions: &[],
-            step_statuses: &BTreeMap::new(),
-            options: &semantic_options,
-            stage: None,
-            revision: 0,
-            root_digest: &projection_root,
-        },
-    ))
-    .map_err(|error| format!("serialize plan stage view: {error}"))
+    let root_digest = run_root.map(str::to_string).unwrap_or(planned_root_digest);
+    Ok(WorkflowExplorerView {
+        protocol_version: "chronicle-workflow-explorer/v1".into(),
+        view_id: "chronicle-workflow-explorer/v1".into(),
+        schema_id: "urn:chronicle:view:workflow-explorer:v1".into(),
+        revision,
+        root_digest,
+        selected_run_root,
+        contract_digests: contract.digests,
+        phases,
+        operations,
+        artifacts,
+        queries,
+        decisions,
+    })
+}
+
+#[wasm_bindgen]
+pub fn plan_workflow_explorer_view_json(request_json: &str) -> Result<String, JsValue> {
+    plan_workflow_explorer_view_native(request_json).map_err(|error| JsValue::from_str(&error))
+}
+
+pub fn plan_workflow_explorer_view_native(request_json: &str) -> Result<String, String> {
+    let request: WorkflowExplorerRequest = serde_json::from_str(request_json)
+        .map_err(|error| format!("invalid workflow-explorer request: {error}"))?;
+    serde_json::to_string(&build_workflow_explorer_view(&request, &[], 0, None)?)
+        .map_err(|error| format!("serialize workflow explorer view: {error}"))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -682,9 +1195,9 @@ pub struct RuntimeCounts {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RuntimeStepExecution {
-    pub step_id: String,
-    pub unit_id: String,
+pub struct RuntimeQueryExecution {
+    pub query_id: String,
+    pub query_group_id: String,
     pub status: ExecutionStatus,
     pub input_key: Sha256Digest,
     pub output_digest: Sha256Digest,
@@ -702,10 +1215,10 @@ pub struct RuntimeProcessingSummary {
     pub rows_removed_by_timezone: u32,
     pub timezone_retained_source_rows_digest: Sha256Digest,
     pub timezone_stage_digest: Sha256Digest,
-    pub logical_stage_digests: BTreeMap<String, Sha256Digest>,
-    pub logical_stage_checkpoints: BTreeMap<String, LogicalStageCheckpoint>,
-    pub pipeline_step_digests: BTreeMap<String, Sha256Digest>,
-    pub pipeline_step_checkpoints: BTreeMap<String, LogicalStageCheckpoint>,
+    pub workflow_query_group_digests: BTreeMap<String, Sha256Digest>,
+    pub workflow_query_group_checkpoints: BTreeMap<String, WorkflowCheckpoint>,
+    pub workflow_query_digests: BTreeMap<String, Sha256Digest>,
+    pub workflow_query_checkpoints: BTreeMap<String, WorkflowCheckpoint>,
     pub published_outputs_digest: Sha256Digest,
     pub provenance_digest: Sha256Digest,
     pub duplicate_timestamps_corrected: u32,
@@ -739,8 +1252,8 @@ pub struct RuntimeManifest {
     pub requirement_traces: Vec<chronicle_preprocessing_semantic_adapter::RoleRequirementTrace>,
     pub open_obligations: Vec<chronicle_preprocessing_semantic_adapter::OpenObligation>,
     pub state_reasons: Vec<chronicle_preprocessing_semantic_adapter::StateReason>,
-    pub node_executions: Vec<NodeExecution>,
-    pub step_executions: Vec<RuntimeStepExecution>,
+    pub query_group_executions: Vec<QueryGroupExecution>,
+    pub query_executions: Vec<RuntimeQueryExecution>,
     pub artifacts: Vec<RuntimeArtifactMetadata>,
     pub counts: RuntimeCounts,
     pub processing_summary: RuntimeProcessingSummary,
@@ -775,8 +1288,8 @@ pub struct ReviewRuntimeManifest {
     pub rows_removed_by_timezone: u32,
     pub duplicate_timestamps_corrected: u32,
     pub exact_duplicate_rows_removed: u32,
-    pub node_executions: Vec<NodeExecution>,
-    pub step_executions: Vec<RuntimeStepExecution>,
+    pub query_group_executions: Vec<QueryGroupExecution>,
+    pub query_executions: Vec<RuntimeQueryExecution>,
     pub cache_sources: Vec<String>,
     pub review_summary_digest: Sha256Digest,
     pub comparison_digest: Sha256Digest,
@@ -797,7 +1310,7 @@ pub struct RuntimeRequirementsReport {
     pub requirement_traces: Vec<chronicle_preprocessing_semantic_adapter::RoleRequirementTrace>,
     pub open_obligations: Vec<chronicle_preprocessing_semantic_adapter::OpenObligation>,
     pub role_states: BTreeMap<String, MaterializationState>,
-    pub node_states: BTreeMap<String, MaterializationState>,
+    pub query_group_states: BTreeMap<String, MaterializationState>,
     pub state_reasons: Vec<chronicle_preprocessing_semantic_adapter::StateReason>,
 }
 
@@ -805,6 +1318,8 @@ pub struct RuntimeRequirementsReport {
 #[serde(rename_all = "camelCase")]
 struct RootCommit<'a> {
     protocol_version: &'a str,
+    workflow_model_version: &'static str,
+    workflow_compatibility_digest: &'a str,
     command: &'a str,
     implementation_digest: &'a str,
     build_environment_digest: &'a str,
@@ -931,8 +1446,8 @@ struct IncrementalPipelineExecution {
     result: Arc<PipelineV2Result>,
     review_base: Option<Vec<u8>>,
     reconstruction_base: Option<Vec<u8>>,
-    node_executions: Vec<NodeExecution>,
-    step_executions: Vec<RuntimeStepExecution>,
+    query_group_executions: Vec<QueryGroupExecution>,
+    query_executions: Vec<RuntimeQueryExecution>,
     cache_sources: Vec<String>,
     cache_decision: DependencyCacheDecision,
     node_artifacts: Vec<RuntimeArtifact>,
@@ -951,12 +1466,12 @@ fn validate_verified_review_inputs(
 
 fn should_report_salsa_memory(
     cache_sources_empty: bool,
-    had_previous_step_observations: bool,
-    step_executions: &[RuntimeStepExecution],
+    had_previous_query_observations: bool,
+    query_executions: &[RuntimeQueryExecution],
 ) -> bool {
     cache_sources_empty
-        && had_previous_step_observations
-        && step_executions
+        && had_previous_query_observations
+        && query_executions
             .iter()
             .any(|execution| execution.status == ExecutionStatus::Cached)
 }
@@ -971,11 +1486,11 @@ struct CorrespondenceIndexInputs<'a> {
     plan: &'a chronicle_preprocessing_semantic_adapter::ChroniclePlan,
     assignments: &'a BTreeMap<String, RoleAssignment>,
     materialization: &'a chronicle_preprocessing_semantic_adapter::Materialization,
-    node_executions: &'a [NodeExecution],
+    query_group_executions: &'a [QueryGroupExecution],
     options: &'a Value,
     artifacts: &'a [RuntimeArtifact],
-    checkpoints: &'a BTreeMap<String, LogicalStageCheckpoint>,
-    step_checkpoints: &'a BTreeMap<String, LogicalStageCheckpoint>,
+    checkpoints: &'a BTreeMap<String, WorkflowCheckpoint>,
+    query_checkpoints: &'a BTreeMap<String, WorkflowCheckpoint>,
 }
 
 struct IngressMaterialization {
@@ -1015,7 +1530,7 @@ pub struct RuntimeHandle {
 #[derive(Default)]
 struct IncrementalRuntimeState {
     incremental_engine: IncrementalPipelineV2Engine,
-    previous_step_observations: BTreeMap<String, PreviousStepObservation>,
+    previous_query_observations: BTreeMap<String, PreviousQueryObservation>,
     previous_stage_inputs: BTreeMap<String, String>,
     previous_stage_outputs: BTreeMap<String, ArtifactRef>,
     stable_artifact_bundle: Option<StableArtifactBundle>,
@@ -1031,7 +1546,7 @@ struct StableArtifactBundle {
 }
 
 #[derive(Debug, Clone)]
-struct PreviousStepObservation {
+struct PreviousQueryObservation {
     input_key: String,
     output_digest: String,
     applicable: bool,
@@ -1063,9 +1578,7 @@ impl Default for IncrementalRuntimeStateCache {
 impl IncrementalRuntimeStateCache {
     fn state_for(&mut self, workspace_id: &str) -> &mut IncrementalRuntimeState {
         self.lru.retain(|candidate| candidate != workspace_id);
-        if !self.states.contains_key(workspace_id)
-            && self.states.len() >= self.max_states
-        {
+        if !self.states.contains_key(workspace_id) && self.states.len() >= self.max_states {
             if let Some(evicted) = self.lru.pop_front() {
                 self.states.remove(&evicted);
             }
@@ -1122,7 +1635,7 @@ struct StableArtifactKey<'a> {
     input_digest: &'a str,
     options_digest: &'a str,
     assignment_digests: BTreeMap<&'a str, &'a str>,
-    assemble_result_digest: &'a str,
+    assemble_result_manifest_digest: &'a str,
     dependency_cache_mode: DependencyCacheMode,
 }
 
@@ -1134,10 +1647,10 @@ fn stable_artifact_key(
     result: &PipelineV2Result,
     dependency_cache_mode: DependencyCacheMode,
 ) -> Result<String, String> {
-    let assemble_result_digest = result
-        .pipeline_step_digests
-        .get("assemble_result")
-        .ok_or_else(|| "tracked result omitted assemble_result checkpoint".to_string())?;
+    let assemble_result_manifest_digest = result
+        .workflow_query_digests
+        .get("assemble_result_manifest")
+        .ok_or_else(|| "tracked result omitted assemble_result_manifest checkpoint".to_string())?;
     Ok(sha256(
         &serde_jcs::to_vec(&StableArtifactKey {
             implementation_digest: IMPLEMENTATION_BUILD_DIGEST,
@@ -1149,7 +1662,7 @@ fn stable_artifact_key(
                 .iter()
                 .map(|(role, assignment)| (role.as_str(), assignment.artifact.digest.as_str()))
                 .collect(),
-            assemble_result_digest,
+            assemble_result_manifest_digest,
             dependency_cache_mode,
         })
         .map_err(|error| format!("canonicalize stable artifact key: {error}"))?,
@@ -1233,10 +1746,10 @@ struct PipelineResultProvenance<'a> {
     timezone_retained_source_rows_digest: &'a str,
     timezone_stage_digest: &'a str,
     row_lineage: &'a [chronicle_chrono_kernel_wasm::pipeline_v2::PipelineRowLineage],
-    logical_stage_digests: &'a BTreeMap<String, String>,
-    logical_stage_checkpoints: &'a BTreeMap<String, LogicalStageCheckpoint>,
-    pipeline_step_digests: &'a BTreeMap<String, String>,
-    pipeline_step_checkpoints: &'a BTreeMap<String, LogicalStageCheckpoint>,
+    workflow_query_group_digests: &'a BTreeMap<String, String>,
+    workflow_query_group_checkpoints: &'a BTreeMap<String, WorkflowCheckpoint>,
+    workflow_query_digests: &'a BTreeMap<String, String>,
+    workflow_query_checkpoints: &'a BTreeMap<String, WorkflowCheckpoint>,
 }
 
 struct Sha256Writer<'a>(&'a mut Sha256);
@@ -1284,10 +1797,10 @@ fn compute_pipeline_result_digest(
             timezone_retained_source_rows_digest: &result.timezone_retained_source_rows_digest,
             timezone_stage_digest: &result.timezone_stage_digest,
             row_lineage: &result.row_lineage,
-            logical_stage_digests: &result.logical_stage_digests,
-            logical_stage_checkpoints: &result.logical_stage_checkpoints,
-            pipeline_step_digests: &result.pipeline_step_digests,
-            pipeline_step_checkpoints: &result.pipeline_step_checkpoints,
+            workflow_query_group_digests: &result.workflow_query_group_digests,
+            workflow_query_group_checkpoints: &result.workflow_query_group_checkpoints,
+            workflow_query_digests: &result.workflow_query_digests,
+            workflow_query_checkpoints: &result.workflow_query_checkpoints,
         },
     )
     .expect("pipeline result digest metadata is serializable");
@@ -1665,10 +2178,10 @@ impl ResolvedSupportFiles {
 }
 
 #[derive(Serialize)]
-struct RuntimeStepKeyMaterial {
+struct RuntimeQueryKeyMaterial<'a> {
     implementation_digest: &'static str,
     build_environment_digest: &'static str,
-    contract_digest: &'static str,
+    query_closure_digest: &'a str,
     applicable: bool,
     upstream: BTreeMap<String, String>,
     request_fields: BTreeMap<String, Value>,
@@ -1676,49 +2189,11 @@ struct RuntimeStepKeyMaterial {
     output_mode: Option<&'static str>,
 }
 
-fn review_excludes_step(step_id: &str) -> bool {
-    matches!(
-        step_id,
-        "partition_credit_sessions"
-            | "build_liveness_substrate"
-            | "report_screen_incapable"
-            | "count_day_apps"
-            | "credit_sessions"
-            | "emit_credited_rows"
-            | "assemble_credit_result"
-            | "build_raw_date_index"
-            | "build_coverage_table"
-            | "accumulate_attribution_minutes"
-            | "score_days"
-    )
-}
-
-fn review_uses_passthrough_checkpoint(step_id: &str) -> bool {
-    matches!(
-        step_id,
-        "apply_matcher_output"
-            | "relabel_usage_with_floor"
-            | "junk_downstream_mark"
-            | "sort_episodes"
-            | "codebook_join"
-            | "derive_broad_category"
-            | "collapse_genre"
-            | "engagement_walk"
-            | "flag_and_retain"
-            | "blank_junk_timing"
-            | "drop_selected_types"
-            | "drop_zero_duration"
-            | "filter_rows_to_window"
-            | "attribute_rows"
-            | "inject_placeholders"
-    )
-}
-
-fn step_output_mode(step_id: &str, materialize_full_outputs: bool) -> Option<&'static str> {
-    (step_id == "assemble_result"
-        || review_excludes_step(step_id)
-        || review_uses_passthrough_checkpoint(step_id))
-    .then_some(if materialize_full_outputs {
+fn query_output_mode(
+    review_behavior: ReviewBehavior,
+    materialize_full_outputs: bool,
+) -> Option<&'static str> {
+    (review_behavior != ReviewBehavior::Execute).then_some(if materialize_full_outputs {
         "full"
     } else {
         "review"
@@ -1726,22 +2201,22 @@ fn step_output_mode(step_id: &str, materialize_full_outputs: bool) -> Option<&'s
 }
 
 fn active_source_roles(
-    step_id: &str,
+    query_id: &str,
     exact_options: &serde_json::Map<String, Value>,
     assignments: &BTreeMap<String, RoleAssignment>,
 ) -> BTreeMap<String, Option<String>> {
-    step_source_role_bindings(step_id)
+    query_source_role_bindings(query_id)
         .into_iter()
         .filter_map(|binding| {
             let active = binding.when_all.iter().all(|predicate| match predicate {
-                PipelineSourceRolePredicate::BooleanEquals {
+                QuerySourceRolePredicate::BooleanEquals {
                     request_field,
                     value,
                 } => exact_options
                     .get(*request_field)
                     .and_then(Value::as_bool)
                     .is_some_and(|actual| actual == *value),
-                PipelineSourceRolePredicate::StringOneOf {
+                QuerySourceRolePredicate::StringOneOf {
                     request_field,
                     values,
                 } => exact_options
@@ -1762,33 +2237,40 @@ fn active_source_roles(
         .collect()
 }
 
-struct RuntimeStepExecutionState<'a> {
-    executed_steps: &'a [String],
+struct RuntimeQueryExecutionState<'a> {
+    executed_queries: &'a [String],
     materialize_full_outputs: bool,
-    previous_observations: &'a mut BTreeMap<String, PreviousStepObservation>,
+    previous_observations: &'a mut BTreeMap<String, PreviousQueryObservation>,
 }
 
-fn build_runtime_step_executions(
+fn build_runtime_query_executions(
     plan: &chronicle_preprocessing_semantic_adapter::ChroniclePlan,
     semantic_options: &Value,
     exact_options: &Value,
     assignments: &BTreeMap<String, RoleAssignment>,
     result: &PipelineV2Result,
-    state: &mut RuntimeStepExecutionState<'_>,
-) -> Result<Vec<RuntimeStepExecution>, String> {
-    let plan_steps = plan
-        .steps
+    state: &mut RuntimeQueryExecutionState<'_>,
+) -> Result<Vec<RuntimeQueryExecution>, String> {
+    let plan_queries = plan
+        .queries
         .iter()
-        .map(|step| (step.step_id.as_str(), step))
+        .map(|step| (step.query_id.as_str(), step))
         .collect::<BTreeMap<_, _>>();
-    let contract_ids = PIPELINE_STEPS
+    let workflow_contract = chronicle_chrono_kernel_wasm::workflow_contract::workflow_contract();
+    let query_contracts = workflow_contract
+        .execution
+        .queries
+        .iter()
+        .map(|query| (query.id, query))
+        .collect::<BTreeMap<_, _>>();
+    let contract_ids = WORKFLOW_QUERIES
         .iter()
         .map(|step| step.id)
         .collect::<BTreeSet<_>>();
-    let plan_ids = plan_steps.keys().copied().collect::<BTreeSet<_>>();
+    let plan_ids = plan_queries.keys().copied().collect::<BTreeSet<_>>();
     if contract_ids != plan_ids {
         return Err(format!(
-            "Rust step contract and embedded product plan disagree: rust_only={:?}, plan_only={:?}",
+            "Rust workflow query contract and embedded product plan disagree: rust_only={:?}, plan_only={:?}",
             contract_ids.difference(&plan_ids).collect::<Vec<_>>(),
             plan_ids.difference(&contract_ids).collect::<Vec<_>>(),
         ));
@@ -1797,31 +2279,32 @@ fn build_runtime_step_executions(
     let exact_object = exact_options
         .as_object()
         .ok_or_else(|| "exact Rust options must serialize as an object".to_string())?;
-    let executed_steps = state
-        .executed_steps
+    let executed_queries = state
+        .executed_queries
         .iter()
         .map(String::as_str)
         .collect::<BTreeSet<_>>();
-    let unknown_executions = executed_steps
+    let unknown_executions = executed_queries
         .difference(&contract_ids)
         .copied()
         .collect::<Vec<_>>();
     if !unknown_executions.is_empty() {
         return Err(format!(
-            "incremental engine reported unknown executed steps: {unknown_executions:?}"
+            "incremental engine reported unknown executed queries: {unknown_executions:?}"
         ));
     }
-    let mut executions = Vec::with_capacity(PIPELINE_STEPS.len());
+    let mut executions = Vec::with_capacity(WORKFLOW_QUERIES.len());
     let mut binding_gaps = Vec::new();
     let mut next_observations = BTreeMap::new();
-    for definition in PIPELINE_STEPS {
-        let plan_step = plan_steps[definition.id];
+    for definition in WORKFLOW_QUERIES {
+        let plan_query = plan_queries[definition.id];
+        let query_contract = query_contracts[definition.id];
         let output_digest = result
-            .pipeline_step_digests
+            .workflow_query_digests
             .get(definition.id)
             .ok_or_else(|| format!("missing Rust checkpoint digest for {}", definition.id))?
             .clone();
-        let applicable = plan_step.applicability.evaluate(semantic_options);
+        let applicable = plan_query.applicability.evaluate(semantic_options);
         let previous = state.previous_observations.get(definition.id);
         // The key is defined below as a function of *this* run's inputs, so it
         // is always built from them. A previous run's key was reused here when
@@ -1829,7 +2312,7 @@ fn build_runtime_step_executions(
         // query which did not run cannot have changed its inputs. That does
         // not hold: the key binds the step's *declared* request fields, and a
         // step can legitimately skip execution while one of them changes —
-        // `split_concurrent` binds `minimum_usage_duration` but only reads it
+        // `segment_concurrent_usage` binds `minimum_usage_duration` but only reads it
         // when `apply_minimum_usage_duration_to_concurrent_subintervals` is
         // on, so editing the floor with that switch off left a warm review
         // reporting the previous run's key for it while a cold review of the
@@ -1841,14 +2324,14 @@ fn build_runtime_step_executions(
             .iter()
             .map(|input| {
                 result
-                    .pipeline_step_digests
+                    .workflow_query_digests
                     .get(*input)
                     .cloned()
                     .map(|digest| ((*input).to_string(), digest))
                     .ok_or_else(|| format!("{} has no checkpoint for input {input}", definition.id))
             })
             .collect::<Result<BTreeMap<_, _>, _>>()?;
-        let request_fields = step_request_fields(definition.id)
+        let request_fields = query_request_fields(definition.id)
             .iter()
             .map(|field| {
                 exact_object
@@ -1856,21 +2339,27 @@ fn build_runtime_step_executions(
                     .cloned()
                     .map(|value| ((*field).to_string(), value))
                     .ok_or_else(|| {
-                        format!("{} binds unknown exact request field {field}", definition.id)
+                        format!(
+                            "{} binds unknown exact request field {field}",
+                            definition.id
+                        )
                     })
             })
             .collect::<Result<BTreeMap<_, _>, _>>()?;
         let source_roles = active_source_roles(definition.id, exact_object, assignments);
         let input_key = sha256(
-            &serde_jcs::to_vec(&RuntimeStepKeyMaterial {
+            &serde_jcs::to_vec(&RuntimeQueryKeyMaterial {
                 implementation_digest: IMPLEMENTATION_BUILD_DIGEST,
                 build_environment_digest: BUILD_ENVIRONMENT_DIGEST,
-                contract_digest: EMBEDDED_PRODUCT_CONTRACT_SHA256,
+                query_closure_digest: &query_contract.closure_digest,
                 applicable,
                 upstream,
                 request_fields,
                 source_roles,
-                output_mode: step_output_mode(definition.id, state.materialize_full_outputs),
+                output_mode: query_output_mode(
+                    query_contract.review_behavior,
+                    state.materialize_full_outputs,
+                ),
             })
             .map_err(|error| format!("canonicalize {} input key: {error}", definition.id))?,
         );
@@ -1879,11 +2368,13 @@ fn build_runtime_step_executions(
         }) {
             binding_gaps.push(definition.id.to_string());
         }
-        let status = if !applicable && plan_step.can_bypass {
+        let status = if !applicable && plan_query.can_bypass {
             ExecutionStatus::Bypassed
-        } else if !state.materialize_full_outputs && review_excludes_step(definition.id) {
+        } else if !state.materialize_full_outputs
+            && query_contract.review_behavior == ReviewBehavior::Omit
+        {
             ExecutionStatus::Skipped
-        } else if executed_steps.contains(definition.id) {
+        } else if executed_queries.contains(definition.id) {
             ExecutionStatus::Recomputed
         } else {
             ExecutionStatus::Cached
@@ -1904,9 +2395,9 @@ fn build_runtime_step_executions(
             )
             .as_bytes(),
         );
-        executions.push(RuntimeStepExecution {
-            step_id: definition.id.to_string(),
-            unit_id: definition.group.to_string(),
+        executions.push(RuntimeQueryExecution {
+            query_id: definition.id.to_string(),
+            query_group_id: definition.group.to_string(),
             status,
             input_key: input_key.clone(),
             output_digest: output_digest.clone(),
@@ -1914,7 +2405,7 @@ fn build_runtime_step_executions(
         });
         next_observations.insert(
             definition.id.to_string(),
-            PreviousStepObservation {
+            PreviousQueryObservation {
                 input_key,
                 output_digest,
                 applicable,
@@ -1924,7 +2415,7 @@ fn build_runtime_step_executions(
 
     if !binding_gaps.is_empty() {
         return Err(format!(
-            "tracked step output changed without a changed bound input: {}",
+            "tracked query output changed without a changed bound input: {}",
             binding_gaps.join(",")
         ));
     }
@@ -1934,12 +2425,12 @@ fn build_runtime_step_executions(
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct ProductStageInputKey<'a> {
+struct QueryGroupInputKey<'a> {
     implementation_digest: &'static str,
     contract_digest: &'static str,
-    node_id: &'a str,
+    query_group_id: &'a str,
     semantic_output_digest: &'a str,
-    step_inputs: BTreeMap<&'a str, (&'a str, &'a str)>,
+    query_inputs: BTreeMap<&'a str, (&'a str, &'a str)>,
 }
 
 /// `Recomputed` is a claim about physical execution, so it is reachable only
@@ -1947,26 +2438,26 @@ struct ProductStageInputKey<'a> {
 /// off the Salsa execution events) or from a group the run deactivated.
 ///
 /// The stage's published `input_key` deliberately does *not* feed this. That
-/// key binds every member step's own key, and a step's key can legitimately
+/// key binds every member step's own key, and a query's key can legitimately
 /// move while the step does not execute — a support artifact rewritten with
 /// CRLF line endings changes `active_source_roles`' raw digest but parses to
 /// the same rows, so Salsa recomputes nothing. Folding that into the status
 /// badged eight support-file byte rewrites per corpus as "recomputed" inside a
-/// manifest whose own `stepExecutions` reported 0 of 55 steps recomputed.
+/// manifest whose own `queryExecutions` reported that no query was recomputed.
 /// Callers that need "the projection key moved" read `input_key`, which is
-/// published on every `NodeExecution`.
+/// published on every `QueryGroupExecution`.
 ///
 /// `has_executed_member` is the Salsa event set and not "some member is badged
-/// `Recomputed`", because the member ladder in `build_runtime_step_executions`
-/// resolves `Bypassed` and `Skipped` ahead of `Recomputed`. A step that is not
+/// `Recomputed`", because the member ladder in `build_runtime_query_executions`
+/// resolves `Bypassed` and `Skipped` ahead of `Recomputed`. A query that is not
 /// applicable but whose query still ran is therefore badged `Bypassed`, and
 /// reading the badges back would lose the execution — leaving this function
 /// free to answer `Cached`, whose published reason is
 /// `all-active-queries-reused`, for a stage in which a query ran.
-fn product_stage_status(
+fn query_group_status(
     has_error: bool,
     bypassed: bool,
-    has_skipped_step: bool,
+    has_skipped_query: bool,
     group_deactivated: bool,
     has_executed_member: bool,
 ) -> ExecutionStatus {
@@ -1974,7 +2465,7 @@ fn product_stage_status(
         ExecutionStatus::Error
     } else if bypassed {
         ExecutionStatus::Bypassed
-    } else if has_skipped_step {
+    } else if has_skipped_query {
         ExecutionStatus::Skipped
     } else if group_deactivated || has_executed_member {
         ExecutionStatus::Recomputed
@@ -1984,43 +2475,43 @@ fn product_stage_status(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn project_product_stages(
+fn project_query_groups(
     plan: &chronicle_preprocessing_semantic_adapter::ChroniclePlan,
     semantic_options: &Value,
     result: &PipelineV2Result,
-    step_executions: &[RuntimeStepExecution],
-    executed_steps: &BTreeSet<&str>,
+    query_executions: &[RuntimeQueryExecution],
+    executed_queries: &BTreeSet<&str>,
     deactivated_groups: &BTreeSet<&str>,
     previous_stage_inputs: &mut BTreeMap<String, String>,
     previous_stage_outputs: &mut BTreeMap<String, ArtifactRef>,
     materialize_artifacts: bool,
-) -> Result<(Vec<NodeExecution>, Vec<RuntimeArtifact>), String> {
-    let mut executions = Vec::with_capacity(plan.nodes.len());
-    let mut artifacts = Vec::with_capacity(plan.nodes.len());
-    for node in &plan.nodes {
-        let members = step_executions
+) -> Result<(Vec<QueryGroupExecution>, Vec<RuntimeArtifact>), String> {
+    let mut executions = Vec::with_capacity(plan.query_groups.len());
+    let mut artifacts = Vec::with_capacity(plan.query_groups.len());
+    for node in &plan.query_groups {
+        let members = query_executions
             .iter()
-            .filter(|execution| execution.unit_id == node.node_id)
+            .filter(|execution| execution.query_group_id == node.query_group_id)
             .collect::<Vec<_>>();
         if members.is_empty() {
             return Err(format!(
-                "product stage {} contains no tracked Rust queries",
-                node.node_id
+                "query group {} contains no tracked Rust queries",
+                node.query_group_id
             ));
         }
         let checkpoint = result
-            .logical_stage_checkpoints
-            .get(&node.node_id)
+            .workflow_query_group_checkpoints
+            .get(&node.query_group_id)
             .ok_or_else(|| {
                 format!(
-                    "tracked pipeline omitted typed product-stage checkpoint {}",
-                    node.node_id
+                    "tracked pipeline omitted typed query-group checkpoint {}",
+                    node.query_group_id
                 )
             })?;
-        let semantic_output_digest = if node.node_id == "outputs" {
+        let semantic_output_digest = if node.query_group_id == "outputs" {
             sha256(
                 &serde_jcs::to_vec(&serde_json::json!({
-                    "checkpoint": result.logical_stage_digests.get(&node.node_id),
+                    "checkpoint": result.workflow_query_group_digests.get(&node.query_group_id),
                     "enableParquetExport": semantic_options["enable_parquet_export"],
                     "enableSpssExport": semantic_options["enable_spss_export"],
                 }))
@@ -2028,27 +2519,27 @@ fn project_product_stages(
             )
         } else {
             result
-                .logical_stage_digests
-                .get(&node.node_id)
+                .workflow_query_group_digests
+                .get(&node.query_group_id)
                 .cloned()
                 .ok_or_else(|| {
                     format!(
-                        "tracked pipeline omitted product-stage digest {}",
-                        node.node_id
+                        "tracked pipeline omitted query-group digest {}",
+                        node.query_group_id
                     )
                 })?
         };
         let input_key = sha256(
-            &serde_jcs::to_vec(&ProductStageInputKey {
+            &serde_jcs::to_vec(&QueryGroupInputKey {
                 implementation_digest: IMPLEMENTATION_BUILD_DIGEST,
                 contract_digest: EMBEDDED_PRODUCT_CONTRACT_SHA256,
-                node_id: &node.node_id,
+                query_group_id: &node.query_group_id,
                 semantic_output_digest: &semantic_output_digest,
-                step_inputs: members
+                query_inputs: members
                     .iter()
                     .map(|execution| {
                         (
-                            execution.step_id.as_str(),
+                            execution.query_id.as_str(),
                             (
                                 execution.input_key.as_str(),
                                 execution.output_digest.as_str(),
@@ -2057,29 +2548,34 @@ fn project_product_stages(
                     })
                     .collect(),
             })
-            .map_err(|error| format!("canonicalize {} product-stage key: {error}", node.node_id))?,
+            .map_err(|error| {
+                format!(
+                    "canonicalize {} query-group key: {error}",
+                    node.query_group_id
+                )
+            })?,
         );
         let projection_changed = previous_stage_inputs
-            .get(&node.node_id)
+            .get(&node.query_group_id)
             .is_none_or(|previous| previous != &input_key);
         let cached_output = (!materialize_artifacts && !projection_changed)
-            .then(|| previous_stage_outputs.get(&node.node_id).cloned())
+            .then(|| previous_stage_outputs.get(&node.query_group_id).cloned())
             .flatten();
         let output = if let Some(output) = cached_output {
             output
         } else {
             let bytes = serde_jcs::to_vec(&serde_json::json!({
-                "checkpointProtocol": "chronicle-logical-stage-checkpoint/v7",
+                "checkpointProtocol": "chronicle-workflow-checkpoint/v1",
                 "physicalExecution": "salsa-tracked-rust-pipeline-v2",
-                "projection": "product-stage-from-actual-step-events",
-                "logicalNode": node.node_id,
+                "projection": "query-group-from-actual-query-events",
+                "workflowQueryGroupId": node.query_group_id,
                 "semanticOutputDigest": semantic_output_digest,
                 "typedCheckpoint": checkpoint,
             }))
             .map_err(|error| {
                 format!(
-                    "canonicalize {} product-stage projection: {error}",
-                    node.node_id
+                    "canonicalize {} query-group projection: {error}",
+                    node.query_group_id
                 )
             })?;
             let derived_from = members
@@ -2087,7 +2583,7 @@ fn project_product_stages(
                 .map(|execution| execution.output_digest.clone())
                 .collect::<Vec<_>>();
             let artifact = runtime_artifact(
-                &format!("node-output:{}", node.node_id),
+                &format!("node-output:{}", node.query_group_id),
                 "application/vnd.chronicle.node-fingerprint+json",
                 bytes,
                 derived_from,
@@ -2105,7 +2601,7 @@ fn project_product_stages(
             }
             output
         };
-        let status = product_stage_status(
+        let status = query_group_status(
             members
                 .iter()
                 .any(|execution| execution.status == ExecutionStatus::Error),
@@ -2113,29 +2609,29 @@ fn project_product_stages(
             members
                 .iter()
                 .any(|execution| execution.status == ExecutionStatus::Skipped),
-            deactivated_groups.contains(node.node_id.as_str()),
+            deactivated_groups.contains(node.query_group_id.as_str()),
             members
                 .iter()
-                .any(|execution| executed_steps.contains(execution.step_id.as_str())),
+                .any(|execution| executed_queries.contains(execution.query_id.as_str())),
         );
         let reason = match status {
             ExecutionStatus::Cached => "all-active-queries-reused",
-            ExecutionStatus::Recomputed => "product-stage-projection-changed",
-            ExecutionStatus::Bypassed => "product-stage-not-applicable",
+            ExecutionStatus::Recomputed => "query-group-projection-changed",
+            ExecutionStatus::Bypassed => "query-group-not-applicable",
             ExecutionStatus::Skipped => "query-skipped",
             ExecutionStatus::Error => "query-error",
         };
         let output_digest = output.digest.clone();
-        executions.push(NodeExecution {
-            node_id: node.node_id.clone(),
+        executions.push(QueryGroupExecution {
+            query_group_id: node.query_group_id.clone(),
             capability_id: node.capability_id.clone(),
             status,
             input_key: input_key.clone(),
             output: Some(output.clone()),
-            reason_id: stable_id(&[reason, &node.node_id, &output_digest]),
+            reason_id: stable_id(&[reason, &node.query_group_id, &output_digest]),
         });
-        previous_stage_inputs.insert(node.node_id.clone(), input_key);
-        previous_stage_outputs.insert(node.node_id.clone(), output);
+        previous_stage_inputs.insert(node.query_group_id.clone(), input_key);
+        previous_stage_outputs.insert(node.query_group_id.clone(), output);
     }
     Ok((executions, artifacts))
 }
@@ -2152,7 +2648,7 @@ fn execute_incremental_pipeline(
     verified_persisted_input: bool,
     persisted_bases: PersistedReviewBases<'_>,
     options_value: &Value,
-    exact_options_value: Value,
+    exact_options_value: &Value,
     options: &PipelineV2Options,
     support: &ResolvedSupportFiles,
 ) -> Result<IncrementalPipelineExecution, String> {
@@ -2184,12 +2680,12 @@ fn execute_incremental_pipeline(
         .map_err(|error| error.to_string())?;
         if cache_decision.mode == DependencyCacheMode::ConservativeFull {
             state.incremental_engine = IncrementalPipelineV2Engine::default();
-            state.previous_step_observations.clear();
+            state.previous_query_observations.clear();
             state.previous_stage_inputs.clear();
             state.previous_stage_outputs.clear();
             state.stable_artifact_bundle = None;
         }
-        let had_previous_step_observations = !state.previous_step_observations.is_empty();
+        let had_previous_query_observations = !state.previous_query_observations.is_empty();
         timer.finish();
 
         let timer = EnvelopeTimer::start("persisted_base_verify");
@@ -2303,24 +2799,24 @@ fn execute_incremental_pipeline(
                     query == "restore_reconstruction_base"
                         || query == "restore_reconstruction_screen"
                 });
-        let executed_steps = tracked_execution.executed_steps;
+        let executed_queries = tracked_execution.executed_queries;
         #[cfg(test)]
-        if !executed_steps.is_empty() {
+        if !executed_queries.is_empty() {
             TRACKED_PHYSICAL_EXECUTION_COUNT.with(|count| count.set(count.get() + 1));
         }
         timer.finish();
-        let timer = EnvelopeTimer::start("step_executions_build");
-        let previous_step_observations = state.previous_step_observations.clone();
-        let step_executions = build_runtime_step_executions(
+        let timer = EnvelopeTimer::start("query_executions_build");
+        let previous_query_observations = state.previous_query_observations.clone();
+        let query_executions = build_runtime_query_executions(
             plan,
             options_value,
-            &exact_options_value,
+            exact_options_value,
             ingress_assignments,
             &tracked_execution.result,
-            &mut RuntimeStepExecutionState {
-                executed_steps: &executed_steps,
+            &mut RuntimeQueryExecutionState {
+                executed_queries: &executed_queries,
                 materialize_full_outputs: request.command != QUERY_REVIEW_COMMAND,
-                previous_observations: &mut state.previous_step_observations,
+                previous_observations: &mut state.previous_query_observations,
             },
         )?;
         let mut cache_sources = Vec::new();
@@ -2332,30 +2828,30 @@ fn execute_incremental_pipeline(
         }
         if should_report_salsa_memory(
             cache_sources.is_empty(),
-            had_previous_step_observations,
-            &step_executions,
+            had_previous_query_observations,
+            &query_executions,
         ) {
             cache_sources.push("salsa-memory".to_string());
         }
-        let deactivated_groups = step_executions
+        let deactivated_groups = query_executions
             .iter()
             .filter(|execution| {
                 execution.status == ExecutionStatus::Bypassed
-                    && previous_step_observations
-                        .get(&execution.step_id)
+                    && previous_query_observations
+                        .get(&execution.query_id)
                         .is_some_and(|entry| entry.applicable)
             })
-            .map(|execution| execution.unit_id.as_str())
+            .map(|execution| execution.query_group_id.as_str())
             .collect::<BTreeSet<_>>();
         timer.finish();
-        let timer = EnvelopeTimer::start("project_product_stages");
+        let timer = EnvelopeTimer::start("project_query_groups");
         let result = tracked_execution.result;
-        let (executions, node_artifacts) = project_product_stages(
+        let (executions, node_artifacts) = project_query_groups(
             plan,
             options_value,
             &result,
-            &step_executions,
-            &executed_steps.iter().map(String::as_str).collect(),
+            &query_executions,
+            &executed_queries.iter().map(String::as_str).collect(),
             &deactivated_groups,
             &mut state.previous_stage_inputs,
             &mut state.previous_stage_outputs,
@@ -2366,8 +2862,8 @@ fn execute_incremental_pipeline(
             result,
             review_base,
             reconstruction_base,
-            node_executions: executions,
-            step_executions,
+            query_group_executions: executions,
+            query_executions,
             cache_sources,
             cache_decision,
             node_artifacts,
@@ -2746,8 +3242,8 @@ pub fn execute_workspace_with_review_base(
     .map_err(|error| JsValue::from_str(&error))
 }
 
-/// Execute an interactive review with independently verified step-17 and
-/// step-29 checkpoints. The reconstruction header is rejected before payload
+/// Execute an interactive review with independently verified post-review and
+/// post-reconstruction checkpoints. The reconstruction header is rejected before payload
 /// decompression when any semantic input to reconstruction changed.
 #[wasm_bindgen]
 pub fn execute_workspace_with_review_bases(
@@ -2815,7 +3311,7 @@ pub fn evaluate_workspace_requirements_native(
         requirement_traces: ingress.materialization.requirement_traces,
         open_obligations: ingress.materialization.obligations,
         role_states: ingress.materialization.role_states,
-        node_states: ingress.materialization.node_states,
+        query_group_states: ingress.materialization.query_group_states,
         state_reasons: ingress.materialization.reasons,
     };
     let bytes = serde_jcs::to_vec(&report)
@@ -3007,10 +3503,16 @@ fn required_view_contract_matches(
     expected_schema_id: &str,
     expected_root_digest: &str,
 ) -> bool {
+    let (view_id_key, schema_id_key, root_digest_key) =
+        if expected_kind == "workflow-explorer-view-json" {
+            ("viewId", "schemaId", "rootDigest")
+        } else {
+            ("view_id", "schema_id", "root_digest")
+        };
     kind == expected_kind
-        && view.get("view_id").and_then(Value::as_str) == Some(expected_view_id)
-        && view.get("schema_id").and_then(Value::as_str) == Some(expected_schema_id)
-        && view.get("root_digest").and_then(Value::as_str) == Some(expected_root_digest)
+        && view.get(view_id_key).and_then(Value::as_str) == Some(expected_view_id)
+        && view.get(schema_id_key).and_then(Value::as_str) == Some(expected_schema_id)
+        && view.get(root_digest_key).and_then(Value::as_str) == Some(expected_root_digest)
 }
 
 fn execute_prepared_workspace(
@@ -3036,8 +3538,8 @@ fn execute_prepared_workspace(
         result,
         review_base,
         reconstruction_base,
-        node_executions,
-        step_executions,
+        query_group_executions,
+        query_executions,
         cache_sources,
         cache_decision: dependency_cache_decision,
         node_artifacts,
@@ -3053,7 +3555,7 @@ fn execute_prepared_workspace(
             warm_verified_input,
         },
         &options_value,
-        exact_options_value,
+        &exact_options_value,
         &pipeline_options,
         &resolved_support,
     )?;
@@ -3079,10 +3581,15 @@ fn execute_prepared_workspace(
             }))
             .map_err(|error| format!("canonicalize review comparison digest: {error}"))?,
         );
-        let review_summary_reused = request
-            .known_review_summary_digests
-            .as_ref()
-            .is_some_and(|digests| digests.iter().any(|digest| digest == &review_summary_digest));
+        let review_summary_reused =
+            request
+                .known_review_summary_digests
+                .as_ref()
+                .is_some_and(|digests| {
+                    digests
+                        .iter()
+                        .any(|digest| digest == &review_summary_digest)
+                });
         let artifacts = if review_summary_reused {
             Vec::new()
         } else {
@@ -3126,8 +3633,8 @@ fn execute_prepared_workspace(
             rows_removed_by_timezone: result.rows_removed_by_timezone,
             duplicate_timestamps_corrected: result.duplicate_timestamps_corrected,
             exact_duplicate_rows_removed: result.exact_duplicate_rows_removed,
-            node_executions,
-            step_executions,
+            query_group_executions,
+            query_executions,
             cache_sources,
             review_summary_digest,
             comparison_digest,
@@ -3215,7 +3722,11 @@ fn execute_prepared_workspace(
                     },
                 );
             }
-            (result_digests, binary_artifacts, source_coordinate_artifacts)
+            (
+                result_digests,
+                binary_artifacts,
+                source_coordinate_artifacts,
+            )
         };
     // Binary indexes borrow the canonical output bytes above. Once they are
     // complete, transfer those Vec allocations into the runtime artifacts
@@ -3256,7 +3767,7 @@ fn execute_prepared_workspace(
         ));
     }
     artifacts.extend(source_coordinate_artifacts);
-    let satisfied_nodes: BTreeSet<_> = node_executions
+    let satisfied_query_groups: BTreeSet<_> = query_group_executions
         .iter()
         .filter(|execution| {
             !matches!(
@@ -3264,32 +3775,54 @@ fn execute_prepared_workspace(
                 ExecutionStatus::Error | ExecutionStatus::Skipped
             )
         })
-        .map(|execution| execution.node_id.clone())
+        .map(|execution| execution.query_group_id.clone())
         .collect();
     let materialization = evaluate_materialization(
         plan,
         &ingress.assignments,
         &options_value,
-        &satisfied_nodes,
+        &satisfied_query_groups,
         &BTreeSet::new(),
     );
     let execution_ledger_bytes = build_execution_ledger(
         plan,
-        &node_executions,
-        &step_executions,
+        &query_group_executions,
+        &query_executions,
         &options_value,
         &request.options.datetime_of_preprocessing,
     )?;
     let execution_ledger_value: Value = serde_json::from_slice(&execution_ledger_bytes)
         .map_err(|error| format!("parse generated execution ledger: {error}"))?;
-    artifacts.push(runtime_artifact(
+    let execution_ledger_artifact = runtime_artifact(
         "execution-ledger-json",
         "application/json",
         execution_ledger_bytes,
         vec![ingress.input.digest.clone(), options_digest.clone()],
+    );
+    let execution_ledger_digest = execution_ledger_artifact.metadata.digest.clone();
+    artifacts.push(execution_ledger_artifact);
+    artifacts.push(runtime_artifact(
+        "workflow-provenance-jsonld",
+        "application/ld+json",
+        workflow_provenance::build_workflow_provenance_jsonld(
+            // request_id is transport-only and must not perturb the semantic
+            // workspace root. The workspace/input/parameter tuple below is
+            // the stable scope for this content-addressed run projection.
+            &request.workspace_id,
+            &ingress.input.digest,
+            &options_digest,
+            &exact_options_value,
+            &request.options.datetime_of_preprocessing,
+            &query_executions,
+        )?,
+        vec![
+            ingress.input.digest.clone(),
+            options_digest.clone(),
+            execution_ledger_digest,
+        ],
     ));
     let semantic_index_source = serde_jcs::to_vec(&serde_json::json!({
-        "protocolVersion": "chronicle-semantic-index-source/v2",
+        "protocolVersion": "chronicle-semantic-index-source/v3",
         "inputDigest": ingress.input.digest,
         "executionTimestamp": request.options.datetime_of_preprocessing,
         "roleAssignments": ingress.assignments.values().collect::<Vec<_>>(),
@@ -3297,10 +3830,10 @@ fn execute_prepared_workspace(
         "requirementTraces": materialization.requirement_traces,
         "openObligations": materialization.obligations,
         "stateReasons": materialization.reasons,
-        "nodeExecutions": node_executions,
-        "stepExecutions": step_executions,
-        "pipelineStepDigests": result.pipeline_step_digests,
-        "pipelineStepCheckpoints": result.pipeline_step_checkpoints,
+        "queryGroupExecutions": query_group_executions,
+        "queryExecutions": query_executions,
+        "workflowQueryDigests": result.workflow_query_digests,
+        "workflowQueryCheckpoints": result.workflow_query_checkpoints,
         "dependencyCacheDecision": dependency_cache_decision,
         "executionLedger": execution_ledger_value
     }))
@@ -3315,11 +3848,11 @@ fn execute_prepared_workspace(
         plan,
         assignments: &ingress.assignments,
         materialization: &materialization,
-        node_executions: &node_executions,
+        query_group_executions: &query_group_executions,
         options: &options_value,
         artifacts: &artifacts,
-        checkpoints: &result.logical_stage_checkpoints,
-        step_checkpoints: &result.pipeline_step_checkpoints,
+        checkpoints: &result.workflow_query_group_checkpoints,
+        query_checkpoints: &result.workflow_query_checkpoints,
     })?;
     let correspondence_dependencies = artifacts
         .iter()
@@ -3349,13 +3882,13 @@ fn execute_prepared_workspace(
         correspondence_bytes,
         correspondence_dependencies,
     ));
-    for (index, execution) in node_executions.iter().enumerate() {
+    for (index, execution) in query_group_executions.iter().enumerate() {
         let from_state = ingress
             .materialization
-            .node_states
-            .get(&execution.node_id)
+            .query_group_states
+            .get(&execution.query_group_id)
             .copied();
-        let to_state = materialization.node_states[&execution.node_id];
+        let to_state = materialization.query_group_states[&execution.query_group_id];
         ingress
             .journal
             .append(Transition {
@@ -3366,7 +3899,7 @@ fn execute_prepared_workspace(
                     ExecutionStatus::Skipped => "node-skipped",
                     ExecutionStatus::Bypassed => "node-bypassed",
                 },
-                subject_id: &execution.node_id,
+                subject_id: &execution.query_group_id,
                 from_state,
                 to_state,
                 reason_id: &execution.reason_id,
@@ -3435,8 +3968,8 @@ fn execute_prepared_workspace(
     artifacts.push(execution_state_artifact);
 
     let revision = ingress.assignments.len() as u64
-        + node_executions.len() as u64
-        + step_executions.len() as u64;
+        + query_group_executions.len() as u64
+        + query_executions.len() as u64;
     let assignments: Vec<_> = ingress.assignments.values().cloned().collect();
     let artifact_refs: Vec<_> = artifacts
         .iter()
@@ -3449,25 +3982,30 @@ fn execute_prepared_workspace(
             qualifiers: BTreeMap::new(),
         })
         .collect();
-    let step_statuses = step_executions
-        .iter()
-        .map(|execution| (execution.step_id.clone(), execution.status))
-        .collect::<BTreeMap<_, _>>();
+    let explorer_request = WorkflowExplorerRequest {
+        options: exact_options_value.clone(),
+        support_roles: ingress
+            .assignments
+            .iter()
+            .filter(|(role_id, _)| is_workflow_support_role(role_id))
+            .map(|(role_id, assignment)| WorkflowExplorerSupportRole {
+                role_id: role_id.clone(),
+                present: true,
+                digest: Some(assignment.artifact.digest.clone()),
+            })
+            .collect(),
+        selected_run_root: Some(execution_state_digest.clone()),
+    };
     let views = [
         (
-            "stage-view-json",
-            encode_view(&stage_view(
-                chronicle_preprocessing_semantic_adapter::views::StageViewInput {
-                    plan,
-                    materialization: &materialization,
-                    executions: &node_executions,
-                    step_statuses: &step_statuses,
-                    options: &options_value,
-                    stage: None,
-                    revision,
-                    root_digest: &execution_state_digest,
-                },
-            )),
+            "workflow-explorer-view-json",
+            serde_json::to_value(build_workflow_explorer_view(
+                &explorer_request,
+                &query_executions,
+                revision,
+                Some(&execution_state_digest),
+            )?)
+            .map_err(|error| format!("serialize workflow explorer view: {error}"))?,
         ),
         (
             "artifact-view-json",
@@ -3567,8 +4105,12 @@ fn execute_prepared_workspace(
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect::<Vec<_>>();
+    let workflow_contract = chronicle_chrono_kernel_wasm::workflow_contract::workflow_contract();
     let root_commit = RootCommit {
         protocol_version: RUNTIME_PROTOCOL_VERSION,
+        workflow_model_version:
+            chronicle_chrono_kernel_wasm::workflow_contract::WORKFLOW_MODEL_VERSION,
+        workflow_compatibility_digest: &workflow_contract.digests.workspace_compatibility,
         command: EXECUTE_WORKSPACE_COMMAND,
         implementation_digest: IMPLEMENTATION_BUILD_DIGEST,
         build_environment_digest: BUILD_ENVIRONMENT_DIGEST,
@@ -3628,8 +4170,8 @@ fn execute_prepared_workspace(
         requirement_traces: materialization.requirement_traces,
         open_obligations: materialization.obligations,
         state_reasons: materialization.reasons,
-        node_executions,
-        step_executions,
+        query_group_executions,
+        query_executions,
         artifacts: artifacts
             .iter()
             .map(|artifact| artifact.metadata.clone())
@@ -3651,10 +4193,10 @@ fn execute_prepared_workspace(
                 .timezone_retained_source_rows_digest
                 .clone(),
             timezone_stage_digest: result.timezone_stage_digest.clone(),
-            logical_stage_digests: result.logical_stage_digests.clone(),
-            logical_stage_checkpoints: result.logical_stage_checkpoints.clone(),
-            pipeline_step_digests: result.pipeline_step_digests.clone(),
-            pipeline_step_checkpoints: result.pipeline_step_checkpoints.clone(),
+            workflow_query_group_digests: result.workflow_query_group_digests.clone(),
+            workflow_query_group_checkpoints: result.workflow_query_group_checkpoints.clone(),
+            workflow_query_digests: result.workflow_query_digests.clone(),
+            workflow_query_checkpoints: result.workflow_query_checkpoints.clone(),
             published_outputs_digest: result_published_outputs_digest,
             provenance_digest: result_provenance_digest,
             duplicate_timestamps_corrected: result.duplicate_timestamps_corrected,
@@ -3672,41 +4214,41 @@ fn execute_prepared_workspace(
 
 fn build_execution_ledger(
     plan: &chronicle_preprocessing_semantic_adapter::ChroniclePlan,
-    executions: &[NodeExecution],
-    step_executions: &[RuntimeStepExecution],
+    executions: &[QueryGroupExecution],
+    query_executions: &[RuntimeQueryExecution],
     options: &Value,
     timestamp: &str,
 ) -> Result<Vec<u8>, String> {
-    let status_by_node: BTreeMap<_, _> = executions
+    let status_by_query_group: BTreeMap<_, _> = executions
         .iter()
-        .map(|execution| (execution.node_id.as_str(), execution.status))
+        .map(|execution| (execution.query_group_id.as_str(), execution.status))
         .collect();
-    let execution_by_step = step_executions
+    let execution_by_query = query_executions
         .iter()
-        .map(|execution| (execution.step_id.as_str(), execution))
+        .map(|execution| (execution.query_id.as_str(), execution))
         .collect::<BTreeMap<_, _>>();
     let ledger = plan
-        .nodes
+        .query_groups
         .iter()
         .map(|node| {
-            let status = status_by_node
-                .get(node.node_id.as_str())
+            let status = status_by_query_group
+                .get(node.query_group_id.as_str())
                 .copied()
                 .unwrap_or(ExecutionStatus::Error);
-            let steps = plan
-                .steps
+            let queries = plan
+                .queries
                 .iter()
-                .filter(|step| step.unit_id == node.node_id)
-                .map(|step| {
-                    let execution = execution_by_step.get(step.step_id.as_str()).copied();
+                .filter(|query| query.query_group_id == node.query_group_id)
+                .map(|query| {
+                    let execution = execution_by_query.get(query.query_id.as_str()).copied();
                     serde_json::json!({
-                        "stepId": step.step_id,
-                        "unit": step.unit_id,
+                        "queryId": query.query_id,
+                        "queryGroupId": query.query_group_id,
                         "status": execution.map(|execution| execution.status).unwrap_or(ExecutionStatus::Error),
                         "inputKey": execution.map(|execution| execution.input_key.as_str()),
                         "outputDigest": execution.map(|execution| execution.output_digest.as_str()),
                         "reasonId": execution.map(|execution| execution.reason_id.as_str()),
-                        "applicable": step.applicability.evaluate(options),
+                        "applicable": query.applicability.evaluate(options),
                         "rowsIn": Value::Null,
                         "rowsOut": Value::Null,
                         "droppedRows": Value::Null,
@@ -3727,12 +4269,12 @@ fn build_execution_ledger(
                 ExecutionStatus::Bypassed => "bypassed",
             };
             serde_json::json!({
-                "unit": node.node_id,
+                "queryGroupId": node.query_group_id,
                 "status": status,
                 "rowsIn": Value::Null,
                 "rowsOut": Value::Null,
                 "expectations": [],
-                "steps": steps,
+                "queries": queries,
                 "timing": {
                     "startedAt": timestamp,
                     "endedAt": timestamp,
@@ -3942,11 +4484,11 @@ fn build_correspondence_index(inputs: CorrespondenceIndexInputs<'_>) -> Result<V
         plan,
         assignments,
         materialization,
-        node_executions,
+        query_group_executions,
         options,
         artifacts,
         checkpoints,
-        step_checkpoints,
+        query_checkpoints,
     } = inputs;
     let mut edges = Vec::new();
 
@@ -3994,7 +4536,7 @@ fn build_correspondence_index(inputs: CorrespondenceIndexInputs<'_>) -> Result<V
                 "role",
                 raw.role_id.clone(),
                 "binds-input",
-                "logical-node",
+                "workflow-query-group",
                 "parse_events",
                 "declared",
             )
@@ -4004,7 +4546,7 @@ fn build_correspondence_index(inputs: CorrespondenceIndexInputs<'_>) -> Result<V
 
     let processing_assignment = assignments.get("processing_options");
     let option_keys = plan
-        .nodes
+        .query_groups
         .iter()
         .flat_map(|node| node.knobs.iter().map(|knob| knob.option_key.as_str()))
         .collect::<BTreeSet<_>>();
@@ -4028,7 +4570,7 @@ fn build_correspondence_index(inputs: CorrespondenceIndexInputs<'_>) -> Result<V
                 .with_evidence(vec![assignment.assignment_id.clone()]),
             );
         }
-        for node in &plan.nodes {
+        for node in &plan.query_groups {
             for knob in node
                 .knobs
                 .iter()
@@ -4040,8 +4582,8 @@ fn build_correspondence_index(inputs: CorrespondenceIndexInputs<'_>) -> Result<V
                         "configuration-value",
                         option_id.clone(),
                         format!("{}-node", knob.edge),
-                        "logical-node",
-                        node.node_id.clone(),
+                        "workflow-query-group",
+                        node.query_group_id.clone(),
                         "declared",
                     )
                     .with_evidence(vec![EMBEDDED_PLAN_SHA256.into()]),
@@ -4050,7 +4592,7 @@ fn build_correspondence_index(inputs: CorrespondenceIndexInputs<'_>) -> Result<V
         }
     }
 
-    for node in &plan.nodes {
+    for node in &plan.query_groups {
         for role_id in &node.support_roles {
             let evidence = assignments
                 .get(role_id)
@@ -4062,36 +4604,36 @@ fn build_correspondence_index(inputs: CorrespondenceIndexInputs<'_>) -> Result<V
                     "role",
                     role_id.clone(),
                     "binds-support",
-                    "logical-node",
-                    node.node_id.clone(),
+                    "workflow-query-group",
+                    node.query_group_id.clone(),
                     "declared",
                 )
                 .with_evidence(evidence),
             );
         }
-        for input_node in &node.input_nodes {
+        for input_node in &node.input_query_groups {
             append_correspondence_edge(
                 &mut edges,
                 correspondence_edge(
-                    "logical-node",
+                    "workflow-query-group",
                     input_node.clone(),
                     "feeds",
-                    "logical-node",
-                    node.node_id.clone(),
+                    "workflow-query-group",
+                    node.query_group_id.clone(),
                     "declared",
                 )
                 .with_evidence(vec![EMBEDDED_PLAN_SHA256.into()]),
             );
         }
-        if let Some(checkpoint) = checkpoints.get(&node.node_id) {
+        if let Some(checkpoint) = checkpoints.get(&node.query_group_id) {
             append_correspondence_edge(
                 &mut edges,
                 correspondence_edge(
-                    "logical-checkpoint",
+                    "workflow-checkpoint",
                     checkpoint.terminal_digest.clone(),
                     "commits-state-of",
-                    "logical-node",
-                    node.node_id.clone(),
+                    "workflow-query-group",
+                    node.query_group_id.clone(),
                     "exact",
                 )
                 .with_evidence(vec![checkpoint.schema_digest.clone()]),
@@ -4099,42 +4641,42 @@ fn build_correspondence_index(inputs: CorrespondenceIndexInputs<'_>) -> Result<V
         }
     }
 
-    for step in &plan.steps {
+    for step in &plan.queries {
         append_correspondence_edge(
             &mut edges,
             correspondence_edge(
-                "pipeline-step",
-                step.step_id.clone(),
+                "workflow-query",
+                step.query_id.clone(),
                 "belongs-to",
-                "logical-node",
-                step.unit_id.clone(),
+                "workflow-query-group",
+                step.query_group_id.clone(),
                 "declared",
             )
             .with_evidence(vec![EMBEDDED_PLAN_SHA256.into()]),
         );
-        for input_step in &step.input_steps {
+        for input_step in &step.input_queries {
             append_correspondence_edge(
                 &mut edges,
                 correspondence_edge(
-                    "pipeline-step",
+                    "workflow-query",
                     input_step.clone(),
                     "feeds",
-                    "pipeline-step",
-                    step.step_id.clone(),
+                    "workflow-query",
+                    step.query_id.clone(),
                     "declared",
                 )
                 .with_evidence(vec![EMBEDDED_PLAN_SHA256.into()]),
             );
         }
-        if let Some(checkpoint) = step_checkpoints.get(&step.step_id) {
+        if let Some(checkpoint) = query_checkpoints.get(&step.query_id) {
             append_correspondence_edge(
                 &mut edges,
                 correspondence_edge(
-                    "pipeline-step-checkpoint",
+                    "workflow-query-checkpoint",
                     checkpoint.terminal_digest.clone(),
                     "commits-state-of",
-                    "pipeline-step",
-                    step.step_id.clone(),
+                    "workflow-query",
+                    step.query_id.clone(),
                     "exact",
                 )
                 .with_evidence(vec![checkpoint.schema_digest.clone()]),
@@ -4142,13 +4684,13 @@ fn build_correspondence_index(inputs: CorrespondenceIndexInputs<'_>) -> Result<V
         }
     }
 
-    for execution in node_executions {
+    for execution in query_group_executions {
         if let Some(output) = &execution.output {
             append_correspondence_edge(
                 &mut edges,
                 correspondence_edge(
-                    "logical-node",
-                    execution.node_id.clone(),
+                    "workflow-query-group",
+                    execution.query_group_id.clone(),
                     "materializes",
                     "artifact",
                     output.digest.clone(),
@@ -4168,7 +4710,7 @@ fn build_correspondence_index(inputs: CorrespondenceIndexInputs<'_>) -> Result<V
         append_correspondence_edge(
             &mut edges,
             correspondence_edge(
-                "logical-node",
+                "workflow-query-group",
                 if artifact.metadata.kind == "credited-app-csv" {
                     "effective_usage"
                 } else {
@@ -4517,13 +5059,13 @@ fn canonical_cell_outputs(result: &PipelineV2Result) -> Vec<binary_exports::Cano
             "effective_usage",
         ),
     ];
-    for (kind, media_type, bytes, terminal_logical_node) in candidates {
+    for (kind, media_type, bytes, terminal_query_group) in candidates {
         if !bytes.is_empty() {
             outputs.push(binary_exports::CanonicalOutput {
                 kind,
                 media_type,
                 bytes,
-                terminal_logical_node,
+                terminal_query_group,
             });
         }
     }
@@ -4532,7 +5074,7 @@ fn canonical_cell_outputs(result: &PipelineV2Result) -> Vec<binary_exports::Cano
             kind: aggregate.kind.as_str(),
             media_type: "text/csv",
             bytes: &aggregate.bytes,
-            terminal_logical_node: "outputs",
+            terminal_query_group: "outputs",
         }
     }));
     outputs
@@ -4586,8 +5128,11 @@ fn append_binary_exports(
         };
         let (app_parquet, app_spss) =
             encode_export_family(&result.app_csv_bytes, options.include_app_output, false)?;
-        let (screen_parquet, screen_spss) =
-            encode_export_family(&result.screen_csv_bytes, options.include_screen_output, true)?;
+        let (screen_parquet, screen_spss) = encode_export_family(
+            &result.screen_csv_bytes,
+            options.include_screen_output,
+            true,
+        )?;
         // Unchanged artifact order: app-parquet, screen-parquet, app-spss, screen-spss.
         if let Some(bytes) = app_parquet {
             append(
@@ -4753,7 +5298,7 @@ fn append_source_coordinate_index(
         &canonical_outputs,
         &result.row_lineage,
         plan,
-        &result.logical_stage_checkpoints,
+        &result.workflow_query_group_checkpoints,
         &context,
     )?;
     let mut dependencies = vec![
@@ -5147,11 +5692,9 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
         assert!(warnings.iter().any(|warning| warning
             .as_str()
             .is_some_and(|text| text.starts_with("This file contains 2 participants."))));
-        assert!(!warnings
-            .iter()
-            .any(|warning| warning
-                .as_str()
-                .is_some_and(|text| text.contains("missing timezone"))));
+        assert!(!warnings.iter().any(|warning| warning
+            .as_str()
+            .is_some_and(|text| text.contains("missing timezone"))));
         assert!(warnings
             .iter()
             .any(|warning| warning == "1 rows have invalid event_timestamp values."));
@@ -5301,7 +5844,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
     }
 
     #[test]
-    fn exported_build_and_step_contract_identities_are_not_placeholders() {
+    fn exported_build_and_workflow_contract_identities_are_not_placeholders() {
         assert_eq!(build_environment_digest(), BUILD_ENVIRONMENT_DIGEST);
         assert!(build_environment_digest().starts_with("sha256:"));
         assert_eq!(build_environment_digest().len(), 71);
@@ -5327,12 +5870,15 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
             identity["dependencyCertificateDigest"],
             EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256
         );
-        let contract: Value = serde_json::from_str(&pipeline_step_contract_json()).unwrap();
+        let contract: Value = serde_json::from_str(&workflow_contract_json()).unwrap();
         assert_eq!(
             contract["protocolVersion"],
-            "chronicle-preprocessing-step-contract/v3"
+            "chronicle-workflow-contract/v1"
         );
-        assert_eq!(contract["steps"].as_array().unwrap().len(), 55);
+        assert_eq!(
+            contract["execution"]["queries"].as_array().unwrap().len(),
+            WORKFLOW_QUERIES.len()
+        );
     }
 
     fn direct_pipeline_result(
@@ -5446,14 +5992,14 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
 
         let plan = embedded_plan();
         let mut cache = BTreeMap::new();
-        let cold = build_runtime_step_executions(
+        let cold = build_runtime_query_executions(
             plan,
             &semantic_options,
             &exact_options,
             &BTreeMap::new(),
             &result,
-            &mut RuntimeStepExecutionState {
-                executed_steps: &PIPELINE_STEPS
+            &mut RuntimeQueryExecutionState {
+                executed_queries: &WORKFLOW_QUERIES
                     .iter()
                     .map(|step| step.id.to_string())
                     .collect::<Vec<_>>(),
@@ -5469,17 +6015,17 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
             .iter()
             .find(|execution| execution.status != ExecutionStatus::Bypassed)
             .unwrap()
-            .step_id
+            .query_id
             .clone();
         cache.get_mut(&applicable).unwrap().output_digest = format!("sha256:{}", "f".repeat(64));
-        let error = build_runtime_step_executions(
+        let error = build_runtime_query_executions(
             plan,
             &semantic_options,
             &exact_options,
             &BTreeMap::new(),
             &result,
-            &mut RuntimeStepExecutionState {
-                executed_steps: &PIPELINE_STEPS
+            &mut RuntimeQueryExecutionState {
+                executed_queries: &WORKFLOW_QUERIES
                     .iter()
                     .map(|step| step.id.to_string())
                     .collect::<Vec<_>>(),
@@ -5488,7 +6034,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
             },
         )
         .unwrap_err();
-        assert!(error.contains("tracked step output changed without a changed bound input"));
+        assert!(error.contains("tracked query output changed without a changed bound input"));
         assert!(error.contains(&applicable));
     }
 
@@ -5625,7 +6171,10 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         let review_manifest: ReviewRuntimeManifest =
             serde_json::from_str(&review.manifest_json).unwrap();
         assert_eq!(review_manifest.command, QUERY_REVIEW_COMMAND);
-        assert_eq!(review_manifest.step_executions.len(), 55);
+        assert_eq!(
+            review_manifest.query_executions.len(),
+            WORKFLOW_QUERIES.len()
+        );
         assert_eq!(review.artifact_count(), 1);
         let metadata: RuntimeArtifactMetadata =
             serde_json::from_str(&review.artifact_metadata_json(0).unwrap()).unwrap();
@@ -5654,10 +6203,10 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
     }
 
     /// A review never materializes artifacts, so it is the only command whose
-    /// product-stage projection is served from the previous run's cache when a
+    /// query-group projection is served from the previous run's cache when a
     /// stage's inputs did not change. That cache is only sound if the stage
     /// view it serves is the one a cold review of the same options reports —
-    /// the stage view is the evidence a researcher reads to see which part of
+    /// the workflow explorer view is the evidence a researcher reads to see which part of
     /// the pipeline an option touched, and a stale entry there is a false
     /// claim about the run. Status and reason differ by construction (a warm
     /// run reports what it reused); identity, key and output must not.
@@ -5693,7 +6242,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         let cold: ReviewRuntimeManifest = serde_json::from_str(&cold.manifest_json).unwrap();
 
         assert!(
-            warm.node_executions
+            warm.query_group_executions
                 .iter()
                 .any(|execution| execution.status == ExecutionStatus::Cached),
             "the warm review recomputed every stage, so it never exercised the projection cache"
@@ -5704,46 +6253,46 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         );
         assert_eq!(warm.review_summary_digest, cold.review_summary_digest);
 
-        // Steps first: a step's bound-input key is the primitive fact, and a
-        // stage key is built from its members', so a step disagreement is the
+        // Steps first: a query's bound-input key is the primitive fact, and a
+        // stage key is built from its members', so a query disagreement is the
         // smaller and more exact report.
-        fn step_identity(executions: &[RuntimeStepExecution]) -> Vec<(&str, &str, &str, &str)> {
+        fn query_identity(executions: &[RuntimeQueryExecution]) -> Vec<(&str, &str, &str, &str)> {
             executions
                 .iter()
                 .map(|execution| {
                     (
-                        execution.step_id.as_str(),
-                        execution.unit_id.as_str(),
+                        execution.query_id.as_str(),
+                        execution.query_group_id.as_str(),
                         execution.input_key.as_str(),
                         execution.output_digest.as_str(),
                     )
                 })
                 .collect::<Vec<_>>()
         }
-        let warm_steps = step_identity(&warm.step_executions);
-        let cold_steps = step_identity(&cold.step_executions);
-        let disagreeing_steps = warm_steps
+        let warm_queries = query_identity(&warm.query_executions);
+        let cold_queries = query_identity(&cold.query_executions);
+        let disagreeing_queries = warm_queries
             .iter()
-            .zip(cold_steps.iter())
+            .zip(cold_queries.iter())
             .filter(|(warm_step, cold_step)| warm_step != cold_step)
             .collect::<Vec<_>>();
         assert_eq!(
-            warm_steps.len(),
-            cold_steps.len(),
-            "a warm review reported a different number of steps than a cold review"
+            warm_queries.len(),
+            cold_queries.len(),
+            "a warm review reported a different number of queries than a cold review"
         );
         assert!(
-            disagreeing_steps.is_empty(),
-            "a warm review reported step bindings a cold review of the same options does not: {disagreeing_steps:#?}"
+            disagreeing_queries.is_empty(),
+            "a warm review reported query bindings a cold review of the same options does not: {disagreeing_queries:#?}"
         );
 
         type StageIdentity<'a> = (&'a str, &'a str, &'a str, Option<(&'a str, &'a str, u64)>);
-        fn stage_identity(executions: &[NodeExecution]) -> Vec<StageIdentity<'_>> {
+        fn stage_identity(executions: &[QueryGroupExecution]) -> Vec<StageIdentity<'_>> {
             executions
                 .iter()
                 .map(|execution| {
                     (
-                        execution.node_id.as_str(),
+                        execution.query_group_id.as_str(),
                         execution.capability_id.as_str(),
                         execution.input_key.as_str(),
                         execution.output.as_ref().map(|output| {
@@ -5757,8 +6306,8 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
                 })
                 .collect::<Vec<_>>()
         }
-        let warm_stages = stage_identity(&warm.node_executions);
-        let cold_stages = stage_identity(&cold.node_executions);
+        let warm_stages = stage_identity(&warm.query_group_executions);
+        let cold_stages = stage_identity(&cold.query_group_executions);
         let disagreeing_stages = warm_stages
             .iter()
             .zip(cold_stages.iter())
@@ -5767,11 +6316,11 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         assert_eq!(
             warm_stages.len(),
             cold_stages.len(),
-            "a warm review reported a different number of product stages than a cold review"
+            "a warm review reported a different number of query groups than a cold review"
         );
         assert!(
             disagreeing_stages.is_empty(),
-            "a warm review projected product stages a cold review of the same options does not: {disagreeing_stages:#?}"
+            "a warm review projected query groups a cold review of the same options does not: {disagreeing_stages:#?}"
         );
     }
 
@@ -5799,12 +6348,9 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
             format!("sha256:{}", "1".repeat(64)),
             first_manifest.review_summary_digest.clone(),
         ]);
-        let reused = execute_workspace_native(
-            &repeat.to_string(),
-            &csv,
-            &RuntimeSupportFiles::default(),
-        )
-        .unwrap();
+        let reused =
+            execute_workspace_native(&repeat.to_string(), &csv, &RuntimeSupportFiles::default())
+                .unwrap();
         let reused_manifest: ReviewRuntimeManifest =
             serde_json::from_str(&reused.manifest_json).unwrap();
         assert!(reused_manifest.review_summary_reused);
@@ -5816,13 +6362,11 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
 
         // A stale digest must still receive the real bytes.
         let mut stale = review_request.clone();
-        stale["knownReviewSummaryDigests"] = serde_json::json!([format!("sha256:{}", "0".repeat(64))]);
-        let mut fresh = execute_workspace_native(
-            &stale.to_string(),
-            &csv,
-            &RuntimeSupportFiles::default(),
-        )
-        .unwrap();
+        stale["knownReviewSummaryDigests"] =
+            serde_json::json!([format!("sha256:{}", "0".repeat(64))]);
+        let mut fresh =
+            execute_workspace_native(&stale.to_string(), &csv, &RuntimeSupportFiles::default())
+                .unwrap();
         let fresh_manifest: ReviewRuntimeManifest =
             serde_json::from_str(&fresh.manifest_json).unwrap();
         assert!(!fresh_manifest.review_summary_reused);
@@ -5844,10 +6388,14 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         let csv = std::fs::read(&path).expect("read CHRONICLE_ATTR_CSV");
         let mut review_request = request_for_workspace(&csv, 'c');
         review_request["command"] = Value::String(QUERY_REVIEW_COMMAND.into());
-        review_request["options"]["usage_session_mode"] = Value::String("app_and_screen_usage".into());
+        review_request["options"]["usage_session_mode"] =
+            Value::String("app_and_screen_usage".into());
         review_request["options"]["model_concurrent_usage"] = Value::Bool(true);
         review_request["options"]["minimum_usage_duration"] = serde_json::json!(60.0);
-        eprintln!("attribution_phase=warm_build file={path} bytes={}", csv.len());
+        eprintln!(
+            "attribution_phase=warm_build file={path} bytes={}",
+            csv.len()
+        );
         let started = std::time::Instant::now();
         let mut first = execute_workspace_native(
             &review_request.to_string(),
@@ -5876,11 +6424,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
             (
                 "heavy_concurrent_usage_toggle",
                 "model_concurrent_usage",
-                vec![
-                    Value::Bool(false),
-                    Value::Bool(true),
-                    Value::Bool(false),
-                ],
+                vec![Value::Bool(false), Value::Bool(true), Value::Bool(false)],
             ),
         ] {
             for (step, value) in values.into_iter().enumerate() {
@@ -5906,7 +6450,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
     fn correspondence_predicates_keep_outputs_and_traces_exact() {
         assert!(is_researcher_output_kind("app-csv"));
         assert!(is_researcher_output_kind("aggregate-daily-csv"));
-        assert!(!is_researcher_output_kind("stage-view-json"));
+        assert!(!is_researcher_output_kind("workflow-explorer-view-json"));
 
         let plan = embedded_plan();
         let assignment = RoleAssignment {
@@ -5945,11 +6489,11 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
                 plan,
                 assignments: &assignments,
                 materialization: &materialization,
-                node_executions: &[],
+                query_group_executions: &[],
                 options: &serde_json::json!({}),
                 artifacts: &[],
                 checkpoints: &BTreeMap::new(),
-                step_checkpoints: &BTreeMap::new(),
+                query_checkpoints: &BTreeMap::new(),
             })
             .unwrap(),
         )
@@ -5967,31 +6511,270 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
     }
 
     #[test]
-    fn pre_run_stage_view_is_rust_owned_complete_and_has_no_fake_execution() {
+    fn pre_run_workflow_explorer_view_is_rust_owned_complete_and_has_no_fake_execution() {
         let request_value: Value = serde_json::from_str(&request(&csv())).unwrap();
+        let explorer_request = serde_json::json!({
+            "options": request_value["options"],
+            "supportRoles": [],
+        });
         let view: Value = serde_json::from_str(
-            &plan_stage_view_native(&request_value["options"].to_string()).unwrap(),
+            &plan_workflow_explorer_view_native(&explorer_request.to_string()).unwrap(),
         )
         .unwrap();
-        assert_eq!(view["view_id"], "chronicle.stage.v1");
+        assert_eq!(view["viewId"], "chronicle-workflow-explorer/v1");
         assert_eq!(view["revision"], 0);
-        assert_eq!(view["payload"]["node_states"].as_array().unwrap().len(), 15);
-        assert_eq!(view["payload"]["step_states"].as_array().unwrap().len(), 55);
-        assert!(view["payload"]["node_states"]
+        assert!(!view["phases"].as_array().unwrap().is_empty());
+        assert!(!view["operations"].as_array().unwrap().is_empty());
+        assert!(!view["artifacts"].as_array().unwrap().is_empty());
+        assert!(!view["queries"].as_array().unwrap().is_empty());
+        assert!(view["queries"]
             .as_array()
             .unwrap()
             .iter()
-            .all(|node| node["execution_status"].is_null()));
-        assert!(view["payload"]["step_states"]
+            .all(|query| query["physicalState"] == "not_observed"));
+        assert!(view["operations"]
             .as_array()
             .unwrap()
             .iter()
-            .any(|step| step["execution_status"] == "bypassed"));
-        assert!(view["payload"]["step_states"]
+            .any(|operation| operation["runState"] == "not_applicable"));
+        assert!(view["operations"]
             .as_array()
             .unwrap()
             .iter()
-            .any(|step| step["execution_status"].is_null()));
+            .any(|operation| operation["runState"] == "not_observed"));
+        let filter_impact = view["decisions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|impact| impact["inputId"] == "use_filter_file")
+            .expect("filter decision impact");
+        assert_eq!(
+            filter_impact["directQueryIds"],
+            serde_json::json!(["mark_app_policy_matches"])
+        );
+        let affected = filter_impact["affectedOperationIds"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(Value::as_str)
+            .collect::<BTreeSet<_>>();
+        assert!(affected.contains("policy.match_app_exclusion_rows"));
+        assert!(!affected.contains("reconstruct.infer_screen_session_skeletons"));
+        assert!(!affected.contains("reconstruct.index_app_events"));
+        assert!(!affected.contains("reconstruct.match_app_episodes"));
+
+        let parquet_impact = view["decisions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|impact| impact["inputId"] == "enable_parquet_export")
+            .expect("runtime encoder decision impact");
+        assert!(parquet_impact["directQueryIds"]
+            .as_array()
+            .unwrap()
+            .is_empty());
+        assert!(parquet_impact["affectedOperationIds"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|operation| operation == "publish.encode_selected_formats"));
+    }
+
+    #[test]
+    fn workflow_applicability_and_explorer_projection_are_exact() {
+        let options = serde_json::json!({
+            "enabled": true,
+            "disabled": false,
+            "mode": "app",
+            "items": [1],
+            "emptyItems": [],
+            "text": "value",
+            "blank": "",
+        });
+        let supports = BTreeSet::from(["filter_file"]);
+        let cases = [
+            (ApplicabilityExpression::Always, true),
+            (
+                ApplicabilityExpression::OptionTrue {
+                    option_key: "enabled",
+                },
+                true,
+            ),
+            (
+                ApplicabilityExpression::OptionTrue {
+                    option_key: "disabled",
+                },
+                false,
+            ),
+            (
+                ApplicabilityExpression::OptionBooleanEquals {
+                    option_key: "disabled",
+                    value: false,
+                },
+                true,
+            ),
+            (
+                ApplicabilityExpression::OptionBooleanEquals {
+                    option_key: "enabled",
+                    value: false,
+                },
+                false,
+            ),
+            (
+                ApplicabilityExpression::OptionStringEquals {
+                    option_key: "mode",
+                    value: "app",
+                },
+                true,
+            ),
+            (
+                ApplicabilityExpression::OptionStringEquals {
+                    option_key: "mode",
+                    value: "screen",
+                },
+                false,
+            ),
+            (
+                ApplicabilityExpression::ArrayNonempty {
+                    option_key: "items",
+                },
+                true,
+            ),
+            (
+                ApplicabilityExpression::ArrayNonempty {
+                    option_key: "emptyItems",
+                },
+                false,
+            ),
+            (
+                ApplicabilityExpression::StringNonempty { option_key: "text" },
+                true,
+            ),
+            (
+                ApplicabilityExpression::StringNonempty {
+                    option_key: "blank",
+                },
+                false,
+            ),
+            (
+                ApplicabilityExpression::SupportPresent {
+                    role_id: "filter_file",
+                },
+                true,
+            ),
+            (
+                ApplicabilityExpression::SupportPresent {
+                    role_id: "study_dates_file",
+                },
+                false,
+            ),
+            (
+                ApplicabilityExpression::All {
+                    terms: vec![
+                        ApplicabilityExpression::Always,
+                        ApplicabilityExpression::OptionTrue {
+                            option_key: "enabled",
+                        },
+                    ],
+                },
+                true,
+            ),
+            (
+                ApplicabilityExpression::Any {
+                    terms: vec![
+                        ApplicabilityExpression::OptionTrue {
+                            option_key: "disabled",
+                        },
+                        ApplicabilityExpression::SupportPresent {
+                            role_id: "filter_file",
+                        },
+                    ],
+                },
+                true,
+            ),
+            (
+                ApplicabilityExpression::Not {
+                    term: Box::new(ApplicabilityExpression::OptionTrue {
+                        option_key: "disabled",
+                    }),
+                },
+                true,
+            ),
+        ];
+        for (expression, expected) in cases {
+            assert_eq!(
+                evaluate_workflow_applicability(&expression, &options, &supports),
+                expected,
+                "{expression:?}",
+            );
+        }
+        let always = ApplicabilityExpression::Always;
+        let disabled = ApplicabilityExpression::OptionTrue {
+            option_key: "disabled",
+        };
+        let phase_operations = [("other", &always), ("target", &disabled)];
+        assert!(!workflow_phase_applicable(
+            "target",
+            phase_operations,
+            &options,
+            &supports,
+        ));
+        let enabled = ApplicabilityExpression::OptionTrue {
+            option_key: "enabled",
+        };
+        assert!(workflow_phase_applicable(
+            "target",
+            [("target", &enabled)],
+            &options,
+            &supports,
+        ));
+        assert!(is_workflow_support_role("raw_chronicle_csv"));
+        assert!(!is_workflow_support_role("processing_options"));
+
+        let csv = csv();
+        let request_value = request_for_workspace(&csv, '1');
+        let contract = chronicle_chrono_kernel_wasm::workflow_contract::workflow_contract();
+        let statuses = [
+            ExecutionStatus::Recomputed,
+            ExecutionStatus::Cached,
+            ExecutionStatus::Skipped,
+            ExecutionStatus::Bypassed,
+            ExecutionStatus::Error,
+        ];
+        let executions = contract
+            .execution
+            .queries
+            .iter()
+            .enumerate()
+            .map(|(index, query)| RuntimeQueryExecution {
+                query_id: query.id.into(),
+                query_group_id: query.group.into(),
+                status: statuses[index % statuses.len()],
+                input_key: format!("sha256:{}", "1".repeat(64)),
+                output_digest: format!("sha256:{}", "2".repeat(64)),
+                reason_id: format!("sha256:{}", "3".repeat(64)),
+            })
+            .collect::<Vec<_>>();
+        let view = build_workflow_explorer_view(
+            &WorkflowExplorerRequest {
+                options: request_value["options"].clone(),
+                support_roles: vec![WorkflowExplorerSupportRole {
+                    role_id: "filter_file".into(),
+                    present: true,
+                    digest: Some(format!("sha256:{}", "4".repeat(64))),
+                }],
+                selected_run_root: None,
+            },
+            &executions,
+            99,
+            Some(&format!("sha256:{}", "a".repeat(64))),
+        )
+        .unwrap();
+        let bytes = serde_jcs::to_vec(&view).unwrap();
+        assert_eq!(
+            sha256(&bytes),
+            "sha256:89d68bb7258fb94b7b92383a2b6b5c6f2351ac7ef18ab01ee45483f458883467"
+        );
     }
 
     fn assert_sha256_identity(value: &str) {
@@ -6142,23 +6925,23 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
             EMBEDDED_PRODUCT_CONTRACT_SHA256
         );
         assert_eq!(manifest.build_environment_digest, BUILD_ENVIRONMENT_DIGEST);
-        assert_eq!(manifest.step_executions.len(), 55);
+        assert_eq!(manifest.query_executions.len(), WORKFLOW_QUERIES.len());
         assert_eq!(
             manifest
-                .step_executions
+                .query_executions
                 .iter()
-                .map(|execution| execution.step_id.as_str())
+                .map(|execution| execution.query_id.as_str())
                 .collect::<BTreeSet<_>>(),
-            PIPELINE_STEPS
+            WORKFLOW_QUERIES
                 .iter()
                 .map(|step| step.id)
                 .collect::<BTreeSet<_>>()
         );
-        assert!(manifest.step_executions.iter().all(|execution| {
+        assert!(manifest.query_executions.iter().all(|execution| {
             manifest
                 .processing_summary
-                .pipeline_step_digests
-                .get(&execution.step_id)
+                .workflow_query_digests
+                .get(&execution.query_id)
                 == Some(&execution.output_digest)
         }));
         assert_eq!(manifest.counts.original, 2);
@@ -6187,8 +6970,11 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         for assignment in &manifest.role_assignments {
             assert_sha256_identity(&assignment.assignment_id);
         }
-        assert_eq!(manifest.node_executions.len(), 15);
-        for execution in &manifest.node_executions {
+        assert_eq!(
+            manifest.query_group_executions.len(),
+            embedded_plan().query_groups.len()
+        );
+        for execution in &manifest.query_group_executions {
             assert_sha256_identity(&execution.reason_id);
         }
         assert!(manifest
@@ -6229,7 +7015,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         assert!(dependency_kinds.contains("source-coordinate-index-arrow"));
         assert!(dependency_kinds.contains("result-cell-correspondence-arrow"));
         assert!(dependency_kinds.contains("source-result-influence-arrow"));
-        assert!(!dependency_kinds.contains("stage-view-json"));
+        assert!(!dependency_kinds.contains("workflow-explorer-view-json"));
         assert!(manifest.open_obligations.is_empty());
         assert!(manifest.state_reasons.iter().any(|reason| {
             reason.subject_id == "outputs" && reason.state == MaterializationState::Satisfied
@@ -6263,7 +7049,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         );
         let mut kinds = BTreeSet::new();
         let mut ledger = None;
-        let mut stage_view_value = None;
+        let mut workflow_explorer_value = None;
         let mut explanation_view_value = None;
         let mut closure_value = None;
         let mut correspondence_value = None;
@@ -6277,8 +7063,8 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
             assert_eq!(metadata.digest, sha256(&bytes));
             if metadata.kind == "execution-ledger-json" {
                 ledger = Some(serde_json::from_slice::<Value>(&bytes).unwrap());
-            } else if metadata.kind == "stage-view-json" {
-                stage_view_value = Some(serde_json::from_slice::<Value>(&bytes).unwrap());
+            } else if metadata.kind == "workflow-explorer-view-json" {
+                workflow_explorer_value = Some(serde_json::from_slice::<Value>(&bytes).unwrap());
             } else if metadata.kind == "explanation-view-json" {
                 explanation_view_value = Some(serde_json::from_slice::<Value>(&bytes).unwrap());
             } else if metadata.kind == "artifact-closure-json" {
@@ -6292,23 +7078,27 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
             }
         }
         let ledger = ledger.unwrap();
-        assert_eq!(ledger.as_array().unwrap().len(), 15);
+        assert_eq!(
+            ledger.as_array().unwrap().len(),
+            embedded_plan().query_groups.len()
+        );
         assert_eq!(
             ledger
                 .as_array()
                 .unwrap()
                 .iter()
-                .map(|unit| unit["steps"].as_array().unwrap().len())
+                .map(|unit| unit["queries"].as_array().unwrap().len())
                 .sum::<usize>(),
-            55
+            WORKFLOW_QUERIES.len()
         );
-        assert!(kinds.contains("stage-view-json"));
+        assert!(kinds.contains("workflow-explorer-view-json"));
         assert!(kinds.contains("artifact-view-json"));
         assert!(kinds.contains("obligation-view-json"));
         assert!(kinds.contains("explanation-view-json"));
         assert!(kinds.contains("workspace-root-json"));
         assert!(kinds.contains("semantic-profile-lock-json"));
         assert!(kinds.contains("semantic-index-source-json"));
+        assert!(kinds.contains("workflow-provenance-jsonld"));
         assert!(kinds.contains("correspondence-index-json"));
         assert!(kinds.contains("artifact-closure-json"));
         assert!(kinds.contains("row-lineage-arrow"));
@@ -6321,21 +7111,29 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
                 .iter()
                 .filter(|kind| kind.starts_with("node-output:"))
                 .count(),
-            15
+            embedded_plan().query_groups.len()
         );
-        let stage_view_value = stage_view_value.unwrap();
-        assert_eq!(stage_view_value["revision"], 72);
+        let workflow_explorer_value = workflow_explorer_value.unwrap();
+        assert_eq!(
+            workflow_explorer_value["revision"],
+            (manifest.role_assignments.len()
+                + manifest.query_group_executions.len()
+                + manifest.query_executions.len()) as u64
+        );
         assert!(
-            stage_view_value["payload"]["node_states"]
+            workflow_explorer_value["phases"]
                 .as_array()
                 .unwrap()
                 .iter()
-                .any(|node| {
-                    node["node_id"] == "outputs" && node["materialization_state"] == "satisfied"
-                }),
+                .any(|phase| phase["phaseId"] == "create_deliverables"),
             "{}",
-            stage_view_value
+            workflow_explorer_value
         );
+        assert!(workflow_explorer_value["queries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|query| query["physicalState"] == "executed"));
         let explanation_view_value = explanation_view_value.unwrap();
         assert_eq!(
             explanation_view_value["payload"]["qualification_traces"]
@@ -6395,11 +7193,12 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         let option_edges = correspondence_edges
             .iter()
             .filter(|edge| {
-                edge["sourceKind"] == "configuration-value" && edge["targetKind"] == "logical-node"
+                edge["sourceKind"] == "configuration-value"
+                    && edge["targetKind"] == "workflow-query-group"
             })
             .collect::<Vec<_>>();
         let declared_knob_count = embedded_plan()
-            .nodes
+            .query_groups
             .iter()
             .map(|node| node.knobs.len())
             .sum::<usize>();
@@ -6411,10 +7210,10 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
                 .and_then(|suffix| suffix.split_once(':'))
                 .map(|(key, _)| key)
                 .unwrap();
-            let node_id = edge["targetId"].as_str().unwrap();
+            let query_group_id = edge["targetId"].as_str().unwrap();
             let relation = edge["relation"].as_str().unwrap();
-            assert!(embedded_plan().nodes.iter().any(|node| {
-                node.node_id == node_id
+            assert!(embedded_plan().query_groups.iter().any(|node| {
+                node.query_group_id == query_group_id
                     && node.knobs.iter().any(|knob| {
                         knob.option_key == option_key && relation == format!("{}-node", knob.edge)
                     })
@@ -6465,7 +7264,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
             .unwrap()
             .digest;
         assert!(correspondence_edges.iter().any(|edge| {
-            edge["sourceKind"] == "logical-node"
+            edge["sourceKind"] == "workflow-query-group"
                 && edge["sourceId"] == "outputs"
                 && edge["relation"] == "publishes"
                 && edge["targetId"] == *app_digest
@@ -6572,7 +7371,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
                 .filter(|event| event.event_kind == "node-bypassed")
                 .count(),
             manifest
-                .node_executions
+                .query_group_executions
                 .iter()
                 .filter(|execution| execution.status == ExecutionStatus::Bypassed)
                 .count()
@@ -6596,7 +7395,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         let first: RuntimeManifest = serde_json::from_str(&first.manifest_json).unwrap();
         assert_eq!(tracked_execution_count(), 1);
         assert_eq!(stable_artifact_generation_count(), 1);
-        assert!(first.node_executions.iter().all(|execution| {
+        assert!(first.query_group_executions.iter().all(|execution| {
             execution.output.is_some()
                 && matches!(
                     execution.status,
@@ -6620,22 +7419,22 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
             1,
             "warm run must reuse immutable terminal artifacts"
         );
-        assert!(warm.node_executions.iter().all(|execution| {
+        assert!(warm.query_group_executions.iter().all(|execution| {
             execution.output.is_some()
                 && matches!(
                     execution.status,
                     ExecutionStatus::Cached | ExecutionStatus::Bypassed
                 )
         }));
-        assert_eq!(warm.step_executions.len(), 55);
-        assert!(warm.step_executions.iter().all(|execution| matches!(
+        assert_eq!(warm.query_executions.len(), WORKFLOW_QUERIES.len());
+        assert!(warm.query_executions.iter().all(|execution| matches!(
             execution.status,
             ExecutionStatus::Cached | ExecutionStatus::Bypassed
         )));
         // Reusing a cached stage projection is a reporting shortcut, never a
         // licence to publish less. Evidence artifacts (the ledger, journal,
-        // stage view, workspace root) legitimately differ between the two
-        // runs because they describe the run itself; every product-stage
+        // workflow explorer view, workspace root) legitimately differ between the two
+        // runs because they describe the run itself; every query-group
         // output must be republished byte for byte, or the second run of the
         // same request hands the user a shorter download list than the first.
         fn stage_outputs(manifest: &RuntimeManifest) -> BTreeSet<(&str, &str, u64)> {
@@ -6654,13 +7453,13 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         }
         assert_eq!(
             stage_outputs(&first).len(),
-            first.node_executions.len(),
-            "the cold run did not publish one output artifact per product stage"
+            first.query_group_executions.len(),
+            "the cold run did not publish one output artifact per query group"
         );
         assert_eq!(
             stage_outputs(&warm),
             stage_outputs(&first),
-            "a warm repeat of the same request stopped publishing product-stage outputs"
+            "a warm repeat of the same request stopped publishing query-group outputs"
         );
         let mut warm_ledger = None;
         let mut warm_journal = None;
@@ -6682,22 +7481,22 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
             }
         }
         let warm_ledger = warm_ledger.unwrap();
-        let warm_ledger_steps = warm_ledger
+        let warm_ledger_queries = warm_ledger
             .as_array()
             .unwrap()
             .iter()
-            .flat_map(|unit| unit["steps"].as_array().unwrap())
+            .flat_map(|unit| unit["queries"].as_array().unwrap())
             .collect::<Vec<_>>();
-        assert_eq!(warm_ledger_steps.len(), 55);
-        assert!(warm_ledger_steps.iter().all(|step| {
-            matches!(step["status"].as_str(), Some("cached" | "bypassed"))
-                && step["inputKey"]
+        assert_eq!(warm_ledger_queries.len(), WORKFLOW_QUERIES.len());
+        assert!(warm_ledger_queries.iter().all(|query| {
+            matches!(query["status"].as_str(), Some("cached" | "bypassed"))
+                && query["inputKey"]
                     .as_str()
                     .is_some_and(|value| value.starts_with("sha256:"))
-                && step["outputDigest"]
+                && query["outputDigest"]
                     .as_str()
                     .is_some_and(|value| value.starts_with("sha256:"))
-                && step["reasonId"]
+                && query["reasonId"]
                     .as_str()
                     .is_some_and(|value| value.starts_with("sha256:"))
         }));
@@ -6708,7 +7507,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
                 .iter()
                 .filter(|event| event.event_kind == "node-cached")
                 .count(),
-            warm.node_executions
+            warm.query_group_executions
                 .iter()
                 .filter(|execution| execution.status == ExecutionStatus::Cached)
                 .count()
@@ -6726,17 +7525,21 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
             2,
             "changed executions: {:?}",
             changed
-                .node_executions
+                .query_group_executions
                 .iter()
-                .map(|execution| (&execution.node_id, execution.status, &execution.input_key))
+                .map(|execution| (
+                    &execution.query_group_id,
+                    execution.status,
+                    &execution.input_key
+                ))
                 .collect::<Vec<_>>()
         );
         assert_eq!(stable_artifact_generation_count(), 2);
         let recomputed: BTreeSet<_> = changed
-            .node_executions
+            .query_group_executions
             .iter()
             .filter(|execution| execution.status == ExecutionStatus::Recomputed)
-            .map(|execution| execution.node_id.as_str())
+            .map(|execution| execution.query_group_id.as_str())
             .collect();
         let evidence_current = dependency_evidence_current(embedded_dependency_certificate());
         if evidence_current {
@@ -6748,18 +7551,18 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         }
         assert_eq!(
             changed
-                .step_executions
+                .query_executions
                 .iter()
                 .filter(|execution| execution.status == ExecutionStatus::Recomputed)
-                .map(|execution| execution.step_id.as_str())
+                .map(|execution| execution.query_id.as_str())
                 .collect::<BTreeSet<_>>(),
-            BTreeSet::from(["build_coverage_table", "assemble_result"])
+            BTreeSet::from(["build_participant_day_coverage", "assemble_result_manifest"])
         );
         assert_eq!(
             changed
-                .node_executions
+                .query_group_executions
                 .iter()
-                .find(|execution| execution.node_id == "parse_events")
+                .find(|execution| execution.query_group_id == "parse_events")
                 .unwrap()
                 .status,
             if evidence_current {
@@ -6790,18 +7593,24 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
                 .unwrap();
         let changed: RuntimeManifest = serde_json::from_str(&changed.manifest_json).unwrap();
         let by_id = changed
-            .step_executions
+            .query_executions
             .iter()
-            .map(|execution| (execution.step_id.as_str(), execution))
+            .map(|execution| (execution.query_id.as_str(), execution))
             .collect::<BTreeMap<_, _>>();
-        assert_eq!(by_id["run_matcher"].status, ExecutionStatus::Recomputed);
-        assert_eq!(by_id["csv_parse"].status, ExecutionStatus::Cached);
+        assert_eq!(
+            by_id["match_app_episodes"].status,
+            ExecutionStatus::Recomputed
+        );
+        assert_eq!(
+            by_id["decode_source_records"].status,
+            ExecutionStatus::Cached
+        );
         assert_ne!(
-            by_id["run_matcher"].input_key,
+            by_id["match_app_episodes"].input_key,
             initial
-                .step_executions
+                .query_executions
                 .iter()
-                .find(|execution| execution.step_id == "run_matcher")
+                .find(|execution| execution.query_id == "match_app_episodes")
                 .unwrap()
                 .input_key
         );
@@ -6817,12 +7626,12 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         .unwrap();
         let cold: RuntimeManifest = serde_json::from_str(&cold.manifest_json).unwrap();
         assert_eq!(
-            changed.processing_summary.pipeline_step_digests,
-            cold.processing_summary.pipeline_step_digests
+            changed.processing_summary.workflow_query_digests,
+            cold.processing_summary.workflow_query_digests
         );
         assert_eq!(
-            changed.processing_summary.pipeline_step_checkpoints,
-            cold.processing_summary.pipeline_step_checkpoints
+            changed.processing_summary.workflow_query_checkpoints,
+            cold.processing_summary.workflow_query_checkpoints
         );
         assert_eq!(
             changed.processing_summary.published_outputs_digest,
@@ -6850,21 +7659,24 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
                 .unwrap();
         let changed: RuntimeManifest = serde_json::from_str(&changed.manifest_json).unwrap();
         let by_id = changed
-            .step_executions
+            .query_executions
             .iter()
-            .map(|execution| (execution.step_id.as_str(), execution.status))
+            .map(|execution| (execution.query_id.as_str(), execution.status))
             .collect::<BTreeMap<_, _>>();
         assert_eq!(
-            by_id["resolve_preproc_datetime"],
+            by_id["bind_processing_timestamp"],
             ExecutionStatus::Recomputed
         );
-        assert_eq!(by_id["parse_remap_config"], ExecutionStatus::Cached);
-        assert_eq!(by_id["csv_parse"], ExecutionStatus::Cached);
-        assert_eq!(by_id["assemble_result"], ExecutionStatus::Recomputed);
+        assert_eq!(by_id["validate_remap_rules"], ExecutionStatus::Cached);
+        assert_eq!(by_id["decode_source_records"], ExecutionStatus::Cached);
+        assert_eq!(
+            by_id["assemble_result_manifest"],
+            ExecutionStatus::Recomputed
+        );
     }
 
     #[test]
-    fn node_output_artifacts_publish_their_exact_logical_stage_checkpoint() {
+    fn query_group_output_artifacts_publish_their_exact_checkpoint() {
         reset_tracked_execution_count();
         let csv = csv();
         let request = request_for_workspace(&csv, 'a');
@@ -6872,23 +7684,35 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
             execute_workspace_native(&request.to_string(), &csv, &RuntimeSupportFiles::default())
                 .unwrap();
         let manifest: RuntimeManifest = serde_json::from_str(&handle.manifest_json).unwrap();
-        assert_eq!(manifest.processing_summary.logical_stage_digests.len(), 15);
         assert_eq!(
-            manifest.processing_summary.logical_stage_checkpoints.len(),
-            15
+            manifest
+                .processing_summary
+                .workflow_query_group_digests
+                .len(),
+            embedded_plan().query_groups.len()
         );
-        assert_eq!(manifest.processing_summary.pipeline_step_digests.len(), 55);
         assert_eq!(
-            manifest.processing_summary.pipeline_step_checkpoints.len(),
-            55
+            manifest
+                .processing_summary
+                .workflow_query_group_checkpoints
+                .len(),
+            embedded_plan().query_groups.len()
         );
-        for (step_id, checkpoint) in &manifest.processing_summary.pipeline_step_checkpoints {
-            assert_eq!(&checkpoint.node_id, step_id);
+        assert_eq!(
+            manifest.processing_summary.workflow_query_digests.len(),
+            WORKFLOW_QUERIES.len()
+        );
+        assert_eq!(
+            manifest.processing_summary.workflow_query_checkpoints.len(),
+            WORKFLOW_QUERIES.len()
+        );
+        for (query_id, checkpoint) in &manifest.processing_summary.workflow_query_checkpoints {
+            assert_eq!(&checkpoint.subject_id, query_id);
             assert_eq!(
                 manifest
                     .processing_summary
-                    .pipeline_step_digests
-                    .get(step_id),
+                    .workflow_query_digests
+                    .get(query_id),
                 Some(&checkpoint.terminal_digest)
             );
         }
@@ -6904,33 +7728,36 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
                 serde_json::from_slice(&handle.take_artifact_bytes(index).unwrap()).unwrap();
             assert_eq!(
                 fingerprint["checkpointProtocol"],
-                "chronicle-logical-stage-checkpoint/v7"
+                "chronicle-workflow-checkpoint/v1"
             );
             assert_eq!(
-                fingerprint["typedCheckpoint"]["nodeId"],
-                fingerprint["logicalNode"]
+                fingerprint["typedCheckpoint"]["subjectId"],
+                fingerprint["workflowQueryGroupId"]
             );
             assert_eq!(
                 fingerprint["physicalExecution"],
                 "salsa-tracked-rust-pipeline-v2"
             );
             published.insert(
-                fingerprint["logicalNode"].as_str().unwrap().to_string(),
+                fingerprint["workflowQueryGroupId"]
+                    .as_str()
+                    .unwrap()
+                    .to_string(),
                 fingerprint["semanticOutputDigest"]
                     .as_str()
                     .unwrap()
                     .to_string(),
             );
         }
-        assert_eq!(published.len(), 15);
-        for (node, digest) in &manifest.processing_summary.logical_stage_digests {
+        assert_eq!(published.len(), embedded_plan().query_groups.len());
+        for (node, digest) in &manifest.processing_summary.workflow_query_group_digests {
             if node != "outputs" {
                 assert_eq!(published.get(node), Some(digest), "checkpoint for {node}");
             }
         }
         assert_eq!(
             published.values().collect::<BTreeSet<_>>().len(),
-            15,
+            embedded_plan().query_groups.len(),
             "node identity must keep converged/empty stage values distinct"
         );
     }
@@ -6950,7 +7777,10 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
             .unwrap();
         }
         INCREMENTAL_RUNTIME_STATES.with(|states| {
-            assert_eq!(states.borrow().states.len(), DEFAULT_MAX_INCREMENTAL_RUNTIME_STATES);
+            assert_eq!(
+                states.borrow().states.len(),
+                DEFAULT_MAX_INCREMENTAL_RUNTIME_STATES
+            );
         });
         assert_eq!(DEFAULT_MAX_INCREMENTAL_RUNTIME_STATES, 1);
     }
@@ -6959,9 +7789,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
     fn set_capacity_raises_and_compacts_state_cache() {
         reset_tracked_execution_count();
         let csv = csv();
-        INCREMENTAL_RUNTIME_STATES.with(|states| {
-            states.borrow_mut().set_capacity(4);
-        });
+        set_comparison_cache_capacity(4);
         for index in 0..4 {
             let marker = char::from_digit(index as u32, 10).unwrap();
             let request_value = request_for_workspace(&csv, marker);
@@ -6972,10 +7800,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
             )
             .unwrap();
         }
-        INCREMENTAL_RUNTIME_STATES.with(|states| {
-            let cache = states.borrow();
-            assert_eq!(cache.retained_count(), 4);
-        });
+        assert_eq!(get_comparison_cache_retained(), 4);
         INCREMENTAL_RUNTIME_STATES.with(|states| {
             states.borrow_mut().compact_all();
             let cache = states.borrow();
@@ -6985,13 +7810,10 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
                 assert!(state.previous_stage_outputs.is_empty());
             }
         });
-        INCREMENTAL_RUNTIME_STATES.with(|states| {
-            states.borrow_mut().set_capacity(2);
-            assert_eq!(states.borrow().retained_count(), 2);
-        });
-        INCREMENTAL_RUNTIME_STATES.with(|states| {
-            states.borrow_mut().set_capacity(DEFAULT_MAX_INCREMENTAL_RUNTIME_STATES);
-        });
+        set_comparison_cache_capacity(2);
+        assert_eq!(get_comparison_cache_retained(), 2);
+        set_comparison_cache_capacity(DEFAULT_MAX_INCREMENTAL_RUNTIME_STATES);
+        assert_eq!(get_comparison_cache_retained(), 1);
     }
 
     /// A warm review resumes from Salsa state already in this worker instead
@@ -7044,7 +7866,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         let manifest: RuntimeManifest = serde_json::from_str(&result.manifest_json).unwrap();
         assert_eq!(tracked_execution_count(), 2);
         assert!(manifest
-            .node_executions
+            .query_group_executions
             .iter()
             .any(|execution| execution.status == ExecutionStatus::Recomputed));
     }
@@ -7066,7 +7888,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         let first: ReviewRuntimeManifest = serde_json::from_str(&first.manifest_json).unwrap();
         assert_eq!(tracked_execution_count(), 1);
         assert!(first
-            .step_executions
+            .query_executions
             .iter()
             .any(|execution| execution.status == ExecutionStatus::Recomputed));
 
@@ -7083,7 +7905,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
             1,
             "the second review arm must reuse the first arm's cold rebuild"
         );
-        assert!(second.step_executions.iter().all(|execution| matches!(
+        assert!(second.query_executions.iter().all(|execution| matches!(
             execution.status,
             ExecutionStatus::Cached | ExecutionStatus::Bypassed | ExecutionStatus::Skipped
         )));
@@ -7145,23 +7967,27 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         assert_eq!(cached.cache_sources, ["verified-reconstruction-base"]);
         assert_eq!(
             cached
-                .step_executions
+                .query_executions
                 .iter()
-                .find(|execution| execution.step_id == "csv_parse")
+                .find(|execution| execution.query_id == "decode_source_records")
                 .unwrap()
                 .status,
             ExecutionStatus::Cached
         );
-        for step_id in ["run_matcher", "apply_matcher_output", "split_concurrent"] {
+        for query_id in [
+            "match_app_episodes",
+            "materialize_candidate_episodes",
+            "segment_concurrent_usage",
+        ] {
             assert_eq!(
                 cached
-                    .step_executions
+                    .query_executions
                     .iter()
-                    .find(|execution| execution.step_id == step_id)
+                    .find(|execution| execution.query_id == query_id)
                     .unwrap()
                     .status,
                 ExecutionStatus::Cached,
-                "persisted reconstruction did not reuse {step_id}"
+                "persisted reconstruction did not reuse {query_id}"
             );
         }
 
@@ -7281,7 +8107,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
             .unwrap();
         let cached: ReviewRuntimeManifest = serde_json::from_str(&cached.manifest_json).unwrap();
         assert_eq!(cached.cache_sources, ["verified-reconstruction-base"]);
-        assert_eq!(cached.step_executions.len(), 55);
+        assert_eq!(cached.query_executions.len(), WORKFLOW_QUERIES.len());
         assert!(prepared
             .execute_selected_base_native(reconstruction_base.clone())
             .err()
@@ -7313,7 +8139,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         let warm_manifest: ReviewRuntimeManifest =
             serde_json::from_str(&warm_result.manifest_json).unwrap();
         assert_eq!(warm_manifest.cache_sources, ["salsa-memory"]);
-        assert_eq!(warm_manifest.step_executions.len(), 55);
+        assert_eq!(warm_manifest.query_executions.len(), WORKFLOW_QUERIES.len());
 
         review_request["requestId"] = Value::String("prepared-review-only".into());
         review_request["workspaceId"] = Value::String(format!("sha256:{}", "4".repeat(64)));
@@ -7360,7 +8186,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         let cold_manifest: ReviewRuntimeManifest =
             serde_json::from_str(&cold_result.manifest_json).unwrap();
         assert!(cold_manifest.cache_sources.is_empty());
-        assert_eq!(cold_manifest.step_executions.len(), 55);
+        assert_eq!(cold_manifest.query_executions.len(), WORKFLOW_QUERIES.len());
 
         INCREMENTAL_RUNTIME_STATES.with(|states| *states.borrow_mut() = Default::default());
         let persisted_miss = prepare_runtime_workspace_from_persisted_input(
@@ -7416,14 +8242,14 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
                 })
             })
             .unwrap();
-        let exact_dedupe = ledger
+        let coalesce_duplicate_event_keys = ledger
             .as_array()
             .unwrap()
             .iter()
-            .flat_map(|unit| unit["steps"].as_array().unwrap())
-            .find(|step| step["stepId"] == "exact_dedupe")
+            .flat_map(|unit| unit["queries"].as_array().unwrap())
+            .find(|query| query["queryId"] == "coalesce_duplicate_event_keys")
             .unwrap();
-        assert_eq!(exact_dedupe["status"], "recomputed");
+        assert_eq!(coalesce_duplicate_event_keys["status"], "recomputed");
     }
 
     #[test]
@@ -7447,10 +8273,10 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
     fn every_ordered_timezone_transition_matches_a_cold_full_rust_oracle() {
         let csv = mixed_timezone_csv();
         let expected_touched = embedded_plan()
-            .nodes
+            .query_groups
             .iter()
-            .map(|node| node.node_id.clone())
-            .filter(|node_id| node_id != "parse_events")
+            .map(|node| node.query_group_id.clone())
+            .filter(|query_group_id| query_group_id != "parse_events")
             .collect::<BTreeSet<_>>();
 
         for (from_index, from) in TIMEZONE_HANDLING_MODES.iter().enumerate() {
@@ -7511,7 +8337,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
                 );
 
                 let touched = manifest
-                    .node_executions
+                    .query_group_executions
                     .iter()
                     .filter(|execution| {
                         matches!(
@@ -7519,7 +8345,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
                             ExecutionStatus::Recomputed | ExecutionStatus::Bypassed
                         )
                     })
-                    .map(|execution| execution.node_id.clone())
+                    .map(|execution| execution.query_group_id.clone())
                     .collect::<BTreeSet<_>>();
                 let evidence_current =
                     dependency_evidence_current(embedded_dependency_certificate());
@@ -7539,9 +8365,9 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
                 }
                 assert_eq!(
                     manifest
-                        .node_executions
+                        .query_group_executions
                         .iter()
-                        .find(|execution| execution.node_id == "parse_events")
+                        .find(|execution| execution.query_group_id == "parse_events")
                         .unwrap()
                         .status,
                     if evidence_current {
@@ -7660,7 +8486,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
             .unwrap()
             .iter()
             .any(|obligation| obligation["role_id"] == "filter_file"));
-        assert_eq!(report["nodeStates"]["app_policy"], "open");
+        assert_eq!(report["queryGroupStates"]["app_policy"], "open");
 
         let error = execute_workspace_native(&request, &csv, &RuntimeSupportFiles::default())
             .err()
@@ -7681,7 +8507,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         let invalid: Value = serde_json::from_str(&invalid).unwrap();
         assert_eq!(invalid["ready"], false);
         assert_eq!(invalid["roleStates"]["filter_file"], "invalid");
-        assert_eq!(invalid["nodeStates"]["app_policy"], "invalid");
+        assert_eq!(invalid["queryGroupStates"]["app_policy"], "invalid");
         let rejected = invalid["qualificationTraces"]
             .as_array()
             .unwrap()
@@ -7833,9 +8659,9 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
     #[test]
     fn request_support_and_digest_boundaries_fail_closed() {
         assert!(runtime_version().starts_with("chronicle-preprocessing-runtime/"));
-        assert!(plan_stage_view_native("{")
+        assert!(plan_workflow_explorer_view_native("{")
             .unwrap_err()
-            .contains("invalid plan-view options"));
+            .contains("invalid workflow-explorer request"));
         let csv = csv();
         let base: RuntimeRequest = serde_json::from_str(&request(&csv)).unwrap();
         let mut review = base.clone();
@@ -7951,68 +8777,23 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
     }
 
     #[test]
-    fn review_step_sets_and_timezone_discovery_are_exact() {
-        let excluded = PIPELINE_STEPS
+    fn review_behavior_is_contract_owned_and_timezone_discovery_is_exact() {
+        let contract = chronicle_chrono_kernel_wasm::workflow_contract::workflow_contract();
+        assert_eq!(contract.execution.queries.len(), WORKFLOW_QUERIES.len());
+        assert!(contract
+            .execution
+            .queries
             .iter()
-            .filter(|step| review_excludes_step(step.id))
-            .map(|step| step.id)
-            .collect::<Vec<_>>();
-        assert_eq!(
-            excluded,
-            [
-                "partition_credit_sessions",
-                "build_liveness_substrate",
-                "report_screen_incapable",
-                "count_day_apps",
-                "credit_sessions",
-                "emit_credited_rows",
-                "assemble_credit_result",
-                "build_raw_date_index",
-                "build_coverage_table",
-                "accumulate_attribution_minutes",
-                "score_days",
-            ]
-        );
-        let passthrough = PIPELINE_STEPS
-            .iter()
-            .filter(|step| review_uses_passthrough_checkpoint(step.id))
-            .map(|step| step.id)
-            .collect::<Vec<_>>();
-        assert_eq!(
-            passthrough,
-            [
-                "apply_matcher_output",
-                "relabel_usage_with_floor",
-                "junk_downstream_mark",
-                "sort_episodes",
-                "codebook_join",
-                "derive_broad_category",
-                "collapse_genre",
-                "engagement_walk",
-                "flag_and_retain",
-                "blank_junk_timing",
-                "drop_selected_types",
-                "drop_zero_duration",
-                "filter_rows_to_window",
-                "attribute_rows",
-                "inject_placeholders",
-            ]
-        );
+            .any(|query| { query.review_behavior == ReviewBehavior::Omit }));
+        assert!(contract.execution.queries.iter().all(|query| {
+            let expected_mode = query.review_behavior != ReviewBehavior::Execute;
+            query_output_mode(query.review_behavior, false).is_some() == expected_mode
+                && query_output_mode(query.review_behavior, true).is_some() == expected_mode
+        }));
         assert_eq!(
             discover_timezones_v2(&mixed_timezone_csv()).unwrap(),
             ["America/Chicago", "America/New_York"]
         );
-
-        for step in PIPELINE_STEPS {
-            let expected = step.id == "assemble_result"
-                || excluded.contains(&step.id)
-                || passthrough.contains(&step.id);
-            assert_eq!(step_output_mode(step.id, true), expected.then_some("full"));
-            assert_eq!(
-                step_output_mode(step.id, false),
-                expected.then_some("review")
-            );
-        }
     }
 
     #[test]
@@ -8033,9 +8814,9 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         assert!(!selected_base_matches_probe(b"prefix", b"wrong-payload"));
         assert!(selected_base_matches_probe(b"prefix", b"prefix-payload"));
 
-        let cached = RuntimeStepExecution {
-            step_id: "step".into(),
-            unit_id: "unit".into(),
+        let cached = RuntimeQueryExecution {
+            query_id: "step".into(),
+            query_group_id: "unit".into(),
             status: ExecutionStatus::Cached,
             input_key: "input".into(),
             output_digest: "output".into(),
@@ -8049,45 +8830,45 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         assert!(!should_report_salsa_memory(true, true, &[recomputed]));
 
         assert_eq!(
-            product_stage_status(true, false, false, false, false),
+            query_group_status(true, false, false, false, false),
             ExecutionStatus::Error
         );
         assert_eq!(
-            product_stage_status(false, true, false, false, false),
+            query_group_status(false, true, false, false, false),
             ExecutionStatus::Bypassed
         );
         assert_eq!(
-            product_stage_status(false, false, true, false, false),
+            query_group_status(false, false, true, false, false),
             ExecutionStatus::Skipped
         );
         for changed in [(true, false), (false, true)] {
             assert_eq!(
-                product_stage_status(false, false, false, changed.0, changed.1),
+                query_group_status(false, false, false, changed.0, changed.1),
                 ExecutionStatus::Recomputed
             );
         }
         assert_eq!(
-            product_stage_status(false, false, false, false, false),
+            query_group_status(false, false, false, false, false),
             ExecutionStatus::Cached
         );
     }
 
-    /// A product stage may report `recomputed` only when a member query
+    /// A query group may report `recomputed` only when a member query
     /// actually executed or the run deactivated the group. Nothing else — no
     /// projection key move, no artifact rebuild — may reach that status, so a
-    /// stage badge can never contradict the manifest's own `stepExecutions`.
+    /// stage badge can never contradict the manifest's own `queryExecutions`.
     #[test]
-    fn no_product_stage_reports_recomputed_without_an_executed_member() {
+    fn no_query_group_reports_recomputed_without_an_executed_member() {
         for bits in 0..(1_u8 << 5) {
             let has_error = bits & 1 != 0;
             let bypassed = bits & 2 != 0;
-            let has_skipped_step = bits & 4 != 0;
+            let has_skipped_query = bits & 4 != 0;
             let group_deactivated = bits & 8 != 0;
             let has_executed_member = bits & 16 != 0;
-            let status = product_stage_status(
+            let status = query_group_status(
                 has_error,
                 bypassed,
-                has_skipped_step,
+                has_skipped_query,
                 group_deactivated,
                 has_executed_member,
             );
@@ -8126,11 +8907,11 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
             direct_pipeline_result(&csv, false);
         let plan = embedded_plan();
         // Salsa reported every member query cached: nothing physically ran.
-        let step_executions = PIPELINE_STEPS
+        let query_executions = WORKFLOW_QUERIES
             .iter()
-            .map(|definition| RuntimeStepExecution {
-                step_id: definition.id.to_string(),
-                unit_id: definition.group.to_string(),
+            .map(|definition| RuntimeQueryExecution {
+                query_id: definition.id.to_string(),
+                query_group_id: definition.group.to_string(),
                 status: ExecutionStatus::Cached,
                 input_key: format!("sha256:{}", "1".repeat(64)),
                 output_digest: format!("sha256:{}", "2".repeat(64)),
@@ -8140,16 +8921,21 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         // Every stage's remembered key differs from the one this run builds,
         // so `projection_changed` is true for all of them.
         let mut previous_stage_inputs = plan
-            .nodes
+            .query_groups
             .iter()
-            .map(|node| (node.node_id.clone(), format!("sha256:{}", "9".repeat(64))))
+            .map(|node| {
+                (
+                    node.query_group_id.clone(),
+                    format!("sha256:{}", "9".repeat(64)),
+                )
+            })
             .collect::<BTreeMap<_, _>>();
         let mut previous_stage_outputs = BTreeMap::new();
-        let (executions, _artifacts) = project_product_stages(
+        let (executions, _artifacts) = project_query_groups(
             plan,
             &semantic_options,
             &result,
-            &step_executions,
+            &query_executions,
             &BTreeSet::new(),
             &BTreeSet::new(),
             &mut previous_stage_inputs,
@@ -8157,11 +8943,11 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
             true,
         )
         .expect("projection over cached members");
-        assert_eq!(executions.len(), plan.nodes.len());
+        assert_eq!(executions.len(), plan.query_groups.len());
         let recomputed = executions
             .iter()
             .filter(|execution| execution.status == ExecutionStatus::Recomputed)
-            .map(|execution| execution.node_id.as_str())
+            .map(|execution| execution.query_group_id.as_str())
             .collect::<Vec<_>>();
         assert_eq!(
             recomputed,
@@ -8173,28 +8959,33 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         assert!(executions
             .iter()
             .all(|execution| execution.output.is_some()));
-        assert!(plan.nodes.iter().all(|node| previous_stage_inputs
-            .get(&node.node_id)
+        assert!(plan.query_groups.iter().all(|node| previous_stage_inputs
+            .get(&node.query_group_id)
             .is_some_and(|key| key != &format!("sha256:{}", "9".repeat(64)))));
 
         // One member query that actually executed is what makes its stage
         // recomputed, and only that stage.
-        let executed = &PIPELINE_STEPS[0];
-        let mut with_execution = step_executions.clone();
+        let executed = WORKFLOW_QUERIES.first().expect("workflow query registry");
+        let mut with_execution = query_executions.clone();
         with_execution[0].status = ExecutionStatus::Recomputed;
-        let executed_steps = BTreeSet::from([executed.id]);
+        let executed_queries = BTreeSet::from([executed.id]);
         let mut previous_stage_inputs = plan
-            .nodes
+            .query_groups
             .iter()
-            .map(|node| (node.node_id.clone(), format!("sha256:{}", "9".repeat(64))))
+            .map(|node| {
+                (
+                    node.query_group_id.clone(),
+                    format!("sha256:{}", "9".repeat(64)),
+                )
+            })
             .collect::<BTreeMap<_, _>>();
         let mut previous_stage_outputs = BTreeMap::new();
-        let (executions, _artifacts) = project_product_stages(
+        let (executions, _artifacts) = project_query_groups(
             plan,
             &semantic_options,
             &result,
             &with_execution,
-            &executed_steps,
+            &executed_queries,
             &BTreeSet::new(),
             &mut previous_stage_inputs,
             &mut previous_stage_outputs,
@@ -8204,22 +8995,22 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         let recomputed = executions
             .iter()
             .filter(|execution| execution.status == ExecutionStatus::Recomputed)
-            .map(|execution| execution.node_id.as_str())
+            .map(|execution| execution.query_group_id.as_str())
             .collect::<Vec<_>>();
         assert_eq!(recomputed, vec![executed.group]);
     }
 
-    /// The step ladder in `build_runtime_step_executions` resolves `Bypassed`
-    /// ahead of `Recomputed`, so a step that is not applicable is badged
+    /// The step ladder in `build_runtime_query_executions` resolves `Bypassed`
+    /// ahead of `Recomputed`, so a query that is not applicable is badged
     /// `Bypassed` even when Salsa ran its query. Deriving the stage badge from
     /// the member badges therefore loses that execution, and the stage answers
     /// `Cached` -- published as `all-active-queries-reused` -- for a run in
     /// which a query ran.
     ///
     /// `day_coverage` is where the two applicability conditions genuinely
-    /// differ (`step_contract.rs`): the group is applicable when
+    /// differ (`workflow_contract.rs`): the group is applicable when
     /// `add_no_activity_placeholder_days` alone is on, while its member
-    /// `build_coverage_table` additionally requires `enable_day_coverage`. So
+    /// `build_participant_day_coverage` additionally requires `enable_day_coverage`. So
     /// the stage is not bypassed, no member is badged `Recomputed`, and the
     /// contradiction is reachable rather than theoretical.
     #[test]
@@ -8232,9 +9023,9 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         semantic_options["enable_day_coverage"] = Value::Bool(false);
         let plan = embedded_plan();
         let node = plan
-            .nodes
+            .query_groups
             .iter()
-            .find(|node| node.node_id == "day_coverage")
+            .find(|node| node.query_group_id == "day_coverage")
             .expect("day_coverage stage");
         assert!(
             node.applicability.evaluate(&semantic_options),
@@ -8244,12 +9035,12 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
 
         // Salsa ran exactly one query in this stage, and it is the member the
         // options make inapplicable.
-        let executed_id = "build_coverage_table";
-        let step_executions = PIPELINE_STEPS
+        let executed_id = "build_participant_day_coverage";
+        let query_executions = WORKFLOW_QUERIES
             .iter()
-            .map(|definition| RuntimeStepExecution {
-                step_id: definition.id.to_string(),
-                unit_id: definition.group.to_string(),
+            .map(|definition| RuntimeQueryExecution {
+                query_id: definition.id.to_string(),
+                query_group_id: definition.group.to_string(),
                 status: if definition.id == executed_id {
                     ExecutionStatus::Bypassed
                 } else {
@@ -8261,7 +9052,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
             })
             .collect::<Vec<_>>();
         assert!(
-            !step_executions
+            !query_executions
                 .iter()
                 .any(|execution| execution.status == ExecutionStatus::Recomputed),
             "no member is badged recomputed, which is exactly why reading the \
@@ -8270,11 +9061,11 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
 
         let mut previous_stage_inputs = BTreeMap::new();
         let mut previous_stage_outputs = BTreeMap::new();
-        let (executions, _artifacts) = project_product_stages(
+        let (executions, _artifacts) = project_query_groups(
             plan,
             &semantic_options,
             &result,
-            &step_executions,
+            &query_executions,
             &BTreeSet::from([executed_id]),
             &BTreeSet::new(),
             &mut previous_stage_inputs,
@@ -8284,7 +9075,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         .expect("projection with one executed but inapplicable member");
         let status = executions
             .iter()
-            .find(|execution| execution.node_id == "day_coverage")
+            .find(|execution| execution.query_group_id == "day_coverage")
             .map(|execution| execution.status)
             .expect("day_coverage stage execution");
         assert_eq!(
@@ -8306,62 +9097,62 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
             .clone();
         let assignments = BTreeMap::new();
         assert_eq!(
-            active_source_roles("csv_parse", &exact, &assignments),
+            active_source_roles("decode_source_records", &exact, &assignments),
             BTreeMap::from([("raw_chronicle_csv".to_string(), None)])
         );
-        assert!(active_source_roles("tag_filtered_packages", &exact, &assignments).is_empty());
+        assert!(active_source_roles("mark_app_policy_matches", &exact, &assignments).is_empty());
         exact.insert("use_filter_file".into(), Value::Bool(true));
         assert_eq!(
-            active_source_roles("tag_filtered_packages", &exact, &assignments),
+            active_source_roles("mark_app_policy_matches", &exact, &assignments),
             BTreeMap::from([("filter_file".to_string(), None)])
         );
-        assert!(active_source_roles("assemble_result", &exact, &assignments).is_empty());
+        assert!(active_source_roles("assemble_result_manifest", &exact, &assignments).is_empty());
         exact.insert("enable_compliance_scoring".into(), Value::Bool(true));
         assert_eq!(
-            active_source_roles("assemble_result", &exact, &assignments),
+            active_source_roles("assemble_result_manifest", &exact, &assignments),
             BTreeMap::from([("enrolled_devices_file".to_string(), None)])
         );
         exact.insert(
             "usage_session_mode".into(),
             Value::String("screen_usage".into()),
         );
-        assert!(active_source_roles("assemble_result", &exact, &assignments).is_empty());
+        assert!(active_source_roles("assemble_result_manifest", &exact, &assignments).is_empty());
 
         let expected_root = format!("sha256:{}", "a".repeat(64));
         let valid = serde_json::json!({
-            "view_id": "chronicle.stage.v1",
-            "schema_id": "urn:chronicle:view:stage:v1",
-            "root_digest": expected_root,
+            "viewId": "chronicle-workflow-explorer/v1",
+            "schemaId": "urn:chronicle:view:workflow-explorer:v1",
+            "rootDigest": expected_root,
         });
         assert!(required_view_contract_matches(
-            "stage-view-json",
+            "workflow-explorer-view-json",
             &valid,
-            "stage-view-json",
-            "chronicle.stage.v1",
-            "urn:chronicle:view:stage:v1",
+            "workflow-explorer-view-json",
+            "chronicle-workflow-explorer/v1",
+            "urn:chronicle:view:workflow-explorer:v1",
             expected_root.as_str(),
         ));
         for (kind, view) in [
             ("wrong-kind", valid.clone()),
             (
-                "stage-view-json",
-                serde_json::json!({"view_id":"wrong", "schema_id":"urn:chronicle:view:stage:v1", "root_digest":expected_root}),
+                "workflow-explorer-view-json",
+                serde_json::json!({"viewId":"wrong", "schemaId":"urn:chronicle:view:workflow-explorer:v1", "rootDigest":expected_root}),
             ),
             (
-                "stage-view-json",
-                serde_json::json!({"view_id":"chronicle.stage.v1", "schema_id":"wrong", "root_digest":expected_root}),
+                "workflow-explorer-view-json",
+                serde_json::json!({"viewId":"chronicle-workflow-explorer/v1", "schemaId":"wrong", "rootDigest":expected_root}),
             ),
             (
-                "stage-view-json",
-                serde_json::json!({"view_id":"chronicle.stage.v1", "schema_id":"urn:chronicle:view:stage:v1", "root_digest":"sha256:wrong"}),
+                "workflow-explorer-view-json",
+                serde_json::json!({"viewId":"chronicle-workflow-explorer/v1", "schemaId":"urn:chronicle:view:workflow-explorer:v1", "rootDigest":"sha256:wrong"}),
             ),
         ] {
             assert!(!required_view_contract_matches(
                 kind,
                 &view,
-                "stage-view-json",
-                "chronicle.stage.v1",
-                "urn:chronicle:view:stage:v1",
+                "workflow-explorer-view-json",
+                "chronicle-workflow-explorer/v1",
+                "urn:chronicle:view:workflow-explorer:v1",
                 expected_root.as_str(),
             ));
         }
@@ -8388,9 +9179,9 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
             },
         )]);
         let exact = serde_json::Map::new();
-        for definition in PIPELINE_STEPS {
+        for definition in WORKFLOW_QUERIES {
             let sources = active_source_roles(definition.id, &exact, &assignments);
-            if definition.id == "csv_parse" {
+            if definition.id == "decode_source_records" {
                 assert_eq!(definition.group, "parse_events");
                 assert_eq!(
                     sources.get("raw_chronicle_csv"),
@@ -8493,7 +9284,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         let correspondence_value = correspondence_value.unwrap();
         let correspondence_edges = correspondence_value["edges"].as_array().unwrap();
         assert!(correspondence_edges.iter().any(|edge| {
-            edge["sourceKind"] == "logical-node"
+            edge["sourceKind"] == "workflow-query-group"
                 && edge["sourceId"] == "effective_usage"
                 && edge["relation"] == "publishes"
                 && edge["targetId"] == *credited_app_digest
@@ -8624,10 +9415,15 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
     fn wasm_exported_success_facade_delegates_to_the_native_authority() {
         let csv = csv();
         let request_value = request_for_workspace(&csv, '7');
-        let options_json = request_value["options"].to_string();
-        let view: Value =
-            serde_json::from_str(&plan_stage_view_json(&options_json).unwrap()).unwrap();
-        assert_eq!(view["view_id"], "chronicle.stage.v1");
+        let explorer_request = serde_json::json!({
+            "options": request_value["options"],
+            "supportRoles": [],
+        });
+        let view: Value = serde_json::from_str(
+            &plan_workflow_explorer_view_json(&explorer_request.to_string()).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(view["viewId"], "chronicle-workflow-explorer/v1");
 
         let mut support = RuntimeSupportFiles::new();
         support.put("filter_file", b"package_name\n").unwrap();
@@ -8686,14 +9482,17 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         let projected = semantic_options_value(&options).unwrap();
         assert_eq!(projected["long_duration_threshold_hours"], 12.0);
         assert_eq!(projected["proximity_interval_seconds"], 2.5);
-        assert_eq!(
-            projected.as_object().unwrap().len(),
-            CERTIFIED_OPTION_KEYS.len()
-        );
-        assert_eq!(CERTIFIED_OPTION_KEYS.len(), 48);
-        assert!(CERTIFIED_OPTION_KEYS
+        let projected_keys = projected
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .collect::<BTreeSet<_>>();
+        let certified_keys = CERTIFIED_OPTION_KEYS
             .iter()
-            .all(|key| projected.get(*key).is_some()));
+            .copied()
+            .collect::<BTreeSet<_>>();
+        assert_eq!(projected_keys, certified_keys);
         for excluded in [
             "enable_plotting",
             "enable_activity_heatmap",
@@ -8745,7 +9544,10 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
                     .copied()
             })
             .collect::<BTreeSet<_>>();
-        let certified = CERTIFIED_OPTION_KEYS.iter().copied().collect::<BTreeSet<_>>();
+        let certified = CERTIFIED_OPTION_KEYS
+            .iter()
+            .copied()
+            .collect::<BTreeSet<_>>();
         assert_eq!(
             reachable, certified,
             "every certified knob key must be reachable from exactly the exact-serialization keys"

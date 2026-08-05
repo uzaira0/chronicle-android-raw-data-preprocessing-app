@@ -72,6 +72,11 @@ def canonicalize(input_path: Path, output_path: Path) -> None:
     # the in-place `canonicalize x x` (used by merge-axioms) safe — the source is
     # fully parsed into memory above before any write begins.
     serialized = out.serialize(format="longturtle")
+    # rdflib's longturtle writer leaves a space after predicates whose object
+    # list begins on the next line (for example ``sh:property ``). Normalize
+    # line endings and trailing whitespace so generated artifacts also satisfy
+    # the repository's diff hygiene gate.
+    serialized = "\n".join(line.rstrip() for line in serialized.splitlines()) + "\n"
     fd, tmp_name = tempfile.mkstemp(
         dir=output_path.parent, prefix=output_path.name + ".", suffix=".canon-tmp"
     )

@@ -68,20 +68,6 @@ enums:
         description: YYYY-MM-DD in the row's output timezone.
       list_text:
         description: Python-style list literal rendered as text (e.g. "['>12-HR TIME GAP']").
-  PipelineSection:
-    description: The four processing tiers of the pipeline graph.
-    permissible_values:
-      preprocess:
-      clean:
-      analyze:
-      output:
-  PipelineKnobEdge:
-    description: >-
-      How an option binds to a pipeline node: 'gates' turns the step on/off,
-      'tunes' parameterizes its transform ('feeds' edges are the inputs list).
-    permissible_values:
-      gates:
-      tunes:
 
 classes:
   BrowserSupportFile:
@@ -182,50 +168,36 @@ classes:
     slots:
       - output_columns
 
-  PipelineKnobBinding:
-    description: An option bound to a pipeline node (a 'gates' or 'tunes' edge).
-    slots:
-      - option_key
-      - edge
+  WorkflowPhase:
+    description: A nontechnical presentation grouping; never a cache boundary.
+    slots: [workflow_id, workflow_label, workflow_description]
 
-  PipelineNode:
-    description: >-
-      One display group in the Rust preprocessing graph. It is projected from
-      rust/chronicle_chrono_kernel_wasm/src/step_contract.rs by
-      web/scripts/generate_pipeline_graph_artifacts.mts. The group does not
-      schedule execution; the 55 Rust queries do.
+  WorkflowOperation:
+    description: One meaningful scientific action or decision with typed ports.
     slots:
-      - node_id
-      - node_label
-      - section
-      - node_inputs
-      - node_knobs
-      - node_support_files
-      - has_bypass
-      - has_early_cutoff
+      - workflow_id
+      - workflow_label
+      - workflow_description
+      - workflow_phase_id
+      - workflow_query_ids
+      - workflow_config_dependency_ids
 
-  PipelineStep:
-    description: >-
-      One transformation of the flat 55-step DAG, projected from the Rust step
-      contract and checked against the direct calls made by each Salsa query.
-      unit_id groups steps for display only and never controls memoization or
-      execution.
-    slots:
-      - step_id
-      - step_label
-      - step_description
-      - unit_id
-      - step_inputs
-      - has_bypass
+  WorkflowArtifact:
+    description: Typed state produced and consumed by workflow operations.
+    slots: [workflow_id, workflow_label, workflow_producer_id, workflow_consumer_ids]
 
-  PipelineGraph:
-    description: >-
-      The full pipeline DAG at both scales: unit nodes (the engine's
-      memoization boundary, carrying their 'feeds' edges as inputs) and the
-      flat step DAG they group.
+  WorkflowQuery:
+    description: A physical computation and memoization boundary.
+    slots: [workflow_id, workflow_input_ids, workflow_operation_ids, workflow_output_ids]
+
+  WorkflowContractProjection:
+    description: Count-neutral projection of the versioned Rust workflow contract.
     slots:
-      - graph_nodes
-      - graph_steps
+      - workflow_model_version
+      - workflow_phases
+      - workflow_operations
+      - workflow_artifacts
+      - workflow_queries
 
   RawChronicleEventRecord:
     description: >-
@@ -976,76 +948,57 @@ slots:
     inlined: true
     inlined_as_list: true
 
-  # ── Pipeline graph (PipelineGraph / PipelineNode / PipelineKnobBinding) ──
-  option_key:
-    required: true
-    description: >-
-      snake_case slot name of the bound BrowserProcessingOptions option (the
-      camelCase runtime key is derived the same way generatedContract.ts is).
-  edge:
-    range: PipelineKnobEdge
-    required: true
-  node_id:
+  # ── Workflow contract projection ────────────────────────────────────────
+  workflow_id:
     required: true
     identifier: true
-    description: Stable snake_case node id (community-grounded vocabulary).
-  node_label:
+    description: Stable namespaced identity; never an ordinal.
+  workflow_label:
     required: true
-    description: Human label shown in the graph view.
-  section:
-    range: PipelineSection
+    description: Plain-language label authored in the Rust contract.
+  workflow_description:
     required: true
-  node_inputs:
+    description: Short explanation authored in the Rust contract.
+  workflow_phase_id:
+    description: Presentation phase containing an operation.
+  workflow_query_ids:
     multivalued: true
-    description: Upstream node ids — the 'feeds' edges.
-  node_knobs:
-    range: PipelineKnobBinding
+    description: Physical queries that realize this semantic operation.
+  workflow_config_dependency_ids:
     multivalued: true
-    inlined: true
+    description: Direct configuration fields read by the operation's physical query.
+  workflow_producer_id:
+    description: The single operation that produces a derived artifact.
+  workflow_consumer_ids:
+    multivalued: true
+    description: Operations that consume an artifact.
+  workflow_input_ids:
+    multivalued: true
+    description: Direct upstream identities.
+  workflow_operation_ids:
+    multivalued: true
+    description: Semantic operations implemented by a physical query.
+  workflow_output_ids:
+    multivalued: true
+    description: Independently identified output ports.
+  workflow_model_version:
+    required: true
+    description: Storage and contract generation, independent of the scientific version.
+  workflow_phases:
+    range: WorkflowPhase
+    multivalued: true
     inlined_as_list: true
-  node_support_files:
+  workflow_operations:
+    range: WorkflowOperation
     multivalued: true
-    description: BrowserSupportFiles slot names whose content the node reads.
-  has_bypass:
-    range: boolean
-    required: true
-    description: Whether the node declares a bypassedWhen predicate.
-  has_early_cutoff:
-    range: boolean
-    required: true
-    description: >-
-      Whether the node declares early cutoff (Salsa backdating) — a rerun
-      whose output is deep-equal to the cached value keeps its stamp, so the
-      downstream cone stays cached.
-  graph_nodes:
-    range: PipelineNode
-    multivalued: true
-    inlined: true
     inlined_as_list: true
-  step_id:
-    required: true
-    identifier: true
-    description: Globally unique snake_case step id (flat step DAG).
-  step_label:
-    required: true
-    description: Human label shown in the graph view at step scale.
-  step_description:
-    required: true
-    description: One-liner — what the transformation actually does.
-  unit_id:
-    required: true
-    description: >-
-      PipelineNode id of the execution unit the step runs inside (the
-      engine's memoization boundary — an arbitrary-scale grouping).
-  step_inputs:
+  workflow_artifacts:
+    range: WorkflowArtifact
     multivalued: true
-    description: >-
-      Upstream step ids — real dataflow edges (a cross-unit port edge
-      resolves to the port's source step).
-  graph_steps:
-    range: PipelineStep
+    inlined_as_list: true
+  workflow_queries:
+    range: WorkflowQuery
     multivalued: true
-    inlined: true
     inlined_as_list: true
 
   # ── RawChronicleEventRecord: literal raw CSV column headers ──────────────

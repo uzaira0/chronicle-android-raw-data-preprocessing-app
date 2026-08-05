@@ -1,3 +1,12 @@
+import {
+  encodeWorkflowClosureMagic,
+  WORKFLOW_CLOSURE_ARCHIVE_MIME,
+  WORKFLOW_CLOSURE_PROTOCOL_VERSION,
+  type RuntimeClosureManifest,
+} from "./workflowClosureProtocol";
+
+export type { RuntimeClosureManifest } from "./workflowClosureProtocol";
+
 /**
  * Thin OPFS persistence adapter for Rust-owned runtime artifacts.
  *
@@ -7,8 +16,12 @@
  * garbage collection.
  */
 
-const STORE_DIRECTORY = "chronicle-preprocessing-runtime-v1";
-export const OPFS_WORKSPACES_DIRECTORY = "chronicle-preprocessing-workspaces-v1";
+const STORE_DIRECTORY = "chronicle-workflow-runtime-v1";
+export const OPFS_WORKSPACES_DIRECTORY = "chronicle-workflow-workspaces-v1";
+const LEGACY_OPFS_DIRECTORIES = [
+  "chronicle-preprocessing-runtime-v1",
+  "chronicle-preprocessing-workspaces-v1",
+] as const;
 /**
  * Scratch directory for `probeOpfsCapability`. Deliberately a sibling of the
  * workspace tree so a probe write can never collide with, or be mistaken for,
@@ -17,8 +30,7 @@ export const OPFS_WORKSPACES_DIRECTORY = "chronicle-preprocessing-workspaces-v1"
 const OPFS_CAPABILITY_PROBE_DIRECTORY = "chronicle-capability-probe-v1";
 const OBJECTS_DIRECTORY = "objects";
 const ROOTS_DIRECTORY = "roots";
-const CLOSURE_MAGIC = new TextEncoder().encode("CHRONICLE-CLOSURE-V1\n");
-const CLOSURE_ARCHIVE_MIME = "application/vnd.chronicle.workspace";
+const CLOSURE_MAGIC = encodeWorkflowClosureMagic();
 /**
  * How many payload bytes may sit in the JS heap before the archive builder
  * hands them to blob storage. This is the export path's memory bound: peak heap
@@ -76,14 +88,6 @@ type IterableDirectoryHandle = FileSystemDirectoryHandle & {
 };
 
 type UnsignedWorkspaceRootSlot = Omit<WorkspaceRootSlot, "checksum">;
-export type RuntimeClosureManifest = {
-  protocolVersion: "chronicle-runtime-closure/v1";
-  workspaceId: string;
-  workspaceRootDigest: string;
-  previousWorkspaceRootDigest: string | null;
-  objects: Array<{ digest: string; size: number; offset: number }>;
-};
-
 export type RuntimeClosureInspection = {
   manifest: RuntimeClosureManifest;
   /** Read exactly one declared object out of the archive. */
@@ -93,6 +97,32 @@ export type RuntimeClosureInspection = {
 export type OpfsCapability =
   | { status: "ready"; evictionProtected: boolean | null }
   | { status: "unavailable"; reason: string };
+
+export type LegacyOpfsState = {
+  detected: boolean;
+  directoryNames: string[];
+};
+
+/**
+ * Detect storage created by the retired preprocessing-step runtime without
+ * reading, migrating, or deleting any of it. The new workflow contract has a
+ * separate namespace because its cache identities are not backward compatible.
+ */
+export async function detectLegacyOpfsState(
+  suppliedRoot?: FileSystemDirectoryHandle,
+): Promise<LegacyOpfsState> {
+  const root = suppliedRoot ?? (await navigator.storage.getDirectory());
+  const directoryNames: string[] = [];
+  for (const name of LEGACY_OPFS_DIRECTORIES) {
+    try {
+      await root.getDirectoryHandle(name);
+      directoryNames.push(name);
+    } catch (error) {
+      if (!isNotFoundError(error)) throw error;
+    }
+  }
+  return { detected: directoryNames.length > 0, directoryNames };
+}
 
 function digestHex(digest: string): string {
   const value = digest.startsWith("sha256:") ? digest.slice(7) : "";
@@ -728,7 +758,7 @@ class ClosureArchiveBuilder {
 
   finish(): Blob {
     this.flush();
-    return new Blob(this.parts, { type: CLOSURE_ARCHIVE_MIME });
+    return new Blob(this.parts, { type: WORKFLOW_CLOSURE_ARCHIVE_MIME });
   }
 }
 
@@ -1089,7 +1119,7 @@ export async function exportRuntimeClosure(
     offset += size;
   }
   const manifest: RuntimeClosureManifest = {
-    protocolVersion: "chronicle-runtime-closure/v1",
+    protocolVersion: WORKFLOW_CLOSURE_PROTOCOL_VERSION,
     workspaceId: rootCommit.workspaceId,
     workspaceRootDigest: slot.workspaceRootDigest,
     previousWorkspaceRootDigest: slot.previousWorkspaceRootDigest,
@@ -1175,7 +1205,7 @@ async function openRuntimeClosure(archive: Blob): Promise<RuntimeClosureInspecti
     ),
   ) as RuntimeClosureManifest;
   if (
-    manifest.protocolVersion !== "chronicle-runtime-closure/v1" ||
+    manifest.protocolVersion !== WORKFLOW_CLOSURE_PROTOCOL_VERSION ||
     manifest.objects.length > MAX_CLOSURE_OBJECTS
   ) {
     throw new Error("unsupported runtime closure manifest");

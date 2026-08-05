@@ -23,8 +23,8 @@ import {
 } from "@/testSupport/syntheticChronicleCorpus";
 import {
   sourceRoleIsActive,
-  type RustStepContract,
-} from "@/testSupport/rustStepContract";
+  type RustWorkflowContract,
+} from "@/testSupport/workflowContract";
 import {
   captureCanonicalOutputCells,
   changedCellAddresses,
@@ -55,8 +55,8 @@ const SHARD_INDEX = Number(process.env.RAW_BOUNDARY_SHARD_INDEX ?? "0");
 const encoder = new TextEncoder();
 
 type TypedCheckpoint = {
-  protocolVersion: "chronicle-logical-stage-checkpoint/v7";
-  nodeId: string;
+  protocolVersion: "chronicle-workflow-checkpoint/v1";
+  subjectId: string;
   rowMembershipDigest: string;
   rowOrderDigest: string;
   temporalStateDigest: string;
@@ -88,21 +88,21 @@ type RuntimeManifest = {
     state: string;
   }>;
   processingSummary: {
-    logicalStageDigests: Record<string, string>;
-    logicalStageCheckpoints: Record<string, TypedCheckpoint>;
-    pipelineStepDigests: Record<string, string>;
-    pipelineStepCheckpoints: Record<string, TypedCheckpoint>;
+    workflowQueryGroupDigests: Record<string, string>;
+    workflowQueryGroupCheckpoints: Record<string, TypedCheckpoint>;
+    workflowQueryDigests: Record<string, string>;
+    workflowQueryCheckpoints: Record<string, TypedCheckpoint>;
     [key: string]: unknown;
   };
-  nodeExecutions: Array<{
-    node_id: string;
+  queryGroupExecutions: Array<{
+    query_group_id: string;
     input_key: string;
     status: "cached" | "recomputed" | "error" | "skipped" | "bypassed";
     output: { digest: string } | null;
   }>;
-  stepExecutions: Array<{
-    step_id: string;
-    unit_id: string;
+  queryExecutions: Array<{
+    query_id: string;
+    query_group_id: string;
     input_key: string;
     output_digest: string;
     status: "cached" | "recomputed" | "error" | "skipped" | "bypassed";
@@ -115,15 +115,15 @@ type ObservedRuntimeManifest = RuntimeManifest & {
 };
 
 type PlanNode = {
-  node_id: string;
-  input_nodes: string[];
+  query_group_id: string;
+  input_query_groups: string[];
 };
 
 type ProductPlan = {
   plan_id: string;
   revision: string;
   root_roles: Array<{ role_id: string }>;
-  nodes: PlanNode[];
+  query_groups: PlanNode[];
 };
 
 const plan = JSON.parse(readFileSync(PLAN_FILE, "utf8")) as ProductPlan;
@@ -237,10 +237,10 @@ function checkpointComponentChanges(
           [
             nodeId,
             changedFields(
-              source.processingSummary.logicalStageCheckpoints[
+              source.processingSummary.workflowQueryGroupCheckpoints[
                 nodeId
               ] as unknown as Record<string, unknown>,
-              target.processingSummary.logicalStageCheckpoints[
+              target.processingSummary.workflowQueryGroupCheckpoints[
                 nodeId
               ] as unknown as Record<string, unknown>,
             ).filter((field) => field !== "terminalDigest"),
@@ -250,23 +250,23 @@ function checkpointComponentChanges(
   );
 }
 
-function stepCheckpointComponentChanges(
+function queryCheckpointComponentChanges(
   source: RuntimeManifest,
   target: RuntimeManifest,
 ): Record<string, string[]> {
   return Object.fromEntries(
-    Object.keys(source.processingSummary.pipelineStepCheckpoints)
+    Object.keys(source.processingSummary.workflowQueryCheckpoints)
       .sort()
       .map(
-        (stepId) =>
+        (queryId) =>
           [
-            stepId,
+            queryId,
             changedFields(
-              source.processingSummary.pipelineStepCheckpoints[
-                stepId
+              source.processingSummary.workflowQueryCheckpoints[
+                queryId
               ] as unknown as Record<string, unknown>,
-              target.processingSummary.pipelineStepCheckpoints[
-                stepId
+              target.processingSummary.workflowQueryCheckpoints[
+                queryId
               ] as unknown as Record<string, unknown>,
             ).filter((field) => field !== "terminalDigest"),
           ] as const,
@@ -275,16 +275,16 @@ function stepCheckpointComponentChanges(
   );
 }
 
-function stepStatuses(manifest: RuntimeManifest): Record<string, string> {
+function queryStatuses(manifest: RuntimeManifest): Record<string, string> {
   return Object.fromEntries(
-    manifest.stepExecutions.map(({ step_id, status }) => [step_id, status]),
+    manifest.queryExecutions.map(({ query_id, status }) => [query_id, status]),
   );
 }
 
-function executedStepIds(manifest: RuntimeManifest): string[] {
-  return manifest.stepExecutions
+function executedQueryIds(manifest: RuntimeManifest): string[] {
+  return manifest.queryExecutions
     .filter(({ status }) => status === "recomputed")
-    .map(({ step_id }) => step_id)
+    .map(({ query_id }) => query_id)
     .sort();
 }
 
@@ -292,8 +292,8 @@ function nodeOutputDigests(
   manifest: RuntimeManifest,
 ): Record<string, string | null> {
   return Object.fromEntries(
-    manifest.nodeExecutions.map(({ node_id, output }) => [
-      node_id,
+    manifest.queryGroupExecutions.map(({ query_group_id, output }) => [
+      query_group_id,
       output?.digest ?? null,
     ]),
   );
@@ -353,24 +353,24 @@ function assertSameSemanticOutcome(
   ).toEqual([]);
 }
 
-function predictedRawExecutedSteps(
-  stepContract: RustStepContract,
-  changedSemanticSteps: ReadonlySet<string>,
+function predictedRawExecutedQueries(
+  workflowContract: RustWorkflowContract,
+  changedQueries: ReadonlySet<string>,
   targetOptions: Record<string, unknown>,
   source: RuntimeManifest,
   target: RuntimeManifest,
 ): string[] {
-  const sourceStatuses = stepStatuses(source);
-  const targetStatuses = stepStatuses(target);
-  return stepContract.steps
-    .filter((step) => {
-      const sourceApplicable = sourceStatuses[step.id] !== "bypassed";
-      const targetApplicable = targetStatuses[step.id] !== "bypassed";
+  const sourceStatuses = queryStatuses(source);
+  const targetStatuses = queryStatuses(target);
+  return workflowContract.execution.queries
+    .filter((query) => {
+      const sourceApplicable = sourceStatuses[query.id] !== "bypassed";
+      const targetApplicable = targetStatuses[query.id] !== "bypassed";
       return (
         targetApplicable &&
         (!sourceApplicable ||
-          sourceRoleIsActive(step, "raw_chronicle_csv", targetOptions) ||
-          step.inputs.some((input) => changedSemanticSteps.has(input)))
+          sourceRoleIsActive(query, "raw_chronicle_csv", targetOptions) ||
+          query.inputs.some((input) => changedQueries.has(input)))
       );
     })
     .map(({ id }) => id)
@@ -412,59 +412,61 @@ function assertCompleteSuccessfulManifest(
     `${caseId}: unsatisfied role requirement`,
   ).toBe(true);
   expect(
-    manifest.nodeExecutions,
+    manifest.queryGroupExecutions,
     `${caseId}: logical execution coverage`,
-  ).toHaveLength(15);
+  ).toHaveLength(order.length);
   expect(
-    manifest.stepExecutions,
-    `${caseId}: Rust step execution coverage`,
-  ).toHaveLength(55);
+    manifest.queryExecutions,
+    `${caseId}: Rust query execution coverage`,
+  ).toHaveLength(
+    Object.keys(manifest.processingSummary.workflowQueryCheckpoints).length,
+  );
   expect(
-    manifest.nodeExecutions.every(
+    manifest.queryGroupExecutions.every(
       ({ status }) => status !== "error" && status !== "skipped",
     ),
     `${caseId}: failed logical execution`,
   ).toBe(true);
   expect(
-    manifest.stepExecutions.every(
+    manifest.queryExecutions.every(
       ({ status }) => status !== "error" && status !== "skipped",
     ),
-    `${caseId}: failed Rust step execution`,
+    `${caseId}: failed Rust query execution`,
   ).toBe(true);
   expect(
-    Object.keys(manifest.processingSummary.logicalStageCheckpoints).sort(),
+    Object.keys(manifest.processingSummary.workflowQueryGroupCheckpoints).sort(),
   ).toEqual([...order].sort());
   expect(
-    Object.keys(manifest.processingSummary.pipelineStepCheckpoints),
-  ).toHaveLength(55);
+    Object.keys(manifest.processingSummary.workflowQueryCheckpoints),
+  ).toHaveLength(manifest.queryExecutions.length);
   expect(
-    Object.keys(manifest.processingSummary.pipelineStepDigests).sort(),
+    Object.keys(manifest.processingSummary.workflowQueryDigests).sort(),
   ).toEqual(
-    Object.keys(manifest.processingSummary.pipelineStepCheckpoints).sort(),
+    Object.keys(manifest.processingSummary.workflowQueryCheckpoints).sort(),
   );
-  expect(manifest.stepExecutions.map(({ step_id }) => step_id).sort()).toEqual(
-    Object.keys(manifest.processingSummary.pipelineStepCheckpoints).sort(),
+  expect(manifest.queryExecutions.map(({ query_id }) => query_id).sort()).toEqual(
+    Object.keys(manifest.processingSummary.workflowQueryCheckpoints).sort(),
   );
-  for (const [nodeId, checkpoint] of Object.entries(
-    manifest.processingSummary.logicalStageCheckpoints,
+  for (const [queryGroupId, checkpoint] of Object.entries(
+    manifest.processingSummary.workflowQueryGroupCheckpoints,
   )) {
     expect(checkpoint.protocolVersion).toBe(
-      "chronicle-logical-stage-checkpoint/v7",
+      "chronicle-workflow-checkpoint/v1",
     );
-    expect(checkpoint.nodeId).toBe(nodeId);
+    expect(checkpoint.subjectId).toBe(queryGroupId);
     expect(checkpoint.terminalDigest).toBe(
-      manifest.processingSummary.logicalStageDigests[nodeId],
+      manifest.processingSummary.workflowQueryGroupDigests[queryGroupId],
     );
   }
-  for (const [stepId, checkpoint] of Object.entries(
-    manifest.processingSummary.pipelineStepCheckpoints,
+  for (const [queryId, checkpoint] of Object.entries(
+    manifest.processingSummary.workflowQueryCheckpoints,
   )) {
     expect(checkpoint.protocolVersion).toBe(
-      "chronicle-logical-stage-checkpoint/v7",
+      "chronicle-workflow-checkpoint/v1",
     );
-    expect(checkpoint.nodeId).toBe(stepId);
+    expect(checkpoint.subjectId).toBe(queryId);
     expect(checkpoint.terminalDigest).toBe(
-      manifest.processingSummary.pipelineStepDigests[stepId],
+      manifest.processingSummary.workflowQueryDigests[queryId],
     );
   }
 }
@@ -487,16 +489,16 @@ describe("raw timestamp boundary tomography", () => {
       interventions.length,
       "raw boundary filter matched nothing",
     ).toBeGreaterThan(0);
-    expect(plan.nodes.map(({ node_id }) => node_id).sort()).toEqual(
+    expect(plan.query_groups.map(({ query_group_id }) => query_group_id).sort()).toEqual(
       [...order].sort(),
     );
-    const stepContract = JSON.parse(
-      runtime.pipeline_step_contract_json(),
-    ) as RustStepContract;
-    expect(stepContract.protocolVersion).toBe(
-      "chronicle-preprocessing-step-contract/v3",
+    const workflowContract = JSON.parse(
+      runtime.workflow_contract_json(),
+    ) as RustWorkflowContract;
+    expect(workflowContract.protocolVersion).toBe(
+      "chronicle-workflow-contract/v1",
     );
-    expect(stepContract.steps).toHaveLength(55);
+    expect(workflowContract.execution.queries).toHaveLength(workflowContract.execution.queries.length);
 
     const reports: Array<Record<string, unknown>> = [];
     const caseIdentities: string[] = [];
@@ -585,9 +587,9 @@ describe("raw timestamp boundary tomography", () => {
           `${caseId}: warm source oracle`,
         );
         expect(
-          warmTarget.processingSummary.pipelineStepDigests,
-          `${caseId}: every warm Rust step checkpoint needs a cold target`,
-        ).toEqual(coldTarget.processingSummary.pipelineStepDigests);
+          warmTarget.processingSummary.workflowQueryDigests,
+          `${caseId}: every warm Rust query checkpoint needs a cold target`,
+        ).toEqual(coldTarget.processingSummary.workflowQueryDigests);
         assertSameSemanticOutcome(
           warmTarget,
           coldTarget,
@@ -633,8 +635,8 @@ describe("raw timestamp boundary tomography", () => {
         ).toEqual(["raw_chronicle_csv"]);
 
         const changedSemanticNodes = changedFields(
-          coldSource.processingSummary.logicalStageDigests,
-          coldTarget.processingSummary.logicalStageDigests,
+          coldSource.processingSummary.workflowQueryGroupDigests,
+          coldTarget.processingSummary.workflowQueryGroupDigests,
         );
         expect(
           changedSemanticNodes.length,
@@ -651,23 +653,23 @@ describe("raw timestamp boundary tomography", () => {
           Object.keys(componentChanges).sort(),
           `${caseId}: component/terminal drift`,
         ).toEqual(changedSemanticNodes);
-        const changedSemanticSteps = changedFields(
-          coldSource.processingSummary.pipelineStepDigests,
-          coldTarget.processingSummary.pipelineStepDigests,
+        const changedQueries = changedFields(
+          coldSource.processingSummary.workflowQueryDigests,
+          coldTarget.processingSummary.workflowQueryDigests,
         );
-        const stepComponentChanges = stepCheckpointComponentChanges(
+        const queryComponentChanges = queryCheckpointComponentChanges(
           coldSource,
           coldTarget,
         );
         expect(
-          Object.keys(stepComponentChanges).sort(),
-          `${caseId}: step component/terminal drift`,
-        ).toEqual(changedSemanticSteps);
+          Object.keys(queryComponentChanges).sort(),
+          `${caseId}: query component/terminal drift`,
+        ).toEqual(changedQueries);
 
         const sourceParse =
-          coldSource.processingSummary.logicalStageCheckpoints.parse_events;
+          coldSource.processingSummary.workflowQueryGroupCheckpoints.parse_events;
         const targetParse =
-          coldTarget.processingSummary.logicalStageCheckpoints.parse_events;
+          coldTarget.processingSummary.workflowQueryGroupCheckpoints.parse_events;
         if (sourceParse === undefined || targetParse === undefined) {
           throw new Error(`${caseId}: missing parse_events checkpoint`);
         }
@@ -691,22 +693,22 @@ describe("raw timestamp boundary tomography", () => {
           sourceParse.schemaDigest,
         );
 
-        const actualExecutedSteps = executedStepIds(warmTarget);
+        const actualExecutedQueries = executedQueryIds(warmTarget);
         const exactTargetOptions = buildRustV2Options(ALL_ON, GOLDEN_RUNTIME);
-        const predictedExecutedSteps = predictedRawExecutedSteps(
-          stepContract,
-          new Set(changedSemanticSteps),
+        const predictedExecutedQueries = predictedRawExecutedQueries(
+          workflowContract,
+          new Set(changedQueries),
           exactTargetOptions,
           coldSource,
           coldTarget,
         );
         expect(
-          actualExecutedSteps,
+          actualExecutedQueries,
           `${caseId}: raw dependency prediction and actual Salsa query bodies disagree`,
-        ).toEqual(predictedExecutedSteps);
-        const sourceStatuses = stepStatuses(coldSource);
-        const targetStatuses = stepStatuses(coldTarget);
-        const deactivatedSteps = stepContract.steps
+        ).toEqual(predictedExecutedQueries);
+        const sourceStatuses = queryStatuses(coldSource);
+        const targetStatuses = queryStatuses(coldTarget);
+        const deactivatedQueries = workflowContract.execution.queries
           .filter(
             ({ id }) =>
               sourceStatuses[id] !== "bypassed" &&
@@ -715,13 +717,13 @@ describe("raw timestamp boundary tomography", () => {
           .map(({ id }) => id)
           .sort();
         expect(
-          deactivatedSteps,
+          deactivatedQueries,
           `${caseId}: raw bytes cannot change applicability`,
         ).toEqual([]);
         expect(
-          actualExecutedSteps,
+          actualExecutedQueries,
           `${caseId}: raw CSV binder did not execute`,
-        ).toContain("csv_parse");
+        ).toContain("decode_source_records");
 
         const changedOutputCellAddresses = changedCellAddresses(
           coldSource.outputCells,
@@ -739,11 +741,11 @@ describe("raw timestamp boundary tomography", () => {
           changedComponents: intervention.changedComponents,
           changedSemanticNodes,
           checkpointComponentChanges: componentChanges,
-          changedPipelineSteps: changedSemanticSteps,
-          stepCheckpointComponentChanges: stepComponentChanges,
-          predictedExecutedSteps,
-          actualExecutedSteps,
-          deactivatedSteps,
+          changedQueries: changedQueries,
+          queryCheckpointComponentChanges: queryComponentChanges,
+          predictedExecutedQueries,
+          actualExecutedQueries,
+          deactivatedQueries,
           changedOutputArtifactKinds: changedFields(
             outputArtifactDigests(coldSource),
             outputArtifactDigests(coldTarget),
@@ -759,9 +761,9 @@ describe("raw timestamp boundary tomography", () => {
             coldSource.counts,
             coldTarget.counts,
           ),
-          warmExecution: warmTarget.nodeExecutions
+          warmExecution: warmTarget.queryGroupExecutions
             .filter(({ status }) => status !== "cached")
-            .map(({ node_id, status }) => ({ nodeId: node_id, status })),
+            .map(({ query_group_id, status }) => ({ nodeId: query_group_id, status })),
         };
         reports.push(report);
         caseIdentities.push(JSON.stringify(report));
@@ -773,7 +775,7 @@ describe("raw timestamp boundary tomography", () => {
         protocolVersion: "chronicle-output-cell-correspondence/v2",
         implementationReceipt: authority,
         claimBoundary:
-          "Exact changed canonical CSV/JSON output cell addresses for each named raw timestamp boundary intervention. Each case also names the exact supplied source columns that intervention rewrote (sourceFields), in the Rust step contract's field namespace, using source.raw_row_set / source.raw_row_order for structural raw changes and an empty list for representation-only controls. Binary exports and the Arrow lineage sidecar are digest-bound separately and are not interpreted as cells.",
+          "Exact changed canonical CSV/JSON output cell addresses for each named raw timestamp boundary intervention. Each case also names the exact supplied source columns that intervention rewrote (sourceFields), in the Rust query contract's field namespace, using source.raw_row_set / source.raw_row_order for structural raw changes and an empty list for representation-only controls. Binary exports and the Arrow lineage sidecar are digest-bound separately and are not interpreted as cells.",
         cases: cellEvidenceCases.sort((left, right) =>
           left.caseId.localeCompare(right.caseId),
         ),
@@ -788,7 +790,7 @@ describe("raw timestamp boundary tomography", () => {
 
     const evidence = {
       protocolVersion: "chronicle-raw-boundary-influence-ledger/v1",
-      logicalCheckpointProtocol: "chronicle-logical-stage-checkpoint/v7",
+      workflowCheckpointProtocol: "chronicle-workflow-checkpoint/v1",
       claimBoundary:
         "Exact raw timestamp percolation for every named boundary intervention across all checked synthetic corpus profiles. Each mutation changes one raw event timestamp; warm execution is checked against an independent cold oracle. The evidence does not generalize beyond the listed boundary catalog, corpora, plan, and implementation receipt.",
       plan: { id: plan.plan_id, revision: plan.revision },
@@ -821,8 +823,8 @@ describe("raw timestamp boundary tomography", () => {
         exactWarmColdComparisons: reports.length,
         exactClusterComparisons: reports.length,
         typedComponentComparisons: reports.length,
-        pipelineStepCheckpointComparisons: reports.length * 55,
-        exactStepClusterComparisons: reports.length,
+        workflowQueryCheckpointComparisons: reports.length * workflowContract.execution.queries.length,
+        exactQueryClusterComparisons: reports.length,
         exactQualificationCorrespondenceComparisons: reports.length,
         exactOutputCellComparisons: reports.length * 2,
       },

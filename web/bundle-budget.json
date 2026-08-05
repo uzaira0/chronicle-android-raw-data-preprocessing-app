@@ -1,14 +1,14 @@
 {
-  "_comment": "Deploy-artifact size budgets (bytes), enforced by check_deploy_artifact.mts. Re-measured 2026-08-01 (provenance wave 1 integration, incl. cross-browser durability lane): total 11,440,542; .js 927,917; .wasm 8,357,657. Runtime WASM 6,333,180: (a) the source-result influence witness v2 (per-row precision classes, source_field/target_output_column columns, column-granular declared-scope routing) and the per-step field-level read/write declarations in the step contract (+114,990 over the 2026-07-28 baseline); (b) `--merge-similar-functions` removed from the release wasm-opt flags in rust/chronicle_preprocessing_runtime_wasm/Cargo.toml (+177,834 uncompressed, gzip unchanged) because merging Salsa 0.28's per-jar `fn() -> TypeId` thunks corrupted jar identity — the second salsa::Storage in one WASM instance registered an incomplete jar map and aborted WebKit runs with `ingredient JarImpl<UsageSupportInput> was not registered`; the Cargo.toml comment carries the evidence. Runtime WASM cap raised 6,100,000 to 6,400,000; .wasm total 8,200,000 to 8,430,000; assets total 11,250,000 to 11,500,000. Worker chunk 134,190 (cap 127,000 to 136,000): the streaming workspace-archive builder/import verification, the runOnSlot/abortInFlight cancel fix, and probeWorkspaceCapability's verified OPFS write/read-back round trip in the writing worker. .js total 927,917 (cap 910,000 to 935,000): the generated runtime-boundary validator artifact plus the worker code above. Prior raise rationales retained in git history. Budgets retain limited headroom; raising one requires a named cause and a new measurement.",
-  "totalBytes": 11500000,
+  "_comment": "Deploy-artifact size budgets (bytes), enforced by check_deploy_artifact.mts. Re-measured 2026-08-04 after the workflow-contract DAG migration: total 11,875,809; .js 945,403; .wasm 8,773,198; runtime WASM 6,666,966; worker JS 138,632. The named growth is the Rust-owned count-neutral workflow contract, field-use scanning, typed explorer/provenance projections, contract-v2 worker boundary, and portable workflow-closure protocol. Caps retain about one percent headroom: total 12,000,000; .js 955,000; .wasm 8,850,000; runtime WASM 6,730,000; worker JS 140,000. Earlier baseline rationales remain in git history; any later raise requires a named cause and a fresh production measurement.",
+  "totalBytes": 12000000,
   "categories": {
-    ".js": 935000,
-    ".wasm": 8430000,
+    ".js": 955000,
+    ".wasm": 8850000,
     ".css": 100000
   },
   "filePrefixes": {
-    "chronicle_preprocessing_runtime_wasm_bg-": 6400000,
+    "chronicle_preprocessing_runtime_wasm_bg-": 6730000,
     "chronicle_semantic_index_wasm_bg-": 2350000,
-    "chronicle-worker-": 136000
+    "chronicle-worker-": 140000
   }
 }

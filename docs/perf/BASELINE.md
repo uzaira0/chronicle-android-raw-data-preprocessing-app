@@ -69,7 +69,7 @@ not a portable latency promise.
 ## Interactive View comparison baseline
 
 The View tab now requests only the Rust-produced review metrics, executes the
-affected part of the same 55-step Salsa graph, and does not build CSV exports,
+affected part of the same query-registry Salsa graph, and does not build CSV exports,
 timeline geometry, lineage tables, workspace roots, or evidence closures. The
 selected file stays in its existing worker and can use exact in-memory query
 reuse. For every other file, the saved result already is Arm A, so an eight-way
@@ -116,10 +116,10 @@ retain all 100 full results.
 
 These numbers include the durable Rust-owned resume points that are now in
 production code. A full run saves independently checksummed values after step
-16 (`compile_reconstruction`) and step 28 (`sort_episodes`) in the existing
+16 (`compile_reconstruction`) and reconstruction (`sort_episodes`) in the existing
 OPFS content-addressed store. A replacement worker verifies the exact input,
 options, implementation, contract, schema, compressed-object digest, and
-decoded payload before resuming at step 17 or step 29. A mismatch cannot reuse
+decoded payload before resuming at post-review or post-reconstruction. A mismatch cannot reuse
 the value; the browser transfers the raw input and runs the ordinary Rust path.
 
 The initial full ingestion verifies the 19,018,650-byte input with SHA-256.
@@ -181,7 +181,7 @@ process measurements above remain the bound for 100 unique inputs.
 
 ## Current native 100,000-row full-output profile
 
-The final native release harness runs the same 55-query product runtime and
+The final native release harness runs the same registered-query product runtime and
 consumes every artifact. Five Hyperfine runs after the allocation changes
 measured 4.476 s ± 0.025 s (4.448–4.509 s). The published-output digest stayed
 `sha256:022ac0c820511e341879178d6a4dcb45824e689bdd75cfe224fcecb303119f36`.
@@ -224,7 +224,7 @@ subprocesses; it is not part of preprocessing latency.
 ## Historical pre-Salsa warm-path baseline
 
 A targeted 2026-07-23 diagnostic on the same 60,624-row fixture measured the
-old fused worker-local warm path before the 55-query runtime cutover. These
+old fused worker-local warm path before the registered-query runtime cutover. These
 values preserve the optimization baseline and must not be used as the current
 runtime result. The active plan requires a committed, repeatable measurement of
 the tracked runtime before any new performance claim.
@@ -238,10 +238,10 @@ the tracked runtime before any new performance claim.
 | Output-only `studyName` changed | about 8.71 s | Ran the complete fused pipeline. |
 
 The historical result was that every changed case performed the full physical
-computation and the 55 labels were post-run projections. The current runtime
+computation and the registered labels were post-run projections. The current runtime
 has removed that physical gate; fresh measurements must now prove the benefit
 and cost of exact Salsa query reuse. The
-[55-step incremental Rust plan](../semantic-federation/55-step-incremental-rust-plan.md)
+[query-registry incremental Rust plan](../semantic-federation/incremental-runtime-plan.md)
 requires actual query execution events and separate cold, unchanged, upstream,
 middle, downstream, and qualification/binding measurements.
 
@@ -272,7 +272,7 @@ these figures are evidence for this machine and commit, not portable promises.
 ## Known profiling gaps
 
 - The committed [Salsa product trial](SALSA_PRODUCT_TRIAL.md) preserves the
-  original six-query selection benchmark. All 55 transformations are now
+  original six-query selection benchmark. All registered transformations are now
   callable; the replacement measurement must cover cold, unchanged, upstream,
   middle, downstream, qualification/binding, peak memory, and actual execution
   events. Snapshot export/restore was measured and removed because it was slower

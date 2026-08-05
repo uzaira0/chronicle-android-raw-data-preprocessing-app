@@ -571,9 +571,9 @@ try {
               execution.status,
             ],
           ),
-          stepStatuses: manifest.stepExecutions.map(
-            (execution: { step_id: string; status: string }) => [
-              execution.step_id,
+          queryStatuses: manifest.queryExecutions.map(
+            (execution: { query_id: string; status: string }) => [
+              execution.query_id,
               execution.status,
             ],
           ),
@@ -650,8 +650,8 @@ process.stdout.write(
           changedTotalMs: changedResults.map(
             (result: any) => result.totalElapsedMs,
           ),
-          coldStepStatuses: coldResults.map(
-            (result: any) => result.stepStatuses,
+          coldQueryStatuses: coldResults.map(
+            (result: any) => result.queryStatuses,
           ),
           coldReviewSummaryDigests: coldResults.map(
             (result: any) => result.reviewSummaryDigest,

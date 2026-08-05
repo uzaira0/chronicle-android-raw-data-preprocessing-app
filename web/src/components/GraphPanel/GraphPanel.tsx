@@ -15,58 +15,66 @@ import {
 import "@xyflow/react/dist/style.css";
 
 import {
-  affectedBy,
-  builtFrom,
-  joinPoints,
-  mustPassThrough,
-  sentenceFor,
-  sharedUpstream,
-  spliceOut,
-} from "@/components/GraphPanel/viewGraph";
-import type {
-  NodeStatus,
-  Section,
-  ViewGraph,
-} from "@/components/GraphPanel/viewGraph";
-import type { BrowserProcessingOptions, ProcessedFileResult } from "@/lib/types";
-import type { DemoDisplayMasker } from "@/lib/demoDisplay";
+  collapseProjection,
+  graphForMode,
+  type ExplorerMode,
+  type SupportPresence,
+} from "@/components/GraphPanel/graphProjection";
+import { affectedBy, joinPoints } from "@/components/GraphPanel/viewGraph";
+import type { NodeStatus, Section } from "@/components/GraphPanel/viewGraph";
 import {
   layoutGraph,
   NODE_HEIGHT,
   NODE_WIDTH,
   type LayoutDirection,
 } from "@/components/GraphPanel/graphLayout";
-import { SentenceBar } from "@/components/GraphPanel/SentenceBar";
-
-/**
- * Interactive pipeline graph. Rust projects the product-owned topology and
- * run state; this panel maps that typed view to dagre positions and answers
- * path questions visually:
- *   click        → everything downstream of the clicked step lights up
- *   second click → if one step is built from the other, the connecting path
- *                  pulses (a chain); otherwise their shared upstream pulses
- *   hover (with a selection) → the steps every effect passes through thicken
- * Status badges come from the most recent run's engine report.
- */
+import type { DemoDisplayMasker } from "@/lib/demoDisplay";
+import type {
+  ProcessedFileResult,
+  RustWorkflowExplorerView,
+  WorkflowExplorerSupportRole,
+} from "@/lib/types";
 
 const SECTION_LABELS: Record<Section, string> = {
-  preprocess: "Preprocess",
-  clean: "Clean",
-  analyze: "Analyze",
-  output: "Output",
+  phase: "Research phase",
+  decision: "Configuration input",
+  operation: "Semantic operation",
+  artifact: "Typed artifact",
+  source: "Source artifact",
+  execution: "Physical query",
 };
 
 const STATUS_LABELS: Record<NodeStatus, string> = {
-  cached: "cached",
+  cached: "reused",
   recomputed: "ran",
   error: "error",
-  skipped: "skipped",
+  skipped: "omitted",
   bypassed: "off",
+  not_observed: "not observed",
 };
 
-// React Flow markers do NOT inherit CSS edge styling, so the arrowhead needs a
-// concrete color (slate-500 reads on both themes). One shared object — edges
-// are rebuilt per render and must not allocate fresh marker literals each time.
+const SUPPORT_LABELS: Record<SupportPresence, string> = {
+  available: "available",
+  unavailable: "unavailable",
+  not_observed: "availability not observed",
+};
+
+const MODE_LABELS: Record<ExplorerMode, string> = {
+  overview: "Overview",
+  decisions: "Decisions",
+  lineage: "Data lineage",
+  execution: "Execution",
+  audit: "Audit",
+};
+
+const MODE_DESCRIPTIONS: Record<ExplorerMode, string> = {
+  overview: "Research-facing phases from the current Rust workflow projection.",
+  decisions: "Settings and support inputs, direct physical readers, and semantic impact closures.",
+  lineage: "Typed source, intermediate, and terminal artifacts linked through semantic operations.",
+  execution: "Physical queries with observed reuse, row counts, and timing from the selected run.",
+  audit: "The complete semantic operation registry, including operations that are off.",
+};
+
 const EDGE_MARKER = {
   type: MarkerType.ArrowClosed,
   width: 22,
@@ -74,61 +82,34 @@ const EDGE_MARKER = {
   color: "#64748b",
 } as const;
 
-/** Per-node run metrics projected from the ExecutionLedger. */
-type NodeMetrics = {
-  rowsIn: number | null;
-  rowsOut: number | null;
-  durationMs: number;
-  /** Messages of VIOLATED (ok: false) expectations on this record. */
-  violations: string[];
-};
-
-type PipelineNodeData = {
+type ExplorerNodeData = {
   label: string;
   section: Section;
   status: NodeStatus | null;
   isJoin: boolean;
-  /** Gated off by the CURRENT settings (independent of any run report). */
   isOff: boolean;
-  /** Plain-English step explanation (tooltip + selection detail line). */
   description: string | null;
-  /**
-   * At step scale: the label of the execution unit this step runs inside
-   * (the engine's memoization boundary — an arbitrary grouping, shown as
-   * the eyebrow). Null at unit scale.
-   */
-  unit: string | null;
-  /** Ledger metrics from the active run (null before any run). */
-  metrics: NodeMetrics | null;
+  eyebrow: string;
+  metrics: string | null;
+  warnings: string[];
+  supportPresence: SupportPresence | null;
   [key: string]: unknown;
 };
 
-/** Compact "in→out" row-count text; null when neither side is row-shaped. */
-function formatRows(metrics: NodeMetrics): string | null {
-  if (metrics.rowsIn === null && metrics.rowsOut === null) return null;
-  const side = (count: number | null): string => (count === null ? "·" : String(count));
-  return `${side(metrics.rowsIn)}→${side(metrics.rowsOut)}`;
-}
+type ExplorerFlowNode = Node<ExplorerNodeData, "workflow">;
 
-function formatDuration(durationMs: number): string {
-  return durationMs < 1 ? "<1ms" : `${Math.round(durationMs)}ms`;
-}
-
-type PipelineFlowNode = Node<PipelineNodeData, "pipeline">;
-
-function PipelineNode({
+function ExplorerNode({
   data,
   targetPosition,
   sourcePosition,
-}: NodeProps<PipelineFlowNode>): ReactElement {
+}: NodeProps<ExplorerFlowNode>): ReactElement {
   return (
     <div
       className={`graph-node graph-node--${data.section}`}
-      data-testid={`graph-node-body`}
+      data-testid="graph-node-body"
+      data-node-category={data.section}
       title={data.description ?? undefined}
     >
-      {/* React Flow drops any edge whose endpoint node has no Handle —
-          these invisible handles are what let the edges render at all. */}
       <Handle
         type="target"
         position={targetPosition ?? Position.Top}
@@ -141,201 +122,172 @@ function PipelineNode({
         className="graph-node__handle"
         isConnectable={false}
       />
-      <span className="graph-node__section">
-        {data.unit ?? SECTION_LABELS[data.section]}
-      </span>
+      <span className="graph-node__section">{data.eyebrow}</span>
       <span className="graph-node__label">{data.label}</span>
       <span className="graph-node__badges">
-        {/* Current settings win over a (possibly stale) run report: a step
-            that is off RIGHT NOW says so, whatever the last run did. */}
         {data.isOff ? (
-          <span
-            className="graph-node__status graph-node__status--bypassed"
-            title="Turned off by the current settings — this step passes data through unchanged."
-          >
-            off
-          </span>
+          <span className="graph-node__status graph-node__status--bypassed">off</span>
         ) : data.status ? (
           <span className={`graph-node__status graph-node__status--${data.status}`}>
             {STATUS_LABELS[data.status]}
           </span>
         ) : null}
-        {data.isJoin ? (
-          <span
-            className="graph-node__join"
-            title="Two separate chains combine at this step — results after it link everything that feeds it."
-          >
-            join
+        {data.supportPresence ? (
+          <span className={`graph-node__availability graph-node__availability--${data.supportPresence}`}>
+            {SUPPORT_LABELS[data.supportPresence]}
           </span>
         ) : null}
-        {data.metrics ? (
-          <span
-            className="graph-node__metrics"
-            data-testid="graph-node-metrics"
-            title={`Last run: ${formatRows(data.metrics) ?? "no row-shaped data"} rows, ${formatDuration(data.metrics.durationMs)}`}
-          >
-            {[formatRows(data.metrics), formatDuration(data.metrics.durationMs)]
-              .filter(Boolean)
-              .join(" · ")}
-          </span>
-        ) : null}
-        {data.metrics && data.metrics.violations.length > 0 ? (
+        {data.isJoin ? <span className="graph-node__join">join</span> : null}
+        {data.warnings.length > 0 ? (
           <span
             className="graph-node__warn"
             data-testid="graph-node-warn"
-            title={data.metrics.violations.join("\n")}
+            title={data.warnings.join("\n")}
           >
-            ⚠ {data.metrics.violations.length}
+            warning {data.warnings.length}
           </span>
         ) : null}
       </span>
+      {data.metrics ? (
+        <span className="graph-node__metrics" data-testid="graph-node-metrics">
+          {data.metrics}
+        </span>
+      ) : null}
     </div>
   );
 }
 
-const NODE_TYPES = { pipeline: PipelineNode };
+const NODE_TYPES = { workflow: ExplorerNode };
 
 type Props = {
   results: ProcessedFileResult[];
-  planStageView: ProcessedFileResult["rustStageView"] | null;
+  workflowExplorerView: RustWorkflowExplorerView | null;
+  supportRoles: WorkflowExplorerSupportRole[];
   displayMasker: DemoDisplayMasker;
-  options: BrowserProcessingOptions;
 };
 
-/**
- * The unit/step boundary is an ARBITRARY scale choice — units are only the
- * engine's memoization boundary. "steps" (the default) is the full flat DAG
- * of every real transformation; "units" is the coarse grouping.
- */
-type GraphScale = "units" | "steps";
+function artifactSizes(
+  result: ProcessedFileResult | null,
+): Map<string, { bytes: number; mediaType: string }> {
+  const sizes = new Map<string, { bytes: number; mediaType: string }>();
+  const ambiguous = new Set<string>();
+  for (const output of result?.outputs ?? []) {
+    const artifact = output.persistedArtifact;
+    if (!artifact) continue;
+    const existing = sizes.get(artifact.kind);
+    if (
+      existing &&
+      (existing.bytes !== artifact.size || existing.mediaType !== artifact.mediaType)
+    ) {
+      ambiguous.add(artifact.kind);
+    } else {
+      sizes.set(artifact.kind, { bytes: artifact.size, mediaType: artifact.mediaType });
+    }
+  }
+  for (const kind of ambiguous) sizes.delete(kind);
+  return sizes;
+}
 
-export function GraphPanel({ results, planStageView, displayMasker }: Props): ReactElement {
+function outputSize(output: ProcessedFileResult["outputs"][number]): string {
+  const bytes = output.persistedArtifact?.size ?? output.blob?.size;
+  return bytes === undefined ? "size unavailable" : `${bytes.toLocaleString()} bytes`;
+}
+
+export function GraphPanel({
+  results,
+  workflowExplorerView,
+  supportRoles,
+  displayMasker,
+}: Props): ReactElement {
+  const [mode, setMode] = useState<ExplorerMode>("overview");
   const [selected, setSelected] = useState<string | null>(null);
-  const [second, setSecond] = useState<string | null>(null);
-  const [hovered, setHovered] = useState<string | null>(null);
   const [reportFileName, setReportFileName] = useState<string | null>(null);
   const [direction, setDirection] = useState<LayoutDirection>("TB");
-  const [scale, setScale] = useState<GraphScale>("steps");
-  const [showOff, setShowOff] = useState(false);
-  const instanceRef = useRef<ReactFlowInstance<PipelineFlowNode, Edge> | null>(null);
+  const [collapsedPhaseIds, setCollapsedPhaseIds] = useState<Set<string>>(new Set());
+  const [auditSearch, setAuditSearch] = useState("");
+  const instanceRef = useRef<ReactFlowInstance<ExplorerFlowNode, Edge> | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
 
-  const reportedResults = results.filter((result) => result.rustStageView);
+  const reportedResults = results.filter((result) => result.workflowExplorerView);
   const activeResult =
     reportedResults.find((result) => result.inputFileName === reportFileName) ??
-    reportedResults[reportedResults.length - 1] ??
+    reportedResults.at(-1) ??
     null;
-  const stageView = activeResult?.rustStageView ?? planStageView;
-
-  // Rust owns both topology and run state. These are family-specific view
-  // records projected into the small graph shape used only for interaction.
-  const unitDef = useMemo<ViewGraph>(
-    () =>
-      ({
-        nodes:
-          stageView?.payload.node_states.map((node) => ({
-            id: node.node_id,
-            label: node.label,
-            section: node.section,
-            inputs: node.input_nodes,
-          })) ?? [],
-      }),
-    [stageView],
+  const view = activeResult?.workflowExplorerView ?? workflowExplorerView;
+  const evidence = useMemo(
+    () => ({
+      executionLedger: activeResult?.executionLedger,
+      artifactSizes: artifactSizes(activeResult),
+      // A persisted result does not currently echo support presence. Never
+      // relabel an old run using today's file-picker state.
+      supportPresence: activeResult
+        ? undefined
+        : new Map(supportRoles.map((role) => [role.roleId, role.present])),
+    }),
+    [activeResult, supportRoles],
   );
-  const stepDef = useMemo<ViewGraph>(() => {
-    const sectionByUnit = new Map(
-      stageView?.payload.node_states.map((node) => [node.node_id, node.section]) ?? [],
+  const baseProjection = useMemo(
+    () => graphForMode(view, mode, evidence),
+    [view, mode, evidence],
+  );
+  const projection = useMemo(
+    () => collapseProjection(baseProjection, view, collapsedPhaseIds),
+    [baseProjection, view, collapsedPhaseIds],
+  );
+  const metadata = useMemo(
+    () => new Map(projection.nodes.map((node) => [node.id, node])),
+    [projection.nodes],
+  );
+  const layout = useMemo(
+    () => layoutGraph(projection.graph, direction),
+    [projection.graph, direction],
+  );
+  const joins = useMemo(() => new Set(joinPoints(projection.graph)), [projection.graph]);
+  const downstream = useMemo(
+    () => (selected ? new Set(affectedBy(projection.graph, selected)) : null),
+    [projection.graph, selected],
+  );
+  const auditMatches = useMemo(() => {
+    const needle = auditSearch.trim().toLocaleLowerCase();
+    if (mode !== "audit" || !needle) return [];
+    return projection.nodes.filter((node) =>
+      [
+        node.id,
+        node.label,
+        node.description,
+        node.eyebrow,
+        node.detail,
+        node.offReason,
+      ]
+        .filter((value): value is string => typeof value === "string")
+        .some((value) => value.toLocaleLowerCase().includes(needle)),
     );
-    return {
-      nodes:
-        stageView?.payload.step_states.map((step) => ({
-          id: step.step_id,
-          label: step.label,
-          description: step.description,
-          section: sectionByUnit.get(step.unit_id) ?? "preprocess",
-          inputs: step.input_steps,
-        })) ?? [],
-    };
-  }, [stageView]);
-  const def = scale === "steps" ? stepDef : unitDef;
-  const stepToUnit = useMemo(
-    () =>
-      new Map(
-        stageView?.payload.step_states.map((step) => [step.step_id, step.unit_id]) ?? [],
-      ),
-    [stageView],
-  );
-  const unitLabelById = useMemo(
-    () => new Map(unitDef.nodes.map((node) => [node.id, node.label])),
-    [unitDef],
+  }, [auditSearch, mode, projection.nodes]);
+  const auditMatchIds = useMemo(
+    () => new Set(auditMatches.map((node) => node.id)),
+    [auditMatches],
   );
 
-  const statusById = useMemo(() => {
-    const statuses = new Map<string, NodeStatus>();
-    for (const node of stageView?.payload.node_states ?? []) {
-      if (node.execution_status) statuses.set(node.node_id, node.execution_status);
-      else if (node.materialization_state === "not_applicable") {
-        statuses.set(node.node_id, "bypassed");
-      }
-    }
-    for (const step of stageView?.payload.step_states ?? []) {
-      if (step.execution_status) statuses.set(step.step_id, step.execution_status);
-    }
-    return statuses;
-  }, [stageView]);
-
-  // Applicability is evaluated by Rust from the product contract. The UI only
-  // decides whether to hide or reveal the already-projected bypassed nodes.
-  const offNodes = useMemo(() => {
-    return new Set(def.nodes.filter((node) => statusById.get(node.id) === "bypassed").map((node) => node.id));
-  }, [def, statusById]);
-
-  // Off steps are HIDDEN by default (the graph shows the pipeline your
-  // settings actually run); the toggle reveals them dashed. Hiding splices
-  // each off pass-through out, rewiring consumers to visible ancestors.
-  const visibleDef = useMemo(
-    () => (showOff || offNodes.size === 0 ? def : spliceOut(def, offNodes)),
-    [def, offNodes, showOff],
-  );
-
-  // A node can disappear under an active selection (option toggled off, or
-  // the reveal toggle flipped) — drop stale references or the path queries
-  // would ask about ids the visible graph no longer has.
   useEffect(() => {
-    const ids = new Set(visibleDef.nodes.map((node) => node.id));
-    if (selected && !ids.has(selected)) {
-      setSelected(null);
-      setSecond(null);
-    } else if (second && !ids.has(second)) {
-      setSecond(null);
-    }
-    if (hovered && !ids.has(hovered)) setHovered(null);
-  }, [visibleDef, selected, second, hovered]);
-
-  const layout = useMemo(() => layoutGraph(visibleDef, direction), [visibleDef, direction]);
+    if (selected && !metadata.has(selected)) setSelected(null);
+  }, [metadata, selected]);
 
   const bounds = useMemo(() => {
-    if (layout.nodes.length === 0) {
-      return { x: 0, y: 0, width: 1, height: 1 };
-    }
+    if (layout.nodes.length === 0) return { x: 0, y: 0, width: 1, height: 1 };
     const minX = Math.min(...layout.nodes.map((node) => node.x));
     const minY = Math.min(...layout.nodes.map((node) => node.y));
     const maxX = Math.max(...layout.nodes.map((node) => node.x + NODE_WIDTH));
     const maxY = Math.max(...layout.nodes.map((node) => node.y + NODE_HEIGHT));
     return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
-  }, [layout]);
+  }, [layout.nodes]);
 
-  // Readable anchored view: fit the graph's CROSS axis (sized to the canvas's
-  // real aspect ratio) and anchor at the start of the flow, so nodes open at
-  // legible size and the user scrolls along the flow — never "squeeze all
-  // ranks into the canvas" (unreadably small).
   const applyAnchoredFit = useCallback(() => {
     const instance = instanceRef.current;
     if (!instance) return;
     const canvas = canvasRef.current;
     const aspect =
       canvas && canvas.clientWidth > 0 ? canvas.clientHeight / canvas.clientWidth : 0.6;
-    const view =
+    const viewport =
       direction === "TB"
         ? {
             x: bounds.x,
@@ -349,315 +301,129 @@ export function GraphPanel({ results, planStageView, displayMasker }: Props): Re
             width: Math.min(bounds.width, bounds.height / aspect),
             height: bounds.height,
           };
-    void instance.fitBounds(view, { padding: 0.06 });
+    void instance.fitBounds(viewport, { padding: 0.06 });
   }, [bounds, direction]);
 
-  // Re-anchor whenever the layout orientation (and therefore bounds) changes —
-  // no React Flow remount needed.
-  useEffect(() => {
-    applyAnchoredFit();
-  }, [applyAnchoredFit]);
+  useEffect(() => applyAnchoredFit(), [applyAnchoredFit]);
 
-  const joins = useMemo(() => new Set(joinPoints(visibleDef)), [visibleDef]);
-  const labelById = useMemo(
-    () => new Map(def.nodes.map((node) => [node.id, node.label])),
-    [def],
-  );
-  const descriptionById = useMemo(
-    () => new Map(def.nodes.map((node) => [node.id, node.description ?? null])),
-    [def],
-  );
-
-  // Ledger metrics keyed by node id. Unit ids and step ids share one
-  // collision-free namespace (checked at build time), so one map serves
-  // both scales.
-  const ledger = activeResult?.executionLedger ?? null;
-  const metricsById = useMemo(() => {
-    if (!ledger) return null;
-    const map = new Map<string, NodeMetrics>();
-    const violationsOf = (expectations: { ok: boolean; message: string }[]): string[] =>
-      expectations.filter((expectation) => !expectation.ok).map((expectation) => expectation.message);
-    for (const unit of ledger) {
-      map.set(unit.unit, {
-        rowsIn: unit.rowsIn,
-        rowsOut: unit.rowsOut,
-        durationMs: unit.timing.durationMs,
-        violations: violationsOf(unit.expectations),
-      });
-      for (const step of unit.steps) {
-        map.set(step.stepId, {
-          rowsIn: step.rowsIn,
-          rowsOut: step.rowsOut,
-          durationMs: step.timing.durationMs,
-          violations: violationsOf(step.expectations),
-        });
-      }
-    }
-    return map;
-  }, [ledger]);
-
-  const cone = useMemo(
-    () => (selected ? new Set(affectedBy(visibleDef, selected)) : null),
-    [visibleDef, selected],
-  );
-  // Two selected nodes are either a CHAIN (one is built from the other — show
-  // the CONNECTING PATH and say how they connect) or genuine siblings (then
-  // their shared upstream is what links them).
-  const relation = useMemo(() => {
-    if (!selected || !second || !cone) return null;
-    const nodeIds = new Set(visibleDef.nodes.map((node) => node.id));
-    const chainBetween = (from: string, to: string) => {
-      // Every node on SOME path from `from` to `to`: downstream of the first
-      // AND upstream of the second. `via` (nodes on EVERY path) is only the
-      // choke points — highlighting just those leaves the path visually
-      // disconnected wherever it branches.
-      const down = new Set(affectedBy(visibleDef, from));
-      const up = new Set(builtFrom(visibleDef, to).filter((id) => nodeIds.has(id)));
-      const path = new Set([from, to]);
-      for (const id of down) if (up.has(id)) path.add(id);
-      const toNode = visibleDef.nodes.find((node) => node.id === to);
-      return {
-        kind: "chain" as const,
-        from,
-        to,
-        direct: toNode?.inputs.includes(from) ?? false,
-        via: new Set(mustPassThrough(visibleDef, from, to)),
-        path,
-      };
-    };
-    if (cone.has(second)) return chainBetween(selected, second);
-    if (affectedBy(visibleDef, second).includes(selected)) return chainBetween(second, selected);
-    return {
-      kind: "siblings" as const,
-      shared: new Set(sharedUpstream(visibleDef, selected, second)),
-    };
-  }, [visibleDef, cone, selected, second]);
-  const through = useMemo(
-    () =>
-      selected && !second && hovered && hovered !== selected
-        ? new Set(mustPassThrough(visibleDef, selected, hovered))
-        : null,
-    [visibleDef, selected, second, hovered],
-  );
-
-  const labels = (ids: Iterable<string>): string =>
-    [...ids].map((id) => labelById.get(id) ?? id).join(", ");
-
-  let sentence: string | null = null;
-  if (selected && second && relation) {
-    if (relation.kind === "chain") {
-      // "directly" is claimed ONLY when a direct edge exists; an empty `via`
-      // on its own just means there is no single choke point between them.
-      const how = relation.direct
-        ? "directly"
-        : relation.via.size > 0
-          ? `through ${labels(relation.via)}`
-          : "along several parallel paths";
-      sentence = sentenceFor("chain", {
-        from: labelById.get(relation.from) ?? relation.from,
-        to: labelById.get(relation.to) ?? relation.to,
-        how,
-      });
-    } else {
-      sentence =
-        relation.shared.size > 0
-          ? sentenceFor("sharedUpstream", {
-              a: labelById.get(selected) ?? selected,
-              b: labelById.get(second) ?? second,
-              shared: labels(relation.shared),
-            })
-          : `${labelById.get(selected) ?? selected} and ${labelById.get(second) ?? second} share no upstream steps — they move independently.`;
-    }
-  } else if (selected && through && through.size > 0 && hovered) {
-    sentence = sentenceFor("mustPassThrough", {
-      source: labelById.get(selected) ?? selected,
-      target: labelById.get(hovered) ?? hovered,
-      through: labels(through),
+  const focusNode = useCallback((id: string) => {
+    setSelected(id);
+    requestAnimationFrame(() => {
+      const instance = instanceRef.current;
+      const node = instance?.getNode(id);
+      if (instance && node) void instance.fitView({ nodes: [node], padding: 0.5 });
     });
-  } else if (selected && cone) {
-    sentence = sentenceFor("affectedBy", {
-      source: labelById.get(selected) ?? selected,
-      count: cone.size,
-      outputs: "every result built after it",
-    });
-  }
+  }, []);
 
-  // The full highlight set for a two-node selection: the connecting path for
-  // a chain, the common ancestors (plus the pair) for siblings.
-  const linked =
-    selected && second && relation
-      ? relation.kind === "chain"
-        ? relation.path
-        : new Set([...relation.shared, selected, second])
-      : null;
-
-  const nodes: PipelineFlowNode[] = layout.nodes.map((node) => {
-    const inCone = cone?.has(node.id) ?? false;
-    const isSelected = node.id === selected;
-    const isSecond = node.id === second;
-    const classes = ["graph-flow-node"];
-    if (linked) {
-      if (linked.has(node.id) && !isSelected && !isSecond) classes.push("is-pulsing");
-      else if (!isSelected && !isSecond) classes.push("is-dimmed");
-    } else if (selected) {
-      if (!isSelected && !inCone) classes.push("is-dimmed");
-      if (through?.has(node.id)) classes.push("is-emphasized");
-    }
-    if (isSelected || isSecond) classes.push("is-selected");
-    if (offNodes.has(node.id)) classes.push("is-off");
+  const nodes: ExplorerFlowNode[] = layout.nodes.map((node) => {
+    const data = metadata.get(node.id)!;
+    const selectionDimmed = selected && node.id !== selected && !downstream?.has(node.id);
+    const searchDimmed =
+      mode === "audit" && auditSearch.trim() && !auditMatchIds.has(node.id);
     return {
       id: node.id,
-      type: "pipeline",
+      type: "workflow",
       position: { x: node.x, y: node.y },
       width: NODE_WIDTH,
       height: NODE_HEIGHT,
-      // dagre places every node in flow order, so handles face the flow (TB:
-      // top-in / bottom-out, LR: left-in / right-out) for all nodes; clean nodes
-      // are distinguished by their branch position + dashed edges, not handles.
       targetPosition: direction === "TB" ? Position.Top : Position.Left,
       sourcePosition: direction === "TB" ? Position.Bottom : Position.Right,
-      className: classes.join(" "),
+      className: [
+        "graph-flow-node",
+        data.off ? "is-off" : "",
+        node.id === selected ? "is-selected" : "",
+        selectionDimmed || searchDimmed ? "is-dimmed" : "",
+      ]
+        .filter(Boolean)
+        .join(" "),
       data: {
-        label: node.label,
-        section: node.section,
-        status: statusById.get(node.id) ?? null,
+        label: data.label,
+        section: data.section,
+        status: data.status,
         isJoin: joins.has(node.id),
-        isOff: offNodes.has(node.id),
-        description: descriptionById.get(node.id) ?? null,
-        unit:
-          scale === "steps"
-            ? (unitLabelById.get(stepToUnit.get(node.id) ?? "") ?? null)
-            : null,
-        metrics: metricsById?.get(node.id) ?? null,
+        isOff: data.off,
+        description: data.description ?? null,
+        eyebrow: data.eyebrow,
+        metrics: data.metrics,
+        warnings: data.warnings,
+        supportPresence: data.supportPresence,
       },
       draggable: false,
       connectable: false,
     };
   });
 
-  const edges: Edge[] = layout.edges.map((edge) => {
-    const active =
-      !selected ||
-      (linked
-        ? linked.has(edge.source) && linked.has(edge.target)
-        : (edge.source === selected || (cone?.has(edge.source) ?? false)) &&
-          (cone?.has(edge.target) ?? false));
-    const tap = edge.variant === "tap";
-    return {
-      id: edge.id,
-      source: edge.source,
-      target: edge.target,
-      className: [
-        "graph-flow-edge",
-        tap ? "graph-flow-edge--tap" : "",
-        active ? "" : "is-dimmed",
-      ]
-        .filter(Boolean)
-        .join(" "),
-      // Dashed connectors read as the optional off-spine detour; solid = backbone.
-      style: tap ? { strokeDasharray: "6 4" } : undefined,
-      markerEnd: EDGE_MARKER,
-    };
-  });
+  const edges: Edge[] = layout.edges.map((edge) => ({
+    id: edge.id,
+    source: edge.source,
+    target: edge.target,
+    className: [
+      "graph-flow-edge",
+      selected && !(edge.source === selected || downstream?.has(edge.source))
+        ? "is-dimmed"
+        : "",
+    ]
+      .filter(Boolean)
+      .join(" "),
+    markerEnd: EDGE_MARKER,
+  }));
 
   const onNodeClick: NodeMouseHandler = (_event, node) => {
-    if (node.id === selected && !second) {
-      setSelected(null);
-      setSecond(null);
-      return;
-    }
-    if (selected && !second && node.id !== selected) {
-      setSecond(node.id);
-      return;
-    }
-    setSelected(node.id);
-    setSecond(null);
+    setSelected((current) => (current === node.id ? null : node.id));
   };
-
-  const switchDirection = (next: LayoutDirection): void => {
-    setDirection(next);
-    // The layout shifts under the cursor and no mouseleave fires — a stale
-    // hover would keep describing a node the pointer is no longer on.
-    setHovered(null);
-  };
-
-  const switchScale = (next: GraphScale): void => {
-    setScale(next);
-    // Node ids differ between scales — a selection cannot survive the switch.
-    setSelected(null);
-    setSecond(null);
-    setHovered(null);
-  };
+  const selectedNode = selected ? metadata.get(selected) : null;
+  const availablePhases = useMemo(() => {
+    const projected = new Set(baseProjection.nodes.flatMap((node) => node.phaseId ?? []));
+    return [...(view?.phases ?? [])]
+      .filter((phase) => projected.has(phase.phaseId))
+      .sort((left, right) => left.displayOrder - right.displayOrder);
+  }, [baseProjection.nodes, view?.phases]);
+  const allPhasesCollapsed =
+    availablePhases.length > 0 &&
+    availablePhases.every((phase) => collapsedPhaseIds.has(phase.phaseId));
 
   return (
     <section className="workflow-section" aria-labelledby="graph-title">
       <div className="workflow-section__header">
         <div>
-          <h2 id="graph-title" className="workflow-section__title">Pipeline graph</h2>
+          <h2 id="graph-title" className="workflow-section__title">Pipeline Explorer</h2>
           <p className="workflow-section__intro">
-            Every step the app runs, what feeds it, and what your settings act on.
-            {offNodes.size > 0
-              ? ` ${offNodes.size} step${offNodes.size === 1 ? " is" : "s are"} turned off by your current settings${showOff ? " (shown dashed)" : " and hidden"}.`
-              : ""}
-            {activeResult
-              ? " Badges show what the last run actually recomputed versus reused."
-              : " Process a file to see per-step run status here."}
+            Explore the workflow at five distinct interpretation layers. Off and unobserved items
+            stay visible, and observed run evidence is never inferred from configuration alone.
           </p>
         </div>
         <div className="graph-toolbar">
-          <div className="graph-direction-toggle" role="group" aria-label="Graph scale">
-            <button
-              type="button"
-              className={`btn btn--ghost${scale === "steps" ? " is-active" : ""}`}
-              data-testid="graph-scale-steps"
-              aria-pressed={scale === "steps"}
-              onClick={() => switchScale("steps")}
-              title="Every real transformation as its own node — the full DAG."
-            >
-              Steps
-            </button>
-            <button
-              type="button"
-              className={`btn btn--ghost${scale === "units" ? " is-active" : ""}`}
-              data-testid="graph-scale-units"
-              aria-pressed={scale === "units"}
-              onClick={() => switchScale("units")}
-              title="Grouped by execution unit (the engine's caching boundary)."
-            >
-              Units
-            </button>
+          <div className="graph-direction-toggle" role="group" aria-label="Explorer view">
+            {(Object.keys(MODE_LABELS) as ExplorerMode[]).map((candidate) => (
+              <button
+                key={candidate}
+                type="button"
+                className={`btn btn--ghost${mode === candidate ? " is-active" : ""}`}
+                data-testid={`graph-mode-${candidate}`}
+                aria-pressed={mode === candidate}
+                onClick={() => {
+                  setMode(candidate);
+                  setSelected(null);
+                }}
+              >
+                {MODE_LABELS[candidate]}
+              </button>
+            ))}
           </div>
           <div className="graph-direction-toggle" role="group" aria-label="Graph orientation">
-            <button
-              type="button"
-              className={`btn btn--ghost${direction === "LR" ? " is-active" : ""}`}
-              data-testid="graph-direction-lr"
-              aria-pressed={direction === "LR"}
-              onClick={() => switchDirection("LR")}
-            >
-              Horizontal
-            </button>
-            <button
-              type="button"
-              className={`btn btn--ghost${direction === "TB" ? " is-active" : ""}`}
-              data-testid="graph-direction-tb"
-              aria-pressed={direction === "TB"}
-              onClick={() => switchDirection("TB")}
-            >
-              Vertical
-            </button>
+            {(["LR", "TB"] as LayoutDirection[]).map((candidate) => (
+              <button
+                key={candidate}
+                type="button"
+                className={`btn btn--ghost${direction === candidate ? " is-active" : ""}`}
+                data-testid={`graph-direction-${candidate.toLocaleLowerCase()}`}
+                aria-pressed={direction === candidate}
+                onClick={() => setDirection(candidate)}
+              >
+                {candidate === "LR" ? "Horizontal" : "Vertical"}
+              </button>
+            ))}
           </div>
-          {offNodes.size > 0 ? (
-            <button
-              type="button"
-              className={`btn btn--ghost${showOff ? " is-active" : ""}`}
-              data-testid="graph-show-off-toggle"
-              aria-pressed={showOff}
-              onClick={() => setShowOff((current) => !current)}
-            >
-              {showOff ? "Hide" : "Show"} {offNodes.size} off step{offNodes.size === 1 ? "" : "s"}
-            </button>
-          ) : null}
           <button
             type="button"
             className="btn btn--ghost"
@@ -669,10 +435,9 @@ export function GraphPanel({ results, planStageView, displayMasker }: Props): Re
         </div>
         {reportedResults.length > 1 ? (
           <label className="graph-report-picker">
-            Run status from
+            Run evidence from
             <select
               className="input"
-              data-testid="graph-report-picker"
               value={activeResult?.inputFileName ?? ""}
               onChange={(event) => setReportFileName(event.target.value)}
             >
@@ -686,24 +451,109 @@ export function GraphPanel({ results, planStageView, displayMasker }: Props): Re
         ) : null}
       </div>
 
-      <SentenceBar
-        sentence={sentence}
-        detail={
-          selected && !second
-            ? (() => {
-                const description = descriptionById.get(selected);
-                const label = labelById.get(selected) ?? selected;
-                const unit =
-                  scale === "steps"
-                    ? unitLabelById.get(stepToUnit.get(selected) ?? "")
-                    : null;
-                return description
-                  ? `${unit ? `${unit} · ` : ""}${label}: ${description}`
-                  : null;
-              })()
-            : null
-        }
-      />
+      <p className="graph-mode-description" data-testid="graph-mode-description">
+        {MODE_DESCRIPTIONS[mode]}
+      </p>
+
+      {mode !== "overview" && availablePhases.length > 0 ? (
+        <div className="graph-phase-controls" data-testid="graph-phase-controls">
+          <span>Phase detail</span>
+          <button
+            type="button"
+            className="btn btn--ghost"
+            data-testid="graph-collapse-all-phases"
+            onClick={() =>
+              setCollapsedPhaseIds(
+                allPhasesCollapsed
+                  ? new Set()
+                  : new Set(availablePhases.map((phase) => phase.phaseId)),
+              )
+            }
+          >
+            {allPhasesCollapsed ? "Expand all" : "Collapse all"}
+          </button>
+          {availablePhases.map((phase) => {
+            const collapsed = collapsedPhaseIds.has(phase.phaseId);
+            return (
+              <button
+                key={phase.phaseId}
+                type="button"
+                className={`graph-phase-chip${collapsed ? " is-active" : ""}`}
+                data-testid={`graph-phase-toggle-${phase.phaseId}`}
+                aria-pressed={collapsed}
+                onClick={() =>
+                  setCollapsedPhaseIds((current) => {
+                    const next = new Set(current);
+                    if (next.has(phase.phaseId)) next.delete(phase.phaseId);
+                    else next.add(phase.phaseId);
+                    return next;
+                  })
+                }
+              >
+                {collapsed ? `Expand ${phase.label}` : `Collapse ${phase.label}`}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {mode === "audit" ? (
+        <div className="graph-audit-tools">
+          <label>
+            Search and focus audit operations
+            <input
+              className="input"
+              type="search"
+              value={auditSearch}
+              data-testid="graph-audit-search"
+              onChange={(event) => setAuditSearch(event.target.value)}
+              placeholder="Name, role, effect, or reason"
+            />
+          </label>
+          {auditSearch.trim() ? (
+            <div className="graph-audit-results" data-testid="graph-audit-results">
+              {auditMatches.length > 0 ? (
+                auditMatches.map((node) => (
+                  <button
+                    key={node.id}
+                    type="button"
+                    className="btn btn--ghost"
+                    onClick={() => focusNode(node.id)}
+                  >
+                    Focus {node.label}
+                  </button>
+                ))
+              ) : (
+                <span>No audit operations match.</span>
+              )}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="graph-sentence" role="status" aria-live="polite" data-testid="graph-sentence">
+        {selectedNode ? (
+          <>
+            <strong>{selectedNode.label}</strong>
+            {selectedNode.description ? ` — ${selectedNode.description}` : ""}
+            {selectedNode.detail ? ` ${selectedNode.detail}.` : ""}
+            {selectedNode.offReason ? ` Off reason: ${selectedNode.offReason}.` : ""}
+            {downstream && downstream.size > 0
+              ? ` It reaches ${downstream.size} downstream item${downstream.size === 1 ? "" : "s"} in this view.`
+              : ""}
+          </>
+        ) : (
+          <>Select an item to trace everything downstream from it.</>
+        )}
+      </div>
+
+      {selectedNode?.impact ? (
+        <dl className="graph-impact-details" data-testid="graph-impact-details">
+          <div><dt>Direct physical readers</dt><dd>{selectedNode.impact.directQueries}</dd></div>
+          <div><dt>Operations that may change</dt><dd>{selectedNode.impact.affectedOperations}</dd></div>
+          <div><dt>Artifacts that may change</dt><dd>{selectedNode.impact.affectedArtifacts}</dd></div>
+        </dl>
+      ) : null}
 
       <div className="graph-canvas" data-testid="graph-canvas" ref={canvasRef}>
         <ReactFlow
@@ -711,12 +561,7 @@ export function GraphPanel({ results, planStageView, displayMasker }: Props): Re
           edges={edges}
           nodeTypes={NODE_TYPES}
           onNodeClick={onNodeClick}
-          onNodeMouseEnter={(_event, node) => setHovered(node.id)}
-          onNodeMouseLeave={() => setHovered(null)}
-          onPaneClick={() => {
-            setSelected(null);
-            setSecond(null);
-          }}
+          onPaneClick={() => setSelected(null)}
           onInit={(instance) => {
             instanceRef.current = instance;
             applyAnchoredFit();
@@ -729,20 +574,38 @@ export function GraphPanel({ results, planStageView, displayMasker }: Props): Re
           nodesDraggable={false}
         >
           <Background gap={24} />
-          {/* The built-in fit-view button squeezes the WHOLE graph into the
-              canvas — exactly the unreadable view the anchored fit replaces —
-              so it is disabled in favor of the Reset view button above. */}
           <Controls showInteractive={false} showFitView={false} />
         </ReactFlow>
       </div>
 
-      <div className="graph-legend" aria-hidden="true">
+      <div className="graph-legend" aria-label="Node categories">
         {(Object.keys(SECTION_LABELS) as Section[]).map((section) => (
           <span key={section} className={`graph-legend__item graph-legend__item--${section}`}>
             {SECTION_LABELS[section]}
           </span>
         ))}
       </div>
+
+      <section className="graph-deliverables" data-testid="graph-deliverables">
+        <h3>Deliverables</h3>
+        {!activeResult ? (
+          <p>Not observed — process a file to see the outputs actually emitted by a run.</p>
+        ) : activeResult.outputs.length === 0 ? (
+          <p>No deliverables were emitted by this run.</p>
+        ) : (
+          <ul>
+            {activeResult.outputs.map((output) => (
+              <li key={`${output.kind}:${output.outputFileName}`}>
+                <strong>{displayMasker.fileName(output.outputFileName)}</strong>{" "}
+                <span>
+                  {output.kind.replaceAll("_", " ")} · {output.rowCount.toLocaleString()} rows ·{" "}
+                  {outputSize(output)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </section>
   );
 }

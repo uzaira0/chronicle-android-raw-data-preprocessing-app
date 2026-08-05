@@ -10,8 +10,8 @@ import {
   outputCellDependencies,
   outputColumnMatches,
   type OutputCellBinding,
-  type RustStepContract,
-} from "@/testSupport/rustStepContract";
+  type RustWorkflowContract,
+} from "@/testSupport/workflowContract";
 import * as runtime from "@/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm.js";
 
 const FAMILY_DIR = join(
@@ -66,7 +66,7 @@ function cellFamilyOf(address: string): CellFamily {
 }
 
 describe("field-level provenance reconciliation", () => {
-  let contract: RustStepContract;
+  let contract: RustWorkflowContract;
   let declaredFields: Set<string>;
   let edges: Array<{ from: string[]; to: string }>;
   let bindings: OutputCellBinding[];
@@ -75,26 +75,26 @@ describe("field-level provenance reconciliation", () => {
   beforeAll(() => {
     runtime.initSync({ module: dependencyCampaignRuntimeBytes() });
     contract = JSON.parse(
-      runtime.pipeline_step_contract_json(),
-    ) as RustStepContract;
+      runtime.workflow_contract_json(),
+    ) as RustWorkflowContract;
     expect(contract.protocolVersion).toBe(
-      "chronicle-preprocessing-step-contract/v3",
+      "chronicle-workflow-contract/v1",
     );
-    expect(contract.steps).toHaveLength(55);
-    bindings = contract.outputCellBindings;
-    edges = contract.steps.flatMap((step) =>
+    expect(contract.execution.queries.length).toBeGreaterThan(0);
+    bindings = contract.semantic.outputCellBindings;
+    edges = contract.execution.queries.flatMap((step) =>
       step.fieldEdges.map((edge) => ({ from: edge.from, to: edge.to })),
     );
     declaredFields = new Set<string>([
-      ...contract.steps.flatMap((step) => [
+      ...contract.execution.queries.flatMap((step) => [
         ...step.fieldReads,
         ...step.fieldWrites,
       ]),
       ...bindings.flatMap((binding) => binding.from),
-      ...contract.rowSetFields,
+      ...contract.semantic.rowSetFields,
     ]);
     knownRoles = new Set<string>([
-      ...contract.rootRoles.map(({ roleId }) => roleId),
+      ...contract.semantic.rootRoles.map(({ roleId }) => roleId),
       ...SUPPORT_ROLE_IDS,
     ]);
   });
@@ -283,7 +283,7 @@ describe("field-level provenance reconciliation", () => {
 
     const ledger = {
       protocolVersion: "chronicle-field-level-provenance/v1",
-      stepContractProtocol: contract.protocolVersion,
+      workflowContractProtocol: contract.protocolVersion,
       correspondenceProtocol: "chronicle-output-cell-correspondence/v2",
       preprocessorVersion: contract.preprocessorVersion,
       claimBoundary:

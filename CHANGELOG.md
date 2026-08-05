@@ -13,7 +13,24 @@ migration in `web/src/lib/settingsPersistence.ts`. Cite the contract version
 alongside the app version in methods sections — both are recorded in every
 run's processing report and provenance sidecar.
 
-## [Unreleased] — contract version 1
+## [Unreleased] — contract version 2
+
+### Changed (workflow contract v2)
+
+- Replaced the numbered pipeline-step surface with a generated workflow
+  contract that separates semantic operations, execution queries,
+  presentation, checkpoints, and evidence. Query-group and query identifiers
+  now replace the former node/step identifiers in manifests and provenance.
+- Added a Pipeline Explorer with decision impact, data-lineage, execution, and
+  audit views. Configuration changes expose their transitive affected-query
+  closure instead of relying on positional pipeline descriptions.
+- Carved attribution completeness from compliance classification so changing
+  the classification threshold reuses the expensive upstream aggregation.
+- Moved browser workspace storage to the workflow namespace. Legacy workspace
+  directories are detected but never opened, migrated, or deleted; the UI
+  gives explicit export/cleanup guidance.
+- Persisted settings schema v2 re-sanitizes v1 option envelopes. Option meaning
+  is unchanged; the migration records the workflow-contract transition.
 
 ### Removed (desktop engine fully deprecated)
 
@@ -107,7 +124,7 @@ parity could not see, all fixed byte-exactly:
 ## [1.0.0] — contract version 1
 
 Initial contracted release: dual-engine (browser + desktop) preprocessing with
-byte-exact parity harness, golden scenarios, 55-step executable pipeline
+byte-exact parity harness, golden scenarios, query-registry executable pipeline
 graph, LinkML/OWL/SHACL research ontology, per-run PROV provenance sidecar,
 mutation-tested validation suite, and CI gates (typecheck, tests, contract
 compatibility, gate-truth, schema reproducibility).

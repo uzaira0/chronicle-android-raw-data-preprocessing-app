@@ -13,7 +13,7 @@ import { safeUuid } from "@/lib/uuid";
 
 const STORAGE_KEY = "chronicle.processingOptions.v1";
 const PRESETS_STORAGE_KEY = "chronicle.processingPresets.v1";
-const SETTINGS_SCHEMA_VERSION = 1;
+const SETTINGS_SCHEMA_VERSION = 2;
 
 type SettingsEnvelope = {
   schemaVersion: number;
@@ -116,7 +116,30 @@ export function readPersistedOptions(): BrowserProcessingOptions {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return { ...DEFAULT_BROWSER_OPTIONS };
-    return sanitizeOptions(unwrapOptions(JSON.parse(raw)));
+    const parsed = JSON.parse(raw) as unknown;
+    const options = sanitizeOptions(unwrapOptions(parsed));
+    if (
+      isRecord(parsed) &&
+      typeof parsed.schemaVersion === "number" &&
+      parsed.schemaVersion < SETTINGS_SCHEMA_VERSION
+    ) {
+      // Contract v2 changed workflow identity, not option meaning. Rewriting
+      // through the live sanitizer is therefore the complete v1 -> v2
+      // migration and prevents stale or unknown option keys from surviving.
+      const migrated: SettingsEnvelope = {
+        schemaVersion: SETTINGS_SCHEMA_VERSION,
+        savedAt: new Date().toISOString(),
+        options,
+      };
+      try {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
+      } catch {
+        // A readable store can still be quota-limited or read-only. The
+        // sanitized settings remain valid for this session even if the
+        // best-effort envelope rewrite cannot be persisted.
+      }
+    }
+    return options;
   } catch {
     return { ...DEFAULT_BROWSER_OPTIONS };
   }

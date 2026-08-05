@@ -1,12 +1,13 @@
 # Pipeline Graph + Feature Wiring — Design Spec
 
 > **Superseded design record.** The TypeScript scheduler proposed below was
-> implemented, evaluated, and then deleted. The current design uses 55 real
-> Salsa-tracked Rust computations; Rust projects their status into the graph UI.
+> implemented, evaluated, and then deleted. The current design derives its
+> Salsa-tracked Rust query registry from the workflow contract and projects
+> execution status into the Pipeline Explorer.
 
-Date: 2026-07-14. Status: APPROVED design, pending implementation plan.
-Knowledge base: `docs/pipeline-graph/` (docs 01-12). This spec is normative; the KB docs
-carry the full derivations, audits, and prior-art extractions it references.
+Date: 2026-07-14. Status: superseded historical design record.
+Knowledge base: `docs/workflow/`. The current normative design is
+`docs/workflow/contract-and-dag-migration-plan.md`; this file preserves rationale.
 
 ## 1. Goals
 
@@ -15,9 +16,13 @@ carry the full derivations, audits, and prior-art extractions it references.
    both the only execution spine (incremental recompute) and a rendered interactive view.
 3. Port the research-pipeline-only features into the app, client-side: screen-gated usage
    credit, person attribution, compliance scoring, study-window filtering, placeholder
-   days (docs 01/03).
-4. Ground all user-facing vocabulary in the field's published terms (doc 08); absorb the
-   prior-art paradigms (EYES, Parry & Toth, Culverhouse) as configurations (docs 09/12).
+   days (see the [feature inventory](../../workflow/feature-inventory.md) and
+   [artifact and port semantics](../../workflow/artifact-port-semantics.md)).
+4. Ground all user-facing vocabulary in the field's published terms from the
+   [prior-art vocabulary](../../workflow/prior-art-vocabulary.md); absorb the prior-art
+   paradigms (EYES, Parry & Toth, Culverhouse) as configurations described by the
+   [sublation audit](../../workflow/sublation-audit.md) and
+   [settings ledger](../../workflow/settings-sublation-ledger.md).
 
 Non-goals: no backend; no server round-trips; no instance-blurring temporal models; no
 port of the prior tools' presentation layers; preset bit-parity beyond the shared Rust
@@ -50,9 +55,10 @@ web/src/components/GraphPanel/  React Flow 12 + dagre rendered view
 Primitive edges (declared, drive execution): `feeds` (dataflow), `gates` (on/off),
 `tunes` (parameterizes). Derived layer: **no named taxonomy** (owner decision). Path
 queries — `affectedBy`, `builtFrom`, `sharedUpstream`, `mustPassThrough`, `joinPoint` —
-computed at build time, rendered as graph highlights + plain-English sentences (doc 06).
+computed at build time, rendered as graph highlights + plain-English sentences defined by
+the [typed-edge ontology](../../workflow/typed-edge-ontology.md).
 
-## 4. Node catalog (sections are node metadata; names per doc 08)
+## 4. Node catalog (sections are node metadata; names use the prior-art vocabulary)
 
 - **Preprocess** (locked by default; advanced unlock):
   `parse_events → validate_clock → normalize_timezones → dedup_and_order →
@@ -67,17 +73,19 @@ The graph is a genuine DAG: `effective_usage` takes two feeds (episodes + state
 timeline); `device_usage` branches off the timeline alone.
 
 Existing knobs are RECATEGORIZED in the UI (e.g. min-duration/long-duration into Clean)
-without moving where they execute. The complete setting→element mapping is doc 12 — every
+without moving where they execute. The complete setting→element mapping is the
+[settings ledger](../../workflow/settings-sublation-ledger.md) — every
 one of the 44 contract slots, all research-pipeline knobs, and all prior-art settings map.
 
-## 5. Device-state contract (normative: doc 11)
+## 5. Device-state contract (normative source: [device-state model](../../workflow/device-state-machine.md))
 
 `device_state_timeline` emits the **factored state** — power × interactivity × display ×
 keyguard × per-profile user state — with overlays `display_evidence`, `observation`,
 `clock_quality`, `gap_cause`, profile map. Downstream nodes consume the named **8-state
 screen-time projection**. The flat six-state alphabet is rejected (second audit; verified).
 `state_inference` paradigm knob: witness-based vs complement-based. Multi-stream witnesses
-(doc 10) plug into the same fusion when present; usage-events-only is the degenerate case.
+in the [multistream model](../../workflow/multistream-superset.md) plug into the same fusion
+when present; usage-events-only is the degenerate case.
 
 ## 6. Reconstruction strategies (first-class, versioned)
 
@@ -85,8 +93,9 @@ screen-time projection**. The flat six-state alphabet is rejected (second audit;
 `chronicle_lifecycle_matcher` (default; current engine semantics), `eyes_triplet_v1`,
 `parry_toth_forward_pair_2025`, `native_screen_end_reason_v1` (state timeline). Strategies
 are versioned algorithms with their own tunes — closer-vocabulary knobs cannot emulate
-them (doc 11 change #2). Prior-art presets = strategy + policy table + tunes, and may bear
-their names only after their conformance suite passes (doc 09).
+them (see change #2 in the [device-state model](../../workflow/device-state-machine.md)).
+Prior-art presets = strategy + policy table + tunes, and may bear their names only after
+their conformance suite passes (see the [sublation audit](../../workflow/sublation-audit.md)).
 
 ## 7. Policy tables, interval algebra, lineage
 

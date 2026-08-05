@@ -5,12 +5,12 @@
     {
       "query_id": "open-obligations",
       "view_id": "chronicle.obligation.v1",
-      "sparql": "SELECT ?obligation ?role ?node ?reason WHERE { GRAPH <urn:chronicle:derived:obligations> { ?obligation <urn:chronicle:predicate:role> ?role ; <urn:chronicle:predicate:node> ?node ; <urn:chronicle:predicate:state> <urn:chronicle:state:open> ; <urn:chronicle:predicate:reason> ?reason . } } ORDER BY ?node ?role"
+      "sparql": "SELECT ?obligation ?role ?queryGroup ?reason WHERE { GRAPH <urn:chronicle:derived:obligations> { ?obligation <urn:chronicle:predicate:role> ?role ; <urn:chronicle:predicate:queryGroup> ?queryGroup ; <urn:chronicle:predicate:state> <urn:chronicle:state:open> ; <urn:chronicle:predicate:reason> ?reason . } } ORDER BY ?queryGroup ?role"
     },
     {
       "query_id": "actual-executions",
-      "view_id": "chronicle.stage.v1",
-      "sparql": "SELECT ?execution ?node ?status ?started ?ended WHERE { GRAPH <urn:chronicle:derived:actual-execution> { ?execution a <http://www.w3.org/ns/prov#Activity> ; <urn:chronicle:predicate:node> ?node ; <urn:chronicle:predicate:status> ?status ; <http://www.w3.org/ns/prov#startedAtTime> ?started . OPTIONAL { ?execution <http://www.w3.org/ns/prov#endedAtTime> ?ended } } } ORDER BY ?started ?node"
+      "view_id": "chronicle.query-group.v1",
+      "sparql": "SELECT ?execution ?queryGroup ?status ?started ?ended WHERE { GRAPH <urn:chronicle:derived:actual-execution> { ?execution a <http://www.w3.org/ns/prov#Activity> ; <urn:chronicle:predicate:queryGroup> ?queryGroup ; <urn:chronicle:predicate:status> ?status ; <http://www.w3.org/ns/prov#startedAtTime> ?started . OPTIONAL { ?execution <http://www.w3.org/ns/prov#endedAtTime> ?ended } } } ORDER BY ?started ?queryGroup"
     },
     {
       "query_id": "role-assignments",

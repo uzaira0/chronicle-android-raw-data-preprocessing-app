@@ -1,5 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
 
+import {
+  LAST_RUN_DB_NAME,
+  LAST_RUN_DB_VERSION,
+  LAST_RUN_RECORD_ID,
+  LAST_RUN_STORE_NAME,
+} from "../src/lib/lastRunStore";
 import { APP_ONLY_RAW_CSV } from "./fixtures";
 import {
   gotoApp,
@@ -37,19 +43,19 @@ async function simulateQuota(page: Page, usage: number, quota: number): Promise<
 
 async function readLastRun(page: Page): Promise<unknown> {
   return page.evaluate(
-    () =>
+    ({ databaseName, databaseVersion, recordId, storeName }) =>
       new Promise((resolve) => {
-        const open = indexedDB.open("chronicle-last-run", 1);
+        const open = indexedDB.open(databaseName, databaseVersion);
         open.onupgradeneeded = () => {
-          if (!open.result.objectStoreNames.contains("lastRun")) {
-            open.result.createObjectStore("lastRun", { keyPath: "id" });
+          if (!open.result.objectStoreNames.contains(storeName)) {
+            open.result.createObjectStore(storeName, { keyPath: "id" });
           }
         };
         open.onerror = () => resolve(null);
         open.onsuccess = () => {
           try {
-            const tx = open.result.transaction("lastRun", "readonly");
-            const get = tx.objectStore("lastRun").get("last");
+            const tx = open.result.transaction(storeName, "readonly");
+            const get = tx.objectStore(storeName).get(recordId);
             get.onsuccess = () => resolve(get.result ?? null);
             get.onerror = () => resolve(null);
           } catch {
@@ -57,6 +63,12 @@ async function readLastRun(page: Page): Promise<unknown> {
           }
         };
       }),
+    {
+      databaseName: LAST_RUN_DB_NAME,
+      databaseVersion: LAST_RUN_DB_VERSION,
+      recordId: LAST_RUN_RECORD_ID,
+      storeName: LAST_RUN_STORE_NAME,
+    },
   );
 }
 
@@ -108,13 +120,14 @@ test("eviction of cached data leaves a usable app, not a blank page", async ({ p
 
   // Simulate the browser evicting this origin's IndexedDB under pressure.
   await page.evaluate(
-    () =>
+    (databaseName) =>
       new Promise<void>((resolve) => {
-        const del = indexedDB.deleteDatabase("chronicle-last-run");
+        const del = indexedDB.deleteDatabase(databaseName);
         del.onsuccess = () => resolve();
         del.onerror = () => resolve();
         del.onblocked = () => resolve();
       }),
+    LAST_RUN_DB_NAME,
   );
 
   await page.reload();

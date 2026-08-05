@@ -54,7 +54,7 @@ Most npm scripts wrap the real command in `node scripts/run-clean-env.mjs` to st
 ```bash
 make dependency-evidence   # regenerate implementation-bound dependency data (rebuilds the
                            # temporary evidence WASM, then the normal fail-closed package).
-                           # REQUIRED after any pipeline_v2*.rs / step_contract.rs change —
+                           # REQUIRED after any pipeline_v2*.rs / workflow_contract.rs change —
                            # tests fail if declared graph and observed Salsa reads drift.
 make combinatorial         # combinatorial option-influence campaigns
 make gate-truth            # execution-claim / evidence truth gate
@@ -79,17 +79,17 @@ npm run benchmark:runtime-wasm     # runtime microbenchmark
 `benchmark_runtime_wasm.mts` reuse identical bytes/SHA-256 — they prove duplicate-content
 reuse, never the cost of distinct files. Only `measure_unique_review_batch.mjs` over files
 from `generate_benchmark_fixture.mts` with different seeds is distinct-input evidence; it
-requires unique SHA-256s, cold-oracle matches, and exact 55-step statuses.
+requires unique SHA-256s, cold-oracle matches, and exact query-registry statuses.
 
 ## Architecture
 
 ### Rust (`rust/`)
 - `chronicle_app_usage_matcher` — **the single source of truth for session matching**. Core functions (`match_app_usage_core`, `split_overlapping_sessions` — an O(N log N) sweep-line) are binding-agnostic. A `python` feature (default on) gates PyO3 + numpy; the web crates depend on it with `default-features = false`, and `make rust` tests it feature-free.
-- `chronicle_chrono_kernel_wasm` — the 55-step processing library used by the
+- `chronicle_chrono_kernel_wasm` — the query-registry processing library used by the
   production runtime. It uses `chronicle_app_usage_matcher` directly and has
   no standalone browser entry point.
 - `chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs` — the physical
-  preprocessing engine: exactly 55 Salsa `0.28.1` tracked Rust product computations;
+  preprocessing engine: a registry-derived set of Salsa `0.28.1` tracked Rust product computations;
   internal derived caches are reported separately and are not product steps.
   Their actual reads control invalidation; Salsa execution events are the only
   source of physical cached/recomputed status. The complete sequential
@@ -104,14 +104,17 @@ requires unique SHA-256s, cold-oracle matches, and exact 55-step statuses.
   A replacement worker verifies the saved header, object digest, options,
   implementation, contract, schema, and row count before resuming at step 17
   or 29; any mismatch fails closed to the normal full Rust path.
-- Generated WASM packages under `web/src/wasm/*/pkg/` are ignored build
-  outputs. `npm run build` rebuilds them from the reviewed Rust sources and
-  therefore requires the Rust WASM toolchain.
+- WASM package files under `web/src/wasm/*/pkg/` are generated but
+  force-tracked deploy inputs. `npm run build:wasm` regenerates them from the
+  reviewed Rust sources; commit the resulting package changes whenever the
+  Rust or export boundary changes. The deploy workflow runs `npm run build:app`
+  and consumes these committed files without rebuilding Rust, while a full
+  local `npm run build` requires the Rust WASM toolchain.
 
 ### Web (`web/src/`)
 - `App.tsx` + `components/WorkflowNav.tsx` — tab UI: **settings → files → process → view**.
 - `lib/rustPipelineRuntime.ts` + `workers/chronicle-worker.ts` — the production
-  Comlink worker boundary. Rust/WASM owns parsing, qualification, all 55
+  Comlink worker boundary. Rust/WASM owns parsing, qualification, all registered
   transformations, incremental execution, evidence, and result artifacts.
 - `lib/opfsArtifactStore.ts` — thin browser persistence for Rust-owned
   content-addressed objects, complete root history, and alternating
@@ -192,7 +195,7 @@ credited-session cap — not an attention timeout — bounds the tail. See
 - App category in plots is **derived** by coalescing four per-source columns + normalizing UPPERCASE; the old `broad_app_category` input column is deprecated. The derived `include_category_column` output is opt-in and golden-checked.
 - `main` is protected (`enforce_admins`). Land via PR (squash).
 - **Merging does NOT deploy.** `web-pwa-deploy.yml` is `workflow_dispatch` only — publishing to the live GitHub Pages app is an explicit decision, never a side effect of landing a PR. Review builds are local: `npm run host:local` serves the production build on `127.0.0.1:4173`. Do not add a `push` trigger, and do not run the deploy workflow without being asked to. The deploy also runs **no** tests, so `make all` locally is the real gate.
-- **Development deployment goes to preview only** (`uzaira0/chronicle-web-preview` `gh-pages`), never production Pages. The old `codex/chronicle-55-step-authority` lane landed via #81 and its branch is deleted; the consumer-coupling constraint above (production checkout pinned to `last-python-engine`) is what remains of that warning.
+- **Development deployment goes to preview only** (`uzaira0/chronicle-web-preview` `gh-pages`), never production Pages. The old `codex/chronicle-query-registry-authority` lane landed via #81 and its branch is deleted; the consumer-coupling constraint above (production checkout pinned to `last-python-engine`) is what remains of that warning.
 - GitHub Pages does not provide cross-origin isolation, so shared-memory WASM threads are unavailable. File-level parallelism (independent files across workers) is the browser concurrency model.
 
 ## Conventions (from user's global rules)

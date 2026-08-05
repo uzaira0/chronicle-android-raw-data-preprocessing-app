@@ -262,7 +262,7 @@ const CO_USAGE_HEADERS: &[&str] = &[
 ];
 
 /// The exact `summary_csv` header row. `summary_csv` writes this and the
-/// field-level step contract binds output cells against it, so the emitted
+/// field-level workflow contract binds output cells against it, so the emitted
 /// columns and the declared columns cannot drift apart.
 fn summary_headers(period_column: &'static str, weekly: bool, shape: &str) -> Vec<&'static str> {
     if shape == "long" {
@@ -289,7 +289,7 @@ fn summary_headers(period_column: &'static str, weekly: bool, shape: &str) -> Ve
 }
 
 /// Every column each aggregate CSV can carry, for the exact `aggregate_shape`.
-/// `output_cell_bindings` in `step_contract.rs` is checked against this list.
+/// `output_cell_bindings` in `workflow_contract.rs` is checked against this list.
 pub fn declared_aggregate_output_columns(kind: &str, shape: &str) -> Vec<&'static str> {
     match kind {
         "aggregate-daily-summary-csv" => summary_headers("date", false, shape),
@@ -441,10 +441,7 @@ fn top_apps_csv(app_rows: &[Row], study_name: &str) -> (Vec<u8>, u32) {
         }
     }
     let count = records.len() as u32;
-    (
-        to_csv(TOP_APPS_HEADERS, records),
-        count,
-    )
+    (to_csv(TOP_APPS_HEADERS, records), count)
 }
 
 fn category_csv(app_rows: &[Row], study_name: &str) -> (Vec<u8>, u32) {
@@ -495,10 +492,7 @@ fn category_csv(app_rows: &[Row], study_name: &str) -> (Vec<u8>, u32) {
         })
         .collect();
     let count = records.len() as u32;
-    (
-        to_csv(CATEGORY_HEADERS, records),
-        count,
-    )
+    (to_csv(CATEGORY_HEADERS, records), count)
 }
 
 fn co_usage_csv(app_rows: &[Row], study_name: &str) -> (Vec<u8>, u32) {
@@ -556,10 +550,7 @@ fn co_usage_csv(app_rows: &[Row], study_name: &str) -> (Vec<u8>, u32) {
         }
     }
     let count = records.len() as u32;
-    (
-        to_csv(CO_USAGE_HEADERS, records),
-        count,
-    )
+    (to_csv(CO_USAGE_HEADERS, records), count)
 }
 
 pub(super) fn build_aggregate_outputs(

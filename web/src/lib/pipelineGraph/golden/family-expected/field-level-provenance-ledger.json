@@ -1,6 +1,6 @@
 {
   "protocolVersion": "chronicle-field-level-provenance/v1",
-  "stepContractProtocol": "chronicle-preprocessing-step-contract/v3",
+  "workflowContractProtocol": "chronicle-workflow-contract/v1",
   "correspondenceProtocol": "chronicle-output-cell-correspondence/v2",
   "preprocessorVersion": "1.0.0",
   "claimBoundary": "Declared per-step field-level read/write edges reconciled against the recorded per-column artifact and raw-boundary changed-cell evidence. Direction 1 is a hard gate: every changed output cell of every recorded case is reachable from that case's intervened source columns through the declared edges. Direction 2 is enumerated, not asserted: a declared reach no recorded intervention exercised is listed as structurally declared but unwitnessed, and is not a claim that the edge is real. Reachability is a may-influence over-approximation; it never asserts that a declared edge must change a cell.",
@@ -13,8 +13,8 @@
     "changedCellAddresses": 853947
   },
   "counts": {
-    "declaredFields": 130,
-    "declaredFieldEdges": 197,
+    "declaredFields": 131,
+    "declaredFieldEdges": 198,
     "outputCellBindings": 263,
     "sourceColumns": 59,
     "columnsWithoutAnyIntervention": 37

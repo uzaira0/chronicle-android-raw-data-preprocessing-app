@@ -222,8 +222,7 @@ fn collect_items(items: &[Item], source: &str, index: &mut Index) {
                 match &item.fields {
                     Fields::Named(named) => {
                         for field in &named.named {
-                            let rust_name =
-                                field.ident.as_ref().expect("named field").to_string();
+                            let rust_name = field.ident.as_ref().expect("named field").to_string();
                             match field_serde(&field.attrs) {
                                 Ok((_, _, true)) => continue,
                                 Ok((rename, optional, false)) => fields.push(FieldSource {
@@ -233,8 +232,7 @@ fn collect_items(items: &[Item], source: &str, index: &mut Index) {
                                     ty: field.ty.clone(),
                                 }),
                                 Err(error) => {
-                                    unsupported =
-                                        Some(format!("field `{rust_name}`: {error}"));
+                                    unsupported = Some(format!("field `{rust_name}`: {error}"));
                                 }
                             }
                         }
@@ -274,8 +272,7 @@ fn collect_items(items: &[Item], source: &str, index: &mut Index) {
                 for variant in &item.variants {
                     if !matches!(variant.fields, Fields::Unit) {
                         unsupported = Some(
-                            "data-carrying enum variants are not part of the boundary model"
-                                .into(),
+                            "data-carrying enum variants are not part of the boundary model".into(),
                         );
                         break;
                     }
@@ -421,7 +418,9 @@ fn value_model(ty: &Type, index: &Index, reachable: &mut Vec<String>, context: &
                 .map(|(_, domain)| *domain)
             {
                 if !index.aliases.contains_key(&name) {
-                    panic!("{context}: alias `{name}` has a declared domain but no Rust definition");
+                    panic!(
+                        "{context}: alias `{name}` has a declared domain but no Rust definition"
+                    );
                 }
                 return json!({ "kind": domain });
             }

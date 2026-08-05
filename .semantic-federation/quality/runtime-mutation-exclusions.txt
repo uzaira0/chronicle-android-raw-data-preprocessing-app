@@ -49,12 +49,12 @@
 # class as the kernel's QueryTimer entries.
 # `EnvelopeTimer::start` is the one expression here that cannot be
 # symbol-anchored. The `cfg(not(query-timing))` no-op at line 90 is compiled
-# and caught, and its mutant name is character-for-character the one at line 61
+# and caught, and its mutant name is character-for-character the one at line 63
 # — same column, same description, same function path — so nothing but the line
 # separates them. It stays line-anchored deliberately; if that line moves the
 # gate now fails on a zero-match expression instead of silently returning the
 # mutant to the campaign. `finish` and `drop` have no `cfg(not(...))` twin.
-src/lib\.rs:61:9: replace EnvelopeTimer::start -> Self with Default::default\(\)
+src/lib\.rs:63:9: replace EnvelopeTimer::start -> Self with Default::default\(\)
 :9: replace EnvelopeTimer::finish with \(\)$
 :9: replace <impl Drop for EnvelopeTimer>::drop with \(\)$
 
@@ -86,16 +86,6 @@ src/lib\.rs:61:9: replace EnvelopeTimer::start -> Self with Default::default\(\)
 # yield index selectors rather than panic; the product never emits one, so
 # deleting the arm cannot change a scope the runtime computes.
 :17: delete match arm serde_json::Value::Array\(values\) in source_scopes$
-
-# --- State cache at a default capacity of one --------------------------------
-# `if !self.states.contains_key(id) && self.states.len() >= self.max_states`
-# decides whether to evict before admitting. DEFAULT_MAX_INCREMENTAL_RUNTIME_STATES
-# is 1, and state_for removes the requested id from the LRU list before this
-# check, so on a revisit the list is empty and pop_front() evicts nothing
-# whichever way the check reads. incremental_workspace_cache_is_bounded pins the
-# default capacity at 1 so raising it breaks that test rather than silently
-# invalidating this entry.
-:13: replace && with \|\| in IncrementalRuntimeStateCache::state_for$
 
 # --- Not an equivalence: a bound the suite cannot cross --------------------
 # `dependency_cache_decision.mode == CertifiedNarrow &&

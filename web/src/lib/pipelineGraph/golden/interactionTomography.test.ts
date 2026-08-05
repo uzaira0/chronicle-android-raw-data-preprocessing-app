@@ -22,6 +22,7 @@ import {
   SYNTHETIC_CORPUS_PROFILES,
 } from "@/testSupport/syntheticChronicleCorpus";
 import * as runtime from "@/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm.js";
+import type { RustWorkflowContract } from "@/testSupport/workflowContract";
 
 const EXPECTED_FILE = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -57,8 +58,8 @@ if (SHARD_COUNT > 1 && !SHARD_OUTPUT) {
 const encoder = new TextEncoder();
 
 type TypedCheckpoint = {
-  protocolVersion: "chronicle-logical-stage-checkpoint/v7";
-  nodeId: string;
+  protocolVersion: "chronicle-workflow-checkpoint/v1";
+  subjectId: string;
   rowMembershipDigest: string;
   rowOrderDigest: string;
   temporalStateDigest: string;
@@ -79,38 +80,27 @@ type RuntimeManifest = {
   workspaceRootDigest: string;
   openObligations: unknown[];
   processingSummary: {
-    logicalStageDigests: Record<string, string>;
-    logicalStageCheckpoints: Record<string, TypedCheckpoint>;
-    pipelineStepDigests: Record<string, string>;
-    pipelineStepCheckpoints: Record<string, TypedCheckpoint>;
+    workflowQueryGroupDigests: Record<string, string>;
+    workflowQueryGroupCheckpoints: Record<string, TypedCheckpoint>;
+    workflowQueryDigests: Record<string, string>;
+    workflowQueryCheckpoints: Record<string, TypedCheckpoint>;
     publishedOutputsDigest: string;
     provenanceDigest: string;
   };
-  nodeExecutions: Array<{
-    node_id: string;
+  queryGroupExecutions: Array<{
+    query_group_id: string;
     input_key: string;
     output: { digest: string } | null;
     status: "cached" | "recomputed" | "error" | "skipped" | "bypassed";
   }>;
-  stepExecutions: Array<{
-    step_id: string;
-    unit_id: string;
+  queryExecutions: Array<{
+    query_id: string;
+    query_group_id: string;
     input_key: string;
     output_digest: string;
     status: "cached" | "recomputed" | "error" | "skipped" | "bypassed";
   }>;
   artifacts: Array<{ kind: string; digest: string; size: number }>;
-};
-
-type RustStepContract = {
-  protocolVersion: "chronicle-preprocessing-step-contract/v3";
-  steps: Array<{
-    id: string;
-    group: string;
-    inputs: string[];
-    requestFields: string[];
-    sourceRoles: string[];
-  }>;
 };
 
 const plan = JSON.parse(readFileSync(PLAN_FILE, "utf8")) as {
@@ -229,14 +219,14 @@ function checkpointComponentSet(
   source: RuntimeManifest,
   target: RuntimeManifest,
 ): string[] {
-  return Object.keys(source.processingSummary.logicalStageCheckpoints)
+  return Object.keys(source.processingSummary.workflowQueryGroupCheckpoints)
     .sort()
     .flatMap((nodeId) =>
       changedFields(
-        source.processingSummary.logicalStageCheckpoints[
+        source.processingSummary.workflowQueryGroupCheckpoints[
           nodeId
         ] as unknown as Record<string, unknown>,
-        target.processingSummary.logicalStageCheckpoints[
+        target.processingSummary.workflowQueryGroupCheckpoints[
           nodeId
         ] as unknown as Record<string, unknown>,
       )
@@ -249,52 +239,52 @@ function nodeOutputDigests(
   manifest: RuntimeManifest,
 ): Record<string, string | null> {
   return Object.fromEntries(
-    manifest.nodeExecutions.map(({ node_id, output }) => [
-      node_id,
+    manifest.queryGroupExecutions.map(({ query_group_id, output }) => [
+      query_group_id,
       output?.digest ?? null,
     ]),
   );
 }
 
-function stepStatuses(manifest: RuntimeManifest): Record<string, string> {
+function queryStatuses(manifest: RuntimeManifest): Record<string, string> {
   return Object.fromEntries(
-    manifest.stepExecutions.map(({ step_id, status }) => [step_id, status]),
+    manifest.queryExecutions.map(({ query_id, status }) => [query_id, status]),
   );
 }
 
-function executedStepIds(manifest: RuntimeManifest): string[] {
-  return manifest.stepExecutions
+function executedQueryIds(manifest: RuntimeManifest): string[] {
+  return manifest.queryExecutions
     .filter(({ status }) => status === "recomputed")
-    .map(({ step_id }) => step_id)
+    .map(({ query_id }) => query_id)
     .sort();
 }
 
 function stepOutputDigests(manifest: RuntimeManifest): Record<string, string> {
   return Object.fromEntries(
-    manifest.stepExecutions.map(({ step_id, output_digest }) => [
-      step_id,
+    manifest.queryExecutions.map(({ query_id, output_digest }) => [
+      query_id,
       output_digest,
     ]),
   );
 }
 
-function stepCheckpointComponentChanges(
+function queryCheckpointComponentChanges(
   source: RuntimeManifest,
   target: RuntimeManifest,
 ): Record<string, string[]> {
   return Object.fromEntries(
-    Object.keys(source.processingSummary.pipelineStepCheckpoints)
+    Object.keys(source.processingSummary.workflowQueryCheckpoints)
       .sort()
       .map(
-        (stepId) =>
+        (queryId) =>
           [
-            stepId,
+            queryId,
             changedFields(
-              source.processingSummary.pipelineStepCheckpoints[
-                stepId
+              source.processingSummary.workflowQueryCheckpoints[
+                queryId
               ] as unknown as Record<string, unknown>,
-              target.processingSummary.pipelineStepCheckpoints[
-                stepId
+              target.processingSummary.workflowQueryCheckpoints[
+                queryId
               ] as unknown as Record<string, unknown>,
             ).filter((component) => component !== "terminalDigest"),
           ] as const,
@@ -303,44 +293,44 @@ function stepCheckpointComponentChanges(
   );
 }
 
-function assertCompleteStepManifest(
+function assertCompleteQueryManifest(
   manifest: RuntimeManifest,
-  stepIds: string[],
+  queryIds: string[],
   caseId: string,
 ): void {
   expect(
-    manifest.stepExecutions,
-    `${caseId}: Rust step execution coverage`,
-  ).toHaveLength(55);
-  expect(manifest.stepExecutions.map(({ step_id }) => step_id).sort()).toEqual(
-    stepIds,
+    manifest.queryExecutions,
+    `${caseId}: Rust query execution coverage`,
+  ).toHaveLength(queryIds.length);
+  expect(manifest.queryExecutions.map(({ query_id }) => query_id).sort()).toEqual(
+    queryIds,
   );
   expect(
-    Object.keys(manifest.processingSummary.pipelineStepDigests).sort(),
-  ).toEqual(stepIds);
+    Object.keys(manifest.processingSummary.workflowQueryDigests).sort(),
+  ).toEqual(queryIds);
   expect(
-    Object.keys(manifest.processingSummary.pipelineStepCheckpoints).sort(),
-  ).toEqual(stepIds);
+    Object.keys(manifest.processingSummary.workflowQueryCheckpoints).sort(),
+  ).toEqual(queryIds);
   expect(
-    manifest.stepExecutions.every(
-      ({ step_id, output_digest, status }) =>
+    manifest.queryExecutions.every(
+      ({ query_id, output_digest, status }) =>
         status !== "error" &&
         status !== "skipped" &&
         output_digest ===
-          manifest.processingSummary.pipelineStepDigests[step_id],
+          manifest.processingSummary.workflowQueryDigests[query_id],
     ),
-    `${caseId}: failed or inconsistent Rust step execution`,
+    `${caseId}: failed or inconsistent Rust query execution`,
   ).toBe(true);
   expect(
-    Object.entries(manifest.processingSummary.pipelineStepCheckpoints).every(
-      ([stepId, checkpoint]) =>
+    Object.entries(manifest.processingSummary.workflowQueryCheckpoints).every(
+      ([queryId, checkpoint]) =>
         checkpoint.protocolVersion ===
-          "chronicle-logical-stage-checkpoint/v7" &&
-        checkpoint.nodeId === stepId &&
+          "chronicle-workflow-checkpoint/v1" &&
+        checkpoint.subjectId === queryId &&
         checkpoint.terminalDigest ===
-          manifest.processingSummary.pipelineStepDigests[stepId],
+          manifest.processingSummary.workflowQueryDigests[queryId],
     ),
-    `${caseId}: invalid Rust step checkpoint`,
+    `${caseId}: invalid Rust query checkpoint`,
   ).toBe(true);
 }
 
@@ -389,18 +379,18 @@ describe("two-factor interaction tomography", () => {
   it("exhausts all computational-axis pairs and proves every warm two-factor cone", async () => {
     const keys = [...COMPUTATIONAL_BROWSER_OPTION_KEYS];
     expect(keys).toHaveLength(46);
-    const stepContract = JSON.parse(
-      runtime.pipeline_step_contract_json(),
-    ) as RustStepContract;
-    expect(stepContract.protocolVersion).toBe(
-      "chronicle-preprocessing-step-contract/v3",
+    const workflowContract = JSON.parse(
+      runtime.workflow_contract_json(),
+    ) as RustWorkflowContract;
+    expect(workflowContract.protocolVersion).toBe(
+      "chronicle-workflow-contract/v1",
     );
-    expect(stepContract.steps).toHaveLength(55);
-    const stepIds = stepContract.steps.map(({ id }) => id).sort();
+    expect(workflowContract.execution.queries).toHaveLength(workflowContract.execution.queries.length);
+    const queryIds = workflowContract.execution.queries.map(({ id }) => id).sort();
     const base = ALL_ON;
     const alternates = new Map(keys.map((key) => [key, alternatesFor(key)]));
     const coldBase = await execute(base, "cold-base", "cold-base", null);
-    assertCompleteStepManifest(coldBase, stepIds, "cold-base");
+    assertCompleteQueryManifest(coldBase, queryIds, "cold-base");
     const coldSingles = new Map<string, RuntimeManifest>();
     const invalidSingles: Array<Record<string, unknown>> = [];
     for (const key of keys) {
@@ -419,7 +409,7 @@ describe("two-factor interaction tomography", () => {
           id,
           await execute(options, `cold-single-${id}`, "run", null),
         );
-        assertCompleteStepManifest(coldSingles.get(id)!, stepIds, id);
+        assertCompleteQueryManifest(coldSingles.get(id)!, queryIds, id);
       }
     }
 
@@ -490,7 +480,7 @@ describe("two-factor interaction tomography", () => {
               expect(receipt(manifest), `${pairId}: authority drift`).toEqual(
                 implementationReceipt,
               );
-              assertCompleteStepManifest(manifest, stepIds, pairId);
+              assertCompleteQueryManifest(manifest, queryIds, pairId);
             }
             expect(
               warmPair.processingSummary,
@@ -501,12 +491,12 @@ describe("two-factor interaction tomography", () => {
               `${pairId}: stale logical output`,
             ).toEqual(nodeOutputDigests(coldPair));
             expect(
-              warmPair.processingSummary.pipelineStepDigests,
-              `${pairId}: stale Rust step checkpoint`,
-            ).toEqual(coldPair.processingSummary.pipelineStepDigests);
+              warmPair.processingSummary.workflowQueryDigests,
+              `${pairId}: stale Rust query checkpoint`,
+            ).toEqual(coldPair.processingSummary.workflowQueryDigests);
             expect(
               stepOutputDigests(warmPair),
-              `${pairId}: stale Rust step output`,
+              `${pairId}: stale Rust query output`,
             ).toEqual(stepOutputDigests(coldPair));
             expect(
               outputArtifacts(warmPair),
@@ -519,21 +509,21 @@ describe("two-factor interaction tomography", () => {
               buildRustV2Options(pairOptions, GOLDEN_RUNTIME),
             );
             const changedSemanticNodes = changedFields(
-              coldBase.processingSummary.logicalStageDigests,
-              coldPair.processingSummary.logicalStageDigests,
+              coldBase.processingSummary.workflowQueryGroupDigests,
+              coldPair.processingSummary.workflowQueryGroupDigests,
             );
-            const changedPipelineSteps = changedFields(
-              coldBase.processingSummary.pipelineStepDigests,
-              coldPair.processingSummary.pipelineStepDigests,
+            const changedQueries = changedFields(
+              coldBase.processingSummary.workflowQueryDigests,
+              coldPair.processingSummary.workflowQueryDigests,
             );
-            const sourceStepStatuses = stepStatuses(coldBase);
-            const targetStepStatuses = stepStatuses(coldPair);
-            const predictedExecutedSteps = stepContract.steps
+            const sourceQueryStatuses = queryStatuses(coldBase);
+            const targetQueryStatuses = queryStatuses(coldPair);
+            const predictedExecutedQueries = workflowContract.execution.queries
               .filter((step) => {
                 const sourceApplicable =
-                  sourceStepStatuses[step.id] !== "bypassed";
+                  sourceQueryStatuses[step.id] !== "bypassed";
                 const targetApplicable =
-                  targetStepStatuses[step.id] !== "bypassed";
+                  targetQueryStatuses[step.id] !== "bypassed";
                 return (
                   targetApplicable &&
                   (!sourceApplicable ||
@@ -541,29 +531,29 @@ describe("two-factor interaction tomography", () => {
                       changedRustKeys.includes(field),
                     ) ||
                     step.inputs.some((input) =>
-                      changedPipelineSteps.includes(input),
+                      changedQueries.includes(input),
                     ))
                 );
               })
               .map(({ id }) => id)
               .sort();
-            const actualExecutedSteps = executedStepIds(warmPair);
+            const actualExecutedQueries = executedQueryIds(warmPair);
             expect(
-              actualExecutedSteps,
+              actualExecutedQueries,
               `${pairId}: predicted inputs and actual Salsa query bodies disagree`,
-            ).toEqual(predictedExecutedSteps);
-            const deactivatedSteps = stepContract.steps
+            ).toEqual(predictedExecutedQueries);
+            const deactivatedQueries = workflowContract.execution.queries
               .filter(
                 ({ id }) =>
-                  sourceStepStatuses[id] !== "bypassed" &&
-                  targetStepStatuses[id] === "bypassed",
+                  sourceQueryStatuses[id] !== "bypassed" &&
+                  targetQueryStatuses[id] === "bypassed",
               )
               .map(({ id }) => id)
               .sort();
-            const warmStatuses = stepStatuses(warmPair);
-            for (const stepId of deactivatedSteps) {
+            const warmStatuses = queryStatuses(warmPair);
+            for (const queryId of deactivatedQueries) {
               expect(
-                warmStatuses[stepId],
+                warmStatuses[queryId],
                 `${pairId}: deactivated query must not execute`,
               ).toBe("bypassed");
             }
@@ -573,14 +563,14 @@ describe("two-factor interaction tomography", () => {
               coldBase,
               coldPair,
             );
-            const observedStepComponents = stepCheckpointComponentChanges(
+            const observedQueryComponents = queryCheckpointComponentChanges(
               coldBase,
               coldPair,
             );
             expect(
-              Object.keys(observedStepComponents).sort(),
-              `${pairId}: Rust step component/terminal drift`,
-            ).toEqual(changedPipelineSteps);
+              Object.keys(observedQueryComponents).sort(),
+              `${pairId}: Rust query component/terminal drift`,
+            ).toEqual(changedQueries);
             const leftSingle = coldSingles.get(leftId);
             const rightSingle = coldSingles.get(rightId);
             const isolatedEffectsAvailable =
@@ -616,12 +606,12 @@ describe("two-factor interaction tomography", () => {
                 : "qualification-enabled",
               changedRustKeys,
               changedSemanticNodes,
-              changedPipelineSteps,
-              predictedExecutedSteps,
-              actualExecutedSteps,
-              deactivatedSteps,
+              changedQueries,
+              predictedExecutedQueries,
+              actualExecutedQueries,
+              deactivatedQueries,
               observedComponents,
-              observedStepComponents,
+              observedQueryComponents,
               introducedComponents,
               maskedComponents,
               changedOutputArtifactKinds: changedFields(
@@ -667,7 +657,7 @@ describe("two-factor interaction tomography", () => {
     const evidence = {
       protocolVersion: "chronicle-interaction-influence-ledger/v1",
       claimBoundary:
-        "Exhaustive two-factor structural interaction and exact 55-step plus 15-display-group warm/cold execution proof across every valid pair of non-baseline declared equivalence-class values for all 46 computational browser axes, on the deterministic configuration-influence-probes corpus. Invalid selected-timezone combinations are enumerated with their qualification reason. This does not claim numeric statistical additivity or exhaust interactions of arity three and above. Step recomputation is taken from actual Salsa query bodies plus explicitly instrumented product-step evaluations inside review-only fused queries. The separate sequential Rust path remains the independent cold oracle.",
+        "Exhaustive two-factor structural interaction and exact complete query-registry plus complete query-group warm/cold execution proof across every valid pair of non-baseline declared equivalence-class values for all 46 computational browser axes, on the deterministic configuration-influence-probes corpus. Invalid selected-timezone combinations are enumerated with their qualification reason. This does not claim numeric statistical additivity or exhaust interactions of arity three and above. Query recomputation is taken from actual Salsa query bodies plus explicitly instrumented product-query evaluations inside review-only fused queries. The separate sequential Rust path remains the independent cold oracle.",
       plan: { id: plan.plan_id, revision: plan.revision },
       implementationReceipt,
       fixture: {
@@ -691,11 +681,11 @@ describe("two-factor interaction tomography", () => {
         incrementalExecutions: pairCount * 2,
         totalRustExecutions: 1 + coldSingles.size + pairCount * 3,
         warmColdComparisons,
-        warmColdStepCheckpointComparisons: warmColdComparisons * 55,
+        warmColdQueryCheckpointComparisons: warmColdComparisons * workflowContract.execution.queries.length,
         exactClusterComparisons,
-        exactStepClusterComparisons: exactClusterComparisons,
-        logicalStageCount: order.length,
-        pipelineStepCount: stepContract.steps.length,
+        exactQueryClusterComparisons: exactClusterComparisons,
+        workflowQueryGroupCount: order.length,
+        workflowQueryCount: workflowContract.execution.queries.length,
         nonAdditivePairs: nonAdditivePairs.length,
         qualificationEnabledPairs: qualificationEnabledPairs.length,
       },

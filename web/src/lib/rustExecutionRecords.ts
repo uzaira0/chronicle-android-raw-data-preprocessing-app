@@ -16,15 +16,15 @@ type RustExpectationResult = {
   severity: "warn";
 };
 
-type RustStepTiming = {
+type RustQueryTiming = {
   startedAt: string;
   endedAt: string;
   durationMs: number;
 };
 
-type RustStepExecutionRecord = {
-  stepId: string;
-  unit: string;
+type RustQueryExecutionRecord = {
+  queryId: string;
+  queryGroupId: string;
   status: RustExecutionStatus;
   inputKey: string | null;
   outputDigest: string | null;
@@ -34,17 +34,17 @@ type RustStepExecutionRecord = {
   rowsOut: number | null;
   droppedRows: number | null;
   expectations: RustExpectationResult[];
-  timing: RustStepTiming;
+  timing: RustQueryTiming;
 };
 
-type RustUnitExecutionRecord = {
-  unit: string;
+type RustQueryGroupExecutionRecord = {
+  queryGroupId: string;
   status: RustExecutionStatus;
   rowsIn: number | null;
   rowsOut: number | null;
   expectations: RustExpectationResult[];
-  steps: RustStepExecutionRecord[];
-  timing: RustStepTiming;
+  queries: RustQueryExecutionRecord[];
+  timing: RustQueryTiming;
 };
 
-export type RustExecutionLedger = RustUnitExecutionRecord[];
+export type RustExecutionLedger = RustQueryGroupExecutionRecord[];

@@ -139,7 +139,9 @@ impl VisitMut for StripTestOnly {
 
     fn visit_block_mut(&mut self, block: &mut syn::Block) {
         visit_mut::visit_block_mut(self, block);
-        block.stmts.retain(|statement| !is_test_only_statement(statement));
+        block
+            .stmts
+            .retain(|statement| !is_test_only_statement(statement));
     }
 }
 
@@ -218,6 +220,17 @@ fn main() {
     }
     files.sort();
     files.dedup();
+    // The workflow contract contains semantic/execution identity plus
+    // presentation copy. Those layers have their own digests and are watched
+    // above, but must not contaminate the implementation-source digest: a
+    // label-only edit cannot invalidate every physical cache entry.
+    let workflow_contract_file =
+        Path::new("rust/chronicle_chrono_kernel_wasm/src/workflow_contract.rs");
+    let workflow_contract_modules =
+        Path::new("rust/chronicle_chrono_kernel_wasm/src/workflow_contract");
+    files.retain(|relative| {
+        relative != workflow_contract_file && !relative.starts_with(workflow_contract_modules)
+    });
 
     let mut implementation_hasher = Sha256::new();
     digest_field(

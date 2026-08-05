@@ -51,7 +51,9 @@ impl Samples {
     }
 
     fn median_ms(&self) -> f64 {
-        self.values.get(self.values.len() / 2).map_or(0.0, duration_ms)
+        self.values
+            .get(self.values.len() / 2)
+            .map_or(0.0, duration_ms)
     }
 
     fn maximum_ms(&self) -> f64 {

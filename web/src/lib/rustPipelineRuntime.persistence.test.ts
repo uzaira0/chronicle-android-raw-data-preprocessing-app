@@ -29,7 +29,7 @@ import {
   discoverRustTimezones,
   exportPersistedRustWorkspace,
   garbageCollectPersistedRustWorkspace,
-  getRustPlanStageView,
+  getRustWorkflowExplorerView,
   getRustRuntimeVersion,
   initializeRustRuntime,
   importPersistedRustWorkspace,
@@ -63,6 +63,15 @@ const planDigest = `sha256:${"d".repeat(64)}`;
 const profileDigest = `sha256:${"c".repeat(64)}`;
 const profileLockDigest = `sha256:${"b".repeat(64)}`;
 const runtimeAuthorityDigest = `sha256:${"a".repeat(64)}`;
+const workflowModelVersion = "workflow-v1";
+const workflowContractDigests = {
+  semantic: `sha256:${"01".repeat(32)}`,
+  presentation: `sha256:${"23".repeat(32)}`,
+  execution: `sha256:${"45".repeat(32)}`,
+  checkpointPolicy: `sha256:${"67".repeat(32)}`,
+  evidence: `sha256:${"89".repeat(32)}`,
+  workspaceCompatibility: `sha256:${"ab".repeat(32)}`,
+};
 const viewDigests = ["a", "b", "c", "d"].map(
   (marker) => `sha256:${marker.repeat(64)}`,
 );
@@ -224,6 +233,9 @@ const slot: WorkspaceRootSlot = {
 
 const validCommit = {
   protocolVersion: "chronicle-preprocessing-runtime/v1",
+  workflowModelVersion,
+  workflowCompatibilityDigest:
+    workflowContractDigests.workspaceCompatibility,
   command: "ExecuteWorkspace",
   implementationDigest,
   buildEnvironmentDigest,
@@ -248,7 +260,7 @@ const validCommit = {
   executionStateDigest,
   requiredViews: (
     [
-      ["stage-view-json", "chronicle.stage.v1", "urn:chronicle:view:stage:v1"],
+      ["workflow-explorer-view-json", "chronicle-workflow-explorer/v1", "urn:chronicle:view:workflow-explorer:v1"],
       [
         "artifact-view-json",
         "chronicle.artifact.v1",
@@ -276,15 +288,32 @@ const validCommit = {
   dependencyCertificateDigest,
   dependencyCacheMode: "certified_narrow",
 };
-const viewValues = validCommit.requiredViews.map((binding) => ({
-  protocol_version: "0.1",
-  view_id: binding.viewId,
-  family: "incremental-dataflow",
-  schema_id: binding.schemaId,
-  revision: 1,
-  root_digest: executionStateDigest,
-  payload: {},
-}));
+const viewValues = validCommit.requiredViews.map((binding) =>
+  binding.viewId === "chronicle-workflow-explorer/v1"
+    ? {
+        protocolVersion: "chronicle-workflow-explorer/v1",
+        viewId: binding.viewId,
+        schemaId: binding.schemaId,
+        revision: 1,
+        rootDigest: executionStateDigest,
+        selectedRunRoot: executionStateDigest,
+        contractDigests: workflowContractDigests,
+        phases: [],
+        operations: [],
+        artifacts: [],
+        queries: [],
+        decisions: [],
+      }
+    : {
+        protocol_version: "0.1",
+        view_id: binding.viewId,
+        family: "incremental-dataflow",
+        schema_id: binding.schemaId,
+        revision: 1,
+        root_digest: executionStateDigest,
+        payload: {},
+      },
+);
 const executionState = {
   protocolVersion: "chronicle-execution-state/v1",
   implementationDigest,
@@ -381,22 +410,30 @@ const kernel = {
       dependencyCertificateDigest,
     }),
   ),
-  pipeline_step_contract_json: vi.fn(() =>
+  workflow_contract_json: vi.fn(() =>
     JSON.stringify({
-      protocolVersion: "chronicle-preprocessing-step-contract/v3",
-      groups: [],
-      steps: [],
+      protocolVersion: "chronicle-workflow-contract/v1",
+      workflowModelVersion,
+      semantic: { operations: [], artifacts: [] },
+      presentation: { phases: [] },
+      execution: { queryGroups: [], queries: [] },
+      digests: workflowContractDigests,
     }),
   ),
-  plan_stage_view_json: vi.fn(() =>
+  plan_workflow_explorer_view_json: vi.fn(() =>
     JSON.stringify({
-      protocol_version: "0.1",
-      view_id: "chronicle.stage.v1",
-      family: "incremental-dataflow",
-      schema_id: "urn:chronicle:view:stage:v1",
+      protocolVersion: "chronicle-workflow-explorer/v1",
+      viewId: "chronicle-workflow-explorer/v1",
+      schemaId: "urn:chronicle:view:workflow-explorer:v1",
       revision: 0,
-      root_digest: rootDigest,
-      payload: { stage: null, node_states: [], step_states: [] },
+      rootDigest,
+      selectedRunRoot: null,
+      contractDigests: workflowContractDigests,
+      phases: [],
+      operations: [],
+      artifacts: [],
+      queries: [],
+      decisions: [],
     }),
   ),
   review_base_probe_spec_json: vi.fn(() =>
@@ -945,7 +982,7 @@ describe("persisted Rust workspace boundary", () => {
       garbageCollectPersistedRustWorkspace(workspaceId),
     ).resolves.toBe(4);
     expect(workspaceLockRequest).toHaveBeenCalledWith(
-      `chronicle-preprocessing:${workspaceId}`,
+      `chronicle-workflow-v1:${workspaceId}`,
       { mode: "exclusive" },
       expect.any(Function),
     );
@@ -974,7 +1011,7 @@ describe("persisted Rust workspace boundary", () => {
     expect(opfs.recoverRuntimeWorkspaceHead).not.toHaveBeenCalled();
     expect(opfs.recoverRuntimeWorkspace).not.toHaveBeenCalled();
     expect(workspaceLockRequest).toHaveBeenLastCalledWith(
-      `chronicle-preprocessing:${workspaceId}`,
+      `chronicle-workflow-v1:${workspaceId}`,
       { mode: "shared" },
       expect.any(Function),
     );
@@ -1040,6 +1077,20 @@ describe("persisted Rust workspace boundary", () => {
     );
   });
 
+  it("rejects a loaded workflow contract with an empty digest set", async () => {
+    kernel.workflow_contract_json.mockReturnValueOnce(
+      JSON.stringify({
+        protocolVersion: "chronicle-workflow-contract/v1",
+        workflowModelVersion,
+        digests: {},
+      }),
+    );
+
+    await expect(verifyPersistedRustWorkspace(workspaceId)).rejects.toThrow(
+      /workflowContract\.digests\.semantic/,
+    );
+  });
+
   it("returns no recovered root and fails closed when an operation requires one", async () => {
     opfs.recoverRuntimeWorkspace.mockResolvedValue(undefined);
     opfs.recoverRuntimeWorkspaceRoots.mockResolvedValue([]);
@@ -1078,6 +1129,25 @@ describe("persisted Rust workspace boundary", () => {
   it.each([
     [{ ...validCommit, protocolVersion: "bad" }, /root contract is invalid/],
     [{ ...validCommit, command: "Other" }, /root contract is invalid/],
+    [
+      { ...validCommit, workflowModelVersion: undefined },
+      /root\.workflowModelVersion/,
+    ],
+    [
+      { ...validCommit, workflowCompatibilityDigest: undefined },
+      /root\.workflowCompatibilityDigest/,
+    ],
+    [
+      { ...validCommit, workflowModelVersion: "workflow-v2" },
+      /workflow identity is invalid/,
+    ],
+    [
+      {
+        ...validCommit,
+        workflowCompatibilityDigest: `sha256:${"cd".repeat(32)}`,
+      },
+      /workflow identity is invalid/,
+    ],
     [
       { ...validCommit, workspaceId: `sha256:${"8".repeat(64)}` },
       /root identity is invalid/,
@@ -1177,9 +1247,11 @@ describe("persisted Rust workspace boundary", () => {
       );
 
       bytesByDigest.set(executionStateDigest, originalState);
+      const expectedViewId = "chronicle-workflow-explorer/v1";
+      const invalidViewId = "chronicle.invalid".padEnd(expectedViewId.length, "_");
       const fakeView = new TextDecoder()
         .decode(originalView)
-        .replace("chronicle.stage.v1", "chronicle.wrong.v1");
+        .replace(expectedViewId, invalidViewId);
       expect(enc.encode(fakeView).byteLength).toBe(originalView.byteLength);
       bytesByDigest.set(viewDigest(0), enc.encode(fakeView));
       await expect(verifyPersistedRustWorkspace(workspaceId)).rejects.toThrow(
@@ -1188,6 +1260,24 @@ describe("persisted Rust workspace boundary", () => {
     } finally {
       bytesByDigest.set(rootDigest, originalRoot);
       bytesByDigest.set(executionStateDigest, originalState);
+      bytesByDigest.set(viewDigest(0), originalView);
+    }
+  });
+
+  it("rejects an explorer view with empty workflow contract digests", async () => {
+    const originalView = bytesByDigest.get(viewDigest(0))!;
+    const serializedDigests = JSON.stringify(workflowContractDigests);
+    const emptyDigests = "{}".padEnd(serializedDigests.length, " ");
+    const invalidView = new TextDecoder()
+      .decode(originalView)
+      .replace(serializedDigests, emptyDigests);
+    expect(enc.encode(invalidView).byteLength).toBe(originalView.byteLength);
+    bytesByDigest.set(viewDigest(0), enc.encode(invalidView));
+    try {
+      await expect(verifyPersistedRustWorkspace(workspaceId)).rejects.toThrow(
+        /workflowExplorer\.contractDigests\.semantic/,
+      );
+    } finally {
       bytesByDigest.set(viewDigest(0), originalView);
     }
   });
@@ -1322,7 +1412,7 @@ describe("persisted Rust workspace boundary", () => {
     bytesByDigest.set(viewDigest(0),
       enc.encode(
         JSON.stringify({
-          view_id: "chronicle.stage.v1",
+          view_id: "chronicle-workflow-explorer/v1",
           root_digest: executionStateDigest,
         }),
       ),
@@ -1351,20 +1441,23 @@ describe("persisted Rust workspace boundary", () => {
       inspectRustRawFile(enc.encode("raw"), "raw.csv", 3),
     ).resolves.toMatchObject({ fileName: "raw.csv" });
     await expect(
-      getRustPlanStageView({
+      getRustWorkflowExplorerView({
         ...DEFAULT_BROWSER_OPTIONS,
         selectedTimezone: "   ",
-      }),
-    ).resolves.toMatchObject({ view_id: "chronicle.stage.v1" });
-    expect(kernel.plan_stage_view_json).toHaveBeenCalledWith(
+      }, [{ roleId: "filter_file", present: true }]),
+    ).resolves.toMatchObject({ viewId: "chronicle-workflow-explorer/v1" });
+    expect(kernel.plan_workflow_explorer_view_json).toHaveBeenCalledWith(
       expect.stringContaining('"timezone":"UTC"'),
     );
-    await getRustPlanStageView({
+    expect(kernel.plan_workflow_explorer_view_json).toHaveBeenCalledWith(
+      expect.stringContaining('"supportRoles":[{"roleId":"filter_file","present":true}]'),
+    );
+    await getRustWorkflowExplorerView({
       ...DEFAULT_BROWSER_OPTIONS,
       timezoneHandling: "primary-convert",
       selectedTimezone: "America/Chicago",
     });
-    expect(kernel.plan_stage_view_json).toHaveBeenLastCalledWith(
+    expect(kernel.plan_workflow_explorer_view_json).toHaveBeenLastCalledWith(
       expect.stringContaining('"timezone":"America/Chicago"'),
     );
   });

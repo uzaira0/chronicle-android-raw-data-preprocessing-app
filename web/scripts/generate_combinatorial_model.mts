@@ -1,5 +1,5 @@
 // Combinatorial-coverage artifacts for the full browser processing contract
-// (docs/dag-validate-ontologize-productize-research.md §S3).
+// (docs/workflow/dag-validate-ontologize-productize-research.md §S3).
 //
 //   vite-node scripts/generate_combinatorial_model.mts
 //     → web/combinatorial/model.pict          Microsoft PICT model (array generation)

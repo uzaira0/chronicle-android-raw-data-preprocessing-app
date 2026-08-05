@@ -17,8 +17,12 @@ import defaultBackgroundAppsUrl from "@/assets/defaults/Chronicle_Android_raw_da
 import { fetchBundledAssetBytes } from "@/lib/bundledAssetLoader";
 import { canonicalJson } from "@/lib/canonicalJson";
 import {
+  WORKFLOW_QUERY_GROUP_IDS,
+  WORKFLOW_QUERY_IDS,
+} from "@/lib/generatedInteractionTypes";
+import {
   RUNTIME_BOUNDARY_MODEL,
-  type LogicalStageCheckpoint,
+  type WorkflowCheckpoint,
   type RuntimeArtifactMetadata,
   type ReviewRuntimeManifest as SerializedReviewRuntimeManifest,
   type RuntimeManifest as SerializedRuntimeManifest,
@@ -80,8 +84,8 @@ type KernelModule = {
   implementation_build_digest(): string;
   build_environment_digest(): string;
   runtime_identity_json(): string;
-  pipeline_step_contract_json(): string;
-  plan_stage_view_json(optionsJson: string): string;
+  workflow_contract_json(): string;
+  plan_workflow_explorer_view_json(requestJson: string): string;
   review_base_probe_spec_json(): string;
   RuntimeSupportFiles: new () => RuntimeSupportFilesHandle;
   discover_timezones_v2(csvBytes: Uint8Array): string[];
@@ -154,12 +158,51 @@ const TIMEZONE_ACTIONS = new Set<string>([
   "filtered_to_primary",
   "converted_to_primary",
 ]);
-const CHECKPOINT_PROTOCOL_VERSION = "chronicle-logical-stage-checkpoint/v7";
+const CHECKPOINT_PROTOCOL_VERSION = "chronicle-workflow-checkpoint/v1";
 const SUPPORTED_CACHE_SOURCES = new Set<string>([
   "salsa-memory",
   "verified-review-base",
   "verified-reconstruction-base",
 ]);
+const WORKFLOW_CONTRACT_DIGEST_FIELDS = [
+  "semantic",
+  "presentation",
+  "execution",
+  "checkpointPolicy",
+  "evidence",
+  "workspaceCompatibility",
+] as const;
+
+type WorkflowContractDigests = Record<
+  (typeof WORKFLOW_CONTRACT_DIGEST_FIELDS)[number],
+  string
+>;
+
+function workflowContractDigestsAt(
+  value: unknown,
+  path: string,
+): WorkflowContractDigests {
+  const source = objectAt(value, path);
+  return Object.fromEntries(
+    WORKFLOW_CONTRACT_DIGEST_FIELDS.map((field) => [
+      field,
+      digestAt(source[field], `${path}.${field}`),
+    ]),
+  ) as WorkflowContractDigests;
+}
+
+function hasExactIdentityDomain(
+  observed: readonly string[],
+  expected: readonly string[],
+): boolean {
+  const sortedObserved = [...observed].sort();
+  const sortedExpected = [...expected].sort();
+  return (
+    observed.length === expected.length &&
+    new Set(observed).size === observed.length &&
+    sortedObserved.every((id, index) => id === sortedExpected[index])
+  );
+}
 
 /**
  * Artifact metadata reaches the browser in three places — the manifest
@@ -184,13 +227,13 @@ function artifactMetadataAt(
  * proved the maps and their fields exist and are strings; what stays here is
  * the product agreement the Rust types cannot express: the checkpoint protocol
  * pin, the xxh3-128 component family, the stage identity, the terminal digest
- * matching its domain entry, and the exact domain size.
+ * matching its domain entry, and exact agreement with the execution registry.
  */
 function verifyCheckpointDomain(
   digests: Record<string, string>,
-  checkpoints: Record<string, LogicalStageCheckpoint>,
+  checkpoints: Record<string, WorkflowCheckpoint>,
   path: string,
-  expectedCount: number,
+  expectedIds: readonly string[],
 ): void {
   for (const [id, checkpoint] of Object.entries(checkpoints)) {
     const checkpointPath = `${path}Checkpoints.${id}`;
@@ -214,7 +257,7 @@ function verifyCheckpointDomain(
         "unsupported checkpoint protocol",
       );
     }
-    if (checkpoint.nodeId !== id || checkpoint.terminalDigest !== digests[id]) {
+    if (checkpoint.subjectId !== id || checkpoint.terminalDigest !== digests[id]) {
       contractError(
         checkpointPath,
         "checkpoint identity or terminal digest does not match its domain",
@@ -223,13 +266,16 @@ function verifyCheckpointDomain(
   }
   const digestIds = Object.keys(digests).sort();
   const checkpointIds = Object.keys(checkpoints).sort();
+  const registryIds = [...expectedIds].sort();
   if (
-    digestIds.length !== expectedCount ||
-    JSON.stringify(digestIds) !== JSON.stringify(checkpointIds)
+    registryIds.length === 0 ||
+    new Set(registryIds).size !== registryIds.length ||
+    JSON.stringify(digestIds) !== JSON.stringify(checkpointIds) ||
+    JSON.stringify(digestIds) !== JSON.stringify(registryIds)
   ) {
     contractError(
       `${path}Checkpoints`,
-      `digest and checkpoint domains must contain the same ${expectedCount} identities`,
+      "digest, checkpoint, and execution-registry domains must contain the same identities",
     );
   }
 }
@@ -246,9 +292,9 @@ function verifyCheckpointDomain(
  *
  * The SEMANTIC half stays here because no Rust type expresses it: protocol and
  * command pins, the two-mode dependency-cache claim and its agreement with the
- * manifest certificate, exactly 55 unique step executions, the checkpoint
- * domains, step output agreeing with its Rust checkpoint, timezone row
- * accounting, and identity uniqueness across artifacts, roles, and nodes.
+ * manifest certificate, non-empty unique query registries, checkpoint-domain
+ * agreement, query output agreement, timezone row accounting, and identity
+ * uniqueness across artifacts, roles, and query groups.
  */
 export function decodeRuntimeManifest(value: unknown): RuntimeManifest {
   const source = objectAt(value, "manifest");
@@ -301,14 +347,32 @@ export function decodeRuntimeManifest(value: unknown): RuntimeManifest {
     );
   }
 
-  const { stepExecutions, artifacts, processingSummary: summary } = manifest;
+  const {
+    queryGroupExecutions,
+    queryExecutions,
+    artifacts,
+    processingSummary: summary,
+  } = manifest;
   if (
-    stepExecutions.length !== 55 ||
-    new Set(stepExecutions.map((execution) => execution.step_id)).size !== 55
+    !hasExactIdentityDomain(
+      queryGroupExecutions.map((execution) => execution.query_group_id),
+      WORKFLOW_QUERY_GROUP_IDS,
+    )
   ) {
     contractError(
-      "manifest.stepExecutions",
-      "expected exactly 55 unique Rust step executions",
+      "manifest.queryGroupExecutions",
+      "query-group executions do not match the generated workflow registry",
+    );
+  }
+  if (
+    !hasExactIdentityDomain(
+      queryExecutions.map((execution) => execution.query_id),
+      WORKFLOW_QUERY_IDS,
+    )
+  ) {
+    contractError(
+      "manifest.queryExecutions",
+      "query executions do not match the generated workflow registry",
     );
   }
 
@@ -319,24 +383,24 @@ export function decodeRuntimeManifest(value: unknown): RuntimeManifest {
     );
   }
   verifyCheckpointDomain(
-    summary.logicalStageDigests,
-    summary.logicalStageCheckpoints,
-    "manifest.processingSummary.logicalStage",
-    15,
+    summary.workflowQueryGroupDigests,
+    summary.workflowQueryGroupCheckpoints,
+    "manifest.processingSummary.workflowQueryGroup",
+    queryGroupExecutions.map(({ query_group_id }) => query_group_id),
   );
   verifyCheckpointDomain(
-    summary.pipelineStepDigests,
-    summary.pipelineStepCheckpoints,
-    "manifest.processingSummary.pipelineStep",
-    55,
+    summary.workflowQueryDigests,
+    summary.workflowQueryCheckpoints,
+    "manifest.processingSummary.workflowQuery",
+    queryExecutions.map(({ query_id }) => query_id),
   );
-  for (const execution of stepExecutions) {
+  for (const execution of queryExecutions) {
     if (
-      summary.pipelineStepDigests[execution.step_id] !== execution.output_digest
+      summary.workflowQueryDigests[execution.query_id] !== execution.output_digest
     ) {
       contractError(
-        `manifest.stepExecutions.${execution.step_id}`,
-        "step execution output does not match its Rust checkpoint",
+        `manifest.queryExecutions.${execution.query_id}`,
+        "query execution output does not match its Rust checkpoint",
       );
     }
   }
@@ -354,7 +418,10 @@ export function decodeRuntimeManifest(value: unknown): RuntimeManifest {
     ["artifact kind", artifacts.map(({ kind }) => kind)],
     ["artifact id", artifacts.map(({ artifactId }) => artifactId)],
     ["role", manifest.roleAssignments.map(({ role_id }) => role_id)],
-    ["node", manifest.nodeExecutions.map(({ node_id }) => node_id)],
+    [
+      "query group",
+      manifest.queryGroupExecutions.map(({ query_group_id }) => query_group_id),
+    ],
   ] as const) {
     if (new Set(values).size !== values.length) {
       contractError("manifest", `duplicate ${field}`);
@@ -442,11 +509,11 @@ export type RustReviewExecution = {
   /** Bytes loaded from the receipt-pinned OPFS head and supplied to Rust. */
   suppliedReviewBaseBytes: number;
   suppliedReconstructionBaseBytes: number;
-  recomputedStepIds: string[];
-  cachedStepIds: string[];
-  bypassedStepIds: string[];
-  skippedStepIds: string[];
-  errorStepIds: string[];
+  recomputedQueryIds: string[];
+  cachedQueryIds: string[];
+  bypassedQueryIds: string[];
+  skippedQueryIds: string[];
+  errorQueryIds: string[];
   /** True when the runtime matched the caller's known digest and returned no
    * artifact bytes; the caller must reattach its cached summary bytes. */
   reviewSummaryReused: boolean;
@@ -484,14 +551,28 @@ export function decodeReviewRuntimeManifest(
   if (!TIMEZONE_ACTIONS.has(manifest.timezoneAction)) {
     contractError("reviewManifest.timezoneAction", "unknown timezone action");
   }
-  const steps = manifest.stepExecutions;
+  const queryGroups = manifest.queryGroupExecutions;
   if (
-    steps.length !== 55 ||
-    new Set(steps.map(({ step_id }) => step_id)).size !== 55
+    !hasExactIdentityDomain(
+      queryGroups.map(({ query_group_id }) => query_group_id),
+      WORKFLOW_QUERY_GROUP_IDS,
+    )
   ) {
     contractError(
-      "reviewManifest.stepExecutions",
-      "expected exactly 55 unique Rust step executions",
+      "reviewManifest.queryGroupExecutions",
+      "query-group executions do not match the generated workflow registry",
+    );
+  }
+  const queries = manifest.queryExecutions;
+  if (
+    !hasExactIdentityDomain(
+      queries.map(({ query_id }) => query_id),
+      WORKFLOW_QUERY_IDS,
+    )
+  ) {
+    contractError(
+      "reviewManifest.queryExecutions",
+      "query executions do not match the generated workflow registry",
     );
   }
   const { cacheSources } = manifest;
@@ -504,12 +585,12 @@ export function decodeReviewRuntimeManifest(
       "unknown or duplicate cache source",
     );
   }
-  const stepIdsWithStatus = (
-    status: SerializedReviewRuntimeManifest["stepExecutions"][number]["status"],
+  const queryIdsWithStatus = (
+    status: SerializedReviewRuntimeManifest["queryExecutions"][number]["status"],
   ): string[] =>
-    steps
-      .filter((step) => step.status === status)
-      .map(({ step_id }) => step_id);
+    queries
+      .filter((query) => query.status === status)
+      .map(({ query_id }) => query_id);
 
   return {
     workspaceId: manifest.workspaceId,
@@ -536,11 +617,11 @@ export function decodeReviewRuntimeManifest(
     duplicateTimestampsCorrected: manifest.duplicateTimestampsCorrected,
     exactDuplicateRowsRemoved: manifest.exactDuplicateRowsRemoved,
     cacheSources: cacheSources as RustReviewExecution["cacheSources"],
-    recomputedStepIds: stepIdsWithStatus("recomputed"),
-    cachedStepIds: stepIdsWithStatus("cached"),
-    bypassedStepIds: stepIdsWithStatus("bypassed"),
-    skippedStepIds: stepIdsWithStatus("skipped"),
-    errorStepIds: stepIdsWithStatus("error"),
+    recomputedQueryIds: queryIdsWithStatus("recomputed"),
+    cachedQueryIds: queryIdsWithStatus("cached"),
+    bypassedQueryIds: queryIdsWithStatus("bypassed"),
+    skippedQueryIds: queryIdsWithStatus("skipped"),
+    errorQueryIds: queryIdsWithStatus("error"),
   };
 }
 
@@ -1059,12 +1140,29 @@ async function verifyRootClosure(
   }
   for (const field of identityFields)
     digestAt(currentIdentity[field], `runtimeIdentity.${field}`);
+  const workflowContract = objectAt(
+    JSON.parse(kernel.workflow_contract_json()),
+    "workflowContract",
+  );
+  if (
+    workflowContract.protocolVersion !== "chronicle-workflow-contract/v1"
+  ) {
+    throw new Error("loaded workflow contract protocol is invalid");
+  }
+  const workflowModelVersion = stringAt(
+    workflowContract.workflowModelVersion,
+    "workflowContract.workflowModelVersion",
+  );
+  const workflowContractDigests = workflowContractDigestsAt(
+    workflowContract.digests,
+    "workflowContract.digests",
+  );
   const requiredViews = new Map([
     [
-      "chronicle.stage.v1",
+      "chronicle-workflow-explorer/v1",
       {
-        artifactKind: "stage-view-json",
-        schemaId: "urn:chronicle:view:stage:v1",
+        artifactKind: "workflow-explorer-view-json",
+        schemaId: "urn:chronicle:view:workflow-explorer:v1",
       },
     ],
     [
@@ -1113,6 +1211,8 @@ async function verifyRootClosure(
   };
   type Root = {
     protocolVersion: string;
+    workflowModelVersion: string;
+    workflowCompatibilityDigest: string;
     command: string;
     implementationDigest: string;
     buildEnvironmentDigest: string;
@@ -1157,6 +1257,10 @@ async function verifyRootClosure(
     ) {
       throw new Error("recovered workspace root contract is invalid");
     }
+    digestAt(
+      root.workflowCompatibilityDigest,
+      "root.workflowCompatibilityDigest",
+    );
     for (const digest of [
       root.implementationDigest,
       root.buildEnvironmentDigest,
@@ -1176,6 +1280,7 @@ async function verifyRootClosure(
       ...Object.values(root.assignmentDigests),
     ])
       digestAt(digest, "root digest");
+    stringAt(root.workflowModelVersion, "root.workflowModelVersion");
     if (root.previousWorkspaceRootDigest !== null) {
       digestAt(
         root.previousWorkspaceRootDigest,
@@ -1195,6 +1300,13 @@ async function verifyRootClosure(
     }
     seenRoots.add(rootDigest);
     const commit = decodeRoot(await readObject(rootDigest));
+    if (
+      commit.workflowModelVersion !== workflowModelVersion ||
+      commit.workflowCompatibilityDigest !==
+        workflowContractDigests.workspaceCompatibility
+    ) {
+      throw new Error("recovered workspace workflow identity is invalid");
+    }
     if (
       head &&
       identityFields.some((field) => commit[field] !== currentIdentity[field])
@@ -1354,15 +1466,39 @@ async function verifyRootClosure(
       const view = JSON.parse(
         new TextDecoder().decode(await readObject(binding.artifactDigest)),
       ) as Record<string, unknown>;
+      const viewContractDigests =
+        binding.viewId === "chronicle-workflow-explorer/v1"
+          ? workflowContractDigestsAt(
+              view.contractDigests,
+              "workflowExplorer.contractDigests",
+            )
+          : undefined;
+      const workflowExplorerIsValid =
+        binding.viewId === "chronicle-workflow-explorer/v1" &&
+        view.protocolVersion === "chronicle-workflow-explorer/v1" &&
+        view.viewId === binding.viewId &&
+        view.schemaId === binding.schemaId &&
+        view.rootDigest === commit.executionStateDigest &&
+        viewContractDigests?.workspaceCompatibility ===
+          commit.workflowCompatibilityDigest &&
+        Number.isSafeInteger(view.revision) &&
+        Array.isArray(view.phases) &&
+        Array.isArray(view.operations) &&
+        Array.isArray(view.artifacts) &&
+        Array.isArray(view.queries) &&
+        Array.isArray(view.decisions);
+      const semanticAdapterViewIsValid =
+        binding.viewId !== "chronicle-workflow-explorer/v1" &&
+        view.protocol_version === "0.1" &&
+        view.view_id === binding.viewId &&
+        view.family === "incremental-dataflow" &&
+        view.schema_id === binding.schemaId &&
+        view.root_digest === commit.executionStateDigest &&
+        Number.isSafeInteger(view.revision) &&
+        "payload" in view;
       if (
         metadata?.digest !== binding.artifactDigest ||
-        view.protocol_version !== "0.1" ||
-        view.view_id !== binding.viewId ||
-        view.family !== "incremental-dataflow" ||
-        view.schema_id !== binding.schemaId ||
-        view.root_digest !== commit.executionStateDigest ||
-        !Number.isSafeInteger(view.revision) ||
-        !("payload" in view)
+        (!workflowExplorerIsValid && !semanticAdapterViewIsValid)
       ) {
         throw new Error(`recovered typed view is invalid: ${binding.viewId}`);
       }
@@ -1690,9 +1826,10 @@ export async function getRustRuntimeVersion(): Promise<string> {
   return (await loadKernel()).runtime_version();
 }
 
-export async function getRustPlanStageView(
+export async function getRustWorkflowExplorerView(
   options: BrowserProcessingOptions,
-): Promise<import("@/lib/types").RustStageView> {
+  supportRoles: import("@/lib/types").WorkflowExplorerSupportRole[] = [],
+): Promise<import("@/lib/types").RustWorkflowExplorerView> {
   const kernel = await loadKernel();
   // The pre-run projection has no raw input from which to discover a timezone.
   // A deterministic placeholder satisfies the execution ABI only; Rust still
@@ -1704,14 +1841,15 @@ export async function getRustPlanStageView(
       ? { ...options, selectedTimezone: "UTC" }
       : options;
   return JSON.parse(
-    kernel.plan_stage_view_json(
-      JSON.stringify(
-        buildRustV2Options(projectionOptions, {
+    kernel.plan_workflow_explorer_view_json(
+      JSON.stringify({
+        options: buildRustV2Options(projectionOptions, {
           datetimeOfPreprocessing: "1970-01-01 00:00:00 UTC",
         }),
-      ),
+        supportRoles,
+      }),
     ),
-  ) as import("@/lib/types").RustStageView;
+  ) as import("@/lib/types").RustWorkflowExplorerView;
 }
 
 function fileBytes(file: BrowserSupportFile | undefined): Uint8Array {
@@ -2452,7 +2590,7 @@ async function executeRustRuntimeUnlocked(
       persistenceAdapter === defaultPersistenceAdapter;
     const callerArtifactKinds = new Set([
       "execution-ledger-json",
-      "stage-view-json",
+      "workflow-explorer-view-json",
       ...(options.enableInteractiveTimeline && !streamToOpfs
         ? ["visualization-data-json"]
         : []),
@@ -2735,7 +2873,7 @@ export async function runtimeWorkspaceId(
   // separate OPFS stores.
   return `sha256:${await sha256Hex(
     new TextEncoder().encode(
-      `chronicle-preprocessing-workspace:${inputDigest}`,
+      `chronicle-workflow-v1-workspace:${inputDigest}`,
     ),
   )}`;
 }
@@ -2751,7 +2889,7 @@ async function withWorkspaceLock<T>(
     );
   }
   return navigator.locks.request(
-    `chronicle-preprocessing:${workspaceId}`,
+    `chronicle-workflow-v1:${workspaceId}`,
     { mode },
     operation,
   );

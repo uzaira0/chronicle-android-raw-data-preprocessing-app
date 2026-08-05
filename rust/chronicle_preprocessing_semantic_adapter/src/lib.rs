@@ -1,6 +1,6 @@
 //! Semantic-federation adapter for the Chronicle raw-data preprocessing app.
 //!
-//! The app's 55 tracked Rust/WASM computations are the only preprocessing
+//! The app's registered Rust/WASM queries are the only preprocessing
 //! implementation. This crate contains the product contract, deterministic
 //! qualification/materialization rules, evidence records, and typed views. It
 //! does not contain a second scheduler or preprocessing engine.
@@ -15,11 +15,11 @@ pub mod qualify;
 pub mod views;
 
 pub use capabilities::{
-    node_binding, step_binding, NodeBinding, PhysicalStage, StepBinding, CERTIFIED_OPTION_KEYS,
-    CERTIFIED_ROLE_IDS, EMBEDDED_DEPENDENCY_BINDING_SURFACE_SHA256,
+    query_binding, query_group_binding, PhysicalQueryGroup, QueryBinding, QueryGroupBinding,
+    CERTIFIED_OPTION_KEYS, CERTIFIED_ROLE_IDS, EMBEDDED_DEPENDENCY_BINDING_SURFACE_SHA256,
     EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256, EMBEDDED_PLAN_SHA256, EMBEDDED_PRODUCT_CONTRACT_SHA256,
     EMBEDDED_PROFILE_LOCK_SHA256, EMBEDDED_PROFILE_SHA256, EMBEDDED_RUNTIME_AUTHORITY_SHA256,
-    NODE_BINDINGS, STEP_BINDINGS,
+    QUERY_BINDINGS, QUERY_GROUP_BINDINGS,
 };
 pub use dependency_cache::evaluate_dependency_cache_decision;
 pub use materialize::{evaluate_materialization, Materialization};
@@ -106,7 +106,8 @@ mod embedded_tests {
             CERTIFIED_OPTION_KEYS
         );
         assert_eq!(certificate.structural_contract.role_ids, CERTIFIED_ROLE_IDS);
-        assert_eq!(embedded_plan().nodes.len(), 15);
+        assert!(!embedded_plan().query_groups.is_empty());
+        assert!(!embedded_plan().queries.is_empty());
     }
 }
 

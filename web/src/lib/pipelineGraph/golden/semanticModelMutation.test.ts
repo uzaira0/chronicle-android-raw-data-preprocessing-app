@@ -32,9 +32,9 @@ const PLAN_FILE = fileURLToPath(
 );
 const UPDATE = process.env.UPDATE_SEMANTIC_MUTATIONS === "1";
 
-type PlanStep = {
-  step_id: string;
-  input_steps: string[];
+type PlanQuery = {
+  query_id: string;
+  input_queries: string[];
   request_fields: string[];
   source_role_bindings: Array<{ role: string; when_all: unknown[] }>;
   applicability: unknown;
@@ -46,7 +46,7 @@ type EmpiricalObservation = {
   sourceId: string;
   directBinders: string[];
   changedSteps: string[];
-  actualExecutedSteps: string[];
+  actualExecutedQueries: string[];
   inactiveSteps: string[];
 };
 
@@ -83,7 +83,7 @@ type ImplementationReceipt = {
 const plan = JSON.parse(readFileSync(PLAN_FILE, "utf8")) as {
   plan_id: string;
   revision: string;
-  steps: PlanStep[];
+  queries: PlanQuery[];
 };
 const configurationLedger = JSON.parse(
   readFileSync(CONFIGURATION_LEDGER, "utf8"),
@@ -101,9 +101,9 @@ const configurationLedger = JSON.parse(
         corpusObservations: Array<{
           corpusId: string;
           changedRustRequestFields: string[];
-          newlyApplicableSteps: string[];
-          actualExecutedSteps: string[];
-          changedPipelineSteps: string[];
+          newlyApplicableQueries: string[];
+          actualExecutedQueries: string[];
+          changedQueries: string[];
           warmExecution: Array<{ nodeId: string; status: string }>;
         }>;
       }>;
@@ -116,10 +116,10 @@ const artifactLedger = JSON.parse(readFileSync(ARTIFACT_LEDGER, "utf8")) as {
   interventions: Array<{
     interventionId: string;
     roleId: string;
-    directBindingSteps: string[];
-    changedSemanticSteps: string[];
-    actualExecutedSteps: string[];
-    deactivatedSteps: string[];
+    directBindingQueries: string[];
+    changedQueries: string[];
+    actualExecutedQueries: string[];
+    deactivatedQueries: string[];
   }>;
 };
 const rawBoundaryLedger = JSON.parse(
@@ -130,13 +130,13 @@ const rawBoundaryLedger = JSON.parse(
   interventions: Array<{
     corpusId: string;
     interventionId: string;
-    changedPipelineSteps: string[];
-    actualExecutedSteps: string[];
-    deactivatedSteps: string[];
+    changedQueries: string[];
+    actualExecutedQueries: string[];
+    deactivatedQueries: string[];
   }>;
 };
 
-const stepOrder = plan.steps.map(({ step_id }) => step_id);
+const queryOrder = plan.queries.map(({ query_id }) => query_id);
 
 function conditionOptionKeys(value: unknown): Set<string> {
   if (Array.isArray(value)) {
@@ -162,7 +162,7 @@ function conditionOptionKeys(value: unknown): Set<string> {
 
 function optionBinders(fields: readonly string[]): string[] {
   const changed = new Set(fields);
-  return plan.steps
+  return plan.queries
     .filter(
       (step) =>
         step.request_fields.some((field) => changed.has(field)) ||
@@ -173,7 +173,7 @@ function optionBinders(fields: readonly string[]): string[] {
           changed.has(field),
         ),
     )
-    .map(({ step_id }) => step_id);
+    .map(({ query_id }) => query_id);
 }
 
 function observations(): EmpiricalObservation[] {
@@ -194,11 +194,11 @@ function observations(): EmpiricalObservation[] {
           directBinders: [
             ...new Set([
               ...optionBinders(observation.changedRustRequestFields),
-              ...observation.newlyApplicableSteps,
+              ...observation.newlyApplicableQueries,
             ]),
-          ].filter((step) => observation.actualExecutedSteps.includes(step)),
-          changedSteps: observation.changedPipelineSteps,
-          actualExecutedSteps: observation.actualExecutedSteps,
+          ].filter((step) => observation.actualExecutedQueries.includes(step)),
+          changedSteps: observation.changedQueries,
+          actualExecutedQueries: observation.actualExecutedQueries,
           inactiveSteps: observation.warmExecution
             .filter(({ status }) => status === "bypassed")
             .map(({ nodeId }) => nodeId),
@@ -210,21 +210,21 @@ function observations(): EmpiricalObservation[] {
     observationId: `artifact:${intervention.interventionId}`,
     sourceKind: "artifact" as const,
     sourceId: intervention.roleId,
-    directBinders: intervention.directBindingSteps.filter((step) =>
-      intervention.actualExecutedSteps.includes(step),
+    directBinders: intervention.directBindingQueries.filter((step) =>
+      intervention.actualExecutedQueries.includes(step),
     ),
-    changedSteps: intervention.changedSemanticSteps,
-    actualExecutedSteps: intervention.actualExecutedSteps,
-    inactiveSteps: intervention.deactivatedSteps,
+    changedSteps: intervention.changedQueries,
+    actualExecutedQueries: intervention.actualExecutedQueries,
+    inactiveSteps: intervention.deactivatedQueries,
   }));
   const rawBoundaries = rawBoundaryLedger.interventions.map((intervention) => ({
     observationId: `raw-boundary:${intervention.corpusId}:${intervention.interventionId}`,
     sourceKind: "raw-boundary" as const,
     sourceId: "raw_chronicle_csv",
-    directBinders: ["csv_parse"],
-    changedSteps: intervention.changedPipelineSteps,
-    actualExecutedSteps: intervention.actualExecutedSteps,
-    inactiveSteps: intervention.deactivatedSteps,
+    directBinders: ["decode_source_records"],
+    changedSteps: intervention.changedQueries,
+    actualExecutedQueries: intervention.actualExecutedQueries,
+    inactiveSteps: intervention.deactivatedQueries,
   }));
   return [...configuration, ...artifacts, ...rawBoundaries];
 }
@@ -238,7 +238,7 @@ function predict(
   const direct = new Set(directBinders);
   const changed = new Set(changedSteps);
   const eligible = new Set(eligibleSteps);
-  return stepOrder
+  return queryOrder
     .filter(
       (stepId) =>
         eligible.has(stepId) &&
@@ -253,7 +253,7 @@ function inputsWith(
   add: readonly [string, string] | null,
 ): Map<string, string[]> {
   const inputs = new Map<string, string[]>(
-    plan.steps.map((step) => [step.step_id, [...step.input_steps]] as const),
+    plan.queries.map((step) => [step.query_id, [...step.input_queries]] as const),
   );
   if (remove) {
     const [source, target] = remove;
@@ -290,7 +290,7 @@ function hasCycle(inputs: ReadonlyMap<string, readonly string[]>): boolean {
     visited.add(node);
     return false;
   };
-  return plan.steps.some(({ step_id }) => visit(step_id));
+  return plan.queries.some(({ query_id }) => visit(query_id));
 }
 
 function empiricalKill(
@@ -312,9 +312,9 @@ function empiricalKill(
           inputs,
           directBinders,
           observation.changedSteps,
-          observation.actualExecutedSteps,
+          observation.actualExecutedQueries,
         ),
-      ) !== JSON.stringify([...observation.actualExecutedSteps].sort())
+      ) !== JSON.stringify([...observation.actualExecutedQueries].sort())
     );
   });
   return {
@@ -335,7 +335,7 @@ function killByRustSourceEdge(result: MutantResult): MutantResult {
     killed: true,
     killKind: "rust-source-call-binding",
     witnessId:
-      "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls",
+      "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls",
   };
 }
 
@@ -355,23 +355,23 @@ describe("semantic model mutation gate", () => {
           baseInputs,
           observation.directBinders,
           observation.changedSteps,
-          observation.actualExecutedSteps,
+          observation.actualExecutedQueries,
         ),
         `${observation.observationId}: checked ledger no longer matches the product plan`,
-      ).toEqual([...observation.actualExecutedSteps].sort());
+      ).toEqual([...observation.actualExecutedQueries].sort());
     }
 
     const mutants: MutantResult[] = [];
-    for (const target of plan.steps) {
-      for (const source of target.input_steps) {
-        const removed = inputsWith([source, target.step_id], null);
+    for (const target of plan.queries) {
+      for (const source of target.input_queries) {
+        const removed = inputsWith([source, target.query_id], null);
         mutants.push(
           killByRustSourceEdge(
             empiricalKill(
-              `remove-edge:${source}->${target.step_id}`,
+              `remove-edge:${source}->${target.query_id}`,
               "remove-edge",
               source,
-              target.step_id,
+              target.query_id,
               removed,
               empirical,
             ),
@@ -379,15 +379,15 @@ describe("semantic model mutation gate", () => {
         );
 
         const reversed = inputsWith(
-          [source, target.step_id],
-          [target.step_id, source],
+          [source, target.query_id],
+          [target.query_id, source],
         );
         if (hasCycle(reversed)) {
           mutants.push({
-            mutantId: `reverse-edge:${source}->${target.step_id}`,
+            mutantId: `reverse-edge:${source}->${target.query_id}`,
             mutantClass: "reverse-edge",
             sourceId: source,
-            targetId: target.step_id,
+            targetId: target.query_id,
             killed: true,
             killKind: "structural-cycle",
             witnessId: "plan-toposort",
@@ -396,10 +396,10 @@ describe("semantic model mutation gate", () => {
           mutants.push(
             killByRustSourceEdge(
               empiricalKill(
-                `reverse-edge:${source}->${target.step_id}`,
+                `reverse-edge:${source}->${target.query_id}`,
                 "reverse-edge",
                 source,
-                target.step_id,
+                target.query_id,
                 reversed,
                 empirical,
               ),
@@ -448,7 +448,7 @@ describe("semantic model mutation gate", () => {
           mutants.push(empiricalResult);
           continue;
         }
-        const step = plan.steps.find(({ step_id }) => step_id === binder)!;
+        const step = plan.queries.find(({ query_id }) => query_id === binder)!;
         const requestRead = step.request_fields.some((field) =>
           changedFields.has(field),
         );
@@ -459,17 +459,17 @@ describe("semantic model mutation gate", () => {
             ? "rust-request-read-binding"
             : "structural-condition-binding",
           witnessId: requestRead
-            ? "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+            ? "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
             : `${binder}:applicability-or-source-role-condition`,
         });
       }
     }
 
     const roleBinders = new Map<string, Set<string>>();
-    for (const step of plan.steps) {
+    for (const step of plan.queries) {
       for (const binding of step.source_role_bindings) {
         const binders = roleBinders.get(binding.role) ?? new Set<string>();
-        binders.add(step.step_id);
+        binders.add(step.query_id);
         roleBinders.set(binding.role, binders);
       }
     }
@@ -508,7 +508,7 @@ describe("semantic model mutation gate", () => {
     const evidence = {
       protocolVersion: "chronicle-semantic-model-mutation-ledger/v1",
       claimBoundary:
-        "In-memory mutation of every declared 55-step Rust query edge (removal and reversal), every computational request/applicability binding, and every raw/support role binding. A mutant is killed by disagreement with an actual Salsa execution campaign, a structural cycle, or the independent Rust AST check that proves declared edges and request fields equal direct query calls and helper reads. Rust checkpoint-component and qualification-rule mutations are enforced by their focused unit tests.",
+        "In-memory mutation of every declared complete query-registry Rust query edge (removal and reversal), every computational request/applicability binding, and every raw/support role binding. A mutant is killed by disagreement with an actual Salsa execution campaign, a structural cycle, or the independent Rust AST check that proves declared edges and request fields equal direct query calls and helper reads. Rust checkpoint-component and qualification-rule mutations are enforced by their focused unit tests.",
       plan: { id: plan.plan_id, revision: plan.revision },
       implementationReceipt: configurationLedger.implementationReceipt,
       sourceLedgers: {
@@ -539,7 +539,7 @@ describe("semantic model mutation gate", () => {
         structuralConditionBindings: mutants.filter(
           ({ killKind }) => killKind === "structural-condition-binding",
         ).length,
-        structuralStepBindings: mutants.filter(
+        structuralQueryBindings: mutants.filter(
           ({ killKind }) => killKind === "rust-source-call-binding",
         ).length,
         rustRequestReadBindings: mutants.filter(
@@ -548,7 +548,7 @@ describe("semantic model mutation gate", () => {
       },
       structuralProofs: {
         rustSource:
-          "rust/chronicle_chrono_kernel_wasm/src/step_contract.rs::tests::declared_step_edges_equal_direct_salsa_query_calls",
+          "rust/chronicle_chrono_kernel_wasm/src/workflow_contract.rs::tests::declared_step_edges_equal_direct_salsa_query_calls",
         statement:
           "The Rust test parses pipeline_v2_incremental.rs with syn and compares each tracked query's direct calls and transitive option helper reads with the exported contract.",
       },

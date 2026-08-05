@@ -1,6 +1,6 @@
 /**
- * Wipe everything this origin persisted, for recovery when a wedged cache /
- * over-full storage / corrupt record stops the app from loading at all.
+ * Wipe everything the current workflow version persisted, for recovery when a
+ * wedged cache / over-full storage / corrupt record stops the app from loading.
  *
  * Deliberately self-contained (no app-state imports beyond the two DB-name
  * constants) so the boot-error "lifeboat" can call it even when the rest of the
@@ -12,7 +12,7 @@ import { LAST_RUN_DB_NAME } from "@/lib/lastRunStore";
 import { PROJECTS_DB_NAME } from "@/lib/projectsStore";
 import { OPFS_WORKSPACES_DIRECTORY } from "@/lib/opfsArtifactStore";
 
-/** Every IndexedDB database this app owns. */
+/** Every current-version IndexedDB database this app owns. */
 const CHRONICLE_IDB_NAMES = [LAST_RUN_DB_NAME, PROJECTS_DB_NAME] as const;
 
 function deleteDatabase(name: string): Promise<void> {
@@ -61,10 +61,11 @@ async function clearOpfsWorkspaces(): Promise<void> {
 }
 
 /**
- * Clear all locally persisted app data: localStorage/sessionStorage, both
- * IndexedDB databases, OPFS workspaces, the service-worker caches, and the
- * service-worker registration. Resolves once best-effort cleanup is done;
- * callers typically reload the page next.
+ * Clear current-version local app data: localStorage/sessionStorage, current
+ * IndexedDB databases, current OPFS workspaces, service-worker caches, and the
+ * service-worker registration. Retired database namespaces are intentionally
+ * never opened or deleted; users can remove them with browser site-data tools.
+ * Resolves once best-effort cleanup is done; callers typically reload next.
  */
 export async function resetLocalData(): Promise<void> {
   try {

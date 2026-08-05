@@ -105,7 +105,7 @@ chron:UsageEpisodeProvenanceShape
         sh:message "A usage episode assertion must be reconstructed_by an execution." ;
     ] .
 
-# A6. Every effective-usage figure must cite the ParameterSet AND the node
+# A6. Every effective-usage figure must cite the ParameterSet AND the operation
 #     execution that produced it — a headline number with no provenance is
 #     exactly what this ontology forbids.
 chron:EffectiveUsageProvenanceShape
@@ -119,29 +119,29 @@ chron:EffectiveUsageProvenanceShape
     sh:property [
         sh:path chron:produced_by ;
         sh:minCount 1 ;
-        sh:message "An effective-usage measure must name the node execution that produced it." ;
+        sh:message "An effective-usage measure must name the operation execution that produced it." ;
     ] .
 
 # ── Runtime lineage ledger: executions are auditable ─────────────────────────
-# A7. Every NodeExecution names the StepDefinition it executes and cites the
+# A7. Every OperationExecution names the OperationDefinition it realizes and cites the
 #     ParameterSet it ran under, and an execution that records a start must
 #     record its end. Timestamps appear in TWO vocabularies — canonical
 #     LinkML instances serialize chron:started_at/chron:ended_at, while the
 #     PROV-idiomatic runtime sidecar (chronicle-provenance.jsonld) emits
 #     prov:startedAtTime/prov:endedAtTime — so the started⇒ended invariant
 #     is enforced over both pairs by one shape.
-chron:NodeExecutionContractShape
+chron:OperationExecutionContractShape
     a sh:NodeShape ;
-    sh:targetClass chron:NodeExecution ;
+    sh:targetClass chron:OperationExecution ;
     sh:property [
-        sh:path chron:executes_step ;
+        sh:path chron:executes_operation ;
         sh:minCount 1 ;
-        sh:message "A node execution must name the StepDefinition it executes." ;
+        sh:message "An operation execution must name the OperationDefinition it realizes." ;
     ] ;
     sh:property [
         sh:path chron:used_parameter_set ;
         sh:minCount 1 ;
-        sh:message "A node execution must cite the ParameterSet it ran under." ;
+        sh:message "An operation execution must cite the ParameterSet it ran under." ;
     ] ;
     sh:not [
         a sh:NodeShape ;
@@ -154,3 +154,16 @@ chron:NodeExecutionContractShape
         sh:property [ sh:path prov:endedAtTime ; sh:maxCount 0 ] ;
     ] ;
     sh:message "A node execution that records a start must record its end." .
+
+# A8. Physical query evidence remains distinct from semantic-operation evidence.
+#     Generated shapes enforce the QueryDefinition target, status vocabulary,
+#     content identities, containing run, and timestamps. This authored axiom
+#     keeps the ParameterSet citation mandatory at the physical layer too.
+chron:QueryExecutionContractShape
+    a sh:NodeShape ;
+    sh:targetClass chron:QueryExecution ;
+    sh:property [
+        sh:path chron:used_parameter_set ;
+        sh:minCount 1 ;
+        sh:message "A query execution must cite the ParameterSet it ran under." ;
+    ] .

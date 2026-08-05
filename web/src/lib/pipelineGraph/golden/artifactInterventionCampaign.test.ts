@@ -28,8 +28,8 @@ import {
 } from "@/testSupport/syntheticChronicleCorpus";
 import {
   sourceRoleIsActive,
-  type RustStepContract,
-} from "@/testSupport/rustStepContract";
+  type RustWorkflowContract,
+} from "@/testSupport/workflowContract";
 import { dependencyCampaignRuntimeBytes } from "@/testSupport/dependencyCampaignRuntime";
 import * as runtime from "@/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm.js";
 
@@ -55,8 +55,8 @@ const SHARD_INDEX = Number(process.env.ARTIFACT_SHARD_INDEX ?? "0");
 const encoder = new TextEncoder();
 
 type PlanNode = {
-  node_id: string;
-  input_nodes: string[];
+  query_group_id: string;
+  input_query_groups: string[];
   support_roles: string[];
 };
 
@@ -64,7 +64,7 @@ type ProductPlan = {
   plan_id: string;
   revision: string;
   root_roles: Array<{ role_id: string }>;
-  nodes: PlanNode[];
+  query_groups: PlanNode[];
 };
 
 type RuntimeManifest = {
@@ -97,12 +97,12 @@ type RuntimeManifest = {
   openObligations: Array<{ role_id?: string; roleId?: string }>;
   counts: Record<string, number>;
   processingSummary: {
-    logicalStageDigests: Record<string, string>;
-    logicalStageCheckpoints: Record<
+    workflowQueryGroupDigests: Record<string, string>;
+    workflowQueryGroupCheckpoints: Record<
       string,
       {
-        protocolVersion: "chronicle-logical-stage-checkpoint/v7";
-        nodeId: string;
+        protocolVersion: "chronicle-workflow-checkpoint/v1";
+        subjectId: string;
         rowMembershipDigest: string;
         rowOrderDigest: string;
         temporalStateDigest: string;
@@ -112,21 +112,21 @@ type RuntimeManifest = {
         terminalDigest: string;
       }
     >;
-    pipelineStepDigests: Record<string, string>;
-    pipelineStepCheckpoints: Record<string, Record<string, unknown>>;
+    workflowQueryDigests: Record<string, string>;
+    workflowQueryCheckpoints: Record<string, Record<string, unknown>>;
     publishedOutputsDigest: string;
     provenanceDigest: string;
     [key: string]: unknown;
   };
-  nodeExecutions: Array<{
-    node_id: string;
+  queryGroupExecutions: Array<{
+    query_group_id: string;
     input_key: string;
     output: { digest: string } | null;
     status: "cached" | "recomputed" | "error" | "skipped" | "bypassed";
   }>;
-  stepExecutions: Array<{
-    step_id: string;
-    unit_id: string;
+  queryExecutions: Array<{
+    query_id: string;
+    query_group_id: string;
     input_key: string;
     output_digest: string;
     status: "cached" | "recomputed" | "error" | "skipped" | "bypassed";
@@ -145,17 +145,17 @@ const catalog = buildSyntheticCatalog({
   backgroundCsv,
   forcingScreenOpenCsv: forcingCsv,
 });
-let stepContract: RustStepContract;
+let workflowContract: RustWorkflowContract;
 
 beforeAll(() => {
   runtime.initSync({ module: dependencyCampaignRuntimeBytes() });
-  stepContract = JSON.parse(
-    runtime.pipeline_step_contract_json(),
-  ) as RustStepContract;
-  expect(stepContract.protocolVersion).toBe(
-    "chronicle-preprocessing-step-contract/v3",
+  workflowContract = JSON.parse(
+    runtime.workflow_contract_json(),
+  ) as RustWorkflowContract;
+  expect(workflowContract.protocolVersion).toBe(
+    "chronicle-workflow-contract/v1",
   );
-  expect(stepContract.steps).toHaveLength(55);
+  expect(workflowContract.execution.queries).toHaveLength(workflowContract.execution.queries.length);
 });
 
 async function sha256Uri(value: Uint8Array | string): Promise<string> {
@@ -236,26 +236,26 @@ function nodeOutputDigests(
   manifest: RuntimeManifest,
 ): Record<string, string | null> {
   return Object.fromEntries(
-    manifest.nodeExecutions.map((execution) => [
-      execution.node_id,
+    manifest.queryGroupExecutions.map((execution) => [
+      execution.query_group_id,
       execution.output?.digest ?? null,
     ]),
   );
 }
 
-function stepStatuses(manifest: RuntimeManifest): Record<string, string> {
+function queryStatuses(manifest: RuntimeManifest): Record<string, string> {
   return Object.fromEntries(
-    manifest.stepExecutions.map((execution) => [
-      execution.step_id,
+    manifest.queryExecutions.map((execution) => [
+      execution.query_id,
       execution.status,
     ]),
   );
 }
 
-function executedStepIds(manifest: RuntimeManifest): string[] {
-  return manifest.stepExecutions
+function executedQueryIds(manifest: RuntimeManifest): string[] {
+  return manifest.queryExecutions
     .filter(({ status }) => status === "recomputed")
-    .map(({ step_id }) => step_id)
+    .map(({ query_id }) => query_id)
     .sort();
 }
 
@@ -298,24 +298,24 @@ function requirementByRole(manifest: RuntimeManifest): Record<string, unknown> {
   );
 }
 
-function predictedExecutedSteps(
+function predictedExecutedQueries(
   roleId: InterventionRoleId,
-  changedSemanticSteps: ReadonlySet<string>,
+  changedQueries: ReadonlySet<string>,
   targetOptions: Record<string, unknown>,
   source: RuntimeManifest,
   target: RuntimeManifest,
 ): string[] {
-  const sourceStatuses = stepStatuses(source);
-  const targetStatuses = stepStatuses(target);
-  return stepContract.steps
-    .filter((step) => {
-      const sourceApplicable = sourceStatuses[step.id] !== "bypassed";
-      const targetApplicable = targetStatuses[step.id] !== "bypassed";
+  const sourceStatuses = queryStatuses(source);
+  const targetStatuses = queryStatuses(target);
+  return workflowContract.execution.queries
+    .filter((query) => {
+      const sourceApplicable = sourceStatuses[query.id] !== "bypassed";
+      const targetApplicable = targetStatuses[query.id] !== "bypassed";
       return (
         targetApplicable &&
         (!sourceApplicable ||
-          sourceRoleIsActive(step, roleId, targetOptions) ||
-          step.inputs.some((input) => changedSemanticSteps.has(input)))
+          sourceRoleIsActive(query, roleId, targetOptions) ||
+          query.inputs.some((input) => changedQueries.has(input)))
       );
     })
     .map(({ id }) => id)
@@ -367,17 +367,17 @@ function changedCheckpointComponents(
   target: RuntimeManifest,
 ): Record<string, string[]> {
   return Object.fromEntries(
-    Object.keys(source.processingSummary.logicalStageCheckpoints)
+    Object.keys(source.processingSummary.workflowQueryGroupCheckpoints)
       .sort()
       .map(
         (nodeId) =>
           [
             nodeId,
             changedFields(
-              source.processingSummary.logicalStageCheckpoints[
+              source.processingSummary.workflowQueryGroupCheckpoints[
                 nodeId
               ] as unknown as Record<string, unknown>,
-              target.processingSummary.logicalStageCheckpoints[
+              target.processingSummary.workflowQueryGroupCheckpoints[
                 nodeId
               ] as unknown as Record<string, unknown>,
             ).filter((field) => field !== "terminalDigest"),
@@ -387,20 +387,20 @@ function changedCheckpointComponents(
   );
 }
 
-function changedStepCheckpointComponents(
+function changedQueryCheckpointComponents(
   source: RuntimeManifest,
   target: RuntimeManifest,
 ): Record<string, string[]> {
   return Object.fromEntries(
-    Object.keys(source.processingSummary.pipelineStepCheckpoints)
+    Object.keys(source.processingSummary.workflowQueryCheckpoints)
       .sort()
       .map(
-        (stepId) =>
+        (queryId) =>
           [
-            stepId,
+            queryId,
             changedFields(
-              source.processingSummary.pipelineStepCheckpoints[stepId] ?? {},
-              target.processingSummary.pipelineStepCheckpoints[stepId] ?? {},
+              source.processingSummary.workflowQueryCheckpoints[queryId] ?? {},
+              target.processingSummary.workflowQueryCheckpoints[queryId] ?? {},
             ).filter((field) => field !== "terminalDigest"),
           ] as const,
       )
@@ -431,13 +431,13 @@ describe("artifact dependency tomography", () => {
     ) {
       throw new Error(`invalid artifact shard ${SHARD_INDEX}/${SHARD_COUNT}`);
     }
-    expect([...plan.nodes.map(({ node_id }) => node_id)].sort()).toEqual(
+    expect([...plan.query_groups.map(({ query_group_id }) => query_group_id)].sort()).toEqual(
       [...order].sort(),
     );
     expect(
       SUPPORT_ROLE_IDS.filter(
         (roleId) =>
-          !stepContract.steps.some((step) => step.sourceRoles.includes(roleId)),
+          !workflowContract.execution.queries.some((query) => query.sourceRoles.includes(roleId)),
       ),
       "every support role needs an owning Rust query",
     ).toEqual([]);
@@ -565,61 +565,61 @@ describe("artifact dependency tomography", () => {
             `${caseId}: supplied fixture left a role unsatisfied`,
           ).toBe(true);
           expect(
-            manifest.nodeExecutions,
-            `${caseId}: logical stages`,
-          ).toHaveLength(15);
+            manifest.queryGroupExecutions,
+            `${caseId}: query groups`,
+          ).toHaveLength(workflowContract.execution.queryGroups.length);
           expect(
-            manifest.stepExecutions,
-            `${caseId}: Rust pipeline steps`,
-          ).toHaveLength(55);
+            manifest.queryExecutions,
+            `${caseId}: Rust workflow queries`,
+          ).toHaveLength(workflowContract.execution.queries.length);
           expect(
-            manifest.stepExecutions.map(({ step_id }) => step_id).sort(),
-          ).toEqual(stepContract.steps.map(({ id }) => id).sort());
+            manifest.queryExecutions.map(({ query_id }) => query_id).sort(),
+          ).toEqual(workflowContract.execution.queries.map(({ id }) => id).sort());
           expect(
-            manifest.stepExecutions.every(
+            manifest.queryExecutions.every(
               ({ status }) => status !== "error" && status !== "skipped",
             ),
-            `${caseId}: failed Rust pipeline step`,
+            `${caseId}: failed Rust workflow query`,
           ).toBe(true);
           expect(
             Object.keys(
-              manifest.processingSummary.logicalStageCheckpoints,
+              manifest.processingSummary.workflowQueryGroupCheckpoints,
             ).sort(),
             `${caseId}: typed checkpoint coverage`,
-          ).toEqual(plan.nodes.map(({ node_id }) => node_id).sort());
-          for (const [nodeId, checkpoint] of Object.entries(
-            manifest.processingSummary.logicalStageCheckpoints,
+          ).toEqual(plan.query_groups.map(({ query_group_id }) => query_group_id).sort());
+          for (const [queryGroupId, checkpoint] of Object.entries(
+            manifest.processingSummary.workflowQueryGroupCheckpoints,
           )) {
             expect(checkpoint.protocolVersion).toBe(
-              "chronicle-logical-stage-checkpoint/v7",
+              "chronicle-workflow-checkpoint/v1",
             );
-            expect(checkpoint.nodeId).toBe(nodeId);
+            expect(checkpoint.subjectId).toBe(queryGroupId);
             expect(checkpoint.terminalDigest).toBe(
-              manifest.processingSummary.logicalStageDigests[nodeId],
+              manifest.processingSummary.workflowQueryGroupDigests[queryGroupId],
             );
           }
           expect(
             Object.keys(
-              manifest.processingSummary.pipelineStepCheckpoints,
+              manifest.processingSummary.workflowQueryCheckpoints,
             ).sort(),
-            `${caseId}: 55-step checkpoint coverage`,
-          ).toEqual(stepContract.steps.map(({ id }) => id).sort());
-          for (const [stepId, checkpoint] of Object.entries(
-            manifest.processingSummary.pipelineStepCheckpoints,
+            `${caseId}: complete query-registry checkpoint coverage`,
+          ).toEqual(workflowContract.execution.queries.map(({ id }) => id).sort());
+          for (const [queryId, checkpoint] of Object.entries(
+            manifest.processingSummary.workflowQueryCheckpoints,
           )) {
             expect(checkpoint.protocolVersion).toBe(
-              "chronicle-logical-stage-checkpoint/v7",
+              "chronicle-workflow-checkpoint/v1",
             );
-            expect(checkpoint.nodeId).toBe(stepId);
+            expect(checkpoint.subjectId).toBe(queryId);
             expect(checkpoint.terminalDigest).toBe(
-              manifest.processingSummary.pipelineStepDigests[stepId],
+              manifest.processingSummary.workflowQueryDigests[queryId],
             );
           }
           expect(
-            manifest.nodeExecutions.every(
+            manifest.queryGroupExecutions.every(
               ({ status }) => status !== "error" && status !== "skipped",
             ),
-            `${caseId}: failed logical execution`,
+            `${caseId}: failed workflow query-group execution`,
           ).toBe(true);
           const currentReceipt = authorityReceipt(manifest);
           if (!receipt) receipt = currentReceipt;
@@ -647,12 +647,12 @@ describe("artifact dependency tomography", () => {
         ).toEqual(coldTarget.outputCells);
         expect(
           nodeOutputDigests(warmTarget),
-          `${caseId}: every warm logical checkpoint needs a cold target`,
+          `${caseId}: every warm workflow checkpoint needs a cold target`,
         ).toEqual(nodeOutputDigests(coldTarget));
         expect(
-          warmTarget.processingSummary.pipelineStepDigests,
-          `${caseId}: every warm Rust step checkpoint needs a cold target`,
-        ).toEqual(coldTarget.processingSummary.pipelineStepDigests);
+          warmTarget.processingSummary.workflowQueryDigests,
+          `${caseId}: every warm Rust query checkpoint needs a cold target`,
+        ).toEqual(coldTarget.processingSummary.workflowQueryDigests);
         const changedQualificationRoles = changedFields(
           qualificationByRole(coldSource),
           qualificationByRole(coldTarget),
@@ -671,8 +671,8 @@ describe("artifact dependency tomography", () => {
         ).toEqual([intervention.roleId]);
 
         const changedSemanticNodes = changedFields(
-          coldSource.processingSummary.logicalStageDigests,
-          coldTarget.processingSummary.logicalStageDigests,
+          coldSource.processingSummary.workflowQueryGroupDigests,
+          coldTarget.processingSummary.workflowQueryGroupDigests,
         );
         const checkpointComponentChanges = changedCheckpointComponents(
           coldSource,
@@ -682,25 +682,25 @@ describe("artifact dependency tomography", () => {
           Object.keys(checkpointComponentChanges).sort(),
           `${caseId}: typed components and terminal commitments disagree`,
         ).toEqual(changedSemanticNodes);
-        const changedSemanticSteps = changedFields(
-          coldSource.processingSummary.pipelineStepDigests,
-          coldTarget.processingSummary.pipelineStepDigests,
+        const changedQueries = changedFields(
+          coldSource.processingSummary.workflowQueryDigests,
+          coldTarget.processingSummary.workflowQueryDigests,
         );
-        const stepCheckpointComponentChanges = changedStepCheckpointComponents(
+        const queryCheckpointComponentChanges = changedQueryCheckpointComponents(
           coldSource,
           coldTarget,
         );
         expect(
-          Object.keys(stepCheckpointComponentChanges).sort(),
-          `${caseId}: step components and terminal commitments disagree`,
-        ).toEqual(changedSemanticSteps);
+          Object.keys(queryCheckpointComponentChanges).sort(),
+          `${caseId}: query components and terminal commitments disagree`,
+        ).toEqual(changedQueries);
         if (intervention.expectedSemanticEffect === "required") {
           requiredInterventionIds.add(intervention.id);
           const contexts = activationContexts.get(intervention.id) ?? {
             active: new Set<string>(),
             converged: new Set<string>(),
           };
-          if (changedSemanticSteps.length > 0) {
+          if (changedQueries.length > 0) {
             semanticEffects += 1;
             contexts.active.add(corpus.id);
             semanticWitnessesByIntervention.set(
@@ -714,33 +714,33 @@ describe("artifact dependency tomography", () => {
           activationContexts.set(intervention.id, contexts);
         } else {
           expect(
-            changedSemanticSteps,
+            changedQueries,
             `${caseId}: representation/ignored-field control must converge`,
           ).toEqual([]);
           exactEquivalences += 1;
         }
 
-        const actualExecutedSteps = executedStepIds(warmTarget);
+        const actualExecutedQueries = executedQueryIds(warmTarget);
         const exactTargetOptions = buildRustV2Options(ALL_ON, GOLDEN_RUNTIME);
         const supportRepresentationOnly =
           intervention.roleId !== "raw_chronicle_csv" &&
           intervention.expectedSemanticEffect === "equivalent";
-        const expectedExecutedSteps = supportRepresentationOnly
+        const expectedExecutedQueries = supportRepresentationOnly
           ? []
-          : predictedExecutedSteps(
+          : predictedExecutedQueries(
               intervention.roleId,
-              new Set(changedSemanticSteps),
+              new Set(changedQueries),
               exactTargetOptions,
               coldSource,
               coldTarget,
             );
         expect(
-          actualExecutedSteps,
+          actualExecutedQueries,
           `${caseId}: declared inputs and actual Salsa query bodies must agree exactly`,
-        ).toEqual(expectedExecutedSteps);
-        const sourceStatuses = stepStatuses(coldSource);
-        const targetStatuses = stepStatuses(coldTarget);
-        const deactivatedSteps = stepContract.steps
+        ).toEqual(expectedExecutedQueries);
+        const sourceStatuses = queryStatuses(coldSource);
+        const targetStatuses = queryStatuses(coldTarget);
+        const deactivatedQueries = workflowContract.execution.queries
           .filter(
             ({ id }) =>
               sourceStatuses[id] !== "bypassed" &&
@@ -749,21 +749,21 @@ describe("artifact dependency tomography", () => {
           .map(({ id }) => id)
           .sort();
         expect(
-          deactivatedSteps,
+          deactivatedQueries,
           `${caseId}: artifact bytes cannot change applicability`,
         ).toEqual([]);
-        const directBindingSteps = stepContract.steps
+        const directBindingQueries = workflowContract.execution.queries
           .filter(
-            (step) =>
-            targetStatuses[step.id] !== "bypassed" &&
-            sourceRoleIsActive(step, intervention.roleId, exactTargetOptions),
+            (query) =>
+            targetStatuses[query.id] !== "bypassed" &&
+            sourceRoleIsActive(query, intervention.roleId, exactTargetOptions),
           )
           .map(({ id }) => id)
           .sort();
         if (!supportRepresentationOnly) {
-          for (const binder of directBindingSteps) {
+          for (const binder of directBindingQueries) {
             expect(
-              actualExecutedSteps,
+              actualExecutedQueries,
               `${caseId}: direct Rust artifact binding did not execute`,
             ).toContain(binder);
           }
@@ -791,17 +791,17 @@ describe("artifact dependency tomography", () => {
           changedComponents: intervention.changedComponents,
           description: intervention.description,
           expectedSemanticEffect: intervention.expectedSemanticEffect,
-          observedSemanticEffect: changedSemanticSteps.length > 0,
-          directBindingSteps,
+          observedSemanticEffect: changedQueries.length > 0,
+          directBindingQueries,
           changedQualificationRoles,
           changedRequirementRoles,
           changedSemanticNodes,
           checkpointComponentChanges,
-          changedSemanticSteps,
-          stepCheckpointComponentChanges,
-          expectedExecutedSteps,
-          actualExecutedSteps,
-          deactivatedSteps,
+          changedQueries,
+          queryCheckpointComponentChanges,
+          expectedExecutedQueries,
+          actualExecutedQueries,
+          deactivatedQueries,
           changedOutputArtifactKinds,
           changedOutputCellCount: changedOutputCellAddresses.length,
           changedOutputCellAddressDigest: await sha256Uri(
@@ -818,9 +818,9 @@ describe("artifact dependency tomography", () => {
             coldSource.processingSummary,
             coldTarget.processingSummary,
           ),
-          displayGroupStatuses: warmTarget.nodeExecutions.map(
-            ({ node_id, status }) => ({
-              nodeId: node_id,
+          displayGroupStatuses: warmTarget.queryGroupExecutions.map(
+            ({ query_group_id, status }) => ({
+              nodeId: query_group_id,
               status,
             }),
           ),
@@ -828,17 +828,17 @@ describe("artifact dependency tomography", () => {
         // A stage badge is a claim about physical execution. The graph panel
         // reads these statuses under "Badges show what the last run actually
         // recomputed versus reused", so `recomputed` must be backed by a
-        // member query in this run's own executed-step set. `deactivatedSteps`
+        // member query in this run's own executed-query set. `deactivatedQueries`
         // is asserted empty above, so that is the only other legal source.
         // A support artifact rewritten with CRLF line endings moves the
         // stage's projection key and executes nothing; it must stay `cached`.
-        const executedStepSet = new Set(actualExecutedSteps);
+        const executedQuerySet = new Set(actualExecutedQueries);
         const recomputedWithoutExecution = report.displayGroupStatuses
           .filter(({ status }) => status === "recomputed")
           .filter(
             ({ nodeId }) =>
-              !stepContract.steps.some(
-                (step) => step.group === nodeId && executedStepSet.has(step.id),
+              !workflowContract.execution.queries.some(
+                (query) => query.group === nodeId && executedQuerySet.has(query.id),
               ),
           )
           .map(({ nodeId }) => nodeId);
@@ -866,7 +866,7 @@ describe("artifact dependency tomography", () => {
         protocolVersion: "chronicle-output-cell-correspondence/v2",
         implementationReceipt: receipt,
         claimBoundary:
-          "Exact changed canonical CSV/JSON output cell addresses for each named raw/support intervention. Each case also names the exact supplied source columns that intervention rewrote (sourceFields), in the Rust step contract's field namespace, using source.raw_row_set / source.raw_row_order for structural raw changes and an empty list for representation-only controls. Binary exports and the Arrow lineage sidecar are digest-bound separately and are not interpreted as cells.",
+          "Exact changed canonical CSV/JSON output cell addresses for each named raw/support intervention. Each case also names the exact supplied source columns that intervention rewrote (sourceFields), in the Rust query contract's field namespace, using source.raw_row_set / source.raw_row_order for structural raw changes and an empty list for representation-only controls. Binary exports and the Arrow lineage sidecar are digest-bound separately and are not interpreted as cells.",
         cases: cellEvidenceCases.sort((left, right) =>
           left.caseId.localeCompare(right.caseId),
         ),
@@ -881,9 +881,9 @@ describe("artifact dependency tomography", () => {
 
     const evidence = {
       protocolVersion: "chronicle-artifact-influence-ledger/v1",
-      logicalCheckpointProtocol: "chronicle-logical-stage-checkpoint/v7",
+      workflowCheckpointProtocol: "chronicle-workflow-checkpoint/v1",
       claimBoundary:
-        "Exact raw/support artifact percolation for the recorded product plan, implementation, six deterministic synthetic corpora, and intervention catalog. Each intervention changes exactly one source artifact; every warm 55-step checkpoint, 15 display-group checkpoint, and researcher-visible output is compared with an independent cold Rust/WASM target. Absence of an effect is not generalized beyond the named mutation and corpus.",
+        "Exact raw/support artifact percolation for the recorded product plan, implementation, deterministic synthetic corpora, and intervention catalog. Each intervention changes exactly one source artifact; every warm query and query-group checkpoint plus every researcher-visible output is compared with an independent cold Rust/WASM target. Absence of an effect is not generalized beyond the named mutation and corpus.",
       plan: { id: plan.plan_id, revision: plan.revision },
       implementationReceipt: receipt,
       cellEvidence: {
@@ -936,8 +936,8 @@ describe("artifact dependency tomography", () => {
         semanticEffects,
         contextualConvergences,
         exactEquivalences,
-        logicalCheckpointComparisons: reports.length,
-        pipelineStepCheckpointComparisons: reports.length * 55,
+        workflowCheckpointComparisons: reports.length,
+        workflowQueryCheckpointComparisons: reports.length * workflowContract.execution.queries.length,
         typedCheckpointDecompositionComparisons: reports.length,
         exactClusterComparisons: reports.length,
         exactQualificationCorrespondenceComparisons: reports.length,

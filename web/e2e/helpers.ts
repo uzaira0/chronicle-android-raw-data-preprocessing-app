@@ -4,6 +4,10 @@ import { expect, type Download, type Page } from "@playwright/test";
 import Papa from "papaparse";
 
 import type { BrowserProcessingRuntime } from "../src/lib/types";
+import {
+  WORKFLOW_CLOSURE_MAGIC_TEXT,
+  type RuntimeClosureManifest,
+} from "../src/lib/workflowClosureProtocol";
 import { FIXED_DATETIME } from "./fixtures";
 
 export type ExternalRequestTracker = {
@@ -265,15 +269,7 @@ export function csvHeaders(csvText: string): string[] {
   return csvText.split("\n", 1)[0]?.split(",") ?? [];
 }
 
-const CLOSURE_MAGIC = Buffer.from("CHRONICLE-CLOSURE-V1\n", "utf-8");
-
-export type ClosureManifest = {
-  protocolVersion: "chronicle-runtime-closure/v1";
-  workspaceId: string;
-  workspaceRootDigest: string;
-  previousWorkspaceRootDigest: string | null;
-  objects: Array<{ digest: string; size: number; offset: number }>;
-};
+const CLOSURE_MAGIC = Buffer.from(WORKFLOW_CLOSURE_MAGIC_TEXT, "utf-8");
 
 /** Click the workspace export button and return the downloaded archive bytes. */
 export async function downloadClosure(page: Page): Promise<Uint8Array> {
@@ -287,7 +283,7 @@ export async function downloadClosure(page: Page): Promise<Uint8Array> {
 
 /** Parse a portable closure archive: its manifest plus its declared root object. */
 export function inspectClosure(bytes: Uint8Array): {
-  manifest: ClosureManifest;
+  manifest: RuntimeClosureManifest;
   root: { workspaceId: string; previousWorkspaceRootDigest: string | null };
 } {
   expect(Buffer.from(bytes.subarray(0, CLOSURE_MAGIC.byteLength))).toEqual(CLOSURE_MAGIC);
@@ -297,7 +293,7 @@ export function inspectClosure(bytes: Uint8Array): {
   const payloadStart = manifestStart + manifestSize;
   const manifest = JSON.parse(
     new TextDecoder().decode(bytes.subarray(manifestStart, payloadStart)),
-  ) as ClosureManifest;
+  ) as RuntimeClosureManifest;
   const rootEntry = manifest.objects.find(
     ({ digest }) => digest === manifest.workspaceRootDigest,
   );
