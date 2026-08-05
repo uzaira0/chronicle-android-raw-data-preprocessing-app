@@ -6,7 +6,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { availableParallelism, tmpdir } from "node:os";
+import { availableParallelism } from "node:os";
 import path from "node:path";
 
 // On the 32-core reference machine, 12 workers and 31 workers both finish in
@@ -31,7 +31,7 @@ const testName =
 const expectedFile = path.resolve(
   "src/lib/pipelineGraph/golden/family-expected/configuration-influence-ledger.json",
 );
-const temporaryRoot = mkdtempSync(path.join(tmpdir(), "chronicle-config-influence-"));
+const temporaryRoot = mkdtempSync(path.resolve(".tmp-config-influence-"));
 
 /** @typedef {{ evidence: Record<string, any>, caseIdentities: string[] }} ShardResult */
 
@@ -142,7 +142,7 @@ try {
   const first = firstShard.evidence;
   const evidence = {
     protocolVersion: sameAcross(shards, "protocolVersion"),
-    logicalCheckpointProtocol: sameAcross(shards, "logicalCheckpointProtocol"),
+    workflowCheckpointProtocol: sameAcross(shards, "workflowCheckpointProtocol"),
     claimBoundary: sameAcross(shards, "claimBoundary"),
     contractAuthority: sameAcross(shards, "contractAuthority"),
     planAuthority: sameAcross(shards, "planAuthority"),
@@ -160,17 +160,17 @@ try {
       totalRustExecutions: sum(shards, "totalRustExecutions"),
     },
     exactPercolationProof: {
-      logicalStageCount: first.exactPercolationProof.logicalStageCount,
-      pipelineStepCount: first.exactPercolationProof.pipelineStepCount,
+      workflowQueryGroupCount: first.exactPercolationProof.workflowQueryGroupCount,
+      workflowQueryCount: first.exactPercolationProof.workflowQueryCount,
       warmColdCheckpointComparisons: sumProof(shards, "warmColdCheckpointComparisons"),
-      warmColdStepCheckpointComparisons: sumProof(
+      warmColdQueryCheckpointComparisons: sumProof(
         shards,
-        "warmColdStepCheckpointComparisons",
+        "warmColdQueryCheckpointComparisons",
       ),
       exactClusterComparisons: sumProof(shards, "exactClusterComparisons"),
       staleCheckpointCases: sumProof(shards, "staleCheckpointCases"),
       clusterMismatchCases: sumProof(shards, "clusterMismatchCases"),
-      stepClusterMismatchCases: sumProof(shards, "stepClusterMismatchCases"),
+      queryClusterMismatchCases: sumProof(shards, "queryClusterMismatchCases"),
     },
     physicalExecutionBoundary: sameAcross(shards, "physicalExecutionBoundary"),
     axesWithSubstantiveObservedEffects: [...axesWith].sort(),

@@ -1,5 +1,5 @@
 //! Chronicle preprocessing algorithms shared by the native test oracle and
-//! the production 55-query Salsa runtime.
+//! the production query registry and Salsa runtime.
 //!
 //! This crate is not a browser API. The only production JavaScript boundary
 //! is `chronicle_preprocessing_runtime_wasm`.
@@ -8,7 +8,7 @@ use chrono::{DateTime, NaiveDateTime, TimeZone};
 use chrono_tz::Tz;
 
 pub mod pipeline_v2;
-pub mod step_contract;
+pub mod workflow_contract;
 
 /// Byte-exact expectation files for product artifacts, shared by every golden
 /// test in this crate so there is one recorded location and one re-record

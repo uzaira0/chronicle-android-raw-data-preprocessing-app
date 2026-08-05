@@ -100,7 +100,7 @@ syn = { version = "2.0", features = ["full", "visit-mut"] }
 # `chronicle_preprocessing_runtime_wasm_bg-` prefix budget in
 # `web/bundle-budget.json`, currently 6,400,000 B against a 6,336,842 B
 # artifact; the "6 MiB" this comment used to cite was the pre-raise figure and
-# the artifact has been over it since the witness and step-contract work landed.
+# the artifact has been over it since the witness and workflow-contract work landed.
 opt-level = 2
 lto = "fat"
 codegen-units = 1

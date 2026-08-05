@@ -1,7 +1,8 @@
 import { spawn } from "node:child_process";
-import { readdir } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
+import { parse as parseYaml } from "yaml";
 
 const inputDirectory = path.resolve(
   process.argv[2] ?? "../.tmp-benchmark/unique-100",
@@ -18,6 +19,40 @@ if (
   )
 ) {
   throw new Error("benchmark case must be a supported middle-pipeline change");
+}
+
+/** @type {{queries: Array<{id: string, inputs: string[], requestFields: string[]}>}} */
+const workflow = parseYaml(
+  await readFile(path.resolve("schema/chronicle-workflow.yaml"), "utf8"),
+);
+const queryIds = workflow.queries.map((query) => query.id);
+if (queryIds.length === 0 || new Set(queryIds).size !== queryIds.length) {
+  throw new Error("generated workflow query registry must be non-empty and unique");
+}
+const changedOption =
+  benchmarkCase === "middle_concurrent_usage"
+    ? "model_concurrent_usage"
+    : "minimum_usage_duration";
+const affectedQueryIds = new Set(
+  workflow.queries
+    .filter((query) => query.requestFields.includes(changedOption))
+    .map((query) => query.id),
+);
+let addedAffectedQuery = true;
+while (addedAffectedQuery) {
+  addedAffectedQuery = false;
+  for (const query of workflow.queries) {
+    if (
+      !affectedQueryIds.has(query.id) &&
+      query.inputs.some((input) => affectedQueryIds.has(input))
+    ) {
+      affectedQueryIds.add(query.id);
+      addedAffectedQuery = true;
+    }
+  }
+}
+if (affectedQueryIds.size === 0) {
+  throw new Error(`${changedOption} has no declared query impact`);
 }
 
 const rawFiles = (await readdir(inputDirectory))
@@ -84,47 +119,6 @@ function runOne(raw, persisted) {
   });
 }
 
-// Mirrors the per-case expectations proven by measure_review_batch.mjs:
-// the narrow duration change reuses the reconstruction base and reruns only
-// the floor-dependent tail, while the concurrent-usage change invalidates the
-// matcher and annotation chains and resumes from the earlier review base.
-// The matcher/annotation chain may also report "cached" when the kernel's
-// two-slot alternation cache (keyed by content-committing checkpoint digests)
-// already holds the state computed by the in-process cold oracle pass; output
-// identity is separately proven by the digest/count/identity comparisons.
-const expectedRecomputedOrCached = new Set(
-  benchmarkCase === "middle_concurrent_usage"
-    ? [
-        "compute_junk_packages",
-        "junk_blind_fold",
-        "build_matcher_input",
-        "run_matcher",
-        "apply_matcher_output",
-        "relabel_usage_with_floor",
-        "junk_downstream_mark",
-        "sort_episodes",
-        "codebook_join",
-        "derive_broad_category",
-        "collapse_genre",
-        "engagement_walk",
-        "flag_and_retain",
-        "blank_junk_timing",
-        "drop_selected_types",
-      ]
-    : [],
-);
-const expectedRecomputed = new Set([
-  ...(benchmarkCase === "middle_concurrent_usage"
-    ? []
-    : ["relabel_usage_with_floor", "junk_downstream_mark", "sort_episodes"]),
-  "resolve_participant_windows",
-  "filter_rows_to_window",
-  "resolve_sharing_status",
-  "build_survey_lookup",
-  "attribute_rows",
-  "inject_placeholders",
-  "assemble_result",
-]);
 const expectedSelectedBaseKind =
   benchmarkCase === "middle_concurrent_usage"
     ? "review-base"
@@ -133,22 +127,6 @@ const expectedCacheSources =
   benchmarkCase === "middle_concurrent_usage"
     ? ["verified-review-base"]
     : ["verified-reconstruction-base"];
-const expectedSkipped = new Set([
-  "partition_credit_sessions",
-  "build_liveness_substrate",
-  "report_screen_incapable",
-  "count_day_apps",
-  "credit_sessions",
-  "emit_credited_rows",
-  "assemble_credit_result",
-  "build_raw_date_index",
-]);
-const expectedBypassed = new Set([
-  "build_coverage_table",
-  "accumulate_attribution_minutes",
-  "score_days",
-]);
-
 /** @param {unknown} value @param {string} label */
 function only(value, label) {
   if (!Array.isArray(value) || value.length !== 1) {
@@ -215,35 +193,34 @@ function verifyPair(cached, cold) {
     throw new Error("middle change did not report its verified cache source");
   }
   const statuses = only(
-    cachedMeasurements.coldStepStatuses,
-    "cached step statuses",
+    cachedMeasurements.coldQueryStatuses,
+    "cached query statuses",
   );
   if (
     !Array.isArray(statuses) ||
-    statuses.length !== 55 ||
-    new Set(statuses.map(([step]) => step)).size !== 55
+    statuses.length !== queryIds.length ||
+    new Set(statuses.map(([query]) => query)).size !== queryIds.length
   ) {
-    throw new Error("cached result does not contain exactly 55 unique steps");
+    throw new Error("cached result does not contain the complete unique query registry");
   }
-  for (const [step, status] of statuses) {
-    if (expectedRecomputedOrCached.has(step)) {
-      if (status !== "recomputed" && status !== "cached") {
-        throw new Error(
-          `${step}: expected recomputed or cached, received ${status}`,
-        );
-      }
-      continue;
+  if (statuses.map(([query]) => query).join("\n") !== queryIds.join("\n")) {
+    throw new Error(`${benchmarkCase} query order drifted from the workflow contract`);
+  }
+  const validStatuses = new Set(["cached", "recomputed", "bypassed", "skipped"]);
+  for (const [query, status] of statuses) {
+    if (!validStatuses.has(status)) {
+      throw new Error(`${query}: invalid status ${status}`);
     }
-    const expected = expectedRecomputed.has(step)
-      ? "recomputed"
-      : expectedSkipped.has(step)
-        ? "skipped"
-        : expectedBypassed.has(step)
-          ? "bypassed"
-          : "cached";
-    if (status !== expected) {
-      throw new Error(`${step}: expected ${expected}, received ${status}`);
+    if (status === "recomputed" && !affectedQueryIds.has(query)) {
+      throw new Error(`${query}: unrelated query recomputed for ${changedOption}`);
     }
+  }
+  if (
+    !statuses.some(
+      ([query, status]) => status === "recomputed" && affectedQueryIds.has(query),
+    )
+  ) {
+    throw new Error(`${changedOption} did not recompute any declared affected query`);
   }
   return {
     inputSha256: cached.input.sha256,
@@ -333,7 +310,7 @@ process.stdout.write(
     benchmarkCase,
     wasm: results[0].wasm,
     runtimeIdentity: results[0].runtimeIdentity,
-    exactStepStatusResults: results.length,
+    exactQueryStatusResults: results.length,
     exactColdOracleMatches: results.length,
     wallElapsedMs: performance.now() - started,
     inputBytes: distribution(results.map((result) => result.inputBytes)),

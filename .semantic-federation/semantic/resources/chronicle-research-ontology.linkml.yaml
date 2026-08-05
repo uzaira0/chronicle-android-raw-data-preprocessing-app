@@ -4,7 +4,7 @@ title: Chronicle Android Usage Measurement — Research Ontology (core module)
 description: >-
   Core entity model for the Android UsageStatsManager event-log -> usage-measurement
   research ontology. Implements the D4 five-way split from
-  docs/pipeline-graph/13-research-ontology-design.md (occurrence / record / optional
+  docs/workflow/research-ontology-design.md (occurrence / record / optional
   logging-observation / assertion / execution / interval) so provenance can always
   distinguish what was OBSERVED from what was RECONSTRUCTED, and so absence and
   unresolved attribution can never silently drop from denominators.
@@ -136,6 +136,15 @@ enums:
       collector_reporting_gap: {description: Device on but the collector did not report.}
       unknown: {description: Cause not determinable from events.}
 
+  QueryExecutionStatus:
+    description: Observed state of one physical query in a runtime execution.
+    permissible_values:
+      cached: {description: Reused from a compatible in-memory or durable checkpoint.}
+      recomputed: {description: Evaluated during this run.}
+      error: {description: Evaluation failed.}
+      skipped: {description: Intentionally omitted by the execution mode.}
+      bypassed: {description: Not applicable for the supplied inputs and configuration.}
+
 # ============================================================
 # CLASSES
 # ============================================================
@@ -218,27 +227,68 @@ classes:
     slots: [attribution_status, attributed_person, on_shared_device]
 
   # ---- Pipeline structure (P-Plan) — ParameterSet is config, NOT a Plan (D4/D7) ----
-  PipelinePlan:
+  WorkflowPlan:
     description: The prospective processing workflow. A p-plan:Plan / prov:Plan.
     broad_mappings: [pplan:Plan]
     tree_root: true
-    slots: [plan_id, steps]
+    slots: [plan_id, operations, queries]
 
-  StepDefinition:
+  OperationDefinition:
     description: >-
-      One processing step in the plan (a graph node) at ANY scale — a
-      p-plan:Step. Steps compose recursively via part_of_step: a coarse step
-      (an execution/memoization unit) and the fine-grained transformations
-      inside it are the SAME kind of thing, because the step boundary is an
-      arbitrary scale choice, not an ontological distinction. Follows the
-      ProcessingStep shape (id/verb/engine/consumes/produces/depends_on).
+      One semantic operation in the workflow at any useful scale. Operations
+      compose recursively via part_of_operation so a coarse responsibility and
+      its independently invalidatable transformations share one model without
+      forcing presentation and execution boundaries to coincide.
     broad_mappings: [pplan:Step]
-    slots: [step_id, verb, engine, consumes, produces, depends_on, is_fatal, part_of_step]
+    slots:
+      - operation_id
+      - verb
+      - engine
+      - operation_role
+      - epistemic_role
+      - consumes
+      - produces
+      - depends_on
+      - configuration_dependencies
+      - data_effects
+      - is_fatal
+      - part_of_operation
 
-  NodeExecution:
-    description: A retrospective execution of a StepDefinition. A prov:Activity.
+  OperationExecution:
+    description: A retrospective execution of an OperationDefinition. A prov:Activity.
     broad_mappings: [prov:Activity]
-    slots: [executes_step, used_parameter_set, started_at, ended_at]
+    slots: [execution_id, executes_operation, used_parameter_set, started_at, ended_at]
+
+  QueryDefinition:
+    description: >-
+      One physical computation and memoization boundary. Its realizes_operations
+      links are prospective mappings and do not imply that those semantic operations
+      were applied in a particular run.
+    broad_mappings: [pplan:Step]
+    slots:
+      - query_id
+      - query_group_id
+      - query_dependencies
+      - realizes_operations
+      - query_outputs
+      - query_request_fields
+
+  QueryExecution:
+    description: >-
+      Retrospective evidence for one physical query. Kept distinct from
+      OperationExecution because a fused query can realize several semantic
+      operations with different applicability.
+    broad_mappings: [prov:Activity]
+    slots:
+      - executes_query
+      - used_parameter_set
+      - query_execution_status
+      - query_input_key
+      - query_output_digest
+      - query_reason_id
+      - part_of_execution
+      - execution_started_at
+      - execution_ended_at
 
   ReconstructionExecution:
     description: The execution that produced a usage assertion. A prov:Activity.
@@ -289,7 +339,7 @@ slots:
   measurement_layer: {description: Measurement-model layer., range: MeasurementLayer}
   date: {description: Study/local date the measure is assigned to., range: date}
   effective_minutes: {description: Effective usage minutes., range: float}
-  produced_by: {description: The node execution that produced this measure., range: NodeExecution}
+  produced_by: {description: The operation execution that produced this measure., range: OperationExecution}
   cites_parameter_set: {description: The ParameterSet under which this measure was produced., range: ParameterSet}
   coverage_policy: {description: Named policy for how coverage gaps were treated., range: string}
 
@@ -305,25 +355,49 @@ slots:
   on_shared_device: {description: Whether the device is shared., range: boolean}
 
   plan_id: {description: Plan identifier., range: string, identifier: true}
-  steps: {description: Steps of the plan., range: StepDefinition, multivalued: true, inlined_as_list: true}
-  step_id: {description: Step identifier (= graph node id)., range: string, identifier: true}
-  verb: {description: Action the step performs., range: string}
-  engine: {description: Named algorithm/engine the step realizes., range: string}
-  consumes: {description: Channels/inputs the step reads., range: string, multivalued: true}
-  produces: {description: Channels/outputs the step produces., range: string, multivalued: true}
-  depends_on: {description: Steps that must precede this one., range: string, multivalued: true}
+  operations: {description: Semantic operations in the workflow., range: OperationDefinition, multivalued: true, inlined_as_list: true}
+  queries: {description: Physical queries in the workflow., range: QueryDefinition, multivalued: true, inlined_as_list: true}
+  operation_id: {description: Stable semantic operation identifier., range: string, identifier: true}
+  verb: {description: Action the operation performs., range: string}
+  engine: {description: Named algorithm or engine the operation realizes., range: string}
+  operation_role: {description: Semantic responsibility of the operation., range: string}
+  epistemic_role:
+    description: Whether the operation observes, infers, applies policy, or presents.
+    range: string
+  consumes: {description: Channels or inputs the operation reads., range: string, multivalued: true}
+  produces: {description: Channels or outputs the operation produces., range: string, multivalued: true}
+  depends_on: {description: Operations that must precede this one., range: string, multivalued: true}
+  configuration_dependencies: {description: Direct configuration fields read by this operation., range: string, multivalued: true}
+  data_effects:
+    description: Declared effects such as preserve, drop, split, classify, or encode.
+    range: string
+    multivalued: true
   is_fatal: {description: Whether a failure fails the whole workflow., range: boolean}
-  part_of_step:
+  part_of_operation:
     description: >-
-      The coarser-scale step this step is a proper part of (recursive
-      composition — no separate "substep" class; scale is arbitrary).
-      Referenced by step_id, not inlined.
-    range: StepDefinition
+      The coarser semantic operation this operation is a proper part of.
+      Referenced by operation_id, not inlined.
+    range: OperationDefinition
     slot_uri: dcterms:isPartOf
-  executes_step: {description: The StepDefinition this execution runs., range: StepDefinition}
+  executes_operation: {description: The OperationDefinition this execution realizes., range: OperationDefinition}
+  execution_id: {description: Stable workflow-execution identifier., range: string, identifier: true}
   used_parameter_set: {description: The ParameterSet the execution used., range: ParameterSet}
   started_at: {description: Execution start., range: string}
   ended_at: {description: Execution end., range: string}
+  query_id: {description: Stable physical-query identifier., range: string, identifier: true}
+  query_group_id: {description: Presentation-only query-group identity., range: string, required: true}
+  query_dependencies: {description: Direct upstream physical queries., range: QueryDefinition, multivalued: true}
+  realizes_operations: {description: Semantic operations this query may realize., range: OperationDefinition, multivalued: true}
+  query_outputs: {description: Independently identified output artifacts or ports., range: string, multivalued: true}
+  query_request_fields: {description: Exact request fields read by the query., range: string, multivalued: true}
+  executes_query: {description: The QueryDefinition this execution realizes., range: QueryDefinition, required: true}
+  query_execution_status: {description: Observed physical execution state., range: QueryExecutionStatus, required: true}
+  query_input_key: {description: Content identity of the query's exact effective inputs., range: string, required: true}
+  query_output_digest: {description: Content identity of the query output., range: string, required: true}
+  query_reason_id: {description: Stable identity of the evidence supporting the state., range: string, required: true}
+  part_of_execution: {description: Root workflow execution containing this query execution., range: OperationExecution, slot_uri: dcterms:isPartOf, required: true}
+  execution_started_at: {description: Evidence timestamp for the query execution., range: datetime, slot_uri: prov:startedAtTime, required: true}
+  execution_ended_at: {description: Evidence timestamp for the query execution., range: datetime, slot_uri: prov:endedAtTime, required: true}
   follows_strategy: {description: The reconstruction strategy followed., range: ReconstructionStrategy}
   strategy_id: {description: Strategy identifier (unique key)., range: string, identifier: true}
   strategy_kind: {description: Canonical strategy category (IRI-bearing enum value)., range: ReconstructionStrategyId}

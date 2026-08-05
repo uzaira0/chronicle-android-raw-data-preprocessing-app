@@ -59,73 +59,75 @@ test("@smoke @opfs screen-gated credit emits the side-by-side Credited App Usage
   assertNoExternalRequests(requestTracker);
 });
 
-test("@smoke Graph tab renders the pipeline and answers a click in plain English", async ({
+test("@smoke Pipeline Explorer separates workflow, impact, lineage, execution, and audit evidence", async ({
   page,
 }) => {
   const pageErrors = trackPageErrors(page);
 
   await page.getByRole("tab", { name: /Graph/i }).click();
   await expect(page.getByTestId("graph-canvas")).toBeVisible();
-  // Interaction hint is visible before any selection.
-  await expect(page.getByTestId("graph-sentence")).toContainText("Click a step");
+  await expect(page.getByTestId("graph-sentence")).toContainText("Select an item");
 
   const nodes = page.locator(".graph-node");
+  await expect(page.getByTestId("graph-mode-overview")).toHaveAttribute("aria-pressed", "true");
+  await expect(nodes.first()).toBeVisible();
+  expect(await nodes.count()).toBeGreaterThan(0);
+  await expect(page.locator('.graph-node[data-node-category="phase"]'))
+    .toHaveCount(await nodes.count());
+  await nodes.first().click();
+  await expect(page.getByTestId("graph-sentence")).not.toContainText("Select an item");
 
-  // Steps is the default scale: the full fine-grained DAG, every real
-  // transformation as its own node (units are only the engine's caching
-  // boundary — an arbitrary grouping).
-  await expect(page.getByTestId("graph-scale-steps")).toHaveAttribute("aria-pressed", "true");
-  await expect(nodes.filter({ hasText: "CSV parse" })).toHaveCount(1);
-  expect(await nodes.count()).toBeGreaterThanOrEqual(20);
+  // Decisions keeps physical cache readers separate from semantic and artifact impact.
+  await page.getByTestId("graph-mode-decisions").click();
+  await expect(page.locator('.graph-node[data-node-category="decision"]').first()).toBeVisible();
+  await expect(page.locator('.graph-node[data-node-category="execution"]').first()).toBeVisible();
+  await expect(page.locator('.graph-node[data-node-category="operation"]').first()).toBeVisible();
+  await expect(page.locator('.graph-node[data-node-category="artifact"]').first()).toBeVisible();
+  await page.locator('.graph-node[data-node-category="decision"]').first().click();
+  await expect(page.getByTestId("graph-impact-details")).toContainText("Direct physical readers");
+  await expect(page.getByTestId("graph-impact-details")).toContainText("Operations that may change");
+  await expect(page.getByTestId("graph-impact-details")).toContainText("Artifacts that may change");
+  await expect(nodes.locator(".graph-node__availability").first()).toBeVisible();
 
-  // The Units toggle regroups the same DAG at execution-unit scale.
-  await page.getByTestId("graph-scale-units").click();
-  await expect(page.getByTestId("graph-scale-units")).toHaveAttribute("aria-pressed", "true");
+  // Lineage does not mislabel every terminal artifact as a user deliverable.
+  await page.getByTestId("graph-mode-lineage").click();
+  await expect(page.locator('.graph-node[data-node-category="source"]').first()).toBeVisible();
+  await expect(page.locator('.graph-node[data-node-category="artifact"]').first()).toBeVisible();
+  await expect(page.getByTestId("graph-deliverables")).toContainText("Not observed");
 
-  // Steps the current settings turn off (filtering + the Analyze tier under
-  // shipped defaults) are HIDDEN — the default view is the pipeline that
-  // actually runs, not the full declared DAG.
-  await expect(nodes.filter({ hasText: "Usage-episode reconstruction" })).toHaveCount(1);
-  await expect(nodes.filter({ hasText: "Compliance scoring" })).toHaveCount(0);
+  // Before a run, execution evidence says exactly what has not been observed.
+  await page.getByTestId("graph-mode-execution").click();
+  await expect(page.getByTestId("graph-node-metrics").first()).toContainText("timing unavailable");
 
-  // The toolbar toggle reveals the off steps (rendered dashed).
-  await page.getByTestId("graph-show-off-toggle").click();
-  expect(await nodes.count()).toBeGreaterThanOrEqual(10);
-  await expect(nodes.filter({ hasText: "Compliance scoring" })).toHaveCount(1);
+  // Audit can find and focus registry operations, and detailed phases collapse dynamically.
+  await page.getByTestId("graph-mode-audit").click();
+  const firstAuditLabel = await nodes.locator(".graph-node__label").first().innerText();
+  await page.getByTestId("graph-audit-search").fill(firstAuditLabel);
+  await expect(page.getByTestId("graph-audit-results").getByRole("button").first()).toBeVisible();
+  await page.getByTestId("graph-audit-results").getByRole("button").first().click();
+  await expect(page.getByTestId("graph-sentence")).toContainText(firstAuditLabel);
+  await page.getByTestId("graph-collapse-all-phases").click();
+  await expect(page.getByTestId("graph-collapse-all-phases")).toHaveText("Expand all");
+  await expect(page.locator('.graph-node[data-node-category="phase"]').first()).toBeVisible();
 
-  // Clicking a step lights up its downstream cone and explains it in a sentence.
-  await nodes.filter({ hasText: "Event dedup & ordering" }).click();
-  await expect(page.getByTestId("graph-sentence")).toContainText("re-runs");
-
-  // A second click on a step DOWNSTREAM of the first is described as a chain,
-  // not as two siblings with shared ancestry.
-  await nodes.filter({ hasText: "App policy" }).click();
-  await expect(page.getByTestId("graph-sentence")).toContainText("one chain");
-
-  // Vertical is the default: chained steps stack top-to-bottom.
+  // Orientation changes the same declared graph; neither mode invents bridge edges.
   await expect(page.getByTestId("graph-direction-tb")).toHaveAttribute("aria-pressed", "true");
-  const parseNode = page.locator(".react-flow__node", { hasText: "Event parsing" });
-  const timezoneNode = page.locator(".react-flow__node", { hasText: "Timezone normalization" });
-  await expect(async () => {
-    const parseBox = (await parseNode.boundingBox())!;
-    const timezoneBox = (await timezoneNode.boundingBox())!;
-    expect(parseBox.y).toBeLessThan(timezoneBox.y);
-  }).toPass();
-
-  // The toggle re-lays the same graph horizontally: pressed state flips and
-  // the chain now runs left-to-right.
   await page.getByTestId("graph-direction-lr").click();
   await expect(page.getByTestId("graph-direction-lr")).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByTestId("graph-direction-tb")).toHaveAttribute("aria-pressed", "false");
-  await expect(async () => {
-    const parseBox = (await parseNode.boundingBox())!;
-    const timezoneBox = (await timezoneNode.boundingBox())!;
-    expect(parseBox.x).toBeLessThan(timezoneBox.x);
-  }).toPass();
-  // Edges carry arrowhead markers (explicit markers, not bare lines). A
-  // straight edge's path has a zero-thickness bounding box, which Playwright
-  // reports as "hidden" — assert attachment, not visibility.
   await expect(page.locator(".react-flow__edge path[marker-end]").first()).toBeAttached();
+
+  // A real run contributes observed timings and the exact emitted deliverable list.
+  await page.getByRole("tab", { name: /^Files$/i }).click();
+  await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_AND_SCREEN_RAW_CSV, "text/csv");
+  await processFiles(page);
+  await page.getByRole("tab", { name: /Graph/i }).click();
+  await page.getByTestId("graph-mode-execution").click();
+  await expect(page.getByTestId("graph-node-metrics").filter({ hasText: "ms" }).first())
+    .toBeVisible();
+  await expect(page.getByTestId("graph-deliverables")).not.toContainText("Not observed");
+  await expect(page.getByTestId("graph-deliverables").getByRole("listitem").first())
+    .toBeVisible();
 
   expect(pageErrors).toEqual([]);
   assertNoExternalRequests(requestTracker);

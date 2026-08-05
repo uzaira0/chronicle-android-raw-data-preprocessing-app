@@ -1,5 +1,12 @@
 import type { Page } from "@playwright/test";
 
+import {
+  LAST_RUN_DB_NAME,
+  LAST_RUN_DB_VERSION,
+  LAST_RUN_RECORD_ID,
+  LAST_RUN_SCHEMA_VERSION,
+  LAST_RUN_STORE_NAME,
+} from "../src/lib/lastRunStore";
 import { expect, test } from "./durabilityContext";
 import { APP_ONLY_RAW_CSV, MALFORMED_RAW_CSV } from "./fixtures";
 import {
@@ -26,20 +33,20 @@ test.describe.configure({ mode: "serial" });
 /** Read the persisted last-run record straight from IndexedDB (verification only). */
 async function readLastRun(page: Page): Promise<unknown> {
   return page.evaluate(
-    () =>
+    ({ databaseName, databaseVersion, recordId, storeName }) =>
       new Promise((resolve) => {
-        const open = indexedDB.open("chronicle-last-run", 1);
+        const open = indexedDB.open(databaseName, databaseVersion);
         open.onupgradeneeded = () => {
-          if (!open.result.objectStoreNames.contains("lastRun")) {
-            open.result.createObjectStore("lastRun", { keyPath: "id" });
+          if (!open.result.objectStoreNames.contains(storeName)) {
+            open.result.createObjectStore(storeName, { keyPath: "id" });
           }
         };
         open.onerror = () => resolve(null);
         open.onsuccess = () => {
           const db = open.result;
           try {
-            const tx = db.transaction("lastRun", "readonly");
-            const get = tx.objectStore("lastRun").get("last");
+            const tx = db.transaction(storeName, "readonly");
+            const get = tx.objectStore(storeName).get(recordId);
             get.onsuccess = () => resolve(get.result ?? null);
             get.onerror = () => resolve(null);
           } catch {
@@ -47,26 +54,32 @@ async function readLastRun(page: Page): Promise<unknown> {
           }
         };
       }),
+    {
+      databaseName: LAST_RUN_DB_NAME,
+      databaseVersion: LAST_RUN_DB_VERSION,
+      recordId: LAST_RUN_RECORD_ID,
+      storeName: LAST_RUN_STORE_NAME,
+    },
   );
 }
 
 /** Seed a record that passes load validation but is structurally broken to render. */
 async function seedCorruptLastRun(page: Page): Promise<void> {
   await page.evaluate(
-    () =>
+    ({ databaseName, databaseVersion, recordId, schemaVersion, storeName }) =>
       new Promise<void>((resolve) => {
-        const open = indexedDB.open("chronicle-last-run", 1);
+        const open = indexedDB.open(databaseName, databaseVersion);
         open.onupgradeneeded = () => {
-          if (!open.result.objectStoreNames.contains("lastRun")) {
-            open.result.createObjectStore("lastRun", { keyPath: "id" });
+          if (!open.result.objectStoreNames.contains(storeName)) {
+            open.result.createObjectStore(storeName, { keyPath: "id" });
           }
         };
         open.onsuccess = () => {
           const db = open.result;
-          const tx = db.transaction("lastRun", "readwrite");
-          tx.objectStore("lastRun").put({
-            id: "last",
-            schemaVersion: 1,
+          const tx = db.transaction(storeName, "readwrite");
+          tx.objectStore(storeName).put({
+            id: recordId,
+            schemaVersion,
             savedAt: "2026-01-01T00:00:00.000Z",
             options: {},
             // Passes the `results.length` check, but the entries are missing the
@@ -80,6 +93,13 @@ async function seedCorruptLastRun(page: Page): Promise<void> {
         };
         open.onerror = () => resolve();
       }),
+    {
+      databaseName: LAST_RUN_DB_NAME,
+      databaseVersion: LAST_RUN_DB_VERSION,
+      recordId: LAST_RUN_RECORD_ID,
+      schemaVersion: LAST_RUN_SCHEMA_VERSION,
+      storeName: LAST_RUN_STORE_NAME,
+    },
   );
 }
 

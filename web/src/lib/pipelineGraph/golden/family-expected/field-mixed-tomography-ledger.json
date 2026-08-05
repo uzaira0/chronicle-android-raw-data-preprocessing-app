@@ -1,14 +1,14 @@
 {
-  "protocolVersion": "chronicle-field-mixed-tomography-aggregate/v1",
-  "claimBoundary": "Aggregate of independently recycled per-source-column shards. Each shard selects one empirically branch-activating intervention that rewrites exactly that supplied column, crosses it with every computational configuration axis the field-level step contract predicts can interact with the column, and adds a deterministic control sample of axes it predicts cannot. Under every executed configuration every changed canonical output cell belongs to a declared output-cell family of that column, and no control axis introduces a family the base configuration did not move. Columns without an activating intervention in the checked catalog are outside this claim, and a declared family no configuration moved is recorded rather than asserted.",
+  "protocolVersion": "chronicle-field-mixed-tomography-aggregate/v2",
+  "claimBoundary": "Aggregate of independently recycled per-source-column shards. Each shard selects one empirically branch-activating intervention that rewrites exactly that supplied column, crosses it with every computational configuration axis the field-level workflow contract predicts can interact with the column, and adds a deterministic control sample of axes it predicts cannot. Under every executed configuration every changed canonical output cell belongs to a declared output-cell family of that column, and no control axis introduces a family the base configuration did not move. Columns without an activating intervention in the checked catalog are outside this claim, and a declared family no configuration moved is recorded rather than asserted.",
   "implementationReceipt": {
     "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
-    "implementationDigest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492",
-    "planDigest": "sha256:e6acec3530cef7f3e67443077affb86632db8485d771c3fa9a754dc810ff8e20",
-    "profileDigest": "sha256:f430adefcf813723850cde4a4b58bc097aa9207098a4f2aea3cae4dfb6dc27b6",
-    "profileLockDigest": "sha256:c0a54cf7d2246ea33eab91ed41a2051f78edc1c6b35fd40fd34638765160d6a4",
-    "runtimeAuthorityDigest": "sha256:7598af2d710ac32563dd8e0bff49a9447e7f450c618c4689004025fbb6826ed4",
-    "productContractDigest": "sha256:3855791ad25992d95e055d5c672253cb06ac3e4320463bc46f984b7bc8f05f95"
+    "implementationDigest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0",
+    "planDigest": "sha256:f32b34442d2aad2bb027d53039f112f49bd375b7210a616fbda99aa5d11858d3",
+    "profileDigest": "sha256:94fe0905cc30297d71fb20179d96747e339538c090e50a61ad6e187e3e563d19",
+    "profileLockDigest": "sha256:d70a4083b7ed264479b158baf982d60fd0cd8e655bbcdea2162b8c6ac1730e52",
+    "runtimeAuthorityDigest": "sha256:643041e4330b4aca4b2cdf9a8e0dc285fdfb50b24338be312bdbff98c3d3ddbd",
+    "productContractDigest": "sha256:ce4f7d309cea44fd24fcb85fb81f3cd0639ec9c6c77eb8041b6ca071659a7562"
   },
   "columnsWithoutDeclaredReach": [
     "filter_file.app_filter_category",
@@ -27,242 +27,242 @@
     {
       "sourceField": "app_codebook_file.bcm_play_store_genreId",
       "path": "field-mixed-tomography-app_codebook_file-bcm_play_store_genreId.json",
-      "contentDigest": "sha256:37b8450b37043c22c21368a9f48b55920350c12173a81dfff2672e55991af2dd",
+      "contentDigest": "sha256:cd8185684978970c51dd28db012efb68935338f7d094db9db59493e229e284f3",
       "interventionId": "support:codebook-edit-category",
       "corpusId": "catalog-random",
-      "declaredStepConeSize": 5,
+      "declaredQueryConeSize": 5,
       "declaredCellFamilies": 71,
       "witnessedCellFamilies": 2,
       "structurallyDeclaredButUnwitnessedFamilies": 69,
-      "stepsOutsideDeclaredConeCarryingChangedFields": 10
+      "queriesOutsideDeclaredConeCarryingChangedFields": 10
     },
     {
       "sourceField": "apps_forcing_screen_open_file.label_or_note",
       "path": "field-mixed-tomography-apps_forcing_screen_open_file-label_or_note.json",
-      "contentDigest": "sha256:812182d9f379925a69d9ca790ec6eb0d177086961e70eea76c98fff2a94610d6",
+      "contentDigest": "sha256:80052aa44e88f361be8979f361d16a425aef706e8d37cdb4215f8f54e63c4a6f",
       "interventionId": "support:forcing-activate-screen-tail-package",
       "corpusId": "support-intersections",
-      "declaredStepConeSize": 49,
+      "declaredQueryConeSize": 50,
       "declaredCellFamilies": 263,
       "witnessedCellFamilies": 4,
       "structurallyDeclaredButUnwitnessedFamilies": 259,
-      "stepsOutsideDeclaredConeCarryingChangedFields": 0
+      "queriesOutsideDeclaredConeCarryingChangedFields": 0
     },
     {
       "sourceField": "apps_forcing_screen_open_file.package_name",
       "path": "field-mixed-tomography-apps_forcing_screen_open_file-package_name.json",
-      "contentDigest": "sha256:40e92c7009e090f9ab381c4b2e995ba4d6a23536597c3ec3aeb3984ca4f65b98",
+      "contentDigest": "sha256:914c5444ae0025237bf13a4b904192cf72badc21ad4e7cb16fd7e2e5814a9f70",
       "interventionId": "support:forcing-activate-screen-tail-package",
       "corpusId": "support-intersections",
-      "declaredStepConeSize": 49,
+      "declaredQueryConeSize": 50,
       "declaredCellFamilies": 263,
       "witnessedCellFamilies": 4,
       "structurallyDeclaredButUnwitnessedFamilies": 259,
-      "stepsOutsideDeclaredConeCarryingChangedFields": 0
+      "queriesOutsideDeclaredConeCarryingChangedFields": 0
     },
     {
       "sourceField": "background_apps_file.app_package_name",
       "path": "field-mixed-tomography-background_apps_file-app_package_name.json",
-      "contentDigest": "sha256:6c104cef0bf961c22374142aad505d66f87389230def61a552301a7658a3dea1",
+      "contentDigest": "sha256:b9b3c3fb3c223dc7cb45e4c3705f7ccb3ace8f104190a0c348e3ffae61d4f392",
       "interventionId": "support:background-remove-used-package",
       "corpusId": "catalog-random",
-      "declaredStepConeSize": 49,
+      "declaredQueryConeSize": 50,
       "declaredCellFamilies": 263,
       "witnessedCellFamilies": 170,
       "structurallyDeclaredButUnwitnessedFamilies": 93,
-      "stepsOutsideDeclaredConeCarryingChangedFields": 0
+      "queriesOutsideDeclaredConeCarryingChangedFields": 0
     },
     {
       "sourceField": "background_apps_file.package_name",
       "path": "field-mixed-tomography-background_apps_file-package_name.json",
-      "contentDigest": "sha256:f296ef5edb4a93dddabb48584304769eab06525ced206c155d1d6cb3c3e4fc51",
+      "contentDigest": "sha256:014329939d2844c8e78491e91a6c038345bbb1a888e0d2d13b686496e6dc0be8",
       "interventionId": "support:background-remove-used-package",
       "corpusId": "catalog-random",
-      "declaredStepConeSize": 49,
+      "declaredQueryConeSize": 50,
       "declaredCellFamilies": 263,
       "witnessedCellFamilies": 170,
       "structurallyDeclaredButUnwitnessedFamilies": 93,
-      "stepsOutsideDeclaredConeCarryingChangedFields": 0
+      "queriesOutsideDeclaredConeCarryingChangedFields": 0
     },
     {
       "sourceField": "device_sharing_file.sharing_status",
       "path": "field-mixed-tomography-device_sharing_file-sharing_status.json",
-      "contentDigest": "sha256:29d4e4cddb63cd2c2c964c3928ffe8b2e5709747c4adf730b515f0511a55bc50",
+      "contentDigest": "sha256:a15be344e2ba030887b73acddc528b726f35b44b8d0fc02e3eb7c31737eb6a20",
       "interventionId": "support:sharing-shared-to-nonshared",
       "corpusId": "catalog-random",
-      "declaredStepConeSize": 50,
+      "declaredQueryConeSize": 51,
       "declaredCellFamilies": 263,
       "witnessedCellFamilies": 3,
       "structurallyDeclaredButUnwitnessedFamilies": 260,
-      "stepsOutsideDeclaredConeCarryingChangedFields": 0
+      "queriesOutsideDeclaredConeCarryingChangedFields": 0
     },
     {
       "sourceField": "enrolled_devices_file.device_count",
       "path": "field-mixed-tomography-enrolled_devices_file-device_count.json",
-      "contentDigest": "sha256:6c07cec029cae71c2dd0eed76dc56691ed65badfdddc5e13f8d958a72d649c78",
+      "contentDigest": "sha256:ccea717c242f149c8b0cc4f0a5116c986383c3761ab2554745f840b4defa164f",
       "interventionId": "support:enrollment-one-to-two-devices",
       "corpusId": "catalog-random",
-      "declaredStepConeSize": 1,
+      "declaredQueryConeSize": 1,
       "declaredCellFamilies": 2,
       "witnessedCellFamilies": 1,
       "structurallyDeclaredButUnwitnessedFamilies": 1,
-      "stepsOutsideDeclaredConeCarryingChangedFields": 0
+      "queriesOutsideDeclaredConeCarryingChangedFields": 0
     },
     {
       "sourceField": "filter_file.app_package_name",
       "path": "field-mixed-tomography-filter_file-app_package_name.json",
-      "contentDigest": "sha256:750b99c1b1d096ddb7298c38b525b1f3c1804a1ef9ee9bd31765231def13001e",
+      "contentDigest": "sha256:caaec6daeee619c739f9e67739a618ebc6420e2156d7632edcd6c29b070b3cb0",
       "interventionId": "support:filter-activate-used-package",
       "corpusId": "catalog-random",
-      "declaredStepConeSize": 49,
+      "declaredQueryConeSize": 50,
       "declaredCellFamilies": 263,
       "witnessedCellFamilies": 86,
       "structurallyDeclaredButUnwitnessedFamilies": 177,
-      "stepsOutsideDeclaredConeCarryingChangedFields": 0
+      "queriesOutsideDeclaredConeCarryingChangedFields": 0
     },
     {
       "sourceField": "filter_file.known_application_labels",
       "path": "field-mixed-tomography-filter_file-known_application_labels.json",
-      "contentDigest": "sha256:b9b1a5cd49f144d33f8cd8834cd8531f46b832a41eb264aefdb66af9c8193993",
+      "contentDigest": "sha256:9fa0f3b6ed336b3e98c4e5cb91fe05a2a2102d0c0eb4f785f88d3c287ada4edd",
       "interventionId": "support:filter-activate-used-package",
       "corpusId": "catalog-random",
-      "declaredStepConeSize": 49,
+      "declaredQueryConeSize": 50,
       "declaredCellFamilies": 263,
       "witnessedCellFamilies": 86,
       "structurallyDeclaredButUnwitnessedFamilies": 177,
-      "stepsOutsideDeclaredConeCarryingChangedFields": 0
+      "queriesOutsideDeclaredConeCarryingChangedFields": 0
     },
     {
       "sourceField": "raw_chronicle_csv.app_package_name",
       "path": "field-mixed-tomography-raw_chronicle_csv-app_package_name.json",
-      "contentDigest": "sha256:05132dab2adca5de97cb3b0696349e0ee156147914efa7d98fd94947b1e3b1ce",
+      "contentDigest": "sha256:9a5652a6db8dd8656f0c7250bd60a4cfe026504becdb0903e8f623d2dc99c273",
       "interventionId": "raw-field:app_package_name",
       "corpusId": "catalog-random",
-      "declaredStepConeSize": 49,
+      "declaredQueryConeSize": 50,
       "declaredCellFamilies": 263,
       "witnessedCellFamilies": 95,
       "structurallyDeclaredButUnwitnessedFamilies": 168,
-      "stepsOutsideDeclaredConeCarryingChangedFields": 0
+      "queriesOutsideDeclaredConeCarryingChangedFields": 0
     },
     {
       "sourceField": "raw_chronicle_csv.application_label",
       "path": "field-mixed-tomography-raw_chronicle_csv-application_label.json",
-      "contentDigest": "sha256:84bdbf9014a00261f499e583704d4a5423315d1b4c66f1c8fbefe4b531f49dd1",
+      "contentDigest": "sha256:1ed78dc86029050f7bce8038f8724f93e59edcb21cf34a584c5bd38900d8be6b",
       "interventionId": "raw-field:application_label",
       "corpusId": "catalog-random",
-      "declaredStepConeSize": 49,
+      "declaredQueryConeSize": 50,
       "declaredCellFamilies": 263,
       "witnessedCellFamilies": 4,
       "structurallyDeclaredButUnwitnessedFamilies": 259,
-      "stepsOutsideDeclaredConeCarryingChangedFields": 0
+      "queriesOutsideDeclaredConeCarryingChangedFields": 0
     },
     {
       "sourceField": "raw_chronicle_csv.event_timestamp",
       "path": "field-mixed-tomography-raw_chronicle_csv-event_timestamp.json",
-      "contentDigest": "sha256:888fd8d2d639c85aae3b52d638f97db12def877fce9bc3fe0cfccb0184ad1232",
+      "contentDigest": "sha256:ea9b58edc495333cc70a9a9f34e659e236e7fe817691e8c2dccad3bdb6897f19",
       "interventionId": "raw-field:event_timestamp",
       "corpusId": "catalog-random",
-      "declaredStepConeSize": 49,
+      "declaredQueryConeSize": 50,
       "declaredCellFamilies": 263,
       "witnessedCellFamilies": 221,
       "structurallyDeclaredButUnwitnessedFamilies": 42,
-      "stepsOutsideDeclaredConeCarryingChangedFields": 0
+      "queriesOutsideDeclaredConeCarryingChangedFields": 0
     },
     {
       "sourceField": "raw_chronicle_csv.interaction_type",
       "path": "field-mixed-tomography-raw_chronicle_csv-interaction_type.json",
-      "contentDigest": "sha256:dad5d3b88dee4f211eae328bd48f0956c267b34a01f0222c7091d589737c7343",
+      "contentDigest": "sha256:8e745f899f4508b3bb3a8db3a7ac5b838e68dfeadcc591c8b78472594862cdeb",
       "interventionId": "raw-field:interaction_type",
       "corpusId": "catalog-random",
-      "declaredStepConeSize": 49,
+      "declaredQueryConeSize": 50,
       "declaredCellFamilies": 263,
       "witnessedCellFamilies": 112,
       "structurallyDeclaredButUnwitnessedFamilies": 151,
-      "stepsOutsideDeclaredConeCarryingChangedFields": 0
+      "queriesOutsideDeclaredConeCarryingChangedFields": 0
     },
     {
       "sourceField": "raw_chronicle_csv.participant_id",
       "path": "field-mixed-tomography-raw_chronicle_csv-participant_id.json",
-      "contentDigest": "sha256:4fe8e835b147279c284c483110c028b8e0c40c51035a7ebada14986568851e76",
+      "contentDigest": "sha256:cf5f9bf6299f7f4c5b60cdd69becc6e5a6ee1449c79751ba10f7dff897a5b1d2",
       "interventionId": "raw-field:participant_id",
       "corpusId": "catalog-random",
-      "declaredStepConeSize": 51,
+      "declaredQueryConeSize": 52,
       "declaredCellFamilies": 263,
       "witnessedCellFamilies": 150,
       "structurallyDeclaredButUnwitnessedFamilies": 113,
-      "stepsOutsideDeclaredConeCarryingChangedFields": 0
+      "queriesOutsideDeclaredConeCarryingChangedFields": 0
     },
     {
       "sourceField": "raw_chronicle_csv.study_id",
       "path": "field-mixed-tomography-raw_chronicle_csv-study_id.json",
-      "contentDigest": "sha256:516c0a977730d0054bcc129dbdaef4da396c6499c0117cd6ee605f705e87c8d2",
+      "contentDigest": "sha256:0415837406a21a212a22d4606f11581fb6f079ed994d778ebd6e0c0df2dbc109",
       "interventionId": "raw-field:study_id",
       "corpusId": "catalog-random",
-      "declaredStepConeSize": 3,
+      "declaredQueryConeSize": 3,
       "declaredCellFamilies": 88,
       "witnessedCellFamilies": 62,
       "structurallyDeclaredButUnwitnessedFamilies": 26,
-      "stepsOutsideDeclaredConeCarryingChangedFields": 27
+      "queriesOutsideDeclaredConeCarryingChangedFields": 27
     },
     {
       "sourceField": "raw_chronicle_csv.timezone",
       "path": "field-mixed-tomography-raw_chronicle_csv-timezone.json",
-      "contentDigest": "sha256:0bbf81c8b170ac374e5148eb290b5ac5b746006160ae546dcb3672bf47b67d9f",
+      "contentDigest": "sha256:f30ae422d31a9ce92ed95c194a3ab422b87b145e1eeb4f4dfe26d596dd713bcd",
       "interventionId": "raw-field:timezone",
       "corpusId": "catalog-random",
-      "declaredStepConeSize": 49,
+      "declaredQueryConeSize": 50,
       "declaredCellFamilies": 263,
       "witnessedCellFamilies": 132,
       "structurallyDeclaredButUnwitnessedFamilies": 131,
-      "stepsOutsideDeclaredConeCarryingChangedFields": 1
+      "queriesOutsideDeclaredConeCarryingChangedFields": 1
     },
     {
       "sourceField": "raw_chronicle_csv.username",
       "path": "field-mixed-tomography-raw_chronicle_csv-username.json",
-      "contentDigest": "sha256:75a2952a27267fae86a409a42e65181e28ac891f2bacc5a023ac9ec8f2f6850f",
+      "contentDigest": "sha256:5c145b8fb443ffeb8ec11fbe2106bba4b1f5b3f15c4b272ef5aedfe5a9676788",
       "interventionId": "raw-field:username",
       "corpusId": "catalog-random",
-      "declaredStepConeSize": 49,
+      "declaredQueryConeSize": 50,
       "declaredCellFamilies": 263,
       "witnessedCellFamilies": 27,
       "structurallyDeclaredButUnwitnessedFamilies": 236,
-      "stepsOutsideDeclaredConeCarryingChangedFields": 0
+      "queriesOutsideDeclaredConeCarryingChangedFields": 0
     },
     {
       "sourceField": "study_dates_file.end_date",
       "path": "field-mixed-tomography-study_dates_file-end_date.json",
-      "contentDigest": "sha256:b6579aade99bd9bf47fcc574c84f9894eb9129bd83369bd72c1edc5483873d0f",
+      "contentDigest": "sha256:b4366a5af8b2d8144636ccd053a91c7d6479daa579bbc0e93c845949b277a3c7",
       "interventionId": "support:study-window-narrow",
       "corpusId": "catalog-random",
-      "declaredStepConeSize": 14,
+      "declaredQueryConeSize": 14,
       "declaredCellFamilies": 263,
       "witnessedCellFamilies": 79,
       "structurallyDeclaredButUnwitnessedFamilies": 184,
-      "stepsOutsideDeclaredConeCarryingChangedFields": 3
+      "queriesOutsideDeclaredConeCarryingChangedFields": 4
     },
     {
       "sourceField": "study_dates_file.start_date",
       "path": "field-mixed-tomography-study_dates_file-start_date.json",
-      "contentDigest": "sha256:15fd382a96214d4e09822e8fbb30ec31c523b525ebb1065f81be2c38f2b6b868",
+      "contentDigest": "sha256:1d292e2a93c45a39c6c05d882120365a7382d1ce8ba6e26149a05bc4d6527052",
       "interventionId": "support:study-window-narrow",
       "corpusId": "catalog-random",
-      "declaredStepConeSize": 14,
+      "declaredQueryConeSize": 14,
       "declaredCellFamilies": 263,
       "witnessedCellFamilies": 79,
       "structurallyDeclaredButUnwitnessedFamilies": 184,
-      "stepsOutsideDeclaredConeCarryingChangedFields": 3
+      "queriesOutsideDeclaredConeCarryingChangedFields": 4
     },
     {
       "sourceField": "survey_attribution_file.users",
       "path": "field-mixed-tomography-survey_attribution_file-users.json",
-      "contentDigest": "sha256:0724c5f8d0a014ee69266d416ff621d92f64354f2f22743ee259c9f266da8c07",
+      "contentDigest": "sha256:7cd391401001c244da5934a9109d6614d624dfa1849c58d99aeab12761fbee7e",
       "interventionId": "support:survey-target-to-other",
       "corpusId": "catalog-random",
-      "declaredStepConeSize": 50,
+      "declaredQueryConeSize": 51,
       "declaredCellFamilies": 263,
       "witnessedCellFamilies": 114,
       "structurallyDeclaredButUnwitnessedFamilies": 149,
-      "stepsOutsideDeclaredConeCarryingChangedFields": 0
+      "queriesOutsideDeclaredConeCarryingChangedFields": 0
     }
   ]
 }

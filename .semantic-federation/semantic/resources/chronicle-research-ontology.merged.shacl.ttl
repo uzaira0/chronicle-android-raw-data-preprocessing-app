@@ -52,7 +52,7 @@ chron:EffectiveUsageProvenanceShape
     a sh:NodeShape ;
     sh:property
         [
-            sh:message "An effective-usage measure must name the node execution that produced it." ;
+            sh:message "An effective-usage measure must name the operation execution that produced it." ;
             sh:minCount 1 ;
             sh:path chron:produced_by ;
         ] ,
@@ -64,7 +64,7 @@ chron:EffectiveUsageProvenanceShape
     sh:targetClass chron:EffectiveUsageMeasure ;
 .
 
-chron:NodeExecutionContractShape
+chron:OperationExecutionContractShape
     a sh:NodeShape ;
     sh:message "A node execution that records a start must record its end." ;
     sh:not
@@ -72,12 +72,12 @@ chron:NodeExecutionContractShape
             a sh:NodeShape ;
             sh:property
                 [
-                    sh:maxCount 0 ;
-                    sh:path prov:endedAtTime ;
-                ] ,
-                [
                     sh:minCount 1 ;
                     sh:path prov:startedAtTime ;
+                ] ,
+                [
+                    sh:maxCount 0 ;
+                    sh:path prov:endedAtTime ;
                 ] ;
         ] ,
         [
@@ -94,16 +94,27 @@ chron:NodeExecutionContractShape
         ] ;
     sh:property
         [
-            sh:message "A node execution must cite the ParameterSet it ran under." ;
+            sh:message "An operation execution must cite the ParameterSet it ran under." ;
             sh:minCount 1 ;
             sh:path chron:used_parameter_set ;
         ] ,
         [
-            sh:message "A node execution must name the StepDefinition it executes." ;
+            sh:message "An operation execution must name the OperationDefinition it realizes." ;
             sh:minCount 1 ;
-            sh:path chron:executes_step ;
+            sh:path chron:executes_operation ;
         ] ;
-    sh:targetClass chron:NodeExecution ;
+    sh:targetClass chron:OperationExecution ;
+.
+
+chron:QueryExecutionContractShape
+    a sh:NodeShape ;
+    sh:property
+        [
+            sh:message "A query execution must cite the ParameterSet it ran under." ;
+            sh:minCount 1 ;
+            sh:path chron:used_parameter_set ;
+        ] ;
+    sh:targetClass chron:QueryExecution ;
 .
 
 chron:UsageEpisodeProvenanceShape
@@ -227,32 +238,6 @@ chron:LoggingObservation
     sh:targetClass chron:LoggingObservation ;
 .
 
-chron:PipelinePlan
-    a sh:NodeShape ;
-    rdfs:comment "The prospective processing workflow. A p-plan:Plan / prov:Plan." ;
-    sh:closed true ;
-    sh:ignoredProperties (
-        rdf:type
-    ) ;
-    sh:property
-        [
-            sh:class chron:StepDefinition ;
-            sh:description "Steps of the plan." ;
-            sh:nodeKind sh:IRI ;
-            sh:order 1 ;
-            sh:path chron:steps ;
-        ] ,
-        [
-            sh:datatype xsd:string ;
-            sh:description "Plan identifier." ;
-            sh:maxCount 1 ;
-            sh:nodeKind sh:Literal ;
-            sh:order 0 ;
-            sh:path chron:plan_id ;
-        ] ;
-    sh:targetClass chron:PipelinePlan ;
-.
-
 chron:UsageSessionAssertion
     a sh:NodeShape ;
     rdfs:comment "A claim of continuous device use between unlock and lock. Derived prov:Entity." ;
@@ -301,6 +286,39 @@ chron:UsageSessionAssertion
             sh:path chron:denotes_interval ;
         ] ;
     sh:targetClass chron:UsageSessionAssertion ;
+.
+
+chron:WorkflowPlan
+    a sh:NodeShape ;
+    rdfs:comment "The prospective processing workflow. A p-plan:Plan / prov:Plan." ;
+    sh:closed true ;
+    sh:ignoredProperties (
+        rdf:type
+    ) ;
+    sh:property
+        [
+            sh:class chron:QueryDefinition ;
+            sh:description "Physical queries in the workflow." ;
+            sh:nodeKind sh:IRI ;
+            sh:order 2 ;
+            sh:path chron:queries ;
+        ] ,
+        [
+            sh:class chron:OperationDefinition ;
+            sh:description "Semantic operations in the workflow." ;
+            sh:nodeKind sh:IRI ;
+            sh:order 1 ;
+            sh:path chron:operations ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Plan identifier." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 0 ;
+            sh:path chron:plan_id ;
+        ] ;
+    sh:targetClass chron:WorkflowPlan ;
 .
 
 chron:CoverageAssessment
@@ -408,10 +426,10 @@ chron:EffectiveUsageMeasure
             sh:path chron:date ;
         ] ,
         [
-            sh:class chron:NodeExecution ;
-            sh:description "The node execution that produced this measure." ;
+            sh:class chron:OperationExecution ;
+            sh:description "The operation execution that produced this measure." ;
             sh:maxCount 1 ;
-            sh:nodeKind sh:BlankNodeOrIRI ;
+            sh:nodeKind sh:IRI ;
             sh:order 4 ;
             sh:path chron:produced_by ;
         ] ,
@@ -512,6 +530,102 @@ chron:PlatformEventOccurrence
             sh:path chron:event_code ;
         ] ;
     sh:targetClass chron:PlatformEventOccurrence ;
+.
+
+chron:QueryExecution
+    a sh:NodeShape ;
+    rdfs:comment "Retrospective evidence for one physical query. Kept distinct from OperationExecution because a fused query can realize several semantic operations with different applicability." ;
+    sh:closed true ;
+    sh:ignoredProperties (
+        rdf:type
+    ) ;
+    sh:property
+        [
+            sh:description "Observed physical execution state." ;
+            sh:in (
+                "cached"
+                "recomputed"
+                "error"
+                "skipped"
+                "bypassed"
+            ) ;
+            sh:maxCount 1 ;
+            sh:minCount 1 ;
+            sh:order 2 ;
+            sh:path chron:query_execution_status ;
+        ] ,
+        [
+            sh:class chron:QueryDefinition ;
+            sh:description "The QueryDefinition this execution realizes." ;
+            sh:maxCount 1 ;
+            sh:minCount 1 ;
+            sh:nodeKind sh:IRI ;
+            sh:order 0 ;
+            sh:path chron:executes_query ;
+        ] ,
+        [
+            sh:datatype xsd:dateTime ;
+            sh:description "Evidence timestamp for the query execution." ;
+            sh:maxCount 1 ;
+            sh:minCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 7 ;
+            sh:path prov:startedAtTime ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Content identity of the query's exact effective inputs." ;
+            sh:maxCount 1 ;
+            sh:minCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 3 ;
+            sh:path chron:query_input_key ;
+        ] ,
+        [
+            sh:class chron:OperationExecution ;
+            sh:description "Root workflow execution containing this query execution." ;
+            sh:maxCount 1 ;
+            sh:minCount 1 ;
+            sh:nodeKind sh:IRI ;
+            sh:order 6 ;
+            sh:path dcterms:isPartOf ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Content identity of the query output." ;
+            sh:maxCount 1 ;
+            sh:minCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 4 ;
+            sh:path chron:query_output_digest ;
+        ] ,
+        [
+            sh:datatype xsd:dateTime ;
+            sh:description "Evidence timestamp for the query execution." ;
+            sh:maxCount 1 ;
+            sh:minCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 8 ;
+            sh:path prov:endedAtTime ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Stable identity of the evidence supporting the state." ;
+            sh:maxCount 1 ;
+            sh:minCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 5 ;
+            sh:path chron:query_reason_id ;
+        ] ,
+        [
+            sh:class chron:ParameterSet ;
+            sh:description "The ParameterSet the execution used." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:BlankNodeOrIRI ;
+            sh:order 1 ;
+            sh:path chron:used_parameter_set ;
+        ] ;
+    sh:targetClass chron:QueryExecution ;
 .
 
 chron:ReconstructionStrategy
@@ -750,9 +864,9 @@ chron:AttributionAssertion
     sh:targetClass chron:AttributionAssertion ;
 .
 
-chron:NodeExecution
+chron:OperationExecution
     a sh:NodeShape ;
-    rdfs:comment "A retrospective execution of a StepDefinition. A prov:Activity." ;
+    rdfs:comment "A retrospective execution of an OperationDefinition. A prov:Activity." ;
     sh:closed true ;
     sh:ignoredProperties (
         rdf:type
@@ -760,42 +874,50 @@ chron:NodeExecution
     sh:property
         [
             sh:datatype xsd:string ;
-            sh:description "Execution start." ;
+            sh:description "Stable workflow-execution identifier." ;
             sh:maxCount 1 ;
             sh:nodeKind sh:Literal ;
-            sh:order 2 ;
-            sh:path chron:started_at ;
+            sh:order 0 ;
+            sh:path chron:execution_id ;
         ] ,
         [
             sh:datatype xsd:string ;
             sh:description "Execution end." ;
             sh:maxCount 1 ;
             sh:nodeKind sh:Literal ;
-            sh:order 3 ;
+            sh:order 4 ;
             sh:path chron:ended_at ;
         ] ,
         [
-            sh:class chron:StepDefinition ;
-            sh:description "The StepDefinition this execution runs." ;
+            sh:datatype xsd:string ;
+            sh:description "Execution start." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 3 ;
+            sh:path chron:started_at ;
+        ] ,
+        [
+            sh:class chron:OperationDefinition ;
+            sh:description "The OperationDefinition this execution realizes." ;
             sh:maxCount 1 ;
             sh:nodeKind sh:IRI ;
-            sh:order 0 ;
-            sh:path chron:executes_step ;
+            sh:order 1 ;
+            sh:path chron:executes_operation ;
         ] ,
         [
             sh:class chron:ParameterSet ;
             sh:description "The ParameterSet the execution used." ;
             sh:maxCount 1 ;
             sh:nodeKind sh:BlankNodeOrIRI ;
-            sh:order 1 ;
+            sh:order 2 ;
             sh:path chron:used_parameter_set ;
         ] ;
-    sh:targetClass chron:NodeExecution ;
+    sh:targetClass chron:OperationExecution ;
 .
 
-chron:ParameterSet
+chron:QueryDefinition
     a sh:NodeShape ;
-    rdfs:comment "A content-addressed configuration entity — a set of ParameterBindings over the plan's variables. NOT a Plan: the plan is the workflow; this binds its variables." ;
+    rdfs:comment "One physical computation and memoization boundary. Its realizes_operations links are prospective mappings and do not imply that those semantic operations were applied in a particular run." ;
     sh:closed true ;
     sh:ignoredProperties (
         rdf:type
@@ -803,20 +925,50 @@ chron:ParameterSet
     sh:property
         [
             sh:datatype xsd:string ;
-            sh:description "Content-addressed hash of the canonical parameter set." ;
+            sh:description "Independently identified output artifacts or ports." ;
+            sh:nodeKind sh:Literal ;
+            sh:order 4 ;
+            sh:path chron:query_outputs ;
+        ] ,
+        [
+            sh:class chron:QueryDefinition ;
+            sh:description "Direct upstream physical queries." ;
+            sh:nodeKind sh:IRI ;
+            sh:order 2 ;
+            sh:path chron:query_dependencies ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Stable physical-query identifier." ;
             sh:maxCount 1 ;
             sh:nodeKind sh:Literal ;
             sh:order 0 ;
-            sh:path chron:parameter_set_sha256 ;
+            sh:path chron:query_id ;
         ] ,
         [
-            sh:class chron:ParameterBinding ;
-            sh:description "Knob=value bindings." ;
-            sh:nodeKind sh:BlankNodeOrIRI ;
+            sh:class chron:OperationDefinition ;
+            sh:description "Semantic operations this query may realize." ;
+            sh:nodeKind sh:IRI ;
+            sh:order 3 ;
+            sh:path chron:realizes_operations ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Exact request fields read by the query." ;
+            sh:nodeKind sh:Literal ;
+            sh:order 5 ;
+            sh:path chron:query_request_fields ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Presentation-only query-group identity." ;
+            sh:maxCount 1 ;
+            sh:minCount 1 ;
+            sh:nodeKind sh:Literal ;
             sh:order 1 ;
-            sh:path chron:bindings ;
+            sh:path chron:query_group_id ;
         ] ;
-    sh:targetClass chron:ParameterSet ;
+    sh:targetClass chron:QueryDefinition ;
 .
 
 chron:ReconstructionExecution
@@ -846,9 +998,9 @@ chron:ReconstructionExecution
     sh:targetClass chron:ReconstructionExecution ;
 .
 
-chron:StepDefinition
+chron:OperationDefinition
     a sh:NodeShape ;
-    rdfs:comment "One processing step in the plan (a graph node) at ANY scale — a p-plan:Step. Steps compose recursively via part_of_step: a coarse step (an execution/memoization unit) and the fine-grained transformations inside it are the SAME kind of thing, because the step boundary is an arbitrary scale choice, not an ontological distinction. Follows the ProcessingStep shape (id/verb/engine/consumes/produces/depends_on)." ;
+    rdfs:comment "One semantic operation in the workflow at any useful scale. Operations compose recursively via part_of_operation so a coarse responsibility and its independently invalidatable transformations share one model without forcing presentation and execution boundaries to coincide." ;
     sh:closed true ;
     sh:ignoredProperties (
         rdf:type
@@ -859,12 +1011,26 @@ chron:StepDefinition
             sh:description "Whether a failure fails the whole workflow." ;
             sh:maxCount 1 ;
             sh:nodeKind sh:Literal ;
-            sh:order 6 ;
+            sh:order 10 ;
             sh:path chron:is_fatal ;
         ] ,
         [
             sh:datatype xsd:string ;
-            sh:description "Named algorithm/engine the step realizes." ;
+            sh:description "Operations that must precede this one." ;
+            sh:nodeKind sh:Literal ;
+            sh:order 7 ;
+            sh:path chron:depends_on ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Channels or inputs the operation reads." ;
+            sh:nodeKind sh:Literal ;
+            sh:order 5 ;
+            sh:path chron:consumes ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Named algorithm or engine the operation realizes." ;
             sh:maxCount 1 ;
             sh:nodeKind sh:Literal ;
             sh:order 2 ;
@@ -872,50 +1038,92 @@ chron:StepDefinition
         ] ,
         [
             sh:datatype xsd:string ;
-            sh:description "Step identifier (= graph node id)." ;
+            sh:description "Whether the operation observes, infers, applies policy, or presents." ;
             sh:maxCount 1 ;
             sh:nodeKind sh:Literal ;
-            sh:order 0 ;
-            sh:path chron:step_id ;
+            sh:order 4 ;
+            sh:path chron:epistemic_role ;
         ] ,
         [
             sh:datatype xsd:string ;
-            sh:description "Channels/outputs the step produces." ;
+            sh:description "Stable semantic operation identifier." ;
+            sh:maxCount 1 ;
             sh:nodeKind sh:Literal ;
-            sh:order 4 ;
+            sh:order 0 ;
+            sh:path chron:operation_id ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Channels or outputs the operation produces." ;
+            sh:nodeKind sh:Literal ;
+            sh:order 6 ;
             sh:path chron:produces ;
         ] ,
         [
             sh:datatype xsd:string ;
-            sh:description "Channels/inputs the step reads." ;
+            sh:description "Semantic responsibility of the operation." ;
+            sh:maxCount 1 ;
             sh:nodeKind sh:Literal ;
             sh:order 3 ;
-            sh:path chron:consumes ;
-        ] ,
-        [
-            sh:class chron:StepDefinition ;
-            sh:description "The coarser-scale step this step is a proper part of (recursive composition — no separate \"substep\" class; scale is arbitrary). Referenced by step_id, not inlined." ;
-            sh:maxCount 1 ;
-            sh:nodeKind sh:IRI ;
-            sh:order 7 ;
-            sh:path dcterms:isPartOf ;
+            sh:path chron:operation_role ;
         ] ,
         [
             sh:datatype xsd:string ;
-            sh:description "Action the step performs." ;
+            sh:description "Declared effects such as preserve, drop, split, classify, or encode." ;
+            sh:nodeKind sh:Literal ;
+            sh:order 9 ;
+            sh:path chron:data_effects ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Action the operation performs." ;
             sh:maxCount 1 ;
             sh:nodeKind sh:Literal ;
             sh:order 1 ;
             sh:path chron:verb ;
         ] ,
         [
+            sh:class chron:OperationDefinition ;
+            sh:description "The coarser semantic operation this operation is a proper part of. Referenced by operation_id, not inlined." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:IRI ;
+            sh:order 11 ;
+            sh:path dcterms:isPartOf ;
+        ] ,
+        [
             sh:datatype xsd:string ;
-            sh:description "Steps that must precede this one." ;
+            sh:description "Direct configuration fields read by this operation." ;
             sh:nodeKind sh:Literal ;
-            sh:order 5 ;
-            sh:path chron:depends_on ;
+            sh:order 8 ;
+            sh:path chron:configuration_dependencies ;
         ] ;
-    sh:targetClass chron:StepDefinition ;
+    sh:targetClass chron:OperationDefinition ;
+.
+
+chron:ParameterSet
+    a sh:NodeShape ;
+    rdfs:comment "A content-addressed configuration entity — a set of ParameterBindings over the plan's variables. NOT a Plan: the plan is the workflow; this binds its variables." ;
+    sh:closed true ;
+    sh:ignoredProperties (
+        rdf:type
+    ) ;
+    sh:property
+        [
+            sh:datatype xsd:string ;
+            sh:description "Content-addressed hash of the canonical parameter set." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 0 ;
+            sh:path chron:parameter_set_sha256 ;
+        ] ,
+        [
+            sh:class chron:ParameterBinding ;
+            sh:description "Knob=value bindings." ;
+            sh:nodeKind sh:BlankNodeOrIRI ;
+            sh:order 1 ;
+            sh:path chron:bindings ;
+        ] ;
+    sh:targetClass chron:ParameterSet ;
 .
 
 chron:UsageInterval

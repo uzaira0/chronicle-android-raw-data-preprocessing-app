@@ -10,7 +10,7 @@ abstract: >-
   A dual-engine (browser + desktop Python) preprocessing instrument for
   Chronicle Android usage-events data: reconstructs app-usage and
   screen-usage sessions from raw interaction events under an explicit,
-  versioned 55-option contract, with byte-exact cross-engine parity,
+  versioned configuration and workflow contracts, with byte-exact cross-engine parity,
   golden-scenario locking, and per-run PROV provenance sidecars. The
   research ontology (LinkML/OWL/SHACL) that defines the instrument's
   measurand and parameters is generated from the same source of truth.

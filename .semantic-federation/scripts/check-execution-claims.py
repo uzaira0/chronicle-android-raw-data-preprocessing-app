@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Keep generated execution claims equal to the active 55-query Rust runtime."""
+"""Keep generated execution claims equal to the active Rust query registry."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ REPOSITORY_ROOT = FEDERATION_ROOT.parent
 PLAN_PATH = FEDERATION_ROOT / "semantic/resources/chronicle.plan.json"
 INVENTORY_PATH = REPOSITORY_ROOT / "docs/semantic-federation/behavior-inventory.json"
 IMPLEMENTATION_PLAN_PATH = (
-    REPOSITORY_ROOT / "docs/semantic-federation/55-step-incremental-rust-plan.md"
+    REPOSITORY_ROOT / "docs/semantic-federation/incremental-runtime-plan.md"
 )
 
 # Changed-cell totals are the one class of published figure with no producer in
@@ -97,20 +97,20 @@ def documentation_files() -> list[Path]:
 
 REQUIRED_DOCUMENT_TEXT = {
     REPOSITORY_ROOT / "README.md": [
-        "55-step incremental Rust plan",
-        "all 55 preprocessing transformations now exist",
+        "count-neutral workflow contract",
+        "registered queries match the complete Rust oracle",
         "Persisted Salsa snapshots were removed",
     ],
     REPOSITORY_ROOT / ".semantic-federation/PROJECT_DECISIONS.md": [
         "Salsa `0.28.1`",
-        "55 callable Rust queries",
+        "callable Rust queries",
     ],
     REPOSITORY_ROOT / "docs/semantic-federation/production-proof.md": [
-        "55 Salsa-tracked Rust product computations",
-        "actual executed-step IDs",
+        "registered Salsa-tracked Rust product computations",
+        "actual executed-query IDs",
     ],
     REPOSITORY_ROOT / "docs/semantic-federation/final-review-matrix.md": [
-        "Physical 55-step executor",
+        "Physical query-registry executor",
         "**Release blocker:**",
     ],
     REPOSITORY_ROOT / "docs/perf/BASELINE.md": [
@@ -131,7 +131,7 @@ FORBIDDEN_DOCUMENT_TEXT = {
         "The product-owned Rust scheduler is selected"
     ],
     REPOSITORY_ROOT / "docs/perf/BASELINE.md": [
-        "The runtime's 55 `cached` and `recomputed` labels are created after the fused result exists"
+        "The runtime's query status labels are created after the fused result exists"
     ],
 }
 
@@ -163,62 +163,65 @@ def check_document_text() -> None:
                 )
 
 
-def check_machine_state() -> tuple[int, int]:
+def check_machine_state() -> tuple[int, int, set[str]]:
     plan = json.loads(PLAN_PATH.read_text(encoding="utf-8"))
     inventory = json.loads(INVENTORY_PATH.read_text(encoding="utf-8"))
-    steps = plan["steps"]
-    groups = plan["nodes"]
+    workflow_queries = plan["queries"]
+    groups = plan["query_groups"]
     if plan["implementation_state"]["physical_execution"] != "salsa-tracked-rust-pipeline-v2":
-        fail("executable plan does not select the 55-query Salsa executor")
-    if len(groups) != 15 or len(steps) != 55:
-        fail(f"expected 15 groups/55 steps, found {len(groups)}/{len(steps)}")
-    if len({step["step_id"] for step in steps}) != 55:
-        fail("declared step IDs are not unique")
+        fail("executable plan does not select the registered-query Salsa executor")
+    if not groups or not workflow_queries:
+        fail("the plan must contain non-empty query-group and query registries")
+    if len({query["query_id"] for query in workflow_queries}) != len(workflow_queries):
+        fail("declared query IDs are not unique")
 
     physical = inventory["coverage"]["physical_execution"]
+    query_count = len(workflow_queries)
     expected_physical = {
         "tracked_executor_count": 1,
         "fused_cold_oracle_count": 1,
-        "independently_callable_steps": 55,
-        "independently_cached_steps": 55,
-        "production_authoritative_incremental_steps": 55,
-        "actual_step_execution_event_ids": 55,
-        "target_steps": 55,
+        "independently_callable_queries": query_count,
+        "independently_cached_queries": query_count,
+        "production_authoritative_incremental_queries": query_count,
+        "actual_query_execution_event_ids": query_count,
     }
     if physical != expected_physical:
         fail(f"behavior inventory physical state drift: {physical!r}")
     if inventory["physical_incremental_execution_status"] != "runtime-cutover-active-release-blocked":
         fail("behavior inventory no longer reports the active runtime cutover truthfully")
-    if inventory["rust_actual_step_event_projection"] != {
-        "covers": "rust_declared_step_ids",
-        "count": 55,
+    if inventory["rust_actual_query_event_projection"] != {
+        "covers": "rust_declared_query_ids",
+        "count": query_count,
     }:
-        fail("behavior inventory does not cover all actual step event IDs")
-    if inventory["rust_independently_callable_step_ids"] != [
-        step["step_id"] for step in steps
+        fail("behavior inventory does not cover all actual query event IDs")
+    if inventory["rust_independently_callable_query_ids"] != [
+        query["query_id"] for query in workflow_queries
     ]:
         fail("behavior inventory callable queries do not exactly match the plan")
-    if inventory["rust_independently_cached_step_ids"] != [
-        step["step_id"] for step in steps
+    if inventory["rust_independently_cached_query_ids"] != [
+        query["query_id"] for query in workflow_queries
     ]:
         fail("behavior inventory cached queries do not exactly match the plan")
-    for step in steps:
-        source = step.get("rust_executable_source", {})
-        if source.get("entrypoint") != step["step_id"] or source.get("tracking") != "salsa-query":
-            fail(f"plan lacks an exact Salsa query source for {step['step_id']}")
+    for query in workflow_queries:
+        source = query.get("rust_executable_source", {})
+        if source.get("entrypoint") != query["query_id"] or source.get("tracking") != "salsa-query":
+            fail(f"plan lacks an exact Salsa query source for {query['query_id']}")
 
     implementation_plan = IMPLEMENTATION_PLAN_PATH.read_text(encoding="utf-8")
-    missing = [
-        step["step_id"]
-        for step in steps
-        if f"`{step['step_id']}`" not in implementation_plan
-    ]
-    if missing:
-        fail(f"implementation plan omits declared steps: {missing}")
-    return len(groups), len(steps)
+    for phrase in (
+        "The registry size is deliberately not part of this contract.",
+        "CI proves set equality between the Rust workflow contract",
+    ):
+        if not contains_phrase(implementation_plan, phrase):
+            fail(f"implementation plan lost its count-neutral registry policy: {phrase}")
+    return (
+        len(groups),
+        len(workflow_queries),
+        {query["query_id"] for query in workflow_queries},
+    )
 
 
-def check_source_shape() -> None:
+def check_source_shape(declared_queries: set[str]) -> None:
     runtime_path = (
         REPOSITORY_ROOT / "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs"
     )
@@ -231,8 +234,8 @@ def check_source_shape() -> None:
         "review_base_bytes,",
         "reconstruction_base_bytes,",
         ".execute(csv_bytes, options, support_files)?",
-        "fn build_runtime_step_executions(",
-        "fn project_product_stages(",
+        "fn build_runtime_query_executions(",
+        "fn project_query_groups(",
         "fn execute_incremental_pipeline(",
     ):
         if symbol not in runtime:
@@ -255,17 +258,17 @@ def check_source_shape() -> None:
     full_execution = execute_body.index(
         ".execute(csv_bytes, options, support_files)?"
     )
-    projected_status = execute_body.index("build_runtime_step_executions(")
-    product_projection = execute_body.index("project_product_stages(")
+    projected_status = execute_body.index("build_runtime_query_executions(")
+    group_projection = execute_body.index("project_query_groups(")
     if not (
         cache_decision
         < tracked_execution
         < review_execution
         < full_execution
         < projected_status
-        < product_projection
+        < group_projection
     ):
-        fail("cache validation, tracked execution, exact step reporting, and product-stage projection are out of order")
+        fail("cache validation, tracked execution, exact query reporting, and query-group projection are out of order")
 
     incremental_path = (
         REPOSITORY_ROOT
@@ -278,7 +281,7 @@ def check_source_shape() -> None:
     # function in the kernel happens to use the parenthesized form today, so a
     # pattern that required the parentheses matched all 79 and looked correct —
     # but a new query written in the bare canonical form would be invisible here,
-    # and the "exactly 55 product / 24 internal" counts below would keep passing
+    # and fixed product/internal counts below would keep passing
     # while the real split had moved. Accept both spellings.
     tracked_functions = re.findall(
         r"#\[salsa::tracked(?:\([^\]]*\))?\]\s*fn\s+([a-z0-9_]+)\s*\(",
@@ -297,35 +300,14 @@ def check_source_shape() -> None:
     unclassified = set(tracked_functions) - product_queries - derived_queries
     if unclassified:
         fail(f"unclassified Salsa queries: {sorted(unclassified)}")
-    if len(product_queries) != 55:
-        fail(f"expected 55 unique Salsa product queries, found {len(product_queries)}")
-    if derived_queries != {
-        "assemble_primary_outputs",
-        "background_apps",
-        "blind_lineage_suffix_digests",
-        "codebook_is_empty",
-        "collect_early_assembly",
-        "decoded_reconstruction_base",
-        "decoded_review_base",
-        "matching_reconstruction_base",
-        "matching_review_base",
-        "parsed_apps_forcing_screen_open",
-        "parsed_codebook",
-        "parsed_device_sharing",
-        "parsed_enrolled_devices",
-        "parsed_filter_rules",
-        "parsed_study_windows",
-        "parsed_survey_attribution",
-        "review_applied_rows",
-        "review_usage_rows_before_floor",
-        "review_static_annotations",
-        "review_annotations_fused",
-        "review_reconstructed_rows",
-        "review_reconstruction_fused",
-        "review_reconstruction_output",
-        "screen_base_input_key",
-    }:
-        fail(f"unexpected derived Salsa cache queries: {sorted(derived_queries)}")
+    if product_queries != declared_queries:
+        fail(
+            "Salsa product-query registry mismatch: "
+            f"missing={sorted(declared_queries - product_queries)}, "
+            f"extra={sorted(product_queries - declared_queries)}"
+        )
+    if not derived_queries:
+        fail("the runtime must declare its internal cache queries explicitly")
 
     oracle = (
         REPOSITORY_ROOT / "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2.rs"
@@ -337,16 +319,16 @@ def check_source_shape() -> None:
         REPOSITORY_ROOT
         / "rust/chronicle_preprocessing_semantic_adapter/src/capabilities.rs"
     ).read_text(encoding="utf-8")
-    step_binding = capabilities[
-        capabilities.index("pub struct StepBinding") : capabilities.index(
-            "include!(", capabilities.index("pub struct StepBinding")
+    query_binding = capabilities[
+        capabilities.index("pub struct QueryBinding") : capabilities.index(
+            "include!(", capabilities.index("pub struct QueryBinding")
         )
     ]
     for field in ("entrypoint: &'static str", "tracking: &'static str"):
-        if field not in step_binding:
-            fail(f"exact step binding lost field: {field}")
-    if "stage: PhysicalStage" in step_binding:
-        fail("exact 55-step bindings must not collapse back to a 15-stage projection")
+        if field not in query_binding:
+            fail(f"exact query binding lost field: {field}")
+    if "stage: PhysicalQueryGroup" in query_binding:
+        fail("exact query bindings must not collapse into query-group projections")
 
 
 def protocol_mention_pattern(current: str) -> re.Pattern[str]:
@@ -581,7 +563,7 @@ def self_test() -> None:
                 "changed-cell claim parser self-test missed a published spelling: "
                 f"{wording!r} parsed as {changed_cell_claims(wording)}"
             )
-    if changed_cell_claims("the 192 cases and 55 steps carry no cell claim"):
+    if changed_cell_claims("the campaign cases and registered queries carry no cell claim"):
         fail("changed-cell claim parser self-test matched an unrelated number")
 
     print("execution_claims_self_test=passed")
@@ -595,14 +577,14 @@ def main() -> int:
         self_test()
         return 0
     check_document_text()
-    groups, steps = check_machine_state()
-    check_source_shape()
+    groups, query_count, declared_queries = check_machine_state()
+    check_source_shape(declared_queries)
     protocol = check_published_protocol_version()
     artifact_cells, boundary_cells, combined_cells = check_published_cell_evidence_counts()
     print(
         "execution_claims=valid "
-        f"groups={groups} declared_steps={steps} tracked_executors=1 "
-        "independently_callable_steps=55 independently_cached_steps=55 "
+        f"query_groups={groups} declared_queries={query_count} tracked_executors=1 "
+        f"independently_callable_queries={query_count} independently_cached_queries={query_count} "
         f"influence_protocol={protocol} "
         f"changed_cells_artifact={artifact_cells} "
         f"changed_cells_boundary={boundary_cells} "

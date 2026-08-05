@@ -146,8 +146,8 @@ src/bin/
 # only widen; every `record_canonical_parts` call is itself guarded by
 # `!reuse_*`, and the pre-sorted path and the explicit sort commit the same
 # bytes in the same canonical order.
-:13: delete ! in logical_stage_checkpoint_with_group_parts$
-:17: replace \|\| with \&\& in logical_stage_checkpoint_with_group_parts$
+:13: delete ! in workflow_checkpoint_with_group_parts$
+:17: replace \|\| with \&\& in workflow_checkpoint_with_group_parts$
 
 # Review-cone Salsa equality.
 #

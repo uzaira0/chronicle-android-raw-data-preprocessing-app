@@ -1,7 +1,7 @@
 # Chronicle Web PWA Transition
 
 > **Historical bootstrap note.** The matcher-only WASM architecture below no
-> longer exists. The browser now calls the single 55-step Rust/Salsa runtime;
+> longer exists. The browser now calls the single query-registry Rust/Salsa runtime;
 > TypeScript only handles interaction, rendering, and byte transport.
 
 This repo now includes an initial web scaffold under [web/](/Users/u/chronicle-android-raw-data-preprocessing-app/web).

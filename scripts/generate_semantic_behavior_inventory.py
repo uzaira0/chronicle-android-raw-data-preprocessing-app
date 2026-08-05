@@ -2,8 +2,8 @@
 """Freeze the preprocessing app's current Rust/WASM authority and product plan.
 
 The generated YAML remains a structural source projection, never an executable
-body. This generator verifies every reporting group and declared step, records
-the 55-query Salsa implementation as the production computation authority,
+body. This generator verifies every reporting group and declared query, records
+the Salsa query registry as the production computation authority,
 and records the fused implementation only as an independent cold-test oracle.
 """
 
@@ -22,13 +22,13 @@ import yaml
 
 
 ROOT = Path(__file__).resolve().parents[1]
-GRAPH_YAML = ROOT / "web/schema/chronicle-pipeline-graph.yaml"
+GRAPH_YAML = ROOT / "web/schema/chronicle-workflow.yaml"
 LOCAL_CONTRACT = ROOT / "web/schema/chronicle-local-contract.linkml.yaml"
 PIPELINE_V2 = ROOT / "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2.rs"
 PIPELINE_INCREMENTAL = (
     ROOT / "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs"
 )
-STEP_CONTRACT = ROOT / "rust/chronicle_chrono_kernel_wasm/src/step_contract.rs"
+WORKFLOW_CONTRACT = ROOT / "rust/chronicle_chrono_kernel_wasm/src/workflow_contract.rs"
 KERNEL_MANIFEST = ROOT / "rust/chronicle_chrono_kernel_wasm/Cargo.toml"
 FEDERATION = ROOT / ".semantic-federation"
 RESOURCE_ROOT = FEDERATION / "semantic/resources"
@@ -93,10 +93,10 @@ RUNTIME_SURFACES = [
     ),
     {
         **rust_surface(
-            "product_stage_projection",
+            "query_group_projection",
             "semantic-projection",
             "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",
-            "project_product_stages",
+            "project_query_groups",
         ),
         "does_not_schedule_physical_queries": True,
     },
@@ -119,10 +119,10 @@ RUNTIME_SURFACES = [
         "qualify_candidates",
     ),
     rust_surface(
-        "typed_logical_checkpoints",
+        "typed_workflow_checkpoints",
         "evidence-authority",
         "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2.rs",
-        "logical_stage_checkpoint",
+        "workflow_checkpoint",
     ),
     rust_surface(
         "execution_evidence",
@@ -212,7 +212,7 @@ RUNTIME_SURFACES = [
         "typed_views",
         "semantic-projection",
         "rust/chronicle_preprocessing_semantic_adapter/src/views.rs",
-        "stage_view",
+        "encode_view",
     ),
     rust_surface(
         "artifact_closure",
@@ -320,6 +320,11 @@ def rust_runtime_implementation_digest() -> str:
             **os.environ,
             "CHRONICLE_REPOSITORY_ROOT": str(ROOT),
             "CHRONICLE_SEMANTIC_ROOT": str(FEDERATION / "semantic"),
+            # The new source digest is needed to regenerate capability bindings,
+            # so this one digest-only build must not require those old bindings
+            # to validate against the new source first. Normal runtime and WASM
+            # builds never receive this cycle-breaking variable.
+            "CHRONICLE_DIGEST_ONLY_BOOTSTRAP": "1",
         },
     )
     value = result.stdout.strip()
@@ -364,24 +369,24 @@ def configuration_axes() -> dict[str, list[str]]:
 def dependency_binding_surface(plan: dict) -> dict:
     option_bindings: dict[str, list[dict]] = {}
     role_bindings: dict[str, list[dict]] = {
-        "raw_chronicle_csv": [{"kind": "raw-input", "node_id": "parse_events"}],
+        "raw_chronicle_csv": [{"kind": "raw-input", "query_group_id": "parse_events"}],
         "processing_options": [
-            {"kind": "configuration-source", "node_id": "*"}
+            {"kind": "configuration-source", "query_group_id": "*"}
         ],
     }
-    for node in plan["nodes"]:
+    for node in plan["query_groups"]:
         for knob in node["knobs"]:
             option_bindings.setdefault(knob["option_key"], []).append(
-                {"edge": knob["edge"], "node_id": node["node_id"]}
+                {"edge": knob["edge"], "query_group_id": node["query_group_id"]}
             )
         for role_id in node["support_roles"]:
             role_bindings.setdefault(role_id, []).append(
-                {"kind": "support-input", "node_id": node["node_id"]}
+                {"kind": "support-input", "query_group_id": node["query_group_id"]}
             )
     for bindings in option_bindings.values():
-        bindings.sort(key=lambda binding: (binding["node_id"], binding["edge"]))
+        bindings.sort(key=lambda binding: (binding["query_group_id"], binding["edge"]))
     for bindings in role_bindings.values():
-        bindings.sort(key=lambda binding: (binding["node_id"], binding["kind"]))
+        bindings.sort(key=lambda binding: (binding["query_group_id"], binding["kind"]))
     return {
         "option_bindings": dict(sorted(option_bindings.items())),
         "role_bindings": dict(sorted(role_bindings.items())),
@@ -395,7 +400,7 @@ def build_dependency_certificate(plan: dict) -> dict:
     plan_options = sorted(
         {
             knob["option_key"]
-            for node in plan["nodes"]
+            for node in plan["query_groups"]
             for knob in node["knobs"]
         }
     )
@@ -459,25 +464,25 @@ def build_dependency_certificate(plan: dict) -> dict:
         },
         "narrowing_policy": {
             "certified_surface": "classified-product-input-surface-plus-exact-query-reads",
-            "unknown_option": "discard-query-state-and-run-all-55-queries-cold",
-            "missing_option": "discard-query-state-and-run-all-55-queries-cold",
+            "unknown_option": "discard-query-state-and-run-registered-queries-cold",
+            "missing_option": "discard-query-state-and-run-registered-queries-cold",
             "unknown_role": "fail-closed",
-            "certificate_mismatch": "discard-query-state-and-run-all-55-queries-cold",
+            "certificate_mismatch": "discard-query-state-and-run-registered-queries-cold",
             "stale_empirical_evidence": "release-blocking",
-            "code_or_contract_change": "discard-query-state-and-run-all-55-queries-cold",
+            "code_or_contract_change": "discard-query-state-and-run-registered-queries-cold",
         },
         "claim_boundary": (
             "The certificate proves complete classification and binding of the current "
             "product option/role surface and binds the named empirical ledgers. Salsa's "
-            "actual query reads decide physical reuse; the 15 product stages are derived "
+            "actual query reads decide physical reuse; query groups are derived "
             "views and do not schedule work. Empirical absence-of-effect claims remain "
             "bounded by each ledger's claim boundary. Unknown or mismatched state discards "
-            "incremental query state and runs all 55 Rust queries cold."
+            "incremental query state and runs the registered Rust queries cold."
         ),
     }
 
 
-def independently_callable_rust_steps(step_ids: list[str]) -> list[str]:
+def independently_callable_rust_queries(query_ids: list[str]) -> list[str]:
     source = PIPELINE_INCREMENTAL.read_text(encoding="utf-8")
     tracked_functions = set(
         re.findall(
@@ -498,15 +503,15 @@ def independently_callable_rust_steps(step_ids: list[str]) -> list[str]:
     unclassified = sorted(tracked_functions - product_queries - derived_queries)
     if unclassified:
         raise RuntimeError(
-            f"Salsa queries lack a product-step or derived-cache classification: {unclassified}"
+            f"Salsa queries lack a product or internal-cache classification: {unclassified}"
         )
-    unknown = sorted(product_queries - set(step_ids))
+    unknown = sorted(product_queries - set(query_ids))
     if unknown:
-        raise RuntimeError(f"tracked Rust product queries are absent from the 55-step contract: {unknown}")
-    return [step_id for step_id in step_ids if step_id in product_queries]
+        raise RuntimeError(f"tracked Rust product queries are absent from the workflow contract: {unknown}")
+    return [query_id for query_id in query_ids if query_id in product_queries]
 
 
-def rust_step_contract() -> dict:
+def rust_workflow_contract() -> dict:
     result = subprocess.run(
         [
             "cargo",
@@ -517,7 +522,7 @@ def rust_step_contract() -> dict:
             "--features",
             "incremental-v2",
             "--bin",
-            "export_pipeline_step_contract",
+            "export_workflow_contract",
         ],
         cwd=ROOT,
         check=True,
@@ -525,8 +530,8 @@ def rust_step_contract() -> dict:
         text=True,
     )
     contract = json.loads(result.stdout)
-    if contract.get("protocolVersion") != "chronicle-preprocessing-step-contract/v3":
-        raise RuntimeError("unsupported Rust step contract protocol")
+    if contract.get("protocolVersion") != "chronicle-workflow-contract/v1":
+        raise RuntimeError("unsupported Rust workflow contract protocol")
     return contract
 
 
@@ -536,16 +541,18 @@ def capability(kind: str, identifier: str) -> str:
 
 def load_and_verify() -> dict:
     projection = yaml.safe_load(GRAPH_YAML.read_text(encoding="utf-8"))
-    nodes = projection["graph_nodes"]
-    steps = projection["graph_steps"]
-    if len(nodes) != 15 or len(steps) != 55:
-        raise RuntimeError(f"expected 15 nodes/55 steps, found {len(nodes)}/{len(steps)}")
+    phases = projection["workflow_phases"]
+    operations = projection["workflow_operations"]
+    artifacts = projection["workflow_artifacts"]
+    queries = projection["workflow_queries"]
+    if not phases or not operations or not artifacts or not queries:
+        raise RuntimeError("workflow projection registries must be non-empty")
 
     rust_source = PIPELINE_V2.read_text(encoding="utf-8")
     for function in (
         "parse_raw_rows",
         "dedupe_exact_rows",
-        "mark_data_time_gaps",
+        "derive_time_gap_evidence",
         "derive_screen_usage_sessions_full",
         "run_app_usage_algorithm",
         "join_codebook",
@@ -557,60 +564,73 @@ def load_and_verify() -> dict:
 
 
 def build_plan(projection: dict) -> dict:
-    rust_contract = rust_step_contract()
-    rust_groups = {group["id"]: group for group in rust_contract["groups"]}
-    rust_steps = {step["id"]: step for step in rust_contract["steps"]}
-    nodes = []
-    for node in projection["graph_nodes"]:
-        node_id = node["node_id"]
-        rust_group = rust_groups[node_id]
-        nodes.append(
+    rust_contract = rust_workflow_contract()
+    rust_groups = rust_contract["execution"]["queryGroups"]
+    rust_queries = rust_contract["execution"]["queries"]
+    operations = {
+        operation["id"]: operation
+        for operation in rust_contract["semantic"]["operations"]
+    }
+    query_by_id = {query["id"]: query for query in rust_queries}
+    group_inputs = {group["id"]: set() for group in rust_groups}
+    for query in rust_queries:
+        for input_id in query["inputs"]:
+            source_group = query_by_id[input_id]["group"]
+            if source_group != query["group"]:
+                group_inputs[query["group"]].add(source_group)
+
+    query_groups = []
+    for group in rust_groups:
+        group_id = group["id"]
+        query_groups.append(
             {
-                "node_id": node_id,
-                "label": node["node_label"],
-                "section": node["section"],
-                "capability_id": capability("node", node_id),
-                "input_nodes": node.get("node_inputs", []),
-                "output_role": f"urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/{node_id}",
+                "query_group_id": group_id,
+                "label": group["label"],
+                "section": group["section"],
+                "capability_id": capability("query-group", group_id),
+                "input_query_groups": sorted(group_inputs[group_id]),
+                "output_role": f"urn:uzaira0:semantic-federation:chronicle-preprocessing:role/query-group-output/{group_id}",
                 "knobs": [
                     {"option_key": knob["optionKey"], "edge": knob["edge"]}
-                    for knob in rust_group["knobs"]
+                    for knob in group["knobs"]
                 ],
-                "support_roles": rust_group["supportRoles"],
-                "applicability": rust_group["applicability"],
-                "can_bypass": rust_group["canBypass"],
-                "early_cutoff": rust_group["earlyCutoff"],
+                "support_roles": group["supportRoles"],
+                "applicability": group["applicability"],
+                "can_bypass": group["canBypass"],
+                "early_cutoff": group["earlyCutoff"],
                 "determinism": "semantic",
-                "implementation_status": "rust-wasm-product-stage-projection",
+                "implementation_status": "rust-wasm-query-group-projection",
                 "physical_execution_authority": False,
             }
         )
 
-    steps = []
-    for step in projection["graph_steps"]:
-        step_id = step["step_id"]
-        rust_step = rust_steps[step_id]
-        steps.append(
+    queries = []
+    for query in rust_queries:
+        query_id = query["id"]
+        mapped_operations = [operations[operation_id] for operation_id in query["operationIds"]]
+        label = mapped_operations[0]["label"] if mapped_operations else query_id.replace("_", " ")
+        description = mapped_operations[0]["description"] if mapped_operations else "Internal runtime query."
+        queries.append(
             {
-                "step_id": step_id,
-                "unit_id": step["unit_id"],
-                "label": step["step_label"],
-                "description": step["step_description"],
-                "capability_id": capability("step", step_id),
-                "input_steps": step.get("step_inputs", []),
-                "request_fields": rust_step["requestFields"],
+                "query_id": query_id,
+                "query_group_id": query["group"],
+                "label": label,
+                "description": description,
+                "capability_id": capability("query", query_id),
+                "input_queries": query["inputs"],
+                "request_fields": query["requestFields"],
                 "source_role_bindings": [
                     {
                         "role": binding["role"],
                         "when_all": binding["whenAll"],
                     }
-                    for binding in rust_step["sourceRoleBindings"]
+                    for binding in query["sourceRoleBindings"]
                 ],
-                "applicability": rust_step["applicability"],
-                "can_bypass": rust_step["canBypass"],
+                "applicability": query["applicability"],
+                "can_bypass": query["canBypass"],
                 "rust_executable_source": {
                     "path": str(PIPELINE_INCREMENTAL.relative_to(ROOT)),
-                    "entrypoint": step_id,
+                    "entrypoint": query_id,
                     "tracking": "salsa-query",
                 },
                 "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1",
@@ -626,7 +646,7 @@ def build_plan(projection: dict) -> dict:
             "browser_selector": "typescript-worker-calls-rust-execute-workspace",
             "active_logical_authority": "rust-composed-runtime",
             "physical_execution": "salsa-tracked-rust-pipeline-v2",
-            "logical_execution_evidence": "salsa-actual-step-events-grouped-into-15-product-views",
+            "logical_execution_evidence": "salsa-actual-query-events-grouped-into-query-group-views",
             "workspace_authority": "rust-root-and-closure-contract-with-opfs-browser-io-adapter",
             "semantic_index": "derived-rust-oxigraph-registered-queries-only",
             "typescript_boundary": "interaction-visualization-and-browser-io-only",
@@ -662,10 +682,10 @@ def build_plan(projection: dict) -> dict:
                     else {}
                 ),
             }
-            for role in rust_contract["rootRoles"]
+            for role in rust_contract["semantic"]["rootRoles"]
         ],
-        "nodes": nodes,
-        "steps": steps,
+        "query_groups": query_groups,
+        "queries": queries,
         "reason_contract": {
             "every_state_change_has_reason": True,
             "reasons_reference_artifact_or_constraint": True,
@@ -675,8 +695,8 @@ def build_plan(projection: dict) -> dict:
 
 
 def build_runtime_authority(plan: dict) -> dict:
-    logical_capabilities = [node["capability_id"] for node in plan["nodes"]] + [
-        step["capability_id"] for step in plan["steps"]
+    logical_capabilities = [group["capability_id"] for group in plan["query_groups"]] + [
+        query["capability_id"] for query in plan["queries"]
     ]
     return {
         "protocol_version": "0.1",
@@ -738,38 +758,38 @@ def build_runtime_authority(plan: dict) -> dict:
 
 
 def build_bindings(plan: dict, runtime_authority: dict) -> dict:
-    node_capabilities = [node["capability_id"] for node in plan["nodes"]]
-    step_capabilities = [step["capability_id"] for step in plan["steps"]]
-    logical_capabilities = node_capabilities + step_capabilities
+    query_group_capabilities = [group["capability_id"] for group in plan["query_groups"]]
+    query_capabilities = [query["capability_id"] for query in plan["queries"]]
+    logical_capabilities = query_group_capabilities + query_capabilities
     runtime_capabilities = [
         surface["capability_id"] for surface in runtime_authority["surfaces"]
     ]
     complete_authority = logical_capabilities + runtime_capabilities
-    product_runtime_capabilities = node_capabilities + runtime_capabilities
+    product_runtime_capabilities = query_group_capabilities + runtime_capabilities
     runtime_implementation_digest = rust_runtime_implementation_digest()
-    tracked_step_bindings = [
+    tracked_query_bindings = [
         {
-            "binding_id": f"urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/{step['step_id']}",
-            "capability_ids": [step["capability_id"]],
+            "binding_id": f"urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/{query['query_id']}",
+            "capability_ids": [query["capability_id"]],
             "implementation": {
-                "implementation_id": f"urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/{step['step_id']}",
+                "implementation_id": f"urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/{query['query_id']}",
                 "language": "rust",
                 "target": "wasm32-unknown-unknown",
                 "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-                "entrypoint": step["step_id"],
+                "entrypoint": query["query_id"],
                 "build_digest": runtime_implementation_digest,
             },
             "relationship": "one-to-one",
             "status": "active",
             "authority": True,
             "evidence_projection": {
-                "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+                "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
                 "loss": "lossless",
                 "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused.",
             },
-            "notes": "Production computation authority for one exact Chronicle preprocessing step.",
+            "notes": "Production computation authority for one exact Chronicle preprocessing query.",
         }
-        for step in plan["steps"]
+        for query in plan["queries"]
     ]
     return {
         "protocol_version": "0.1",
@@ -796,11 +816,11 @@ def build_bindings(plan: dict, runtime_authority: dict) -> dict:
                 "evidence_projection": {
                     "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/rust-runtime/v1",
                     "loss": "lossless",
-                    "notes": "The runtime projects actual Salsa step-execution events into the 15 product reporting groups, evidence, obligations, and artifact records.",
+                    "notes": "The runtime projects actual Salsa query events into reporting groups, evidence, obligations, and artifact records.",
                 },
                 "notes": "Production worker authority for parsing, validation, computation, scheduling, evidence, artifact encoding, typed views, and semantic indexing.",
             },
-            *tracked_step_bindings,
+            *tracked_query_bindings,
             {
                 "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-native-parity-runtime",
                 "capability_ids": complete_authority,
@@ -826,23 +846,23 @@ def build_bindings(plan: dict, runtime_authority: dict) -> dict:
 
 
 def build_inventory(projection: dict, plan: dict, dependency_certificate: dict) -> dict:
-    node_ids = [node["node_id"] for node in projection["graph_nodes"]]
-    step_ids = [step["step_id"] for step in projection["graph_steps"]]
-    callable_step_ids = independently_callable_rust_steps(step_ids)
+    query_group_ids = [group["query_group_id"] for group in plan["query_groups"]]
+    query_ids = [query["query_id"] for query in plan["queries"]]
+    callable_query_ids = independently_callable_rust_queries(query_ids)
     return {
         "inventory_version": "0.1.0",
         "branch_authority": {
             "feature_behavior": FEATURE_REF,
             "implementation_base": BASE_REF,
-            "isolated_worktree_branch": "codex/chronicle-55-step-authority",
+            "historical_authority_branch": "recorded-in-git-history",
         },
         "sources": {
-            "rust_step_contract": {
-                "path": str(STEP_CONTRACT.relative_to(ROOT)),
-                "digest": digest(STEP_CONTRACT),
+            "rust_workflow_contract": {
+                "path": str(WORKFLOW_CONTRACT.relative_to(ROOT)),
+                "digest": digest(WORKFLOW_CONTRACT),
                 "executable": False,
                 "production_authority": True,
-                "purpose": "declares the exact 55 Rust query ids and edges",
+                "purpose": "declares the Rust query registry and dependency edges",
             },
             "structural_projection": {
                 "path": str(GRAPH_YAML.relative_to(ROOT)),
@@ -853,12 +873,12 @@ def build_inventory(projection: dict, plan: dict, dependency_certificate: dict) 
                 "path": str(PIPELINE_V2.relative_to(ROOT)),
                 "included_paths": [
                     str(path.relative_to(ROOT))
-                    for path in [PIPELINE_V2, PIPELINE_INCREMENTAL, STEP_CONTRACT]
+                    for path in [PIPELINE_V2, PIPELINE_INCREMENTAL, WORKFLOW_CONTRACT]
                 ],
                 "digest": closure_digest(
-                    [PIPELINE_V2, PIPELINE_INCREMENTAL, STEP_CONTRACT]
+                    [PIPELINE_V2, PIPELINE_INCREMENTAL, WORKFLOW_CONTRACT]
                 ),
-                "coverage": "active-55-query-salsa-kernel-plus-fused-cold-test-oracle",
+                "coverage": "active-query-registry-plus-fused-cold-test-oracle",
             },
             "rust_product_runtime": {
                 "path": "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",
@@ -867,22 +887,27 @@ def build_inventory(projection: dict, plan: dict, dependency_certificate: dict) 
             },
         },
         "coverage": {
-            "nodes": {"expected": 15, "recorded": len(node_ids), "percent": 100},
-            "steps": {"expected": 55, "recorded": len(step_ids), "percent": 100},
+            "query_groups": {"expected": len(query_group_ids), "recorded": len(query_group_ids), "percent": 100},
+            "queries": {"expected": len(query_ids), "recorded": len(query_ids), "percent": 100},
             "declared_capability_identity_coverage": {
-                "expected": 69,
-                "recorded": 69,
+                "expected": len({
+                    *[group["capability_id"] for group in plan["query_groups"]],
+                    *[query["capability_id"] for query in plan["queries"]],
+                }),
+                "recorded": len({
+                    *[group["capability_id"] for group in plan["query_groups"]],
+                    *[query["capability_id"] for query in plan["queries"]],
+                }),
                 "percent": 100,
                 "claim": "identity-and-exact-rust-query-entrypoint-coverage",
             },
             "physical_execution": {
                 "tracked_executor_count": 1,
                 "fused_cold_oracle_count": 1,
-                "independently_callable_steps": len(callable_step_ids),
-                "independently_cached_steps": len(callable_step_ids),
-                "production_authoritative_incremental_steps": len(callable_step_ids),
-                "actual_step_execution_event_ids": len(callable_step_ids),
-                "target_steps": 55,
+                "independently_callable_queries": len(callable_query_ids),
+                "independently_cached_queries": len(callable_query_ids),
+                "production_authoritative_incremental_queries": len(callable_query_ids),
+                "actual_query_execution_event_ids": len(callable_query_ids),
             },
             "dependency_surface": {
                 "cache_relevant_options": len(
@@ -902,15 +927,15 @@ def build_inventory(projection: dict, plan: dict, dependency_certificate: dict) 
                 "unbound_roles": 0,
             },
         },
-        "node_ids": node_ids,
-        "step_ids": step_ids,
-        "rust_actual_event_projection_groups": node_ids,
-        "rust_declared_step_ids": step_ids,
-        "rust_independently_callable_step_ids": callable_step_ids,
-        "rust_independently_cached_step_ids": callable_step_ids,
-        "rust_actual_step_event_projection": {
-            "covers": "rust_declared_step_ids",
-            "count": len(step_ids),
+        "query_group_ids": query_group_ids,
+        "query_ids": query_ids,
+        "rust_actual_event_projection_groups": query_group_ids,
+        "rust_declared_query_ids": query_ids,
+        "rust_independently_callable_query_ids": callable_query_ids,
+        "rust_independently_cached_query_ids": callable_query_ids,
+        "rust_actual_query_event_projection": {
+            "covers": "rust_declared_query_ids",
+            "count": len(query_ids),
         },
         "physical_incremental_execution_status": "runtime-cutover-active-release-blocked",
         "typescript_production_authority_capabilities": [],
@@ -1008,7 +1033,7 @@ def main() -> int:
             DEPENDENCY_CERTIFICATE_OUTPUT, dependency_certificate, args.check
         )
         mode = "checked" if args.check else "generated"
-        print(f"dependency_certificate={mode} groups=15 declared_steps=55")
+        print(f"dependency_certificate={mode}")
         return 0
     runtime_authority = build_runtime_authority(plan)
     bindings = build_bindings(plan, runtime_authority)
@@ -1019,7 +1044,7 @@ def main() -> int:
         sync_existing_ontology_resources(args.check)
         mode = "checked" if args.check else "generated"
         print(
-            f"semantic_behavior_contracts={mode} groups=15 declared_steps=55 "
+            f"semantic_behavior_contracts={mode} "
             "tracked_executors=1"
         )
         return 0
@@ -1035,9 +1060,9 @@ def main() -> int:
     sync_existing_ontology_resources(args.check)
     mode = "checked" if args.check else "generated"
     print(
-        f"semantic_behavior_inventory={mode} groups=15 declared_steps=55 "
-        f"tracked_executors=1 independently_cached_steps={len(inventory['rust_independently_cached_step_ids'])} "
-        f"production_authoritative_incremental_steps={len(inventory['rust_independently_cached_step_ids'])}"
+        f"semantic_behavior_inventory={mode} "
+        f"tracked_executors=1 independently_cached_queries={len(inventory['rust_independently_cached_query_ids'])} "
+        f"production_authoritative_incremental_queries={len(inventory['rust_independently_cached_query_ids'])}"
     )
     return 0
 

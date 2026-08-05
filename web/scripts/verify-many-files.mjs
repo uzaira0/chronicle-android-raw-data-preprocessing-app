@@ -19,7 +19,6 @@ import {
   stat,
   writeFile,
 } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -127,7 +126,7 @@ if (fixturePath) {
     sourceFiles = Array.from({ length: fileCount }, () => fixturePath);
   }
   const stagingDirectory = await mkdtemp(
-    path.join(tmpdir(), "chronicle-many-files-"),
+    path.join(path.resolve(__dirname, ".."), ".tmp-many-files-"),
   );
   stagedFixtureDirectory = stagingDirectory;
   uploadFiles = await Promise.all(

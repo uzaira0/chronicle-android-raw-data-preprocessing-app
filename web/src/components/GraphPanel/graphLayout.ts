@@ -1,38 +1,25 @@
 import dagre from "@dagrejs/dagre";
 
-import { spliceOut, type Section, type ViewGraph } from "@/components/GraphPanel/viewGraph";
+import type { Section, ViewGraph } from "@/components/GraphPanel/viewGraph";
 
 /**
  * Pure layout over the declared pipeline graph. The WHOLE graph is laid out by
  * dagre in one pass, so the library owns all positions, ranking and
  * crossing-minimisation — there are no hand-placed coordinates and no overlaps.
  *
- * Two inputs shape it into a straight lossless backbone with the lossy CLEAN
- * steps on side branches:
- *
- *   1. dagre is fed the real feeds-edges (so every node, clean included, is
- *      ranked) PLUS heavy-weighted "backbone" edges — the clean-free edges and
- *      the bridges spliceOut synthesises across a clean node (e.g. annotate →
- *      observation-window). The heavy weight makes dagre hold the backbone
- *      straight and settle clean nodes into adjacent lanes.
- *   2. Only REAL feeds-edges are DRAWN. The bridges are layout guidance, never
- *      rendered, so no edge implies a dependency the pipeline does not have.
- *
- * Drawn edges touching a clean node are dashed ("tap" in / "rejoin" out); the
- * rest are the solid backbone.
+ * Dagre receives exactly the graph's declared edges. No semantic category is
+ * treated as a privileged "spine", and no synthetic bridge is introduced for
+ * layout purposes. That keeps the picture faithful as Rust adds, removes, or
+ * regroups workflow nodes.
  *
  * View-only — `graphDef` (data flow, outputs) is unchanged.
  */
 
 export type LayoutDirection = "LR" | "TB";
-type EdgeVariant = "spine" | "tap";
+type EdgeVariant = "flow";
 
 export const NODE_WIDTH = 216;
-export const NODE_HEIGHT = 64;
-
-/** Heavy weight keeps the lossless backbone straight; taps use the default. */
-const SPINE_WEIGHT = 12;
-const TAP_WEIGHT = 1;
+export const NODE_HEIGHT = 78;
 
 interface LayoutNode {
   id: string;
@@ -40,15 +27,13 @@ interface LayoutNode {
   section: Section;
   x: number;
   y: number;
-  /** A `clean` node — rendered on a branch off the backbone with dashed edges. */
-  offSpine: boolean;
 }
 
 interface LayoutEdge {
   id: string;
   source: string;
   target: string;
-  /** `spine` = solid backbone edge; `tap` = dashed clean-branch connector. */
+  /** Retained for consumers that distinguish declared flow from future overlays. */
   variant: EdgeVariant;
 }
 
@@ -58,10 +43,6 @@ export interface GraphLayout {
 }
 
 export function layoutGraph(def: ViewGraph, direction: LayoutDirection): GraphLayout {
-  const cleanIds = new Set(
-    def.nodes.filter((node) => node.section === "clean").map((node) => node.id),
-  );
-
   const graph = new dagre.graphlib.Graph();
   graph.setGraph({ rankdir: direction, nodesep: 40, ranksep: 90, marginx: 16, marginy: 16 });
   graph.setDefaultEdgeLabel(() => ({}));
@@ -69,29 +50,16 @@ export function layoutGraph(def: ViewGraph, direction: LayoutDirection): GraphLa
     graph.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
   }
 
-  // Layout guidance: heavy backbone edges (clean-free edges + bridges across
-  // clean nodes). These straighten the spine; they are NOT drawn.
-  const spineDef = spliceOut(def, cleanIds);
-  for (const node of spineDef.nodes) {
-    for (const input of node.inputs) {
-      graph.setEdge(input, node.id, { weight: SPINE_WEIGHT });
-    }
-  }
-
-  // Real feeds-edges: fed to dagre (so clean nodes are ranked/placed) and DRAWN.
-  // An edge touching a clean node is a dashed tap; otherwise it is the solid
-  // backbone (a clean-free real edge already carries SPINE_WEIGHT from above,
-  // and setEdge de-dupes by endpoints, so the heavy weight is preserved).
+  // Every declared dependency participates equally in layout and rendering.
   const edges: LayoutEdge[] = [];
   for (const node of def.nodes) {
     for (const input of node.inputs) {
-      const tap = cleanIds.has(node.id) || cleanIds.has(input);
-      if (tap) graph.setEdge(input, node.id, { weight: TAP_WEIGHT });
+      graph.setEdge(input, node.id);
       edges.push({
         id: `${input}->${node.id}`,
         source: input,
         target: node.id,
-        variant: tap ? "tap" : "spine",
+        variant: "flow",
       });
     }
   }
@@ -109,7 +77,6 @@ export function layoutGraph(def: ViewGraph, direction: LayoutDirection): GraphLa
       section: node.section,
       x: placed.x - NODE_WIDTH / 2,
       y: placed.y - NODE_HEIGHT / 2,
-      offSpine: cleanIds.has(node.id),
     };
   });
 

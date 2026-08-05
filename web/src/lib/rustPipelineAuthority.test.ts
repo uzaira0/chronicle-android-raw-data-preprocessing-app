@@ -104,19 +104,16 @@ function persistedTimelineRequest() {
 
 function manifest(artifacts: RuntimeManifest["artifacts"]): RuntimeManifest {
   const stageDigest = `sha256:${"b".repeat(64)}`;
-  const stepIds = Array.from({ length: 55 }, (_, index) => ({
-    stepId: `test-step-${index + 1}`,
-    unitId: "test-unit",
-  }));
-  const pipelineStepDigests = Object.fromEntries(
-    stepIds.map(({ stepId }) => [stepId, stageDigest]),
+  const queryIds = ["decode_source_records", "assemble_result_manifest"];
+  const workflowQueryDigests = Object.fromEntries(
+    queryIds.map((queryId) => [queryId, stageDigest]),
   );
-  const pipelineStepCheckpoints = Object.fromEntries(
-    stepIds.map(({ stepId }) => [
-      stepId,
+  const workflowQueryCheckpoints = Object.fromEntries(
+    queryIds.map((queryId) => [
+      queryId,
       {
-        protocolVersion: "chronicle-logical-stage-checkpoint/v7" as const,
-        nodeId: stepId,
+        protocolVersion: "chronicle-workflow-checkpoint/v1" as const,
+        subjectId: queryId,
         rowMembershipDigest: `xxh3:${"1".repeat(32)}`,
         rowOrderDigest: `xxh3:${"2".repeat(32)}`,
         temporalStateDigest: `xxh3:${"3".repeat(32)}`,
@@ -166,7 +163,7 @@ function manifest(artifacts: RuntimeManifest["artifacts"]): RuntimeManifest {
       {
         obligation_id: "obligation:optional",
         role_id: "optional_support",
-        node_id: null,
+        query_group_id: null,
         state: "open",
         reason_id: "reason:optional",
       },
@@ -176,27 +173,19 @@ function manifest(artifacts: RuntimeManifest["artifacts"]): RuntimeManifest {
     artifacts,
     previousWorkspaceRootDigest: `sha256:${"9".repeat(64)}`,
     roleAssignments: [],
-    nodeExecutions: [
+    queryGroupExecutions: [
       {
-        node_id: "parse_events",
+        query_group_id: "parse_events",
         capability_id: "chronicle.parse_events",
         status: "recomputed",
         input_key: `sha256:${"1".repeat(64)}`,
         output: null,
         reason_id: "changed-input",
       },
-      {
-        node_id: "outputs",
-        capability_id: "chronicle.outputs",
-        status: "cached",
-        input_key: `sha256:${"2".repeat(64)}`,
-        output: null,
-        reason_id: "same-input",
-      },
     ],
-    stepExecutions: stepIds.map(({ stepId, unitId }) => ({
-      step_id: stepId,
-      unit_id: unitId,
+    queryExecutions: queryIds.map((queryId) => ({
+      query_id: queryId,
+      query_group_id: "parse_events",
       status: "recomputed",
       input_key: `sha256:${"1".repeat(64)}`,
       output_digest: stageDigest,
@@ -211,11 +200,11 @@ function manifest(artifacts: RuntimeManifest["artifacts"]): RuntimeManifest {
       rowsRemovedByTimezone: 1,
       timezoneRetainedSourceRowsDigest: `sha256:${"a".repeat(64)}`,
       timezoneStageDigest: stageDigest,
-      logicalStageDigests: { parse_events: stageDigest },
-      logicalStageCheckpoints: {
+      workflowQueryGroupDigests: { parse_events: stageDigest },
+      workflowQueryGroupCheckpoints: {
         parse_events: {
-          protocolVersion: "chronicle-logical-stage-checkpoint/v7",
-          nodeId: "parse_events",
+          protocolVersion: "chronicle-workflow-checkpoint/v1",
+          subjectId: "parse_events",
           rowMembershipDigest: `xxh3:${"1".repeat(32)}`,
           rowOrderDigest: `xxh3:${"2".repeat(32)}`,
           temporalStateDigest: `xxh3:${"3".repeat(32)}`,
@@ -225,8 +214,8 @@ function manifest(artifacts: RuntimeManifest["artifacts"]): RuntimeManifest {
           terminalDigest: stageDigest,
         },
       },
-      pipelineStepDigests,
-      pipelineStepCheckpoints,
+      workflowQueryDigests,
+      workflowQueryCheckpoints,
       publishedOutputsDigest: `sha256:${"c".repeat(64)}`,
       provenanceDigest: `sha256:${"d".repeat(64)}`,
       duplicateTimestampsCorrected: 2,
@@ -314,21 +303,42 @@ function fullExecution(): RustRuntimeExecution {
   );
   artifacts.set("review-summary-json", json({ participants: [] }));
   artifacts.set("execution-ledger-json", json([]));
+  artifacts.set(
+    "workflow-provenance-jsonld",
+    json({
+      "@context": {
+        chron: "https://w3id.org/chronicle-usage-ontology/core/",
+      },
+      "@graph": [],
+    }),
+  );
   artifacts.set("evidence-journal", enc.encode("journal"));
   artifacts.set("artifact-closure-json", json({ artifacts: [] }));
   artifacts.set("dependency-certificate-json", json({ status: "verified" }));
   artifacts.set("correspondence-index-json", json({ correspondences: [] }));
   artifacts.set("semantic-index-source-json", json({ records: [] }));
   artifacts.set(
-    "stage-view-json",
+    "workflow-explorer-view-json",
     json({
-      protocol_version: "0.1",
-      view_id: "chronicle.stage.v1",
-      family: "incremental-dataflow",
-      schema_id: "urn:chronicle:view:stage:v1",
+      protocolVersion: "chronicle-workflow-explorer/v1",
+      viewId: "chronicle-workflow-explorer/v1",
+      schemaId: "urn:chronicle:view:workflow-explorer:v1",
       revision: 1,
-      root_digest: `sha256:${"2".repeat(64)}`,
-      payload: { stage: null, node_states: [], step_states: [] },
+      rootDigest: `sha256:${"2".repeat(64)}`,
+      selectedRunRoot: null,
+      contractDigests: {
+        semantic: `sha256:${"2".repeat(64)}`,
+        presentation: `sha256:${"2".repeat(64)}`,
+        execution: `sha256:${"2".repeat(64)}`,
+        checkpointPolicy: `sha256:${"2".repeat(64)}`,
+        evidence: `sha256:${"2".repeat(64)}`,
+        workspaceCompatibility: `sha256:${"2".repeat(64)}`,
+      },
+      phases: [],
+      operations: [],
+      artifacts: [],
+      queries: [],
+      decisions: [],
     }),
   );
   const metadata = [...artifacts].map(([kind, bytes]) => ({
@@ -398,11 +408,11 @@ function reviewExecution(): RustReviewExecution {
     cacheSources: ["verified-review-base"],
     suppliedReviewBaseBytes: 1_024,
     suppliedReconstructionBaseBytes: 2_048,
-    recomputedStepIds: ["build_coverage_table", "assemble_result"],
-    cachedStepIds: Array.from({ length: 53 }, (_, index) => `cached-${index}`),
-    bypassedStepIds: [],
-    skippedStepIds: [],
-    errorStepIds: [],
+    recomputedQueryIds: ["build_coverage_table", "assemble_result_manifest"],
+    cachedQueryIds: ["decode_source_records"],
+    bypassedQueryIds: [],
+    skippedQueryIds: [],
+    errorQueryIds: [],
     reviewSummaryJsonBytes: enc.encode('{"participants":[]}'),
   };
 }
@@ -463,7 +473,7 @@ describe("fast Rust review authority", () => {
         buildEnvironmentDigest: `sha256:${"6".repeat(64)}`,
         comparisonDigest: `sha256:${"c".repeat(64)}`,
         cacheSources: ["verified-review-base"],
-        recomputedStepIds: ["build_coverage_table", "assemble_result"],
+        recomputedQueryIds: ["build_coverage_table", "assemble_result_manifest"],
       },
     });
     expect(result.rustRuntimeReceipt).toBeUndefined();
@@ -488,7 +498,6 @@ describe("configuration-axis authority", () => {
       "parallelProcessing",
       "parallelMaxWorkers",
     ]);
-    expect(COMPUTATIONAL_BROWSER_OPTION_KEYS).toHaveLength(46);
 
     const partition = [
       ...COMPUTATIONAL_BROWSER_OPTION_KEYS,
@@ -991,7 +1000,7 @@ describe("Rust authority browser projection", () => {
       {},
       { persistRustWorkspace: false },
     );
-    expect(result.outputs).toHaveLength(12);
+    expect(result.outputs).toHaveLength(13);
     expect(result.outputs).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -1025,7 +1034,10 @@ describe("Rust authority browser projection", () => {
         expect.objectContaining({
           outputFileName: "Raw Execution Ledger.json",
         }),
-        expect.objectContaining({ outputFileName: "Raw Stage View.json" }),
+        expect.objectContaining({
+          outputFileName: "Raw Workflow Provenance.jsonld",
+        }),
+        expect.objectContaining({ outputFileName: "Raw Workflow Explorer.json" }),
         expect.objectContaining({
           outputFileName: "Raw Semantic Index Source.json",
         }),

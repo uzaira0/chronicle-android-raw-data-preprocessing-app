@@ -1,6 +1,9 @@
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 
+import { LAST_RUN_DB_NAME } from "../src/lib/lastRunStore";
+import { PROJECTS_DB_NAME } from "../src/lib/projectsStore";
+
 import {
   chromium,
   firefox,
@@ -59,9 +62,9 @@ async function gotoOriginWithoutBooting(page: Page): Promise<void> {
   await page.goto("/robots.txt");
 }
 
-/** Delete every origin-scoped store the app writes: OPFS, IndexedDB, Web Storage. */
+/** Delete current-version origin stores: OPFS, IndexedDB, and Web Storage. */
 export async function wipeOriginStorage(page: Page): Promise<void> {
-  await page.evaluate(async () => {
+  await page.evaluate(async (currentDatabaseNames) => {
     try {
       const root = await navigator.storage.getDirectory();
       const names: string[] = [];
@@ -76,7 +79,7 @@ export async function wipeOriginStorage(page: Page): Promise<void> {
     } catch {
       // An origin with no OPFS has nothing to wipe.
     }
-    for (const name of ["chronicle-last-run", "chronicle-projects"]) {
+    for (const name of currentDatabaseNames) {
       await new Promise<void>((resolve) => {
         const request = indexedDB.deleteDatabase(name);
         request.onsuccess = () => resolve();
@@ -90,7 +93,7 @@ export async function wipeOriginStorage(page: Page): Promise<void> {
     } catch {
       // Storage can be denied outright; the caller only needs a clean origin.
     }
-  });
+  }, [LAST_RUN_DB_NAME, PROJECTS_DB_NAME]);
 }
 
 export type DurabilityFixtures = {

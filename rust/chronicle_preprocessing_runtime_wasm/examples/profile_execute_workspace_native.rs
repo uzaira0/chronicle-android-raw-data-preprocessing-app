@@ -4,8 +4,7 @@ use chronicle_chrono_kernel_wasm::pipeline_v2::{
 use chronicle_preprocessing_runtime_wasm::{
     execute_workspace_native, execute_workspace_native_warm_review,
     execute_workspace_native_with_review_bases, RuntimeArtifactMetadata, RuntimeRequest,
-    RuntimeSupportFiles, EXECUTE_WORKSPACE_COMMAND, QUERY_REVIEW_COMMAND,
-    RUNTIME_PROTOCOL_VERSION,
+    RuntimeSupportFiles, EXECUTE_WORKSPACE_COMMAND, QUERY_REVIEW_COMMAND, RUNTIME_PROTOCOL_VERSION,
 };
 use sha2::{Digest, Sha256};
 use std::env;
@@ -169,7 +168,11 @@ fn options(change: Option<&str>, iteration: usize) -> Result<PipelineV2OptionsJs
         }
         Some("repeated_minimum_usage_duration_without_concurrent_usage") => {
             options.model_concurrent_usage = false;
-            options.minimum_usage_duration = if iteration.is_multiple_of(2) { 2.0 } else { 3.0 };
+            options.minimum_usage_duration = if iteration.is_multiple_of(2) {
+                2.0
+            } else {
+                3.0
+            };
         }
         Some(other) => return Err(format!("unsupported --change: {other}")),
     }
@@ -200,9 +203,9 @@ fn main() -> Result<(), String> {
             let execution =
                 engine.execute_review(&raw, &changed, PipelineV2SupportFiles::default())?;
             println!(
-                "direct_engine_iteration={iteration} execute_ms={:.3} executed_steps={} review_digest={}",
+                "direct_engine_iteration={iteration} execute_ms={:.3} executed_queries={} review_digest={}",
                 started.elapsed().as_secs_f64() * 1_000.0,
-                execution.executed_steps.join(","),
+                execution.executed_queries.join(","),
                 sha256(&execution.result.review_summary_json_bytes),
             );
         }
@@ -257,11 +260,7 @@ fn main() -> Result<(), String> {
             && review_base.is_empty()
             && reconstruction_base.is_empty();
         let mut handle = if warm_review {
-            execute_workspace_native_warm_review(
-                &request_json,
-                raw.len() as u64,
-                &support_files,
-            )?
+            execute_workspace_native_warm_review(&request_json, raw.len() as u64, &support_files)?
         } else if arguments.review_bases_dir.is_some() {
             execute_workspace_native_with_review_bases(
                 &request_json,
@@ -350,7 +349,7 @@ fn main() -> Result<(), String> {
             }
         }
         let artifact_elapsed = artifact_started.elapsed();
-        let step_count = manifest["stepExecutions"]
+        let step_count = manifest["queryExecutions"]
             .as_array()
             .map(Vec::len)
             .unwrap_or_default();

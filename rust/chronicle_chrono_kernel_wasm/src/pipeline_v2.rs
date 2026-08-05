@@ -1,9 +1,8 @@
-//! Chronicle preprocessing computations shared by the production 55-step
+//! Chronicle preprocessing computations shared by the production query
 //! Salsa engine and an independent cold-run test oracle.
 
 use ahash::{AHashMap, AHashSet};
 use blake3::Hasher as CheckpointHasher;
-use xxhash_rust::xxh3::{xxh3_128, Xxh3};
 use chrono::{DateTime, Datelike, Duration, NaiveDate, TimeZone, Timelike};
 use chrono_tz::Tz;
 use csv_core::{ReadFieldResult, Reader as CsvReader};
@@ -13,6 +12,7 @@ use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::io::Write as _;
 use std::sync::{Arc, OnceLock};
+use xxhash_rust::xxh3::{xxh3_128, Xxh3};
 
 use crate::{parse_chronicle_timestamp_ns, weekday_chronicle, write_csv_field};
 
@@ -151,7 +151,7 @@ fn codebook_output_columns() -> Vec<&'static str> {
 }
 
 /// The codebook join's own supplied-column to output-column table. The
-/// field-level step contract binds `app_codebook_file` columns and the codebook
+/// field-level workflow contract binds `app_codebook_file` columns and the codebook
 /// output columns through this table instead of restating either list.
 pub fn codebook_column_renames() -> &'static [(&'static str, &'static str)] {
     CODEBOOK_RENAME_PAIRS
@@ -420,7 +420,7 @@ fn parse_csv_to_records(bytes: &[u8]) -> Vec<HashMap<String, String>> {
 /// Like `parse_csv_to_records`, but each surviving record carries its physical
 /// 1-based data-row number — counting EVERY data record in the file, including
 /// the all-empty records this parser skips — so error messages name the same
-/// row the incremental executor's `csv_parse` reports via
+/// row the incremental executor's `decode_source_records` reports via
 /// `RawRow::source_data_row`.
 fn parse_csv_to_records_with_physical_rows(bytes: &[u8]) -> Vec<(u32, HashMap<String, String>)> {
     // csv-core's empty-input flush path differs under the optimized browser
@@ -488,7 +488,7 @@ fn parse_csv_to_records_with_physical_rows(bytes: &[u8]) -> Vec<(u32, HashMap<St
     let mut any_nonempty = false;
     // Physical 1-based data-row counter, incremented for every record —
     // including all-empty records that are skipped from the output — to match
-    // `csv_parse`'s `data_row_number` in pipeline_v2_incremental.rs.
+    // `decode_source_records`'s `data_row_number` in pipeline_v2_incremental.rs.
     let mut physical_data_row = 0_u32;
     loop {
         let (result, n_in, n_out) = rdr.read_field(input, &mut field_buf);
@@ -1967,27 +1967,25 @@ pub struct PipelineV2Result {
     /// Exact normalized-event state after the timezone policy has resolved its
     /// target and populated local calendar fields, before dedupe/order.
     pub timezone_stage_digest: String,
-    /// Product-local semantic checkpoints at the fifteen logical DAG joints.
+    /// Product-local checkpoints for the authored physical query groups.
     /// These are complete hashes of the state emitted by that specific stage,
     /// not a copy of the final fused-pipeline digest. They let the incremental
     /// scheduler stop a configuration perturbation as soon as the actual stage
     /// value converges while retaining the fused Rust implementation.
-    pub logical_stage_digests: BTreeMap<String, String>,
-    /// Typed decomposition of every logical checkpoint. The terminal digest
+    pub workflow_query_group_digests: BTreeMap<String, String>,
+    /// Typed decomposition of every workflow checkpoint. The terminal digest
     /// above commits to these exact component digests.
-    pub logical_stage_checkpoints: BTreeMap<String, LogicalStageCheckpoint>,
-    /// Exact results at the 55 real preprocessing steps. The fifteen logical
-    /// stage maps above are retained temporarily for compatibility and will be
-    /// derived from these step results.
-    pub pipeline_step_digests: BTreeMap<String, String>,
-    pub pipeline_step_checkpoints: BTreeMap<String, LogicalStageCheckpoint>,
+    pub workflow_query_group_checkpoints: BTreeMap<String, WorkflowCheckpoint>,
+    /// Exact results at every registered physical preprocessing query.
+    pub workflow_query_digests: BTreeMap<String, String>,
+    pub workflow_query_checkpoints: BTreeMap<String, WorkflowCheckpoint>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct LogicalStageCheckpoint {
+pub struct WorkflowCheckpoint {
     pub protocol_version: String,
-    pub node_id: String,
+    pub subject_id: String,
     pub row_membership_digest: String,
     pub row_order_digest: String,
     pub temporal_state_digest: String,
@@ -2005,24 +2003,24 @@ pub struct PipelineRowLineage {
     pub source_data_row_ranges: Vec<SourceDataRowRange>,
     pub source_data_row_count: u32,
     pub searches: Vec<LineageSearchEvidence>,
-    pub terminal_logical_node: Arc<String>,
+    pub terminal_query_group: Arc<String>,
 }
 
 fn build_row_lineage(
     output_kind: &'static str,
-    terminal_logical_node: &'static str,
+    terminal_query_group: &'static str,
     rows: &[Row],
 ) -> Vec<PipelineRowLineage> {
-    build_row_lineage_from_iter(output_kind, terminal_logical_node, rows.iter())
+    build_row_lineage_from_iter(output_kind, terminal_query_group, rows.iter())
 }
 
 fn build_row_lineage_from_iter<'a>(
     output_kind: &'static str,
-    terminal_logical_node: &'static str,
+    terminal_query_group: &'static str,
     rows: impl Iterator<Item = &'a Row>,
 ) -> Vec<PipelineRowLineage> {
     let output_kind = Arc::new(output_kind.to_owned());
-    let terminal_logical_node = Arc::new(terminal_logical_node.to_owned());
+    let terminal_query_group = Arc::new(terminal_query_group.to_owned());
     rows.enumerate()
         .map(|(index, row)| PipelineRowLineage {
             output_kind: Arc::clone(&output_kind),
@@ -2030,7 +2028,7 @@ fn build_row_lineage_from_iter<'a>(
             source_data_row_ranges: row.source_data_rows.ranges().to_vec(),
             source_data_row_count: row.source_data_rows.len() as u32,
             searches: row.lineage_searches.iter().cloned().collect(),
-            terminal_logical_node: Arc::clone(&terminal_logical_node),
+            terminal_query_group: Arc::clone(&terminal_query_group),
         })
         .collect()
 }
@@ -2411,7 +2409,10 @@ impl<'a> serde::Serializer for FingerprintSerializer<'a> {
         value.serialize(self)
     }
 
-    fn serialize_seq(self, _len: Option<usize>) -> Result<FingerprintCompound<'a>, FingerprintError> {
+    fn serialize_seq(
+        self,
+        _len: Option<usize>,
+    ) -> Result<FingerprintCompound<'a>, FingerprintError> {
         self.sink.tag(25);
         Ok(FingerprintCompound { sink: self.sink })
     }
@@ -2442,7 +2443,10 @@ impl<'a> serde::Serializer for FingerprintSerializer<'a> {
         Ok(FingerprintCompound { sink: self.sink })
     }
 
-    fn serialize_map(self, _len: Option<usize>) -> Result<FingerprintCompound<'a>, FingerprintError> {
+    fn serialize_map(
+        self,
+        _len: Option<usize>,
+    ) -> Result<FingerprintCompound<'a>, FingerprintError> {
         self.sink.tag(29);
         Ok(FingerprintCompound { sink: self.sink })
     }
@@ -2482,8 +2486,7 @@ impl<'a> serde::Serializer for FingerprintSerializer<'a> {
                 if let Some(overflow) = &mut self.overflow {
                     overflow.push_str(text);
                 } else if self.len + text.len() <= self.buffer.len() {
-                    self.buffer[self.len..self.len + text.len()]
-                        .copy_from_slice(text.as_bytes());
+                    self.buffer[self.len..self.len + text.len()].copy_from_slice(text.as_bytes());
                     self.len += text.len();
                 } else {
                     let mut overflow =
@@ -2619,8 +2622,8 @@ fn checkpoint_digest_optional_f64(sink: &mut impl CheckpointSink, value: Option<
     }
 }
 
-const LOGICAL_STAGE_CHECKPOINT_PROTOCOL: &str = "chronicle-logical-stage-checkpoint/v7";
-const LOGICAL_STAGE_ROW_SCHEMA: &str = concat!(
+const WORKFLOW_CHECKPOINT_PROTOCOL: &str = "chronicle-workflow-checkpoint/v1";
+const WORKFLOW_ROW_SCHEMA: &str = concat!(
     "association:source_data_rows,index;",
     "membership:source_data_rows;",
     "order:index,position;",
@@ -2641,7 +2644,7 @@ const LOGICAL_STAGE_ROW_SCHEMA: &str = concat!(
 
 fn checkpoint_hasher(component: &str) -> BufferedCheckpointHasher {
     let mut hasher = BufferedCheckpointHasher::new();
-    checkpoint_digest_field(&mut hasher, LOGICAL_STAGE_CHECKPOINT_PROTOCOL.as_bytes());
+    checkpoint_digest_field(&mut hasher, WORKFLOW_CHECKPOINT_PROTOCOL.as_bytes());
     checkpoint_digest_field(&mut hasher, component.as_bytes());
     hasher
 }
@@ -2652,7 +2655,7 @@ fn finish_checkpoint_digest(hasher: BufferedCheckpointHasher) -> String {
 
 fn terminal_checkpoint_digest(node_id: &str, component_digests: [&str; 6]) -> String {
     let mut terminal = Sha256::new();
-    sha256_digest_field(&mut terminal, LOGICAL_STAGE_CHECKPOINT_PROTOCOL.as_bytes());
+    sha256_digest_field(&mut terminal, WORKFLOW_CHECKPOINT_PROTOCOL.as_bytes());
     sha256_digest_field(&mut terminal, node_id.as_bytes());
     sha256_digest_field(&mut terminal, b"terminal");
     for digest in component_digests {
@@ -3022,23 +3025,23 @@ fn row_reference_sequence_digest(rows: &[&Row]) -> String {
     row_parts_sequence_digest(parts.len(), parts.iter())
 }
 
-fn logical_stage_checkpoint(
+fn workflow_checkpoint(
     node_id: &str,
     row_groups: &[(&str, &[Row])],
     payloads: &[(&str, &[u8])],
-) -> LogicalStageCheckpoint {
-    logical_stage_checkpoint_with_parts(node_id, row_groups, payloads, None)
+) -> WorkflowCheckpoint {
+    workflow_checkpoint_with_parts(node_id, row_groups, payloads, None)
 }
 
-fn logical_stage_checkpoint_with_parts(
+fn workflow_checkpoint_with_parts(
     node_id: &str,
     row_groups: &[(&str, &[Row])],
     payloads: &[(&str, &[u8])],
     single_group_parts: Option<&[RowCheckpointParts]>,
-) -> LogicalStageCheckpoint {
+) -> WorkflowCheckpoint {
     if let Some(parts) = single_group_parts {
         let group_parts = [parts];
-        logical_stage_checkpoint_with_group_parts(
+        workflow_checkpoint_with_group_parts(
             node_id,
             row_groups,
             payloads,
@@ -3047,18 +3050,18 @@ fn logical_stage_checkpoint_with_parts(
             None,
         )
     } else {
-        logical_stage_checkpoint_with_group_parts(node_id, row_groups, payloads, None, None, None)
+        workflow_checkpoint_with_group_parts(node_id, row_groups, payloads, None, None, None)
     }
 }
 
-fn logical_stage_rows_checkpoint_with_parts_and_canonical_order(
+fn workflow_rows_checkpoint_with_parts_and_canonical_order(
     node_id: &str,
     rows: &[Row],
     parts: &[RowCheckpointParts],
     canonical_order: &[usize],
-) -> LogicalStageCheckpoint {
+) -> WorkflowCheckpoint {
     let group_parts = [parts];
-    logical_stage_checkpoint_with_group_parts(
+    workflow_checkpoint_with_group_parts(
         node_id,
         &[("rows", rows)],
         &[],
@@ -3068,16 +3071,16 @@ fn logical_stage_rows_checkpoint_with_parts_and_canonical_order(
     )
 }
 
-fn logical_stage_checkpoint_with_reusable_parts(
+fn workflow_checkpoint_with_reusable_parts(
     node_id: &str,
     rows: &[Row],
     payloads: &[(&str, &[u8])],
     parts: &[RowCheckpointParts],
     previous_parts: &[RowCheckpointParts],
-    previous_checkpoint: &LogicalStageCheckpoint,
-) -> LogicalStageCheckpoint {
+    previous_checkpoint: &WorkflowCheckpoint,
+) -> WorkflowCheckpoint {
     let group_parts = [parts];
-    logical_stage_checkpoint_with_group_parts(
+    workflow_checkpoint_with_group_parts(
         node_id,
         &[("rows", rows)],
         payloads,
@@ -3090,16 +3093,16 @@ fn logical_stage_checkpoint_with_reusable_parts(
     )
 }
 
-fn logical_stage_checkpoint_with_reusable_rows(
+fn workflow_checkpoint_with_reusable_rows(
     node_id: &str,
     rows: &[Row],
     payloads: &[(&str, &[u8])],
     parts: &[RowCheckpointParts],
     previous_rows: &[Row],
-    previous_checkpoint: &LogicalStageCheckpoint,
-) -> LogicalStageCheckpoint {
+    previous_checkpoint: &WorkflowCheckpoint,
+) -> WorkflowCheckpoint {
     let group_parts = [parts];
-    logical_stage_checkpoint_with_group_parts(
+    workflow_checkpoint_with_group_parts(
         node_id,
         &[("rows", rows)],
         payloads,
@@ -3112,13 +3115,13 @@ fn logical_stage_checkpoint_with_reusable_rows(
     )
 }
 
-fn logical_stage_checkpoint_with_known_membership_and_order(
+fn workflow_checkpoint_with_known_membership_and_order(
     node_id: &str,
     rows: &[Row],
     payloads: &[(&str, &[u8])],
     previous_rows: &[Row],
-    previous_checkpoint: &LogicalStageCheckpoint,
-) -> LogicalStageCheckpoint {
+    previous_checkpoint: &WorkflowCheckpoint,
+) -> WorkflowCheckpoint {
     debug_assert_eq!(rows.len(), previous_rows.len());
     #[cfg(debug_assertions)]
     {
@@ -3131,7 +3134,7 @@ fn logical_stage_checkpoint_with_known_membership_and_order(
             );
         }
     }
-    logical_stage_checkpoint_with_group_parts(
+    workflow_checkpoint_with_group_parts(
         node_id,
         &[("rows", rows)],
         payloads,
@@ -3146,7 +3149,7 @@ fn logical_stage_checkpoint_with_known_membership_and_order(
 
 #[derive(Clone, Copy)]
 struct PreviousRowState<'a> {
-    checkpoint: &'a LogicalStageCheckpoint,
+    checkpoint: &'a WorkflowCheckpoint,
     reusable_components: (bool, bool, bool, bool),
 }
 
@@ -3198,14 +3201,14 @@ fn reusable_row_components_from_rows(
     (true, true, same_temporal, same_classification)
 }
 
-fn logical_stage_checkpoint_with_group_parts(
+fn workflow_checkpoint_with_group_parts(
     node_id: &str,
     row_groups: &[(&str, &[Row])],
     payloads: &[(&str, &[u8])],
     group_parts: Option<&[&[RowCheckpointParts]]>,
     previous_row_state: Option<PreviousRowState<'_>>,
     single_group_canonical_order: Option<&[usize]>,
-) -> LogicalStageCheckpoint {
+) -> WorkflowCheckpoint {
     debug_assert!(
         single_group_canonical_order.is_none() || row_groups.len() == 1,
         "a supplied canonical order is valid only for one row group"
@@ -3215,7 +3218,7 @@ fn logical_stage_checkpoint_with_group_parts(
             Some(previous) => {
                 debug_assert_eq!(
                     previous.checkpoint.protocol_version,
-                    LOGICAL_STAGE_CHECKPOINT_PROTOCOL
+                    WORKFLOW_CHECKPOINT_PROTOCOL
                 );
                 previous.reusable_components
             }
@@ -3229,7 +3232,7 @@ fn logical_stage_checkpoint_with_group_parts(
     let mut classification = checkpoint_hasher("classification");
     let mut payload = checkpoint_hasher("payload");
     let mut schema = checkpoint_hasher("schema");
-    checkpoint_digest_field(&mut schema, LOGICAL_STAGE_ROW_SCHEMA.as_bytes());
+    checkpoint_digest_field(&mut schema, WORKFLOW_ROW_SCHEMA.as_bytes());
     for hasher in [
         &mut membership,
         &mut order,
@@ -3437,9 +3440,9 @@ fn logical_stage_checkpoint_with_group_parts(
             &schema_digest,
         ],
     );
-    LogicalStageCheckpoint {
-        protocol_version: LOGICAL_STAGE_CHECKPOINT_PROTOCOL.into(),
-        node_id: node_id.into(),
+    WorkflowCheckpoint {
+        protocol_version: WORKFLOW_CHECKPOINT_PROTOCOL.into(),
+        subject_id: node_id.into(),
         row_membership_digest,
         row_order_digest,
         temporal_state_digest,
@@ -3452,13 +3455,13 @@ fn logical_stage_checkpoint_with_group_parts(
 
 fn checkpoint_for_exact_row_state(
     node_id: &str,
-    previous: &LogicalStageCheckpoint,
+    previous: &WorkflowCheckpoint,
     payloads: &[(&str, &[u8])],
-) -> LogicalStageCheckpoint {
-    debug_assert_eq!(previous.protocol_version, LOGICAL_STAGE_CHECKPOINT_PROTOCOL);
+) -> WorkflowCheckpoint {
+    debug_assert_eq!(previous.protocol_version, WORKFLOW_CHECKPOINT_PROTOCOL);
     let mut payload = checkpoint_hasher("payload");
     let mut schema = checkpoint_hasher("schema");
-    checkpoint_digest_field(&mut schema, LOGICAL_STAGE_ROW_SCHEMA.as_bytes());
+    checkpoint_digest_field(&mut schema, WORKFLOW_ROW_SCHEMA.as_bytes());
     schema.update(&1_u64.to_le_bytes());
     checkpoint_digest_field(&mut schema, b"rows");
     payload.update(&(payloads.len() as u64).to_le_bytes());
@@ -3485,9 +3488,9 @@ fn checkpoint_for_exact_row_state(
             &schema_digest,
         ],
     );
-    LogicalStageCheckpoint {
-        protocol_version: LOGICAL_STAGE_CHECKPOINT_PROTOCOL.into(),
-        node_id: node_id.into(),
+    WorkflowCheckpoint {
+        protocol_version: WORKFLOW_CHECKPOINT_PROTOCOL.into(),
+        subject_id: node_id.into(),
         row_membership_digest,
         row_order_digest,
         temporal_state_digest,
@@ -3498,13 +3501,10 @@ fn checkpoint_for_exact_row_state(
     }
 }
 
-fn checkpoint_for_exact_state(
-    node_id: &str,
-    previous: &LogicalStageCheckpoint,
-) -> LogicalStageCheckpoint {
-    debug_assert_eq!(previous.protocol_version, LOGICAL_STAGE_CHECKPOINT_PROTOCOL);
+fn checkpoint_for_exact_state(node_id: &str, previous: &WorkflowCheckpoint) -> WorkflowCheckpoint {
+    debug_assert_eq!(previous.protocol_version, WORKFLOW_CHECKPOINT_PROTOCOL);
     let mut checkpoint = previous.clone();
-    checkpoint.node_id = node_id.into();
+    checkpoint.subject_id = node_id.into();
     checkpoint.terminal_digest = terminal_checkpoint_digest(
         node_id,
         [
@@ -3522,8 +3522,8 @@ fn checkpoint_for_exact_state(
 fn checkpoint_for_reordered_exact_rows(
     node_id: &str,
     rows: &[Row],
-    previous: &LogicalStageCheckpoint,
-) -> LogicalStageCheckpoint {
+    previous: &WorkflowCheckpoint,
+) -> WorkflowCheckpoint {
     let mut checkpoint = checkpoint_for_exact_row_state(node_id, previous, &[]);
     let mut order = checkpoint_hasher("row-order");
     order.update(&1_u64.to_le_bytes());
@@ -3549,62 +3549,57 @@ fn checkpoint_for_reordered_exact_rows(
     checkpoint
 }
 
-fn logical_stage_rows_checkpoint(node_id: &str, rows: &[Row]) -> LogicalStageCheckpoint {
-    logical_stage_checkpoint(node_id, &[("rows", rows)], &[])
+fn workflow_rows_checkpoint(node_id: &str, rows: &[Row]) -> WorkflowCheckpoint {
+    workflow_checkpoint(node_id, &[("rows", rows)], &[])
 }
 
-fn logical_stage_rows_checkpoint_reusing_last(
+fn workflow_rows_checkpoint_reusing_last(
     node_id: &str,
     rows: &[Row],
-    recorder: &StepCheckpointRecorder<'_>,
-) -> LogicalStageCheckpoint {
+    recorder: &QueryCheckpointRecorder<'_>,
+) -> WorkflowCheckpoint {
     match recorder.reusable_row_components(rows) {
-        Some((parts, checkpoint)) => logical_stage_checkpoint_with_reusable_parts(
-            node_id,
-            rows,
-            &[],
-            parts,
-            parts,
-            checkpoint,
-        ),
-        None => logical_stage_rows_checkpoint(node_id, rows),
+        Some((parts, checkpoint)) => {
+            workflow_checkpoint_with_reusable_parts(node_id, rows, &[], parts, parts, checkpoint)
+        }
+        None => workflow_rows_checkpoint(node_id, rows),
     }
 }
 
-fn logical_stage_state_checkpoint(node_id: &str, state: &str) -> LogicalStageCheckpoint {
-    logical_stage_checkpoint(node_id, &[], &[("state", state.as_bytes())])
+fn workflow_state_checkpoint(node_id: &str, state: &str) -> WorkflowCheckpoint {
+    workflow_checkpoint(node_id, &[], &[("state", state.as_bytes())])
 }
 
-fn record_logical_stage_checkpoint(
+fn record_workflow_checkpoint(
     digests: &mut BTreeMap<String, String>,
-    checkpoints: &mut BTreeMap<String, LogicalStageCheckpoint>,
-    checkpoint: LogicalStageCheckpoint,
+    checkpoints: &mut BTreeMap<String, WorkflowCheckpoint>,
+    checkpoint: WorkflowCheckpoint,
 ) {
     digests.insert(
-        checkpoint.node_id.clone(),
+        checkpoint.subject_id.clone(),
         checkpoint.terminal_digest.clone(),
     );
-    checkpoints.insert(checkpoint.node_id.clone(), checkpoint);
+    checkpoints.insert(checkpoint.subject_id.clone(), checkpoint);
 }
 
-struct StepCheckpointRecorder<'a> {
+struct QueryCheckpointRecorder<'a> {
     digests: &'a mut BTreeMap<String, String>,
-    checkpoints: &'a mut BTreeMap<String, LogicalStageCheckpoint>,
-    next_step_index: usize,
+    checkpoints: &'a mut BTreeMap<String, WorkflowCheckpoint>,
+    remaining_queries: std::slice::Iter<'static, crate::workflow_contract::WorkflowQueryDefinition>,
     error: Option<String>,
     last_row_parts: Option<Vec<RowCheckpointParts>>,
-    last_row_checkpoint: Option<LogicalStageCheckpoint>,
+    last_row_checkpoint: Option<WorkflowCheckpoint>,
 }
 
-impl StepCheckpointRecorder<'_> {
-    fn rows(&mut self, step_id: &str, rows: &[Row]) {
+impl QueryCheckpointRecorder<'_> {
+    fn rows(&mut self, query_id: &str, rows: &[Row]) {
         let parts = row_checkpoint_parts_for_rows(rows);
         let checkpoint = if let (Some(previous_parts), Some(previous_checkpoint)) = (
             self.last_row_parts.as_deref(),
             self.last_row_checkpoint.as_ref(),
         ) {
-            logical_stage_checkpoint_with_reusable_parts(
-                step_id,
+            workflow_checkpoint_with_reusable_parts(
+                query_id,
                 rows,
                 &[],
                 &parts,
@@ -3612,40 +3607,44 @@ impl StepCheckpointRecorder<'_> {
                 previous_checkpoint,
             )
         } else {
-            logical_stage_checkpoint_with_parts(step_id, &[("rows", rows)], &[], Some(&parts))
+            workflow_checkpoint_with_parts(query_id, &[("rows", rows)], &[], Some(&parts))
         };
         self.last_row_parts = Some(parts);
         self.last_row_checkpoint = Some(checkpoint.clone());
         self.record(checkpoint);
     }
 
-    fn state(&mut self, step_id: &str, state: &str) {
-        self.record(logical_stage_state_checkpoint(step_id, state));
+    fn state(&mut self, query_id: &str, state: &str) {
+        self.record(workflow_state_checkpoint(query_id, state));
     }
 
-    fn value<T: serde::Serialize>(&mut self, step_id: &str, value: &T) -> Result<(), String> {
+    fn value<T: serde::Serialize>(&mut self, query_id: &str, value: &T) -> Result<(), String> {
         let fingerprint = value_fingerprint(value)
-            .map_err(|error| format!("serialize {step_id} checkpoint: {error}"))?;
-        self.record(logical_stage_checkpoint(step_id, &[], &[("value", &fingerprint)]));
+            .map_err(|error| format!("serialize {query_id} checkpoint: {error}"))?;
+        self.record(workflow_checkpoint(
+            query_id,
+            &[],
+            &[("value", &fingerprint)],
+        ));
         Ok(())
     }
 
     fn rows_and_value<T: serde::Serialize>(
         &mut self,
-        step_id: &str,
+        query_id: &str,
         rows: &[Row],
         value: &T,
     ) -> Result<(), String> {
         let fingerprint = value_fingerprint(value)
-            .map_err(|error| format!("serialize {step_id} checkpoint: {error}"))?;
+            .map_err(|error| format!("serialize {query_id} checkpoint: {error}"))?;
         let parts = row_checkpoint_parts_for_rows(rows);
         let payloads = [("value", fingerprint.as_slice())];
         let checkpoint = if let (Some(previous_parts), Some(previous_checkpoint)) = (
             self.last_row_parts.as_deref(),
             self.last_row_checkpoint.as_ref(),
         ) {
-            logical_stage_checkpoint_with_reusable_parts(
-                step_id,
+            workflow_checkpoint_with_reusable_parts(
+                query_id,
                 rows,
                 &payloads,
                 &parts,
@@ -3653,7 +3652,7 @@ impl StepCheckpointRecorder<'_> {
                 previous_checkpoint,
             )
         } else {
-            logical_stage_checkpoint_with_parts(step_id, &[("rows", rows)], &payloads, Some(&parts))
+            workflow_checkpoint_with_parts(query_id, &[("rows", rows)], &payloads, Some(&parts))
         };
         self.last_row_parts = Some(parts);
         self.last_row_checkpoint = Some(checkpoint.clone());
@@ -3673,7 +3672,7 @@ impl StepCheckpointRecorder<'_> {
     fn reusable_row_components(
         &self,
         rows: &[Row],
-    ) -> Option<(&[RowCheckpointParts], &LogicalStageCheckpoint)> {
+    ) -> Option<(&[RowCheckpointParts], &WorkflowCheckpoint)> {
         let parts = self.last_row_parts.as_deref()?;
         if parts.len() != rows.len() {
             return None;
@@ -3687,44 +3686,42 @@ impl StepCheckpointRecorder<'_> {
         Some((parts, self.last_row_checkpoint.as_ref()?))
     }
 
-    fn record(&mut self, checkpoint: LogicalStageCheckpoint) {
+    fn record(&mut self, checkpoint: WorkflowCheckpoint) {
         if self.error.is_some() {
             return;
         }
-        let Some(expected) = crate::step_contract::PIPELINE_STEPS.get(self.next_step_index) else {
+        let Some(expected) = self.remaining_queries.next() else {
             self.error = Some(format!(
-                "unexpected extra pipeline step checkpoint {:?}",
-                checkpoint.node_id
+                "unexpected extra workflow query checkpoint {:?}",
+                checkpoint.subject_id
             ));
             return;
         };
-        if checkpoint.node_id != expected.id {
+        if checkpoint.subject_id != expected.id {
             self.error = Some(format!(
-                "pipeline step checkpoint order mismatch at {}: expected {:?}, recorded {:?}",
-                self.next_step_index, expected.id, checkpoint.node_id
+                "workflow query checkpoint order mismatch: expected {:?}, recorded {:?}",
+                expected.id, checkpoint.subject_id
             ));
             return;
         }
-        if self.checkpoints.contains_key(&checkpoint.node_id) {
+        if self.checkpoints.contains_key(&checkpoint.subject_id) {
             self.error = Some(format!(
-                "duplicate pipeline step checkpoint {:?}",
-                checkpoint.node_id
+                "duplicate workflow query checkpoint {:?}",
+                checkpoint.subject_id
             ));
             return;
         }
-        record_logical_stage_checkpoint(self.digests, self.checkpoints, checkpoint);
-        self.next_step_index += 1;
+        record_workflow_checkpoint(self.digests, self.checkpoints, checkpoint);
     }
 
-    fn finish(self) -> Result<(), String> {
+    fn finish(mut self) -> Result<(), String> {
         if let Some(error) = self.error {
             return Err(error);
         }
-        if self.next_step_index != crate::step_contract::PIPELINE_STEPS.len() {
+        if let Some(next) = self.remaining_queries.next() {
             return Err(format!(
-                "pipeline step checkpoint sequence stopped at {} of {} steps",
-                self.next_step_index,
-                crate::step_contract::PIPELINE_STEPS.len()
+                "workflow query checkpoint sequence stopped before {:?}",
+                next.id,
             ));
         }
         Ok(())
@@ -4384,34 +4381,34 @@ fn normalize_interaction_type_local(s: &str) -> &str {
 fn parse_raw_rows(
     csv_bytes: &[u8],
     opts: &PipelineV2Options,
-    step_checkpoints: &mut StepCheckpointRecorder<'_>,
+    query_checkpoints: &mut QueryCheckpointRecorder<'_>,
 ) -> Result<(Vec<Row>, String), String> {
-    let interaction_remap = incremental::parse_remap_config(&opts.interaction_type_remap);
-    step_checkpoints.value("parse_remap_config", &interaction_remap)?;
-    let raw_rows = incremental::csv_parse(csv_bytes);
-    step_checkpoints.value("csv_parse", &raw_rows)?;
+    let interaction_remap = incremental::validate_remap_rules(&opts.interaction_type_remap);
+    query_checkpoints.value("validate_remap_rules", &interaction_remap)?;
+    let raw_rows = incremental::decode_source_records(csv_bytes);
+    query_checkpoints.value("decode_source_records", &raw_rows)?;
 
-    let raw_rows = incremental::drop_empty_timestamp(raw_rows);
-    step_checkpoints.value("drop_empty_timestamp", &raw_rows)?;
+    let raw_rows = incremental::remove_missing_timestamps(raw_rows);
+    query_checkpoints.value("remove_missing_timestamps", &raw_rows)?;
 
-    let possible_device_model = incremental::detect_device_model(&raw_rows);
-    step_checkpoints.value("detect_device_model", &possible_device_model)?;
+    let possible_device_model = incremental::attach_device_models(&raw_rows);
+    query_checkpoints.value("attach_device_models", &possible_device_model)?;
     let preprocessing_datetime =
-        incremental::resolve_preproc_datetime(&opts.datetime_of_preprocessing);
-    step_checkpoints.value("resolve_preproc_datetime", &preprocessing_datetime)?;
+        incremental::bind_processing_timestamp(&opts.datetime_of_preprocessing);
+    query_checkpoints.value("bind_processing_timestamp", &preprocessing_datetime)?;
 
-    let rows = incremental::build_canonical_rows(
+    let rows = incremental::canonicalize_source_rows(
         &raw_rows,
         &opts.timezone,
         &interaction_remap,
         &possible_device_model,
     )?;
-    step_checkpoints.rows("build_canonical_rows", &rows);
+    query_checkpoints.rows("canonicalize_source_rows", &rows);
 
-    let rows = incremental::stable_sort(rows);
-    step_checkpoints.rows("stable_sort", &rows);
-    let available_timezones = incremental::collect_timezones(&rows);
-    step_checkpoints.value("collect_timezones", &available_timezones)?;
+    let rows = incremental::order_source_records(rows);
+    query_checkpoints.rows("order_source_records", &rows);
+    let available_timezones = incremental::collect_timezone_observations(&rows);
+    query_checkpoints.value("collect_timezone_observations", &available_timezones)?;
 
     Ok((rows, opts.timezone.clone()))
 }
@@ -4430,9 +4427,10 @@ struct RawRow {
 }
 
 fn dedupe_exact_rows(rows: Vec<Row>) -> Vec<Row> {
-    let mut seen = AHashMap::<(SharedString, i64, SharedString, SharedString), usize>::with_capacity(
-        rows.len(),
-    );
+    let mut seen =
+        AHashMap::<(SharedString, i64, SharedString, SharedString), usize>::with_capacity(
+            rows.len(),
+        );
     let mut out: Vec<Row> = Vec::with_capacity(rows.len());
     for row in rows {
         let key = (
@@ -4549,7 +4547,7 @@ fn unalign_duplicate_timestamps(
     rows
 }
 
-fn mark_data_time_gaps(mut rows: Vec<Row>) -> Vec<Row> {
+fn derive_time_gap_evidence(mut rows: Vec<Row>) -> Vec<Row> {
     for i in 0..rows.len() {
         let final_v = if i == 0 {
             0.0
@@ -4906,17 +4904,17 @@ fn process_usage_rows(
     background_apps: &AHashSet<String>,
     filtered_packages: &BTreeSet<String>,
     opts: &PipelineV2Options,
-    step_checkpoints: &mut StepCheckpointRecorder<'_>,
+    query_checkpoints: &mut QueryCheckpointRecorder<'_>,
 ) -> Result<Vec<Row>, String> {
-    let matcher_input = incremental::build_matcher_input(
+    let matcher_input = incremental::build_app_event_index(
         &rows,
         &opts.same_app_stop_types,
         &opts.other_stop_types,
         background_apps,
         opts.model_concurrent_usage,
     )?;
-    step_checkpoints.value("build_matcher_input", &matcher_input)?;
-    let result = incremental::run_matcher(
+    query_checkpoints.value("build_app_event_index", &matcher_input)?;
+    let result = incremental::match_app_episodes(
         &matcher_input,
         opts.allow_stop_event_reuse,
         opts.use_activity_stopped_as_fallback,
@@ -4924,22 +4922,25 @@ fn process_usage_rows(
         opts.long_duration_threshold_ns,
         opts.proximity_interval_ns,
     )?;
-    step_checkpoints.value("run_matcher", &result)?;
+    query_checkpoints.value("match_app_episodes", &result)?;
 
-    let next = incremental::apply_matcher_output(rows, &result, filtered_packages);
-    step_checkpoints.rows("apply_matcher_output", &next);
+    let next = incremental::materialize_candidate_episodes(rows, &result, filtered_packages);
+    query_checkpoints.rows("materialize_candidate_episodes", &next);
 
-    let out =
-        incremental::relabel_usage_with_floor(next, filtered_packages, opts.minimum_usage_duration);
-    step_checkpoints.rows("relabel_usage_with_floor", &out);
+    let out = incremental::classify_episode_durations(
+        next,
+        filtered_packages,
+        opts.minimum_usage_duration,
+    );
+    query_checkpoints.rows("classify_episode_durations", &out);
 
-    let out = incremental::junk_downstream_mark(out, filtered_packages, background_apps);
-    step_checkpoints.rows("junk_downstream_mark", &out);
+    let out = incremental::apply_app_inclusion_policy(out, filtered_packages, background_apps);
+    query_checkpoints.rows("apply_app_inclusion_policy", &out);
 
-    let out = incremental::sort_episodes(out);
-    step_checkpoints.rows("sort_episodes", &out);
+    let out = incremental::order_app_episodes(out);
+    query_checkpoints.rows("order_app_episodes", &out);
 
-    let out = incremental::split_concurrent(
+    let out = incremental::segment_concurrent_usage(
         out,
         filtered_packages,
         background_apps,
@@ -4947,7 +4948,7 @@ fn process_usage_rows(
         opts.minimum_usage_duration,
         opts.apply_minimum_usage_duration_to_concurrent_subintervals,
     )?;
-    step_checkpoints.rows("split_concurrent", &out);
+    query_checkpoints.rows("segment_concurrent_usage", &out);
     Ok(out)
 }
 
@@ -4955,18 +4956,18 @@ fn run_app_usage_algorithm(
     mut rows: Vec<Row>,
     opts: &PipelineV2Options,
     background_apps: &AHashSet<String>,
-    step_checkpoints: &mut StepCheckpointRecorder<'_>,
+    query_checkpoints: &mut QueryCheckpointRecorder<'_>,
 ) -> Result<Vec<Row>, String> {
-    let filtered_packages = incremental::compute_junk_packages(&rows);
-    step_checkpoints.value("compute_junk_packages", &filtered_packages)?;
-    rows = incremental::junk_blind_fold(rows);
-    step_checkpoints.rows("junk_blind_fold", &rows);
+    let filtered_packages = incremental::resolve_excluded_packages(&rows);
+    query_checkpoints.value("resolve_excluded_packages", &filtered_packages)?;
+    rows = incremental::mask_excluded_app_events(rows);
+    query_checkpoints.rows("mask_excluded_app_events", &rows);
     let next = process_usage_rows(
         rows,
         background_apps,
         &filtered_packages,
         opts,
-        step_checkpoints,
+        query_checkpoints,
     )?;
     Ok(next)
 }
@@ -5028,7 +5029,7 @@ fn derive_broad_category_row(row: &mut Row, indices: [usize; 4]) {
     }
 }
 
-fn collapse_genre(rows: &mut [Row], enabled: bool) {
+fn collapse_app_genre(rows: &mut [Row], enabled: bool) {
     if !enabled {
         return;
     }
@@ -5044,11 +5045,11 @@ fn collapse_genre(rows: &mut [Row], enabled: bool) {
         usc_genre_idx,
     ];
     for row in rows.iter_mut() {
-        collapse_genre_row(row, indices);
+        collapse_app_genre_row(row, indices);
     }
 }
 
-fn collapse_genre_row(row: &mut Row, indices: [usize; 4]) {
+fn collapse_app_genre_row(row: &mut Row, indices: [usize; 4]) {
     let genre_values = indices
         .into_iter()
         .filter_map(|index| row.codebook_fields[index].as_ref())
@@ -5102,7 +5103,7 @@ fn apply_codebook_annotations(
     for row in rows {
         join_codebook_row(row, codebook_map);
         derive_broad_category_row(row, broad_indices);
-        collapse_genre_row(row, genre_indices);
+        collapse_app_genre_row(row, genre_indices);
     }
 }
 
@@ -5440,23 +5441,27 @@ pub(super) fn apply_static_review_annotations_fused(
     long_usage_duration_thresholds: &[f64],
 ) {
     // Single fused pass: junk relabel + codebook are applied per-row BEFORE
-    // the engagement walk reads interaction_type (which junk_downstream_mark
+    // the engagement walk reads interaction_type (which apply_app_inclusion_policy
     // changes from APP_USAGE to FILTERED_APP_USAGE). The engagement walk
     // carries sequential state (previous_any/previous_valid) across rows.
     // After each row's engagement columns are computed, flags + clear run.
     let has_junk = !filtered_packages.is_empty();
-    let broad_indices = codebook_enabled.then(|| [
-        codebook_col_index("bcm_play_store_broad_app_category").unwrap(),
-        codebook_col_index("usc_broad_app_category").unwrap(),
-        codebook_col_index("babyemu_broad_app_category").unwrap(),
-        codebook_col_index("bcm_cnrc_heuristic_category").unwrap(),
-    ]);
-    let genre_indices = codebook_enabled.then(|| [
-        codebook_col_index("babyemu_genreId_scraped").unwrap(),
-        codebook_col_index("babyemu_genreId_manual").unwrap(),
-        codebook_col_index("bcm_play_store_genreId").unwrap(),
-        codebook_col_index("usc_genreId").unwrap(),
-    ]);
+    let broad_indices = codebook_enabled.then(|| {
+        [
+            codebook_col_index("bcm_play_store_broad_app_category").unwrap(),
+            codebook_col_index("usc_broad_app_category").unwrap(),
+            codebook_col_index("babyemu_broad_app_category").unwrap(),
+            codebook_col_index("bcm_cnrc_heuristic_category").unwrap(),
+        ]
+    });
+    let genre_indices = codebook_enabled.then(|| {
+        [
+            codebook_col_index("babyemu_genreId_scraped").unwrap(),
+            codebook_col_index("babyemu_genreId_manual").unwrap(),
+            codebook_col_index("bcm_play_store_genreId").unwrap(),
+            codebook_col_index("usc_genreId").unwrap(),
+        ]
+    });
     let thresholds = prepare_usage_flags(
         long_data_time_gap_thresholds,
         long_usage_duration_thresholds,
@@ -5489,7 +5494,7 @@ pub(super) fn apply_static_review_annotations_fused(
             if let (Some(broad), Some(genre)) = (broad_indices, genre_indices) {
                 join_codebook_row(row, codebook_map);
                 derive_broad_category_row(row, broad);
-                collapse_genre_row(row, genre);
+                collapse_app_genre_row(row, genre);
             }
         },
         |row| {
@@ -5822,9 +5827,9 @@ fn parse_survey_timestamp_ns(value: &str) -> Result<i64, String> {
     // participant instead.
     let text = value.trim();
     if text.len() >= 10 && text.bytes().all(|byte| byte.is_ascii_digit()) {
-        let parsed = text
-            .parse::<i64>()
-            .map_err(|_| "Survey attribution file: unparseable event_timestamp value".to_string())?;
+        let parsed = text.parse::<i64>().map_err(|_| {
+            "Survey attribution file: unparseable event_timestamp value".to_string()
+        })?;
         return if text.len() >= 19 {
             Ok(parsed)
         } else if text.len() >= 13 {
@@ -6013,7 +6018,7 @@ struct DayCoverageCheckpoint {
     no_data_days: usize,
 }
 
-fn build_raw_date_index(raw_rows: &[Row]) -> BTreeMap<String, BTreeSet<String>> {
+fn index_raw_dates(raw_rows: &[Row]) -> BTreeMap<String, BTreeSet<String>> {
     let mut raw_dates: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     for row in raw_rows {
         raw_dates
@@ -6032,10 +6037,10 @@ fn build_day_coverage_csv(
     usage_rows: &[Row],
     raw_dates: &BTreeMap<String, BTreeSet<String>>,
     windows: &[StudyWindow],
-    step_checkpoints: &mut StepCheckpointRecorder<'_>,
+    query_checkpoints: &mut QueryCheckpointRecorder<'_>,
 ) -> Result<(Vec<u8>, u32), String> {
     let output = incremental::build_coverage(usage_rows, raw_dates, windows)?;
-    step_checkpoints.value("build_coverage_table", &output.report)?;
+    query_checkpoints.value("build_participant_day_coverage", &output.report)?;
     Ok((output.csv_bytes, output.report.coverage.len() as u32))
 }
 
@@ -6107,7 +6112,7 @@ fn build_compliance_csv(
     shared_participants: &BTreeSet<String>,
     threshold_percent: f64,
     enrolled_devices: &BTreeMap<String, u32>,
-    step_checkpoints: &mut StepCheckpointRecorder<'_>,
+    query_checkpoints: &mut QueryCheckpointRecorder<'_>,
 ) -> Result<(Vec<u8>, u32), String> {
     let attribution = incremental::accumulate_minutes(rows);
     let bucket_checkpoint = attribution
@@ -6124,16 +6129,18 @@ fn build_compliance_csv(
             },
         )
         .collect::<Vec<_>>();
-    step_checkpoints.value(
-        "accumulate_attribution_minutes",
+    query_checkpoints.value(
+        "aggregate_attribution_minutes",
         &serde_json::json!({
             "participantsSeen": &attribution.participants_seen,
             "buckets": bucket_checkpoint,
         }),
     )?;
-    let result =
-        incremental::score_attribution_days(&attribution, shared_participants, threshold_percent);
-    step_checkpoints.value("score_days", &result)?;
+    let completeness =
+        incremental::compute_attribution_completeness(&attribution, shared_participants);
+    query_checkpoints.value("compute_attribution_completeness", &completeness)?;
+    let result = incremental::apply_compliance_threshold(&completeness, threshold_percent);
+    query_checkpoints.value("classify_compliance_days", &result)?;
     let bytes = incremental::compliance_csv(&result, enrolled_devices);
     let row_count = result.days.len() as u32;
     Ok((bytes, row_count))
@@ -6567,7 +6574,7 @@ struct ScreenCreditOutput {
     csv_bytes: Vec<u8>,
     row_count: u32,
     row_lineage: Vec<PipelineRowLineage>,
-    effective_usage_checkpoint: LogicalStageCheckpoint,
+    effective_usage_checkpoint: WorkflowCheckpoint,
 }
 
 fn is_credit_session(row: &Row) -> bool {
@@ -6580,11 +6587,11 @@ fn apply_screen_gated_credit_incremental(
     opts: &PipelineV2Options,
     include_aliases: bool,
     input_row_parts: Option<&[RowCheckpointParts]>,
-    step_checkpoints: &mut StepCheckpointRecorder<'_>,
+    query_checkpoints: &mut QueryCheckpointRecorder<'_>,
 ) -> Result<ScreenCreditOutput, String> {
-    let partition = incremental::partition_credit_sessions(app_rows, input_row_parts)?;
-    step_checkpoints.value(
-        "partition_credit_sessions",
+    let partition = incremental::identify_credit_eligible_sessions(app_rows, input_row_parts)?;
+    query_checkpoints.value(
+        "identify_credit_eligible_sessions",
         &CreditPartitionCheckpoint {
             session_count: partition.sessions.len(),
             rest_count: partition.rest.len(),
@@ -6593,12 +6600,12 @@ fn apply_screen_gated_credit_incremental(
         },
     )?;
 
-    let substrate = incremental::build_liveness_substrate(raw_events)?;
-    step_checkpoints.value("build_liveness_substrate", &substrate)?;
+    let substrate = incremental::build_activity_witness_indexes(raw_events)?;
+    query_checkpoints.value("build_activity_witness_indexes", &substrate)?;
     let screen_incapable = incremental::screen_incapable_participants(&partition, &substrate);
-    step_checkpoints.value("report_screen_incapable", &screen_incapable)?;
+    query_checkpoints.value("assess_screen_evidence_capability", &screen_incapable)?;
 
-    let day_apps = incremental::count_day_apps(&partition);
+    let day_apps = incremental::summarize_daily_apps(&partition);
     let day_app_checkpoint = day_apps
         .iter()
         .map(|((participant_id, date), packages)| {
@@ -6609,9 +6616,9 @@ fn apply_screen_gated_credit_incremental(
             })
         })
         .collect::<Vec<_>>();
-    step_checkpoints.value("count_day_apps", &day_app_checkpoint)?;
+    query_checkpoints.value("summarize_daily_apps", &day_app_checkpoint)?;
 
-    let decisions = incremental::credit_sessions(
+    let decisions = incremental::derive_credited_intervals(
         &partition,
         &substrate,
         &day_apps,
@@ -6620,47 +6627,47 @@ fn apply_screen_gated_credit_incremental(
         opts.auto_lock_bridge_seconds,
         opts.no_witness_min_day_apps,
     );
-    step_checkpoints.value(
-        "credit_sessions",
+    query_checkpoints.value(
+        "derive_credited_intervals",
         &serde_json::json!({
             "decisions": decisions,
             "toleranceMinutes": opts.device_liveness_gap_tolerance_minutes,
         }),
     )?;
 
-    let emission = incremental::emit_credited_rows(
+    let emission = incremental::materialize_credited_rows(
         &partition,
         &decisions,
         &substrate,
         opts.device_liveness_gap_tolerance_minutes,
     );
-    step_checkpoints.value(
-        "emit_credited_rows",
+    query_checkpoints.value(
+        "materialize_credited_rows",
         &serde_json::json!({
             "creditedRowsDigest": emission.credited_rows_digest,
             "emissionCounts": emission.counts,
         }),
     )?;
-    let result = incremental::assemble_credit_result(&partition, &screen_incapable, &emission);
-    step_checkpoints.value(
-        "assemble_credit_result",
+    let result = incremental::assemble_credit_outputs(&partition, &screen_incapable, &emission);
+    query_checkpoints.value(
+        "assemble_credit_outputs",
         &serde_json::json!({
             "creditedRowsDigest": result.credited_rows_digest,
             "restRowsDigest": result.rest_rows_digest,
             "report": result.report,
         }),
     )?;
-    let assemble_terminal_digest = step_checkpoints
+    let assemble_terminal_digest = query_checkpoints
         .checkpoints
-        .get("assemble_credit_result")
+        .get("assemble_credit_outputs")
         .expect("assemble credit checkpoint was just recorded")
         .terminal_digest
         .clone();
-    let effective_usage_checkpoint = logical_stage_checkpoint(
+    let effective_usage_checkpoint = workflow_checkpoint(
         "effective_usage",
         &[],
         &[(
-            "assemble_credit_result",
+            "assemble_credit_outputs",
             assemble_terminal_digest.as_bytes(),
         )],
     );
@@ -6704,13 +6711,13 @@ fn derive_screen_usage_sessions_full(
     rows: &[Row],
     opts: &PipelineV2Options,
     apps_forcing: &HashMap<String, String>,
-    step_checkpoints: &mut StepCheckpointRecorder<'_>,
+    query_checkpoints: &mut QueryCheckpointRecorder<'_>,
 ) -> Result<Vec<Row>, String> {
-    let keyguard_timestamps = incremental::collect_keyguard_timestamps(rows);
-    step_checkpoints.value("collect_keyguard_timestamps", &keyguard_timestamps)?;
-    let closes = incremental::walk_screen_state_machine(rows);
-    step_checkpoints.value("walk_screen_state_machine", &closes)?;
-    let sessions = incremental::build_classified_sessions(
+    let keyguard_timestamps = incremental::index_keyguard_events(rows);
+    query_checkpoints.value("index_keyguard_events", &keyguard_timestamps)?;
+    let closes = incremental::infer_screen_session_skeletons(rows);
+    query_checkpoints.value("infer_screen_session_skeletons", &closes)?;
+    let sessions = incremental::classify_screen_sessions(
         rows,
         &closes,
         &keyguard_timestamps,
@@ -6722,7 +6729,7 @@ fn derive_screen_usage_sessions_full(
             keyguard_near_stop_seconds: opts.screen_keyguard_near_stop_seconds,
         },
     );
-    step_checkpoints.rows("build_classified_sessions", &sessions);
+    query_checkpoints.rows("classify_screen_sessions", &sessions);
     Ok(sessions)
 }
 
@@ -7163,24 +7170,24 @@ pub fn run_pipeline_v2_with_supports(
     opts: &PipelineV2Options,
     support: PipelineV2SupportFiles<'_>,
 ) -> Result<PipelineV2Result, String> {
-    let mut logical_stage_digests = BTreeMap::new();
-    let mut logical_stage_checkpoints = BTreeMap::new();
-    let mut pipeline_step_digests = BTreeMap::new();
-    let mut pipeline_step_checkpoints = BTreeMap::new();
-    let mut step_checkpoints = StepCheckpointRecorder {
-        digests: &mut pipeline_step_digests,
-        checkpoints: &mut pipeline_step_checkpoints,
-        next_step_index: 0,
+    let mut workflow_query_group_digests = BTreeMap::new();
+    let mut workflow_query_group_checkpoints = BTreeMap::new();
+    let mut workflow_query_digests = BTreeMap::new();
+    let mut workflow_query_checkpoints = BTreeMap::new();
+    let mut query_checkpoints = QueryCheckpointRecorder {
+        digests: &mut workflow_query_digests,
+        checkpoints: &mut workflow_query_checkpoints,
+        remaining_queries: crate::workflow_contract::WORKFLOW_QUERIES.iter(),
         error: None,
         last_row_parts: None,
         last_row_checkpoint: None,
     };
     // 1. parse + sort + canonicalize
-    let (mut rows, _tz) = parse_raw_rows(csv_bytes, opts, &mut step_checkpoints)?;
-    record_logical_stage_checkpoint(
-        &mut logical_stage_digests,
-        &mut logical_stage_checkpoints,
-        logical_stage_rows_checkpoint_reusing_last("parse_events", &rows, &step_checkpoints),
+    let (mut rows, _tz) = parse_raw_rows(csv_bytes, opts, &mut query_checkpoints)?;
+    record_workflow_checkpoint(
+        &mut workflow_query_group_digests,
+        &mut workflow_query_group_checkpoints,
+        workflow_rows_checkpoint_reusing_last("parse_events", &rows, &query_checkpoints),
     );
     let original_count = rows.len() as u32;
     let available_timezones: Vec<String> = rows
@@ -7197,9 +7204,9 @@ pub fn run_pipeline_v2_with_supports(
     // 2. Resolve the product's four timezone policies in Rust. The primary
     // timezone is the most frequent non-empty input value; a tie keeps the
     // first timezone encountered, matching JavaScript Map insertion order.
-    let primary_timezone = incremental::compute_dominant_timezone(&rows);
-    step_checkpoints.value("compute_dominant_timezone", &primary_timezone)?;
-    let selection = incremental::select_timezone_strategy(
+    let primary_timezone = incremental::estimate_dominant_timezone(&rows);
+    query_checkpoints.value("estimate_dominant_timezone", &primary_timezone)?;
+    let selection = incremental::resolve_timezone_strategy(
         Arc::new(rows),
         &opts.timezone,
         &opts.timezone_handling,
@@ -7208,8 +7215,8 @@ pub fn run_pipeline_v2_with_supports(
     rows = Arc::try_unwrap(selection.rows).unwrap_or_else(|rows| (*rows).clone());
     let target_timezone = selection.target_timezone;
     let timezone_action = selection.action;
-    step_checkpoints.rows_and_value(
-        "select_timezone_strategy",
+    query_checkpoints.rows_and_value(
+        "resolve_timezone_strategy",
         &rows,
         &serde_json::json!({
             "targetTimezone": &target_timezone,
@@ -7217,49 +7224,51 @@ pub fn run_pipeline_v2_with_supports(
         }),
     )?;
     let rows_after_timezone_handling = rows.len() as u32;
-    let row_count_report =
-        incremental::row_count_report(rows_before_timezone_handling, rows_after_timezone_handling);
-    let rows_removed_by_timezone = row_count_report.removed;
+    let summarize_row_selection = incremental::summarize_row_selection(
+        rows_before_timezone_handling,
+        rows_after_timezone_handling,
+    );
+    let rows_removed_by_timezone = summarize_row_selection.removed;
     let timezone_retained_source_rows_digest = timezone_retained_source_rows_digest(&rows);
     let mut effective_opts = opts.clone();
     effective_opts.timezone = target_timezone;
     let opts = &effective_opts;
-    rows = incremental::restamp_rows(rows, &opts.timezone)?;
-    step_checkpoints.rows("restamp_rows", &rows);
+    rows = incremental::standardize_event_clock(rows, &opts.timezone)?;
+    query_checkpoints.rows("standardize_event_clock", &rows);
     let timezone_stage_digest = timezone_stage_digest(&rows);
-    step_checkpoints.value("row_count_report", &row_count_report)?;
-    record_logical_stage_checkpoint(
-        &mut logical_stage_digests,
-        &mut logical_stage_checkpoints,
-        logical_stage_rows_checkpoint_reusing_last("normalize_timezones", &rows, &step_checkpoints),
+    query_checkpoints.value("summarize_row_selection", &summarize_row_selection)?;
+    record_workflow_checkpoint(
+        &mut workflow_query_group_digests,
+        &mut workflow_query_group_checkpoints,
+        workflow_rows_checkpoint_reusing_last("normalize_timezones", &rows, &query_checkpoints),
     );
 
     // 3. dedupe + (optional) unalign duplicate timestamps + mark gaps
     let rows_before_deduplication = rows.len();
-    let deduped = incremental::exact_dedupe(rows, opts.deduplicate_exact_rows);
-    step_checkpoints.rows("exact_dedupe", &deduped);
+    let deduped = incremental::coalesce_duplicate_event_keys(rows, opts.deduplicate_exact_rows);
+    query_checkpoints.rows("coalesce_duplicate_event_keys", &deduped);
     let exact_duplicate_rows_removed =
         rows_before_deduplication.saturating_sub(deduped.len()) as u32;
     let dupes_before = count_duplicate_groups(&deduped);
-    step_checkpoints.value("count_dup_groups", &dupes_before)?;
-    let dupe_corrected = incremental::nudge_duplicate_timestamps(
+    query_checkpoints.value("summarize_duplicate_groups", &dupes_before)?;
+    let dupe_corrected = incremental::disambiguate_duplicate_timestamps(
         deduped,
         opts.correct_duplicate_event_timestamps,
         &opts.same_app_stop_types,
         &opts.other_stop_types,
     );
-    step_checkpoints.rows("nudge_duplicate_timestamps", &dupe_corrected);
+    query_checkpoints.rows("disambiguate_duplicate_timestamps", &dupe_corrected);
     let dupes_corrected = if opts.correct_duplicate_event_timestamps {
         dupes_before
     } else {
         0
     };
     let mut rows = incremental::mark_gaps(dupe_corrected);
-    step_checkpoints.rows("mark_data_time_gaps", &rows);
-    record_logical_stage_checkpoint(
-        &mut logical_stage_digests,
-        &mut logical_stage_checkpoints,
-        logical_stage_rows_checkpoint_reusing_last("dedup_and_order", &rows, &step_checkpoints),
+    query_checkpoints.rows("derive_time_gap_evidence", &rows);
+    record_workflow_checkpoint(
+        &mut workflow_query_group_digests,
+        &mut workflow_query_group_checkpoints,
+        workflow_rows_checkpoint_reusing_last("dedup_and_order", &rows, &query_checkpoints),
     );
 
     // 4. filter labeling
@@ -7273,11 +7282,11 @@ pub fn run_pipeline_v2_with_supports(
     if opts.use_filter_file {
         rows = label_filtered_apps(rows, &filter_map);
     }
-    step_checkpoints.rows("tag_filtered_packages", &rows);
-    record_logical_stage_checkpoint(
-        &mut logical_stage_digests,
-        &mut logical_stage_checkpoints,
-        logical_stage_rows_checkpoint_reusing_last("app_policy", &rows, &step_checkpoints),
+    query_checkpoints.rows("mark_app_policy_matches", &rows);
+    record_workflow_checkpoint(
+        &mut workflow_query_group_digests,
+        &mut workflow_query_group_checkpoints,
+        workflow_rows_checkpoint_reusing_last("app_policy", &rows, &query_checkpoints),
     );
     let apps_forcing_map =
         if opts.use_apps_forcing_screen_open && !support.apps_forcing_csv.is_empty() {
@@ -7302,17 +7311,17 @@ pub fn run_pipeline_v2_with_supports(
             &rows,
             opts,
             &apps_forcing_map,
-            &mut step_checkpoints,
+            &mut query_checkpoints,
         )?;
     } else {
-        step_checkpoints.state("collect_keyguard_timestamps", "not_applicable");
-        step_checkpoints.state("walk_screen_state_machine", "not_applicable");
-        step_checkpoints.state("build_classified_sessions", "not_applicable");
+        query_checkpoints.state("index_keyguard_events", "not_applicable");
+        query_checkpoints.state("infer_screen_session_skeletons", "not_applicable");
+        query_checkpoints.state("classify_screen_sessions", "not_applicable");
     }
-    record_logical_stage_checkpoint(
-        &mut logical_stage_digests,
-        &mut logical_stage_checkpoints,
-        logical_stage_rows_checkpoint("device_state_timeline", &screen_rows),
+    record_workflow_checkpoint(
+        &mut workflow_query_group_digests,
+        &mut workflow_query_group_checkpoints,
+        workflow_rows_checkpoint("device_state_timeline", &screen_rows),
     );
 
     // Product contract: processedRowCount is the canonical policy-row count
@@ -7338,43 +7347,44 @@ pub fn run_pipeline_v2_with_supports(
         opts.usage_session_mode,
         UsageSessionMode::NoUsage | UsageSessionMode::ScreenUsage
     ) {
-        for step_id in [
-            "compute_junk_packages",
-            "junk_blind_fold",
-            "build_matcher_input",
-            "run_matcher",
-            "apply_matcher_output",
-            "relabel_usage_with_floor",
-            "junk_downstream_mark",
-            "sort_episodes",
-            "split_concurrent",
-            "codebook_join",
+        for query_id in [
+            "resolve_excluded_packages",
+            "mask_excluded_app_events",
+            "build_app_event_index",
+            "match_app_episodes",
+            "materialize_candidate_episodes",
+            "classify_episode_durations",
+            "apply_app_inclusion_policy",
+            "order_app_episodes",
+            "segment_concurrent_usage",
+            "join_app_codebook",
             "derive_broad_category",
-            "collapse_genre",
-            "engagement_walk",
-            "flag_and_retain",
-            "blank_junk_timing",
-            "drop_selected_types",
-            "drop_zero_duration",
-            "partition_credit_sessions",
-            "build_liveness_substrate",
-            "report_screen_incapable",
-            "count_day_apps",
-            "credit_sessions",
-            "emit_credited_rows",
-            "assemble_credit_result",
+            "collapse_app_genre",
+            "derive_engagement_basis",
+            "apply_episode_flags",
+            "suppress_excluded_timing",
+            "remove_selected_interaction_types",
+            "remove_zero_duration_rows",
+            "identify_credit_eligible_sessions",
+            "build_activity_witness_indexes",
+            "assess_screen_evidence_capability",
+            "summarize_daily_apps",
+            "derive_credited_intervals",
+            "materialize_credited_rows",
+            "assemble_credit_outputs",
             "resolve_participant_windows",
-            "filter_rows_to_window",
+            "apply_participant_windows",
             "resolve_sharing_status",
-            "build_survey_lookup",
-            "attribute_rows",
-            "inject_placeholders",
-            "build_raw_date_index",
-            "build_coverage_table",
-            "accumulate_attribution_minutes",
-            "score_days",
+            "index_survey_responses",
+            "classify_person_attribution",
+            "synthesize_placeholder_rows",
+            "index_raw_dates",
+            "build_participant_day_coverage",
+            "aggregate_attribution_minutes",
+            "compute_attribution_completeness",
+            "classify_compliance_days",
         ] {
-            step_checkpoints.state(step_id, "not_applicable");
+            query_checkpoints.state(query_id, "not_applicable");
         }
         for node_id in [
             "reconstruct_episodes",
@@ -7387,10 +7397,10 @@ pub fn run_pipeline_v2_with_supports(
             "day_coverage",
             "score_compliance",
         ] {
-            record_logical_stage_checkpoint(
-                &mut logical_stage_digests,
-                &mut logical_stage_checkpoints,
-                logical_stage_state_checkpoint(node_id, "not_applicable"),
+            record_workflow_checkpoint(
+                &mut workflow_query_group_digests,
+                &mut workflow_query_group_checkpoints,
+                workflow_state_checkpoint(node_id, "not_applicable"),
             );
         }
         app_row_count = 0;
@@ -7415,14 +7425,14 @@ pub fn run_pipeline_v2_with_supports(
         };
         let mut shared_participants = BTreeSet::new();
         // 6. matcher (app usage)
-        rows = run_app_usage_algorithm(rows, opts, &background_apps, &mut step_checkpoints)?;
-        record_logical_stage_checkpoint(
-            &mut logical_stage_digests,
-            &mut logical_stage_checkpoints,
-            logical_stage_rows_checkpoint_reusing_last(
+        rows = run_app_usage_algorithm(rows, opts, &background_apps, &mut query_checkpoints)?;
+        record_workflow_checkpoint(
+            &mut workflow_query_group_digests,
+            &mut workflow_query_group_checkpoints,
+            workflow_rows_checkpoint_reusing_last(
                 "reconstruct_episodes",
                 &rows,
-                &step_checkpoints,
+                &query_checkpoints,
             ),
         );
 
@@ -7437,96 +7447,88 @@ pub fn run_pipeline_v2_with_supports(
 
         // 8. enrich
         join_codebook(&mut rows, opts.use_app_codebook, &codebook_map);
-        step_checkpoints.rows_and_value(
-            "codebook_join",
+        query_checkpoints.rows_and_value(
+            "join_app_codebook",
             &rows,
             &serde_json::json!({"codebookIsEmpty": codebook_map.is_empty()}),
         )?;
         derive_broad_category(&mut rows, opts.use_app_codebook);
-        step_checkpoints.rows("derive_broad_category", &rows);
-        collapse_genre(&mut rows, opts.use_app_codebook);
-        step_checkpoints.rows("collapse_genre", &rows);
-        record_logical_stage_checkpoint(
-            &mut logical_stage_digests,
-            &mut logical_stage_checkpoints,
-            logical_stage_rows_checkpoint_reusing_last("categorize_apps", &rows, &step_checkpoints),
+        query_checkpoints.rows("derive_broad_category", &rows);
+        collapse_app_genre(&mut rows, opts.use_app_codebook);
+        query_checkpoints.rows("collapse_app_genre", &rows);
+        record_workflow_checkpoint(
+            &mut workflow_query_group_digests,
+            &mut workflow_query_group_checkpoints,
+            workflow_rows_checkpoint_reusing_last("categorize_apps", &rows, &query_checkpoints),
         );
         add_app_usage_detail_columns(&mut rows, opts.custom_app_engagement_duration);
-        step_checkpoints.rows("engagement_walk", &rows);
+        query_checkpoints.rows("derive_engagement_basis", &rows);
         mark_app_usage_flags(
             &mut rows,
             &opts.long_data_time_gap_thresholds,
             &opts.long_usage_duration_thresholds,
         );
-        step_checkpoints.rows("flag_and_retain", &rows);
-        record_logical_stage_checkpoint(
-            &mut logical_stage_digests,
-            &mut logical_stage_checkpoints,
-            logical_stage_rows_checkpoint_reusing_last(
-                "episode_annotations",
-                &rows,
-                &step_checkpoints,
-            ),
+        query_checkpoints.rows("apply_episode_flags", &rows);
+        record_workflow_checkpoint(
+            &mut workflow_query_group_digests,
+            &mut workflow_query_group_checkpoints,
+            workflow_rows_checkpoint_reusing_last("episode_annotations", &rows, &query_checkpoints),
         );
         clear_filtered_usage_timing(&mut rows);
-        step_checkpoints.rows("blank_junk_timing", &rows);
-        rows = incremental::drop_selected_types(
+        query_checkpoints.rows("suppress_excluded_timing", &rows);
+        rows = incremental::remove_selected_interaction_types(
             rows,
             &opts.interaction_types_to_remove,
             &opts.long_data_time_gap_thresholds,
         );
-        step_checkpoints.rows("drop_selected_types", &rows);
-        rows = incremental::drop_zero_duration(rows, opts.filter_zero_duration_sessions);
-        step_checkpoints.rows("drop_zero_duration", &rows);
-        record_logical_stage_checkpoint(
-            &mut logical_stage_digests,
-            &mut logical_stage_checkpoints,
-            logical_stage_rows_checkpoint_reusing_last(
-                "interval_cleaning",
-                &rows,
-                &step_checkpoints,
-            ),
+        query_checkpoints.rows("remove_selected_interaction_types", &rows);
+        rows = incremental::remove_zero_duration_rows(rows, opts.filter_zero_duration_sessions);
+        query_checkpoints.rows("remove_zero_duration_rows", &rows);
+        record_workflow_checkpoint(
+            &mut workflow_query_group_digests,
+            &mut workflow_query_group_checkpoints,
+            workflow_rows_checkpoint_reusing_last("interval_cleaning", &rows, &query_checkpoints),
         );
         let (credited_bytes, credited_count) = if opts.enable_screen_gated_crediting {
-            let credit_input_parts = step_checkpoints.take_last_row_parts();
+            let credit_input_parts = query_checkpoints.take_last_row_parts();
             let credited = apply_screen_gated_credit_incremental(
                 &rows,
                 &policy_rows,
                 opts,
                 include_aliases,
                 credit_input_parts.as_deref(),
-                &mut step_checkpoints,
+                &mut query_checkpoints,
             )?;
-            record_logical_stage_checkpoint(
-                &mut logical_stage_digests,
-                &mut logical_stage_checkpoints,
+            record_workflow_checkpoint(
+                &mut workflow_query_group_digests,
+                &mut workflow_query_group_checkpoints,
                 credited.effective_usage_checkpoint,
             );
             credited_app_row_lineage = credited.row_lineage;
             (credited.csv_bytes, credited.row_count)
         } else {
-            for step_id in [
-                "partition_credit_sessions",
-                "build_liveness_substrate",
-                "report_screen_incapable",
-                "count_day_apps",
-                "credit_sessions",
-                "emit_credited_rows",
-                "assemble_credit_result",
+            for query_id in [
+                "identify_credit_eligible_sessions",
+                "build_activity_witness_indexes",
+                "assess_screen_evidence_capability",
+                "summarize_daily_apps",
+                "derive_credited_intervals",
+                "materialize_credited_rows",
+                "assemble_credit_outputs",
             ] {
-                step_checkpoints.state(step_id, "not_applicable");
+                query_checkpoints.state(query_id, "not_applicable");
             }
-            record_logical_stage_checkpoint(
-                &mut logical_stage_digests,
-                &mut logical_stage_checkpoints,
-                logical_stage_state_checkpoint("effective_usage", "not_applicable"),
+            record_workflow_checkpoint(
+                &mut workflow_query_group_digests,
+                &mut workflow_query_group_checkpoints,
+                workflow_state_checkpoint("effective_usage", "not_applicable"),
             );
             (Vec::new(), 0)
         };
         credited_app_csv_bytes = credited_bytes;
         credited_app_row_count = credited_count;
         let resolved_participant_windows = resolve_participant_windows(&rows, &study_windows);
-        step_checkpoints.value("resolve_participant_windows", &resolved_participant_windows)?;
+        query_checkpoints.value("resolve_participant_windows", &resolved_participant_windows)?;
         if opts.enable_study_window_filter {
             if support.study_dates_csv.is_empty() {
                 return Err(
@@ -7536,8 +7538,8 @@ pub fn run_pipeline_v2_with_supports(
             let (filtered, dropped_rows, participants_without_window) =
                 apply_study_window(rows, &resolved_participant_windows);
             rows = filtered;
-            step_checkpoints.rows_and_value(
-                "filter_rows_to_window",
+            query_checkpoints.rows_and_value(
+                "apply_participant_windows",
                 &rows,
                 &serde_json::json!({
                     "applied": true,
@@ -7556,8 +7558,8 @@ pub fn run_pipeline_v2_with_supports(
                 })
                 .collect::<Vec<_>>();
             participants_without_window.sort();
-            step_checkpoints.rows_and_value(
-                "filter_rows_to_window",
+            query_checkpoints.rows_and_value(
+                "apply_participant_windows",
                 &rows,
                 &serde_json::json!({
                     "applied": false,
@@ -7566,14 +7568,10 @@ pub fn run_pipeline_v2_with_supports(
                 }),
             )?;
         }
-        record_logical_stage_checkpoint(
-            &mut logical_stage_digests,
-            &mut logical_stage_checkpoints,
-            logical_stage_rows_checkpoint_reusing_last(
-                "observation_window",
-                &rows,
-                &step_checkpoints,
-            ),
+        record_workflow_checkpoint(
+            &mut workflow_query_group_digests,
+            &mut workflow_query_group_checkpoints,
+            workflow_rows_checkpoint_reusing_last("observation_window", &rows, &query_checkpoints),
         );
         if opts.enable_person_attribution {
             if support.device_sharing_csv.is_empty() {
@@ -7609,7 +7607,7 @@ pub fn run_pipeline_v2_with_supports(
                     .collect(),
                 status_by_participant: statuses,
             };
-            step_checkpoints.value("resolve_sharing_status", &resolution)?;
+            query_checkpoints.value("resolve_sharing_status", &resolution)?;
             let survey_checkpoint = survey
                 .iter()
                 .map(|((participant_id, event_timestamp_ns), user)| {
@@ -7620,12 +7618,12 @@ pub fn run_pipeline_v2_with_supports(
                     })
                 })
                 .collect::<Vec<_>>();
-            step_checkpoints.value("build_survey_lookup", &survey_checkpoint)?;
+            query_checkpoints.value("index_survey_responses", &survey_checkpoint)?;
             let (attributed_rows, attribution_report) =
                 attribute_person(rows, &resolution, &survey)?;
             rows = attributed_rows;
-            step_checkpoints.rows_and_value(
-                "attribute_rows",
+            query_checkpoints.rows_and_value(
+                "classify_person_attribution",
                 &rows,
                 &serde_json::json!({
                     "applied": true,
@@ -7633,64 +7631,64 @@ pub fn run_pipeline_v2_with_supports(
                 }),
             )?;
         } else {
-            step_checkpoints.value(
+            query_checkpoints.value(
                 "resolve_sharing_status",
                 &serde_json::json!({"enabled": false}),
             )?;
-            step_checkpoints.value(
-                "build_survey_lookup",
+            query_checkpoints.value(
+                "index_survey_responses",
                 &serde_json::json!({"enabled": false}),
             )?;
-            step_checkpoints.rows_and_value(
-                "attribute_rows",
+            query_checkpoints.rows_and_value(
+                "classify_person_attribution",
                 &rows,
                 &serde_json::json!({"applied": false}),
             )?;
         }
         let shared_participants_checkpoint = value_fingerprint(&shared_participants)
             .map_err(|error| format!("serialize shared-participant checkpoint: {error}"))?;
-        record_logical_stage_checkpoint(
-            &mut logical_stage_digests,
-            &mut logical_stage_checkpoints,
-            logical_stage_checkpoint_with_parts(
+        record_workflow_checkpoint(
+            &mut workflow_query_group_digests,
+            &mut workflow_query_group_checkpoints,
+            workflow_checkpoint_with_parts(
                 "attribute_person",
                 &[("rows", &rows)],
                 &[("shared_participants", &shared_participants_checkpoint)],
-                step_checkpoints.last_row_parts(),
+                query_checkpoints.last_row_parts(),
             ),
         );
         if opts.add_no_activity_placeholder_days {
             rows = add_no_activity_placeholder_rows(rows, &policy_rows);
         }
-        step_checkpoints.rows_and_value(
-            "inject_placeholders",
+        query_checkpoints.rows_and_value(
+            "synthesize_placeholder_rows",
             &rows,
             &serde_json::json!({"applied": opts.add_no_activity_placeholder_days}),
         )?;
-        let raw_date_index = build_raw_date_index(&policy_rows);
-        step_checkpoints.value("build_raw_date_index", &raw_date_index)?;
+        let raw_date_index = index_raw_dates(&policy_rows);
+        query_checkpoints.value("index_raw_dates", &raw_date_index)?;
 
         let (coverage_bytes, coverage_count) = if opts.enable_day_coverage {
             build_day_coverage_csv(
                 &rows,
                 &raw_date_index,
                 &study_windows,
-                &mut step_checkpoints,
+                &mut query_checkpoints,
             )?
         } else {
-            step_checkpoints.state("build_coverage_table", "not_applicable");
+            query_checkpoints.state("build_participant_day_coverage", "not_applicable");
             (Vec::new(), 0)
         };
         day_coverage_csv_bytes = coverage_bytes;
         day_coverage_row_count = coverage_count;
-        record_logical_stage_checkpoint(
-            &mut logical_stage_digests,
-            &mut logical_stage_checkpoints,
-            logical_stage_checkpoint_with_parts(
+        record_workflow_checkpoint(
+            &mut workflow_query_group_digests,
+            &mut workflow_query_group_checkpoints,
+            workflow_checkpoint_with_parts(
                 "day_coverage",
                 &[("rows", &rows)],
                 &[("day_coverage_csv", &day_coverage_csv_bytes)],
-                step_checkpoints.last_row_parts(),
+                query_checkpoints.last_row_parts(),
             ),
         );
         let (compliance_bytes, compliance_count) = if opts.enable_compliance_scoring {
@@ -7700,19 +7698,20 @@ pub fn run_pipeline_v2_with_supports(
                 &shared_participants,
                 opts.compliance_threshold_percent,
                 &enrolled_devices,
-                &mut step_checkpoints,
+                &mut query_checkpoints,
             )?
         } else {
-            step_checkpoints.state("accumulate_attribution_minutes", "not_applicable");
-            step_checkpoints.state("score_days", "not_applicable");
+            query_checkpoints.state("aggregate_attribution_minutes", "not_applicable");
+            query_checkpoints.state("compute_attribution_completeness", "not_applicable");
+            query_checkpoints.state("classify_compliance_days", "not_applicable");
             (Vec::new(), 0)
         };
         compliance_csv_bytes = compliance_bytes;
         compliance_row_count = compliance_count;
-        record_logical_stage_checkpoint(
-            &mut logical_stage_digests,
-            &mut logical_stage_checkpoints,
-            logical_stage_checkpoint(
+        record_workflow_checkpoint(
+            &mut workflow_query_group_digests,
+            &mut workflow_query_group_checkpoints,
+            workflow_checkpoint(
                 "score_compliance",
                 &[],
                 &[("compliance_csv", &compliance_csv_bytes)],
@@ -7783,8 +7782,8 @@ pub fn run_pipeline_v2_with_supports(
             .collect::<Vec<_>>(),
     )
     .map_err(|error| format!("serialize aggregate checkpoint: {error}"))?;
-    step_checkpoints.record(logical_stage_checkpoint(
-        "assemble_result",
+    query_checkpoints.record(workflow_checkpoint(
+        "assemble_result_manifest",
         &[],
         &[
             ("app_csv", &app_csv_bytes),
@@ -7798,10 +7797,10 @@ pub fn run_pipeline_v2_with_supports(
             ("row_lineage", &row_lineage_fingerprint),
         ],
     ));
-    record_logical_stage_checkpoint(
-        &mut logical_stage_digests,
-        &mut logical_stage_checkpoints,
-        logical_stage_checkpoint(
+    record_workflow_checkpoint(
+        &mut workflow_query_group_digests,
+        &mut workflow_query_group_checkpoints,
+        workflow_checkpoint(
             "outputs",
             &[],
             &[
@@ -7818,34 +7817,46 @@ pub fn run_pipeline_v2_with_supports(
         ),
     );
 
-    step_checkpoints.finish()?;
+    query_checkpoints.finish()?;
 
-    let expected_step_ids = crate::step_contract::PIPELINE_STEPS
+    let expected_query_ids = crate::workflow_contract::WORKFLOW_QUERIES
         .iter()
-        .map(|step| step.id)
+        .map(|query| query.id)
         .collect::<BTreeSet<_>>();
-    let actual_step_ids = pipeline_step_checkpoints
+    let actual_query_ids = workflow_query_checkpoints
         .keys()
         .map(String::as_str)
         .collect::<BTreeSet<_>>();
-    if expected_step_ids != actual_step_ids {
-        let missing = expected_step_ids
-            .difference(&actual_step_ids)
+    if expected_query_ids != actual_query_ids {
+        let missing = expected_query_ids
+            .difference(&actual_query_ids)
             .copied()
             .collect::<Vec<_>>();
-        let unexpected = actual_step_ids
-            .difference(&expected_step_ids)
+        let unexpected = actual_query_ids
+            .difference(&expected_query_ids)
             .copied()
             .collect::<Vec<_>>();
         return Err(format!(
-            "pipeline step checkpoint coverage mismatch: missing={missing:?}, unexpected={unexpected:?}"
+            "workflow query checkpoint coverage mismatch: missing={missing:?}, unexpected={unexpected:?}"
         ));
     }
 
-    debug_assert_eq!(logical_stage_digests.len(), 15);
-    debug_assert_eq!(logical_stage_checkpoints.len(), 15);
-    debug_assert_eq!(pipeline_step_digests.len(), 55);
-    debug_assert_eq!(pipeline_step_checkpoints.len(), 55);
+    debug_assert_eq!(
+        workflow_query_group_digests.len(),
+        crate::workflow_contract::workflow_query_group_ids().len()
+    );
+    debug_assert_eq!(
+        workflow_query_group_checkpoints.len(),
+        crate::workflow_contract::workflow_query_group_ids().len()
+    );
+    debug_assert_eq!(
+        workflow_query_digests.len(),
+        crate::workflow_contract::WORKFLOW_QUERIES.len()
+    );
+    debug_assert_eq!(
+        workflow_query_checkpoints.len(),
+        crate::workflow_contract::WORKFLOW_QUERIES.len()
+    );
 
     Ok(PipelineV2Result {
         app_csv_bytes: Arc::new(app_csv_bytes),
@@ -7874,10 +7885,10 @@ pub fn run_pipeline_v2_with_supports(
         rows_removed_by_timezone,
         timezone_retained_source_rows_digest,
         timezone_stage_digest,
-        logical_stage_digests,
-        logical_stage_checkpoints,
-        pipeline_step_digests,
-        pipeline_step_checkpoints,
+        workflow_query_group_digests,
+        workflow_query_group_checkpoints,
+        workflow_query_digests,
+        workflow_query_checkpoints,
     })
 }
 
@@ -7969,7 +7980,10 @@ mod tests {
     fn every_serialized_value_contributes_bytes_to_its_fingerprint() {
         let empty_stream = FingerprintSink::new().finish().to_le_bytes();
         for (label, fingerprint) in [
-            ("a unit", value_fingerprint(&()).expect("fingerprint a unit")),
+            (
+                "a unit",
+                value_fingerprint(&()).expect("fingerprint a unit"),
+            ),
             (
                 "an empty string",
                 value_fingerprint("").expect("fingerprint an empty string"),
@@ -8216,7 +8230,10 @@ mod tests {
         );
         let unknown = parse_device_sharing(b"participant_id,sharing_status\nP01,maybe\n")
             .expect_err("an unknown status must not be guessed");
-        assert!(unknown.contains("unknown sharing_status for P01"), "{unknown}");
+        assert!(
+            unknown.contains("unknown sharing_status for P01"),
+            "{unknown}"
+        );
         let missing = parse_device_sharing(b"participant_id\nP01\n")
             .expect_err("a file without sharing_status cannot be used");
         assert_eq!(
@@ -8228,7 +8245,10 @@ mod tests {
         // nanoseconds, and anything else goes through the Chronicle timestamp
         // parser. All four describe the same instant here.
         let expected = 1_772_000_000_000_000_000_i64;
-        assert_eq!(parse_survey_timestamp_ns("1772000000").expect("seconds"), expected);
+        assert_eq!(
+            parse_survey_timestamp_ns("1772000000").expect("seconds"),
+            expected
+        );
         assert_eq!(
             parse_survey_timestamp_ns("1772000000000").expect("milliseconds"),
             expected,
@@ -8237,7 +8257,10 @@ mod tests {
             parse_survey_timestamp_ns(" 1772000000000000000 ").expect("nanoseconds"),
             expected,
         );
-        assert!(parse_survey_timestamp_ns("123456789").is_err(), "nine digits is not a timestamp");
+        assert!(
+            parse_survey_timestamp_ns("123456789").is_err(),
+            "nine digits is not a timestamp"
+        );
         assert!(parse_survey_timestamp_ns("not a timestamp").is_err());
 
         let lookup = parse_survey_lookup(
@@ -8321,7 +8344,10 @@ mod tests {
             normalize_support_date("2026-03-07T08:00:00Z").expect("ISO prefix"),
             "2026-03-07",
         );
-        assert_eq!(normalize_support_date(" 3/7/2026 ").expect("US date"), "2026-03-07");
+        assert_eq!(
+            normalize_support_date(" 3/7/2026 ").expect("US date"),
+            "2026-03-07"
+        );
         // Ten characters are not a date on their own: both separators have to
         // be in place before the prefix is trusted.
         assert!(normalize_support_date("2026-03/07").is_err());
@@ -8390,9 +8416,9 @@ mod tests {
                 "com.example.chat",
             ),
         ]);
-        for (row, participant) in rows
-            .iter_mut()
-            .zip(["TECH-1042-D2", "TECH-9999-D1", "TECH-1042-D2"])
+        for (row, participant) in
+            rows.iter_mut()
+                .zip(["TECH-1042-D2", "TECH-9999-D1", "TECH-1042-D2"])
         {
             row.edit_all().participant_id = participant.into();
         }
@@ -8407,10 +8433,7 @@ mod tests {
                         .map(|window| window.start_date.as_str()),
                 ))
                 .collect::<Vec<_>>(),
-            vec![
-                ("TECH-1042-D2", Some("2026-03-01")),
-                ("TECH-9999-D1", None),
-            ],
+            vec![("TECH-1042-D2", Some("2026-03-01")), ("TECH-9999-D1", None),],
             "each participant is resolved once, by exact ID then numerical run",
         );
     }
@@ -8445,9 +8468,8 @@ mod tests {
     fn filter_relabeling_respects_the_label_scope_and_the_stop_event_vocabulary() {
         // Same package, two labels: only the listed one may be relabeled, and
         // only the four session-bearing interaction types are rewritten.
-        let filter_map = parse_filter_csv(
-            b"app_package_name,known_application_labels\ncom.example.chat,Chat\n",
-        );
+        let filter_map =
+            parse_filter_csv(b"app_package_name,known_application_labels\ncom.example.chat,Chat\n");
         let rows = |interaction: &str, label: &str| {
             let csv = format!(
                 concat!(
@@ -8456,9 +8478,9 @@ mod tests {
                 ),
                 label, interaction,
             );
-            let raw = incremental::csv_parse(csv.as_bytes());
-            let model = incremental::detect_device_model(&raw);
-            let rows = incremental::build_canonical_rows(&raw, "UTC", &BTreeMap::new(), &model)
+            let raw = incremental::decode_source_records(csv.as_bytes());
+            let model = incremental::attach_device_models(&raw);
+            let rows = incremental::canonicalize_source_rows(&raw, "UTC", &BTreeMap::new(), &model)
                 .expect("canonical rows");
             label_filtered_apps(rows, &filter_map)
         };
@@ -8481,7 +8503,9 @@ mod tests {
             );
         }
         assert_eq!(
-            rows("User Interaction", "Chat")[0].interaction_type.as_str(),
+            rows("User Interaction", "Chat")[0]
+                .interaction_type
+                .as_str(),
             "User Interaction",
             "a non-session interaction type is never relabeled",
         );
@@ -8627,7 +8651,7 @@ mod tests {
              Study,P01,Target Child,{long_label},Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago\n\
              Study,P01,Target Child,\"{quoted_long_label}\",Activity Paused,com.example.chat,2026-03-07 10:01:00,America/Chicago\n"
         );
-        let parsed = incremental::csv_parse(csv.as_bytes());
+        let parsed = incremental::decode_source_records(csv.as_bytes());
         assert_eq!(parsed.len(), 2);
         assert_eq!(parsed[0].application_label, long_label);
         assert_eq!(parsed[1].application_label, quoted_long_label);
@@ -8640,14 +8664,14 @@ mod tests {
         let wide = format!(
             "{long_header},participant_id,event_timestamp\nignored,P01,2026-03-07 10:00:00\n"
         );
-        let wide_parsed = incremental::csv_parse(wide.as_bytes());
+        let wide_parsed = incremental::decode_source_records(wide.as_bytes());
         assert_eq!(wide_parsed.len(), 1);
         assert_eq!(wide_parsed[0].participant_id, "P01");
         assert_eq!(wide_parsed[0].event_timestamp, "2026-03-07 10:00:00");
 
         // More cells than the header declares: the extras are dropped, the
         // declared columns still parse, and the row number keeps counting.
-        let ragged = incremental::csv_parse(
+        let ragged = incremental::decode_source_records(
             b"participant_id,event_timestamp\nP01,2026-03-07 10:00:00,extra,cells\nP02,2026-03-07 10:05:00\n",
         );
         assert_eq!(
@@ -8660,10 +8684,11 @@ mod tests {
 
         // Degenerate inputs: no bytes at all, and a final record with no
         // trailing newline, which the reader has to terminate itself.
-        assert!(incremental::csv_parse(b"").is_empty());
-        assert!(incremental::csv_parse(b"participant_id,event_timestamp\n").is_empty());
-        let unterminated =
-            incremental::csv_parse(b"participant_id,event_timestamp\nP01,2026-03-07 10:00:00");
+        assert!(incremental::decode_source_records(b"").is_empty());
+        assert!(incremental::decode_source_records(b"participant_id,event_timestamp\n").is_empty());
+        let unterminated = incremental::decode_source_records(
+            b"participant_id,event_timestamp\nP01,2026-03-07 10:00:00",
+        );
         assert_eq!(unterminated.len(), 1);
         assert_eq!(unterminated[0].participant_id, "P01");
         assert_eq!(unterminated[0].event_timestamp, "2026-03-07 10:00:00");
@@ -8673,7 +8698,7 @@ mod tests {
     fn discovery_and_incremental_report_the_same_physical_data_row() {
         // Header + valid data row 1 + an all-empty filler record (physical
         // data row 2 — skipped by parse_csv_to_records_with_physical_rows'
-        // any_nonempty guard and dropped by drop_empty_timestamp) + an invalid
+        // any_nonempty guard and dropped by remove_missing_timestamps) + an invalid
         // event_timestamp at physical data row 3. Both reporting paths must
         // name physical data row 3; the old discovery numbering (enumerate()
         // over the skipping parser) said data row 2.
@@ -8688,11 +8713,11 @@ mod tests {
             .expect_err("invalid event_timestamp must fail discovery");
         assert_eq!(discovery_error, "Invalid event_timestamp at data row 3");
 
-        let raw = incremental::csv_parse(csv.as_bytes());
-        let raw = incremental::drop_empty_timestamp(raw);
-        let model = incremental::detect_device_model(&raw);
+        let raw = incremental::decode_source_records(csv.as_bytes());
+        let raw = incremental::remove_missing_timestamps(raw);
+        let model = incremental::attach_device_models(&raw);
         let processing_error =
-            incremental::build_canonical_rows(&raw, "UTC", &BTreeMap::new(), &model)
+            incremental::canonicalize_source_rows(&raw, "UTC", &BTreeMap::new(), &model)
                 .err()
                 .expect("invalid event_timestamp must fail processing");
         assert_eq!(processing_error, discovery_error);
@@ -9108,9 +9133,7 @@ mod tests {
                         serializer.collect_str(&Printer(text, *repeats))
                     }
                     Shape::Sequence(values) => serializer.collect_seq(values),
-                    Shape::Refusing => {
-                        Err(serde::ser::Error::custom("probe refused to serialize"))
-                    }
+                    Shape::Refusing => Err(serde::ser::Error::custom("probe refused to serialize")),
                 }
             }
         }
@@ -9206,8 +9229,8 @@ mod tests {
 
         // A value that refuses to serialize names its own reason, so a failure
         // reaches the caller as something it can act on.
-        let refused = value_fingerprint(&Shape::Refusing)
-            .expect_err("a refusing probe must not fingerprint");
+        let refused =
+            value_fingerprint(&Shape::Refusing).expect_err("a refusing probe must not fingerprint");
         assert!(refused.contains("probe refused to serialize"), "{refused}");
     }
 
@@ -9408,12 +9431,16 @@ mod tests {
             "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
             "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago\n"
         );
-        let raw = incremental::csv_parse(csv.as_bytes());
-        let model = incremental::detect_device_model(&raw);
-        let mut row =
-            incremental::build_canonical_rows(&raw, "America/Chicago", &BTreeMap::new(), &model)
-                .expect("canonical row")
-                .remove(0);
+        let raw = incremental::decode_source_records(csv.as_bytes());
+        let model = incremental::attach_device_models(&raw);
+        let mut row = incremental::canonicalize_source_rows(
+            &raw,
+            "America/Chicago",
+            &BTreeMap::new(),
+            &model,
+        )
+        .expect("canonical row")
+        .remove(0);
         let mut scratch = RowCheckpointScratch::default();
         let baseline = row_checkpoint_parts(&row, &mut scratch);
         assert!(row.0.checkpoint_parts.identity.get().is_some());
@@ -9527,9 +9554,15 @@ mod tests {
                 "enable_study_window_filter",
                 parsed.enable_study_window_filter,
             ),
-            ("enable_person_attribution", parsed.enable_person_attribution),
+            (
+                "enable_person_attribution",
+                parsed.enable_person_attribution,
+            ),
             ("enable_day_coverage", parsed.enable_day_coverage),
-            ("enable_compliance_scoring", parsed.enable_compliance_scoring),
+            (
+                "enable_compliance_scoring",
+                parsed.enable_compliance_scoring,
+            ),
             (
                 "enable_screen_gated_crediting",
                 parsed.enable_screen_gated_crediting,
@@ -9612,11 +9645,7 @@ mod tests {
                 "Activity Resumed",
                 "com.example.chat",
             ),
-            (
-                "2026-03-07 10:01:00",
-                "Activity Paused",
-                "com.example.chat",
-            ),
+            ("2026-03-07 10:01:00", "Activity Paused", "com.example.chat"),
             (
                 "2026-03-07 10:02:00",
                 "Activity Resumed",
@@ -9704,15 +9733,15 @@ mod tests {
             "Study,P01,Child,C,Activity Resumed,c,2026-03-07 10:02:00,UTC\n",
             "Study,P01,Child,D,Activity Resumed,d,2026-03-07 10:03:00,UTC\n",
         );
-        let raw = incremental::csv_parse(csv.as_bytes());
-        let model = incremental::detect_device_model(&raw);
-        let rows = incremental::build_canonical_rows(&raw, "UTC", &BTreeMap::new(), &model)
+        let raw = incremental::decode_source_records(csv.as_bytes());
+        let model = incremental::attach_device_models(&raw);
+        let rows = incremental::canonicalize_source_rows(&raw, "UTC", &BTreeMap::new(), &model)
             .expect("canonical rows");
 
-        let source = logical_stage_checkpoint("source-step", &[("rows", &rows)], &[]);
+        let source = workflow_checkpoint("source-step", &[("rows", &rows)], &[]);
         let parts = row_checkpoint_parts_for_rows(&rows);
         let payload = br#"{"enabled":true}"#;
-        let reused = logical_stage_checkpoint_with_reusable_parts(
+        let reused = workflow_checkpoint_with_reusable_parts(
             "target-step",
             &rows,
             &[("value", payload.as_slice())],
@@ -9720,7 +9749,7 @@ mod tests {
             &parts,
             &source,
         );
-        let recomputed = logical_stage_checkpoint(
+        let recomputed = workflow_checkpoint(
             "target-step",
             &[("rows", &rows)],
             &[("value", payload.as_slice())],
@@ -9728,8 +9757,8 @@ mod tests {
         assert_eq!(reused, recomputed);
 
         let compare_order_independent_components = |left: &[Row], right: &[Row]| {
-            let left = logical_stage_checkpoint("fast-path-proof", &[("rows", left)], &[]);
-            let right = logical_stage_checkpoint("fast-path-proof", &[("rows", right)], &[]);
+            let left = workflow_checkpoint("fast-path-proof", &[("rows", left)], &[]);
+            let right = workflow_checkpoint("fast-path-proof", &[("rows", right)], &[]);
             assert_eq!(left.row_membership_digest, right.row_membership_digest);
             assert_eq!(left.temporal_state_digest, right.temporal_state_digest);
             assert_eq!(left.classification_digest, right.classification_digest);
@@ -9772,26 +9801,27 @@ mod tests {
             "Study,P01,Child,B,Activity Resumed,b,2026-03-07 10:01:00,UTC\n",
             "Study,P01,Child,C,Activity Resumed,c,2026-03-07 10:02:00,UTC\n",
         );
-        let raw = incremental::csv_parse(csv.as_bytes());
-        let model = incremental::detect_device_model(&raw);
-        let previous_rows = incremental::build_canonical_rows(&raw, "UTC", &BTreeMap::new(), &model)
-            .expect("canonical rows");
+        let raw = incremental::decode_source_records(csv.as_bytes());
+        let model = incremental::attach_device_models(&raw);
+        let previous_rows =
+            incremental::canonicalize_source_rows(&raw, "UTC", &BTreeMap::new(), &model)
+                .expect("canonical rows");
         let previous_checkpoint =
-            logical_stage_checkpoint("source-step", &[("rows", &previous_rows)], &[]);
+            workflow_checkpoint("source-step", &[("rows", &previous_rows)], &[]);
 
         let mut rows = previous_rows.clone();
         rows[0].edit_temporal().duration_seconds = Some(60.0);
         rows[1].edit_classification().application_label = "Changed".into();
         let payload = br#"{"enabled":false,"upstreamDigest":"fixed"}"#;
-        let optimized = logical_stage_checkpoint_with_known_membership_and_order(
-            "drop_zero_duration",
+        let optimized = workflow_checkpoint_with_known_membership_and_order(
+            "remove_zero_duration_rows",
             &rows,
             &[("value", payload.as_slice())],
             &previous_rows,
             &previous_checkpoint,
         );
-        let reference = logical_stage_checkpoint(
-            "drop_zero_duration",
+        let reference = workflow_checkpoint(
+            "remove_zero_duration_rows",
             &[("rows", &rows)],
             &[("value", payload.as_slice())],
         );
@@ -9816,16 +9846,16 @@ mod tests {
 
         let filtered_rows = rows[1..].to_vec();
         let filtered_parts = row_checkpoint_parts_for_rows(&filtered_rows);
-        let fallback = logical_stage_checkpoint_with_reusable_rows(
-            "drop_zero_duration",
+        let fallback = workflow_checkpoint_with_reusable_rows(
+            "remove_zero_duration_rows",
             &filtered_rows,
             &[("value", payload.as_slice())],
             &filtered_parts,
             &previous_rows,
             &previous_checkpoint,
         );
-        let filtered_reference = logical_stage_checkpoint(
-            "drop_zero_duration",
+        let filtered_reference = workflow_checkpoint(
+            "remove_zero_duration_rows",
             &[("rows", &filtered_rows)],
             &[("value", payload.as_slice())],
         );
@@ -10090,7 +10120,7 @@ mod tests {
             );
             run_pipeline_v2(csv.as_bytes(), options, &[], &[], &[])
                 .expect("duplicate-timestamp dependency fixture")
-                .pipeline_step_digests["nudge_duplicate_timestamps"]
+                .workflow_query_digests["disambiguate_duplicate_timestamps"]
                 .clone()
         };
 
@@ -10171,7 +10201,7 @@ mod tests {
     }
 
     #[test]
-    fn logical_stage_checkpoints_cover_the_contract_and_are_deterministic() {
+    fn workflow_query_group_checkpoints_cover_the_contract_and_are_deterministic() {
         let csv = concat!(
             "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
             "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago\n",
@@ -10200,59 +10230,68 @@ mod tests {
         ]);
         assert_eq!(
             first
-                .logical_stage_digests
+                .workflow_query_group_digests
                 .keys()
                 .map(String::as_str)
                 .collect::<BTreeSet<_>>(),
             expected
         );
-        assert_eq!(first.logical_stage_digests, second.logical_stage_digests);
         assert_eq!(
-            first.logical_stage_checkpoints,
-            second.logical_stage_checkpoints
+            first.workflow_query_group_digests,
+            second.workflow_query_group_digests
         );
-        let expected_steps = crate::step_contract::PIPELINE_STEPS
-            .iter()
-            .map(|step| step.id)
-            .collect::<BTreeSet<_>>();
-        assert_eq!(first.pipeline_step_digests.len(), 55);
-        assert_eq!(first.pipeline_step_checkpoints.len(), 55);
-        assert_eq!(first.pipeline_step_digests, second.pipeline_step_digests);
         assert_eq!(
-            first.pipeline_step_checkpoints,
-            second.pipeline_step_checkpoints
+            first.workflow_query_group_checkpoints,
+            second.workflow_query_group_checkpoints
+        );
+        let expected_queries = crate::workflow_contract::WORKFLOW_QUERIES
+            .iter()
+            .map(|query| query.id)
+            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            first.workflow_query_digests.len(),
+            crate::workflow_contract::WORKFLOW_QUERIES.len()
+        );
+        assert_eq!(
+            first.workflow_query_checkpoints.len(),
+            crate::workflow_contract::WORKFLOW_QUERIES.len()
+        );
+        assert_eq!(first.workflow_query_digests, second.workflow_query_digests);
+        assert_eq!(
+            first.workflow_query_checkpoints,
+            second.workflow_query_checkpoints
         );
         assert_eq!(
             first
-                .pipeline_step_checkpoints
+                .workflow_query_checkpoints
                 .keys()
                 .map(String::as_str)
                 .collect::<BTreeSet<_>>(),
-            expected_steps
+            expected_queries
         );
-        for (step_id, checkpoint) in &first.pipeline_step_checkpoints {
-            assert_eq!(&checkpoint.node_id, step_id);
+        for (query_id, checkpoint) in &first.workflow_query_checkpoints {
+            assert_eq!(&checkpoint.subject_id, query_id);
             assert_eq!(
-                first.pipeline_step_digests.get(step_id),
+                first.workflow_query_digests.get(query_id),
                 Some(&checkpoint.terminal_digest)
             );
         }
         assert_eq!(
             first
-                .logical_stage_checkpoints
+                .workflow_query_group_checkpoints
                 .keys()
                 .map(String::as_str)
                 .collect::<BTreeSet<_>>(),
             expected
         );
-        for (node_id, checkpoint) in &first.logical_stage_checkpoints {
+        for (node_id, checkpoint) in &first.workflow_query_group_checkpoints {
             assert_eq!(
                 checkpoint.protocol_version,
-                "chronicle-logical-stage-checkpoint/v7"
+                "chronicle-workflow-checkpoint/v1"
             );
-            assert_eq!(&checkpoint.node_id, node_id);
+            assert_eq!(&checkpoint.subject_id, node_id);
             assert_eq!(
-                first.logical_stage_digests.get(node_id),
+                first.workflow_query_group_digests.get(node_id),
                 Some(&checkpoint.terminal_digest)
             );
             for digest in [
@@ -10277,7 +10316,7 @@ mod tests {
                         .all(|byte| byte.is_ascii_hexdigit())
             );
         }
-        assert!(first.logical_stage_digests.values().all(|digest| {
+        assert!(first.workflow_query_group_digests.values().all(|digest| {
             digest.len() == 71
                 && digest.starts_with("sha256:")
                 && digest[7..].bytes().all(|byte| byte.is_ascii_hexdigit())
@@ -10364,15 +10403,16 @@ mod tests {
         let changed = run_pipeline_v2(csv.as_bytes(), &changed_options, &[], &[], &[])
             .expect("changed checkpoint run");
         let changed_stages = baseline
-            .logical_stage_digests
+            .workflow_query_group_digests
             .iter()
             .filter_map(|(node, digest)| {
-                (changed.logical_stage_digests.get(node) != Some(digest)).then_some(node.as_str())
+                (changed.workflow_query_group_digests.get(node) != Some(digest))
+                    .then_some(node.as_str())
             })
             .collect::<BTreeSet<_>>();
         assert_eq!(changed_stages, BTreeSet::from(["outputs"]));
-        let baseline_output = &baseline.logical_stage_checkpoints["outputs"];
-        let changed_output = &changed.logical_stage_checkpoints["outputs"];
+        let baseline_output = &baseline.workflow_query_group_checkpoints["outputs"];
+        let changed_output = &changed.workflow_query_group_checkpoints["outputs"];
         assert_eq!(
             baseline_output.row_membership_digest,
             changed_output.row_membership_digest
@@ -10439,13 +10479,13 @@ mod tests {
         assert_eq!(enabled.row_lineage, disabled.row_lineage);
 
         let changed_steps = enabled
-            .pipeline_step_digests
+            .workflow_query_digests
             .iter()
             .filter_map(|(step, digest)| {
-                (disabled.pipeline_step_digests.get(step) != Some(digest)).then_some(step.as_str())
+                (disabled.workflow_query_digests.get(step) != Some(digest)).then_some(step.as_str())
             })
             .collect::<BTreeSet<_>>();
-        assert_eq!(changed_steps, BTreeSet::from(["assemble_result"]));
+        assert_eq!(changed_steps, BTreeSet::from(["assemble_result_manifest"]));
     }
 
     #[test]
@@ -10460,8 +10500,8 @@ mod tests {
             .expect("baseline typed checkpoint");
         let changed = run_pipeline_v2(changed_csv.as_bytes(), &test_options(), &[], &[], &[])
             .expect("changed typed checkpoint");
-        let baseline_parse = &baseline.logical_stage_checkpoints["parse_events"];
-        let changed_parse = &changed.logical_stage_checkpoints["parse_events"];
+        let baseline_parse = &baseline.workflow_query_group_checkpoints["parse_events"];
+        let changed_parse = &changed.workflow_query_group_checkpoints["parse_events"];
         assert_eq!(
             baseline_parse.row_membership_digest,
             changed_parse.row_membership_digest
@@ -10498,8 +10538,8 @@ mod tests {
             .expect("baseline ordered checkpoint");
         let changed = run_pipeline_v2(changed_csv.as_bytes(), &test_options(), &[], &[], &[])
             .expect("reordered checkpoint");
-        let baseline_parse = &baseline.logical_stage_checkpoints["parse_events"];
-        let changed_parse = &changed.logical_stage_checkpoints["parse_events"];
+        let baseline_parse = &baseline.workflow_query_group_checkpoints["parse_events"];
+        let changed_parse = &changed.workflow_query_group_checkpoints["parse_events"];
         assert_eq!(
             baseline_parse.row_membership_digest,
             changed_parse.row_membership_digest
@@ -10525,7 +10565,7 @@ mod tests {
     }
 
     #[test]
-    fn exact_dedupe_is_participant_scoped_and_can_be_disabled() {
+    fn coalesce_duplicate_event_keys_is_participant_scoped_and_can_be_disabled() {
         let csv = concat!(
             "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
             "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,America/Chicago\n",
@@ -11074,9 +11114,14 @@ mod tests {
                 "Study,P01,Target Child,Label,{interaction},{package},{timestamp},America/Chicago\n"
             ));
         }
-        let raw = incremental::csv_parse(csv.as_bytes());
-        incremental::build_canonical_rows(&raw, "America/Chicago", &BTreeMap::new(), "test-device")
-            .expect("canonical rows")
+        let raw = incremental::decode_source_records(csv.as_bytes());
+        incremental::canonicalize_source_rows(
+            &raw,
+            "America/Chicago",
+            &BTreeMap::new(),
+            "test-device",
+        )
+        .expect("canonical rows")
     }
 
     /// `duplicateTimestampsCorrected` in the review summary is this count: how
@@ -11143,8 +11188,16 @@ mod tests {
         let nudged = unalign_duplicate_timestamps(
             rows_from_events(&[
                 ("2026-03-07 10:00:00", "Activity Paused", "com.example.chat"),
-                ("2026-03-07 10:00:00", "User Interaction", "com.example.chat"),
-                ("2026-03-07 10:00:00", "Activity Resumed", "com.example.chat"),
+                (
+                    "2026-03-07 10:00:00",
+                    "User Interaction",
+                    "com.example.chat",
+                ),
+                (
+                    "2026-03-07 10:00:00",
+                    "Activity Resumed",
+                    "com.example.chat",
+                ),
             ]),
             &same_app_stop_types,
             &other_stop_types,
@@ -11207,20 +11260,25 @@ mod tests {
                 .iter()
                 .map(|row| row.interaction_type.as_str())
                 .collect::<Vec<_>>(),
-            vec!["Device Shutdown", "Screen Non-interactive", "Activity Paused"],
+            vec![
+                "Device Shutdown",
+                "Screen Non-interactive",
+                "Activity Paused"
+            ],
             "every stop spelling shares one priority, so file order decides"
         );
 
         // Rows that are already distinct are returned untouched: the pipeline
         // must not shift timestamps it did not need to shift.
         let untouched = rows_from_events(&[
-            ("2026-03-07 10:00:00", "Activity Resumed", "com.example.chat"),
+            (
+                "2026-03-07 10:00:00",
+                "Activity Resumed",
+                "com.example.chat",
+            ),
             ("2026-03-07 10:00:01", "Activity Paused", "com.example.chat"),
         ]);
-        let expected: Vec<i64> = untouched
-            .iter()
-            .map(|row| row.event_timestamp_ns)
-            .collect();
+        let expected: Vec<i64> = untouched.iter().map(|row| row.event_timestamp_ns).collect();
         let unchanged =
             unalign_duplicate_timestamps(untouched, &same_app_stop_types, &other_stop_types);
         assert_eq!(
@@ -11261,13 +11319,13 @@ mod tests {
             apps_forcing: &[(&str, &str)],
         ) -> Vec<(String, f64, u8, Option<f64>)> {
             let rows = rows_from_events(events);
-            let closes = incremental::walk_screen_state_machine(&rows);
-            let keyguard = incremental::collect_keyguard_timestamps(&rows);
+            let closes = incremental::infer_screen_session_skeletons(&rows);
+            let keyguard = incremental::index_keyguard_events(&rows);
             let forcing: HashMap<String, String> = apps_forcing
                 .iter()
                 .map(|(package, label)| (package.to_string(), label.to_string()))
                 .collect();
-            incremental::build_classified_sessions(
+            incremental::classify_screen_sessions(
                 &rows,
                 &closes,
                 &keyguard,
@@ -11301,7 +11359,11 @@ mod tests {
             classify(
                 &[
                     ("2026-03-07 10:00:00", "Screen Interactive", ""),
-                    ("2026-03-07 10:00:01", "Activity Resumed", "com.example.chat"),
+                    (
+                        "2026-03-07 10:00:01",
+                        "Activity Resumed",
+                        "com.example.chat"
+                    ),
                 ],
                 &[]
             ),
@@ -11373,7 +11435,11 @@ mod tests {
             classify(
                 &[
                     ("2026-03-07 10:00:00", "Screen Interactive", ""),
-                    ("2026-03-07 10:00:01", "Activity Resumed", "com.example.chat"),
+                    (
+                        "2026-03-07 10:00:01",
+                        "Activity Resumed",
+                        "com.example.chat"
+                    ),
                     ("2026-03-07 10:00:11", "Screen Non-Interactive", ""),
                 ],
                 &[]
@@ -11385,7 +11451,11 @@ mod tests {
             classify(
                 &[
                     ("2026-03-07 10:00:00", "Screen Interactive", ""),
-                    ("2026-03-07 10:00:01", "Activity Resumed", "com.example.chat"),
+                    (
+                        "2026-03-07 10:00:01",
+                        "Activity Resumed",
+                        "com.example.chat"
+                    ),
                     ("2026-03-07 10:00:31", "Screen Non-Interactive", ""),
                 ],
                 &[]
@@ -11403,7 +11473,11 @@ mod tests {
                 classify(
                     &[
                         ("2026-03-07 10:00:00", "Screen Interactive", ""),
-                        ("2026-03-07 10:00:01", "Activity Resumed", "com.example.chat"),
+                        (
+                            "2026-03-07 10:00:01",
+                            "Activity Resumed",
+                            "com.example.chat"
+                        ),
                         (stop, "Screen Non-Interactive", ""),
                     ],
                     &[]
@@ -11419,7 +11493,11 @@ mod tests {
             classify(
                 &[
                     ("2026-03-07 10:00:00", "Screen Interactive", ""),
-                    ("2026-03-07 10:00:01", "Activity Resumed", "com.example.chat"),
+                    (
+                        "2026-03-07 10:00:01",
+                        "Activity Resumed",
+                        "com.example.chat"
+                    ),
                     ("2026-03-07 10:02:32", "Screen Non-Interactive", ""),
                 ],
                 &[]
@@ -11434,7 +11512,11 @@ mod tests {
             classify(
                 &[
                     ("2026-03-07 10:00:00", "Screen Interactive", ""),
-                    ("2026-03-07 10:00:01", "Activity Resumed", "com.example.chat"),
+                    (
+                        "2026-03-07 10:00:01",
+                        "Activity Resumed",
+                        "com.example.chat"
+                    ),
                     ("2026-03-07 10:03:20", "Keyguard Shown", ""),
                     ("2026-03-07 10:03:21", "Screen Non-Interactive", ""),
                 ],
@@ -11447,18 +11529,17 @@ mod tests {
             classify(
                 &[
                     ("2026-03-07 10:00:00", "Screen Interactive", ""),
-                    ("2026-03-07 10:00:01", "Activity Resumed", "com.example.chat"),
+                    (
+                        "2026-03-07 10:00:01",
+                        "Activity Resumed",
+                        "com.example.chat"
+                    ),
                     ("2026-03-07 10:03:18", "Keyguard Shown", ""),
                     ("2026-03-07 10:03:21", "Screen Non-Interactive", ""),
                 ],
                 &[]
             ),
-            vec![(
-                "extended_idle_or_unknown".to_string(),
-                0.5,
-                0,
-                Some(200.0)
-            )]
+            vec![("extended_idle_or_unknown".to_string(), 0.5, 0, Some(200.0))]
         );
 
         // The screen went on and off with nothing in between, so there is no
@@ -11482,12 +11563,16 @@ mod tests {
     fn a_classified_screen_session_reports_its_own_span_and_foreground_app() {
         let rows = rows_from_events(&[
             ("2026-03-07 10:00:00", "Screen Interactive", ""),
-            ("2026-03-07 10:00:30", "Activity Resumed", "com.example.chat"),
+            (
+                "2026-03-07 10:00:30",
+                "Activity Resumed",
+                "com.example.chat",
+            ),
             ("2026-03-07 10:00:50", "Screen Non-Interactive", ""),
         ]);
-        let closes = incremental::walk_screen_state_machine(&rows);
-        let keyguard = incremental::collect_keyguard_timestamps(&rows);
-        let sessions = incremental::build_classified_sessions(
+        let closes = incremental::infer_screen_session_skeletons(&rows);
+        let keyguard = incremental::index_keyguard_events(&rows);
+        let sessions = incremental::classify_screen_sessions(
             &rows,
             &closes,
             &keyguard,
@@ -11845,7 +11930,11 @@ mod tests {
                 build(APP_USAGE, present),
             ];
             clear_filtered_usage_timing(&mut rows);
-            assert_eq!(timing(&rows[0]), EMPTY, "filtered timing survived {present:?}");
+            assert_eq!(
+                timing(&rows[0]),
+                EMPTY,
+                "filtered timing survived {present:?}"
+            );
             assert_eq!(
                 timing(&rows[1]),
                 present,
@@ -11906,11 +11995,7 @@ mod tests {
                 "Activity Resumed",
                 "com.example.first",
             ),
-            (
-                "2026-03-08 08:00:00",
-                "Activity Resumed",
-                "com.example.tie",
-            ),
+            ("2026-03-08 08:00:00", "Activity Resumed", "com.example.tie"),
             (
                 "2026-03-08 09:00:00",
                 "Activity Resumed",
@@ -11934,7 +12019,11 @@ mod tests {
             .iter()
             .filter(|row| row.app_package_name.as_str() == "com.placeholder.noactivity")
             .collect::<Vec<_>>();
-        assert_eq!(placeholders.len(), 1, "exactly one silent day needs a placeholder");
+        assert_eq!(
+            placeholders.len(),
+            1,
+            "exactly one silent day needs a placeholder"
+        );
         let placeholder = placeholders[0];
         assert_eq!(placeholder.date.as_str(), "2026-03-08");
         assert_eq!(placeholder.application_label.as_str(), "No Activity");
@@ -11989,7 +12078,7 @@ mod tests {
                 data.genre_id_scraped = genre.map(SharedString::from);
                 data.codebook_genre_fields_cleared = cleared;
             }
-            collapse_genre_row(&mut row, indices);
+            collapse_app_genre_row(&mut row, indices);
             (
                 row.genre_id_scraped
                     .as_ref()
@@ -12001,8 +12090,20 @@ mod tests {
         #[allow(clippy::type_complexity)]
         let cases: &[([Option<&str>; 4], Option<&str>, bool, Option<&str>, bool)] = &[
             // (columns, genre before, cleared before, genre after, cleared after)
-            ([None, None, None, None], None, false, Some("Unknown"), false),
-            ([Some(" "), None, Some(""), None], None, false, Some("Unknown"), false),
+            (
+                [None, None, None, None],
+                None,
+                false,
+                Some("Unknown"),
+                false,
+            ),
+            (
+                [Some(" "), None, Some(""), None],
+                None,
+                false,
+                Some("Unknown"),
+                false,
+            ),
             (
                 [None, Some("Social"), None, None],
                 None,
@@ -12264,10 +12365,13 @@ mod tests {
             start_date: "2026-03-09".to_string(),
             end_date: "2026-03-10".to_string(),
         }];
-        assert!(incremental::build_coverage(&rows, &raw_dates, &other_window)
-            .is_ok_and(|coverage| String::from_utf8(coverage.csv_bytes)
-                .expect("coverage csv is UTF-8")
-                .contains("P01,2026-03-07,usage")));
+        assert!(
+            incremental::build_coverage(&rows, &raw_dates, &other_window).is_ok_and(|coverage| {
+                String::from_utf8(coverage.csv_bytes)
+                    .expect("coverage csv is UTF-8")
+                    .contains("P01,2026-03-07,usage")
+            })
+        );
     }
 
     /// Compliance scoring splits each participant-day's minutes into time a
@@ -12310,17 +12414,15 @@ mod tests {
         assert_eq!(
             minutes.buckets,
             BTreeMap::from([
-                (
-                    ("P01".to_string(), "2026-03-07".to_string()),
-                    (40.0, 20.0)
-                ),
+                (("P01".to_string(), "2026-03-07".to_string()), (40.0, 20.0)),
                 (("P02".to_string(), "2026-03-07".to_string()), (0.0, 12.0)),
             ]),
             "a named user's minutes are known; empty, None and nan are not",
         );
 
         let shared = BTreeSet::from(["P01".to_string()]);
-        let scored = incremental::score_attribution_days(&minutes, &shared, 70.0);
+        let completeness = incremental::compute_attribution_completeness(&minutes, &shared);
+        let scored = incremental::apply_compliance_threshold(&completeness, 70.0);
         #[allow(clippy::type_complexity)]
         let observed: Vec<(&str, &str, &str, f64, f64, f64, bool, bool)> = scored
             .days
@@ -12379,9 +12481,9 @@ mod tests {
         );
 
         // The threshold is inclusive at its edge.
-        let at_threshold = incremental::score_attribution_days(&minutes, &shared, 66.67);
+        let at_threshold = incremental::apply_compliance_threshold(&completeness, 66.67);
         assert!(at_threshold.days[0].is_valid);
-        let above_threshold = incremental::score_attribution_days(&minutes, &shared, 66.68);
+        let above_threshold = incremental::apply_compliance_threshold(&completeness, 66.68);
         assert!(!above_threshold.days[0].is_valid);
     }
 
@@ -12498,7 +12600,10 @@ mod tests {
                 .iter()
                 .map(|entry| (
                     entry.participant_id.as_str(),
-                    entry.window.as_ref().map(|window| window.start_date.as_str())
+                    entry
+                        .window
+                        .as_ref()
+                        .map(|window| window.start_date.as_str())
                 ))
                 .collect::<Vec<_>>(),
             vec![("P01", Some("2026-03-06")), ("P02", None)]
@@ -12585,9 +12690,19 @@ mod tests {
                 Some(500 * SECOND),
             ),
             // A start with no stop is not an episode at all.
-            ("Activity Resumed", "com.example.chat", Some(600 * SECOND), None),
+            (
+                "Activity Resumed",
+                "com.example.chat",
+                Some(600 * SECOND),
+                None,
+            ),
             // A stop with no start likewise.
-            ("Activity Resumed", "com.example.chat", None, Some(700 * SECOND)),
+            (
+                "Activity Resumed",
+                "com.example.chat",
+                None,
+                Some(700 * SECOND),
+            ),
             // Spent stop events do not survive the pass.
             ("Activity Paused", "com.example.chat", None, None),
         ]);
@@ -12605,13 +12720,17 @@ mod tests {
         };
 
         assert_eq!(
-            observed(incremental::relabel_usage_with_floor(
+            observed(incremental::classify_episode_durations(
                 rows.clone(),
                 &filtered,
                 60.0
             )),
             vec![
-                (APP_USAGE.to_string(), "com.example.chat".to_string(), Some(60.0)),
+                (
+                    APP_USAGE.to_string(),
+                    "com.example.chat".to_string(),
+                    Some(60.0)
+                ),
                 (APP_USAGE.to_string(), "com.example.chat".to_string(), None),
                 (
                     FILTERED_APP_USAGE.to_string(),
@@ -12623,10 +12742,20 @@ mod tests {
 
         // With no floor at all every paired session keeps its duration.
         assert_eq!(
-            observed(incremental::relabel_usage_with_floor(rows, &filtered, 0.0)),
+            observed(incremental::classify_episode_durations(
+                rows, &filtered, 0.0
+            )),
             vec![
-                (APP_USAGE.to_string(), "com.example.chat".to_string(), Some(60.0)),
-                (APP_USAGE.to_string(), "com.example.chat".to_string(), Some(59.0)),
+                (
+                    APP_USAGE.to_string(),
+                    "com.example.chat".to_string(),
+                    Some(60.0)
+                ),
+                (
+                    APP_USAGE.to_string(),
+                    "com.example.chat".to_string(),
+                    Some(59.0)
+                ),
                 (
                     FILTERED_APP_USAGE.to_string(),
                     "com.example.secret".to_string(),
@@ -12674,7 +12803,7 @@ mod tests {
         // Neither reason present: the rows are only sorted.
         assert_eq!(
             layers(
-                incremental::split_concurrent(
+                incremental::segment_concurrent_usage(
                     rows.clone(),
                     &filtered,
                     &no_background,
@@ -12692,8 +12821,15 @@ mod tests {
 
         // The option alone is enough, with no background apps declared.
         let by_option = layers(
-            incremental::split_concurrent(rows.clone(), &filtered, &no_background, true, 0.0, false)
-                .expect("split by option"),
+            incremental::segment_concurrent_usage(
+                rows.clone(),
+                &filtered,
+                &no_background,
+                true,
+                0.0,
+                false,
+            )
+            .expect("split by option"),
         );
         assert_eq!(
             by_option,
@@ -12721,7 +12857,7 @@ mod tests {
         // A declared background app alone is enough, with the option off.
         assert_eq!(
             layers(
-                incremental::split_concurrent(
+                incremental::segment_concurrent_usage(
                     rows.clone(),
                     &filtered,
                     &background,
@@ -12737,7 +12873,7 @@ mod tests {
         // The floor reaches the sub-intervals only when it is asked to.
         assert_eq!(
             layers(
-                incremental::split_concurrent(
+                incremental::segment_concurrent_usage(
                     rows.clone(),
                     &filtered,
                     &no_background,
@@ -12755,8 +12891,15 @@ mod tests {
         );
         assert_eq!(
             layers(
-                incremental::split_concurrent(rows, &filtered, &no_background, true, 51.0, true)
-                    .expect("split with a sub-interval floor")
+                incremental::segment_concurrent_usage(
+                    rows,
+                    &filtered,
+                    &no_background,
+                    true,
+                    51.0,
+                    true
+                )
+                .expect("split with a sub-interval floor")
             )
             .iter()
             .map(|(_, _, duration)| *duration)
@@ -12803,7 +12946,12 @@ mod tests {
         );
         // A lock at or past the auto-lock closes the interval.
         assert_eq!(
-            creditable_intervals(&[credit_point(0, On), credit_point(50, Off)], 0, 100, bridge),
+            creditable_intervals(
+                &[credit_point(0, On), credit_point(50, Off)],
+                0,
+                100,
+                bridge
+            ),
             vec![(0, 50)]
         );
         assert_eq!(
@@ -12857,13 +13005,23 @@ mod tests {
             vec![(0, 40)]
         );
         assert_eq!(
-            creditable_intervals(&[credit_point(0, On), credit_point(50, Off)], 20, 40, bridge),
+            creditable_intervals(
+                &[credit_point(0, On), credit_point(50, Off)],
+                20,
+                40,
+                bridge
+            ),
             vec![(20, 40)]
         );
         // A trailing blip shorter than the auto-lock keeps the interval open to
         // the end of the session rather than truncating at the blip.
         assert_eq!(
-            creditable_intervals(&[credit_point(0, On), credit_point(95, Off)], 0, 100, bridge),
+            creditable_intervals(
+                &[credit_point(0, On), credit_point(95, Off)],
+                0,
+                100,
+                bridge
+            ),
             vec![(0, 100)]
         );
         // A zero-length window credits nothing whatever the screen was doing.
@@ -12977,11 +13135,11 @@ mod tests {
     /// the credit layer untouched.
     #[test]
     fn credit_candidates_are_exactly_positive_duration_app_usage_rows() {
-        let raw = incremental::csv_parse(
+        let raw = incremental::decode_source_records(
             b"study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n\
               Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago\n",
         );
-        let mut row = incremental::build_canonical_rows(
+        let mut row = incremental::canonicalize_source_rows(
             &raw,
             "America/Chicago",
             &BTreeMap::new(),
@@ -13103,13 +13261,10 @@ mod tests {
     /// actually decides.
     #[test]
     fn the_keyguard_near_stop_search_measures_every_event_it_narrows_to() {
-        fn reasons(
-            rows: &[Row],
-            keyguard_near_stop_seconds: f64,
-        ) -> Vec<String> {
-            let closes = incremental::walk_screen_state_machine(rows);
-            let keyguard = incremental::collect_keyguard_timestamps(rows);
-            incremental::build_classified_sessions(
+        fn reasons(rows: &[Row], keyguard_near_stop_seconds: f64) -> Vec<String> {
+            let closes = incremental::infer_screen_session_skeletons(rows);
+            let keyguard = incremental::index_keyguard_events(rows);
+            incremental::classify_screen_sessions(
                 rows,
                 &closes,
                 &keyguard,
@@ -13137,7 +13292,11 @@ mod tests {
         let before = |offset_ns: i64, near_stop_seconds: f64| {
             let mut rows = rows_from_events(&[
                 ("2026-03-07 10:00:00", "Screen Interactive", ""),
-                ("2026-03-07 10:00:01", "Activity Resumed", "com.example.chat"),
+                (
+                    "2026-03-07 10:00:01",
+                    "Activity Resumed",
+                    "com.example.chat",
+                ),
                 ("2026-03-07 10:03:20", "Keyguard Shown", ""),
                 ("2026-03-07 10:03:21", "Screen Non-Interactive", ""),
             ]);
@@ -13193,7 +13352,11 @@ mod tests {
         let woke_back_up = rows_from_events(&[
             ("2026-03-07 10:00:00", "Screen Interactive", ""),
             ("2026-03-07 10:00:01", "Keyguard Shown", ""),
-            ("2026-03-07 10:00:02", "Activity Resumed", "com.example.chat"),
+            (
+                "2026-03-07 10:00:02",
+                "Activity Resumed",
+                "com.example.chat",
+            ),
             ("2026-03-07 10:03:21", "Screen Non-Interactive", ""),
             ("2026-03-07 10:03:23", "Screen Interactive", ""),
             ("2026-03-07 10:03:23", "Keyguard Shown", ""),
@@ -13208,59 +13371,61 @@ mod tests {
         );
     }
 
-    fn empty_step_recorder<'a>(
+    fn empty_query_recorder<'a>(
         digests: &'a mut BTreeMap<String, String>,
-        checkpoints: &'a mut BTreeMap<String, LogicalStageCheckpoint>,
-    ) -> StepCheckpointRecorder<'a> {
-        StepCheckpointRecorder {
+        checkpoints: &'a mut BTreeMap<String, WorkflowCheckpoint>,
+    ) -> QueryCheckpointRecorder<'a> {
+        QueryCheckpointRecorder {
             digests,
             checkpoints,
-            next_step_index: 0,
+            remaining_queries: crate::workflow_contract::WORKFLOW_QUERIES.iter(),
             error: None,
             last_row_parts: None,
             last_row_checkpoint: None,
         }
     }
 
-    /// The step checkpoints are the pipeline's claim about what it executed, so
-    /// they are bound to the declared step sequence: each one has to be the next
-    /// step the contract names, a step may not be recorded twice, and a run that
+    /// Query checkpoints are the pipeline's claim about what it executed, so
+    /// they are bound to the declared query sequence: each one has to be the next
+    /// query the contract names, a query may not be recorded twice, and a run that
     /// stops early is reported rather than passed off as a complete set.
     #[test]
-    fn the_step_recorder_binds_every_checkpoint_to_the_declared_step_sequence() {
-        let record = |steps: &[&str]| {
+    fn the_query_recorder_binds_every_checkpoint_to_the_declared_query_sequence() {
+        let record = |queries: &[&str]| {
             let mut digests = BTreeMap::new();
             let mut checkpoints = BTreeMap::new();
-            let mut recorder = empty_step_recorder(&mut digests, &mut checkpoints);
-            for step in steps {
-                recorder.state(step, "state");
+            let mut recorder = empty_query_recorder(&mut digests, &mut checkpoints);
+            for query in queries {
+                recorder.state(query, "state");
             }
             recorder.finish()
         };
 
-        let declared = crate::step_contract::PIPELINE_STEPS
+        let declared = crate::workflow_contract::WORKFLOW_QUERIES
             .iter()
-            .map(|step| step.id)
+            .map(|query| query.id)
             .collect::<Vec<_>>();
         let total = declared.len();
 
         assert_eq!(record(&declared), Ok(()));
         assert_eq!(
             record(&[]),
-            Err(format!(
-                "pipeline step checkpoint sequence stopped at 0 of {total} steps"
-            )),
+            Err(
+                "workflow query checkpoint sequence stopped before \"validate_remap_rules\""
+                    .to_string()
+            ),
         );
         assert_eq!(
             record(&declared[..1]),
             Err(format!(
-                "pipeline step checkpoint sequence stopped at 1 of {total} steps"
+                "workflow query checkpoint sequence stopped before {:?}",
+                declared[1]
             )),
         );
         assert_eq!(
             record(&[declared[1], declared[0]]),
             Err(format!(
-                "pipeline step checkpoint order mismatch at 0: expected {:?}, recorded {:?}",
+                "workflow query checkpoint order mismatch: expected {:?}, recorded {:?}",
                 declared[0], declared[1],
             )),
         );
@@ -13269,36 +13434,39 @@ mod tests {
         assert_eq!(
             record(&repeated),
             Err(format!(
-                "unexpected extra pipeline step checkpoint {:?}",
+                "unexpected extra workflow query checkpoint {:?}",
                 declared[total - 1],
             )),
         );
     }
 
-    /// A step hands the next one the row components it just computed so the
+    /// A query hands the next one the row components it just computed so the
     /// next checkpoint can reuse them instead of hashing the same table again.
     /// That offer is only good for the exact table it recorded: a different row
     /// count is a different table, and once the components are taken the offer
     /// is withdrawn.
     #[test]
-    fn the_step_recorder_only_offers_row_components_for_the_table_it_recorded() {
+    fn the_query_recorder_only_offers_row_components_for_the_table_it_recorded() {
         let rows = app_csv_rows();
         assert!(rows.len() > 1, "the fixture has a table to shorten");
-        let first_step = crate::step_contract::PIPELINE_STEPS[0].id;
+        let first_query = crate::workflow_contract::WORKFLOW_QUERIES
+            .first()
+            .expect("workflow registry is non-empty")
+            .id;
 
         let mut digests = BTreeMap::new();
         let mut checkpoints = BTreeMap::new();
-        let mut recorder = empty_step_recorder(&mut digests, &mut checkpoints);
+        let mut recorder = empty_query_recorder(&mut digests, &mut checkpoints);
         assert!(recorder.last_row_parts().is_none());
         assert!(recorder.reusable_row_components(&rows).is_none());
 
-        recorder.rows(first_step, &rows);
+        recorder.rows(first_query, &rows);
         assert_eq!(recorder.last_row_parts().map(<[_]>::len), Some(rows.len()));
         let (parts, checkpoint) = recorder
             .reusable_row_components(&rows)
             .expect("the table that was just recorded");
         assert_eq!(parts.len(), rows.len());
-        assert_eq!(checkpoint.node_id, first_step);
+        assert_eq!(checkpoint.subject_id, first_query);
         assert!(
             recorder
                 .reusable_row_components(&rows[..rows.len() - 1])
@@ -13325,7 +13493,7 @@ mod tests {
         let rows = app_csv_rows();
         let parts = row_checkpoint_parts_for_rows(&rows);
         let reversed = (0..rows.len()).rev().collect::<Vec<_>>();
-        logical_stage_checkpoint_with_group_parts(
+        workflow_checkpoint_with_group_parts(
             "test_stage",
             &[("rows", &rows)],
             &[],
@@ -13551,8 +13719,7 @@ mod output_contract {
         options.add_no_activity_placeholder_days = false;
         let options = options;
         let none: &[u8] = b"";
-        let usage_layer_active =
-            options.model_concurrent_usage || options.use_background_apps_file;
+        let usage_layer_active = options.model_concurrent_usage || options.use_background_apps_file;
 
         let header_of = |bytes: &[u8]| -> Vec<String> {
             String::from_utf8(bytes.to_vec())
@@ -13620,9 +13787,14 @@ mod output_contract {
             ("apps_forcing_csv", none, APPS_FORCING_CSV, none),
             ("codebook_csv", none, none, CODEBOOK_CSV),
         ] {
-            let supplied =
-                run_pipeline_v2(FIXTURE_CSV.as_bytes(), &options, filter, apps_forcing, codebook)
-                    .expect("the fixture preprocesses with one support file");
+            let supplied = run_pipeline_v2(
+                FIXTURE_CSV.as_bytes(),
+                &options,
+                filter,
+                apps_forcing,
+                codebook,
+            )
+            .expect("the fixture preprocesses with one support file");
             assert_ne!(
                 (
                     supplied.app_csv_bytes.to_vec(),
@@ -13636,9 +13808,15 @@ mod output_contract {
             );
         }
 
-        let wide_baseline =
-            run_pipeline_v2_with_background(FIXTURE_CSV.as_bytes(), &options, none, none, none, none)
-                .expect("the fixture preprocesses with no support files");
+        let wide_baseline = run_pipeline_v2_with_background(
+            FIXTURE_CSV.as_bytes(),
+            &options,
+            none,
+            none,
+            none,
+            none,
+        )
+        .expect("the fixture preprocesses with no support files");
         assert_eq!(
             wide_baseline.app_csv_bytes, baseline.app_csv_bytes,
             "the two narrow runners disagree with no support files supplied"
@@ -13743,9 +13921,7 @@ mod output_contract {
             ),
             (
                 "include_category_column",
-                Box::new(|options: &mut PipelineV2Options| {
-                    options.include_category_column = false
-                }),
+                Box::new(|options: &mut PipelineV2Options| options.include_category_column = false),
             ),
             (
                 "enable_person_attribution",
@@ -13783,15 +13959,11 @@ mod output_contract {
             ),
             (
                 "model_concurrent_usage",
-                Box::new(|options: &mut PipelineV2Options| {
-                    options.model_concurrent_usage = false
-                }),
+                Box::new(|options: &mut PipelineV2Options| options.model_concurrent_usage = false),
             ),
             (
                 "minimum_usage_duration",
-                Box::new(|options: &mut PipelineV2Options| {
-                    options.minimum_usage_duration = 240.0
-                }),
+                Box::new(|options: &mut PipelineV2Options| options.minimum_usage_duration = 240.0),
             ),
             (
                 "long_data_time_gap_thresholds",
@@ -13886,24 +14058,24 @@ mod output_contract {
     }
 
     #[test]
-    fn step_digests_and_row_lineage_are_exact() {
+    fn query_digests_and_row_lineage_are_exact() {
         let result = run_contract_fixture();
         assert_golden(
-            "pipeline_step_digests.json",
-            serde_json::to_string_pretty(&result.pipeline_step_digests)
+            "workflow_query_digests.json",
+            serde_json::to_string_pretty(&result.workflow_query_digests)
                 .expect("step digests serialize")
                 .as_bytes(),
         );
         assert_golden(
-            "pipeline_step_checkpoints.json",
-            serde_json::to_string_pretty(&result.pipeline_step_checkpoints)
-                .expect("step checkpoints serialize")
+            "workflow_query_checkpoints.json",
+            serde_json::to_string_pretty(&result.workflow_query_checkpoints)
+                .expect("query checkpoints serialize")
                 .as_bytes(),
         );
         assert_golden(
-            "logical_stage_checkpoints.json",
-            serde_json::to_string_pretty(&result.logical_stage_checkpoints)
-                .expect("logical stage checkpoints serialize")
+            "workflow_query_group_checkpoints.json",
+            serde_json::to_string_pretty(&result.workflow_query_group_checkpoints)
+                .expect("workflow query-group checkpoints serialize")
                 .as_bytes(),
         );
         assert_golden(
@@ -13937,7 +14109,7 @@ mod output_contract {
                 "rowsRemovedByTimezone": result.rows_removed_by_timezone,
                 "timezoneRetainedSourceRowsDigest": result.timezone_retained_source_rows_digest,
                 "timezoneStageDigest": result.timezone_stage_digest,
-                "logicalStageDigests": result.logical_stage_digests,
+                "workflowQueryGroupDigests": result.workflow_query_group_digests,
             }))
             .expect("counts serialize")
             .as_bytes(),

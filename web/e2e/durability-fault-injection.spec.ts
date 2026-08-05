@@ -28,8 +28,8 @@ import {
  * "simplify" it into a single run.
  */
 
-const WORKSPACES_DIRECTORY = "chronicle-preprocessing-workspaces-v1";
-const STORE_DIRECTORY = "chronicle-preprocessing-runtime-v1";
+const WORKSPACES_DIRECTORY = "chronicle-workflow-workspaces-v1";
+const STORE_DIRECTORY = "chronicle-workflow-runtime-v1";
 const UNRECOVERABLE = /no valid artifact closure can be recovered/;
 
 type StoreEntry = { path: string[]; size: number };
@@ -296,7 +296,7 @@ test("@durability @opfs a workspace whose objects are damaged refuses to be writ
   // workspace-recovery.spec.ts covers.
   await page.getByTestId("import-workspace-file").setInputFiles({
     name: "Raw P01.chronicle-workspace",
-    mimeType: "application/vnd.chronicle.workspace",
+    mimeType: "application/vnd.chronicle.workflow-workspace",
     buffer: Buffer.from(archive),
   });
   await expect(page.getByTestId("workspace-backup-status")).toContainText(

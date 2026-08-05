@@ -110,6 +110,48 @@ describe("persisted options round-trip (window stubbed)", () => {
     expect(readPersistedOptions().minimumUsageDuration).toBe(77);
   });
 
+  it("migrates a v1 settings envelope through the live option sanitizer", () => {
+    const { storage, store } = fakeLocalStorage();
+    vi.stubGlobal("window", { localStorage: storage });
+    store.set(
+      "chronicle.processingOptions.v1",
+      JSON.stringify({
+        schemaVersion: 1,
+        savedAt: "2025-01-01T00:00:00.000Z",
+        options: { minimumUsageDuration: 61, unknownOption: true },
+      }),
+    );
+
+    expect(readPersistedOptions().minimumUsageDuration).toBe(61);
+    const migrated = JSON.parse(
+      store.get("chronicle.processingOptions.v1") ?? "null",
+    ) as unknown;
+    expect(migrated).toMatchObject({
+      schemaVersion: 2,
+      options: { minimumUsageDuration: 61 },
+    });
+    expect(JSON.stringify(migrated)).not.toContain("unknownOption");
+  });
+
+  it("keeps readable v1 settings when the best-effort rewrite fails", () => {
+    const raw = JSON.stringify({
+      schemaVersion: 1,
+      savedAt: "2025-01-01T00:00:00.000Z",
+      options: { minimumUsageDuration: 62, unknownOption: true },
+    });
+    const setItem = vi.fn(() => {
+      throw new Error("read-only storage");
+    });
+    const storage = {
+      getItem: vi.fn(() => raw),
+      setItem,
+    } as unknown as Storage;
+    vi.stubGlobal("window", { localStorage: storage });
+
+    expect(readPersistedOptions().minimumUsageDuration).toBe(62);
+    expect(setItem).toHaveBeenCalledOnce();
+  });
+
   it("falls back to defaults on corrupt JSON and on storage throws", () => {
     const { storage, store } = fakeLocalStorage();
     vi.stubGlobal("window", { localStorage: storage });

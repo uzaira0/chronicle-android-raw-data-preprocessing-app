@@ -38,20 +38,20 @@ if ! command -v cargo >/dev/null 2>&1; then
 fi
 
 # Backups FIRST — the restore trap must never run before its sources exist.
-cp "$WEB/schema/chronicle-pipeline-graph.yaml" "$BACKUP_DIR/"
+cp "$WEB/schema/chronicle-workflow.yaml" "$BACKUP_DIR/"
 cp "$WEB/schema/chronicle-output-columns.yaml" "$BACKUP_DIR/"
 cp "$WEB/src/lib/generatedContract.ts" "$BACKUP_DIR/"
 cp "$WEB/schema/contract-baseline.json" "$BACKUP_DIR/"
-cp "$REPO_ROOT/rust/chronicle_chrono_kernel_wasm/src/step_contract.rs" "$BACKUP_DIR/"
+cp "$REPO_ROOT/rust/chronicle_chrono_kernel_wasm/src/workflow_contract.rs" "$BACKUP_DIR/"
 cp "$WEB/src/lib/generatedRuntimeBoundary.ts" "$BACKUP_DIR/"
 cp "$REPO_ROOT/rust/chronicle_preprocessing_runtime_wasm/src/lib.rs" "$BACKUP_DIR/runtime_lib.rs"
 
 restore() {
-  cp "$BACKUP_DIR/chronicle-pipeline-graph.yaml" "$WEB/schema/chronicle-pipeline-graph.yaml"
+  cp "$BACKUP_DIR/chronicle-workflow.yaml" "$WEB/schema/chronicle-workflow.yaml"
   cp "$BACKUP_DIR/chronicle-output-columns.yaml" "$WEB/schema/chronicle-output-columns.yaml"
   cp "$BACKUP_DIR/generatedContract.ts" "$WEB/src/lib/generatedContract.ts"
   cp "$BACKUP_DIR/contract-baseline.json" "$WEB/schema/contract-baseline.json"
-  cp "$BACKUP_DIR/step_contract.rs" "$REPO_ROOT/rust/chronicle_chrono_kernel_wasm/src/step_contract.rs"
+  cp "$BACKUP_DIR/workflow_contract.rs" "$REPO_ROOT/rust/chronicle_chrono_kernel_wasm/src/workflow_contract.rs"
   cp "$BACKUP_DIR/generatedRuntimeBoundary.ts" "$WEB/src/lib/generatedRuntimeBoundary.ts"
   cp "$BACKUP_DIR/runtime_lib.rs" "$REPO_ROOT/rust/chronicle_preprocessing_runtime_wasm/src/lib.rs"
   rm -rf "$BACKUP_DIR"
@@ -109,16 +109,16 @@ seed() {
 
 echo "── gate-truth: every gate must pass on the clean tree first"
 expect_clean_pass "pipeline-graph drift gate (clean)" \
-  "$VITE_NODE" scripts/generate_pipeline_graph_artifacts.mts --check
+  "$VITE_NODE" scripts/generate_workflow_artifacts.mts --check
 expect_clean_pass "output-codebook bijection gate (clean)" \
   "$VITE_NODE" scripts/generate_output_codebook_artifacts.mts --check
 expect_clean_pass "contract artifact drift gate (clean)" \
   "$VITE_NODE" scripts/generate_contract_artifacts.mts --check
-expect_clean_pass "Rust step-dataflow gate (clean)" \
+expect_clean_pass "Rust query-dataflow gate (clean)" \
   cargo test --quiet --locked \
     --manifest-path "$REPO_ROOT/rust/chronicle_chrono_kernel_wasm/Cargo.toml" \
     --features incremental-v2 \
-    step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls
+    workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls
 expect_clean_pass "contract-compat gate (clean)" \
   "$VITE_NODE" scripts/check_contract_compat.mts
 expect_clean_pass "TypeScript authority boundary (clean)" \
@@ -129,11 +129,11 @@ expect_clean_pass "runtime boundary drift gate (clean)" \
 echo "── gate-truth: seeded defects must trip every drift gate"
 
 # 1. Pipeline-graph projection drift.
-seed "$WEB/schema/chronicle-pipeline-graph.yaml" \
+seed "$WEB/schema/chronicle-workflow.yaml" \
   's/node_label: Event parsing/node_label: SEEDED DEFECT/' 'SEEDED DEFECT'
 expect_gate_fires "pipeline-graph drift gate" \
-  "$VITE_NODE" scripts/generate_pipeline_graph_artifacts.mts --check
-cp "$BACKUP_DIR/chronicle-pipeline-graph.yaml" "$WEB/schema/chronicle-pipeline-graph.yaml"
+  "$VITE_NODE" scripts/generate_workflow_artifacts.mts --check
+cp "$BACKUP_DIR/chronicle-workflow.yaml" "$WEB/schema/chronicle-workflow.yaml"
 
 # 2. Output-column catalog bijection (both directions).
 printf '  - column_name: seeded_defect_column\n    column_outputs: [app]\n    value_type: string\n    column_description: seeded.\n' \
@@ -160,23 +160,22 @@ cp "$BACKUP_DIR/generatedContract.ts" "$WEB/src/lib/generatedContract.ts"
 
 # 4. Rust graph/dataflow gate: declare a dependency that the tracked Salsa
 #    query does not actually read. The source-level query-call audit must fire.
-seed "$REPO_ROOT/rust/chronicle_chrono_kernel_wasm/src/step_contract.rs" \
-  '/id: "csv_parse"/,/inputs: &\[\],/s/inputs: &\[\],/inputs: \&["parse_remap_config"],/' \
-  'inputs: &["parse_remap_config"]'
-expect_gate_fires "Rust step-dataflow gate (declared edge not read)" \
+seed "$REPO_ROOT/rust/chronicle_chrono_kernel_wasm/src/workflow_contract.rs" \
+  '/id: "decode_source_records"/,/inputs: &\[\],/s/inputs: &\[\],/inputs: \&["validate_remap_rules"],/' \
+  'inputs: &["validate_remap_rules"]'
+expect_gate_fires "Rust query-dataflow gate (declared edge not read)" \
   cargo test --quiet --locked \
     --manifest-path "$REPO_ROOT/rust/chronicle_chrono_kernel_wasm/Cargo.toml" \
     --features incremental-v2 \
-    step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls
-cp "$BACKUP_DIR/step_contract.rs" "$REPO_ROOT/rust/chronicle_chrono_kernel_wasm/src/step_contract.rs"
+    workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls
+cp "$BACKUP_DIR/workflow_contract.rs" "$REPO_ROOT/rust/chronicle_chrono_kernel_wasm/src/workflow_contract.rs"
 
-# 5. Step-scale pipeline-graph projection drift (the node-scale label is case 1;
-#    this seeds a Rust-derived STEP edge, which is a separate emission path).
-seed "$WEB/schema/chronicle-pipeline-graph.yaml" \
-  '/step_id: drop_empty_timestamp/,/has_bypass:/s/- csv_parse/- SEEDED_DEFECT/' 'SEEDED_DEFECT'
-expect_gate_fires "pipeline-graph drift gate (step projection)" \
-  "$VITE_NODE" scripts/generate_pipeline_graph_artifacts.mts --check
-cp "$BACKUP_DIR/chronicle-pipeline-graph.yaml" "$WEB/schema/chronicle-pipeline-graph.yaml"
+# 5. Workflow-query projection drift.
+seed "$WEB/schema/chronicle-workflow.yaml" \
+  '/- id: remove_missing_timestamps/,/definitionDigest:/s/- decode_source_records/- SEEDED_DEFECT/' 'SEEDED_DEFECT'
+expect_gate_fires "workflow drift gate (query projection)" \
+  "$VITE_NODE" scripts/generate_workflow_artifacts.mts --check
+cp "$BACKUP_DIR/chronicle-workflow.yaml" "$WEB/schema/chronicle-workflow.yaml"
 
 # 6. Contract-compat breaking gate: a baseline option the live contract lacks
 #    reads as a REMOVED researcher-facing option — must fail without a bump.

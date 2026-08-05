@@ -42,7 +42,7 @@ pub fn evaluate_dependency_cache_decision(
         reasons.push("dependency_binding_surface_mismatch".into());
     }
     let plan_options = plan
-        .nodes
+        .query_groups
         .iter()
         .flat_map(|node| node.knobs.iter().map(|knob| knob.option_key.as_str()))
         .collect::<BTreeSet<_>>();
@@ -126,21 +126,21 @@ fn dependency_binding_surface_digest(plan: &ChroniclePlan) -> Result<String, Run
     let mut role_bindings: BTreeMap<&str, Vec<Value>> = BTreeMap::from([
         (
             "processing_options",
-            vec![serde_json::json!({"kind": "configuration-source", "node_id": "*"})],
+            vec![serde_json::json!({"kind": "configuration-source", "query_group_id": "*"})],
         ),
         (
             "raw_chronicle_csv",
-            vec![serde_json::json!({"kind": "raw-input", "node_id": "parse_events"})],
+            vec![serde_json::json!({"kind": "raw-input", "query_group_id": "parse_events"})],
         ),
     ]);
-    for node in &plan.nodes {
+    for node in &plan.query_groups {
         for knob in &node.knobs {
             option_bindings
                 .entry(&knob.option_key)
                 .or_default()
                 .push(serde_json::json!({
                     "edge": knob.edge,
-                    "node_id": node.node_id,
+                    "query_group_id": node.query_group_id,
                 }));
         }
         for role in &node.support_roles {
@@ -149,14 +149,17 @@ fn dependency_binding_surface_digest(plan: &ChroniclePlan) -> Result<String, Run
                 .or_default()
                 .push(serde_json::json!({
                     "kind": "support-input",
-                    "node_id": node.node_id,
+                    "query_group_id": node.query_group_id,
                 }));
         }
     }
     for bindings in option_bindings.values_mut() {
         bindings.sort_by_key(|binding| {
             (
-                binding["node_id"].as_str().unwrap_or_default().to_string(),
+                binding["query_group_id"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_string(),
                 binding["edge"].as_str().unwrap_or_default().to_string(),
             )
         });
@@ -164,7 +167,10 @@ fn dependency_binding_surface_digest(plan: &ChroniclePlan) -> Result<String, Run
     for bindings in role_bindings.values_mut() {
         bindings.sort_by_key(|binding| {
             (
-                binding["node_id"].as_str().unwrap_or_default().to_string(),
+                binding["query_group_id"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_string(),
                 binding["kind"].as_str().unwrap_or_default().to_string(),
             )
         });
@@ -280,7 +286,13 @@ mod tests {
             .any(|reason| reason == "dependency_option_unknown"));
 
         let mut missing = complete_options(certificate);
-        let removed = certificate.structural_contract.cache_relevant_option_keys[0].clone();
+        let removed = certificate
+            .structural_contract
+            .cache_relevant_option_keys
+            .iter()
+            .find(|key| key.as_str() == "process_app_usage")
+            .expect("dependency certificate must classify process_app_usage")
+            .clone();
         missing.as_object_mut().unwrap().remove(&removed);
         let decision = evaluate_dependency_cache_decision(
             plan,
@@ -316,7 +328,13 @@ mod tests {
             qualifiers: BTreeMap::new(),
             revision: 1,
         };
-        let known_role = certificate.structural_contract.role_ids[0].clone();
+        let known_role = certificate
+            .structural_contract
+            .role_ids
+            .iter()
+            .find(|role| role.as_str() == "raw_chronicle_csv")
+            .expect("dependency certificate must declare raw_chronicle_csv")
+            .clone();
         let known_assignments = BTreeMap::from([(known_role.clone(), assignment(&known_role))]);
         let known = evaluate_dependency_cache_decision(
             plan,

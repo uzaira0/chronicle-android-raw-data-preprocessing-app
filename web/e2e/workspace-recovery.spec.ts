@@ -63,7 +63,7 @@ test("@smoke @opfs verified workspace closure survives reload, imports into a fr
     await restoredPage.getByRole("tab", { name: /Process/i }).click();
     await restoredPage.getByTestId("import-workspace-file").setInputFiles({
       name: "Raw P01.chronicle-workspace",
-      mimeType: "application/vnd.chronicle.workspace",
+      mimeType: "application/vnd.chronicle.workflow-workspace",
       buffer: Buffer.from(reloadedArchive),
     });
     // Importing this closure means rewriting every object of a ~4.5 MB
@@ -80,7 +80,7 @@ test("@smoke @opfs verified workspace closure survives reload, imports into a fr
     corrupt[corrupt.byteLength - 1] = (corrupt[corrupt.byteLength - 1] ?? 0) ^ 0xff;
     await restoredPage.getByTestId("import-workspace-file").setInputFiles({
       name: "corrupt.chronicle-workspace",
-      mimeType: "application/vnd.chronicle.workspace",
+      mimeType: "application/vnd.chronicle.workflow-workspace",
       buffer: Buffer.from(corrupt),
     });
     await expect(restoredPage.getByTestId("workspace-backup-status")).toContainText(

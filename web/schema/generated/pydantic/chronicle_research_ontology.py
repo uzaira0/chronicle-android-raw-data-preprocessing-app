@@ -75,8 +75,7 @@ linkml_meta = LinkMLMeta({'comments': ['Screen-use measurement framework alignme
      'default_range': 'string',
      'description': 'Core entity model for the Android UsageStatsManager event-log '
                     '-> usage-measurement research ontology. Implements the D4 '
-                    'five-way split from '
-                    'docs/pipeline-graph/13-research-ontology-design.md '
+                    'five-way split from docs/workflow/research-ontology-design.md '
                     '(occurrence / record / optional logging-observation / '
                     'assertion / execution / interval) so provenance can always '
                     'distinguish what was OBSERVED from what was RECONSTRUCTED, '
@@ -168,7 +167,7 @@ class EventTypeCode(str, Enum):
 
 class AttributionStatus(str, Enum):
     """
-    Attribution status of an App-Usage assertion — the compliance denominator contract. Chronicle uses a CLOSED attribution vocabulary: "Target Child", "Other", or "None"/blank (survey answers arrive as "Other (From Survey)"). Mirrors classifyAttribution() in web/src/lib/stages/attributePerson.ts (the runtime SSOT). NEVER a null person and NEVER an "unknown person" class.
+    Attribution status of an App-Usage assertion — the compliance denominator contract. Chronicle uses a CLOSED attribution vocabulary: "Target Child", "Other", or "None"/blank (survey answers arrive as "Other (From Survey)"). Mirrors Rust attribution in pipeline_v2_incremental.rs (the runtime source of truth). NEVER a null person and NEVER an "unknown person" class.
     """
     target = "target"
     """
@@ -258,6 +257,32 @@ class CoverageCause(str, Enum):
     unknown = "unknown"
     """
     Cause not determinable from events.
+    """
+
+
+class QueryExecutionStatus(str, Enum):
+    """
+    Observed state of one physical query in a runtime execution.
+    """
+    cached = "cached"
+    """
+    Reused from a compatible in-memory or durable checkpoint.
+    """
+    recomputed = "recomputed"
+    """
+    Evaluated during this run.
+    """
+    error = "error"
+    """
+    Evaluation failed.
+    """
+    skipped = "skipped"
+    """
+    Intentionally omitted by the execution mode.
+    """
+    bypassed = "bypassed"
+    """
+    Not applicable for the supplied inputs and configuration.
     """
 
 
@@ -416,7 +441,7 @@ class EffectiveUsageMeasure(ConfiguredBaseModel):
                        'UsageSessionAssertion',
                        'GlanceAssertion',
                        'EffectiveUsageMeasure']} })
-    produced_by: Optional[NodeExecution] = Field(default=None, description="""The node execution that produced this measure.""", json_schema_extra = { "linkml_meta": {'domain_of': ['EffectiveUsageMeasure']} })
+    produced_by: Optional[str] = Field(default=None, description="""The operation execution that produced this measure.""", json_schema_extra = { "linkml_meta": {'domain_of': ['EffectiveUsageMeasure']} })
     cites_parameter_set: Optional[ParameterSet] = Field(default=None, description="""The ParameterSet under which this measure was produced.""", json_schema_extra = { "linkml_meta": {'domain_of': ['EffectiveUsageMeasure']} })
     coverage_policy: Optional[str] = Field(default=None, description="""Named policy for how coverage gaps were treated.""", json_schema_extra = { "linkml_meta": {'domain_of': ['EffectiveUsageMeasure']} })
 
@@ -454,7 +479,7 @@ class AttributionAssertion(ConfiguredBaseModel):
     on_shared_device: Optional[bool] = Field(default=None, description="""Whether the device is shared.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AttributionAssertion']} })
 
 
-class PipelinePlan(ConfiguredBaseModel):
+class WorkflowPlan(ConfiguredBaseModel):
     """
     The prospective processing workflow. A p-plan:Plan / prov:Plan.
     """
@@ -462,38 +487,81 @@ class PipelinePlan(ConfiguredBaseModel):
          'from_schema': 'https://w3id.org/chronicle-usage-ontology/core',
          'tree_root': True})
 
-    plan_id: str = Field(default=..., description="""Plan identifier.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PipelinePlan']} })
-    steps: Optional[list[StepDefinition]] = Field(default=None, description="""Steps of the plan.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PipelinePlan']} })
+    plan_id: str = Field(default=..., description="""Plan identifier.""", json_schema_extra = { "linkml_meta": {'domain_of': ['WorkflowPlan']} })
+    operations: Optional[list[OperationDefinition]] = Field(default=None, description="""Semantic operations in the workflow.""", json_schema_extra = { "linkml_meta": {'domain_of': ['WorkflowPlan']} })
+    queries: Optional[list[QueryDefinition]] = Field(default=None, description="""Physical queries in the workflow.""", json_schema_extra = { "linkml_meta": {'domain_of': ['WorkflowPlan']} })
 
 
-class StepDefinition(ConfiguredBaseModel):
+class OperationDefinition(ConfiguredBaseModel):
     """
-    One processing step in the plan (a graph node) at ANY scale — a p-plan:Step. Steps compose recursively via part_of_step: a coarse step (an execution/memoization unit) and the fine-grained transformations inside it are the SAME kind of thing, because the step boundary is an arbitrary scale choice, not an ontological distinction. Follows the ProcessingStep shape (id/verb/engine/consumes/produces/depends_on).
+    One semantic operation in the workflow at any useful scale. Operations compose recursively via part_of_operation so a coarse responsibility and its independently invalidatable transformations share one model without forcing presentation and execution boundaries to coincide.
     """
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'broad_mappings': ['pplan:Step'],
          'from_schema': 'https://w3id.org/chronicle-usage-ontology/core'})
 
-    step_id: str = Field(default=..., description="""Step identifier (= graph node id).""", json_schema_extra = { "linkml_meta": {'domain_of': ['StepDefinition']} })
-    verb: Optional[str] = Field(default=None, description="""Action the step performs.""", json_schema_extra = { "linkml_meta": {'domain_of': ['StepDefinition']} })
-    engine: Optional[str] = Field(default=None, description="""Named algorithm/engine the step realizes.""", json_schema_extra = { "linkml_meta": {'domain_of': ['StepDefinition']} })
-    consumes: Optional[list[str]] = Field(default=None, description="""Channels/inputs the step reads.""", json_schema_extra = { "linkml_meta": {'domain_of': ['StepDefinition']} })
-    produces: Optional[list[str]] = Field(default=None, description="""Channels/outputs the step produces.""", json_schema_extra = { "linkml_meta": {'domain_of': ['StepDefinition']} })
-    depends_on: Optional[list[str]] = Field(default=None, description="""Steps that must precede this one.""", json_schema_extra = { "linkml_meta": {'domain_of': ['StepDefinition']} })
-    is_fatal: Optional[bool] = Field(default=None, description="""Whether a failure fails the whole workflow.""", json_schema_extra = { "linkml_meta": {'domain_of': ['StepDefinition']} })
-    part_of_step: Optional[str] = Field(default=None, description="""The coarser-scale step this step is a proper part of (recursive composition — no separate \"substep\" class; scale is arbitrary). Referenced by step_id, not inlined.""", json_schema_extra = { "linkml_meta": {'domain_of': ['StepDefinition'], 'slot_uri': 'dcterms:isPartOf'} })
+    operation_id: str = Field(default=..., description="""Stable semantic operation identifier.""", json_schema_extra = { "linkml_meta": {'domain_of': ['OperationDefinition']} })
+    verb: Optional[str] = Field(default=None, description="""Action the operation performs.""", json_schema_extra = { "linkml_meta": {'domain_of': ['OperationDefinition']} })
+    engine: Optional[str] = Field(default=None, description="""Named algorithm or engine the operation realizes.""", json_schema_extra = { "linkml_meta": {'domain_of': ['OperationDefinition']} })
+    operation_role: Optional[str] = Field(default=None, description="""Semantic responsibility of the operation.""", json_schema_extra = { "linkml_meta": {'domain_of': ['OperationDefinition']} })
+    epistemic_role: Optional[str] = Field(default=None, description="""Whether the operation observes, infers, applies policy, or presents.""", json_schema_extra = { "linkml_meta": {'domain_of': ['OperationDefinition']} })
+    consumes: Optional[list[str]] = Field(default=None, description="""Channels or inputs the operation reads.""", json_schema_extra = { "linkml_meta": {'domain_of': ['OperationDefinition']} })
+    produces: Optional[list[str]] = Field(default=None, description="""Channels or outputs the operation produces.""", json_schema_extra = { "linkml_meta": {'domain_of': ['OperationDefinition']} })
+    depends_on: Optional[list[str]] = Field(default=None, description="""Operations that must precede this one.""", json_schema_extra = { "linkml_meta": {'domain_of': ['OperationDefinition']} })
+    configuration_dependencies: Optional[list[str]] = Field(default=None, description="""Direct configuration fields read by this operation.""", json_schema_extra = { "linkml_meta": {'domain_of': ['OperationDefinition']} })
+    data_effects: Optional[list[str]] = Field(default=None, description="""Declared effects such as preserve, drop, split, classify, or encode.""", json_schema_extra = { "linkml_meta": {'domain_of': ['OperationDefinition']} })
+    is_fatal: Optional[bool] = Field(default=None, description="""Whether a failure fails the whole workflow.""", json_schema_extra = { "linkml_meta": {'domain_of': ['OperationDefinition']} })
+    part_of_operation: Optional[str] = Field(default=None, description="""The coarser semantic operation this operation is a proper part of. Referenced by operation_id, not inlined.""", json_schema_extra = { "linkml_meta": {'domain_of': ['OperationDefinition'], 'slot_uri': 'dcterms:isPartOf'} })
 
 
-class NodeExecution(ConfiguredBaseModel):
+class OperationExecution(ConfiguredBaseModel):
     """
-    A retrospective execution of a StepDefinition. A prov:Activity.
+    A retrospective execution of an OperationDefinition. A prov:Activity.
     """
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'broad_mappings': ['prov:Activity'],
          'from_schema': 'https://w3id.org/chronicle-usage-ontology/core'})
 
-    executes_step: Optional[str] = Field(default=None, description="""The StepDefinition this execution runs.""", json_schema_extra = { "linkml_meta": {'domain_of': ['NodeExecution']} })
-    used_parameter_set: Optional[ParameterSet] = Field(default=None, description="""The ParameterSet the execution used.""", json_schema_extra = { "linkml_meta": {'domain_of': ['NodeExecution', 'ReconstructionExecution']} })
-    started_at: Optional[str] = Field(default=None, description="""Execution start.""", json_schema_extra = { "linkml_meta": {'domain_of': ['NodeExecution']} })
-    ended_at: Optional[str] = Field(default=None, description="""Execution end.""", json_schema_extra = { "linkml_meta": {'domain_of': ['NodeExecution']} })
+    execution_id: str = Field(default=..., description="""Stable workflow-execution identifier.""", json_schema_extra = { "linkml_meta": {'domain_of': ['OperationExecution']} })
+    executes_operation: Optional[str] = Field(default=None, description="""The OperationDefinition this execution realizes.""", json_schema_extra = { "linkml_meta": {'domain_of': ['OperationExecution']} })
+    used_parameter_set: Optional[ParameterSet] = Field(default=None, description="""The ParameterSet the execution used.""", json_schema_extra = { "linkml_meta": {'domain_of': ['OperationExecution',
+                       'QueryExecution',
+                       'ReconstructionExecution']} })
+    started_at: Optional[str] = Field(default=None, description="""Execution start.""", json_schema_extra = { "linkml_meta": {'domain_of': ['OperationExecution']} })
+    ended_at: Optional[str] = Field(default=None, description="""Execution end.""", json_schema_extra = { "linkml_meta": {'domain_of': ['OperationExecution']} })
+
+
+class QueryDefinition(ConfiguredBaseModel):
+    """
+    One physical computation and memoization boundary. Its realizes_operations links are prospective mappings and do not imply that those semantic operations were applied in a particular run.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'broad_mappings': ['pplan:Step'],
+         'from_schema': 'https://w3id.org/chronicle-usage-ontology/core'})
+
+    query_id: str = Field(default=..., description="""Stable physical-query identifier.""", json_schema_extra = { "linkml_meta": {'domain_of': ['QueryDefinition']} })
+    query_group_id: str = Field(default=..., description="""Presentation-only query-group identity.""", json_schema_extra = { "linkml_meta": {'domain_of': ['QueryDefinition']} })
+    query_dependencies: Optional[list[str]] = Field(default=None, description="""Direct upstream physical queries.""", json_schema_extra = { "linkml_meta": {'domain_of': ['QueryDefinition']} })
+    realizes_operations: Optional[list[str]] = Field(default=None, description="""Semantic operations this query may realize.""", json_schema_extra = { "linkml_meta": {'domain_of': ['QueryDefinition']} })
+    query_outputs: Optional[list[str]] = Field(default=None, description="""Independently identified output artifacts or ports.""", json_schema_extra = { "linkml_meta": {'domain_of': ['QueryDefinition']} })
+    query_request_fields: Optional[list[str]] = Field(default=None, description="""Exact request fields read by the query.""", json_schema_extra = { "linkml_meta": {'domain_of': ['QueryDefinition']} })
+
+
+class QueryExecution(ConfiguredBaseModel):
+    """
+    Retrospective evidence for one physical query. Kept distinct from OperationExecution because a fused query can realize several semantic operations with different applicability.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'broad_mappings': ['prov:Activity'],
+         'from_schema': 'https://w3id.org/chronicle-usage-ontology/core'})
+
+    executes_query: str = Field(default=..., description="""The QueryDefinition this execution realizes.""", json_schema_extra = { "linkml_meta": {'domain_of': ['QueryExecution']} })
+    used_parameter_set: Optional[ParameterSet] = Field(default=None, description="""The ParameterSet the execution used.""", json_schema_extra = { "linkml_meta": {'domain_of': ['OperationExecution',
+                       'QueryExecution',
+                       'ReconstructionExecution']} })
+    query_execution_status: QueryExecutionStatus = Field(default=..., description="""Observed physical execution state.""", json_schema_extra = { "linkml_meta": {'domain_of': ['QueryExecution']} })
+    query_input_key: str = Field(default=..., description="""Content identity of the query's exact effective inputs.""", json_schema_extra = { "linkml_meta": {'domain_of': ['QueryExecution']} })
+    query_output_digest: str = Field(default=..., description="""Content identity of the query output.""", json_schema_extra = { "linkml_meta": {'domain_of': ['QueryExecution']} })
+    query_reason_id: str = Field(default=..., description="""Stable identity of the evidence supporting the state.""", json_schema_extra = { "linkml_meta": {'domain_of': ['QueryExecution']} })
+    part_of_execution: str = Field(default=..., description="""Root workflow execution containing this query execution.""", json_schema_extra = { "linkml_meta": {'domain_of': ['QueryExecution'], 'slot_uri': 'dcterms:isPartOf'} })
+    execution_started_at: datetime  = Field(default=..., description="""Evidence timestamp for the query execution.""", json_schema_extra = { "linkml_meta": {'domain_of': ['QueryExecution'], 'slot_uri': 'prov:startedAtTime'} })
+    execution_ended_at: datetime  = Field(default=..., description="""Evidence timestamp for the query execution.""", json_schema_extra = { "linkml_meta": {'domain_of': ['QueryExecution'], 'slot_uri': 'prov:endedAtTime'} })
 
 
 class ReconstructionExecution(ConfiguredBaseModel):
@@ -504,7 +572,9 @@ class ReconstructionExecution(ConfiguredBaseModel):
          'from_schema': 'https://w3id.org/chronicle-usage-ontology/core'})
 
     follows_strategy: Optional[str] = Field(default=None, description="""The reconstruction strategy followed.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ReconstructionExecution']} })
-    used_parameter_set: Optional[ParameterSet] = Field(default=None, description="""The ParameterSet the execution used.""", json_schema_extra = { "linkml_meta": {'domain_of': ['NodeExecution', 'ReconstructionExecution']} })
+    used_parameter_set: Optional[ParameterSet] = Field(default=None, description="""The ParameterSet the execution used.""", json_schema_extra = { "linkml_meta": {'domain_of': ['OperationExecution',
+                       'QueryExecution',
+                       'ReconstructionExecution']} })
 
 
 class ReconstructionStrategy(ConfiguredBaseModel):
@@ -553,9 +623,11 @@ GlanceAssertion.model_rebuild()
 EffectiveUsageMeasure.model_rebuild()
 CoverageAssessment.model_rebuild()
 AttributionAssertion.model_rebuild()
-PipelinePlan.model_rebuild()
-StepDefinition.model_rebuild()
-NodeExecution.model_rebuild()
+WorkflowPlan.model_rebuild()
+OperationDefinition.model_rebuild()
+OperationExecution.model_rebuild()
+QueryDefinition.model_rebuild()
+QueryExecution.model_rebuild()
 ReconstructionExecution.model_rebuild()
 ReconstructionStrategy.model_rebuild()
 ParameterSet.model_rebuild()

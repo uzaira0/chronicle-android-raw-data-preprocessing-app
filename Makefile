@@ -185,7 +185,7 @@ profile:
 	@test -n "$(CSV)" || (echo "usage: make profile CSV=/path/to/raw.csv" >&2; exit 2)
 	cd web && npm run build && npm run benchmark:browser -- --raw "$(CSV)"
 
-# Reproduce the current 55-step native timing matrix, cold-run Hyperfine
+# Reproduce the current query-registry native timing matrix, cold-run Hyperfine
 # distribution, peak RSS, flamegraph, Samply profile, and metadata-generator
 # cProfile. Override PROFILE_ROWS or PROFILE_RUNS when doing a quick diagnostic.
 profile-current:

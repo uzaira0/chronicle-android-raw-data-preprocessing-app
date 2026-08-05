@@ -17,7 +17,7 @@ import {
   WorkerPool,
   comparisonSupportCacheKey,
   discoverTimezonesBytes,
-  getPlanStageView,
+  getWorkflowExplorerView,
   processPersistedOrRawChangedReview,
   processPersistedOrRawChangedReviewViaPool,
   processRawCsvBytes,
@@ -32,7 +32,13 @@ import {
   ensureNotificationPermission,
   sendNotification,
 } from "@/lib/notification";
-import { clearLastRun, loadLastRun, saveLastRun } from "@/lib/lastRunStore";
+import {
+  clearLastRun,
+  detectLegacyLastRunState,
+  loadLastRun,
+  saveLastRun,
+  type LegacyLastRunState,
+} from "@/lib/lastRunStore";
 import {
   computeAdaptiveLaneTarget,
   computeSafeConcurrency,
@@ -41,7 +47,9 @@ import {
 } from "@/lib/concurrency";
 import { clearCachedRun as clearCachedRunData } from "@/lib/localDataReset";
 import {
+  detectLegacyOpfsState,
   probeOpfsCapability,
+  type LegacyOpfsState,
   type OpfsCapability,
 } from "@/lib/opfsArtifactStore";
 import {
@@ -77,6 +85,7 @@ import type {
   ProgressEvent,
   ProgressStepKind,
 } from "@/lib/types";
+import { workflowExplorerSupportRoles } from "@/lib/workflowExplorerSupport";
 
 import { FilesAndInputsCard } from "@/components/FilesAndInputsCard";
 import { StudyInputsCard } from "@/components/StudyInputsCard";
@@ -275,8 +284,12 @@ export default function App(): ReactElement {
     useState<StoragePressure | null>(null);
   const [workspaceCapability, setWorkspaceCapability] =
     useState<OpfsCapability | null>(null);
-  const [planStageView, setPlanStageView] = useState<
-    ProcessedFileResult["rustStageView"] | null
+  const [legacyOpfsState, setLegacyOpfsState] =
+    useState<LegacyOpfsState | null>(null);
+  const [legacyLastRunState, setLegacyLastRunState] =
+    useState<LegacyLastRunState | null>(null);
+  const [workflowExplorerView, setWorkflowExplorerView] = useState<
+    ProcessedFileResult["workflowExplorerView"] | null
   >(null);
   const [storagePressureDismissed, setStoragePressureDismissed] =
     useState(false);
@@ -392,6 +405,10 @@ export default function App(): ReactElement {
   useEffect(() => {
     void requestPersistentStorage();
     void probeDurableWorkspaceCapability().then(setWorkspaceCapability);
+    void detectLegacyOpfsState()
+      .then(setLegacyOpfsState)
+      .catch(() => setLegacyOpfsState(null));
+    void detectLegacyLastRunState().then(setLegacyLastRunState);
   }, []);
 
   // Warm the matcher worker on boot: faster first run, and a still-live worker
@@ -492,24 +509,49 @@ export default function App(): ReactElement {
     }
   }, [activeWorkflow]);
 
+  const workflowSupportRoles = useMemo(
+    () =>
+      workflowExplorerSupportRoles(options, {
+        filterFile: Boolean(filterFile),
+        appsForcingScreenOpenFile: Boolean(appsForcingScreenOpenFile),
+        backgroundAppsFile: Boolean(backgroundAppsFile),
+        appCodebookFile: Boolean(appCodebookFile),
+        studyDatesFile: Boolean(studyDatesFile),
+        deviceSharingFile: Boolean(deviceSharingFile),
+        surveyAttributionFile: Boolean(surveyAttributionFile),
+        enrolledDevicesFile: Boolean(enrolledDevicesFile),
+      }),
+    [
+      options,
+      filterFile,
+      appsForcingScreenOpenFile,
+      backgroundAppsFile,
+      appCodebookFile,
+      studyDatesFile,
+      deviceSharingFile,
+      surveyAttributionFile,
+      enrolledDevicesFile,
+    ],
+  );
+
   useEffect(() => {
     let cancelled = false;
-    void getPlanStageView(options)
+    void getWorkflowExplorerView(options, workflowSupportRoles)
       .then((view) => {
-        if (!cancelled) setPlanStageView(view);
+        if (!cancelled) setWorkflowExplorerView(view);
       })
       .catch((viewError: unknown) => {
         if (cancelled) return;
         setError(
           viewError instanceof Error
-            ? `Rust plan view unavailable: ${viewError.message}`
-            : "Rust plan view unavailable.",
+            ? `Workflow Explorer unavailable: ${viewError.message}`
+            : "Workflow Explorer unavailable.",
         );
       });
     return () => {
       cancelled = true;
     };
-  }, [options]);
+  }, [options, workflowSupportRoles]);
 
   const onFilesChange = (
     files: File[],
@@ -1822,6 +1864,37 @@ export default function App(): ReactElement {
           </div>
         ) : null}
 
+        {legacyOpfsState?.detected ? (
+          <div
+            className="storage-pressure"
+            role="status"
+            data-testid="legacy-workspace-detected"
+          >
+            <span className="storage-pressure__text">
+              <strong>Data from an older workflow version was found.</strong>{" "}
+              This version did not open, migrate, or delete it because the new
+              workflow uses different cache identities. Use the older app
+              version to export that workspace, or clear this site&apos;s data
+              when you no longer need it.
+            </span>
+          </div>
+        ) : null}
+
+        {legacyLastRunState?.detected ? (
+          <div
+            className="storage-pressure"
+            role="status"
+            data-testid="legacy-last-run-detected"
+          >
+            <span className="storage-pressure__text">
+              <strong>A cached run from an older workflow was found.</strong>{" "}
+              This version did not open, migrate, or delete it. Reopen the
+              older app version if you need that summary, or use your browser&apos;s
+              site-data controls when you are ready to remove it.
+            </span>
+          </div>
+        ) : null}
+
         {storagePressure &&
         isStoragePressureHigh(storagePressure) &&
         !storagePressureDismissed ? (
@@ -2132,9 +2205,9 @@ export default function App(): ReactElement {
               >
                 <GraphPanel
                   results={results}
-                  planStageView={planStageView}
+                  workflowExplorerView={workflowExplorerView ?? null}
+                  supportRoles={workflowSupportRoles}
                   displayMasker={demoDisplay}
-                  options={options}
                 />
               </Suspense>
             ) : null}

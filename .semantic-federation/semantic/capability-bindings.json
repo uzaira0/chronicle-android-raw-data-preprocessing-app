@@ -2,32 +2,32 @@
   "protocol_version": "0.1",
   "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1",
   "product_profile_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing",
-  "product_contract_digest": "sha256:3855791ad25992d95e055d5c672253cb06ac3e4320463bc46f984b7bc8f05f95",
+  "product_contract_digest": "sha256:ce4f7d309cea44fd24fcb85fb81f3cd0639ec9c6c77eb8041b6ca071659a7562",
   "bindings": [
     {
       "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-product-runtime",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/parse_events/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/normalize_timezones/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/dedup_and_order/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/app_policy/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/device_state_timeline/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/reconstruct_episodes/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/categorize_apps/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/episode_annotations/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/interval_cleaning/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/effective_usage/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/observation_window/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/attribute_person/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/day_coverage/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/score_compliance/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/outputs/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/parse_events/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/normalize_timezones/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/dedup_and_order/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/app_policy/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/device_state_timeline/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/reconstruct_episodes/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/categorize_apps/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/episode_annotations/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/interval_cleaning/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/effective_usage/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/observation_window/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/attribute_person/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/day_coverage/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/score_compliance/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/outputs/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/tracked-physical-pipeline/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/product-stage-projection/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/query-group-projection/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/dependency-certificate/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/role-materialization/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/deterministic-role-qualification/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/typed-logical-checkpoints/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/typed-workflow-checkpoints/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/execution-evidence/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/request-validation/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/requirements-evaluation/v1",
@@ -53,7 +53,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_preprocessing_runtime_wasm",
         "entrypoint": "execute_workspace",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "projection",
       "status": "active",
@@ -61,1354 +61,1378 @@
       "evidence_projection": {
         "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/rust-runtime/v1",
         "loss": "lossless",
-        "notes": "The runtime projects actual Salsa step-execution events into the 15 product reporting groups, evidence, obligations, and artifact records."
+        "notes": "The runtime projects actual Salsa query events into reporting groups, evidence, obligations, and artifact records."
       },
       "notes": "Production worker authority for parsing, validation, computation, scheduling, evidence, artifact encoding, typed views, and semantic indexing."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/parse_remap_config",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/validate_remap_rules",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/parse_remap_config/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/validate_remap_rules/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/parse_remap_config",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/validate_remap_rules",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "parse_remap_config",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "validate_remap_rules",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/csv_parse",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/decode_source_records",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/csv_parse/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/decode_source_records/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/csv_parse",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/decode_source_records",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "csv_parse",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "decode_source_records",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/drop_empty_timestamp",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/remove_missing_timestamps",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/drop_empty_timestamp/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/remove_missing_timestamps/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/drop_empty_timestamp",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/remove_missing_timestamps",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "drop_empty_timestamp",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "remove_missing_timestamps",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/detect_device_model",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/attach_device_models",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/detect_device_model/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/attach_device_models/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/detect_device_model",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/attach_device_models",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "detect_device_model",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "attach_device_models",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/resolve_preproc_datetime",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/bind_processing_timestamp",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/resolve_preproc_datetime/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/bind_processing_timestamp/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/resolve_preproc_datetime",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/bind_processing_timestamp",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "resolve_preproc_datetime",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "bind_processing_timestamp",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/build_canonical_rows",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/canonicalize_source_rows",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/build_canonical_rows/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/canonicalize_source_rows/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/build_canonical_rows",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/canonicalize_source_rows",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "build_canonical_rows",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "canonicalize_source_rows",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/stable_sort",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/order_source_records",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/stable_sort/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/order_source_records/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/stable_sort",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/order_source_records",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "stable_sort",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "order_source_records",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/collect_timezones",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/collect_timezone_observations",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/collect_timezones/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/collect_timezone_observations/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/collect_timezones",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/collect_timezone_observations",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "collect_timezones",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "collect_timezone_observations",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/compute_dominant_timezone",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/estimate_dominant_timezone",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/compute_dominant_timezone/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/estimate_dominant_timezone/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/compute_dominant_timezone",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/estimate_dominant_timezone",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "compute_dominant_timezone",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "estimate_dominant_timezone",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/select_timezone_strategy",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/resolve_timezone_strategy",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/select_timezone_strategy/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/resolve_timezone_strategy/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/select_timezone_strategy",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/resolve_timezone_strategy",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "select_timezone_strategy",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "resolve_timezone_strategy",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/restamp_rows",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/standardize_event_clock",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/restamp_rows/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/standardize_event_clock/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/restamp_rows",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/standardize_event_clock",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "restamp_rows",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "standardize_event_clock",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/row_count_report",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/summarize_row_selection",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/row_count_report/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/summarize_row_selection/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/row_count_report",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/summarize_row_selection",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "row_count_report",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "summarize_row_selection",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/exact_dedupe",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/coalesce_duplicate_event_keys",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/exact_dedupe/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/coalesce_duplicate_event_keys/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/exact_dedupe",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/coalesce_duplicate_event_keys",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "exact_dedupe",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "coalesce_duplicate_event_keys",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/count_dup_groups",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/summarize_duplicate_groups",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/count_dup_groups/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/summarize_duplicate_groups/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/count_dup_groups",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/summarize_duplicate_groups",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "count_dup_groups",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "summarize_duplicate_groups",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/nudge_duplicate_timestamps",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/disambiguate_duplicate_timestamps",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/nudge_duplicate_timestamps/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/disambiguate_duplicate_timestamps/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/nudge_duplicate_timestamps",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/disambiguate_duplicate_timestamps",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "nudge_duplicate_timestamps",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "disambiguate_duplicate_timestamps",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/mark_data_time_gaps",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/derive_time_gap_evidence",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/mark_data_time_gaps/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/derive_time_gap_evidence/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/mark_data_time_gaps",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/derive_time_gap_evidence",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "mark_data_time_gaps",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "derive_time_gap_evidence",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/tag_filtered_packages",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/mark_app_policy_matches",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/tag_filtered_packages/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/mark_app_policy_matches/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/tag_filtered_packages",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/mark_app_policy_matches",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "tag_filtered_packages",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "mark_app_policy_matches",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/collect_keyguard_timestamps",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/index_keyguard_events",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/collect_keyguard_timestamps/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/index_keyguard_events/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/collect_keyguard_timestamps",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/index_keyguard_events",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "collect_keyguard_timestamps",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "index_keyguard_events",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/walk_screen_state_machine",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/infer_screen_session_skeletons",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/walk_screen_state_machine/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/infer_screen_session_skeletons/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/walk_screen_state_machine",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/infer_screen_session_skeletons",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "walk_screen_state_machine",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "infer_screen_session_skeletons",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/build_classified_sessions",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/classify_screen_sessions",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/build_classified_sessions/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/classify_screen_sessions/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/build_classified_sessions",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/classify_screen_sessions",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "build_classified_sessions",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "classify_screen_sessions",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/compute_junk_packages",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/resolve_excluded_packages",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/compute_junk_packages/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/resolve_excluded_packages/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/compute_junk_packages",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/resolve_excluded_packages",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "compute_junk_packages",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "resolve_excluded_packages",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/junk_blind_fold",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/mask_excluded_app_events",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/junk_blind_fold/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/mask_excluded_app_events/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/junk_blind_fold",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/mask_excluded_app_events",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "junk_blind_fold",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "mask_excluded_app_events",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/build_matcher_input",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/build_app_event_index",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/build_matcher_input/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/build_app_event_index/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/build_matcher_input",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/build_app_event_index",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "build_matcher_input",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "build_app_event_index",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/run_matcher",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/match_app_episodes",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/run_matcher/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/match_app_episodes/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/run_matcher",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/match_app_episodes",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "run_matcher",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "match_app_episodes",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/apply_matcher_output",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/materialize_candidate_episodes",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/apply_matcher_output/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/materialize_candidate_episodes/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/apply_matcher_output",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/materialize_candidate_episodes",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "apply_matcher_output",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "materialize_candidate_episodes",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/relabel_usage_with_floor",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/classify_episode_durations",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/relabel_usage_with_floor/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/classify_episode_durations/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/relabel_usage_with_floor",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/classify_episode_durations",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "relabel_usage_with_floor",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "classify_episode_durations",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/junk_downstream_mark",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/apply_app_inclusion_policy",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/junk_downstream_mark/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/apply_app_inclusion_policy/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/junk_downstream_mark",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/apply_app_inclusion_policy",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "junk_downstream_mark",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "apply_app_inclusion_policy",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/sort_episodes",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/order_app_episodes",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/sort_episodes/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/order_app_episodes/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/sort_episodes",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/order_app_episodes",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "sort_episodes",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "order_app_episodes",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/split_concurrent",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/segment_concurrent_usage",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/split_concurrent/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/segment_concurrent_usage/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/split_concurrent",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/segment_concurrent_usage",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "split_concurrent",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "segment_concurrent_usage",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/codebook_join",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/join_app_codebook",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/codebook_join/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/join_app_codebook/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/codebook_join",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/join_app_codebook",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "codebook_join",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "join_app_codebook",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/derive_broad_category",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/derive_broad_category",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/derive_broad_category/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/derive_broad_category/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/derive_broad_category",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/derive_broad_category",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "derive_broad_category",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/collapse_genre",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/collapse_app_genre",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/collapse_genre/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/collapse_app_genre/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/collapse_genre",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/collapse_app_genre",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "collapse_genre",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "collapse_app_genre",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/engagement_walk",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/derive_engagement_basis",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/engagement_walk/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/derive_engagement_basis/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/engagement_walk",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/derive_engagement_basis",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "engagement_walk",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "derive_engagement_basis",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/flag_and_retain",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/apply_episode_flags",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/flag_and_retain/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/apply_episode_flags/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/flag_and_retain",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/apply_episode_flags",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "flag_and_retain",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "apply_episode_flags",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/blank_junk_timing",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/suppress_excluded_timing",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/blank_junk_timing/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/suppress_excluded_timing/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/blank_junk_timing",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/suppress_excluded_timing",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "blank_junk_timing",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "suppress_excluded_timing",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/drop_selected_types",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/remove_selected_interaction_types",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/drop_selected_types/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/remove_selected_interaction_types/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/drop_selected_types",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/remove_selected_interaction_types",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "drop_selected_types",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "remove_selected_interaction_types",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/drop_zero_duration",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/remove_zero_duration_rows",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/drop_zero_duration/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/remove_zero_duration_rows/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/drop_zero_duration",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/remove_zero_duration_rows",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "drop_zero_duration",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "remove_zero_duration_rows",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/partition_credit_sessions",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/identify_credit_eligible_sessions",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/partition_credit_sessions/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/identify_credit_eligible_sessions/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/partition_credit_sessions",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/identify_credit_eligible_sessions",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "partition_credit_sessions",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "identify_credit_eligible_sessions",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/build_liveness_substrate",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/build_activity_witness_indexes",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/build_liveness_substrate/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/build_activity_witness_indexes/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/build_liveness_substrate",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/build_activity_witness_indexes",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "build_liveness_substrate",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "build_activity_witness_indexes",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/report_screen_incapable",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/assess_screen_evidence_capability",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/report_screen_incapable/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/assess_screen_evidence_capability/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/report_screen_incapable",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/assess_screen_evidence_capability",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "report_screen_incapable",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "assess_screen_evidence_capability",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/count_day_apps",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/summarize_daily_apps",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/count_day_apps/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/summarize_daily_apps/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/count_day_apps",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/summarize_daily_apps",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "count_day_apps",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "summarize_daily_apps",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/credit_sessions",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/derive_credited_intervals",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/credit_sessions/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/derive_credited_intervals/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/credit_sessions",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/derive_credited_intervals",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "credit_sessions",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "derive_credited_intervals",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/emit_credited_rows",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/materialize_credited_rows",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/emit_credited_rows/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/materialize_credited_rows/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/emit_credited_rows",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/materialize_credited_rows",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "emit_credited_rows",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "materialize_credited_rows",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/assemble_credit_result",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/assemble_credit_outputs",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/assemble_credit_result/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/assemble_credit_outputs/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/assemble_credit_result",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/assemble_credit_outputs",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "assemble_credit_result",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "assemble_credit_outputs",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/resolve_participant_windows",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/resolve_participant_windows",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/resolve_participant_windows/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/resolve_participant_windows/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/resolve_participant_windows",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/resolve_participant_windows",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "resolve_participant_windows",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/filter_rows_to_window",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/apply_participant_windows",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/filter_rows_to_window/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/apply_participant_windows/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/filter_rows_to_window",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/apply_participant_windows",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "filter_rows_to_window",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "apply_participant_windows",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/resolve_sharing_status",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/resolve_sharing_status",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/resolve_sharing_status/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/resolve_sharing_status/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/resolve_sharing_status",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/resolve_sharing_status",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "resolve_sharing_status",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/build_survey_lookup",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/index_survey_responses",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/build_survey_lookup/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/index_survey_responses/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/build_survey_lookup",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/index_survey_responses",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "build_survey_lookup",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "index_survey_responses",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/attribute_rows",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/classify_person_attribution",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/attribute_rows/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/classify_person_attribution/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/attribute_rows",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/classify_person_attribution",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "attribute_rows",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "classify_person_attribution",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/inject_placeholders",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/synthesize_placeholder_rows",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/inject_placeholders/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/synthesize_placeholder_rows/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/inject_placeholders",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/synthesize_placeholder_rows",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "inject_placeholders",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "synthesize_placeholder_rows",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/build_raw_date_index",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/index_raw_dates",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/build_raw_date_index/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/index_raw_dates/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/build_raw_date_index",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/index_raw_dates",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "build_raw_date_index",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "index_raw_dates",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/build_coverage_table",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/build_participant_day_coverage",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/build_coverage_table/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/build_participant_day_coverage/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/build_coverage_table",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/build_participant_day_coverage",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "build_coverage_table",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "build_participant_day_coverage",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/accumulate_attribution_minutes",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/aggregate_attribution_minutes",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/accumulate_attribution_minutes/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/aggregate_attribution_minutes/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/accumulate_attribution_minutes",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/aggregate_attribution_minutes",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "accumulate_attribution_minutes",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "aggregate_attribution_minutes",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/score_days",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/compute_attribution_completeness",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/score_days/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/compute_attribution_completeness/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/score_days",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/compute_attribution_completeness",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "score_days",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "compute_attribution_completeness",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/assemble_result",
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/classify_compliance_days",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/assemble_result/v1"
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/classify_compliance_days/v1"
       ],
       "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/assemble_result",
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/classify_compliance_days",
         "language": "rust",
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "assemble_result",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "entrypoint": "classify_compliance_days",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
       "authority": true,
       "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
         "loss": "lossless",
         "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
       },
-      "notes": "Production computation authority for one exact Chronicle preprocessing step."
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
+    },
+    {
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/assemble_result_manifest",
+      "capability_ids": [
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/assemble_result_manifest/v1"
+      ],
+      "implementation": {
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/assemble_result_manifest",
+        "language": "rust",
+        "target": "wasm32-unknown-unknown",
+        "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "assemble_result_manifest",
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
+      },
+      "relationship": "one-to-one",
+      "status": "active",
+      "authority": true,
+      "evidence_projection": {
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
+        "loss": "lossless",
+        "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
+      },
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
     },
     {
       "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-native-parity-runtime",
       "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/parse_events/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/normalize_timezones/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/dedup_and_order/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/app_policy/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/device_state_timeline/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/reconstruct_episodes/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/categorize_apps/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/episode_annotations/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/interval_cleaning/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/effective_usage/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/observation_window/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/attribute_person/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/day_coverage/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/score_compliance/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/outputs/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/parse_remap_config/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/csv_parse/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/drop_empty_timestamp/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/detect_device_model/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/resolve_preproc_datetime/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/build_canonical_rows/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/stable_sort/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/collect_timezones/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/compute_dominant_timezone/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/select_timezone_strategy/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/restamp_rows/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/row_count_report/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/exact_dedupe/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/count_dup_groups/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/nudge_duplicate_timestamps/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/mark_data_time_gaps/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/tag_filtered_packages/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/collect_keyguard_timestamps/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/walk_screen_state_machine/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/build_classified_sessions/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/compute_junk_packages/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/junk_blind_fold/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/build_matcher_input/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/run_matcher/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/apply_matcher_output/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/relabel_usage_with_floor/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/junk_downstream_mark/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/sort_episodes/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/split_concurrent/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/codebook_join/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/derive_broad_category/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/collapse_genre/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/engagement_walk/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/flag_and_retain/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/blank_junk_timing/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/drop_selected_types/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/drop_zero_duration/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/partition_credit_sessions/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/build_liveness_substrate/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/report_screen_incapable/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/count_day_apps/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/credit_sessions/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/emit_credited_rows/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/assemble_credit_result/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/resolve_participant_windows/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/filter_rows_to_window/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/resolve_sharing_status/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/build_survey_lookup/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/attribute_rows/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/inject_placeholders/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/build_raw_date_index/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/build_coverage_table/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/accumulate_attribution_minutes/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/score_days/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/assemble_result/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/parse_events/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/normalize_timezones/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/dedup_and_order/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/app_policy/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/device_state_timeline/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/reconstruct_episodes/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/categorize_apps/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/episode_annotations/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/interval_cleaning/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/effective_usage/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/observation_window/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/attribute_person/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/day_coverage/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/score_compliance/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/outputs/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/validate_remap_rules/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/decode_source_records/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/remove_missing_timestamps/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/attach_device_models/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/bind_processing_timestamp/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/canonicalize_source_rows/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/order_source_records/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/collect_timezone_observations/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/estimate_dominant_timezone/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/resolve_timezone_strategy/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/standardize_event_clock/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/summarize_row_selection/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/coalesce_duplicate_event_keys/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/summarize_duplicate_groups/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/disambiguate_duplicate_timestamps/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/derive_time_gap_evidence/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/mark_app_policy_matches/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/index_keyguard_events/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/infer_screen_session_skeletons/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/classify_screen_sessions/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/resolve_excluded_packages/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/mask_excluded_app_events/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/build_app_event_index/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/match_app_episodes/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/materialize_candidate_episodes/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/classify_episode_durations/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/apply_app_inclusion_policy/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/order_app_episodes/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/segment_concurrent_usage/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/join_app_codebook/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/derive_broad_category/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/collapse_app_genre/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/derive_engagement_basis/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/apply_episode_flags/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/suppress_excluded_timing/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/remove_selected_interaction_types/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/remove_zero_duration_rows/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/identify_credit_eligible_sessions/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/build_activity_witness_indexes/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/assess_screen_evidence_capability/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/summarize_daily_apps/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/derive_credited_intervals/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/materialize_credited_rows/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/assemble_credit_outputs/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/resolve_participant_windows/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/apply_participant_windows/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/resolve_sharing_status/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/index_survey_responses/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/classify_person_attribution/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/synthesize_placeholder_rows/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/index_raw_dates/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/build_participant_day_coverage/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/aggregate_attribution_minutes/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/compute_attribution_completeness/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/classify_compliance_days/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/assemble_result_manifest/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/tracked-physical-pipeline/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/product-stage-projection/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/query-group-projection/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/dependency-certificate/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/role-materialization/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/deterministic-role-qualification/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/typed-logical-checkpoints/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/typed-workflow-checkpoints/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/execution-evidence/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/request-validation/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/requirements-evaluation/v1",
@@ -1434,7 +1458,7 @@
         "target": "native-test",
         "source": "rust/chronicle_preprocessing_runtime_wasm",
         "entrypoint": "execute_workspace_native",
-        "build_digest": "sha256:5f176d264dda8855381783bd7ce85be867322ce3f5d1fbcb8578f083bfec7492"
+        "build_digest": "sha256:7771549db568f9ffd57ce5d174952620aae8810bdbd1e016d1e2a6f12420e9d0"
       },
       "relationship": "one-to-one",
       "status": "active",
