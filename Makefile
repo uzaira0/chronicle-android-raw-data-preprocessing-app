@@ -213,8 +213,10 @@ coverage-all: coverage coverage-rust
 knip:
 	cd web && bunx knip --no-exit-code
 
+# Forward optional Playwright selectors without duplicating the smoke command,
+# for example: make e2e E2E_ARGS='--project=chromium --project=firefox'.
 e2e:
-	cd web && npm run test:e2e:smoke
+	cd web && npm run test:e2e:smoke $(if $(E2E_ARGS),-- $(E2E_ARGS))
 
 # ---------- deploy artifact validation (CSP meta + _headers + PWA files) ----------
 # Builds the production bundle, then verifies dist carries the CSP <meta> fallback,

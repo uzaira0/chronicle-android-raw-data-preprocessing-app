@@ -21,9 +21,9 @@ import {
  * OPFS there, but WebKit rejects `navigator.storage.getDirectory()` with
  * `UnknownError: The operation failed for an unknown transient reason` in an
  * ephemeral context — measured on WebKit 26.4, main thread AND dedicated
- * worker. The same WebKit build grants OPFS (getDirectory + createWritable +
- * verified read-back) as soon as it runs against an on-disk profile, so the
- * denial is a property of the harness's context, not of the engine.
+ * worker. WebKit builds that expose OPFS may grant it against an on-disk
+ * profile; Linux WPE builds can omit the API entirely. The fixture therefore
+ * measures the persistent context instead of inferring support from its name.
  *
  * `durableProfile` therefore swaps in a `launchPersistentContext`, which is the
  * only way to exercise the OPFS durability layer on WebKit under automation.
@@ -60,6 +60,25 @@ const PROFILE_ROOT = path.resolve(process.cwd(), ".tmp/durable-profiles");
  */
 async function gotoOriginWithoutBooting(page: Page): Promise<void> {
   await page.goto("/robots.txt");
+}
+
+async function persistentOpfsAvailable(page: Page): Promise<boolean> {
+  return page.evaluate(async () => {
+    try {
+      const root = await navigator.storage.getDirectory();
+      const handle = await root.getFileHandle("chronicle-durable-profile-probe", {
+        create: true,
+      });
+      const writable = await handle.createWritable();
+      await writable.write(new Uint8Array([1]));
+      await writable.close();
+      const readable = await handle.getFile();
+      await root.removeEntry("chronicle-durable-profile-probe");
+      return readable.size === 1;
+    } catch {
+      return false;
+    }
+  });
 }
 
 /** Delete current-version origin stores: OPFS, IndexedDB, and Web Storage. */
@@ -126,6 +145,10 @@ export const test = base.extend<DurabilityFixtures>({
       const page = persistent.pages()[0] ?? (await persistent.newPage());
       await gotoOriginWithoutBooting(page);
       await wipeOriginStorage(page);
+      base.skip(
+        !(await persistentOpfsAvailable(page)),
+        `${browserName} does not expose writable OPFS in a persistent context`,
+      );
       await use(persistent);
     } finally {
       await persistent.close();

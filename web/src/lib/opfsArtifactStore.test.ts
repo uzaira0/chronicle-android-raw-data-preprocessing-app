@@ -24,6 +24,10 @@ import {
   type WorkspaceRootSlot,
   verifyRuntimeWorkspace,
 } from "@/lib/opfsArtifactStore";
+import {
+  encodeWorkflowClosureMagic,
+  WORKFLOW_CLOSURE_PROTOCOL_VERSION,
+} from "@/lib/workflowClosureProtocol";
 
 /**
  * Geometry of the last BufferSource handed to `write()`. WebKit's
@@ -246,7 +250,7 @@ async function wholeBufferExportRuntimeClosure(
   root: FileSystemDirectoryHandle,
   slot: WorkspaceRootSlot,
 ): Promise<Uint8Array> {
-  const magic = new TextEncoder().encode("CHRONICLE-WORKFLOW-CLOSURE-V1\n");
+  const magic = encodeWorkflowClosureMagic();
   const rootCommit = JSON.parse(
     new TextDecoder().decode(
       await readRuntimeObject(root, slot.workspaceRootDigest),
@@ -267,7 +271,7 @@ async function wholeBufferExportRuntimeClosure(
   }
   const manifestBytes = new TextEncoder().encode(
     JSON.stringify({
-      protocolVersion: "chronicle-runtime-closure/v1",
+      protocolVersion: WORKFLOW_CLOSURE_PROTOCOL_VERSION,
       workspaceId: rootCommit.workspaceId,
       workspaceRootDigest: slot.workspaceRootDigest,
       previousWorkspaceRootDigest: slot.previousWorkspaceRootDigest,
@@ -297,7 +301,7 @@ function buildTestClosureArchive(
   previousWorkspaceRootDigest: string | null,
   artifacts: readonly PersistedRuntimeArtifact[],
 ): Uint8Array {
-  const magic = new TextEncoder().encode("CHRONICLE-WORKFLOW-CLOSURE-V1\n");
+  const magic = encodeWorkflowClosureMagic();
   let offset = 0;
   const objects = artifacts.map((value) => {
     const entry = { digest: value.digest, size: value.size, offset };
@@ -306,7 +310,7 @@ function buildTestClosureArchive(
   });
   const manifestBytes = new TextEncoder().encode(
     JSON.stringify({
-      protocolVersion: "chronicle-runtime-closure/v1",
+      protocolVersion: WORKFLOW_CLOSURE_PROTOCOL_VERSION,
       workspaceId,
       workspaceRootDigest,
       previousWorkspaceRootDigest,
@@ -1869,7 +1873,7 @@ describe("OPFS content-addressed runtime workspace", () => {
     const valid = await blobBytes(
       await exportRuntimeClosure(rootHandle(source), slot),
     );
-    const magic = new TextEncoder().encode("CHRONICLE-WORKFLOW-CLOSURE-V1\n");
+    const magic = encodeWorkflowClosureMagic();
 
     await expect(
       runtimeClosureWorkspaceId(asArchive(new Uint8Array([1, 2, 3]))),

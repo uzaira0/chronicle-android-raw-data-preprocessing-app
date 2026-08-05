@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 
 import { expect, test } from "./durabilityContext";
 import { APP_AND_SCREEN_RAW_CSV } from "./fixtures";
@@ -30,6 +30,39 @@ function trackPageErrors(page: Page): string[] {
     }
   });
   return errors;
+}
+
+async function firstInteractableGraphNode(
+  page: Page,
+  category: string,
+): Promise<Locator> {
+  const nodes = page.locator(`.graph-node[data-node-category="${category}"]`);
+  const index = await nodes.evaluateAll((elements) => {
+    const canvas = document.querySelector<HTMLElement>("[data-testid=graph-canvas]");
+    if (!canvas) return -1;
+    const canvasRect = canvas.getBoundingClientRect();
+    return elements.findIndex((element) => {
+      const rect = element.getBoundingClientRect();
+      const x = rect.left + rect.width / 2;
+      const y = rect.top + rect.height / 2;
+      if (
+        x < canvasRect.left ||
+        x > canvasRect.right ||
+        y < canvasRect.top ||
+        y > canvasRect.bottom ||
+        x < 0 ||
+        x > window.innerWidth ||
+        y < 0 ||
+        y > window.innerHeight
+      ) {
+        return false;
+      }
+      const hit = document.elementFromPoint(x, y);
+      return hit !== null && (hit === element || element.contains(hit));
+    });
+  });
+  expect(index, `expected an interactable ${category} graph node`).toBeGreaterThanOrEqual(0);
+  return nodes.nth(index);
 }
 
 test.beforeEach(async ({ page }) => {
@@ -83,7 +116,7 @@ test("@smoke Pipeline Explorer separates workflow, impact, lineage, execution, a
   await expect(page.locator('.graph-node[data-node-category="execution"]').first()).toBeVisible();
   await expect(page.locator('.graph-node[data-node-category="operation"]').first()).toBeVisible();
   await expect(page.locator('.graph-node[data-node-category="artifact"]').first()).toBeVisible();
-  await page.locator('.graph-node[data-node-category="decision"]').first().click();
+  await (await firstInteractableGraphNode(page, "decision")).click();
   await expect(page.getByTestId("graph-impact-details")).toContainText("Direct physical readers");
   await expect(page.getByTestId("graph-impact-details")).toContainText("Operations that may change");
   await expect(page.getByTestId("graph-impact-details")).toContainText("Artifacts that may change");

@@ -1,5 +1,6 @@
 import { expect, test } from "./durabilityContext";
 import { APP_ONLY_RAW_CSV } from "./fixtures";
+import { WORKFLOW_CLOSURE_PROTOCOL_VERSION } from "../src/lib/workflowClosureProtocol";
 import {
   assertNoExternalRequests,
   downloadClosure,
@@ -29,7 +30,7 @@ test("@smoke @opfs verified workspace closure survives reload, imports into a fr
 
   const firstArchive = await downloadClosure(page);
   const first = inspectClosure(firstArchive);
-  expect(first.manifest.protocolVersion).toBe("chronicle-runtime-closure/v1");
+  expect(first.manifest.protocolVersion).toBe(WORKFLOW_CLOSURE_PROTOCOL_VERSION);
   expect(first.manifest.workspaceId).toMatch(/^sha256:[0-9a-f]{64}$/);
   expect(first.root.workspaceId).toBe(first.manifest.workspaceId);
   expect(first.root.previousWorkspaceRootDigest).toBeNull();

@@ -1,3 +1,12 @@
+import {
+  encodeWorkflowClosureMagic,
+  WORKFLOW_CLOSURE_ARCHIVE_MIME,
+  WORKFLOW_CLOSURE_PROTOCOL_VERSION,
+  type RuntimeClosureManifest,
+} from "./workflowClosureProtocol";
+
+export type { RuntimeClosureManifest } from "./workflowClosureProtocol";
+
 /**
  * Thin OPFS persistence adapter for Rust-owned runtime artifacts.
  *
@@ -21,8 +30,7 @@ const LEGACY_OPFS_DIRECTORIES = [
 const OPFS_CAPABILITY_PROBE_DIRECTORY = "chronicle-capability-probe-v1";
 const OBJECTS_DIRECTORY = "objects";
 const ROOTS_DIRECTORY = "roots";
-const CLOSURE_MAGIC = new TextEncoder().encode("CHRONICLE-WORKFLOW-CLOSURE-V1\n");
-const CLOSURE_ARCHIVE_MIME = "application/vnd.chronicle.workflow-workspace";
+const CLOSURE_MAGIC = encodeWorkflowClosureMagic();
 /**
  * How many payload bytes may sit in the JS heap before the archive builder
  * hands them to blob storage. This is the export path's memory bound: peak heap
@@ -80,14 +88,6 @@ type IterableDirectoryHandle = FileSystemDirectoryHandle & {
 };
 
 type UnsignedWorkspaceRootSlot = Omit<WorkspaceRootSlot, "checksum">;
-export type RuntimeClosureManifest = {
-  protocolVersion: "chronicle-runtime-closure/v1";
-  workspaceId: string;
-  workspaceRootDigest: string;
-  previousWorkspaceRootDigest: string | null;
-  objects: Array<{ digest: string; size: number; offset: number }>;
-};
-
 export type RuntimeClosureInspection = {
   manifest: RuntimeClosureManifest;
   /** Read exactly one declared object out of the archive. */
@@ -758,7 +758,7 @@ class ClosureArchiveBuilder {
 
   finish(): Blob {
     this.flush();
-    return new Blob(this.parts, { type: CLOSURE_ARCHIVE_MIME });
+    return new Blob(this.parts, { type: WORKFLOW_CLOSURE_ARCHIVE_MIME });
   }
 }
 
@@ -1119,7 +1119,7 @@ export async function exportRuntimeClosure(
     offset += size;
   }
   const manifest: RuntimeClosureManifest = {
-    protocolVersion: "chronicle-runtime-closure/v1",
+    protocolVersion: WORKFLOW_CLOSURE_PROTOCOL_VERSION,
     workspaceId: rootCommit.workspaceId,
     workspaceRootDigest: slot.workspaceRootDigest,
     previousWorkspaceRootDigest: slot.previousWorkspaceRootDigest,
@@ -1205,7 +1205,7 @@ async function openRuntimeClosure(archive: Blob): Promise<RuntimeClosureInspecti
     ),
   ) as RuntimeClosureManifest;
   if (
-    manifest.protocolVersion !== "chronicle-runtime-closure/v1" ||
+    manifest.protocolVersion !== WORKFLOW_CLOSURE_PROTOCOL_VERSION ||
     manifest.objects.length > MAX_CLOSURE_OBJECTS
   ) {
     throw new Error("unsupported runtime closure manifest");
