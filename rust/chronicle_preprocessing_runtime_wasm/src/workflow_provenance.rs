@@ -671,5 +671,44 @@ mod tests {
             &[],
         )
         .is_err());
+        assert!(digest_suffix(&format!("sha256:{}", "g".repeat(64)), "input").is_err());
+        assert!(checked_id("", "id").is_err());
+        assert!(checked_id("not/an/id", "id").is_err());
+    }
+
+    #[test]
+    fn sidecar_fixture_has_an_exact_semantic_identity() {
+        let contract = chronicle_chrono_kernel_wasm::workflow_contract::workflow_contract();
+        let statuses = [
+            ExecutionStatus::Recomputed,
+            ExecutionStatus::Cached,
+            ExecutionStatus::Skipped,
+            ExecutionStatus::Bypassed,
+            ExecutionStatus::Error,
+        ];
+        let executions = contract
+            .execution
+            .queries
+            .iter()
+            .enumerate()
+            .map(|(index, query)| {
+                execution(query.id, query.group, statuses[index % statuses.len()])
+            })
+            .collect::<Vec<_>>();
+        let parameters = parameter_set();
+        let bytes = build_workflow_provenance_jsonld(
+            "exact-fixture",
+            &format!("sha256:{}", "b".repeat(64)),
+            &parameter_digest(&parameters),
+            &parameters,
+            "2026-08-03T00:00:00Z",
+            &executions,
+        )
+        .unwrap();
+
+        assert_eq!(
+            sha256(&bytes),
+            "sha256:bb6915c42428c65d5cd67ea4e746c73677af93db4461c8030b23a0fc7a4566a5"
+        );
     }
 }

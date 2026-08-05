@@ -679,6 +679,23 @@ fn evaluate_workflow_applicability(
     }
 }
 
+fn workflow_phase_applicable<'a, I>(
+    phase_id: &str,
+    operations: I,
+    options: &Value,
+    support_roles: &BTreeSet<&str>,
+) -> bool
+where
+    I: IntoIterator<Item = (&'a str, &'a ApplicabilityExpression)>,
+{
+    operations
+        .into_iter()
+        .any(|(operation_phase_id, applicability)| {
+            operation_phase_id == phase_id
+                && evaluate_workflow_applicability(applicability, options, support_roles)
+        })
+}
+
 fn explorer_query_state(
     execution: Option<&RuntimeQueryExecution>,
 ) -> (&'static str, Option<String>) {
@@ -690,6 +707,10 @@ fn explorer_query_state(
         Some(ExecutionStatus::Error) => ("error", None),
         None => ("not_observed", None),
     }
+}
+
+fn is_workflow_support_role(role_id: &str) -> bool {
+    role_id != "processing_options"
 }
 
 fn build_workflow_explorer_view(
@@ -828,14 +849,16 @@ fn build_workflow_explorer_view(
                 .flat_map(|inputs| inputs.iter())
                 .map(|input| (*input).to_string())
                 .collect(),
-            applicable: contract.semantic.operations.iter().any(|operation| {
-                operation.phase_id == phase.id
-                    && evaluate_workflow_applicability(
-                        &operation.applicability,
-                        &semantic_options,
-                        &present_roles,
-                    )
-            }),
+            applicable: workflow_phase_applicable(
+                phase.id,
+                contract
+                    .semantic
+                    .operations
+                    .iter()
+                    .map(|operation| (operation.phase_id, &operation.applicability)),
+                &semantic_options,
+                &present_roles,
+            ),
         })
         .collect::<Vec<_>>();
 
@@ -848,8 +871,7 @@ fn build_workflow_explorer_view(
                 .producer_operation_id
                 .and_then(|producer| operation_run_states.get(producer))
                 .map(|state| match state.as_str() {
-                    "applied" => "materialized",
-                    "bypassed" | "not_applicable" => "absent",
+                    "not_applicable" => "absent",
                     "error" => "error",
                     _ => "not_observed",
                 })
@@ -992,27 +1014,24 @@ fn build_workflow_explorer_view(
             })
             .map(|operation| operation.id)
             .collect::<BTreeSet<_>>();
-        loop {
-            let before = affected_operations.len();
-            for operation in &contract.semantic.operations {
-                if operation
-                    .input_artifacts
-                    .iter()
-                    .filter_map(|input| {
-                        contract
-                            .semantic
-                            .artifacts
-                            .iter()
-                            .find(|artifact| artifact.id == *input)
-                    })
-                    .filter_map(|artifact| artifact.producer_operation_id)
-                    .any(|producer| affected_operations.contains(producer))
-                {
-                    affected_operations.insert(operation.id);
-                }
-            }
-            if affected_operations.len() == before {
-                break;
+        // Contract operations are topologically ordered, so one forward pass
+        // computes the complete downstream closure. Repeating to a fixed point
+        // adds no reachability and obscures that ordering guarantee.
+        for operation in &contract.semantic.operations {
+            if operation
+                .input_artifacts
+                .iter()
+                .filter_map(|input| {
+                    contract
+                        .semantic
+                        .artifacts
+                        .iter()
+                        .find(|artifact| artifact.id == *input)
+                })
+                .filter_map(|artifact| artifact.producer_operation_id)
+                .any(|producer| affected_operations.contains(producer))
+            {
+                affected_operations.insert(operation.id);
             }
         }
         for operation_id in affected_operations {
@@ -3968,7 +3987,7 @@ fn execute_prepared_workspace(
         support_roles: ingress
             .assignments
             .iter()
-            .filter(|(role_id, _)| role_id.as_str() != "processing_options")
+            .filter(|(role_id, _)| is_workflow_support_role(role_id))
             .map(|(role_id, assignment)| WorkflowExplorerSupportRole {
                 role_id: role_id.clone(),
                 present: true,
@@ -6561,6 +6580,203 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
             .any(|operation| operation == "publish.encode_selected_formats"));
     }
 
+    #[test]
+    fn workflow_applicability_and_explorer_projection_are_exact() {
+        let options = serde_json::json!({
+            "enabled": true,
+            "disabled": false,
+            "mode": "app",
+            "items": [1],
+            "emptyItems": [],
+            "text": "value",
+            "blank": "",
+        });
+        let supports = BTreeSet::from(["filter_file"]);
+        let cases = [
+            (ApplicabilityExpression::Always, true),
+            (
+                ApplicabilityExpression::OptionTrue {
+                    option_key: "enabled",
+                },
+                true,
+            ),
+            (
+                ApplicabilityExpression::OptionTrue {
+                    option_key: "disabled",
+                },
+                false,
+            ),
+            (
+                ApplicabilityExpression::OptionBooleanEquals {
+                    option_key: "disabled",
+                    value: false,
+                },
+                true,
+            ),
+            (
+                ApplicabilityExpression::OptionBooleanEquals {
+                    option_key: "enabled",
+                    value: false,
+                },
+                false,
+            ),
+            (
+                ApplicabilityExpression::OptionStringEquals {
+                    option_key: "mode",
+                    value: "app",
+                },
+                true,
+            ),
+            (
+                ApplicabilityExpression::OptionStringEquals {
+                    option_key: "mode",
+                    value: "screen",
+                },
+                false,
+            ),
+            (
+                ApplicabilityExpression::ArrayNonempty {
+                    option_key: "items",
+                },
+                true,
+            ),
+            (
+                ApplicabilityExpression::ArrayNonempty {
+                    option_key: "emptyItems",
+                },
+                false,
+            ),
+            (
+                ApplicabilityExpression::StringNonempty { option_key: "text" },
+                true,
+            ),
+            (
+                ApplicabilityExpression::StringNonempty {
+                    option_key: "blank",
+                },
+                false,
+            ),
+            (
+                ApplicabilityExpression::SupportPresent {
+                    role_id: "filter_file",
+                },
+                true,
+            ),
+            (
+                ApplicabilityExpression::SupportPresent {
+                    role_id: "study_dates_file",
+                },
+                false,
+            ),
+            (
+                ApplicabilityExpression::All {
+                    terms: vec![
+                        ApplicabilityExpression::Always,
+                        ApplicabilityExpression::OptionTrue {
+                            option_key: "enabled",
+                        },
+                    ],
+                },
+                true,
+            ),
+            (
+                ApplicabilityExpression::Any {
+                    terms: vec![
+                        ApplicabilityExpression::OptionTrue {
+                            option_key: "disabled",
+                        },
+                        ApplicabilityExpression::SupportPresent {
+                            role_id: "filter_file",
+                        },
+                    ],
+                },
+                true,
+            ),
+            (
+                ApplicabilityExpression::Not {
+                    term: Box::new(ApplicabilityExpression::OptionTrue {
+                        option_key: "disabled",
+                    }),
+                },
+                true,
+            ),
+        ];
+        for (expression, expected) in cases {
+            assert_eq!(
+                evaluate_workflow_applicability(&expression, &options, &supports),
+                expected,
+                "{expression:?}",
+            );
+        }
+        let always = ApplicabilityExpression::Always;
+        let disabled = ApplicabilityExpression::OptionTrue {
+            option_key: "disabled",
+        };
+        let phase_operations = [("other", &always), ("target", &disabled)];
+        assert!(!workflow_phase_applicable(
+            "target",
+            phase_operations,
+            &options,
+            &supports,
+        ));
+        let enabled = ApplicabilityExpression::OptionTrue {
+            option_key: "enabled",
+        };
+        assert!(workflow_phase_applicable(
+            "target",
+            [("target", &enabled)],
+            &options,
+            &supports,
+        ));
+        assert!(is_workflow_support_role("raw_chronicle_csv"));
+        assert!(!is_workflow_support_role("processing_options"));
+
+        let csv = csv();
+        let request_value = request_for_workspace(&csv, '1');
+        let contract = chronicle_chrono_kernel_wasm::workflow_contract::workflow_contract();
+        let statuses = [
+            ExecutionStatus::Recomputed,
+            ExecutionStatus::Cached,
+            ExecutionStatus::Skipped,
+            ExecutionStatus::Bypassed,
+            ExecutionStatus::Error,
+        ];
+        let executions = contract
+            .execution
+            .queries
+            .iter()
+            .enumerate()
+            .map(|(index, query)| RuntimeQueryExecution {
+                query_id: query.id.into(),
+                query_group_id: query.group.into(),
+                status: statuses[index % statuses.len()],
+                input_key: format!("sha256:{}", "1".repeat(64)),
+                output_digest: format!("sha256:{}", "2".repeat(64)),
+                reason_id: format!("sha256:{}", "3".repeat(64)),
+            })
+            .collect::<Vec<_>>();
+        let view = build_workflow_explorer_view(
+            &WorkflowExplorerRequest {
+                options: request_value["options"].clone(),
+                support_roles: vec![WorkflowExplorerSupportRole {
+                    role_id: "filter_file".into(),
+                    present: true,
+                    digest: Some(format!("sha256:{}", "4".repeat(64))),
+                }],
+                selected_run_root: None,
+            },
+            &executions,
+            99,
+            Some(&format!("sha256:{}", "a".repeat(64))),
+        )
+        .unwrap();
+        let bytes = serde_jcs::to_vec(&view).unwrap();
+        assert_eq!(
+            sha256(&bytes),
+            "sha256:89d68bb7258fb94b7b92383a2b6b5c6f2351ac7ef18ab01ee45483f458883467"
+        );
+    }
+
     fn assert_sha256_identity(value: &str) {
         let hexadecimal = value.strip_prefix("sha256:").expect("sha256 prefix");
         assert_eq!(hexadecimal.len(), 64);
@@ -6898,7 +7114,12 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
             embedded_plan().query_groups.len()
         );
         let workflow_explorer_value = workflow_explorer_value.unwrap();
-        assert!(workflow_explorer_value["revision"].as_u64().unwrap() > 0);
+        assert_eq!(
+            workflow_explorer_value["revision"],
+            (manifest.role_assignments.len()
+                + manifest.query_group_executions.len()
+                + manifest.query_executions.len()) as u64
+        );
         assert!(
             workflow_explorer_value["phases"]
                 .as_array()
@@ -7568,9 +7789,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
     fn set_capacity_raises_and_compacts_state_cache() {
         reset_tracked_execution_count();
         let csv = csv();
-        INCREMENTAL_RUNTIME_STATES.with(|states| {
-            states.borrow_mut().set_capacity(4);
-        });
+        set_comparison_cache_capacity(4);
         for index in 0..4 {
             let marker = char::from_digit(index as u32, 10).unwrap();
             let request_value = request_for_workspace(&csv, marker);
@@ -7581,10 +7800,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
             )
             .unwrap();
         }
-        INCREMENTAL_RUNTIME_STATES.with(|states| {
-            let cache = states.borrow();
-            assert_eq!(cache.retained_count(), 4);
-        });
+        assert_eq!(get_comparison_cache_retained(), 4);
         INCREMENTAL_RUNTIME_STATES.with(|states| {
             states.borrow_mut().compact_all();
             let cache = states.borrow();
@@ -7594,15 +7810,10 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
                 assert!(state.previous_stage_outputs.is_empty());
             }
         });
-        INCREMENTAL_RUNTIME_STATES.with(|states| {
-            states.borrow_mut().set_capacity(2);
-            assert_eq!(states.borrow().retained_count(), 2);
-        });
-        INCREMENTAL_RUNTIME_STATES.with(|states| {
-            states
-                .borrow_mut()
-                .set_capacity(DEFAULT_MAX_INCREMENTAL_RUNTIME_STATES);
-        });
+        set_comparison_cache_capacity(2);
+        assert_eq!(get_comparison_cache_retained(), 2);
+        set_comparison_cache_capacity(DEFAULT_MAX_INCREMENTAL_RUNTIME_STATES);
+        assert_eq!(get_comparison_cache_retained(), 1);
     }
 
     /// A warm review resumes from Salsa state already in this worker instead
