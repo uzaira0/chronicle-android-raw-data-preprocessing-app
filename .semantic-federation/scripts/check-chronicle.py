@@ -231,5 +231,5 @@ print(
     f"groups={len(query_groups)} declared_queries={len(workflow_queries)} tracked_executors=1 "
     f"independently_cached_queries={len(workflow_queries)} rust_authorities={len(required)} "
     f"runtime_surfaces={len(runtime_capabilities)} typed_views={len(allowed_views)} "
-    "physical_incrementality=runtime-cutover-active-release-blocked"
+    "physical_incrementality=runtime-cutover-release-verified"
 )

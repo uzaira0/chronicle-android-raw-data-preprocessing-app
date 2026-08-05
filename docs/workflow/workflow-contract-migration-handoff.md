@@ -153,21 +153,20 @@ The aggregate `npm test` command was not used as the final campaign gate because
 repeats exhaustive campaign files without their sharded runners. Use the dedicated
 commands in `web/package.json` for those campaigns.
 
-## Remaining Release Work
+## Release Verification
 
-The semantic inventory intentionally still reports
-`runtime-cutover-active-release-blocked`. Do not change that status merely because the
-migration tests pass. Closing it requires the repository-wide release gate and a
-preview verification against the final deploy artifact:
+The semantic inventory reports `runtime-cutover-release-verified`. The final
+repository-wide release gate and preview verification against the deploy artifact
+passed on 2026-08-05:
 
 ```bash
 make all
 cd web && npm run build && npm run test:e2e:smoke
 ```
 
-Perform those checks without image or video inspection. Record any environment-only
-failure separately from a product failure. If a source or contract edit occurs first,
-refresh dependency evidence again before attempting release closure.
+Verification was performed without image or video inspection. Any later source or
+contract edit must refresh dependency evidence and rerun these release gates before
+retaining the verified status.
 
 ## Guardrails for Follow-up Work
 

@@ -937,7 +937,7 @@ def build_inventory(projection: dict, plan: dict, dependency_certificate: dict) 
             "covers": "rust_declared_query_ids",
             "count": len(query_ids),
         },
-        "physical_incremental_execution_status": "runtime-cutover-active-release-blocked",
+        "physical_incremental_execution_status": "runtime-cutover-release-verified",
         "typescript_production_authority_capabilities": [],
         "runtime_authority_surface_count": len(RUNTIME_SURFACES),
         "dependency_certificate": {

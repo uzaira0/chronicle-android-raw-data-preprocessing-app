@@ -187,8 +187,8 @@ def check_machine_state() -> tuple[int, int, set[str]]:
     }
     if physical != expected_physical:
         fail(f"behavior inventory physical state drift: {physical!r}")
-    if inventory["physical_incremental_execution_status"] != "runtime-cutover-active-release-blocked":
-        fail("behavior inventory no longer reports the active runtime cutover truthfully")
+    if inventory["physical_incremental_execution_status"] != "runtime-cutover-release-verified":
+        fail("behavior inventory no longer reports the release-verified runtime cutover truthfully")
     if inventory["rust_actual_query_event_projection"] != {
         "covers": "rust_declared_query_ids",
         "count": query_count,
@@ -589,7 +589,7 @@ def main() -> int:
         f"changed_cells_artifact={artifact_cells} "
         f"changed_cells_boundary={boundary_cells} "
         f"changed_cells_total={combined_cells} "
-        "physical_incrementality=runtime-cutover-active-release-blocked"
+        "physical_incrementality=runtime-cutover-release-verified"
     )
     return 0
 

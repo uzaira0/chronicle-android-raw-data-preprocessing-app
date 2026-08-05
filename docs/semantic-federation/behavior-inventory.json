@@ -337,7 +337,7 @@
     "covers": "rust_declared_query_ids",
     "count": 56
   },
-  "physical_incremental_execution_status": "runtime-cutover-active-release-blocked",
+  "physical_incremental_execution_status": "runtime-cutover-release-verified",
   "typescript_production_authority_capabilities": [],
   "runtime_authority_surface_count": 24,
   "dependency_certificate": {
