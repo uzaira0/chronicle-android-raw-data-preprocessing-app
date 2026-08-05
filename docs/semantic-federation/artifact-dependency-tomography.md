@@ -8,7 +8,7 @@ incremental identity:
 ```text
 method intervention     artifact intervention
         \                 /
-         exact logical checkpoints
+         exact workflow checkpoints
                    |
      deterministic percolation cluster
                    |
@@ -53,12 +53,12 @@ then establish its result:
 4. target in that same workspace.
 
 The warm source and target must each equal their independent cold oracle at all
-15 logical checkpoints and for every researcher-visible output artifact. The
+every workflow checkpoints and for every researcher-visible output artifact. The
 changed input-key set must equal the predicted cluster derived from only:
 
 - the raw seed (`parse_events`) or support-role owners declared by
   `chronicle.plan.json`; and
-- upstream logical checkpoints that actually changed.
+- upstream workflow checkpoints that actually changed.
 
 This detects missing edges, stale cache reuse, and logical over-invalidation.
 The fused kernel remains the independent cold correctness backstop. Warm
@@ -89,7 +89,7 @@ corpora per intervention so context-dependent support edges remain explicit.
 
 ## Typed checkpoint shape
 
-`chronicle-logical-stage-checkpoint/v7` (current shipping version) replaces an opaque stage comparison
+`chronicle-workflow-checkpoint/v1` (current shipping version) replaces an opaque stage comparison
 with six product-owned components:
 
 | Component | Chronicle meaning |
@@ -141,12 +141,12 @@ forward or backward and binds:
 - the canonical processing-options artifact to each resolved option value;
 - option values and support roles to the plan nodes they tune, gate, or support;
 - declared node-to-node feeds;
-- typed checkpoints and execution artifacts to their logical nodes; and
+- typed checkpoints and execution artifacts to their workflow query groups; and
 - terminal nodes to researcher-visible artifact digests; and
 - the normalized result-cell index to each canonical CSV/JSON output and to
   its row-correspondence table; and
 - a normalized `source-result-influence-arrow` witness joining qualified
-  source scopes to logical checkpoints, raw source rows to output rows, and
+  source scopes to workflow checkpoints, raw source rows to output rows, and
   unresolved source scopes to result families whose exact cell contributors
   are not yet known.
 
@@ -165,7 +165,7 @@ from output rows back to one-based raw source rows. Precision is deliberately
 honest: qualification, checkpoint, execution, and publication edges are exact;
 plan dependencies are declared; raw row dependency sets remain conservative.
 `result-cell-correspondence-arrow` now gives every canonical CSV cell and JSON
-leaf an exact normalized address, exact value digest, terminal logical node,
+leaf an exact normalized address, exact value digest, terminal workflow query group,
 and (for row-addressed CSV cells) an exact join key into `row-lineage-arrow`.
 `source-result-influence-arrow` normalizes the bridge rather than materializing
 the source-coordinate×result-cell Cartesian product: selectors join through a
@@ -192,7 +192,7 @@ The current fixture proves that supplied `possible_device_model`,
 parser's computational state. CRLF versus LF is also computationally
 equivalent for every source role. These changes still produce a different raw
 or support artifact identity, and raw changes can therefore change the Arrow
-lineage artifact even when all logical stage checkpoints converge. That is not
+lineage artifact even when all workflow query-group checkpoints converge. That is not
 a contradiction: computational equivalence must not erase which exact source
 object was processed.
 
@@ -232,7 +232,7 @@ role owners and option binders used by these campaigns to the current plan and
 all six empirical ledger digests. Narrow invalidation is available only when
 that structural surface matches. A missing or unknown option, stale plan,
 unknown protocol, or altered binding surface switches the scheduler to a
-deterministic full-context key for every logical node; an unknown role is
+deterministic full-context key for every workflow query group; an unknown role is
 rejected. Evidence currency is reported separately and enforced by the release
 gate, allowing a changed implementation to run the cold/warm proof campaign
 without first pretending its old empirical receipt is current.

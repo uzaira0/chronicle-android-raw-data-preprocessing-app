@@ -15,7 +15,9 @@
     "prepare:github-pages": "node scripts/run-clean-env.mjs vite-node scripts/prepare_github_pages_artifact.mts",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.mjs.json",
     "lint": "eslint src e2e",
-    "test": "node scripts/run-clean-env.mjs vitest run",
+    "test": "node scripts/run_test_suite.mjs",
+    "test:unit": "node scripts/run-clean-env.mjs vitest run --exclude src/lib/pipelineGraph/golden/configurationSpaceCampaign.test.ts --exclude src/lib/pipelineGraph/golden/artifactInterventionCampaign.test.ts --exclude src/lib/pipelineGraph/golden/rawBoundaryTomography.test.ts --exclude src/lib/pipelineGraph/golden/interactionTomography.test.ts",
+    "test:configuration-space-contract": "node scripts/run-clean-env.mjs vitest run src/lib/pipelineGraph/golden/configurationSpaceCampaign.test.ts -t 'replays exactly and represents every support-driven application class|makes every conditional support binding hole explicit and blocks execution'",
     "test:configuration-space": "node scripts/run-clean-env.mjs vitest run src/lib/pipelineGraph/golden/configurationSpaceCampaign.test.ts",
     "test:configuration-space-covering": "node scripts/run-clean-env.mjs vitest run src/lib/pipelineGraph/golden/configurationSpaceCampaign.test.ts -t 'executes complete t=3 coverage across every valid synthetic profile plus a high-order sample'",
     "test:configuration-influence-parallel": "node scripts/run_configuration_influence_parallel.mjs",
@@ -30,8 +32,9 @@
     "test:field-provenance": "node scripts/run-clean-env.mjs vitest run src/lib/pipelineGraph/golden/fieldLevelProvenance.test.ts",
     "test:field-mixed-tomography": "node scripts/run-clean-env.mjs node scripts/run_field_mixed_tomography.mjs",
     "refresh:dependency-evidence": "node scripts/refresh_dependency_evidence.mjs",
-    "test:coverage": "node scripts/run-clean-env.mjs vitest run --coverage",
-    "check:contract": "node scripts/run-clean-env.mjs vite-node scripts/generate_contract_artifacts.mts --check && node scripts/run-clean-env.mjs vite-node scripts/check_contract_consistency.mts && node scripts/run-clean-env.mjs vite-node scripts/generate_pipeline_graph_artifacts.mts --check && node scripts/run-clean-env.mjs vite-node scripts/generate_output_codebook_artifacts.mts --check && node scripts/run-clean-env.mjs vite-node scripts/check_contract_compat.mts && node scripts/run-clean-env.mjs vite-node scripts/check_no_typescript_authority.mts",
+    "test:coverage": "node scripts/run-clean-env.mjs vitest run --coverage --exclude src/lib/pipelineGraph/golden/configurationSpaceCampaign.test.ts --exclude src/lib/pipelineGraph/golden/artifactInterventionCampaign.test.ts --exclude src/lib/pipelineGraph/golden/rawBoundaryTomography.test.ts --exclude src/lib/pipelineGraph/golden/interactionTomography.test.ts",
+    "check:contract": "python3 ../scripts/check_workflow_count_neutrality.py && node scripts/run-clean-env.mjs vite-node scripts/generate_contract_artifacts.mts --check && node scripts/run-clean-env.mjs vite-node scripts/check_contract_consistency.mts && node scripts/run-clean-env.mjs vite-node scripts/generate_workflow_artifacts.mts --check && npm run check:workflow-schema && node scripts/run-clean-env.mjs vite-node scripts/generate_output_codebook_artifacts.mts --check && node scripts/run-clean-env.mjs vite-node scripts/check_contract_compat.mts && node scripts/run-clean-env.mjs vite-node scripts/check_no_typescript_authority.mts",
+    "check:workflow-schema": "make -C schema validate-workflow",
     "check:contract-compat": "node scripts/run-clean-env.mjs vite-node scripts/check_contract_compat.mts",
     "check:authority-boundary": "node scripts/run-clean-env.mjs vite-node scripts/check_no_typescript_authority.mts",
     "check:deploy-artifact": "node scripts/run-clean-env.mjs vite-node scripts/check_deploy_artifact.mts",
@@ -49,7 +52,7 @@
     "generate:benchmark-fixture": "node scripts/run-clean-env.mjs vite-node scripts/generate_benchmark_fixture.mts",
     "build:wasm": "node scripts/build_wasm.mjs && node scripts/check_wasm_exports.mjs",
     "check:wasm-exports": "node scripts/check_wasm_exports.mjs",
-    "generate:pipeline-graph": "node scripts/run-clean-env.mjs vite-node scripts/generate_pipeline_graph_artifacts.mts",
+    "generate:workflow": "node scripts/run-clean-env.mjs vite-node scripts/generate_workflow_artifacts.mts",
     "generate:output-codebook": "node scripts/run-clean-env.mjs vite-node scripts/generate_output_codebook_artifacts.mts"
   },
   "dependencies": {
@@ -86,8 +89,8 @@
   "overrides": {
     "esbuild": "^0.28.1",
     "qs": "6.15.3",
-    "brace-expansion": "^5.0.8",
-    "fast-uri": "^3.1.4",
+    "brace-expansion": "^5.0.9",
+    "fast-uri": "^3.1.5",
     "postcss": "^8.5.24",
     "tmp": "^0.2.7",
     "uuid": "^11.1.1"

@@ -1,6 +1,5 @@
 import { spawn } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
-import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -11,20 +10,12 @@ const runtimeCrate = path.join(
   "rust/chronicle_preprocessing_runtime_wasm",
 );
 const semanticRoot = path.join(repositoryRoot, ".semantic-federation");
-const localSemprof = path.join(
-  homedir(),
-  "semantic-profile-toolchain",
-  "target",
-  "debug",
-  "semprof",
-);
-const semprofBin = process.env.SEM_PROF_BIN ||
-  (existsSync(localSemprof) ? localSemprof : "semprof");
+const semprofBin = process.env.SEM_PROF_BIN || "semprof";
 const temporaryPackage = mkdtempSync(
-  path.join(tmpdir(), "chronicle-dependency-campaign-wasm-"),
+  path.join(webRoot, ".tmp-dependency-campaign-wasm-"),
 );
 const backupRoot = mkdtempSync(
-  path.join(tmpdir(), "chronicle-dependency-evidence-backup-"),
+  path.join(webRoot, ".tmp-dependency-evidence-backup-"),
 );
 const generatedPaths = [
   "web/src/lib/pipelineGraph/golden/family-expected",
@@ -36,10 +27,7 @@ const generatedPaths = [
   ".semantic-federation/semantic/semantic-profile.lock",
   "docs/semantic-federation/behavior-inventory.json",
 ];
-const toolchainEnv = {
-  ...process.env,
-  PATH: `${path.join(homedir(), ".cargo", "bin")}${path.delimiter}${process.env.PATH ?? ""}`,
-};
+const toolchainEnv = { ...process.env };
 
 /**
  * @param {string} label

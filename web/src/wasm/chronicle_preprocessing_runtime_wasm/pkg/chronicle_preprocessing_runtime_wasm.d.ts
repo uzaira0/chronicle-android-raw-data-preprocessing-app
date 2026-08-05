@@ -58,8 +58,8 @@ export function execute_workspace(request_json: string, csv_bytes: Uint8Array, s
 export function execute_workspace_with_review_base(request_json: string, csv_bytes: Uint8Array, review_base_bytes: Uint8Array, support_files: RuntimeSupportFiles): RuntimeHandle;
 
 /**
- * Execute an interactive review with independently verified step-17 and
- * step-29 checkpoints. The reconstruction header is rejected before payload
+ * Execute an interactive review with independently verified post-review and
+ * post-reconstruction checkpoints. The reconstruction header is rejected before payload
  * decompression when any semantic input to reconstruction changed.
  */
 export function execute_workspace_with_review_bases(request_json: string, csv_bytes: Uint8Array, review_base_bytes: Uint8Array, reconstruction_base_bytes: Uint8Array, support_files: RuntimeSupportFiles): RuntimeHandle;
@@ -75,15 +75,7 @@ export function implementation_build_digest(): string;
  */
 export function inspect_raw_file_v1(csv_bytes: Uint8Array, file_name: string, size_bytes: number): string;
 
-export function pipeline_step_contract_json(): string;
-
-/**
- * Project the embedded product plan for interaction before any raw artifact
- * has been ingested. The projection is produced by the same Rust adapter and
- * option vocabulary used during execution, so the browser never needs a
- * second TypeScript topology or applicability implementation.
- */
-export function plan_stage_view_json(options_json: string): string;
+export function plan_workflow_explorer_view_json(request_json: string): string;
 
 /**
  * Prepare a review from an already verified OPFS workspace. Only the small
@@ -106,6 +98,8 @@ export function set_comparison_cache_capacity(capacity: number): void;
 
 export function verify_evidence_journal_cbor(bytes: Uint8Array): number;
 
+export function workflow_contract_json(): string;
+
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
@@ -121,8 +115,7 @@ export interface InitOutput {
     readonly execute_workspace_with_review_bases: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => void;
     readonly implementation_build_digest: (a: number) => void;
     readonly inspect_raw_file_v1: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
-    readonly pipeline_step_contract_json: (a: number) => void;
-    readonly plan_stage_view_json: (a: number, b: number, c: number) => void;
+    readonly plan_workflow_explorer_view_json: (a: number, b: number, c: number) => void;
     readonly prepare_persisted_workspace_review: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => void;
     readonly prepare_workspace_review: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => void;
     readonly preparedreviewworkspace_execute_selected_base: (a: number, b: number, c: number, d: number) => void;
@@ -139,6 +132,7 @@ export interface InitOutput {
     readonly runtimesupportfiles_put_with_name: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
     readonly set_comparison_cache_capacity: (a: number) => void;
     readonly verify_evidence_journal_cbor: (a: number, b: number, c: number) => void;
+    readonly workflow_contract_json: (a: number) => void;
     readonly get_comparison_cache_retained: () => number;
     readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
     readonly __wbindgen_export: (a: number, b: number, c: number) => void;

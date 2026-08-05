@@ -36,23 +36,23 @@ export const ALL_ON: BrowserProcessingOptions = {
   enableDayCoverage: true,
 };
 
-type PlanNode = {
-  node_id: string;
-  input_nodes: string[];
+type PlanQueryGroup = {
+  query_group_id: string;
+  input_query_groups: string[];
 };
 
-const nodes = productPlan.nodes as PlanNode[];
+const queryGroups = productPlan.query_groups as PlanQueryGroup[];
 
 /** Product-group order from the generated Rust-owned plan. */
-export const order = nodes.map((node) => node.node_id);
+export const order = queryGroups.map((group) => group.query_group_id);
 
 /** Exact group-level downstream cone from the generated Rust-owned plan. */
 export function descendantsOf(seed: ReadonlySet<string>): Set<string> {
   const dependents = new Map<string, string[]>();
-  for (const node of nodes) {
-    for (const input of node.input_nodes) {
+  for (const group of queryGroups) {
+    for (const input of group.input_query_groups) {
       const targets = dependents.get(input) ?? [];
-      targets.push(node.node_id);
+      targets.push(group.query_group_id);
       dependents.set(input, targets);
     }
   }

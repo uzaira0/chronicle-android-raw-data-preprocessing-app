@@ -75,20 +75,17 @@ test("processes app and screen outputs with CSV support files and downloads both
 
   const zipEntries = await downloadZipEntries(page, "download-all-zip");
   const zipNames = Array.from(zipEntries.keys());
-  // #81 (the Rust/WASM single-engine cutover) retired the TypeScript-built
-  // run report and PROV-O sidecar along with the rest of the duplicate
-  // TypeScript authority — `buildProcessingReport` / `buildProvenanceJsonLd`
-  // are now banned symbols in scripts/check_no_typescript_authority.mts. Every
-  // artifact in the bundle is Rust-owned; the run manifest, execution ledger
-  // and artifact closure carry what those two files used to.
+  // The old TypeScript-built report remains retired. Provenance returned only
+  // after Rust became the sole emitter: the browser transports the JSON-LD
+  // bytes but does not reconstruct operations or executions.
   expect(zipNames).not.toContain("chronicle-processing-report.json");
-  expect(zipNames).not.toContain("chronicle-provenance.jsonld");
   expect(zipNames).toEqual(
     expect.arrayContaining([
       "Raw P01 Automatically Preprocessed.csv",
       "Raw P01 Screen Usage Automatically Preprocessed.csv",
       "Raw P01 Runtime Manifest.json",
       "Raw P01 Execution Ledger.json",
+      "Raw P01 Workflow Provenance.jsonld",
       "Raw P01 Artifact Closure.json",
       "Raw P01 Dependency Certificate.json",
       "Raw P01 Row Lineage.arrow",
@@ -107,23 +104,51 @@ test("processes app and screen outputs with CSV support files and downloads both
   );
   expect(artifactKinds).toContain("app-csv");
   expect(artifactKinds).toContain("screen-csv");
-  // Per-node and per-step lineage now rides in the manifest itself instead of
-  // the retired PROV-O graph. The step scale is the full 55-step contract.
-  expect((manifest.nodeExecutions as unknown[]).length).toBeGreaterThan(0);
-  expect((manifest.stepExecutions as unknown[]).length).toBe(55);
+  expect(artifactKinds).toContain("workflow-provenance-jsonld");
+  const provenance = JSON.parse(
+    zipEntries.get("Raw P01 Workflow Provenance.jsonld") ?? "{}",
+  ) as { "@graph"?: Array<{ "@type"?: string | string[] }> };
+  expect(provenance["@graph"]?.some((node) => node["@type"] === "chron:WorkflowPlan")).toBe(true);
   expect(
-    (manifest.stepExecutions as Array<Record<string, unknown>>).every(
-      (step) => step.step_id && step.unit_id && step.status && step.reason_id,
+    provenance["@graph"]?.some((node) => node["@type"] === "chron:OperationExecution"),
+  ).toBe(true);
+  expect(
+    provenance["@graph"]?.some(
+      (node) =>
+        Array.isArray(node["@type"]) && node["@type"].includes("chron:QueryExecution"),
+    ),
+  ).toBe(true);
+  // Physical query-group and query lineage rides in the manifest itself.
+  const queryGroups = manifest.queryGroupExecutions as Array<
+    Record<string, unknown>
+  >;
+  const queries = manifest.queryExecutions as Array<Record<string, unknown>>;
+  expect(queryGroups.length).toBeGreaterThan(0);
+  expect(new Set(queryGroups.map((group) => group.query_group_id)).size).toBe(
+    queryGroups.length,
+  );
+  expect(queries.length).toBeGreaterThan(0);
+  expect(new Set(queries.map((query) => query.query_id)).size).toBe(
+    queries.length,
+  );
+  expect(
+    queries.every(
+      (query) =>
+        query.query_id &&
+        query.query_group_id &&
+        query.status &&
+        query.reason_id,
     ),
   ).toBe(true);
 
-  // The execution ledger is the per-unit/per-step lineage the old report kept
-  // under `files[].executions`.
+  // The execution ledger exposes the same grouping without pinning a registry
+  // cardinality in UI tests.
   const ledger = JSON.parse(
     zipEntries.get("Raw P01 Execution Ledger.json") ?? "[]",
-  ) as Array<{ steps: unknown[] }>;
+  ) as Array<{ queryGroupId: string; queries: unknown[] }>;
   expect(ledger.length).toBeGreaterThan(0);
-  expect(ledger.flatMap((unit) => unit.steps).length).toBe(55);
+  expect(ledger.every((group) => group.queryGroupId.length > 0)).toBe(true);
+  expect(ledger.flatMap((group) => group.queries).length).toBe(queries.length);
 
   // The artifact closure pins each output to the exact inputs it derives from —
   // the derivation edges the PROV-O graph used to spell out.

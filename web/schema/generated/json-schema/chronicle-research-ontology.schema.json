@@ -30,7 +30,7 @@
             "type": "object"
         },
         "AttributionStatus": {
-            "description": "Attribution status of an App-Usage assertion \u2014 the compliance denominator contract. Chronicle uses a CLOSED attribution vocabulary: \"Target Child\", \"Other\", or \"None\"/blank (survey answers arrive as \"Other (From Survey)\"). Mirrors classifyAttribution() in web/src/lib/stages/attributePerson.ts (the runtime SSOT). NEVER a null person and NEVER an \"unknown person\" class.",
+            "description": "Attribution status of an App-Usage assertion \u2014 the compliance denominator contract. Chronicle uses a CLOSED attribution vocabulary: \"Target Child\", \"Other\", or \"None\"/blank (survey answers arrive as \"Other (From Survey)\"). Mirrors Rust attribution in pipeline_v2_incremental.rs (the runtime source of truth). NEVER a null person and NEVER an \"unknown person\" class.",
             "enum": [
                 "target",
                 "known_non_target",
@@ -168,15 +168,11 @@
                     "type": "string"
                 },
                 "produced_by": {
-                    "anyOf": [
-                        {
-                            "$ref": "#/$defs/NodeExecution"
-                        },
-                        {
-                            "type": "null"
-                        }
-                    ],
-                    "description": "The node execution that produced this measure."
+                    "description": "The operation execution that produced this measure.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
                 }
             },
             "required": [
@@ -292,9 +288,119 @@
             "title": "MeasurementLayer",
             "type": "string"
         },
-        "NodeExecution": {
+        "OperationDefinition": {
             "additionalProperties": false,
-            "description": "A retrospective execution of a StepDefinition. A prov:Activity.",
+            "description": "One semantic operation in the workflow at any useful scale. Operations compose recursively via part_of_operation so a coarse responsibility and its independently invalidatable transformations share one model without forcing presentation and execution boundaries to coincide.",
+            "properties": {
+                "configuration_dependencies": {
+                    "description": "Direct configuration fields read by this operation.",
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": [
+                        "array",
+                        "null"
+                    ]
+                },
+                "consumes": {
+                    "description": "Channels or inputs the operation reads.",
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": [
+                        "array",
+                        "null"
+                    ]
+                },
+                "data_effects": {
+                    "description": "Declared effects such as preserve, drop, split, classify, or encode.",
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": [
+                        "array",
+                        "null"
+                    ]
+                },
+                "depends_on": {
+                    "description": "Operations that must precede this one.",
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": [
+                        "array",
+                        "null"
+                    ]
+                },
+                "engine": {
+                    "description": "Named algorithm or engine the operation realizes.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "epistemic_role": {
+                    "description": "Whether the operation observes, infers, applies policy, or presents.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "is_fatal": {
+                    "description": "Whether a failure fails the whole workflow.",
+                    "type": [
+                        "boolean",
+                        "null"
+                    ]
+                },
+                "operation_id": {
+                    "description": "Stable semantic operation identifier.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "operation_role": {
+                    "description": "Semantic responsibility of the operation.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "part_of_operation": {
+                    "description": "The coarser semantic operation this operation is a proper part of. Referenced by operation_id, not inlined.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "produces": {
+                    "description": "Channels or outputs the operation produces.",
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": [
+                        "array",
+                        "null"
+                    ]
+                },
+                "verb": {
+                    "description": "Action the operation performs.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                }
+            },
+            "required": [
+                "operation_id"
+            ],
+            "title": "OperationDefinition",
+            "type": "object"
+        },
+        "OperationExecution": {
+            "additionalProperties": false,
+            "description": "A retrospective execution of an OperationDefinition. A prov:Activity.",
             "properties": {
                 "ended_at": {
                     "description": "Execution end.",
@@ -303,8 +409,15 @@
                         "null"
                     ]
                 },
-                "executes_step": {
-                    "description": "The StepDefinition this execution runs.",
+                "executes_operation": {
+                    "description": "The OperationDefinition this execution realizes.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "execution_id": {
+                    "description": "Stable workflow-execution identifier.",
                     "type": [
                         "string",
                         "null"
@@ -329,7 +442,10 @@
                     "description": "The ParameterSet the execution used."
                 }
             },
-            "title": "NodeExecution",
+            "required": [
+                "execution_id"
+            ],
+            "title": "OperationExecution",
             "type": "object"
         },
         "ParameterBinding": {
@@ -379,34 +495,6 @@
             "title": "ParameterSet",
             "type": "object"
         },
-        "PipelinePlan": {
-            "additionalProperties": false,
-            "description": "The prospective processing workflow. A p-plan:Plan / prov:Plan.",
-            "properties": {
-                "plan_id": {
-                    "description": "Plan identifier.",
-                    "type": [
-                        "string",
-                        "null"
-                    ]
-                },
-                "steps": {
-                    "description": "Steps of the plan.",
-                    "items": {
-                        "$ref": "#/$defs/StepDefinition"
-                    },
-                    "type": [
-                        "array",
-                        "null"
-                    ]
-                }
-            },
-            "required": [
-                "plan_id"
-            ],
-            "title": "PipelinePlan",
-            "type": "object"
-        },
         "PlatformEventOccurrence": {
             "additionalProperties": false,
             "description": "The real-world Android lifecycle/system occurrence (an app resuming, the screen turning off, a shutdown). This is the thing that happened in the world \u2014 NOT the logged record and NOT an observation. Deliberately untyped as sosa:Observation.",
@@ -425,6 +513,144 @@
             },
             "title": "PlatformEventOccurrence",
             "type": "object"
+        },
+        "QueryDefinition": {
+            "additionalProperties": false,
+            "description": "One physical computation and memoization boundary. Its realizes_operations links are prospective mappings and do not imply that those semantic operations were applied in a particular run.",
+            "properties": {
+                "query_dependencies": {
+                    "description": "Direct upstream physical queries.",
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": [
+                        "array",
+                        "null"
+                    ]
+                },
+                "query_group_id": {
+                    "description": "Presentation-only query-group identity.",
+                    "type": "string"
+                },
+                "query_id": {
+                    "description": "Stable physical-query identifier.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "query_outputs": {
+                    "description": "Independently identified output artifacts or ports.",
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": [
+                        "array",
+                        "null"
+                    ]
+                },
+                "query_request_fields": {
+                    "description": "Exact request fields read by the query.",
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": [
+                        "array",
+                        "null"
+                    ]
+                },
+                "realizes_operations": {
+                    "description": "Semantic operations this query may realize.",
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": [
+                        "array",
+                        "null"
+                    ]
+                }
+            },
+            "required": [
+                "query_id",
+                "query_group_id"
+            ],
+            "title": "QueryDefinition",
+            "type": "object"
+        },
+        "QueryExecution": {
+            "additionalProperties": false,
+            "description": "Retrospective evidence for one physical query. Kept distinct from OperationExecution because a fused query can realize several semantic operations with different applicability.",
+            "properties": {
+                "executes_query": {
+                    "description": "The QueryDefinition this execution realizes.",
+                    "type": "string"
+                },
+                "execution_ended_at": {
+                    "description": "Evidence timestamp for the query execution.",
+                    "format": "date-time",
+                    "type": "string"
+                },
+                "execution_started_at": {
+                    "description": "Evidence timestamp for the query execution.",
+                    "format": "date-time",
+                    "type": "string"
+                },
+                "part_of_execution": {
+                    "description": "Root workflow execution containing this query execution.",
+                    "type": "string"
+                },
+                "query_execution_status": {
+                    "$ref": "#/$defs/QueryExecutionStatus",
+                    "description": "Observed physical execution state."
+                },
+                "query_input_key": {
+                    "description": "Content identity of the query's exact effective inputs.",
+                    "type": "string"
+                },
+                "query_output_digest": {
+                    "description": "Content identity of the query output.",
+                    "type": "string"
+                },
+                "query_reason_id": {
+                    "description": "Stable identity of the evidence supporting the state.",
+                    "type": "string"
+                },
+                "used_parameter_set": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/ParameterSet"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "description": "The ParameterSet the execution used."
+                }
+            },
+            "required": [
+                "executes_query",
+                "query_execution_status",
+                "query_input_key",
+                "query_output_digest",
+                "query_reason_id",
+                "part_of_execution",
+                "execution_started_at",
+                "execution_ended_at"
+            ],
+            "title": "QueryExecution",
+            "type": "object"
+        },
+        "QueryExecutionStatus": {
+            "description": "Observed state of one physical query in a runtime execution.",
+            "enum": [
+                "cached",
+                "recomputed",
+                "error",
+                "skipped",
+                "bypassed"
+            ],
+            "title": "QueryExecutionStatus",
+            "type": "string"
         },
         "ReconstructionExecution": {
             "additionalProperties": false,
@@ -497,82 +723,6 @@
             ],
             "title": "ReconstructionStrategyId",
             "type": "string"
-        },
-        "StepDefinition": {
-            "additionalProperties": false,
-            "description": "One processing step in the plan (a graph node) at ANY scale \u2014 a p-plan:Step. Steps compose recursively via part_of_step: a coarse step (an execution/memoization unit) and the fine-grained transformations inside it are the SAME kind of thing, because the step boundary is an arbitrary scale choice, not an ontological distinction. Follows the ProcessingStep shape (id/verb/engine/consumes/produces/depends_on).",
-            "properties": {
-                "consumes": {
-                    "description": "Channels/inputs the step reads.",
-                    "items": {
-                        "type": "string"
-                    },
-                    "type": [
-                        "array",
-                        "null"
-                    ]
-                },
-                "depends_on": {
-                    "description": "Steps that must precede this one.",
-                    "items": {
-                        "type": "string"
-                    },
-                    "type": [
-                        "array",
-                        "null"
-                    ]
-                },
-                "engine": {
-                    "description": "Named algorithm/engine the step realizes.",
-                    "type": [
-                        "string",
-                        "null"
-                    ]
-                },
-                "is_fatal": {
-                    "description": "Whether a failure fails the whole workflow.",
-                    "type": [
-                        "boolean",
-                        "null"
-                    ]
-                },
-                "part_of_step": {
-                    "description": "The coarser-scale step this step is a proper part of (recursive composition \u2014 no separate \"substep\" class; scale is arbitrary). Referenced by step_id, not inlined.",
-                    "type": [
-                        "string",
-                        "null"
-                    ]
-                },
-                "produces": {
-                    "description": "Channels/outputs the step produces.",
-                    "items": {
-                        "type": "string"
-                    },
-                    "type": [
-                        "array",
-                        "null"
-                    ]
-                },
-                "step_id": {
-                    "description": "Step identifier (= graph node id).",
-                    "type": [
-                        "string",
-                        "null"
-                    ]
-                },
-                "verb": {
-                    "description": "Action the step performs.",
-                    "type": [
-                        "string",
-                        "null"
-                    ]
-                }
-            },
-            "required": [
-                "step_id"
-            ],
-            "title": "StepDefinition",
-            "type": "object"
         },
         "UsageEpisodeAssertion": {
             "additionalProperties": false,
@@ -775,6 +925,44 @@
             ],
             "title": "UsageSessionAssertion",
             "type": "object"
+        },
+        "WorkflowPlan": {
+            "additionalProperties": false,
+            "description": "The prospective processing workflow. A p-plan:Plan / prov:Plan.",
+            "properties": {
+                "operations": {
+                    "description": "Semantic operations in the workflow.",
+                    "items": {
+                        "$ref": "#/$defs/OperationDefinition"
+                    },
+                    "type": [
+                        "array",
+                        "null"
+                    ]
+                },
+                "plan_id": {
+                    "description": "Plan identifier.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "queries": {
+                    "description": "Physical queries in the workflow.",
+                    "items": {
+                        "$ref": "#/$defs/QueryDefinition"
+                    },
+                    "type": [
+                        "array",
+                        "null"
+                    ]
+                }
+            },
+            "required": [
+                "plan_id"
+            ],
+            "title": "WorkflowPlan",
+            "type": "object"
         }
     },
     "$id": "https://w3id.org/chronicle-usage-ontology/core",
@@ -783,6 +971,16 @@
     "description": "The prospective processing workflow. A p-plan:Plan / prov:Plan.",
     "metamodel_version": "1.7.0",
     "properties": {
+        "operations": {
+            "description": "Semantic operations in the workflow.",
+            "items": {
+                "$ref": "#/$defs/OperationDefinition"
+            },
+            "type": [
+                "array",
+                "null"
+            ]
+        },
         "plan_id": {
             "description": "Plan identifier.",
             "type": [
@@ -790,10 +988,10 @@
                 "null"
             ]
         },
-        "steps": {
-            "description": "Steps of the plan.",
+        "queries": {
+            "description": "Physical queries in the workflow.",
             "items": {
-                "$ref": "#/$defs/StepDefinition"
+                "$ref": "#/$defs/QueryDefinition"
             },
             "type": [
                 "array",

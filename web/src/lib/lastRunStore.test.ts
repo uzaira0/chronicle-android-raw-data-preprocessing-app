@@ -4,6 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import {
   clearLastRun,
+  detectLegacyLastRunState,
+  LAST_RUN_DB_NAME,
+  LAST_RUN_DB_VERSION,
   loadLastRun,
   saveLastRun,
   toLightweightResults,
@@ -175,7 +178,80 @@ describe("toLightweightResults", () => {
   });
 });
 
+describe("legacy last-run database boundary", () => {
+  it("detects the retired database by enumeration without opening or deleting it", async () => {
+    const databases = vi.fn(() =>
+      Promise.resolve([
+        { name: "chronicle-last-run", version: 1 },
+        { name: LAST_RUN_DB_NAME, version: LAST_RUN_DB_VERSION },
+      ]),
+    );
+    const open = vi.fn(() => {
+      throw new Error("legacy databases must never be opened");
+    });
+    const deleteDatabase = vi.fn(() => {
+      throw new Error("legacy databases must never be deleted");
+    });
+    const factory = {
+      databases,
+      open,
+      deleteDatabase,
+    } as unknown as IDBFactory;
+
+    await expect(detectLegacyLastRunState(factory)).resolves.toEqual({
+      detected: true,
+      detectionSupported: true,
+    });
+    expect(databases).toHaveBeenCalledOnce();
+    expect(open).not.toHaveBeenCalled();
+    expect(deleteDatabase).not.toHaveBeenCalled();
+  });
+
+  it("does not inspect legacy state when non-opening enumeration is unsupported", async () => {
+    const open = vi.fn(() => {
+      throw new Error("must not fall back to open");
+    });
+    const deleteDatabase = vi.fn();
+    const factory = { open, deleteDatabase } as unknown as IDBFactory;
+
+    await expect(detectLegacyLastRunState(factory)).resolves.toEqual({
+      detected: false,
+      detectionSupported: false,
+    });
+    expect(open).not.toHaveBeenCalled();
+    expect(deleteDatabase).not.toHaveBeenCalled();
+  });
+
+  it("does not fall back to opening the legacy database when enumeration fails", async () => {
+    const databases = vi.fn(() => Promise.reject(new Error("denied")));
+    const open = vi.fn();
+    const factory = { databases, open } as unknown as IDBFactory;
+
+    await expect(detectLegacyLastRunState(factory)).resolves.toEqual({
+      detected: false,
+      detectionSupported: false,
+    });
+    expect(open).not.toHaveBeenCalled();
+  });
+});
+
 describe("lastRunStore", () => {
+  it("opens only the workflow-namespaced current database", async () => {
+    const open = vi.spyOn(indexedDB, "open");
+    try {
+      await saveLastRun({
+        options: DEFAULT_BROWSER_OPTIONS,
+        results: [result()],
+        discoveredTimezones: [],
+      });
+
+      expect(open).toHaveBeenCalledWith(LAST_RUN_DB_NAME, LAST_RUN_DB_VERSION);
+      expect(open).not.toHaveBeenCalledWith("chronicle-last-run", 1);
+    } finally {
+      open.mockRestore();
+    }
+  });
+
   it("sets a synchronous deletion fence and releases it after a successful save", async () => {
     const values = new Map<string, string>();
     vi.stubGlobal("localStorage", {
@@ -373,7 +449,9 @@ describe("lastRunStore under a failing IndexedDB", () => {
   );
 
   it("swallows a fenced deletion failure and still starts clean", async () => {
-    const values = new Map([["chronicle-last-run-deleted-v1", "1"]]);
+    const values = new Map([
+      ["chronicle-workflow-last-run-deleted-v1", "1"],
+    ]);
     vi.stubGlobal("localStorage", {
       getItem: (key: string) => values.get(key) ?? null,
       setItem: (key: string, value: string) => values.set(key, value),

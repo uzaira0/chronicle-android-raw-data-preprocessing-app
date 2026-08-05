@@ -1,12 +1,4 @@
 import { spawnSync } from "node:child_process";
-import { homedir } from "node:os";
-import path from "node:path";
-
-const cargoBin = path.join(homedir(), ".cargo", "bin");
-const env = {
-  ...process.env,
-  PATH: `${cargoBin}${path.delimiter}${process.env.PATH ?? ""}`,
-};
 
 const crates = [
   ["chronicle_preprocessing_runtime_wasm", "chronicle_preprocessing_runtime_wasm"],
@@ -25,7 +17,7 @@ for (const [crate, output] of crates) {
       "--out-dir",
       `../../web/src/wasm/${output}/pkg`,
     ],
-    { env, stdio: "inherit" },
+    { env: process.env, stdio: "inherit" },
   );
   if (result.error) throw result.error;
   if (result.status !== 0) process.exit(result.status ?? 1);

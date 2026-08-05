@@ -31,8 +31,8 @@ import {
 } from "@/testSupport/syntheticChronicleCorpus";
 import {
   sourceRoleIsActive,
-  type RustStepContract,
-} from "@/testSupport/rustStepContract";
+  type RustWorkflowContract,
+} from "@/testSupport/workflowContract";
 import { dependencyCampaignRuntimeBytes } from "@/testSupport/dependencyCampaignRuntime";
 import * as runtime from "@/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm.js";
 
@@ -69,20 +69,20 @@ type RuntimeManifest = {
   workspaceRootDigest: string;
   openObligations: unknown[];
   processingSummary: {
-    logicalStageDigests: Record<string, string>;
-    logicalStageCheckpoints: Record<string, Record<string, unknown>>;
-    pipelineStepDigests: Record<string, string>;
+    workflowQueryGroupDigests: Record<string, string>;
+    workflowQueryGroupCheckpoints: Record<string, Record<string, unknown>>;
+    workflowQueryDigests: Record<string, string>;
     [key: string]: unknown;
   };
-  nodeExecutions: Array<{
-    node_id: string;
+  queryGroupExecutions: Array<{
+    query_group_id: string;
     input_key: string;
     output: { digest: string } | null;
     status: "cached" | "recomputed" | "error" | "skipped" | "bypassed";
   }>;
-  stepExecutions: Array<{
-    step_id: string;
-    unit_id: string;
+  queryExecutions: Array<{
+    query_id: string;
+    query_group_id: string;
     input_key: string;
     output_digest: string;
     status: "cached" | "recomputed" | "error" | "skipped" | "bypassed";
@@ -103,17 +103,17 @@ const catalog = buildSyntheticCatalog({
   backgroundCsv,
   forcingScreenOpenCsv: forcingCsv,
 });
-let stepContract: RustStepContract;
+let workflowContract: RustWorkflowContract;
 
 beforeAll(() => {
   runtime.initSync({ module: dependencyCampaignRuntimeBytes() });
-  stepContract = JSON.parse(
-    runtime.pipeline_step_contract_json(),
-  ) as RustStepContract;
-  expect(stepContract.protocolVersion).toBe(
-    "chronicle-preprocessing-step-contract/v3",
+  workflowContract = JSON.parse(
+    runtime.workflow_contract_json(),
+  ) as RustWorkflowContract;
+  expect(workflowContract.protocolVersion).toBe(
+    "chronicle-workflow-contract/v1",
   );
-  expect(stepContract.steps).toHaveLength(55);
+  expect(workflowContract.execution.queries).toHaveLength(workflowContract.execution.queries.length);
 });
 
 async function sha256Uri(value: Uint8Array | string): Promise<string> {
@@ -211,14 +211,14 @@ function receipt(manifest: RuntimeManifest): Record<string, string> {
 
 function stepStatuses(manifest: RuntimeManifest): Record<string, string> {
   return Object.fromEntries(
-    manifest.stepExecutions.map(({ step_id, status }) => [step_id, status]),
+    manifest.queryExecutions.map(({ query_id, status }) => [query_id, status]),
   );
 }
 
 function executedStepIds(manifest: RuntimeManifest): string[] {
-  return manifest.stepExecutions
+  return manifest.queryExecutions
     .filter(({ status }) => status === "recomputed")
-    .map(({ step_id }) => step_id)
+    .map(({ query_id }) => query_id)
     .sort();
 }
 
@@ -226,8 +226,8 @@ function nodeOutputDigests(
   manifest: RuntimeManifest,
 ): Record<string, string | null> {
   return Object.fromEntries(
-    manifest.nodeExecutions.map(({ node_id, output }) => [
-      node_id,
+    manifest.queryGroupExecutions.map(({ query_group_id, output }) => [
+      query_group_id,
       output?.digest ?? null,
     ]),
   );
@@ -274,12 +274,12 @@ function checkpointComponentSet(
   source: RuntimeManifest,
   target: RuntimeManifest,
 ): string[] {
-  return Object.keys(source.processingSummary.logicalStageCheckpoints)
+  return Object.keys(source.processingSummary.workflowQueryGroupCheckpoints)
     .sort()
     .flatMap((nodeId) =>
       changedFields(
-        source.processingSummary.logicalStageCheckpoints[nodeId] ?? {},
-        target.processingSummary.logicalStageCheckpoints[nodeId] ?? {},
+        source.processingSummary.workflowQueryGroupCheckpoints[nodeId] ?? {},
+        target.processingSummary.workflowQueryGroupCheckpoints[nodeId] ?? {},
       )
         .filter((component) => component !== "terminalDigest")
         .map((component) => `${nodeId}.${component}`),
@@ -296,17 +296,17 @@ function delta(
   };
 }
 
-function predictedExecutedSteps(
+function predictedExecutedQueries(
   changedRequestFields: ReadonlySet<string>,
   changedSourceRoles: ReadonlySet<string>,
-  changedStepOutputs: ReadonlySet<string>,
+  changedQueryOutputs: ReadonlySet<string>,
   targetOptions: Record<string, unknown>,
   source: RuntimeManifest,
   target: RuntimeManifest,
 ): string[] {
   const sourceStatuses = stepStatuses(source);
   const targetStatuses = stepStatuses(target);
-  return stepContract.steps
+  return workflowContract.execution.queries
     .filter((step) => {
       const sourceApplicable = sourceStatuses[step.id] !== "bypassed";
       const targetApplicable = targetStatuses[step.id] !== "bypassed";
@@ -318,7 +318,7 @@ function predictedExecutedSteps(
             (role) =>
               changedSourceRoles.has(role) && sourceRoleIsActive(step, role, targetOptions),
           ) ||
-          step.inputs.some((input) => changedStepOutputs.has(input)))
+          step.inputs.some((input) => changedQueryOutputs.has(input)))
       );
     })
     .map(({ id }) => id)
@@ -425,8 +425,8 @@ describe("mixed artifact × configuration tomography", () => {
           activationProbeExecutions += 1;
           if (
             changedFields(
-              fixture.coldBase.processingSummary.logicalStageDigests,
-              cold.processingSummary.logicalStageDigests,
+              fixture.coldBase.processingSummary.workflowQueryGroupDigests,
+              cold.processingSummary.workflowQueryGroupDigests,
             ).length > 0
           ) {
             representatives.set(roleId, {
@@ -620,10 +620,10 @@ describe("mixed artifact × configuration tomography", () => {
         warmColdComparisons += 6;
 
         const changedStepsAfterData = changedFields(
-          representative.cold.processingSummary.pipelineStepDigests,
-          coldPair.processingSummary.pipelineStepDigests,
+          representative.cold.processingSummary.workflowQueryDigests,
+          coldPair.processingSummary.workflowQueryDigests,
         );
-        const predictedAfterData = predictedExecutedSteps(
+        const predictedAfterData = predictedExecutedQueries(
           changedRustKeys,
           new Set(),
           new Set(changedStepsAfterData),
@@ -637,10 +637,10 @@ describe("mixed artifact × configuration tomography", () => {
           `${caseId}: config-after-data Salsa execution`,
         ).toEqual(predictedAfterData);
         const changedStepsAfterConfig = changedFields(
-          coldConfiguration.processingSummary.pipelineStepDigests,
-          coldPair.processingSummary.pipelineStepDigests,
+          coldConfiguration.processingSummary.workflowQueryDigests,
+          coldPair.processingSummary.workflowQueryDigests,
         );
-        const predictedAfterConfig = predictedExecutedSteps(
+        const predictedAfterConfig = predictedExecutedQueries(
           new Set(),
           new Set([roleId]),
           new Set(changedStepsAfterConfig),
@@ -655,7 +655,7 @@ describe("mixed artifact × configuration tomography", () => {
         ).toEqual(predictedAfterConfig);
         const dataFirstSourceStatuses = stepStatuses(representative.cold);
         const pairStatuses = stepStatuses(coldPair);
-        const deactivatedAfterData = stepContract.steps
+        const deactivatedAfterData = workflowContract.execution.queries
           .filter(
             ({ id }) =>
               dataFirstSourceStatuses[id] !== "bypassed" &&
@@ -670,7 +670,7 @@ describe("mixed artifact × configuration tomography", () => {
           ).toBe("bypassed");
         }
         const configFirstSourceStatuses = stepStatuses(coldConfiguration);
-        const deactivatedAfterConfig = stepContract.steps
+        const deactivatedAfterConfig = workflowContract.execution.queries
           .filter(
             ({ id }) =>
               configFirstSourceStatuses[id] !== "bypassed" &&
@@ -781,7 +781,7 @@ describe("mixed artifact × configuration tomography", () => {
     const evidence = {
       protocolVersion: "chronicle-mixed-artifact-configuration-ledger/v1",
       claimBoundary:
-        "Exhaustive value-level pair coverage between every declared computational configuration alternate and one empirically branch-activating intervention for the selected raw/support source role. Its activation context is selected deterministically from the six existing synthetic corpora. Both transition orders must equal an independent cold Rust/WASM target at every logical checkpoint, output artifact, and canonical output cell. The nine independently recycled role shards form the aggregate role/value proof; one representative mutation does not exhaust every record- or field-level interaction.",
+        "Exhaustive value-level pair coverage between every declared computational configuration alternate and one empirically branch-activating intervention for the selected raw/support source role. Its activation context is selected deterministically from the six existing synthetic corpora. Both transition orders must equal an independent cold Rust/WASM target at every workflow checkpoint, output artifact, and canonical output cell. The nine independently recycled role shards form the aggregate role/value proof; one representative mutation does not exhaust every record- or field-level interaction.",
       plan: { id: plan.plan_id, revision: plan.revision },
       implementationReceipt,
       roleRepresentatives: Object.fromEntries(

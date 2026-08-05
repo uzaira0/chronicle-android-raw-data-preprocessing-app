@@ -53,47 +53,47 @@ expected_contract_digest = rendered_digest(
 if bindings["product_contract_digest"] != expected_contract_digest:
     raise SystemExit("binding set does not bind the plan and runtime-authority contract")
 
-nodes = plan["nodes"]
-steps = plan["steps"]
-if len(nodes) != 15 or len(steps) != 55:
-    raise SystemExit("preprocessing plan must declare 15 groups and 55 steps")
+query_groups = plan["query_groups"]
+workflow_queries = plan["queries"]
+if not query_groups or not workflow_queries:
+    raise SystemExit("preprocessing plan must declare non-empty query groups and queries")
 if plan["implementation_state"]["active_logical_authority"] != "rust-composed-runtime":
     raise SystemExit("plan does not select the composed Rust runtime")
 if plan["implementation_state"]["physical_execution"] != "salsa-tracked-rust-pipeline-v2":
-    raise SystemExit("current plan must select the 55-query Salsa executor")
+    raise SystemExit("current plan must select the registered-query Salsa executor")
 if plan["implementation_state"]["generated_yaml_is_executable_authority"]:
     raise SystemExit("structural YAML cannot be executable authority")
-if any(node["implementation_status"] != "rust-wasm-product-stage-projection" for node in nodes):
-    raise SystemExit("a logical node is not a Rust/WASM product-stage projection")
-if any(node.get("physical_execution_authority") is not False for node in nodes):
-    raise SystemExit("a 15-stage projection incorrectly claims physical execution authority")
+if any(query_group["implementation_status"] != "rust-wasm-query-group-projection" for query_group in query_groups):
+    raise SystemExit("a query_group is not a Rust/WASM query-group projection")
+if any(query_group.get("physical_execution_authority") is not False for query_group in query_groups):
+    raise SystemExit("a query-group projection incorrectly claims physical execution authority")
 
-node_ids = [node["node_id"] for node in nodes]
-step_ids = [step["step_id"] for step in steps]
-if len(set(node_ids)) != len(node_ids) or len(set(step_ids)) != len(step_ids):
-    raise SystemExit("duplicate node or step identifier")
-known_nodes = set(node_ids)
-known_steps = set(step_ids)
-for node in nodes:
-    unknown = set(node["input_nodes"]) - known_nodes
+query_group_ids = [query_group["query_group_id"] for query_group in query_groups]
+query_ids = [query["query_id"] for query in workflow_queries]
+if len(set(query_group_ids)) != len(query_group_ids) or len(set(query_ids)) != len(query_ids):
+    raise SystemExit("duplicate query-group or query identifier")
+known_query_groups = set(query_group_ids)
+known_queries = set(query_ids)
+for query_group in query_groups:
+    unknown = set(query_group["input_query_groups"]) - known_query_groups
     if unknown:
-        raise SystemExit(f"{node['node_id']}: unknown input nodes {sorted(unknown)}")
-for step in steps:
-    unknown = set(step["input_steps"]) - known_steps
+        raise SystemExit(f"{query_group['query_group_id']}: unknown input query_groups {sorted(unknown)}")
+for query in workflow_queries:
+    unknown = set(query["input_queries"]) - known_queries
     if unknown:
-        raise SystemExit(f"{step['step_id']}: unknown input steps {sorted(unknown)}")
-    if step["binding_set_id"] != bindings["binding_set_id"]:
-        raise SystemExit(f"{step['step_id']}: capability binding-set drift")
-    rust_source = step.get("rust_executable_source", {})
+        raise SystemExit(f"{query['query_id']}: unknown input queries {sorted(unknown)}")
+    if query["binding_set_id"] != bindings["binding_set_id"]:
+        raise SystemExit(f"{query['query_id']}: capability binding-set drift")
+    rust_source = query.get("rust_executable_source", {})
     if rust_source != {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": step["step_id"],
+        "entrypoint": query["query_id"],
         "tracking": "salsa-query",
     }:
-        raise SystemExit(f"{step['step_id']}: exact Rust query source drift")
+        raise SystemExit(f"{query['query_id']}: exact Rust query source drift")
 
-logical_capabilities = [node["capability_id"] for node in nodes] + [
-    step["capability_id"] for step in steps
+logical_capabilities = [query_group["capability_id"] for query_group in query_groups] + [
+    query["capability_id"] for query in workflow_queries
 ]
 runtime_capabilities = [
     surface["capability_id"] for surface in runtime_authority["surfaces"]
@@ -139,20 +139,20 @@ primary = next(
 )
 if not primary or primary["status"] != "active" or not primary["authority"]:
     raise SystemExit("Rust/WASM execute_workspace is not the selected production authority")
-step_capabilities = {step["capability_id"] for step in steps}
-if set(primary["capability_ids"]) != required - step_capabilities:
+query_capabilities = {query["capability_id"] for query in workflow_queries}
+if set(primary["capability_ids"]) != required - query_capabilities:
     raise SystemExit("Rust/WASM product-runtime binding does not cover its exact required capabilities")
 if primary["evidence_projection"]["loss"] != "lossless":
     raise SystemExit("selected logical execution/evidence projection is not lossless")
-for step in steps:
-    authority = active_authorities[step["capability_id"]][0]
+for query in workflow_queries:
+    authority = active_authorities[query["capability_id"]][0]
     implementation = authority["implementation"]
     if authority["relationship"] != "one-to-one":
-        raise SystemExit(f"{step['step_id']}: production query binding is not one-to-one")
-    if implementation["entrypoint"] != step["step_id"]:
-        raise SystemExit(f"{step['step_id']}: production query entrypoint drift")
+        raise SystemExit(f"{query['query_id']}: production query binding is not one-to-one")
+    if implementation["entrypoint"] != query["query_id"]:
+        raise SystemExit(f"{query['query_id']}: production query entrypoint drift")
     if implementation["source"] != "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs":
-        raise SystemExit(f"{step['step_id']}: production query source drift")
+        raise SystemExit(f"{query['query_id']}: production query source drift")
 
 native = next(
     binding
@@ -195,7 +195,7 @@ for source, required_symbol in (
     (runtime, "review_base_bytes,"),
     (runtime, "reconstruction_base_bytes,"),
     (runtime, ".execute(csv_bytes, options, support_files)?"),
-    (runtime, "project_product_stages"),
+    (runtime, "project_query_groups"),
 ):
     if required_symbol not in source:
         raise SystemExit(f"selected production path omits {required_symbol}")
@@ -206,12 +206,12 @@ support_roles = {role["role_id"] for role in plan["root_roles"]} - {
     "raw_chronicle_csv",
     "processing_options",
 }
-referenced_support = {role for node in nodes for role in node["support_roles"]}
+referenced_support = {role for query_group in query_groups for role in query_group["support_roles"]}
 if support_roles != referenced_support:
     raise SystemExit("support-role declaration and use differ")
 
 allowed_views = {
-    "chronicle.stage.v1",
+    "chronicle.query-group.v1",
     "chronicle.artifact.v1",
     "chronicle.obligation.v1",
     "chronicle.temporal-subject.v1",
@@ -228,8 +228,8 @@ if '"properties": {"items":' in serialized_schema or '"properties": {"links":' i
 
 print(
     "preprocessing semantic contract valid: "
-    f"groups=15 declared_steps=55 tracked_executors=1 "
-    f"independently_cached_steps=55 rust_authorities={len(required)} "
-    f"runtime_surfaces={len(runtime_capabilities)} typed_views=6 "
-    "physical_incrementality=runtime-cutover-active-release-blocked"
+    f"groups={len(query_groups)} declared_queries={len(workflow_queries)} tracked_executors=1 "
+    f"independently_cached_queries={len(workflow_queries)} rust_authorities={len(required)} "
+    f"runtime_surfaces={len(runtime_capabilities)} typed_views={len(allowed_views)} "
+    "physical_incrementality=runtime-cutover-release-verified"
 )

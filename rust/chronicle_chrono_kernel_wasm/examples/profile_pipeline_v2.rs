@@ -7,6 +7,7 @@ use chronicle_chrono_kernel_wasm::pipeline_v2::{
 use chrono::{TimeZone, Utc};
 use sha2::{Digest, Sha256};
 use std::hint::black_box;
+#[cfg(target_os = "macos")]
 use std::process::Command;
 use std::time::Instant;
 
@@ -228,10 +229,11 @@ fn result_digest(result: &PipelineV2Result) -> String {
         digest.update(bytes.as_slice());
     }
     digest.update(
-        serde_json::to_vec(&result.pipeline_step_checkpoints).expect("serialize step checkpoints"),
+        serde_json::to_vec(&result.workflow_query_checkpoints).expect("serialize step checkpoints"),
     );
     digest.update(
-        serde_json::to_vec(&result.logical_stage_checkpoints).expect("serialize stage checkpoints"),
+        serde_json::to_vec(&result.workflow_query_group_checkpoints)
+            .expect("serialize stage checkpoints"),
     );
     digest.update(serde_json::to_vec(&result.row_lineage).expect("serialize row lineage"));
     for aggregate in result.aggregate_csv_outputs.iter() {
@@ -335,11 +337,11 @@ fn measure_incremental_case(
         ));
     }
     println!(
-        "case={label} elapsed_ns={} elapsed_ms={:.3} executed_count={} executed_steps={} internal_executed_count={} internal_executed_queries={} result_digest={actual_digest}",
+        "case={label} elapsed_ns={} elapsed_ms={:.3} executed_count={} executed_queries={} internal_executed_count={} internal_executed_queries={} result_digest={actual_digest}",
         elapsed.as_nanos(),
         elapsed.as_secs_f64() * 1_000.0,
-        execution.executed_steps.len(),
-        execution.executed_steps.join(","),
+        execution.executed_queries.len(),
+        execution.executed_queries.join(","),
         execution.internal_executed_queries.len(),
         execution.internal_executed_queries.join(","),
     );
@@ -366,7 +368,7 @@ fn profile_incremental(
             raw_csv.len(),
             cold_elapsed.as_nanos(),
             cold_elapsed.as_secs_f64() * 1_000.0,
-            cold.executed_steps.len(),
+            cold.executed_queries.len(),
             cold.internal_executed_queries.len(),
             cold.internal_executed_queries.join(","),
         );
@@ -414,7 +416,7 @@ fn profile_incremental(
                     "cached review differs from cold review: actual={actual_digest} oracle={oracle_digest}"
                 ));
             }
-            executed += execution.executed_steps.len();
+            executed += execution.executed_queries.len();
             internal_executed += execution.internal_executed_queries.len();
             black_box(execution);
         }
@@ -472,7 +474,7 @@ fn profile_incremental(
             } else {
                 cold_engine.execute(raw_csv, options, support(codebook_csv, FILTER_CSV))?
             };
-            executed += execution.executed_steps.len();
+            executed += execution.executed_queries.len();
             black_box(execution);
         }
         let elapsed = started.elapsed();
@@ -496,12 +498,12 @@ fn profile_incremental(
     }
     drop(cold_oracle);
     println!(
-        "case=cold rows={rows} input_bytes={} elapsed_ns={} elapsed_ms={:.3} executed_count={} executed_steps={} internal_executed_count={} internal_executed_queries={} result_digest={cold_digest}",
+        "case=cold rows={rows} input_bytes={} elapsed_ns={} elapsed_ms={:.3} executed_count={} executed_queries={} internal_executed_count={} internal_executed_queries={} result_digest={cold_digest}",
         raw_csv.len(),
         cold_elapsed.as_nanos(),
         cold_elapsed.as_secs_f64() * 1_000.0,
-        cold.executed_steps.len(),
-        cold.executed_steps.join(","),
+        cold.executed_queries.len(),
+        cold.executed_queries.join(","),
         cold.internal_executed_queries.len(),
         cold.internal_executed_queries.join(","),
     );
@@ -677,7 +679,7 @@ fn main() -> Result<(), String> {
         checksum.update(result.app_csv_bytes.as_slice());
         checksum.update(result.screen_csv_bytes.as_slice());
         checksum.update(result.review_summary_json_bytes.as_slice());
-        for digest in result.pipeline_step_digests.values() {
+        for digest in result.workflow_query_digests.values() {
             checksum.update(digest.as_bytes());
         }
         black_box(&result);

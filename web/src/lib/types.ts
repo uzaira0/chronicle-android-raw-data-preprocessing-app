@@ -8,10 +8,7 @@ import type {
   OutputKind,
   RAW_CHRONICLE_COLUMNS,
 } from "@/lib/generatedContract";
-import type {
-  RustExecutionLedger,
-  RustExecutionStatus,
-} from "@/lib/rustExecutionRecords";
+import type { RustExecutionLedger } from "@/lib/rustExecutionRecords";
 import type { Scene, SceneRegion } from "@/lib/plotScene";
 
 /** One participant's interactive day-grid timeline: the render scene plus the
@@ -105,7 +102,7 @@ export type BrowserSupportFiles = {
   appsForcingScreenOpenFile?: BrowserSupportFile;
   backgroundAppsFile?: BrowserSupportFile;
   appCodebookFile?: BrowserSupportFile;
-  /** Study Inputs (Analyze tier) — see docs/pipeline-graph/. */
+  /** Study Inputs (Analyze tier) — see docs/workflow/. */
   studyDatesFile?: BrowserSupportFile;
   deviceSharingFile?: BrowserSupportFile;
   surveyAttributionFile?: BrowserSupportFile;
@@ -122,41 +119,82 @@ export type BrowserProcessingRuntime = {
   performanceTraceId?: string;
 };
 
-export type RustStageView = {
-  protocol_version: "0.1";
-  view_id: "chronicle.stage.v1";
-  family: "incremental-dataflow";
-  schema_id: "urn:chronicle:view:stage:v1";
+/** Presence-only support-role input for the pre-run Workflow Explorer request. */
+export type WorkflowExplorerSupportRole = {
+  roleId: string;
+  present: boolean;
+  digest?: string;
+};
+
+export type RustWorkflowExplorerView = {
+  protocolVersion: "chronicle-workflow-explorer/v1";
+  viewId: "chronicle-workflow-explorer/v1";
+  schemaId: "urn:chronicle:view:workflow-explorer:v1";
   revision: number;
-  root_digest: string;
-  payload: {
-    stage: string | null;
-    node_states: Array<{
-      node_id: string;
-      label: string;
-      section: "preprocess" | "clean" | "analyze" | "output";
-      input_nodes: string[];
-      can_bypass: boolean;
-      materialization_state:
-        | "open"
-        | "ready"
-        | "satisfied"
-        | "blocked"
-        | "invalid"
-        | "not_applicable";
-      execution_status: RustExecutionStatus | null;
-      reason_ids: string[];
-    }>;
-    step_states: Array<{
-      step_id: string;
-      unit_id: string;
-      label: string;
-      description: string;
-      input_steps: string[];
-      can_bypass: boolean;
-      execution_status: RustExecutionStatus | null;
-    }>;
+  rootDigest: string;
+  selectedRunRoot: string | null;
+  contractDigests: {
+    semantic: string;
+    presentation: string;
+    execution: string;
+    checkpointPolicy: string;
+    evidence: string;
+    workspaceCompatibility: string;
   };
+  phases: Array<{
+    phaseId: string;
+    label: string;
+    description: string;
+    displayOrder: number;
+    inputPhaseIds: string[];
+    applicable: boolean;
+  }>;
+  operations: Array<{
+    operationId: string;
+    label: string;
+    description: string;
+    phaseId: string;
+    role: string;
+    epistemicRole: string;
+    inputArtifactIds: string[];
+    outputArtifactIds: string[];
+    dataEffects: string[];
+    applicable: boolean;
+    runState: "applied" | "bypassed" | "not_applicable" | "not_observed" | "error";
+    offReason: string | null;
+  }>;
+  artifacts: Array<{
+    artifactId: string;
+    label: string;
+    kind: string;
+    producerOperationId: string | null;
+    consumerOperationIds: string[];
+    runState: "materialized" | "absent" | "not_observed" | "error";
+  }>;
+  queries: Array<{
+    queryId: string;
+    queryGroupId: string;
+    inputQueryIds: string[];
+    operationIds: string[];
+    outputArtifactIds: string[];
+    applicability: "applicable" | "not_applicable";
+    physicalState:
+      | "executed"
+      | "memoized"
+      | "restored"
+      | "omitted"
+      | "not_observed"
+      | "error";
+    reuseReason: string | null;
+    checkpointSource: string | null;
+  }>;
+  decisions: Array<{
+    inputId: string;
+    inputKind: "option" | "support";
+    directQueryIds: string[];
+    affectedOperationIds: string[];
+    affectedArtifactIds: string[];
+  }>;
 };
 
 export type RustRuntimeReceipt = {
@@ -238,11 +276,11 @@ export type RustReviewReceipt = {
   /** Exact persisted cache bytes supplied to the Rust comparison call. */
   suppliedReviewBaseBytes: number;
   suppliedReconstructionBaseBytes: number;
-  recomputedStepIds: string[];
-  cachedStepIds: string[];
-  bypassedStepIds: string[];
-  skippedStepIds: string[];
-  errorStepIds: string[];
+  recomputedQueryIds: string[];
+  cachedQueryIds: string[];
+  bypassedQueryIds: string[];
+  skippedQueryIds: string[];
+  errorQueryIds: string[];
 };
 
 export type ProgressStepKind =
@@ -454,5 +492,5 @@ export type ProcessedFileResult = {
    */
   executionLedger?: RustExecutionLedger;
   /** Product-typed Rust projection used by the Graph tab; never inferred by UI code. */
-  rustStageView?: RustStageView;
+  workflowExplorerView?: RustWorkflowExplorerView;
 };

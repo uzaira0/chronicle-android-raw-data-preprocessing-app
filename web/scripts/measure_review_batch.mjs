@@ -1,9 +1,9 @@
 import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
+import { parse as parseYaml } from "yaml";
 
 const raw = path.resolve(
   process.argv[2] ?? "../.tmp-benchmark/chronicle-synthetic-100000.csv",
@@ -25,100 +25,39 @@ if (!Number.isSafeInteger(workerCount) || workerCount < 1) {
   throw new Error("worker count must be a positive integer");
 }
 
-const stepIds = [
-  "parse_remap_config",
-  "csv_parse",
-  "drop_empty_timestamp",
-  "detect_device_model",
-  "resolve_preproc_datetime",
-  "build_canonical_rows",
-  "stable_sort",
-  "collect_timezones",
-  "compute_dominant_timezone",
-  "select_timezone_strategy",
-  "restamp_rows",
-  "row_count_report",
-  "exact_dedupe",
-  "count_dup_groups",
-  "nudge_duplicate_timestamps",
-  "mark_data_time_gaps",
-  "tag_filtered_packages",
-  "collect_keyguard_timestamps",
-  "walk_screen_state_machine",
-  "build_classified_sessions",
-  "compute_junk_packages",
-  "junk_blind_fold",
-  "build_matcher_input",
-  "run_matcher",
-  "apply_matcher_output",
-  "relabel_usage_with_floor",
-  "junk_downstream_mark",
-  "sort_episodes",
-  "split_concurrent",
-  "codebook_join",
-  "derive_broad_category",
-  "collapse_genre",
-  "engagement_walk",
-  "flag_and_retain",
-  "blank_junk_timing",
-  "drop_selected_types",
-  "drop_zero_duration",
-  "partition_credit_sessions",
-  "build_liveness_substrate",
-  "report_screen_incapable",
-  "count_day_apps",
-  "credit_sessions",
-  "emit_credited_rows",
-  "assemble_credit_result",
-  "resolve_participant_windows",
-  "filter_rows_to_window",
-  "resolve_sharing_status",
-  "build_survey_lookup",
-  "attribute_rows",
-  "inject_placeholders",
-  "build_raw_date_index",
-  "build_coverage_table",
-  "accumulate_attribution_minutes",
-  "score_days",
-  "assemble_result",
-];
-const skippedSteps = new Set(
-  stepIds.slice(37, 44).concat("build_raw_date_index"),
+/** @type {{queries: Array<{id: string, inputs: string[], requestFields: string[]}>}} */
+const workflow = parseYaml(
+  await readFile(path.resolve("schema/chronicle-workflow.yaml"), "utf8"),
 );
-const bypassedSteps = new Set([
-  "build_coverage_table",
-  "accumulate_attribution_minutes",
-  "score_days",
-]);
-const recomputedSteps = new Set([
-  ...(benchmarkCase === "middle_concurrent_usage"
-    ? [
-        ...stepIds.slice(20, 28),
-        ...stepIds.slice(29, 36),
-        ...stepIds.slice(44, 50),
-      ]
-    : [
-        ...stepIds.slice(25, 28),
-        // Each synthetic filename is a distinct workspace. The verified
-        // reconstruction checkpoint proves the large row transformations are
-        // unchanged; these small later queries still rebuild that workspace's
-        // review projection and execution record.
-        ...stepIds.slice(44, 50),
-      ]),
-  "assemble_result",
-]);
-const expectedStatuses = Object.fromEntries(
-  stepIds.map((step) => [
-    step,
-    skippedSteps.has(step)
-      ? "skipped"
-      : bypassedSteps.has(step)
-        ? "bypassed"
-        : recomputedSteps.has(step)
-          ? "recomputed"
-          : "cached",
-  ]),
+const queryIds = workflow.queries.map((query) => query.id);
+if (queryIds.length === 0 || new Set(queryIds).size !== queryIds.length) {
+  throw new Error("generated workflow query registry must be non-empty and unique");
+}
+const changedOption =
+  benchmarkCase === "middle_concurrent_usage"
+    ? "model_concurrent_usage"
+    : "minimum_usage_duration";
+const affectedQueryIds = new Set(
+  workflow.queries
+    .filter((query) => query.requestFields.includes(changedOption))
+    .map((query) => query.id),
 );
+let addedAffectedQuery = true;
+while (addedAffectedQuery) {
+  addedAffectedQuery = false;
+  for (const query of workflow.queries) {
+    if (
+      !affectedQueryIds.has(query.id) &&
+      query.inputs.some((input) => affectedQueryIds.has(input))
+    ) {
+      affectedQueryIds.add(query.id);
+      addedAffectedQuery = true;
+    }
+  }
+}
+if (affectedQueryIds.size === 0) {
+  throw new Error(`${changedOption} has no declared query impact`);
+}
 
 const executable = path.resolve("node_modules/.bin/vite-node");
 const benchmark = path.resolve("scripts/benchmark_runtime_wasm.mts");
@@ -167,7 +106,7 @@ function captureProcess(args) {
   });
 }
 
-/** @typedef {{input: {path: string, bytes: number, sha256: string}, wasm: {bytes: number, sha256: string}, environment: {node: string, platform: string, architecture: string, logicalCpus: number, totalMemoryBytes: number, peakProcessMemoryBytes: {rss: number, heapTotal: number, heapUsed: number, external: number, arrayBuffers: number}}, reviewBaseBytes: number, reconstructionBaseBytes: number, measurements: {coldExecuteMs: number[], coldStepStatuses: Array<Array<[string, string]>>, coldReviewSummaryDigests: Array<string>, coldCacheSources: string[][], coldSelectedBaseKinds: string[], coldWasmBoundaryBytes: number[], coldCounts: Array<{original: number, processed: number, app: number, screen: number}>, coldIdentities: Array<Record<string, string>>}}} ShardResult */
+/** @typedef {{input: {path: string, bytes: number, sha256: string}, wasm: {bytes: number, sha256: string}, environment: {node: string, platform: string, architecture: string, logicalCpus: number, totalMemoryBytes: number, peakProcessMemoryBytes: {rss: number, heapTotal: number, heapUsed: number, external: number, arrayBuffers: number}}, reviewBaseBytes: number, reconstructionBaseBytes: number, measurements: {coldExecuteMs: number[], coldQueryStatuses: Array<Array<[string, string]>>, coldReviewSummaryDigests: Array<string>, coldCacheSources: string[][], coldSelectedBaseKinds: string[], coldWasmBoundaryBytes: number[], coldCounts: Array<{original: number, processed: number, app: number, screen: number}>, coldIdentities: Array<Record<string, string>>}}} ShardResult */
 /** @typedef {{ready: Promise<void>, start: () => void, complete: Promise<void>, result: Promise<ShardResult>}} ShardHandle */
 /**
  * @param {number} index
@@ -278,7 +217,7 @@ const counts = Array.from(
     (index < fileCount % activeWorkerCount ? 1 : 0),
 );
 const reviewBasesDir = await mkdtemp(
-  path.join(tmpdir(), "chronicle-review-benchmark-"),
+  path.resolve(".tmp-review-benchmark-"),
 );
 /** @type {ShardResult[]} */
 let shards = [];
@@ -366,7 +305,7 @@ for (const [index, shard] of shards.entries()) {
   const expectedCount = counts[index];
   for (const [name, values] of Object.entries({
     coldExecuteMs: shard.measurements.coldExecuteMs,
-    coldStepStatuses: shard.measurements.coldStepStatuses,
+    coldQueryStatuses: shard.measurements.coldQueryStatuses,
     coldReviewSummaryDigests: shard.measurements.coldReviewSummaryDigests,
     coldCacheSources: shard.measurements.coldCacheSources,
     coldSelectedBaseKinds: shard.measurements.coldSelectedBaseKinds,
@@ -396,8 +335,8 @@ for (const [index, shard] of shards.entries()) {
 const values = shards
   .flatMap((shard) => shard.measurements.coldExecuteMs)
   .sort((left, right) => left - right);
-const stepStatuses = shards.flatMap(
-  (shard) => shard.measurements.coldStepStatuses,
+const queryStatuses = shards.flatMap(
+  (shard) => shard.measurements.coldQueryStatuses,
 );
 const reviewSummaryDigests = new Set(
   shards.flatMap((shard) => shard.measurements.coldReviewSummaryDigests),
@@ -417,7 +356,7 @@ const resultIdentities = shards.flatMap(
 );
 for (const [name, entries] of Object.entries({
   values,
-  stepStatuses,
+  queryStatuses,
   cacheSources,
   selectedBaseKinds,
   wasmBoundaryBytes,
@@ -465,24 +404,40 @@ const expectedWasmBoundaryBytes =
   (expectedSelectedBaseKind === "reconstruction-base"
     ? baseMetadata.reconstructionBaseBytes
     : baseMetadata.reviewBaseBytes);
-for (const [resultIndex, entries] of stepStatuses.entries()) {
+const validStatuses = new Set(["cached", "recomputed", "bypassed", "skipped"]);
+for (const [resultIndex, entries] of queryStatuses.entries()) {
   const statuses = new Map(entries);
-  if (statuses.size !== 55) {
+  if (statuses.size !== queryIds.length) {
     throw new Error(
-      `benchmark result ${resultIndex} reported ${statuses.size} step statuses instead of 55`,
+      `benchmark result ${resultIndex} reported an incomplete query status registry`,
     );
   }
-  if (entries.map(([step]) => step).join("\n") !== stepIds.join("\n")) {
+  if (entries.map(([query]) => query).join("\n") !== queryIds.join("\n")) {
     throw new Error(
-      `${benchmarkCase} result ${resultIndex} step order drifted`,
+      `${benchmarkCase} result ${resultIndex} query order drifted`,
     );
   }
-  for (const [step, expected] of Object.entries(expectedStatuses)) {
-    if (statuses.get(step) !== expected) {
+  for (const [query, status] of entries) {
+    if (!validStatuses.has(status)) {
       throw new Error(
-        `${benchmarkCase} result ${resultIndex}: ${step} was ${statuses.get(step)}, expected ${expected}`,
+        `${benchmarkCase} result ${resultIndex}: ${query} reported invalid status ${status}`,
       );
     }
+    if (status === "recomputed" && !affectedQueryIds.has(query)) {
+      throw new Error(
+        `${benchmarkCase} result ${resultIndex}: unrelated query ${query} recomputed`,
+      );
+    }
+  }
+  if (
+    !entries.some(
+      ([query, status]) =>
+        status === "recomputed" && affectedQueryIds.has(query),
+    )
+  ) {
+    throw new Error(
+      `${benchmarkCase} result ${resultIndex} did not recompute an affected query`,
+    );
   }
 }
 const oracleCounts = oracle.measurements.coldCounts?.[0];
@@ -603,8 +558,9 @@ process.stdout.write(
     changedWallElapsedMs,
     totalElapsedMs: performance.now() - totalStarted,
     cacheProof: {
-      exactStepStatusResults: stepStatuses.length,
-      expectedStatuses,
+      exactQueryStatusResults: queryStatuses.length,
+      changedOption,
+      declaredAffectedQueryIds: [...affectedQueryIds],
       expectedCacheSources,
       expectedSelectedBaseKind,
       wasmBoundaryBytesPerFile: expectedWasmBoundaryBytes,

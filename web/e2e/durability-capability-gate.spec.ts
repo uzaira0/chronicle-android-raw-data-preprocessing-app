@@ -52,7 +52,7 @@ async function opfsAvailable(page: import("@playwright/test").Page): Promise<boo
   });
 }
 
-test("@no-storage the durable-workspace banner matches what this engine can actually do", async ({
+test("@smoke @no-storage the durable-workspace banner matches what this engine can actually do", async ({
   page,
 }) => {
   await installDeterministicRuntime(page);

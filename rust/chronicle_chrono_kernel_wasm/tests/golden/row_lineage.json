@@ -10,7 +10,7 @@
     ],
     "sourceDataRowCount": 1,
     "searches": [],
-    "terminalLogicalNode": "outputs"
+    "terminalQueryGroup": "outputs"
   },
   {
     "outputKind": "app-csv",
@@ -34,7 +34,7 @@
         "candidateChainDigest": "blake3:79c8957346fba30159a24983b6d746884d86245421c34ed1cb829d972106f4be"
       }
     ],
-    "terminalLogicalNode": "outputs"
+    "terminalQueryGroup": "outputs"
   },
   {
     "outputKind": "app-csv",
@@ -58,7 +58,7 @@
         "candidateChainDigest": "blake3:79c8957346fba30159a24983b6d746884d86245421c34ed1cb829d972106f4be"
       }
     ],
-    "terminalLogicalNode": "outputs"
+    "terminalQueryGroup": "outputs"
   },
   {
     "outputKind": "app-csv",
@@ -86,7 +86,7 @@
         "candidateChainDigest": "blake3:138ca7b50b220dcb9f8e42c8113e0cad1ed9b287f7022bc0f87b06bdc7d5cc57"
       }
     ],
-    "terminalLogicalNode": "outputs"
+    "terminalQueryGroup": "outputs"
   },
   {
     "outputKind": "app-csv",
@@ -114,7 +114,7 @@
         "candidateChainDigest": "blake3:138ca7b50b220dcb9f8e42c8113e0cad1ed9b287f7022bc0f87b06bdc7d5cc57"
       }
     ],
-    "terminalLogicalNode": "outputs"
+    "terminalQueryGroup": "outputs"
   },
   {
     "outputKind": "app-csv",
@@ -142,7 +142,7 @@
         "candidateChainDigest": "blake3:138ca7b50b220dcb9f8e42c8113e0cad1ed9b287f7022bc0f87b06bdc7d5cc57"
       }
     ],
-    "terminalLogicalNode": "outputs"
+    "terminalQueryGroup": "outputs"
   },
   {
     "outputKind": "app-csv",
@@ -170,7 +170,7 @@
         "candidateChainDigest": "blake3:138ca7b50b220dcb9f8e42c8113e0cad1ed9b287f7022bc0f87b06bdc7d5cc57"
       }
     ],
-    "terminalLogicalNode": "outputs"
+    "terminalQueryGroup": "outputs"
   },
   {
     "outputKind": "app-csv",
@@ -183,7 +183,7 @@
     ],
     "sourceDataRowCount": 1,
     "searches": [],
-    "terminalLogicalNode": "outputs"
+    "terminalQueryGroup": "outputs"
   },
   {
     "outputKind": "app-csv",
@@ -207,7 +207,7 @@
         "candidateChainDigest": "blake3:46e2ba42283248a63c6cd9a8736cdc1680c6027f00cc37d443fc49122d532d03"
       }
     ],
-    "terminalLogicalNode": "outputs"
+    "terminalQueryGroup": "outputs"
   },
   {
     "outputKind": "app-csv",
@@ -235,7 +235,7 @@
         "candidateChainDigest": "blake3:51f735aa6153d21dc850f172ccc9d14a2d90383a292c03c554fd496d058bf8e6"
       }
     ],
-    "terminalLogicalNode": "outputs"
+    "terminalQueryGroup": "outputs"
   },
   {
     "outputKind": "app-csv",
@@ -248,7 +248,7 @@
     ],
     "sourceDataRowCount": 1,
     "searches": [],
-    "terminalLogicalNode": "outputs"
+    "terminalQueryGroup": "outputs"
   },
   {
     "outputKind": "app-csv",
@@ -261,7 +261,7 @@
     ],
     "sourceDataRowCount": 1,
     "searches": [],
-    "terminalLogicalNode": "outputs"
+    "terminalQueryGroup": "outputs"
   },
   {
     "outputKind": "app-csv",
@@ -274,7 +274,7 @@
     ],
     "sourceDataRowCount": 1,
     "searches": [],
-    "terminalLogicalNode": "outputs"
+    "terminalQueryGroup": "outputs"
   },
   {
     "outputKind": "app-csv",
@@ -287,7 +287,7 @@
     ],
     "sourceDataRowCount": 1,
     "searches": [],
-    "terminalLogicalNode": "outputs"
+    "terminalQueryGroup": "outputs"
   },
   {
     "outputKind": "app-csv",
@@ -300,7 +300,7 @@
     ],
     "sourceDataRowCount": 1,
     "searches": [],
-    "terminalLogicalNode": "outputs"
+    "terminalQueryGroup": "outputs"
   },
   {
     "outputKind": "app-csv",
@@ -313,7 +313,7 @@
     ],
     "sourceDataRowCount": 1,
     "searches": [],
-    "terminalLogicalNode": "outputs"
+    "terminalQueryGroup": "outputs"
   },
   {
     "outputKind": "app-csv",
@@ -337,7 +337,7 @@
         "candidateChainDigest": "blake3:01869c399f9d7e65d6e438785041003756cc5fbb0adf64314e3b2e1274317e30"
       }
     ],
-    "terminalLogicalNode": "outputs"
+    "terminalQueryGroup": "outputs"
   },
   {
     "outputKind": "app-csv",
@@ -361,7 +361,7 @@
         "candidateChainDigest": "blake3:5e4daebd328e7c9e5b6de4024eb3ac990fc2affb1ae245b05843d4b47a917720"
       }
     ],
-    "terminalLogicalNode": "outputs"
+    "terminalQueryGroup": "outputs"
   },
   {
     "outputKind": "app-csv",
@@ -374,7 +374,7 @@
     ],
     "sourceDataRowCount": 1,
     "searches": [],
-    "terminalLogicalNode": "outputs"
+    "terminalQueryGroup": "outputs"
   },
   {
     "outputKind": "app-csv",
@@ -398,7 +398,7 @@
         "candidateChainDigest": "blake3:857629325b104828b6b9c22e021864bedb1b21834b49f93f576d257a3f323a2c"
       }
     ],
-    "terminalLogicalNode": "outputs"
+    "terminalQueryGroup": "outputs"
   },
   {
     "outputKind": "app-csv",
@@ -411,7 +411,7 @@
     ],
     "sourceDataRowCount": 1,
     "searches": [],
-    "terminalLogicalNode": "outputs"
+    "terminalQueryGroup": "outputs"
   },
   {
     "outputKind": "app-csv",
@@ -435,7 +435,7 @@
         "candidateChainDigest": "blake3:189b456e8831bf57cacf766d0d46afabbc44fcc3d1e59e73f25e940ef3dfb91e"
       }
     ],
-    "terminalLogicalNode": "outputs"
+    "terminalQueryGroup": "outputs"
   },
   {
     "outputKind": "screen-csv",
@@ -448,7 +448,7 @@
     ],
     "sourceDataRowCount": 11,
     "searches": [],
-    "terminalLogicalNode": "outputs"
+    "terminalQueryGroup": "outputs"
   },
   {
     "outputKind": "screen-csv",
@@ -461,7 +461,7 @@
     ],
     "sourceDataRowCount": 3,
     "searches": [],
-    "terminalLogicalNode": "outputs"
+    "terminalQueryGroup": "outputs"
   },
   {
     "outputKind": "credited-app-csv",
@@ -495,7 +495,7 @@
         "candidateChainDigest": "blake3:a95a6ef9aeeb4d983c7e71501fe24d21de94d2fc7c93779faaf7bf3043935eb5"
       }
     ],
-    "terminalLogicalNode": "effective_usage"
+    "terminalQueryGroup": "effective_usage"
   },
   {
     "outputKind": "credited-app-csv",
@@ -537,7 +537,7 @@
         "candidateChainDigest": "blake3:a95a6ef9aeeb4d983c7e71501fe24d21de94d2fc7c93779faaf7bf3043935eb5"
       }
     ],
-    "terminalLogicalNode": "effective_usage"
+    "terminalQueryGroup": "effective_usage"
   },
   {
     "outputKind": "credited-app-csv",
@@ -579,7 +579,7 @@
         "candidateChainDigest": "blake3:a95a6ef9aeeb4d983c7e71501fe24d21de94d2fc7c93779faaf7bf3043935eb5"
       }
     ],
-    "terminalLogicalNode": "effective_usage"
+    "terminalQueryGroup": "effective_usage"
   },
   {
     "outputKind": "credited-app-csv",
@@ -621,7 +621,7 @@
         "candidateChainDigest": "blake3:a95a6ef9aeeb4d983c7e71501fe24d21de94d2fc7c93779faaf7bf3043935eb5"
       }
     ],
-    "terminalLogicalNode": "effective_usage"
+    "terminalQueryGroup": "effective_usage"
   },
   {
     "outputKind": "credited-app-csv",
@@ -663,7 +663,7 @@
         "candidateChainDigest": "blake3:a95a6ef9aeeb4d983c7e71501fe24d21de94d2fc7c93779faaf7bf3043935eb5"
       }
     ],
-    "terminalLogicalNode": "effective_usage"
+    "terminalQueryGroup": "effective_usage"
   },
   {
     "outputKind": "credited-app-csv",
@@ -701,7 +701,7 @@
         "candidateChainDigest": "blake3:a95a6ef9aeeb4d983c7e71501fe24d21de94d2fc7c93779faaf7bf3043935eb5"
       }
     ],
-    "terminalLogicalNode": "effective_usage"
+    "terminalQueryGroup": "effective_usage"
   },
   {
     "outputKind": "credited-app-csv",
@@ -747,7 +747,7 @@
         "candidateChainDigest": "blake3:a95a6ef9aeeb4d983c7e71501fe24d21de94d2fc7c93779faaf7bf3043935eb5"
       }
     ],
-    "terminalLogicalNode": "effective_usage"
+    "terminalQueryGroup": "effective_usage"
   },
   {
     "outputKind": "credited-app-csv",
@@ -793,7 +793,7 @@
         "candidateChainDigest": "blake3:a95a6ef9aeeb4d983c7e71501fe24d21de94d2fc7c93779faaf7bf3043935eb5"
       }
     ],
-    "terminalLogicalNode": "effective_usage"
+    "terminalQueryGroup": "effective_usage"
   },
   {
     "outputKind": "credited-app-csv",
@@ -806,7 +806,7 @@
     ],
     "sourceDataRowCount": 1,
     "searches": [],
-    "terminalLogicalNode": "effective_usage"
+    "terminalQueryGroup": "effective_usage"
   },
   {
     "outputKind": "credited-app-csv",
@@ -830,7 +830,7 @@
         "candidateChainDigest": "blake3:79c8957346fba30159a24983b6d746884d86245421c34ed1cb829d972106f4be"
       }
     ],
-    "terminalLogicalNode": "effective_usage"
+    "terminalQueryGroup": "effective_usage"
   },
   {
     "outputKind": "credited-app-csv",
@@ -843,7 +843,7 @@
     ],
     "sourceDataRowCount": 1,
     "searches": [],
-    "terminalLogicalNode": "effective_usage"
+    "terminalQueryGroup": "effective_usage"
   },
   {
     "outputKind": "credited-app-csv",
@@ -856,7 +856,7 @@
     ],
     "sourceDataRowCount": 1,
     "searches": [],
-    "terminalLogicalNode": "effective_usage"
+    "terminalQueryGroup": "effective_usage"
   },
   {
     "outputKind": "credited-app-csv",
@@ -869,7 +869,7 @@
     ],
     "sourceDataRowCount": 1,
     "searches": [],
-    "terminalLogicalNode": "effective_usage"
+    "terminalQueryGroup": "effective_usage"
   },
   {
     "outputKind": "credited-app-csv",
@@ -882,7 +882,7 @@
     ],
     "sourceDataRowCount": 1,
     "searches": [],
-    "terminalLogicalNode": "effective_usage"
+    "terminalQueryGroup": "effective_usage"
   },
   {
     "outputKind": "credited-app-csv",
@@ -895,7 +895,7 @@
     ],
     "sourceDataRowCount": 1,
     "searches": [],
-    "terminalLogicalNode": "effective_usage"
+    "terminalQueryGroup": "effective_usage"
   },
   {
     "outputKind": "credited-app-csv",
@@ -908,7 +908,7 @@
     ],
     "sourceDataRowCount": 1,
     "searches": [],
-    "terminalLogicalNode": "effective_usage"
+    "terminalQueryGroup": "effective_usage"
   },
   {
     "outputKind": "credited-app-csv",
@@ -921,7 +921,7 @@
     ],
     "sourceDataRowCount": 1,
     "searches": [],
-    "terminalLogicalNode": "effective_usage"
+    "terminalQueryGroup": "effective_usage"
   },
   {
     "outputKind": "credited-app-csv",
@@ -945,7 +945,7 @@
         "candidateChainDigest": "blake3:01869c399f9d7e65d6e438785041003756cc5fbb0adf64314e3b2e1274317e30"
       }
     ],
-    "terminalLogicalNode": "effective_usage"
+    "terminalQueryGroup": "effective_usage"
   },
   {
     "outputKind": "credited-app-csv",
@@ -958,7 +958,7 @@
     ],
     "sourceDataRowCount": 1,
     "searches": [],
-    "terminalLogicalNode": "effective_usage"
+    "terminalQueryGroup": "effective_usage"
   },
   {
     "outputKind": "credited-app-csv",
@@ -971,6 +971,6 @@
     ],
     "sourceDataRowCount": 1,
     "searches": [],
-    "terminalLogicalNode": "effective_usage"
+    "terminalQueryGroup": "effective_usage"
   }
 ]

@@ -1,6 +1,6 @@
 {
   "title": "Chronicle Android Raw Data Preprocessing App",
-  "description": "Dual-engine (browser + desktop Python) preprocessing instrument for Chronicle Android usage-events data: app-usage and screen-usage session reconstruction under a versioned 55-option contract, byte-exact cross-engine parity, golden-scenario locking, and per-run PROV provenance sidecars. Includes the LinkML/OWL/SHACL research ontology generated from the same source of truth.",
+  "description": "Dual-engine (browser + desktop Python) preprocessing instrument for Chronicle Android usage-events data: app-usage and screen-usage session reconstruction under a versioned configuration contract, byte-exact cross-engine parity, golden-scenario locking, and per-run PROV provenance sidecars. Includes the LinkML/OWL/SHACL research ontology generated from the same source of truth.",
   "creators": [
     {
       "name": "Alam, Uzair"

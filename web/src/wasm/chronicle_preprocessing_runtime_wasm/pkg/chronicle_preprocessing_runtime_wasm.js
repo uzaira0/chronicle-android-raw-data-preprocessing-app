@@ -374,8 +374,8 @@ export function execute_workspace_with_review_base(request_json, csv_bytes, revi
 }
 
 /**
- * Execute an interactive review with independently verified step-17 and
- * step-29 checkpoints. The reconstruction header is rejected before payload
+ * Execute an interactive review with independently verified post-review and
+ * post-reconstruction checkpoints. The reconstruction header is rejected before payload
  * decompression when any semantic input to reconstruction changed.
  * @param {string} request_json
  * @param {Uint8Array} csv_bytes
@@ -468,41 +468,17 @@ export function inspect_raw_file_v1(csv_bytes, file_name, size_bytes) {
 }
 
 /**
+ * @param {string} request_json
  * @returns {string}
  */
-export function pipeline_step_contract_json() {
-    let deferred1_0;
-    let deferred1_1;
-    try {
-        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        wasm.pipeline_step_contract_json(retptr);
-        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
-        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
-        deferred1_0 = r0;
-        deferred1_1 = r1;
-        return getStringFromWasm0(r0, r1);
-    } finally {
-        wasm.__wbindgen_add_to_stack_pointer(16);
-        wasm.__wbindgen_export(deferred1_0, deferred1_1, 1);
-    }
-}
-
-/**
- * Project the embedded product plan for interaction before any raw artifact
- * has been ingested. The projection is produced by the same Rust adapter and
- * option vocabulary used during execution, so the browser never needs a
- * second TypeScript topology or applicability implementation.
- * @param {string} options_json
- * @returns {string}
- */
-export function plan_stage_view_json(options_json) {
+export function plan_workflow_explorer_view_json(request_json) {
     let deferred3_0;
     let deferred3_1;
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        const ptr0 = passStringToWasm0(options_json, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+        const ptr0 = passStringToWasm0(request_json, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
         const len0 = WASM_VECTOR_LEN;
-        wasm.plan_stage_view_json(retptr, ptr0, len0);
+        wasm.plan_workflow_explorer_view_json(retptr, ptr0, len0);
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
         var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
         var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
@@ -677,6 +653,26 @@ export function verify_evidence_journal_cbor(bytes) {
         return r0 >>> 0;
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
+    }
+}
+
+/**
+ * @returns {string}
+ */
+export function workflow_contract_json() {
+    let deferred1_0;
+    let deferred1_1;
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        wasm.workflow_contract_json(retptr);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        deferred1_0 = r0;
+        deferred1_1 = r1;
+        return getStringFromWasm0(r0, r1);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        wasm.__wbindgen_export(deferred1_0, deferred1_1, 1);
     }
 }
 function __wbg_get_imports() {

@@ -3,13 +3,13 @@
 Captured: 2026-07-23.
 
 This file preserves the results of the deleted bounded dependency trial. The
-decision is no longer open: upstream Salsa `0.28.1` is selected and all 55
+decision is no longer open: upstream Salsa `0.28.1` is selected and all registered
 transformations are real tracked computations in the production kernel. The
 trial crate, local Salsa patch, and snapshot code were removed after profiling
 showed snapshot restore was slower and much larger than cold recalculation. The
 current implementation, remaining acceptance checks, and complete comparison with `incremental-rs`,
 `depends`, `comemo`, `incremental-query`, and the bounded fallback are in the
-[authoritative 55-step plan](../semantic-federation/55-step-incremental-rust-plan.md#existing-software-decision).
+[authoritative query-registry plan](../semantic-federation/incremental-runtime-plan.md#existing-software-decision).
 
 The former trial directory was named `rust/chronicle_incremental_query_spike`,
 but it tested **Salsa**. It did not use or endorse the separate project named
@@ -24,7 +24,7 @@ Six Salsa queries call existing product code:
   support-file roles;
 - the existing support-file loader;
 - `run_pipeline_v2_with_supports` for the complete fused Rust computation;
-- `plan_stage_view_native` for the typed 55-step view.
+- `plan_stage_view_native` for the typed query-registry view.
 
 The inputs are separate raw bytes, raw display name, base options, selected
 timezone, timezone behavior, concurrent-usage setting, filter-file setting,
@@ -63,8 +63,8 @@ payload tests both failed closed.
 
 That snapshot result is historical proof, not the current storage design. The
 production performance follow-up stores only explicitly versioned typed product
-step outputs whose exact action keys already exist in the 55-step contract. The
-first candidate is step 28, `sort_episodes`. It uses the existing OPFS
+step outputs whose exact action keys already exist in the query-registry contract. The
+first candidate is reconstruction, `sort_episodes`. It uses the existing OPFS
 content-addressed store and must beat cold recalculation; Salsa's database and
 internal IDs are never serialized.
 
@@ -106,7 +106,7 @@ The middle, raw-byte, and support cases are still slow because the complete
 current pipeline is one `pipeline_probe` query. The equal final results in the
 last two rows are especially important: Salsa cannot stop inside that query.
 The speed and precise invalidation required by the product arrive only after
-the existing 55 Rust transformations become separate typed queries.
+the existing the registered Rust transformations become separate typed queries.
 
 ## Optimized WASM size
 
@@ -136,7 +136,7 @@ the repository policy.
 
 Salsa passed the representative native/WASM, actual-read, event, early-cutoff,
 qualification-hole, and verified-snapshot tests, then passed the complete
-55-query native/browser-WASM compile and cold-oracle parity gates. It is the
+registered-query native/browser-WASM compile and cold-oracle parity gates. It is the
 selected production implementation. These product-release checks remain:
 
 - exact actual-read/invalidation campaigns over all configuration, source,

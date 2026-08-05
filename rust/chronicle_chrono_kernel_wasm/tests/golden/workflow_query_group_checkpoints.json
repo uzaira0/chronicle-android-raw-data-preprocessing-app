@@ -1,0 +1,167 @@
+{
+  "app_policy": {
+    "protocolVersion": "chronicle-workflow-checkpoint/v1",
+    "subjectId": "app_policy",
+    "rowMembershipDigest": "xxh3:65ebb8ccdf024375733d016aa876242a",
+    "rowOrderDigest": "xxh3:9758e712a4b1fdac156c281da9aaacb9",
+    "temporalStateDigest": "xxh3:28e1297729754eb7b161d6174405602c",
+    "classificationDigest": "xxh3:2e4350ecaa32e42b0371487e38ae0675",
+    "payloadDigest": "xxh3:cb90c1529539efd5d49ab0776608be25",
+    "schemaDigest": "xxh3:c455dab27c54372936279c1332aa057f",
+    "terminalDigest": "sha256:7fa2fb44f1e7fb4be5d8faec0f475951123c827c7bd2b8399f7cfc9bc5dba408"
+  },
+  "attribute_person": {
+    "protocolVersion": "chronicle-workflow-checkpoint/v1",
+    "subjectId": "attribute_person",
+    "rowMembershipDigest": "xxh3:5fa93b5192ff2e3e817a95d2c142733f",
+    "rowOrderDigest": "xxh3:2f82e0ead64fdf85fcc65cf050fa844e",
+    "temporalStateDigest": "xxh3:43414a18c5bab01064839022d5dde23c",
+    "classificationDigest": "xxh3:142886732a8486ed580b95bee24d88c3",
+    "payloadDigest": "xxh3:417b6cd58530cffee965eab26d0f39d1",
+    "schemaDigest": "xxh3:c469aa917f02cd9a8d25ecab549bb161",
+    "terminalDigest": "sha256:71d1e25f3409d58c39678de3859a0a9ecb4d09e9275973dd3adea88177100640"
+  },
+  "categorize_apps": {
+    "protocolVersion": "chronicle-workflow-checkpoint/v1",
+    "subjectId": "categorize_apps",
+    "rowMembershipDigest": "xxh3:5fa93b5192ff2e3e817a95d2c142733f",
+    "rowOrderDigest": "xxh3:2f82e0ead64fdf85fcc65cf050fa844e",
+    "temporalStateDigest": "xxh3:6298bdc12512f332e70a9dd9ce985786",
+    "classificationDigest": "xxh3:c099c13e90594cd713279db68e65e9c3",
+    "payloadDigest": "xxh3:cb90c1529539efd5d49ab0776608be25",
+    "schemaDigest": "xxh3:c455dab27c54372936279c1332aa057f",
+    "terminalDigest": "sha256:c530a5b40f7b4d1c0602d84f4663ddd6df3fde69fe2858fc5013a3252c7b8aff"
+  },
+  "day_coverage": {
+    "protocolVersion": "chronicle-workflow-checkpoint/v1",
+    "subjectId": "day_coverage",
+    "rowMembershipDigest": "xxh3:5fa93b5192ff2e3e817a95d2c142733f",
+    "rowOrderDigest": "xxh3:2f82e0ead64fdf85fcc65cf050fa844e",
+    "temporalStateDigest": "xxh3:43414a18c5bab01064839022d5dde23c",
+    "classificationDigest": "xxh3:142886732a8486ed580b95bee24d88c3",
+    "payloadDigest": "xxh3:410ea326ebfc48d342b5bdfda511bbf3",
+    "schemaDigest": "xxh3:76a22bf93fa14632caf67c9371d989eb",
+    "terminalDigest": "sha256:08b53f7f16f43471def69d3ba2035143e49163d16322bac5e8bac138951a7e94"
+  },
+  "dedup_and_order": {
+    "protocolVersion": "chronicle-workflow-checkpoint/v1",
+    "subjectId": "dedup_and_order",
+    "rowMembershipDigest": "xxh3:65ebb8ccdf024375733d016aa876242a",
+    "rowOrderDigest": "xxh3:9758e712a4b1fdac156c281da9aaacb9",
+    "temporalStateDigest": "xxh3:28e1297729754eb7b161d6174405602c",
+    "classificationDigest": "xxh3:da17f66566ea3346e53467417dbf5914",
+    "payloadDigest": "xxh3:cb90c1529539efd5d49ab0776608be25",
+    "schemaDigest": "xxh3:c455dab27c54372936279c1332aa057f",
+    "terminalDigest": "sha256:9e3ab44fe0d7e24a038f5886ff2fb6615662674a41416f2b569b1feabba86dbb"
+  },
+  "device_state_timeline": {
+    "protocolVersion": "chronicle-workflow-checkpoint/v1",
+    "subjectId": "device_state_timeline",
+    "rowMembershipDigest": "xxh3:1e6f8d3004f81370a6cd22554de1ab51",
+    "rowOrderDigest": "xxh3:5bb07c4297a9a76b0f5caf5b15169025",
+    "temporalStateDigest": "xxh3:245ad6f5053f0853565609be8195923d",
+    "classificationDigest": "xxh3:a93a7d1cdea5adcc6946a0b92ed9683c",
+    "payloadDigest": "xxh3:cb90c1529539efd5d49ab0776608be25",
+    "schemaDigest": "xxh3:c455dab27c54372936279c1332aa057f",
+    "terminalDigest": "sha256:73a57d2357dd51e2ecdd770b646b297d4e7dfece305d7e4b2e1d49456c251b40"
+  },
+  "effective_usage": {
+    "protocolVersion": "chronicle-workflow-checkpoint/v1",
+    "subjectId": "effective_usage",
+    "rowMembershipDigest": "xxh3:4798046df3d29fdd24fda246f261c096",
+    "rowOrderDigest": "xxh3:764ac44f6778d8d426e3ebce2b663a10",
+    "temporalStateDigest": "xxh3:3960b38f8bfd7e0ecec0d8afdf09e0d0",
+    "classificationDigest": "xxh3:27ebd0e2677373823f7c7f0647d4fc43",
+    "payloadDigest": "xxh3:8e63e271328b688dc5a1a106a8d0ed81",
+    "schemaDigest": "xxh3:e55825d8dbe6eeb069baf621ea998dbc",
+    "terminalDigest": "sha256:cc9e09d7144af6c350bfca5f03f5180e49ec13ff41f24dacdb28d46e7256689f"
+  },
+  "episode_annotations": {
+    "protocolVersion": "chronicle-workflow-checkpoint/v1",
+    "subjectId": "episode_annotations",
+    "rowMembershipDigest": "xxh3:5fa93b5192ff2e3e817a95d2c142733f",
+    "rowOrderDigest": "xxh3:2f82e0ead64fdf85fcc65cf050fa844e",
+    "temporalStateDigest": "xxh3:43414a18c5bab01064839022d5dde23c",
+    "classificationDigest": "xxh3:2b3aabc057c4ae3c579332e3f5d4e9fd",
+    "payloadDigest": "xxh3:cb90c1529539efd5d49ab0776608be25",
+    "schemaDigest": "xxh3:c455dab27c54372936279c1332aa057f",
+    "terminalDigest": "sha256:5c5edc0d6229ab74237cd56c1bc0f531882c0bf869806bd466dd9190c93b9b57"
+  },
+  "interval_cleaning": {
+    "protocolVersion": "chronicle-workflow-checkpoint/v1",
+    "subjectId": "interval_cleaning",
+    "rowMembershipDigest": "xxh3:5fa93b5192ff2e3e817a95d2c142733f",
+    "rowOrderDigest": "xxh3:2f82e0ead64fdf85fcc65cf050fa844e",
+    "temporalStateDigest": "xxh3:43414a18c5bab01064839022d5dde23c",
+    "classificationDigest": "xxh3:2b3aabc057c4ae3c579332e3f5d4e9fd",
+    "payloadDigest": "xxh3:cb90c1529539efd5d49ab0776608be25",
+    "schemaDigest": "xxh3:c455dab27c54372936279c1332aa057f",
+    "terminalDigest": "sha256:95daca4c2e2f5ffdf047edc1bab018f6bda6f08ac1cf982fde939e576de776df"
+  },
+  "normalize_timezones": {
+    "protocolVersion": "chronicle-workflow-checkpoint/v1",
+    "subjectId": "normalize_timezones",
+    "rowMembershipDigest": "xxh3:65ebb8ccdf024375733d016aa876242a",
+    "rowOrderDigest": "xxh3:1f8e3b33d768784a7b2ac21fcc925a53",
+    "temporalStateDigest": "xxh3:8a19cfaf7fe7c27e2f287c28fba97181",
+    "classificationDigest": "xxh3:da17f66566ea3346e53467417dbf5914",
+    "payloadDigest": "xxh3:cb90c1529539efd5d49ab0776608be25",
+    "schemaDigest": "xxh3:c455dab27c54372936279c1332aa057f",
+    "terminalDigest": "sha256:ec6157662f7c128006e3e2dbf062c3471d8b7cd3607ba69fd99c78249f9eeea2"
+  },
+  "observation_window": {
+    "protocolVersion": "chronicle-workflow-checkpoint/v1",
+    "subjectId": "observation_window",
+    "rowMembershipDigest": "xxh3:5fa93b5192ff2e3e817a95d2c142733f",
+    "rowOrderDigest": "xxh3:2f82e0ead64fdf85fcc65cf050fa844e",
+    "temporalStateDigest": "xxh3:43414a18c5bab01064839022d5dde23c",
+    "classificationDigest": "xxh3:2b3aabc057c4ae3c579332e3f5d4e9fd",
+    "payloadDigest": "xxh3:cb90c1529539efd5d49ab0776608be25",
+    "schemaDigest": "xxh3:c455dab27c54372936279c1332aa057f",
+    "terminalDigest": "sha256:7b0621a2c1fb6c1edbc0feec0a806c4857582e58dd9a14c673517be6aa1e6d97"
+  },
+  "outputs": {
+    "protocolVersion": "chronicle-workflow-checkpoint/v1",
+    "subjectId": "outputs",
+    "rowMembershipDigest": "xxh3:4798046df3d29fdd24fda246f261c096",
+    "rowOrderDigest": "xxh3:764ac44f6778d8d426e3ebce2b663a10",
+    "temporalStateDigest": "xxh3:3960b38f8bfd7e0ecec0d8afdf09e0d0",
+    "classificationDigest": "xxh3:27ebd0e2677373823f7c7f0647d4fc43",
+    "payloadDigest": "xxh3:79376eacd8eed95e90492fa54721ea00",
+    "schemaDigest": "xxh3:b327a02e79027621f8f60d286a48f791",
+    "terminalDigest": "sha256:0e2fc29057b1c8ffa6c5462c3da5c4d6508f78810d60ede47e53aecb59f3e03e"
+  },
+  "parse_events": {
+    "protocolVersion": "chronicle-workflow-checkpoint/v1",
+    "subjectId": "parse_events",
+    "rowMembershipDigest": "xxh3:65ebb8ccdf024375733d016aa876242a",
+    "rowOrderDigest": "xxh3:1f8e3b33d768784a7b2ac21fcc925a53",
+    "temporalStateDigest": "xxh3:8a19cfaf7fe7c27e2f287c28fba97181",
+    "classificationDigest": "xxh3:da17f66566ea3346e53467417dbf5914",
+    "payloadDigest": "xxh3:cb90c1529539efd5d49ab0776608be25",
+    "schemaDigest": "xxh3:c455dab27c54372936279c1332aa057f",
+    "terminalDigest": "sha256:210c3751d59ac6463fdc17489ba66252ff8de41ed84db50c3e4d1bacbd1a9d69"
+  },
+  "reconstruct_episodes": {
+    "protocolVersion": "chronicle-workflow-checkpoint/v1",
+    "subjectId": "reconstruct_episodes",
+    "rowMembershipDigest": "xxh3:5fa93b5192ff2e3e817a95d2c142733f",
+    "rowOrderDigest": "xxh3:2f82e0ead64fdf85fcc65cf050fa844e",
+    "temporalStateDigest": "xxh3:6298bdc12512f332e70a9dd9ce985786",
+    "classificationDigest": "xxh3:645445fddb6370c4ad6c9fdc130aab59",
+    "payloadDigest": "xxh3:cb90c1529539efd5d49ab0776608be25",
+    "schemaDigest": "xxh3:c455dab27c54372936279c1332aa057f",
+    "terminalDigest": "sha256:e4423edf6ab0ced7b020693b52276ffefe9db034b3106de24262a0ea76a4798a"
+  },
+  "score_compliance": {
+    "protocolVersion": "chronicle-workflow-checkpoint/v1",
+    "subjectId": "score_compliance",
+    "rowMembershipDigest": "xxh3:4798046df3d29fdd24fda246f261c096",
+    "rowOrderDigest": "xxh3:764ac44f6778d8d426e3ebce2b663a10",
+    "temporalStateDigest": "xxh3:3960b38f8bfd7e0ecec0d8afdf09e0d0",
+    "classificationDigest": "xxh3:27ebd0e2677373823f7c7f0647d4fc43",
+    "payloadDigest": "xxh3:30293cc6d70dcfbfa978b087336758ce",
+    "schemaDigest": "xxh3:40bfe4ff4d74ab96dc070a31944fb5de",
+    "terminalDigest": "sha256:d266b09c52f1476e693e1b452675dae1a8725223639773e6ef1c323c66483be9"
+  }
+}
