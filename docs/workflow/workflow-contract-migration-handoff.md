@@ -1,15 +1,15 @@
 # Workflow Contract Migration Handoff
 
-**Status:** Core migration implemented and evidence refreshed
-**Branch:** `workflow-contract-dag`
-**Date:** 2026-08-03
+**Status:** Complete — merged, deployed, and production-canary verified
+**Branch:** `main`
+**Date:** 2026-08-05
 
 ## Purpose
 
-This handoff describes the count-neutral workflow contract migration and the
-remaining release work. The implementation no longer treats a registry length,
-phase total, or ordinal position as product identity. Continue working only inside
-this repository and do not open or inspect image or video files.
+This handoff records the completed count-neutral workflow contract migration. The
+implementation no longer treats a registry length, phase total, or ordinal position
+as product identity. Continue working only inside this repository and do not open or
+inspect image or video files.
 
 ## Current Architecture
 
@@ -167,6 +167,15 @@ cd web && npm run build && npm run test:e2e:smoke
 Verification was performed without image or video inspection. Any later source or
 contract edit must refresh dependency evidence and rerun these release gates before
 retaining the verified status.
+
+The migration and release follow-ups landed through pull requests
+[#96](https://github.com/uzaira0/chronicle-android-raw-data-preprocessing-app/pull/96),
+[#97](https://github.com/uzaira0/chronicle-android-raw-data-preprocessing-app/pull/97),
+and [#98](https://github.com/uzaira0/chronicle-android-raw-data-preprocessing-app/pull/98).
+The corrected [Pages deployment](https://github.com/uzaira0/chronicle-android-raw-data-preprocessing-app/actions/runs/30988805867)
+and final [production canary](https://github.com/uzaira0/chronicle-android-raw-data-preprocessing-app/actions/runs/30989583412)
+are green. The deployed application is available at
+<https://uzaira0.github.io/chronicle-android-raw-data-preprocessing-app/>.
 
 ## Guardrails for Follow-up Work
 
