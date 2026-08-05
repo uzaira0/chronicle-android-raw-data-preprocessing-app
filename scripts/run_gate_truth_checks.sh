@@ -130,7 +130,8 @@ echo "── gate-truth: seeded defects must trip every drift gate"
 
 # 1. Pipeline-graph projection drift.
 seed "$WEB/schema/chronicle-workflow.yaml" \
-  's/node_label: Event parsing/node_label: SEEDED DEFECT/' 'SEEDED DEFECT'
+  's/^workflow_model_version: workflow-v1$/workflow_model_version: SEEDED DEFECT/' \
+  'workflow_model_version: SEEDED DEFECT'
 expect_gate_fires "pipeline-graph drift gate" \
   "$VITE_NODE" scripts/generate_workflow_artifacts.mts --check
 cp "$BACKUP_DIR/chronicle-workflow.yaml" "$WEB/schema/chronicle-workflow.yaml"
@@ -172,7 +173,8 @@ cp "$BACKUP_DIR/workflow_contract.rs" "$REPO_ROOT/rust/chronicle_chrono_kernel_w
 
 # 5. Workflow-query projection drift.
 seed "$WEB/schema/chronicle-workflow.yaml" \
-  '/- id: remove_missing_timestamps/,/definitionDigest:/s/- decode_source_records/- SEEDED_DEFECT/' 'SEEDED_DEFECT'
+  's/^    workflow_query_ids:$/    workflow_query_ids_seeded:/' \
+  'workflow_query_ids_seeded'
 expect_gate_fires "workflow drift gate (query projection)" \
   "$VITE_NODE" scripts/generate_workflow_artifacts.mts --check
 cp "$BACKUP_DIR/chronicle-workflow.yaml" "$WEB/schema/chronicle-workflow.yaml"
