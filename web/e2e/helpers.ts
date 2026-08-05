@@ -25,13 +25,22 @@ export async function installDeterministicRuntime(
 
 export function trackExternalRequests(page: Page): ExternalRequestTracker {
   const tracker: ExternalRequestTracker = { externalRequests: [] };
+  let applicationOrigin: string | undefined;
   page.on("request", (request) => {
     const url = request.url();
     if (!/^https?:/i.test(url)) {
       return;
     }
     const parsed = new URL(url);
-    if (parsed.hostname !== "127.0.0.1" && parsed.hostname !== "localhost") {
+    if (
+      applicationOrigin === undefined &&
+      request.isNavigationRequest() &&
+      request.frame() === page.mainFrame()
+    ) {
+      applicationOrigin = parsed.origin;
+      return;
+    }
+    if (parsed.origin !== applicationOrigin) {
       tracker.externalRequests.push(url);
     }
   });
@@ -39,7 +48,7 @@ export function trackExternalRequests(page: Page): ExternalRequestTracker {
 }
 
 export async function gotoApp(page: Page): Promise<void> {
-  await page.goto("/");
+  await page.goto("./");
   await page.waitForLoadState("networkidle");
   await expect(
     page.getByRole("heading", { name: "Chronicle Android Raw Data Preprocessor" }),
