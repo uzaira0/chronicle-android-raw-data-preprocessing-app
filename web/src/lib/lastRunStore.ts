@@ -3,13 +3,18 @@ import type {
   ProcessedFileResult,
 } from "@/lib/types";
 
-export const LAST_RUN_DB_NAME = "chronicle-last-run";
+export const LAST_RUN_DB_NAME = "chronicle-workflow-last-run-v1";
+export const LAST_RUN_DB_VERSION = 1;
+export const LAST_RUN_STORE_NAME = "lastRun";
+export const LAST_RUN_RECORD_ID = "last";
+export const LAST_RUN_SCHEMA_VERSION = 1;
+const LEGACY_LAST_RUN_DB_NAME = "chronicle-last-run";
 const DB_NAME = LAST_RUN_DB_NAME;
-const STORE = "lastRun";
-const DB_VERSION = 1;
-const LAST_RUN_ID = "last";
-const SCHEMA_VERSION = 1;
-const LAST_RUN_DELETED_FENCE = "chronicle-last-run-deleted-v1";
+const STORE = LAST_RUN_STORE_NAME;
+const DB_VERSION = LAST_RUN_DB_VERSION;
+const LAST_RUN_ID = LAST_RUN_RECORD_ID;
+const SCHEMA_VERSION = LAST_RUN_SCHEMA_VERSION;
+const LAST_RUN_DELETED_FENCE = "chronicle-workflow-last-run-deleted-v1";
 
 function setDeletedFence(deleted: boolean): void {
   try {
@@ -36,6 +41,41 @@ export type LastRunRecord = {
   results: ProcessedFileResult[];
   discoveredTimezones: string[];
 };
+
+export type LegacyLastRunState = {
+  detected: boolean;
+  detectionSupported: boolean;
+};
+
+/**
+ * Detect the retired pre-workflow last-run database without opening, reading,
+ * upgrading, or deleting it. Browsers without IDBFactory.databases() provide
+ * no safe existence probe, so they deliberately report detection as
+ * unsupported instead of falling back to indexedDB.open().
+ */
+export async function detectLegacyLastRunState(
+  suppliedFactory?: IDBFactory,
+): Promise<LegacyLastRunState> {
+  const factory =
+    suppliedFactory ??
+    (typeof indexedDB === "undefined" ? undefined : indexedDB);
+  if (!factory || typeof factory.databases !== "function") {
+    return { detected: false, detectionSupported: false };
+  }
+  try {
+    const databases = await factory.databases();
+    return {
+      detected: databases.some(
+        ({ name }) => name === LEGACY_LAST_RUN_DB_NAME,
+      ),
+      detectionSupported: true,
+    };
+  } catch {
+    // Enumeration can be denied in private/restricted contexts. Do not probe
+    // by opening the legacy name because that would create or mutate it.
+    return { detected: false, detectionSupported: false };
+  }
+}
 
 /**
  * Strip a run's heavy artifacts before persisting it. The output-file bytes

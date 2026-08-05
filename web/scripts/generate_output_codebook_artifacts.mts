@@ -1,5 +1,5 @@
 // Output-column codebook: bijection check + researcher-facing artifact
-// (docs/dag-validate-ontologize-productize-research.md O2 + P1).
+// (docs/workflow/dag-validate-ontologize-productize-research.md O2 + P1).
 //
 //   vite-node scripts/generate_output_codebook_artifacts.mts           # write
 //   vite-node scripts/generate_output_codebook_artifacts.mts --check   # drift gate

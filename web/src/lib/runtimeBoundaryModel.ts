@@ -11,7 +11,7 @@
  * TypeScript.
  *
  * Semantic cross-checks — protocol pins, dependency-certificate agreement,
- * checkpoint domains and their digest families, 55-step completeness, row
+ * checkpoint domains and their digest families, query-registry completeness, row
  * accounting, artifact-catalog agreement — are NOT structural and stay
  * hand-written in `rustPipelineRuntime.ts` on top of this layer.
  */

@@ -4,14 +4,14 @@
 
 **Goal:** Make a declared typed dependency graph the execution spine of the browser pipeline and wire in the research-pipeline-only features (screen-gated usage credit, study window, person attribution, compliance, day coverage) client-side.
 
-**Architecture:** A pure graph engine (`pipelineGraph/`) with dirty-propagation + content-hash memoization executes node functions that wrap the existing stage functions of `browserPipeline.ts`; new Clean/Analyze nodes port the Python semantics from `docs/pipeline-graph/03-port-semantics.md`. A React Flow + dagre Graph tab renders the same declared graph with taxonomy-free path-query highlights. All new options/support files flow through the LinkML contract.
+**Architecture:** A pure graph engine (`pipelineGraph/`) with dirty-propagation + content-hash memoization executes node functions that wrap the existing stage functions of `browserPipeline.ts`; new Clean/Analyze nodes port the Python semantics from the [artifact and port semantics](../../workflow/artifact-port-semantics.md). A React Flow + dagre Graph tab renders the same declared graph with taxonomy-free path-query highlights. All new options/support files flow through the LinkML contract.
 
 **Tech Stack:** TypeScript (strict), React 19, Vite 7, vitest, comlink worker, papaparse; new deps `@xyflow/react` ^12, `@dagrejs/dagre` ^3 (both MIT).
 
 ## Global Constraints
 
-- Spec: `docs/superpowers/specs/2026-07-14-pipeline-graph-design.md`; KB: `docs/pipeline-graph/` (esp. 03, 06, 08, 11, 12).
-- Node ids/labels use the community vocabulary of doc 08 (`parse_events`, `device_state_timeline`, `effective_usage`, …). No internal decision-record numbers or engine jargon in ANY user-facing string.
+- Spec: `docs/superpowers/specs/2026-07-14-pipeline-graph-design.md`; knowledge base: `docs/workflow/`, especially [artifact and port semantics](../../workflow/artifact-port-semantics.md), the [typed-edge ontology](../../workflow/typed-edge-ontology.md), [prior-art vocabulary](../../workflow/prior-art-vocabulary.md), [device-state model](../../workflow/device-state-machine.md), and [settings ledger](../../workflow/settings-sublation-ledger.md).
+- Node ids/labels use the [prior-art vocabulary](../../workflow/prior-art-vocabulary.md) (`parse_events`, `device_state_timeline`, `effective_usage`, …). No internal decision-record numbers or engine jargon in ANY user-facing string.
 - Derived layer: NO taxonomy names anywhere (no mediates/confounds/dominators). Only `affectedBy`/`builtFrom`/`sharedUpstream`/`mustPassThrough`/`joinPoints` + plain-English sentences.
 - New number-changing steps are OPTIONAL and SIDE-BY-SIDE: credited output is a separate CSV; the headline app-usage output is never mutated in place.
 - Existing outputs must stay byte-identical when all new options are off — `npm run test` (vitest) must stay green at every commit; `npm run typecheck` and `npm run check:contract` must pass before any push.
@@ -37,7 +37,7 @@ export type Section = "preprocess" | "clean" | "analyze" | "output";
 export type EdgeType = "feeds" | "gates" | "tunes";
 export interface KnobBinding { optionKey: string; edge: "gates" | "tunes" }
 export interface NodeDef<Ctx> {
-  id: string;                       // doc-08 community name
+  id: string;                       // prior-art vocabulary community name
   label: string;                    // UI label
   section: Section;
   inputs: string[];                 // upstream node ids ("feeds" edges)
@@ -98,9 +98,9 @@ export function sentenceFor(query: "affectedBy"|"sharedUpstream"|"mustPassThroug
 - Consumes: Task 1 engine, existing stage functions (`parseRawRows`, `applyTimezoneHandling`, `dedupeExactRows`, `unalignDuplicateTimestamps`, `markDataTimeGaps`, `labelFilteredApps`, `deriveScreenUsageSessions`, `runAppUsageAlgorithm`, `enrichWithCodebookData`, …).
 - Produces: `buildChronicleGraph(): GraphDef<PipelineCtx>` with nodes `parse_events, normalize_timezones, dedup_and_order, app_policy, device_state_timeline, reconstruct_episodes, categorize_apps, interval_quality, effective_usage (stub id present, gated off), observation_window, attribute_person, score_compliance, day_coverage, outputs`; `PipelineCtx = { options, supportData, runtime, runMatcher, runSplitter, emit }`.
 
-Node bodies wrap the existing calls 1:1 (doc 12 column A defines which options bind where). `processRawCsvContent` builds ctx, runs the engine, then assembles `ProcessedFileResult` from node outputs exactly as today (plots/exports read the same arrays). Support files are pre-loaded into `supportData` before the run (async fetch stays outside node bodies so nodes stay deterministic).
+Node bodies wrap the existing calls 1:1 (the [settings ledger](../../workflow/settings-sublation-ledger.md) defines which options bind where). `processRawCsvContent` builds ctx, runs the engine, then assembles `ProcessedFileResult` from node outputs exactly as today (plots/exports read the same arrays). Support files are pre-loaded into `supportData` before the run (async fetch stays outside node bodies so nodes stay deterministic).
 
-- [ ] graphDef test: every option key in `DEFAULT_BROWSER_OPTIONS` that is pipeline-semantic is bound to ≥1 node (assert against an explicit allowlist of runtime/presentation keys — `parallelProcessing`, `parallelMaxWorkers`, plot/export toggles); topoSort succeeds; section metadata matches doc 02 (preprocess/clean/analyze).
+- [ ] graphDef test: every option key in `DEFAULT_BROWSER_OPTIONS` that is pipeline-semantic is bound to ≥1 node (assert against an explicit allowlist of runtime/presentation keys — `parallelProcessing`, `parallelMaxWorkers`, plot/export toggles); topoSort succeeds; section metadata matches the [phase taxonomy](../../workflow/phase-taxonomy.md) (preprocess/clean/analyze).
 - [ ] Rewire `processRawCsvContent` through `GraphEngine.run`; keep `emit` progress mapping (node id → existing ProgressStepKind).
 - [ ] Full suite: `npm run test` → green (byte-identical outputs); `npm run typecheck`.
 - [ ] Commit: `refactor(pipeline): graph engine is now the execution spine (outputs unchanged)`
@@ -143,7 +143,7 @@ export function applyScreenGatedCredit(
 ): CreditResult;
 ```
 
-Algorithm = doc 03 §1 verbatim: per session [s, e=min(e_raw, s+CAP)]: screen-state changepoints (ON_WITNESS = Screen Interactive, User Interaction, Shortcut Invocation, Keyguard Hidden, User Unlocked, Chooser Action; OFF_WITNESS = Screen Non-Interactive, Device Shutdown; heartbeats don't move state); ON intervals bridged across OFF < autoLock; alive chains under liveness tol broken by Device Startup in-gap (10 s epsilon), bracketing events outside window count; credit = ON ∩ alive; no-witness fallback iff participant-day distinct apps ≥ min; screen-incapable participants (never both an ON and an OFF witness) get full-window credit; only sessions with duration > 0 are credited; recompute calendar columns (date/day/weekday variants/hour) from each credited interval's LOCAL start via the same helpers `browserPipeline.ts` uses; a fully-dead session emits no rows.
+Algorithm = the [screen-gated credit specification](../../workflow/artifact-port-semantics.md#1-screen-gated-valid-usage-credit-the-layer-2-paradigm): per session [s, e=min(e_raw, s+CAP)]: screen-state changepoints (ON_WITNESS = Screen Interactive, User Interaction, Shortcut Invocation, Keyguard Hidden, User Unlocked, Chooser Action; OFF_WITNESS = Screen Non-Interactive, Device Shutdown; heartbeats don't move state); ON intervals bridged across OFF < autoLock; alive chains under liveness tol broken by Device Startup in-gap (10 s epsilon), bracketing events outside window count; credit = ON ∩ alive; no-witness fallback iff participant-day distinct apps ≥ min; screen-incapable participants (never both an ON and an OFF witness) get full-window credit; only sessions with duration > 0 are credited; recompute calendar columns (date/day/weekday variants/hour) from each credited interval's LOCAL start via the same helpers `browserPipeline.ts` uses; a fully-dead session emits no rows.
 
 - [ ] Generate golden fixtures: synthetic raw CSV (5 participants covering: cross-midnight session, boot-in-gap, autolock blip, no-witness day with 1 vs 3 apps, screen-incapable device, >6 h truncate) → run the Python `apply_s14_credit` via the research-pipeline venv → dump input/expected JSON (no real data; synthetic only) into `__fixtures__/screen_gated_credit/`.
 - [ ] Failing vitest: fixture parity (row-level: start/stop/duration/date/hour per credited row) + unit tests per edge case listed above.
@@ -193,7 +193,7 @@ export function buildDayCoverage(rows: CanonicalRow[], windows: StudyWindow[], r
   // No Activity = raw events that day but no usage; No Data = silent; throws CoverageInvariantError if any windowed day ends uncovered
 ```
 
-- [ ] TDD each module in order (parsers → window → attribution → compliance → coverage); tests cover doc-03 §4-6 rules incl. the wrong-attribution bug class (numerical-id fallback must NOT happen), zero-usage-flagged-not-dropped, coverage hard error.
+- [ ] TDD each module in order (parsers → window → attribution → compliance → coverage); tests cover the attribution, compliance, and study-window rules in [artifact and port semantics](../../workflow/artifact-port-semantics.md), including the wrong-attribution bug class (numerical-id fallback must NOT happen), zero-usage-flagged-not-dropped, and the coverage hard error.
 - [ ] Commit per module (5 commits, `feat(analyze): …`).
 
 ### Task 7: Wire new nodes into graphDef + outputs
@@ -209,7 +209,7 @@ export function buildDayCoverage(rows: CanonicalRow[], windows: StudyWindow[], r
 ### Task 8: UI — sections, Study Inputs, settings cards
 
 **Files:**
-- Modify: `web/src/components/ProcessPanel.tsx` (Preprocess/Clean/Analyze section headers per doc 02 mapping)
+- Modify: `web/src/components/ProcessPanel.tsx` (Preprocess/Clean/Analyze section headers per the [phase taxonomy](../../workflow/phase-taxonomy.md))
 - Create: `web/src/components/StudyInputsCard.tsx` (four new uploads, per-file status, "needs input" state)
 - Create: `web/src/components/AnalyzeSettingsCard.tsx` (new toggles/knobs with tooltips in community vocabulary)
 - Modify: `web/src/components/FilesAndInputsCard.tsx`, `web/src/App.tsx`, settings persistence
@@ -235,12 +235,12 @@ Behavior: nodes colored by section, badges from last `RunReport` (cached/recompu
 
 **Files:**
 - Modify: `web/e2e/` add smoke: upload demo CSV → toggle credit on → run → credited CSV present in outputs, Graph tab renders, no console errors
-- Modify: `docs/pipeline-graph/07-design-draft.md` (status: implemented ph. 1-2-4 subset), `web/README.md` if present
+- Modify: `docs/workflow/design-draft.md` (status: implemented phase subset), `web/README.md` if present
 
 - [ ] `npm run test && npm run typecheck && npm run lint && npm run check:contract` all green; `npm run test:e2e:smoke` green.
 - [ ] Commit: `test(e2e): graph tab + credited-output smoke; docs status update`
 
-## Deferred (explicitly OUT of this implementation push, tracked in doc 07)
+## Deferred (explicitly OUT of this implementation push, tracked in the [workflow graph design](../../workflow/design-draft.md))
 
 Factored-state `device_state_timeline` internals + `validate_clock` node (phase 3), lineage ledger, `eyes_triplet_v1` / `parry_toth_forward_pair_2025` strategies + conformance fixtures, ordered app-policy rule schema + `interval_quality` as separate node (current long-flag/min-duration knobs remain where they execute), multi-stream witnesses. Rationale: user priority = wire the missing features into the app; the graph spine + ports above deliver that with the ontology's names and section boundaries so the deferred pieces slot in without renames.
 

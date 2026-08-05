@@ -1,6 +1,6 @@
 # Combinatorial coverage of the processing-option contract
 
-Implements §S3 of `docs/dag-validate-ontologize-productize-research.md`: measure
+Implements §S3 of `docs/workflow/dag-validate-ontologize-productize-research.md`: measure
 how much of the option space the executed test suite actually reaches (NIST CCM),
 then close the gap with generated covering arrays (Microsoft PICT).
 
@@ -79,11 +79,11 @@ Notes:
   computational values and all 1,380 ordered one-factor transitions against
   six deterministic corpora. Source and target use identical raw/support
   inputs; 1,194 cold and 2,760 incremental Rust/WASM runs prove warm/cold parity,
-  compare all 15 logical-stage checkpoints, require the observed invalidation
+  compare every checkpoint projected by the runtime, require the observed invalidation
   set to equal the deterministic semantic percolation cluster, enforce the plan
   cone, and retain the exact observed effect set. A dedicated influence-probe
   corpus makes every one of the 46 computational axes produce at least one
-  substantive witness. This checked ledger predates the 55-query Salsa cutover
+  substantive witness. This checked ledger predates the registered-query Salsa cutover
   and must be regenerated before it proves current physical work. Current
   recomputation status comes from actual Salsa query bodies plus explicitly
   instrumented product-step evaluations inside review-only fused queries. The

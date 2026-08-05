@@ -1,9 +1,9 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:views/0.1",
+  "$id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:views/0.2",
   "title": "Chronicle typed multidimensional views",
   "oneOf": [
-    {"$ref": "#/$defs/stageView"},
+    {"$ref": "#/$defs/queryGroupView"},
     {"$ref": "#/$defs/artifactView"},
     {"$ref": "#/$defs/obligationView"},
     {"$ref": "#/$defs/temporalSubjectView"},
@@ -24,25 +24,25 @@
       },
       "additionalProperties": false
     },
-    "stageView": {
+    "queryGroupView": {
       "allOf": [
         {"$ref": "#/$defs/envelope"},
         {
           "properties": {
-            "view_id": {"const": "chronicle.stage.v1"},
-            "schema_id": {"const": "urn:chronicle:view:stage:v1"},
+            "view_id": {"const": "chronicle.query-group.v1"},
+            "schema_id": {"const": "urn:chronicle:view:query-group:v1"},
             "payload": {
               "type": "object",
-              "required": ["node_states"],
+              "required": ["query_group_states"],
               "properties": {
-                "stage": {"enum": ["preprocess", "clean", "analyze", "output", null]},
-                "node_states": {
+                "phase_id": {"type": ["string", "null"]},
+                "query_group_states": {
                   "type": "array",
                   "items": {
                     "type": "object",
-                    "required": ["node_id", "materialization_state"],
+                    "required": ["query_group_id", "materialization_state"],
                     "properties": {
-                      "node_id": {"type": "string"},
+                      "query_group_id": {"type": "string"},
                       "materialization_state": {"enum": ["open", "ready", "satisfied", "blocked", "invalid", "not_applicable"]},
                       "execution_status": {"enum": ["cached", "recomputed", "error", "skipped", "bypassed", null]},
                       "reason_ids": {"type": "array", "items": {"type": "string"}}
@@ -80,7 +80,7 @@
     "obligationView": {
       "allOf": [
         {"$ref": "#/$defs/envelope"},
-        {"properties": {"view_id": {"const": "chronicle.obligation.v1"}, "schema_id": {"const": "urn:chronicle:view:obligation:v1"}, "payload": {"type": "object", "required": ["obligations"], "properties": {"obligations": {"type": "array", "items": {"type": "object", "required": ["obligation_id", "role_id", "state", "reason_id"], "properties": {"obligation_id": {"type": "string"}, "role_id": {"type": "string"}, "node_id": {"type": ["string", "null"]}, "state": {"enum": ["open", "blocked", "invalid"]}, "reason_id": {"type": "string"}}, "additionalProperties": false}}}, "additionalProperties": false}}}
+        {"properties": {"view_id": {"const": "chronicle.obligation.v1"}, "schema_id": {"const": "urn:chronicle:view:obligation:v1"}, "payload": {"type": "object", "required": ["obligations"], "properties": {"obligations": {"type": "array", "items": {"type": "object", "required": ["obligation_id", "role_id", "state", "reason_id"], "properties": {"obligation_id": {"type": "string"}, "role_id": {"type": "string"}, "query_group_id": {"type": ["string", "null"]}, "state": {"enum": ["open", "blocked", "invalid"]}, "reason_id": {"type": "string"}}, "additionalProperties": false}}}, "additionalProperties": false}}}
       ]
     },
     "temporalSubjectView": {

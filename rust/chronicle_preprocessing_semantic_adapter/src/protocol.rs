@@ -1,4 +1,4 @@
-use crate::model::{ArtifactRef, NodeExecution, OpenObligation};
+use crate::model::{ArtifactRef, OpenObligation, QueryGroupExecution};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -58,18 +58,44 @@ pub struct WorkerResponse {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "payload", rename_all = "PascalCase")]
 pub enum WorkerResult {
-    WorkspaceOpened { root_digest: String },
-    WorkspaceVerified { valid: bool, reasons: Vec<String> },
-    Ingested { artifact: ArtifactRef },
-    Requirements { obligations: Vec<OpenObligation> },
-    Executed { executions: Vec<NodeExecution> },
-    View { value: Value },
-    Explanation { value: Value },
-    QueryResult { value: Value },
-    Closure { value: Value },
-    IndexRebuilt { triple_count: u64 },
-    GarbageCollected { removed_digests: Vec<String> },
-    Error { code: String, message: String },
+    WorkspaceOpened {
+        root_digest: String,
+    },
+    WorkspaceVerified {
+        valid: bool,
+        reasons: Vec<String>,
+    },
+    Ingested {
+        artifact: ArtifactRef,
+    },
+    Requirements {
+        obligations: Vec<OpenObligation>,
+    },
+    Executed {
+        executions: Vec<QueryGroupExecution>,
+    },
+    View {
+        value: Value,
+    },
+    Explanation {
+        value: Value,
+    },
+    QueryResult {
+        value: Value,
+    },
+    Closure {
+        value: Value,
+    },
+    IndexRebuilt {
+        triple_count: u64,
+    },
+    GarbageCollected {
+        removed_digests: Vec<String>,
+    },
+    Error {
+        code: String,
+        message: String,
+    },
 }
 
 impl WorkerRequest {

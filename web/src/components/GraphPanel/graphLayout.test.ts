@@ -6,16 +6,13 @@ import { layoutGraph, NODE_HEIGHT, NODE_WIDTH } from "@/components/GraphPanel/gr
 
 describe("graph layout (single dagre pass, real edges only)", () => {
   const def: ViewGraph = {
-    nodes: productPlan.nodes.map((node) => ({
-      id: node.node_id,
-      label: node.label,
-      section: node.section as ViewGraph["nodes"][number]["section"],
-      inputs: node.input_nodes,
+    nodes: productPlan.query_groups.map((group) => ({
+      id: group.query_group_id,
+      label: group.label,
+      section: "execution" as const,
+      inputs: group.input_query_groups,
     })),
   };
-  const cleanIds = new Set(
-    def.nodes.filter((node) => node.section === "clean").map((node) => node.id),
-  );
   const layout = layoutGraph(def, "LR");
   const byId = new Map(layout.nodes.map((node) => [node.id, node]));
 
@@ -27,13 +24,6 @@ describe("graph layout (single dagre pass, real edges only)", () => {
     }
   });
 
-  it("marks clean nodes off-spine and every other node on-spine", () => {
-    for (const node of layout.nodes) {
-      expect(node.offSpine).toBe(cleanIds.has(node.id));
-    }
-    expect(cleanIds.size).toBeGreaterThan(0);
-  });
-
   it("draws exactly the real feeds-edges — no synthesised edges", () => {
     const declared = def.nodes.flatMap((node) =>
       node.inputs.map((input) => `${input}->${node.id}`),
@@ -43,11 +33,8 @@ describe("graph layout (single dagre pass, real edges only)", () => {
     for (const id of declared) expect(drawn.has(id)).toBe(true);
   });
 
-  it("tags an edge dashed iff it touches a clean node", () => {
-    for (const edge of layout.edges) {
-      const touchesClean = cleanIds.has(edge.source) || cleanIds.has(edge.target);
-      expect(edge.variant).toBe(touchesClean ? "tap" : "spine");
-    }
+  it("does not assign semantic meaning to layout edges", () => {
+    expect(new Set(layout.edges.map((edge) => edge.variant))).toEqual(new Set(["flow"]));
   });
 
   it("never overlaps two node boxes", () => {

@@ -5,7 +5,7 @@ import {
   discoverTimezonesBytes,
   exportVerifiedWorkspaceClosure,
   getRuntimeVersion,
-  getPlanStageView,
+  getWorkflowExplorerView,
   importVerifiedWorkspaceClosure,
   inspectRawCsvBytes,
   clearReviewSummaryReuseCache,
@@ -951,7 +951,7 @@ describe("shared worker fault handling (fake Worker global)", () => {
     lastWorker().fire("error", { message: "import failed" });
     await expect(imported).rejects.toThrow("import failed");
 
-    const view = getPlanStageView({} as Parameters<typeof getPlanStageView>[0]);
+    const view = getWorkflowExplorerView({} as Parameters<typeof getWorkflowExplorerView>[0]);
     lastWorker().fire("error", { message: "view failed" });
     await expect(view).rejects.toThrow("view failed");
   });
@@ -1075,7 +1075,7 @@ describe("shared worker successful routing and WASM compilation", () => {
         Promise.resolve(new Blob([new Uint8Array([1, 2, 3])])),
       ),
       importWorkspaceClosureArchive: vi.fn(() => Promise.resolve(imported)),
-      planStageView: vi.fn(() => Promise.resolve({ payload: {} })),
+      workflowExplorerView: vi.fn(() => Promise.resolve({ payload: {} })),
       discoverTimezonesBytes: vi.fn(() => Promise.resolve(["UTC"])),
       inspectRawCsvBytes: vi.fn(() => Promise.resolve(inspection)),
       processRawCsvBytes: vi.fn(() => Promise.resolve(result)),
@@ -1108,7 +1108,10 @@ const exportedArchive = await client.exportVerifiedWorkspaceClosure(
       client.importVerifiedWorkspaceClosure(archiveBlob),
     ).resolves.toEqual(imported);
     await expect(
-      client.getPlanStageView({} as BrowserProcessingOptions),
+      client.getWorkflowExplorerView(
+        {} as BrowserProcessingOptions,
+        [{ roleId: "filter_file", present: true }],
+      ),
     ).resolves.toEqual({ payload: {} });
     await expect(
       client.discoverTimezonesBytes(new ArrayBuffer(2)),
@@ -1145,6 +1148,10 @@ const exportedArchive = await client.exportVerifiedWorkspaceClosure(
       ),
     ).resolves.toBe(result);
     expect(api.importWorkspaceClosureArchive).toHaveBeenCalledWith(archiveBlob);
+    expect(api.workflowExplorerView).toHaveBeenCalledWith(
+      {},
+      [{ roleId: "filter_file", present: true }],
+    );
     expect(api.processRawCsvBytes).toHaveBeenCalledWith(
       "raw.csv",
       expect.any(ArrayBuffer),

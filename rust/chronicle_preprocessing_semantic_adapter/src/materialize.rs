@@ -16,7 +16,7 @@ use std::collections::{BTreeMap, BTreeSet};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Materialization {
     pub role_states: BTreeMap<String, MaterializationState>,
-    pub node_states: BTreeMap<String, MaterializationState>,
+    pub query_group_states: BTreeMap<String, MaterializationState>,
     pub obligations: Vec<OpenObligation>,
     pub reasons: Vec<StateReason>,
     pub qualification_traces: Vec<QualificationTrace>,
@@ -32,8 +32,8 @@ pub fn evaluate_materialization(
     plan: &ChroniclePlan,
     assignments: &BTreeMap<String, RoleAssignment>,
     options: &Value,
-    satisfied_nodes: &BTreeSet<String>,
-    invalid_nodes: &BTreeSet<String>,
+    satisfied_query_groups: &BTreeSet<String>,
+    invalid_query_groups: &BTreeSet<String>,
 ) -> Materialization {
     let mut role_states = BTreeMap::new();
     let mut obligations = Vec::new();
@@ -129,7 +129,7 @@ pub fn evaluate_materialization(
             obligations.push(OpenObligation {
                 obligation_id: identifier(&["obligation", &shared.role_id]),
                 role_id: shared.role_id.clone(),
-                node_id: None,
+                query_group_id: None,
                 state,
                 reason_id: reason_id.clone(),
             });
@@ -147,21 +147,21 @@ pub fn evaluate_materialization(
     }
 
     let mut graph = DiGraphMap::<&str, ()>::new();
-    for node in &plan.nodes {
-        graph.add_node(&node.node_id);
-        for input in &node.input_nodes {
-            graph.add_edge(input, &node.node_id, ());
+    for node in &plan.query_groups {
+        graph.add_node(&node.query_group_id);
+        for input in &node.input_query_groups {
+            graph.add_edge(input, &node.query_group_id, ());
         }
     }
     let order = toposort(&graph, None).expect("build.rs rejected plan cycles");
     let by_id: BTreeMap<_, _> = plan
-        .nodes
+        .query_groups
         .iter()
-        .map(|node| (node.node_id.as_str(), node))
+        .map(|node| (node.query_group_id.as_str(), node))
         .collect();
-    let mut node_states = BTreeMap::new();
-    for node_id in order {
-        let node = by_id[node_id];
+    let mut query_group_states = BTreeMap::new();
+    for query_group_id in order {
+        let node = by_id[query_group_id];
         let applicable = node.applicability.evaluate(options);
         let missing_support: Vec<_> = node
             .support_roles
@@ -175,70 +175,72 @@ pub fn evaluate_materialization(
             .filter(|role| role_states.get(*role) == Some(&MaterializationState::Invalid))
             .cloned()
             .collect();
-        let missing_root = node_id == "parse_events"
+        let missing_root = query_group_id == "parse_events"
             && ["raw_chronicle_csv", "processing_options"]
                 .iter()
                 .any(|role| role_states.get(*role) == Some(&MaterializationState::Open));
-        let invalid_root = node_id == "parse_events"
+        let invalid_root = query_group_id == "parse_events"
             && ["raw_chronicle_csv", "processing_options"]
                 .iter()
                 .any(|role| role_states.get(*role) == Some(&MaterializationState::Invalid));
-        let upstream_invalid = node.input_nodes.iter().any(|input| {
+        let upstream_invalid = node.input_query_groups.iter().any(|input| {
             matches!(
-                node_states.get(input),
+                query_group_states.get(input),
                 Some(MaterializationState::Invalid | MaterializationState::Blocked)
             )
         });
-        let upstream_pending = node.input_nodes.iter().any(|input| {
+        let upstream_pending = node.input_query_groups.iter().any(|input| {
             !matches!(
-                node_states.get(input),
+                query_group_states.get(input),
                 Some(MaterializationState::Satisfied | MaterializationState::NotApplicable)
             )
         });
-        let state =
-            if invalid_nodes.contains(node_id) || !invalid_support.is_empty() || invalid_root {
-                MaterializationState::Invalid
-            } else if !applicable && node.can_bypass {
-                MaterializationState::NotApplicable
-            } else if !missing_support.is_empty() || missing_root {
-                MaterializationState::Open
-            } else if upstream_invalid || upstream_pending {
-                MaterializationState::Blocked
-            } else if satisfied_nodes.contains(node_id) {
-                MaterializationState::Satisfied
-            } else {
-                MaterializationState::Ready
-            };
-        node_states.insert(node_id.to_string(), state);
-        let reason_id = identifier(&["node-state", node_id, &format!("{state:?}")]);
+        let state = if invalid_query_groups.contains(query_group_id)
+            || !invalid_support.is_empty()
+            || invalid_root
+        {
+            MaterializationState::Invalid
+        } else if !applicable && node.can_bypass {
+            MaterializationState::NotApplicable
+        } else if !missing_support.is_empty() || missing_root {
+            MaterializationState::Open
+        } else if upstream_invalid || upstream_pending {
+            MaterializationState::Blocked
+        } else if satisfied_query_groups.contains(query_group_id) {
+            MaterializationState::Satisfied
+        } else {
+            MaterializationState::Ready
+        };
+        query_group_states.insert(query_group_id.to_string(), state);
+        let reason_id = identifier(&["node-state", query_group_id, &format!("{state:?}")]);
         reasons.push(StateReason {
             reason_id: reason_id.clone(),
-            subject_id: node_id.to_string(),
+            subject_id: query_group_id.to_string(),
             state,
             source_id: node.capability_id.clone(),
             message: match state {
                 MaterializationState::Open => format!(
-                    "node {node_id} is missing roles: {}",
+                    "node {query_group_id} is missing roles: {}",
                     missing_support.join(",")
                 ),
                 MaterializationState::Blocked => {
-                    format!("node {node_id} is waiting on an upstream node")
+                    format!("node {query_group_id} is waiting on an upstream node")
                 }
-                MaterializationState::Ready => format!("node {node_id} is ready to execute"),
+                MaterializationState::Ready => format!("node {query_group_id} is ready to execute"),
                 MaterializationState::Satisfied => {
-                    format!("node {node_id} has a materialized output")
+                    format!("node {query_group_id} has a materialized output")
                 }
-                MaterializationState::Invalid => format!("node {node_id} is invalid"),
+                MaterializationState::Invalid => format!("node {query_group_id} is invalid"),
                 MaterializationState::NotApplicable => {
-                    format!("node {node_id} is bypassed by current options")
+                    format!("node {query_group_id} is bypassed by current options")
                 }
             },
         });
         for role_id in missing_support {
             obligations.push(OpenObligation {
-                obligation_id: identifier(&["node-obligation", node_id, &role_id]),
+                obligation_id: identifier(&["node-obligation", query_group_id, &role_id]),
                 role_id,
-                node_id: Some(node_id.to_string()),
+                query_group_id: Some(query_group_id.to_string()),
                 state: MaterializationState::Open,
                 reason_id: reason_id.clone(),
             });
@@ -247,7 +249,7 @@ pub fn evaluate_materialization(
 
     Materialization {
         role_states,
-        node_states,
+        query_group_states,
         obligations,
         reasons,
         qualification_traces: qualification.traces,
@@ -312,7 +314,10 @@ mod tests {
             .obligations
             .iter()
             .any(|obligation| obligation.role_id == "filter_file"));
-        assert_eq!(result.node_states["app_policy"], MaterializationState::Open);
+        assert_eq!(
+            result.query_group_states["app_policy"],
+            MaterializationState::Open
+        );
     }
 
     #[test]
@@ -325,7 +330,7 @@ mod tests {
             &BTreeSet::new(),
         );
         assert_eq!(
-            result.node_states["device_state_timeline"],
+            result.query_group_states["device_state_timeline"],
             MaterializationState::NotApplicable
         );
     }
@@ -344,11 +349,11 @@ mod tests {
             &BTreeSet::new(),
         );
         assert_eq!(
-            missing.node_states["parse_events"],
+            missing.query_group_states["parse_events"],
             MaterializationState::Open
         );
         assert_eq!(
-            missing.node_states["normalize_timezones"],
+            missing.query_group_states["normalize_timezones"],
             MaterializationState::Blocked
         );
 
@@ -375,15 +380,19 @@ mod tests {
             .iter()
             .any(|obligation| obligation.role_id == "filter_file"));
         assert_eq!(
-            ready_then_blocked.node_states["parse_events"],
+            ready_then_blocked.query_group_states["parse_events"],
             MaterializationState::Ready
         );
         assert_eq!(
-            ready_then_blocked.node_states["normalize_timezones"],
+            ready_then_blocked.query_group_states["normalize_timezones"],
             MaterializationState::Blocked
         );
 
-        let satisfied: BTreeSet<_> = plan.nodes.iter().map(|node| node.node_id.clone()).collect();
+        let satisfied: BTreeSet<_> = plan
+            .query_groups
+            .iter()
+            .map(|node| node.query_group_id.clone())
+            .collect();
         let complete = evaluate_materialization(
             plan,
             &assignments,
@@ -392,7 +401,7 @@ mod tests {
             &BTreeSet::new(),
         );
         assert_eq!(
-            complete.node_states["outputs"],
+            complete.query_group_states["outputs"],
             MaterializationState::Satisfied
         );
     }
@@ -420,11 +429,11 @@ mod tests {
             MaterializationState::Invalid
         );
         assert_eq!(
-            result.node_states["parse_events"],
+            result.query_group_states["parse_events"],
             MaterializationState::Invalid
         );
         assert_eq!(
-            result.node_states["normalize_timezones"],
+            result.query_group_states["normalize_timezones"],
             MaterializationState::Blocked
         );
         assert!(result
@@ -457,7 +466,7 @@ mod tests {
             &BTreeSet::from(["parse_events".into()]),
         );
         assert_eq!(
-            explicit_failure.node_states["parse_events"],
+            explicit_failure.query_group_states["parse_events"],
             MaterializationState::Invalid
         );
 
@@ -481,7 +490,7 @@ mod tests {
             MaterializationState::Invalid
         );
         assert_eq!(
-            invalid_support_result.node_states["app_policy"],
+            invalid_support_result.query_group_states["app_policy"],
             MaterializationState::Invalid
         );
     }
@@ -530,7 +539,11 @@ mod tests {
                 assignment("processing_options"),
             ),
         ]);
-        let satisfied = plan.nodes.iter().map(|node| node.node_id.clone()).collect();
+        let satisfied = plan
+            .query_groups
+            .iter()
+            .map(|node| node.query_group_id.clone())
+            .collect();
         let invalid = BTreeSet::from(["normalize_timezones".to_string()]);
         let result = evaluate_materialization(
             plan,
@@ -541,7 +554,7 @@ mod tests {
         );
 
         assert_eq!(
-            result.node_states["normalize_timezones"],
+            result.query_group_states["normalize_timezones"],
             MaterializationState::Invalid
         );
     }

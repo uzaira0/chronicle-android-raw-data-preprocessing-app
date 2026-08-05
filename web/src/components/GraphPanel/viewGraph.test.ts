@@ -12,10 +12,10 @@ import {
 
 const graph: ViewGraph = {
   nodes: [
-    { id: "a", label: "a", section: "preprocess", inputs: [] },
-    { id: "b", label: "b", section: "preprocess", inputs: ["a"] },
-    { id: "c", label: "c", section: "preprocess", inputs: ["a"] },
-    { id: "d", label: "d", section: "output", inputs: ["b", "c"] },
+    { id: "a", label: "a", section: "source", inputs: [] },
+    { id: "b", label: "b", section: "operation", inputs: ["a"] },
+    { id: "c", label: "c", section: "operation", inputs: ["a"] },
+    { id: "d", label: "d", section: "artifact", inputs: ["b", "c"] },
   ],
 };
 

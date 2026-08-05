@@ -1,6 +1,22 @@
-/** UI-only graph shape projected from Rust's typed stage view. */
-export type Section = "preprocess" | "clean" | "analyze" | "output";
-export type NodeStatus = "cached" | "recomputed" | "error" | "skipped" | "bypassed";
+/**
+ * Visual categories for the distinct interpretation layers exposed by the
+ * Workflow Explorer. These are presentation roles, not hard-coded workflow
+ * phases or execution boundaries.
+ */
+export type Section =
+  | "phase"
+  | "decision"
+  | "operation"
+  | "artifact"
+  | "source"
+  | "execution";
+export type NodeStatus =
+  | "cached"
+  | "recomputed"
+  | "error"
+  | "skipped"
+  | "bypassed"
+  | "not_observed";
 
 type ViewGraphNode = {
   id: string;

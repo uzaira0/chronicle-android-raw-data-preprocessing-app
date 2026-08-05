@@ -1,10 +1,14 @@
 # Handoff — Interactive timeline "waterfall" redesign
 
+> **Current workflow migration handoff:**
+> [`docs/workflow/workflow-contract-migration-handoff.md`](docs/workflow/workflow-contract-migration-handoff.md).
+> The material below is retained as historical context for an unrelated UI effort.
+
 > **Historical handoff only.** This records the June 2026 UI work and is not a
 > current architecture or implementation guide. The TypeScript/Python engines
 > and paths named below were subsequently retired. Current authority is the
-> 55-step Rust/Salsa runtime described in `CLAUDE.md`, `README.md`, and
-> `docs/semantic-federation/55-step-incremental-rust-plan.md`.
+> query-registry Rust/Salsa runtime described in `CLAUDE.md`, `README.md`, and
+> `docs/semantic-federation/incremental-runtime-plan.md`.
 
 **Date:** 2026-06-05
 **Repo:** `/home/opt/chronicle-android-raw-data-preprocessing-app` (web app under `web/`)

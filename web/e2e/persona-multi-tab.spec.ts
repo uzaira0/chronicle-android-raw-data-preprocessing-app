@@ -1,5 +1,11 @@
 import type { Page } from "@playwright/test";
 
+import {
+  LAST_RUN_DB_NAME,
+  LAST_RUN_DB_VERSION,
+  LAST_RUN_RECORD_ID,
+  LAST_RUN_STORE_NAME,
+} from "../src/lib/lastRunStore";
 import { expect, test } from "./durabilityContext";
 import { APP_ONLY_RAW_CSV } from "./fixtures";
 import {
@@ -21,19 +27,19 @@ test.describe.configure({ mode: "serial" });
 
 async function readLastRun(page: Page): Promise<{ results?: unknown[] } | null> {
   return page.evaluate(
-    () =>
+    ({ databaseName, databaseVersion, recordId, storeName }) =>
       new Promise<{ results?: unknown[] } | null>((resolve) => {
-        const open = indexedDB.open("chronicle-last-run", 1);
+        const open = indexedDB.open(databaseName, databaseVersion);
         open.onupgradeneeded = () => {
-          if (!open.result.objectStoreNames.contains("lastRun")) {
-            open.result.createObjectStore("lastRun", { keyPath: "id" });
+          if (!open.result.objectStoreNames.contains(storeName)) {
+            open.result.createObjectStore(storeName, { keyPath: "id" });
           }
         };
         open.onerror = () => resolve(null);
         open.onsuccess = () => {
           try {
-            const tx = open.result.transaction("lastRun", "readonly");
-            const get = tx.objectStore("lastRun").get("last");
+            const tx = open.result.transaction(storeName, "readonly");
+            const get = tx.objectStore(storeName).get(recordId);
             get.onsuccess = () => resolve(get.result as { results?: unknown[] } | null);
             get.onerror = () => resolve(null);
           } catch {
@@ -41,6 +47,12 @@ async function readLastRun(page: Page): Promise<{ results?: unknown[] } | null> 
           }
         };
       }),
+    {
+      databaseName: LAST_RUN_DB_NAME,
+      databaseVersion: LAST_RUN_DB_VERSION,
+      recordId: LAST_RUN_RECORD_ID,
+      storeName: LAST_RUN_STORE_NAME,
+    },
   );
 }
 

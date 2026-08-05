@@ -88,30 +88,29 @@ test("the review (View) surface and the compare drawer have no serious axe viola
   assertNoExternalRequests(requestTracker);
 });
 
-test("the Graph panel has no serious axe violations at either scale, before and after a run", async ({
+test("the Pipeline Explorer has no serious axe violations across interpretation layers and run evidence", async ({
   page,
 }) => {
-  // Both themes: the per-group accent tokens are tuned per theme, and the Graph
-  // node labels/badges are the smallest text in the app (~10px), so a token that
-  // only clears AA on white is a real dark-mode defect here.
+  // Both themes: node labels and evidence badges are the smallest text in the
+  // explorer, while Audit also adds search and phase-collapse controls.
   for (const theme of ["light", "dark"] as const) {
     await setTheme(page, theme);
 
-    // Pre-run: the declared DAG (steps scale is the default).
     await page.getByRole("tab", { name: /Graph/i }).click();
     await expect(page.getByTestId("graph-canvas")).toBeVisible();
-    const stepsScan = await new AxeBuilder({ page }).analyze();
-    expect(seriousViolations(stepsScan), `${theme}: graph steps scale`).toEqual([]);
-
-    await page.getByTestId("graph-scale-units").click();
-    await expect(page.getByTestId("graph-scale-units")).toHaveAttribute("aria-pressed", "true");
-    const unitsScan = await new AxeBuilder({ page }).analyze();
-    expect(seriousViolations(unitsScan), `${theme}: graph units scale`).toEqual([]);
-    await page.getByTestId("graph-scale-steps").click();
+    for (const mode of ["overview", "decisions", "audit"] as const) {
+      await page.getByTestId(`graph-mode-${mode}`).click();
+      await expect(page.getByTestId(`graph-mode-${mode}`)).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+      const scan = await new AxeBuilder({ page }).analyze();
+      expect(seriousViolations(scan), `${theme}: graph ${mode} mode`).toEqual([]);
+    }
   }
 
-  // Post-run: nodes now carry execution-ledger metrics (rows in→out, duration)
-  // and possible expectation-warning badges — those additions must stay clean.
+  // Post-run: physical queries carry execution-ledger metrics and the emitted
+  // output list becomes the run's truthful deliverables section.
   await setTheme(page, "light");
   await page.getByRole("tab", { name: /^Files$/i }).click();
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_AND_SCREEN_RAW_CSV, "text/csv");
@@ -120,7 +119,10 @@ test("the Graph panel has no serious axe violations at either scale, before and 
     await setTheme(page, theme);
     await page.getByRole("tab", { name: /Graph/i }).click();
     await expect(page.getByTestId("graph-canvas")).toBeVisible();
+    await page.getByTestId("graph-mode-execution").click();
     await expect(page.getByTestId("graph-node-metrics").first()).toBeVisible();
+    await expect(page.getByTestId("graph-deliverables").getByRole("listitem").first())
+      .toBeVisible();
     const postRunScan = await new AxeBuilder({ page }).analyze();
     expect(seriousViolations(postRunScan), `${theme}: graph after a run`).toEqual([]);
   }

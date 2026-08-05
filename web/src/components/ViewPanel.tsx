@@ -604,11 +604,11 @@ export function ViewPanel({
       data-comparison-previous-root={
         comparisonReceipt?.previousWorkspaceRootDigest ?? undefined
       }
-      data-comparison-recomputed-steps={comparisonReceipt?.recomputedStepIds.join(
+      data-comparison-recomputed-queries={comparisonReceipt?.recomputedQueryIds.join(
         ",",
       )}
-      data-comparison-cached-step-count={
-        comparisonReceipt?.cachedStepIds.length
+      data-comparison-cached-query-count={
+        comparisonReceipt?.cachedQueryIds.length
       }
     >
       <div className="timeline-view__toolbar review-view__toolbar">

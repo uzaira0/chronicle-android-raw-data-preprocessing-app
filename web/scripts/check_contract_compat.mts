@@ -3,12 +3,12 @@
  *
  * `schema/contract-baseline.json` is a committed snapshot of everything a
  * consumer can depend on: option keys/types/defaults, enum values, pipeline
- * node + step ids, output CSV columns (per output), and the raw-input
+ * query-group + query ids, output CSV columns (per output), and the raw-input
  * column expectation. This script rebuilds the snapshot from the live
  * artifacts and diffs it against the baseline:
  *
  *   - BREAKING: a removal, rename (removal+addition), option type change,
- *     option default change, enum value removal, node/step id removal,
+ *     option default change, enum value removal, query-group/query id removal,
  *     output column removal, raw column removal, or a NEW required raw
  *     column (a stricter ingest expectation).
  *   - COMPATIBLE: pure additions.
@@ -63,12 +63,30 @@ type Snapshot = {
   contractVersion: number;
   options: Record<string, OptionRecord>;
   enums: Record<string, string[]>;
-  nodeIds: string[];
-  stepIds: string[];
+  queryGroupIds: string[];
+  queryIds: string[];
   /** column name -> the outputs it appears in (e.g. ["app","screen"]). */
   outputColumns: Record<string, string[]>;
   rawColumns: { all: string[]; required: string[] };
 };
+
+type LegacySnapshot = Snapshot & {
+  /** Pre-workflow-contract names accepted only while reading the committed v1 baseline. */
+  nodeIds?: string[];
+  stepIds?: string[];
+};
+
+function normalizeBaseline(value: LegacySnapshot): Snapshot {
+  return {
+    contractVersion: value.contractVersion,
+    options: value.options,
+    enums: value.enums,
+    queryGroupIds: value.queryGroupIds ?? value.nodeIds ?? [],
+    queryIds: value.queryIds ?? value.stepIds ?? [],
+    outputColumns: value.outputColumns,
+    rawColumns: value.rawColumns,
+  };
+}
 
 function optionType(key: string): string {
   if ((BOOLEAN_BROWSER_OPTION_KEYS as readonly string[]).includes(key)) return "boolean";
@@ -102,20 +120,26 @@ async function buildCurrentSnapshot(contractVersion: number): Promise<Snapshot> 
         "--features",
         "incremental-v2",
         "--bin",
-        "export_pipeline_step_contract",
+        "export_workflow_contract",
       ],
       { encoding: "utf-8" },
     ),
   ) as {
     protocolVersion: string;
-    groups: Array<{ id: string }>;
-    steps: Array<{ id: string }>;
+    execution: {
+      queryGroups: Array<{ id: string }>;
+      queries: Array<{ id: string }>;
+    };
   };
-  if (rustContract.protocolVersion !== "chronicle-preprocessing-step-contract/v3") {
-    throw new Error(`unsupported Rust pipeline contract: ${rustContract.protocolVersion}`);
+  if (rustContract.protocolVersion !== "chronicle-workflow-contract/v1") {
+    throw new Error(`unsupported Rust workflow contract: ${rustContract.protocolVersion}`);
   }
-  const nodeIds = rustContract.groups.map((node) => node.id).sort((a, b) => a.localeCompare(b));
-  const stepIds = rustContract.steps.map((step) => step.id).sort((a, b) => a.localeCompare(b));
+  const queryGroupIds = rustContract.execution.queryGroups
+    .map((group) => group.id)
+    .sort((a, b) => a.localeCompare(b));
+  const queryIds = rustContract.execution.queries
+    .map((query) => query.id)
+    .sort((a, b) => a.localeCompare(b));
 
   const catalog = parseYaml(await readFile(outputColumnsPath, "utf-8")) as {
     output_columns: Array<{ column_name: string; column_outputs: string[] }>;
@@ -135,8 +159,8 @@ async function buildCurrentSnapshot(contractVersion: number): Promise<Snapshot> 
       OutputKind: [...OUTPUT_KIND_VALUES],
       AggregateShape: [...AGGREGATE_SHAPE_VALUES],
     },
-    nodeIds,
-    stepIds,
+    queryGroupIds,
+    queryIds,
     outputColumns,
     rawColumns: { all: [...RAW_CHRONICLE_COLUMNS], required: [...REQUIRED_RAW_COLUMNS] },
   };
@@ -184,8 +208,8 @@ function diffSnapshots(baseline: Snapshot, current: Snapshot): Diff {
     if (!baseline.enums[enumName]) diff.compatible.push(`enum ${enumName} added`);
   }
 
-  diffLists("node id", baseline.nodeIds, current.nodeIds, diff);
-  diffLists("step id", baseline.stepIds, current.stepIds, diff);
+  diffLists("query group id", baseline.queryGroupIds, current.queryGroupIds, diff);
+  diffLists("query id", baseline.queryIds, current.queryIds, diff);
 
   for (const [column, outputs] of Object.entries(baseline.outputColumns)) {
     const now = current.outputColumns[column];
@@ -243,7 +267,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const baseline = JSON.parse(baselineText) as Snapshot;
+  const baseline = normalizeBaseline(JSON.parse(baselineText) as LegacySnapshot);
   const current = await buildCurrentSnapshot(baseline.contractVersion);
   const diff = diffSnapshots(baseline, current);
 

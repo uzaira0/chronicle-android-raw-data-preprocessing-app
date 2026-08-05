@@ -6,7 +6,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { availableParallelism, tmpdir } from "node:os";
+import { availableParallelism } from "node:os";
 import path from "node:path";
 import { gzipSync } from "node:zlib";
 
@@ -26,7 +26,7 @@ const expectedFile = path.resolve(
 const cellEvidenceFile = path.resolve(
   "src/lib/pipelineGraph/golden/family-expected/raw-boundary-output-cell-correspondence.json.gz",
 );
-const temporaryRoot = mkdtempSync(path.join(tmpdir(), "chronicle-raw-boundary-"));
+const temporaryRoot = mkdtempSync(path.resolve(".tmp-raw-boundary-"));
 
 /** @typedef {{ evidence: Record<string, any>, cellEvidenceCases: any[], caseIdentities: string[] }} ShardResult */
 
@@ -129,7 +129,7 @@ try {
       protocolVersion: "chronicle-output-cell-correspondence/v2",
       implementationReceipt: receipt,
       claimBoundary:
-        "Exact changed canonical CSV/JSON output cell addresses for each named raw timestamp boundary intervention. Each case also names the exact supplied source columns that intervention rewrote (sourceFields), in the Rust step contract's field namespace, using source.raw_row_set / source.raw_row_order for structural raw changes and an empty list for representation-only controls. Binary exports and the Arrow lineage sidecar are digest-bound separately and are not interpreted as cells.",
+        "Exact changed canonical CSV/JSON output cell addresses for each named raw timestamp boundary intervention. Each case also names the exact supplied source columns that intervention rewrote (sourceFields), in the Rust workflow contract's field namespace, using source.raw_row_set / source.raw_row_order for structural raw changes and an empty list for representation-only controls. Binary exports and the Arrow lineage sidecar are digest-bound separately and are not interpreted as cells.",
       cases: cellEvidenceCases,
     },
     null,
@@ -148,7 +148,7 @@ try {
   const first = firstShard.evidence;
   const evidence = {
     protocolVersion: sameAcross(shards, "protocolVersion"),
-    logicalCheckpointProtocol: sameAcross(shards, "logicalCheckpointProtocol"),
+    workflowCheckpointProtocol: sameAcross(shards, "workflowCheckpointProtocol"),
     claimBoundary: sameAcross(shards, "claimBoundary"),
     plan: sameAcross(shards, "plan"),
     implementationReceipt: receipt,

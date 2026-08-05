@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Combinatorial coverage pipeline for the browser processing-option contract
-# (docs/dag-validate-ontologize-productize-research.md §S3):
+# (docs/workflow/dag-validate-ontologize-productize-research.md §S3):
 #
 #   1. regenerate the PICT + ACTS models and the executed-test projection
 #      from the contract SSOT (web/scripts/generate_combinatorial_model.mts);

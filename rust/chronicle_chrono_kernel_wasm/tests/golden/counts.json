@@ -8,23 +8,6 @@
   "dayCoverageRowCount": 2,
   "duplicateTimestampsCorrected": 1,
   "exactDuplicateRowsRemoved": 0,
-  "logicalStageDigests": {
-    "app_policy": "sha256:8f42d8863ef06397c7b633a2df9562df902a0015339e0f13dc289ba94736d5b4",
-    "attribute_person": "sha256:477b1fa087ae32414243490abe982a8091c76b790fc8cefe30fe4fd7d337ec19",
-    "categorize_apps": "sha256:594d8ecfc99a32a20cb3635841e90fbd95dc640aab2dab09a7bd69f5a7415048",
-    "day_coverage": "sha256:597abc516f2881b7feb88206f3120ab5d81ce56969a1be431b5bb40fde7bc3ab",
-    "dedup_and_order": "sha256:b9afac882c8f558485309a8b9dd684ff1e1a6d8b4bbdbf91fce46e5b8e95cb11",
-    "device_state_timeline": "sha256:67fa55f22152b34149519bceca9bf773cfd83de3d467f26d611b48127eeb86b1",
-    "effective_usage": "sha256:8f52e3c15f92b40fd6719136cb130c9b93f3b78040f9c577b70139ad15b3d4e1",
-    "episode_annotations": "sha256:9c04f62d485986d258a7b826bb33d8e32abd66e8922d4c0b591577b69ff5f1ed",
-    "interval_cleaning": "sha256:677968b3c6c6b376c6e8e820c6b4fff26de181b7bd474139e6d3f007b32ca1d9",
-    "normalize_timezones": "sha256:09641d9ce238a405ec55ae12bbf2558de80d4f889f0cbfab75acf9b103e008a4",
-    "observation_window": "sha256:03b2aa78de44d9b092d2253f7b8c28084181e33843d9835355e49077c3679eac",
-    "outputs": "sha256:bd8df7dd0478468b6e45511debed646217dc612eab06b49db2eb724417ab94d5",
-    "parse_events": "sha256:eda019b50f2e350c34d762f78032d11915bafc0bde37097858b83ef87a1b53ab",
-    "reconstruct_episodes": "sha256:29d0e1b2f31d9b172d657c90083930f569a64540853230393a45723b56e6dec9",
-    "score_compliance": "sha256:02ae57c936b6c8308cb15df157950c211d1daf218d7cb5169ce69d824d1b579e"
-  },
   "originalRowCount": 24,
   "processedRowCount": 24,
   "rowsAfterTimezoneHandling": 24,
@@ -34,5 +17,22 @@
   "timezone": "America/Chicago",
   "timezoneAction": "converted_to_selected",
   "timezoneRetainedSourceRowsDigest": "sha256:89770234ac2f6458346fb87e252775b9f63565b45181a9e2cc135770e921f421",
-  "timezoneStageDigest": "sha256:84e6c03a5d52bd7766476f15750835435cc75f9b61d39c961d9f00bb7f791748"
+  "timezoneStageDigest": "sha256:84e6c03a5d52bd7766476f15750835435cc75f9b61d39c961d9f00bb7f791748",
+  "workflowQueryGroupDigests": {
+    "app_policy": "sha256:7fa2fb44f1e7fb4be5d8faec0f475951123c827c7bd2b8399f7cfc9bc5dba408",
+    "attribute_person": "sha256:71d1e25f3409d58c39678de3859a0a9ecb4d09e9275973dd3adea88177100640",
+    "categorize_apps": "sha256:c530a5b40f7b4d1c0602d84f4663ddd6df3fde69fe2858fc5013a3252c7b8aff",
+    "day_coverage": "sha256:08b53f7f16f43471def69d3ba2035143e49163d16322bac5e8bac138951a7e94",
+    "dedup_and_order": "sha256:9e3ab44fe0d7e24a038f5886ff2fb6615662674a41416f2b569b1feabba86dbb",
+    "device_state_timeline": "sha256:73a57d2357dd51e2ecdd770b646b297d4e7dfece305d7e4b2e1d49456c251b40",
+    "effective_usage": "sha256:cc9e09d7144af6c350bfca5f03f5180e49ec13ff41f24dacdb28d46e7256689f",
+    "episode_annotations": "sha256:5c5edc0d6229ab74237cd56c1bc0f531882c0bf869806bd466dd9190c93b9b57",
+    "interval_cleaning": "sha256:95daca4c2e2f5ffdf047edc1bab018f6bda6f08ac1cf982fde939e576de776df",
+    "normalize_timezones": "sha256:ec6157662f7c128006e3e2dbf062c3471d8b7cd3607ba69fd99c78249f9eeea2",
+    "observation_window": "sha256:7b0621a2c1fb6c1edbc0feec0a806c4857582e58dd9a14c673517be6aa1e6d97",
+    "outputs": "sha256:0e2fc29057b1c8ffa6c5462c3da5c4d6508f78810d60ede47e53aecb59f3e03e",
+    "parse_events": "sha256:210c3751d59ac6463fdc17489ba66252ff8de41ed84db50c3e4d1bacbd1a9d69",
+    "reconstruct_episodes": "sha256:e4423edf6ab0ced7b020693b52276ffefe9db034b3106de24262a0ea76a4798a",
+    "score_compliance": "sha256:d266b09c52f1476e693e1b452675dae1a8725223639773e6ef1c323c66483be9"
+  }
 }

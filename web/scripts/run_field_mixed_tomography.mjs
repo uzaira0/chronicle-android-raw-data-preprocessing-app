@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
@@ -20,7 +19,7 @@ if (!Number.isInteger(maxParallel) || maxParallel < 1 || maxParallel > 12) {
 }
 // Each shard is its own process so the WASM instance is recycled between
 // columns, the same reason the mixed artifact campaign shards by role.
-const scratchRoot = mkdtempSync(join(homedir(), ".chronicle-field-mixed-"));
+const scratchRoot = mkdtempSync(join(webRoot, ".tmp-field-mixed-"));
 
 /** @param {string} bytes */
 function sha256(bytes) {
@@ -95,9 +94,9 @@ try {
   const sum = (field) =>
     shards.reduce((total, shard) => total + shard.ledger.coverage[field], 0);
   const aggregate = {
-    protocolVersion: "chronicle-field-mixed-tomography-aggregate/v1",
+    protocolVersion: "chronicle-field-mixed-tomography-aggregate/v2",
     claimBoundary:
-      "Aggregate of independently recycled per-source-column shards. Each shard selects one empirically branch-activating intervention that rewrites exactly that supplied column, crosses it with every computational configuration axis the field-level step contract predicts can interact with the column, and adds a deterministic control sample of axes it predicts cannot. Under every executed configuration every changed canonical output cell belongs to a declared output-cell family of that column, and no control axis introduces a family the base configuration did not move. Columns without an activating intervention in the checked catalog are outside this claim, and a declared family no configuration moved is recorded rather than asserted.",
+      "Aggregate of independently recycled per-source-column shards. Each shard selects one empirically branch-activating intervention that rewrites exactly that supplied column, crosses it with every computational configuration axis the field-level workflow contract predicts can interact with the column, and adds a deterministic control sample of axes it predicts cannot. Under every executed configuration every changed canonical output cell belongs to a declared output-cell family of that column, and no control axis introduces a family the base configuration did not move. Columns without an activating intervention in the checked catalog are outside this claim, and a declared family no configuration moved is recorded rather than asserted.",
     implementationReceipt: receipt,
     columnsWithoutDeclaredReach: withoutDeclaredReach,
     coverage: {
@@ -115,14 +114,14 @@ try {
       contentDigest,
       interventionId: ledger.fixture.interventionId,
       corpusId: ledger.fixture.corpusId,
-      declaredStepConeSize: ledger.declaredStepCone.length,
+      declaredQueryConeSize: ledger.declaredQueryCone.length,
       declaredCellFamilies: ledger.declaredCellFamilies.length,
       witnessedCellFamilies:
         ledger.witnessedCellFamiliesAcrossAllConfigurations.length,
       structurallyDeclaredButUnwitnessedFamilies:
         ledger.structurallyDeclaredButUnwitnessedFamilies.length,
-      stepsOutsideDeclaredConeCarryingChangedFields:
-        ledger.stepsOutsideDeclaredConeCarryingChangedFields.length,
+      queriesOutsideDeclaredConeCarryingChangedFields:
+        ledger.queriesOutsideDeclaredConeCarryingChangedFields.length,
     })),
   };
   const serialized = `${JSON.stringify(aggregate, null, 2)}\n`;

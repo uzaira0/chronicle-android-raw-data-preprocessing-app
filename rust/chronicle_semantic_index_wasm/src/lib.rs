@@ -40,10 +40,10 @@ struct IndexSource {
     requirement_traces: Vec<RoleRequirementTrace>,
     open_obligations: Vec<OpenObligation>,
     state_reasons: Vec<StateReason>,
-    node_executions: Vec<NodeExecution>,
-    step_executions: Vec<StepExecution>,
-    pipeline_step_digests: BTreeMap<String, String>,
-    pipeline_step_checkpoints: BTreeMap<String, PipelineStepCheckpoint>,
+    query_group_executions: Vec<QueryGroupExecution>,
+    query_executions: Vec<QueryExecution>,
+    workflow_query_digests: BTreeMap<String, String>,
+    workflow_query_checkpoints: BTreeMap<String, WorkflowQueryCheckpoint>,
     #[serde(default)]
     dependency_cache_decision: Option<DependencyCacheDecision>,
     execution_ledger: Value,
@@ -112,7 +112,7 @@ struct RoleRequirementTrace {
 struct OpenObligation {
     obligation_id: String,
     role_id: String,
-    node_id: Option<String>,
+    query_group_id: Option<String>,
     state: String,
     reason_id: String,
 }
@@ -126,16 +126,16 @@ struct StateReason {
 }
 
 #[derive(Debug, Deserialize)]
-struct NodeExecution {
-    node_id: String,
+struct QueryGroupExecution {
+    query_group_id: String,
     status: String,
     reason_id: String,
 }
 
 #[derive(Debug, Deserialize)]
-struct StepExecution {
-    step_id: String,
-    unit_id: String,
+struct QueryExecution {
+    query_id: String,
+    query_group_id: String,
     status: String,
     input_key: String,
     output_digest: String,
@@ -144,9 +144,9 @@ struct StepExecution {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct PipelineStepCheckpoint {
+struct WorkflowQueryCheckpoint {
     protocol_version: String,
-    node_id: String,
+    subject_id: String,
     row_membership_digest: String,
     row_order_digest: String,
     temporal_state_digest: String,
@@ -411,8 +411,11 @@ fn build_index(source: &IndexSource) -> Vec<u8> {
         ));
         quads.push(quad(
             &obligation_iri,
-            &predicate("node"),
-            &urn("node", obligation.node_id.as_deref().unwrap_or("root")),
+            &predicate("queryGroup"),
+            &urn(
+                "query-group",
+                obligation.query_group_id.as_deref().unwrap_or("root"),
+            ),
             OBLIGATIONS_GRAPH,
         ));
         quads.push(quad(
@@ -467,10 +470,10 @@ fn build_index(source: &IndexSource) -> Vec<u8> {
             ));
         }
     }
-    for execution in &source.node_executions {
+    for execution in &source.query_group_executions {
         let execution_iri = urn(
             "execution",
-            &format!("{}:{}", source.input_digest, execution.node_id),
+            &format!("{}:{}", source.input_digest, execution.query_group_id),
         );
         quads.push(quad(
             &execution_iri,
@@ -480,14 +483,14 @@ fn build_index(source: &IndexSource) -> Vec<u8> {
         ));
         quads.push(quad(
             &execution_iri,
-            &predicate("node"),
-            &urn("node", &execution.node_id),
+            &predicate("queryGroup"),
+            &urn("query-group", &execution.query_group_id),
             EXECUTION_GRAPH,
         ));
         quads.push(quad(
             &execution_iri,
             &iri(PPLAN_CORRESPONDS_TO_STEP),
-            &urn("node", &execution.node_id),
+            &urn("query-group", &execution.query_group_id),
             EXECUTION_GRAPH,
         ));
         for assignment in &source.role_assignments {
@@ -523,10 +526,10 @@ fn build_index(source: &IndexSource) -> Vec<u8> {
             EXECUTION_GRAPH,
         ));
     }
-    for execution in &source.step_executions {
+    for execution in &source.query_executions {
         let execution_iri = urn(
             "step-execution",
-            &format!("{}:{}", source.input_digest, execution.step_id),
+            &format!("{}:{}", source.input_digest, execution.query_id),
         );
         quads.push(quad(
             &execution_iri,
@@ -537,13 +540,13 @@ fn build_index(source: &IndexSource) -> Vec<u8> {
         quads.push(quad(
             &execution_iri,
             &iri(PPLAN_CORRESPONDS_TO_STEP),
-            &urn("step", &execution.step_id),
+            &urn("step", &execution.query_id),
             EXECUTION_GRAPH,
         ));
         quads.push(quad(
             &execution_iri,
             &predicate("unit"),
-            &urn("node", &execution.unit_id),
+            &urn("node", &execution.query_group_id),
             EXECUTION_GRAPH,
         ));
         quads.push(quad(
@@ -690,21 +693,30 @@ pub fn rebuild_semantic_index(source_json: &[u8]) -> Result<Vec<u8>, JsValue> {
 pub fn rebuild_semantic_index_native(source_json: &[u8]) -> Result<Vec<u8>, String> {
     let source: IndexSource = serde_json::from_slice(source_json)
         .map_err(|error| format!("invalid semantic index source: {error}"))?;
-    if source.protocol_version != "chronicle-semantic-index-source/v2" {
+    if source.protocol_version != "chronicle-semantic-index-source/v3" {
         return Err("unsupported semantic index source".into());
     }
     if !source.execution_ledger.is_array() {
         return Err("semantic index source ledger is invalid".into());
     }
-    if source.step_executions.len() != 55
-        || source.pipeline_step_digests.len() != 55
-        || source.pipeline_step_checkpoints.len() != 55
+    if source.query_group_executions.is_empty()
+        || source.query_executions.is_empty()
+        || source.workflow_query_digests.is_empty()
+        || source.workflow_query_checkpoints.is_empty()
     {
-        return Err("semantic index source must contain exactly 55 Rust steps".into());
+        return Err("semantic index source must contain non-empty query registries".into());
+    }
+    let query_group_ids = source
+        .query_group_executions
+        .iter()
+        .map(|execution| execution.query_group_id.as_str())
+        .collect::<std::collections::BTreeSet<_>>();
+    if query_group_ids.len() != source.query_group_executions.len() {
+        return Err("semantic index query-group execution registry is invalid".into());
     }
     let mut execution_ids = std::collections::BTreeSet::new();
-    for execution in &source.step_executions {
-        if !execution_ids.insert(execution.step_id.as_str())
+    for execution in &source.query_executions {
+        if !execution_ids.insert(execution.query_id.as_str())
             || !matches!(
                 execution.status.as_str(),
                 "cached" | "recomputed" | "error" | "skipped" | "bypassed"
@@ -712,22 +724,22 @@ pub fn rebuild_semantic_index_native(source_json: &[u8]) -> Result<Vec<u8>, Stri
             || !is_sha256(&execution.input_key)
             || !is_sha256(&execution.output_digest)
             || !is_sha256(&execution.reason_id)
-            || source.pipeline_step_digests.get(&execution.step_id)
+            || source.workflow_query_digests.get(&execution.query_id)
                 != Some(&execution.output_digest)
         {
-            return Err("semantic index step execution is invalid".into());
+            return Err("semantic index query execution is invalid".into());
         }
     }
     if execution_ids
         != source
-            .pipeline_step_digests
+            .workflow_query_digests
             .keys()
             .map(String::as_str)
             .collect()
     {
-        return Err("semantic index step execution and digest domains disagree".into());
+        return Err("semantic index query execution and digest domains disagree".into());
     }
-    for (step_id, checkpoint) in &source.pipeline_step_checkpoints {
+    for (query_id, checkpoint) in &source.workflow_query_checkpoints {
         let component_digests = [
             &checkpoint.row_membership_digest,
             &checkpoint.row_order_digest,
@@ -736,19 +748,19 @@ pub fn rebuild_semantic_index_native(source_json: &[u8]) -> Result<Vec<u8>, Stri
             &checkpoint.payload_digest,
             &checkpoint.schema_digest,
         ];
-        if checkpoint.protocol_version != "chronicle-logical-stage-checkpoint/v7"
-            || checkpoint.node_id != *step_id
-            || source.pipeline_step_digests.get(step_id) != Some(&checkpoint.terminal_digest)
+        if checkpoint.protocol_version != "chronicle-workflow-checkpoint/v1"
+            || checkpoint.subject_id != *query_id
+            || source.workflow_query_digests.get(query_id) != Some(&checkpoint.terminal_digest)
             || component_digests
                 .into_iter()
                 .any(|digest| !is_checkpoint_component_digest(digest))
         {
             return Err(format!(
-                "semantic index step checkpoint is invalid for {step_id}: protocol={} node={} terminal={} expected={:?}",
+                "semantic index query checkpoint is invalid for {query_id}: protocol={} identity={} terminal={} expected={:?}",
                 checkpoint.protocol_version,
-                checkpoint.node_id,
+                checkpoint.subject_id,
                 checkpoint.terminal_digest,
-                source.pipeline_step_digests.get(step_id),
+                source.workflow_query_digests.get(query_id),
             ));
         }
     }
@@ -791,11 +803,17 @@ mod tests {
     fn complete_source() -> Value {
         let digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
         let component_digest = "xxh3:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
-        let step_executions = (0..55)
-            .map(|index| {
+        let query_ids = [
+            "decode_source_records",
+            "assign_source_timezones",
+            "normalize_event_timestamps",
+        ];
+        let query_executions = query_ids
+            .iter()
+            .map(|query_id| {
                 json!({
-                    "step_id": format!("step-{index:02}"),
-                    "unit_id": "parse_events",
+                    "query_id": query_id,
+                    "query_group_id": "parse_events",
                     "status": "recomputed",
                     "input_key": digest,
                     "output_digest": digest,
@@ -803,17 +821,18 @@ mod tests {
                 })
             })
             .collect::<Vec<_>>();
-        let pipeline_step_digests = (0..55)
-            .map(|index| (format!("step-{index:02}"), digest))
+        let workflow_query_digests = query_ids
+            .iter()
+            .map(|query_id| (query_id.to_string(), digest))
             .collect::<BTreeMap<_, _>>();
-        let pipeline_step_checkpoints = (0..55)
-            .map(|index| {
-                let step_id = format!("step-{index:02}");
+        let workflow_query_checkpoints = query_ids
+            .iter()
+            .map(|query_id| {
                 (
-                    step_id.clone(),
+                    query_id.to_string(),
                     json!({
-                        "protocolVersion": "chronicle-logical-stage-checkpoint/v7",
-                        "nodeId": step_id,
+                        "protocolVersion": "chronicle-workflow-checkpoint/v1",
+                        "subjectId": query_id,
                         "rowMembershipDigest": component_digest,
                         "rowOrderDigest": component_digest,
                         "temporalStateDigest": component_digest,
@@ -826,7 +845,7 @@ mod tests {
             })
             .collect::<BTreeMap<_, _>>();
         json!({
-            "protocolVersion": "chronicle-semantic-index-source/v2",
+            "protocolVersion": "chronicle-semantic-index-source/v3",
             "inputDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "executionTimestamp": "2026-07-21 12:00:00 UTC",
             "roleAssignments": [{
@@ -866,23 +885,23 @@ mod tests {
             "openObligations": [
                 {
                     "obligation_id": "urn:obligation:1", "role_id": "urn:role:filter",
-                    "node_id": "app_policy", "state": "open", "reason_id": "urn:reason:missing-filter"
+                    "query_group_id": "app_policy", "state": "open", "reason_id": "urn:reason:missing-filter"
                 },
                 {
                     "obligation_id": "root obligation", "role_id": "root role",
-                    "node_id": null, "state": "open", "reason_id": "root reason"
+                    "query_group_id": null, "state": "open", "reason_id": "root reason"
                 }
             ],
             "stateReasons": [{
                 "reason_id": "reason with spaces", "subject_id": "app policy",
                 "state": "open", "source_id": "product contract"
             }],
-            "nodeExecutions": [{
-                "node_id": "parse_events", "status": "recomputed", "reason_id": "urn:reason:1"
+            "queryGroupExecutions": [{
+                "query_group_id": "parse_events", "status": "recomputed", "reason_id": "urn:reason:1"
             }],
-            "stepExecutions": step_executions,
-            "pipelineStepDigests": pipeline_step_digests,
-            "pipelineStepCheckpoints": pipeline_step_checkpoints,
+            "queryExecutions": query_executions,
+            "workflowQueryDigests": workflow_query_digests,
+            "workflowQueryCheckpoints": workflow_query_checkpoints,
             "dependencyCacheDecision": {
                 "mode": "certified_narrow",
                 "certificate_digest": "sha256:cccc",
@@ -987,14 +1006,15 @@ mod tests {
     }
 
     #[test]
-    fn missing_step_execution_surface_fails_closed() {
+    fn missing_query_execution_surface_fails_closed() {
         for field in [
-            "stepExecutions",
-            "pipelineStepDigests",
-            "pipelineStepCheckpoints",
+            "queryGroupExecutions",
+            "queryExecutions",
+            "workflowQueryDigests",
+            "workflowQueryCheckpoints",
         ] {
             let mut incomplete = complete_source();
-            incomplete[field] = if field == "stepExecutions" {
+            incomplete[field] = if field.ends_with("Executions") {
                 json!([])
             } else {
                 json!({})
@@ -1002,7 +1022,7 @@ mod tests {
             assert_eq!(
                 rebuild_semantic_index_native(&serde_json::to_vec(&incomplete).unwrap())
                     .unwrap_err(),
-                "semantic index source must contain exactly 55 Rust steps",
+                "semantic index source must contain non-empty query registries",
                 "missing {field} must fail independently",
             );
         }
@@ -1018,8 +1038,14 @@ mod tests {
         assert!(!is_sha256(&format!("sha256:{}g", "a".repeat(63))));
         assert!(is_checkpoint_component_digest(xxh3));
         assert!(!is_checkpoint_component_digest(&xxh3[1..]));
-        assert!(!is_checkpoint_component_digest(&format!("sha256:{}", "b".repeat(64))));
-        assert!(!is_checkpoint_component_digest(&format!("xxh3:{}g", "b".repeat(31))));
+        assert!(!is_checkpoint_component_digest(&format!(
+            "sha256:{}",
+            "b".repeat(64)
+        )));
+        assert!(!is_checkpoint_component_digest(&format!(
+            "xxh3:{}g",
+            "b".repeat(31)
+        )));
 
         let parsed: IndexSource = serde_json::from_value(complete_source()).unwrap();
         let index = build_index(&parsed);
@@ -1028,8 +1054,8 @@ mod tests {
     }
 
     #[test]
-    fn each_step_execution_constraint_fails_independently() {
-        let expected = "semantic index step execution is invalid";
+    fn each_query_execution_constraint_fails_independently() {
+        let expected = "semantic index query execution is invalid";
         let cases = [
             ("status", "unknown"),
             ("input_key", "sha256:short"),
@@ -1041,7 +1067,7 @@ mod tests {
         ];
         for (field, value) in cases {
             let mut source = complete_source();
-            source["stepExecutions"][0][field] = Value::String(value.into());
+            source["queryExecutions"][0][field] = Value::String(value.into());
             assert_eq!(
                 rebuild_semantic_index_native(&serde_json::to_vec(&source).unwrap()).unwrap_err(),
                 expected,
@@ -1050,7 +1076,7 @@ mod tests {
         }
 
         let mut duplicate = complete_source();
-        duplicate["stepExecutions"][1]["step_id"] = Value::String("step-00".into());
+        duplicate["queryExecutions"][1]["query_id"] = Value::String("decode_source_records".into());
         assert_eq!(
             rebuild_semantic_index_native(&serde_json::to_vec(&duplicate).unwrap()).unwrap_err(),
             expected,
@@ -1058,11 +1084,12 @@ mod tests {
     }
 
     #[test]
-    fn each_step_checkpoint_and_cache_constraint_fails_independently() {
-        let checkpoint_error = "semantic index step checkpoint is invalid for step-00";
+    fn each_query_checkpoint_and_cache_constraint_fails_independently() {
+        let checkpoint_error =
+            "semantic index query checkpoint is invalid for decode_source_records";
         for (field, value) in [
             ("protocolVersion", "future"),
-            ("nodeId", "other-step"),
+            ("subjectId", "other-step"),
             (
                 "terminalDigest",
                 "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -1070,7 +1097,8 @@ mod tests {
             ("rowMembershipDigest", "xxh3:short"),
         ] {
             let mut source = complete_source();
-            source["pipelineStepCheckpoints"]["step-00"][field] = Value::String(value.into());
+            source["workflowQueryCheckpoints"]["decode_source_records"][field] =
+                Value::String(value.into());
             assert!(
                 rebuild_semantic_index_native(&serde_json::to_vec(&source).unwrap())
                     .unwrap_err()

@@ -6,7 +6,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { availableParallelism, tmpdir } from "node:os";
+import { availableParallelism } from "node:os";
 import path from "node:path";
 
 const requestedWorkers = Number(
@@ -23,7 +23,7 @@ const expectedFile = path.resolve(
   "src/lib/pipelineGraph/golden/family-expected/interaction-influence-ledger.json",
 );
 const temporaryRoot = mkdtempSync(
-  path.join(tmpdir(), "chronicle-interaction-influence-"),
+  path.resolve(".tmp-interaction-influence-"),
 );
 
 /**
@@ -194,17 +194,17 @@ try {
       totalRustExecutions:
         1 + firstCoverage.validSingleContrasts + validPairContrasts * 3,
       warmColdComparisons: sumCoverage(shards, "warmColdComparisons"),
-      warmColdStepCheckpointComparisons: sumCoverage(
+      warmColdQueryCheckpointComparisons: sumCoverage(
         shards,
-        "warmColdStepCheckpointComparisons",
+        "warmColdQueryCheckpointComparisons",
       ),
       exactClusterComparisons: sumCoverage(shards, "exactClusterComparisons"),
-      exactStepClusterComparisons: sumCoverage(
+      exactQueryClusterComparisons: sumCoverage(
         shards,
-        "exactStepClusterComparisons",
+        "exactQueryClusterComparisons",
       ),
-      logicalStageCount: firstCoverage.logicalStageCount,
-      pipelineStepCount: firstCoverage.pipelineStepCount,
+      workflowQueryGroupCount: firstCoverage.workflowQueryGroupCount,
+      workflowQueryCount: firstCoverage.workflowQueryCount,
       nonAdditivePairs: nonAdditivePairs.length,
       qualificationEnabledPairs: qualificationEnabledPairs.length,
     },

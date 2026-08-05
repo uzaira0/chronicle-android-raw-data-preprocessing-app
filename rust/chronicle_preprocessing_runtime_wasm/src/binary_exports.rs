@@ -10,7 +10,7 @@ use arrow_ipc::{
     CompressionType,
 };
 use arrow_schema::{DataType, Field, Schema};
-use chronicle_chrono_kernel_wasm::pipeline_v2::{LogicalStageCheckpoint, PipelineRowLineage};
+use chronicle_chrono_kernel_wasm::pipeline_v2::{PipelineRowLineage, WorkflowCheckpoint};
 use chronicle_preprocessing_semantic_adapter::ChroniclePlan;
 use parquet::{
     basic::{ConvertedType, Repetition, Type as PhysicalType},
@@ -129,7 +129,7 @@ pub struct CanonicalOutput<'a> {
     pub kind: &'a str,
     pub media_type: &'a str,
     pub bytes: &'a [u8],
-    pub terminal_logical_node: &'a str,
+    pub terminal_query_group: &'a str,
 }
 
 pub struct CanonicalSource<'a> {
@@ -625,7 +625,7 @@ struct ResultCellBuilders {
     output_row_index: UInt32Builder,
     selector: StringDictionaryBuilder<Int32Type>,
     cell_value_digest: FixedSizeBinaryBuilder,
-    terminal_logical_node: RunCachedStringDictionaryBuilder,
+    terminal_query_group: RunCachedStringDictionaryBuilder,
     row_lineage_output_kind: RunCachedStringDictionaryBuilder,
     row_lineage_row_index: UInt32Builder,
 }
@@ -644,7 +644,7 @@ impl ResultCellBuilders {
             output_row_index: UInt32Builder::with_capacity(RESULT_CELL_BATCH_ROWS),
             selector: StringDictionaryBuilder::with_capacity(RESULT_CELL_BATCH_ROWS, 256, 16_384),
             cell_value_digest: FixedSizeBinaryBuilder::with_capacity(RESULT_CELL_BATCH_ROWS, 32),
-            terminal_logical_node: RunCachedStringDictionaryBuilder::with_capacity(
+            terminal_query_group: RunCachedStringDictionaryBuilder::with_capacity(
                 RESULT_CELL_BATCH_ROWS,
                 16,
             ),
@@ -670,7 +670,7 @@ impl ResultCellBuilders {
             )
             .map_err(|error| error.to_string())?,
             cell_value_digest: FixedSizeBinaryBuilder::with_capacity(RESULT_CELL_BATCH_ROWS, 32),
-            terminal_logical_node: dictionary(&dictionaries.terminal_logical_node)?,
+            terminal_query_group: dictionary(&dictionaries.terminal_query_group)?,
             row_lineage_output_kind: dictionary(&dictionaries.row_lineage_output_kind)?,
             row_lineage_row_index: UInt32Builder::with_capacity(RESULT_CELL_BATCH_ROWS),
         })
@@ -687,7 +687,7 @@ impl ResultCellBuilders {
             Arc::new(self.output_row_index.finish()),
             Arc::new(self.selector.finish()),
             Arc::new(self.cell_value_digest.finish()),
-            Arc::new(self.terminal_logical_node.finish()?),
+            Arc::new(self.terminal_query_group.finish()?),
             Arc::new(self.row_lineage_output_kind.finish()?),
             Arc::new(self.row_lineage_row_index.finish()),
         ];
@@ -700,7 +700,7 @@ struct ResultCellDictionaries {
     output_kind: StringArray,
     address_kind: StringArray,
     selector: StringArray,
-    terminal_logical_node: StringArray,
+    terminal_query_group: StringArray,
     row_lineage_output_kind: StringArray,
 }
 
@@ -721,7 +721,7 @@ impl ResultCellDictionaries {
             output_kind: values(0)?,
             address_kind: values(1)?,
             selector: values(3)?,
-            terminal_logical_node: values(5)?,
+            terminal_query_group: values(5)?,
             row_lineage_output_kind: values(6)?,
         })
     }
@@ -743,7 +743,7 @@ fn result_cell_schema() -> Arc<Schema> {
     metadata.insert("recordBatchRows".into(), RESULT_CELL_BATCH_ROWS.to_string());
     metadata.insert(
         "dependencyIdentityDerivation".into(),
-        "sha256(length-prefixed protocolVersion, output_kind, selector, terminal_logical_node)"
+        "sha256(length-prefixed protocolVersion, output_kind, selector, terminal_query_group)"
             .into(),
     );
     metadata.insert(
@@ -761,7 +761,7 @@ fn result_cell_schema() -> Arc<Schema> {
             Field::new("output_row_index", DataType::UInt32, true),
             Field::new("selector", dictionary_type(), false),
             Field::new("cell_value_sha256", DataType::FixedSizeBinary(32), false),
-            Field::new("terminal_logical_node", dictionary_type(), false),
+            Field::new("terminal_query_group", dictionary_type(), false),
             Field::new("row_lineage_output_kind", dictionary_type(), true),
             Field::new("row_lineage_row_index", DataType::UInt32, true),
         ],
@@ -962,8 +962,8 @@ fn push_cell(
         .append_value(cached_value_digest.unwrap_or_else(|| sha256_array(value_bytes)))
         .map_err(|error| error.to_string())?;
     builders
-        .terminal_logical_node
-        .append(output.terminal_logical_node)
+        .terminal_query_group
+        .append(output.terminal_query_group)
         .map_err(|error| error.to_string())?;
     if let Some(lineage) = row_lineage {
         builders
@@ -1248,7 +1248,7 @@ struct InfluenceWitnessRecord {
     source_index_space: Option<String>,
     target_kind: &'static str,
     target_id: String,
-    target_logical_node: String,
+    target_query_group: String,
     target_output_kind: Option<String>,
     target_output_row_index: Option<u32>,
     target_output_column: Option<String>,
@@ -1262,7 +1262,7 @@ struct InfluenceWitnessSpec<'a> {
     source_key_kind: &'static str,
     source_role_id: &'a str,
     source_selector_prefix: Option<&'a str>,
-    /// The exact supplied column, in the step contract's `<role>.<column>`
+    /// The exact supplied column, in the workflow contract's `<role>.<column>`
     /// field namespace. Null on rows that claim only role-level reach.
     source_field: Option<&'a str>,
     source_record_index: Option<u32>,
@@ -1275,7 +1275,7 @@ struct InfluenceWitnessSpec<'a> {
     source_index_space: Option<&'a str>,
     target_kind: &'static str,
     target_id: String,
-    target_logical_node: String,
+    target_query_group: String,
     target_output_kind: Option<String>,
     target_output_row_index: Option<u32>,
     /// The exact output column, or the `*`-globbed JSON pointer family the step
@@ -1303,9 +1303,11 @@ fn downstream_closure(plan: &ChroniclePlan, seeds: BTreeSet<String>) -> BTreeSet
     let mut reached = seeds;
     let mut frontier = reached.iter().cloned().collect::<VecDeque<_>>();
     while let Some(source_node) = frontier.pop_front() {
-        for node in &plan.nodes {
-            if node.input_nodes.contains(&source_node) && reached.insert(node.node_id.clone()) {
-                frontier.push_back(node.node_id.clone());
+        for node in &plan.query_groups {
+            if node.input_query_groups.contains(&source_node)
+                && reached.insert(node.query_group_id.clone())
+            {
+                frontier.push_back(node.query_group_id.clone());
             }
         }
     }
@@ -1358,21 +1360,18 @@ fn source_scopes(
             } else if role_id == "processing_options" {
                 let option_key = selector_prefix.as_deref().and_then(json_pointer_head);
                 if let Some(option_key) = option_key {
-                    for node in &plan.nodes {
+                    for node in &plan.query_groups {
                         if node.knobs.iter().any(|knob| {
-                            crate::exact_option_key_reaches_certified(
-                                &option_key,
-                                &knob.option_key,
-                            )
+                            crate::exact_option_key_reaches_certified(&option_key, &knob.option_key)
                         }) {
-                            seeds.insert(node.node_id.clone());
+                            seeds.insert(node.query_group_id.clone());
                         }
                     }
                 }
             } else {
-                for node in &plan.nodes {
+                for node in &plan.query_groups {
                     if node.support_roles.contains(&role_id) {
-                        seeds.insert(node.node_id.clone());
+                        seeds.insert(node.query_group_id.clone());
                     }
                 }
             }
@@ -1448,7 +1447,7 @@ fn append_influence_witness(
         source_index_space: spec.source_index_space.map(str::to_string),
         target_kind: spec.target_kind,
         target_id: spec.target_id,
-        target_logical_node: spec.target_logical_node,
+        target_query_group: spec.target_query_group,
         target_output_kind: spec.target_output_kind,
         target_output_row_index: spec.target_output_row_index,
         target_output_column: spec.target_output_column.map(str::to_string),
@@ -1460,7 +1459,7 @@ fn append_influence_witness(
 }
 
 /// A compact, proof-carrying bridge between exact source coordinates, typed
-/// logical checkpoints, output rows, and result cells.
+/// workflow checkpoints, output rows, and result cells.
 ///
 /// This is deliberately normalized rather than a materialized coordinate ×
 /// cell closure. Consumers join source coordinates by role/selector-prefix or
@@ -1476,13 +1475,13 @@ pub fn source_result_influence_witness_arrow(
     outputs: &[CanonicalOutput<'_>],
     row_lineages: &[PipelineRowLineage],
     plan: &ChroniclePlan,
-    checkpoints: &BTreeMap<String, LogicalStageCheckpoint>,
+    checkpoints: &BTreeMap<String, WorkflowCheckpoint>,
     context: &InfluenceContext<'_>,
 ) -> Result<(Vec<u8>, u32), String> {
     let scopes = source_scopes(sources, plan)?;
     let output_scopes = outputs
         .iter()
-        .map(|output| (output.kind, output.terminal_logical_node))
+        .map(|output| (output.kind, output.terminal_query_group))
         .collect::<BTreeSet<_>>();
     let row_lineage_outputs = row_lineages
         .iter()
@@ -1496,8 +1495,8 @@ pub fn source_result_influence_witness_arrow(
         } else {
             "role-scope"
         };
-        for node_id in &scope.reached_nodes {
-            if let Some(checkpoint) = checkpoints.get(node_id) {
+        for query_group_id in &scope.reached_nodes {
+            if let Some(checkpoint) = checkpoints.get(query_group_id) {
                 append_influence_witness(
                     &mut records,
                     context,
@@ -1509,9 +1508,9 @@ pub fn source_result_influence_witness_arrow(
                         source_record_last: None,
                         source_index_space: None,
                         source_field: None,
-                        target_kind: "logical-checkpoint",
+                        target_kind: "workflow-checkpoint",
                         target_id: checkpoint.terminal_digest.clone(),
-                        target_logical_node: node_id.clone(),
+                        target_query_group: query_group_id.clone(),
                         target_output_kind: None,
                         target_output_row_index: None,
                         target_output_column: None,
@@ -1529,7 +1528,7 @@ pub fn source_result_influence_witness_arrow(
     // column, grouped by the output kind that carries them.
     //
     // A contribution only survives if the raw export actually carries the
-    // supplied column. `csv_parse` looks its columns up by header name and
+    // supplied column. `decode_source_records` looks its columns up by header name and
     // substitutes the empty string for one that is absent, so the output cell
     // still exists — but nothing supplied it, and claiming `exact-field` over
     // it would name a `source_field` / `source_record_index` coordinate pair
@@ -1546,7 +1545,8 @@ pub fn source_result_influence_witness_arrow(
                 .map(|headers| headers.iter().map(str::to_string).collect())
         })
         .unwrap_or_default();
-    let exact_contributions = chronicle_chrono_kernel_wasm::step_contract::exact_cell_contributions();
+    let exact_contributions =
+        chronicle_chrono_kernel_wasm::workflow_contract::exact_cell_contributions();
     let mut exact_by_output_kind: BTreeMap<&str, Vec<_>> = BTreeMap::new();
     for contribution in &exact_contributions {
         let supplied_column = contribution
@@ -1583,7 +1583,7 @@ pub fn source_result_influence_witness_arrow(
                     source_index_space: None,
                     target_kind: "result-row",
                     target_id,
-                    target_logical_node: lineage.terminal_logical_node.to_string(),
+                    target_query_group: lineage.terminal_query_group.to_string(),
                     target_output_kind: Some(lineage.output_kind.to_string()),
                     target_output_row_index: Some(lineage.output_row_index),
                     target_output_column: None,
@@ -1601,7 +1601,7 @@ pub fn source_result_influence_witness_arrow(
         // search channel from being silently absent from the witness.
         //
         // These bounds are positions in a pipeline-internal ordering — either
-        // `pipeline-event-order` (post-`drop_empty_timestamp`, post-sort,
+        // `pipeline-event-order` (post-`remove_missing_timestamps`, post-sort,
         // post-dedupe) or the 0-based `participant-source-event-order` — never
         // the source-coordinate index's `one-based-data-row` space. They carry
         // their own `source_key_kind`, name the space in `source_index_space`,
@@ -1630,7 +1630,7 @@ pub fn source_result_influence_witness_arrow(
                     source_index_space: Some(search.index_space.as_str()),
                     target_kind: "result-row",
                     target_id,
-                    target_logical_node: lineage.terminal_logical_node.to_string(),
+                    target_query_group: lineage.terminal_query_group.to_string(),
                     target_output_kind: Some(lineage.output_kind.to_string()),
                     target_output_row_index: Some(lineage.output_row_index),
                     target_output_column: None,
@@ -1674,7 +1674,7 @@ pub fn source_result_influence_witness_arrow(
                     source_index_space: None,
                     target_kind: "result-cell",
                     target_id,
-                    target_logical_node: lineage.terminal_logical_node.to_string(),
+                    target_query_group: lineage.terminal_query_group.to_string(),
                     target_output_kind: Some(lineage.output_kind.to_string()),
                     target_output_row_index: Some(lineage.output_row_index),
                     target_output_column: Some(contribution.column),
@@ -1701,7 +1701,7 @@ pub fn source_result_influence_witness_arrow(
         .copied()
         .collect::<BTreeMap<_, _>>();
     let mut column_witnessed_scopes = BTreeSet::new();
-    for reach in chronicle_chrono_kernel_wasm::step_contract::source_column_output_reach() {
+    for reach in chronicle_chrono_kernel_wasm::workflow_contract::source_column_output_reach() {
         let Some((role_id, _column)) = reach.source_field.split_once('.') else {
             continue;
         };
@@ -1727,14 +1727,14 @@ pub fn source_result_influence_witness_arrow(
                     source_index_space: None,
                     target_kind: "result-column",
                     target_id,
-                    target_logical_node: (*terminal_node).into(),
+                    target_query_group: (*terminal_node).into(),
                     target_output_kind: Some(cell.output_kind.into()),
                     target_output_row_index: None,
                     target_output_column: Some(cell.column),
                     relation: "may-affect-output-column",
                     precision: "declared-column-scope",
-                    evidence_kind: "field-level-step-contract",
-                    extra_evidence: cell.emitting_step.as_bytes(),
+                    evidence_kind: "field-level-workflow-contract",
+                    extra_evidence: cell.emitting_query.as_bytes(),
                 },
             );
         }
@@ -1754,11 +1754,9 @@ pub fn source_result_influence_witness_arrow(
             // A scope now also counts as witnessed when the field contract
             // resolved it to named output columns above. An explicit gap row
             // survives only where no lineage information exists at all.
-            let has_column_witness = column_witnessed_scopes
-                .contains(&(scope.role_id.as_str(), *output_kind));
-            if no_declared_binding
-                || (reached_output && !has_row_witness && !has_column_witness)
-            {
+            let has_column_witness =
+                column_witnessed_scopes.contains(&(scope.role_id.as_str(), *output_kind));
+            if no_declared_binding || (reached_output && !has_row_witness && !has_column_witness) {
                 append_influence_witness(
                     &mut records,
                     context,
@@ -1772,7 +1770,7 @@ pub fn source_result_influence_witness_arrow(
                         source_index_space: None,
                         target_kind: "result-scope",
                         target_id: (*output_kind).into(),
-                        target_logical_node: (*terminal_node).into(),
+                        target_query_group: (*terminal_node).into(),
                         target_output_kind: Some((*output_kind).into()),
                         target_output_row_index: None,
                         target_output_column: None,
@@ -1839,7 +1837,7 @@ pub fn source_result_influence_witness_arrow(
     let mut source_index_space = StringDictionaryBuilder::<Int32Type>::new();
     let mut target_kind = StringDictionaryBuilder::<Int32Type>::new();
     let mut target_id = StringDictionaryBuilder::<Int32Type>::new();
-    let mut target_logical_node = StringDictionaryBuilder::<Int32Type>::new();
+    let mut target_query_group = StringDictionaryBuilder::<Int32Type>::new();
     let mut target_output_kind = StringDictionaryBuilder::<Int32Type>::new();
     let target_output_row_index = UInt32Array::from(
         records
@@ -1887,8 +1885,8 @@ pub fn source_result_influence_witness_arrow(
         target_id
             .append(&record.target_id)
             .map_err(|error| error.to_string())?;
-        target_logical_node
-            .append(&record.target_logical_node)
+        target_query_group
+            .append(&record.target_query_group)
             .map_err(|error| error.to_string())?;
         if let Some(value) = &record.target_output_kind {
             target_output_kind
@@ -1925,7 +1923,7 @@ pub fn source_result_influence_witness_arrow(
     );
     metadata.insert(
         "claimBoundary".into(),
-        "Every row states its own strength in `precision`. `exact-field`: the result cell in `target_output_column` carries the value of the supplied cell named by `source_field` in raw record `source_record_index`, with leading and trailing whitespace removed — every column that carries this class is trimmed once at parse and never otherwise transformed, so `value_sha256` in the source-coordinate index equals `cell_value_sha256` in the result-cell index only for supplied cells that have no surrounding whitespace; compare the trimmed source bytes, not the raw ones. The step contract shows that column has exactly one contributor along every declared write of it, and the kernel row lineage shows exactly one contributing raw record with no stop-event search. Whether the row exists and where it sits stay governed by the row-set and row-order dependencies the conservative rows carry, so the exact claim is about the value in an existing cell, not about its presence or position. `declared-column-scope`: the declared field edges connect `source_field` to the named `target_output_column`; it is a may-influence over-approximation and never asserts the cell did change. `conservative-row-lineage`: the inclusive raw-record range may contribute to that result row. `conservative-search-window`: the kernel scanned exactly that inclusive index range while selecting a stop event or establishing that none qualified, so events in it decided the row without appearing in its contributing range; the range is stated in the pipeline-internal ordering named by `source_index_space`, never in raw data rows, and it is not a raw-record claim. `declared-transitive`: plan reachability to a logical checkpoint. `unresolved`: an explicit gap where no lineage information of any kind exists for that scope. Absence of a row is never a non-influence claim.".into(),
+        "Every row states its own strength in `precision`. `exact-field`: the result cell in `target_output_column` carries the value of the supplied cell named by `source_field` in raw record `source_record_index`, with leading and trailing whitespace removed — every column that carries this class is trimmed once at parse and never otherwise transformed, so `value_sha256` in the source-coordinate index equals `cell_value_sha256` in the result-cell index only for supplied cells that have no surrounding whitespace; compare the trimmed source bytes, not the raw ones. The workflow contract shows that column has exactly one contributor along every declared write of it, and the kernel row lineage shows exactly one contributing raw record with no stop-event search. Whether the row exists and where it sits stay governed by the row-set and row-order dependencies the conservative rows carry, so the exact claim is about the value in an existing cell, not about its presence or position. `declared-column-scope`: the declared field edges connect `source_field` to the named `target_output_column`; it is a may-influence over-approximation and never asserts the cell did change. `conservative-row-lineage`: the inclusive raw-record range may contribute to that result row. `conservative-search-window`: the kernel scanned exactly that inclusive index range while selecting a stop event or establishing that none qualified, so events in it decided the row without appearing in its contributing range; the range is stated in the pipeline-internal ordering named by `source_index_space`, never in raw data rows, and it is not a raw-record claim. `declared-transitive`: plan reachability to a workflow checkpoint. `unresolved`: an explicit gap where no lineage information of any kind exists for that scope. Absence of a row is never a non-influence claim.".into(),
     );
     metadata.insert(
         "sourceCoordinateJoin".into(),
@@ -1933,7 +1931,7 @@ pub fn source_result_influence_witness_arrow(
     );
     metadata.insert(
         "sourceIndexSpace".into(),
-        "Null means `source_record_index` / `source_record_last` are source-coordinate record indices in the `one-based-data-row` base the source-coordinate index publishes, and the row joins by `sourceCoordinateJoin`. Non-null names a pipeline-internal ordering those two columns are positions in instead — `pipeline-event-order` counts normalized events after `drop_empty_timestamp`, sorting and dedupe; `participant-source-event-order` is the 0-based per-participant screen-event order. Rows in a non-null space carry `source_key_kind` = 'lineage-search-window', address no raw record, and are excluded from `sourceCoordinateJoin`. Join them instead to the row-lineage artifact's candidate-search rows, which publish the same bounds under `search_index_space`.".into(),
+        "Null means `source_record_index` / `source_record_last` are source-coordinate record indices in the `one-based-data-row` base the source-coordinate index publishes, and the row joins by `sourceCoordinateJoin`. Non-null names a pipeline-internal ordering those two columns are positions in instead — `pipeline-event-order` counts normalized events after `remove_missing_timestamps`, sorting and dedupe; `participant-source-event-order` is the 0-based per-participant screen-event order. Rows in a non-null space carry `source_key_kind` = 'lineage-search-window', address no raw record, and are excluded from `sourceCoordinateJoin`. Join them instead to the row-lineage artifact's candidate-search rows, which publish the same bounds under `search_index_space`.".into(),
     );
     metadata.insert(
         "resultCellJoin".into(),
@@ -1968,7 +1966,7 @@ pub fn source_result_influence_witness_arrow(
             Field::new("source_index_space", dictionary_type(), true),
             Field::new("target_kind", dictionary_type(), false),
             Field::new("target_id", dictionary_type(), false),
-            Field::new("target_logical_node", dictionary_type(), false),
+            Field::new("target_query_group", dictionary_type(), false),
             Field::new("target_output_kind", dictionary_type(), true),
             Field::new("target_output_row_index", DataType::UInt32, true),
             Field::new("target_output_column", dictionary_type(), true),
@@ -1989,7 +1987,7 @@ pub fn source_result_influence_witness_arrow(
         Arc::new(source_index_space.finish()),
         Arc::new(target_kind.finish()),
         Arc::new(target_id.finish()),
-        Arc::new(target_logical_node.finish()),
+        Arc::new(target_query_group.finish()),
         Arc::new(target_output_kind.finish()),
         Arc::new(target_output_row_index),
         Arc::new(target_output_column.finish()),
@@ -2027,7 +2025,7 @@ pub fn row_lineage_arrow(
     let mut source_data_row_first = Vec::new();
     let mut source_data_row_last = Vec::new();
     let mut source_digest = StringDictionaryBuilder::<Int32Type>::new();
-    let mut terminal_logical_node = StringDictionaryBuilder::<Int32Type>::new();
+    let mut terminal_query_group = StringDictionaryBuilder::<Int32Type>::new();
     let mut dependency_precision = StringDictionaryBuilder::<Int32Type>::new();
     let mut search_protocol_version = StringDictionaryBuilder::<Int32Type>::new();
     let mut search_index_space = StringDictionaryBuilder::<Int32Type>::new();
@@ -2051,8 +2049,8 @@ pub fn row_lineage_arrow(
             source_digest
                 .append(source_input_digest)
                 .map_err(|error| format!("encode lineage source digest: {error}"))?;
-            terminal_logical_node
-                .append(lineage.terminal_logical_node.as_str())
+            terminal_query_group
+                .append(lineage.terminal_query_group.as_str())
                 .map_err(|error| format!("encode lineage terminal node: {error}"))?;
             dependency_precision
                 .append("conservative")
@@ -2079,8 +2077,8 @@ pub fn row_lineage_arrow(
             source_digest
                 .append(source_input_digest)
                 .map_err(|error| format!("encode lineage source digest: {error}"))?;
-            terminal_logical_node
-                .append(lineage.terminal_logical_node.as_str())
+            terminal_query_group
+                .append(lineage.terminal_query_group.as_str())
                 .map_err(|error| format!("encode lineage terminal node: {error}"))?;
             dependency_precision
                 .append("exact-event-range")
@@ -2123,7 +2121,7 @@ pub fn row_lineage_arrow(
             Field::new("source_data_row_first", DataType::UInt32, true),
             Field::new("source_data_row_last", DataType::UInt32, true),
             Field::new("source_input_digest", dictionary_type(), false),
-            Field::new("terminal_logical_node", dictionary_type(), false),
+            Field::new("terminal_query_group", dictionary_type(), false),
             Field::new("dependency_precision", dictionary_type(), false),
             Field::new("search_protocol_version", dictionary_type(), true),
             Field::new("search_index_space", dictionary_type(), true),
@@ -2147,7 +2145,7 @@ pub fn row_lineage_arrow(
         Arc::new(UInt32Array::from(source_data_row_first)),
         Arc::new(UInt32Array::from(source_data_row_last)),
         Arc::new(source_digest.finish()),
-        Arc::new(terminal_logical_node.finish()),
+        Arc::new(terminal_query_group.finish()),
         Arc::new(dependency_precision.finish()),
         Arc::new(search_protocol_version.finish()),
         Arc::new(search_index_space.finish()),
@@ -2996,7 +2994,7 @@ mod tests {
                         .unwrap(),
                 },
             ],
-            terminal_logical_node: Arc::new("outputs".to_string()),
+            terminal_query_group: Arc::new("outputs".to_string()),
         }];
         let digest = format!("sha256:{}", "a".repeat(64));
         let first = row_lineage_arrow(&lineages, &digest).unwrap();
@@ -3166,8 +3164,7 @@ mod tests {
         assert_ne!(first_spec, second_spec);
 
         let plan = crate::embedded_plan();
-        let closure =
-            downstream_closure(plan, BTreeSet::from(["normalize_timezones".to_string()]));
+        let closure = downstream_closure(plan, BTreeSet::from(["normalize_timezones".to_string()]));
         assert_eq!(closure.len(), 14);
         assert!(closure.contains("normalize_timezones"));
         assert!(closure.contains("outputs"));
@@ -3305,13 +3302,13 @@ mod tests {
                 kind: "empty-array-json",
                 media_type: "application/json",
                 bytes: b"[]",
-                terminal_logical_node: "outputs",
+                terminal_query_group: "outputs",
             },
             CanonicalOutput {
                 kind: "empty-object-json",
                 media_type: "application/json",
                 bytes: b"{}",
-                terminal_logical_node: "outputs",
+                terminal_query_group: "outputs",
             },
         ];
         let (_, result_rows) = result_cell_correspondence_arrow(&empty_json_outputs, &[]).unwrap();
@@ -3321,7 +3318,7 @@ mod tests {
                 kind: "unsupported",
                 media_type: "application/octet-stream",
                 bytes: b"x",
-                terminal_logical_node: "outputs",
+                terminal_query_group: "outputs",
             }],
             &[],
         )
@@ -3347,13 +3344,13 @@ mod tests {
                 kind: "app-csv",
                 media_type: "text/csv",
                 bytes: app_csv,
-                terminal_logical_node: "outputs",
+                terminal_query_group: "outputs",
             },
             CanonicalOutput {
                 kind: "review-summary-json",
                 media_type: "application/json",
                 bytes: review_json,
-                terminal_logical_node: "outputs",
+                terminal_query_group: "outputs",
             },
         ];
         let lineages = [PipelineRowLineage {
@@ -3365,7 +3362,7 @@ mod tests {
             ],
             source_data_row_count: 2,
             searches: Vec::new(),
-            terminal_logical_node: Arc::new("outputs".to_string()),
+            terminal_query_group: Arc::new("outputs".to_string()),
         }];
 
         let (first, row_count) = result_cell_correspondence_arrow(&outputs, &lineages).unwrap();
@@ -3445,7 +3442,7 @@ mod tests {
                 kind: "review-summary-json",
                 media_type: "application/json",
                 bytes: b"{",
-                terminal_logical_node: "outputs",
+                terminal_query_group: "outputs",
             }],
             &[],
         )
@@ -3482,7 +3479,7 @@ mod tests {
             kind: "app-csv",
             media_type: "text/csv",
             bytes: app_csv,
-            terminal_logical_node: "outputs",
+            terminal_query_group: "outputs",
         }];
         let lineages = [PipelineRowLineage {
             output_kind: Arc::new("app-csv".to_string()),
@@ -3492,22 +3489,22 @@ mod tests {
             ],
             source_data_row_count: 1,
             searches: Vec::new(),
-            terminal_logical_node: Arc::new("outputs".to_string()),
+            terminal_query_group: Arc::new("outputs".to_string()),
         }];
         let plan = crate::embedded_plan();
         let checkpoints = plan
-            .nodes
+            .query_groups
             .iter()
             .map(|node| {
                 let digest = format!(
                     "sha256:{}",
-                    hex::encode(Sha256::digest(node.node_id.as_bytes()))
+                    hex::encode(Sha256::digest(node.query_group_id.as_bytes()))
                 );
                 (
-                    node.node_id.clone(),
-                    LogicalStageCheckpoint {
-                        protocol_version: "chronicle-logical-stage-checkpoint/v7".into(),
-                        node_id: node.node_id.clone(),
+                    node.query_group_id.clone(),
+                    WorkflowCheckpoint {
+                        protocol_version: "chronicle-workflow-checkpoint/v1".into(),
+                        subject_id: node.query_group_id.clone(),
                         row_membership_digest: digest.clone(),
                         row_order_digest: digest.clone(),
                         temporal_state_digest: digest.clone(),
@@ -3574,7 +3571,7 @@ mod tests {
                 "source_index_space",
                 "target_kind",
                 "target_id",
-                "target_logical_node",
+                "target_query_group",
                 "target_output_kind",
                 "target_output_row_index",
                 "target_output_column",
@@ -3718,7 +3715,11 @@ mod tests {
                 .as_any()
                 .downcast_ref::<StringArray>()
                 .unwrap();
-            Some(values.value(dictionary.keys().value(index) as usize).to_string())
+            Some(
+                values
+                    .value(dictionary.keys().value(index) as usize)
+                    .to_string(),
+            )
         };
         let exact_rows = (0..batch.num_rows())
             .filter(|index| {
@@ -3746,7 +3747,7 @@ mod tests {
             )])
         );
         // This fixture's raw export is `participant_id,event_timestamp` — it has
-        // no `study_id` column. `csv_parse` looks its columns up by header name
+        // no `study_id` column. `decode_source_records` looks its columns up by header name
         // and substitutes the empty string for a missing one, so an app-csv
         // `study_id` cell still exists; but there is no supplied cell behind it,
         // so it must NOT be claimed exact. This assertion previously expected a
@@ -3838,8 +3839,7 @@ mod tests {
         // not exact-field must leave `source_field` null unless it is the
         // column-granular declared scope.
         for index in 0..batch.num_rows() {
-            let precision =
-                precision_values.value(precision_column.keys().value(index) as usize);
+            let precision = precision_values.value(precision_column.keys().value(index) as usize);
             let has_source_field = read_dictionary(3, index).is_some();
             let has_target_column = read_dictionary(12, index).is_some();
             match precision {
@@ -3873,13 +3873,13 @@ mod tests {
                 kind: "app-csv",
                 media_type: "text/csv",
                 bytes: b"participant_id\nP01\n",
-                terminal_logical_node: "outputs",
+                terminal_query_group: "outputs",
             },
             CanonicalOutput {
                 kind: "compliance-csv",
                 media_type: "text/csv",
                 bytes: b"participant_id\nP01\n",
-                terminal_logical_node: "outputs",
+                terminal_query_group: "outputs",
             },
         ];
         let lineages = [PipelineRowLineage {
@@ -3924,7 +3924,7 @@ mod tests {
                         .unwrap(),
                 },
             ],
-            terminal_logical_node: Arc::new("outputs".to_string()),
+            terminal_query_group: Arc::new("outputs".to_string()),
         }];
         let plan = crate::embedded_plan();
         let checkpoints = BTreeMap::new();
@@ -3959,7 +3959,11 @@ mod tests {
                 .as_any()
                 .downcast_ref::<StringArray>()
                 .unwrap();
-            Some(values.value(dictionary.keys().value(index) as usize).to_string())
+            Some(
+                values
+                    .value(dictionary.keys().value(index) as usize)
+                    .to_string(),
+            )
         };
         let source_rows = batch
             .column(4)
@@ -4056,7 +4060,7 @@ mod tests {
             kind: "app-csv",
             media_type: "text/csv",
             bytes: csv.as_bytes(),
-            terminal_logical_node: "outputs",
+            terminal_query_group: "outputs",
         }];
 
         let (first, row_count) = result_cell_correspondence_arrow(&outputs, &[]).unwrap();

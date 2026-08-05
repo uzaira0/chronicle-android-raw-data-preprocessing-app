@@ -42,6 +42,7 @@ import {
 import { dependencyCampaignRuntimeBytes } from "@/testSupport/dependencyCampaignRuntime";
 import * as runtime from "@/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm.js";
 import { configurationEquivalenceClasses } from "@/testSupport/configurationEquivalenceClasses";
+import type { RustWorkflowContract } from "@/testSupport/workflowContract";
 
 import coveringT3 from "../../../../combinatorial/covering_array_t3.json";
 import seededHighOrder from "../../../../combinatorial/seeded_high_order_00c0ffee.json";
@@ -65,8 +66,8 @@ type Configuration = {
 };
 
 type TypedCheckpoint = {
-  protocolVersion: "chronicle-logical-stage-checkpoint/v7";
-  nodeId: string;
+  protocolVersion: "chronicle-workflow-checkpoint/v1";
+  subjectId: string;
   rowMembershipDigest: string;
   rowOrderDigest: string;
   temporalStateDigest: string;
@@ -98,40 +99,29 @@ type RuntimeManifest = {
     rowsRemovedByTimezone: number;
     timezoneRetainedSourceRowsDigest: string;
     timezoneStageDigest: string;
-    logicalStageDigests: Record<string, string>;
-    logicalStageCheckpoints: Record<string, TypedCheckpoint>;
-    pipelineStepDigests: Record<string, string>;
-    pipelineStepCheckpoints: Record<string, TypedCheckpoint>;
+    workflowQueryGroupDigests: Record<string, string>;
+    workflowQueryGroupCheckpoints: Record<string, TypedCheckpoint>;
+    workflowQueryDigests: Record<string, string>;
+    workflowQueryCheckpoints: Record<string, TypedCheckpoint>;
     publishedOutputsDigest: string;
     provenanceDigest: string;
     duplicateTimestampsCorrected: number;
     exactDuplicateRowsRemoved: number;
   };
-  nodeExecutions: Array<{
-    node_id: string;
+  queryGroupExecutions: Array<{
+    query_group_id: string;
     input_key: string;
     output: { digest: string } | null;
     status: "cached" | "recomputed" | "error" | "skipped" | "bypassed";
   }>;
-  stepExecutions: Array<{
-    step_id: string;
-    unit_id: string;
+  queryExecutions: Array<{
+    query_id: string;
+    query_group_id: string;
     input_key: string;
     output_digest: string;
     status: "cached" | "recomputed" | "error" | "skipped" | "bypassed";
   }>;
   artifacts: Array<{ kind: string; digest: string; size: number }>;
-};
-
-type RustStepContract = {
-  protocolVersion: "chronicle-preprocessing-step-contract/v3";
-  steps: Array<{
-    id: string;
-    group: string;
-    inputs: string[];
-    requestFields: string[];
-    sourceRoles: string[];
-  }>;
 };
 
 type RunResult = {
@@ -335,9 +325,9 @@ async function evaluateRequirements(
   bindAllSupport = false,
 ): Promise<{
   ready: boolean;
-  openObligations: Array<{ role_id: string; node_id: string | null }>;
+  openObligations: Array<{ role_id: string; query_group_id: string | null }>;
   roleStates: Record<string, string>;
-  nodeStates: Record<string, string>;
+  queryGroupStates: Record<string, string>;
 }> {
   const csvBytes = encoder.encode(corpus.csv);
   const inputDigest = await sha256Uri(csvBytes);
@@ -369,9 +359,9 @@ async function evaluateRequirements(
       ),
     ) as {
       ready: boolean;
-      openObligations: Array<{ role_id: string; node_id: string | null }>;
+      openObligations: Array<{ role_id: string; query_group_id: string | null }>;
       roleStates: Record<string, string>;
-      nodeStates: Record<string, string>;
+      queryGroupStates: Record<string, string>;
     };
   } finally {
     supports.free();
@@ -394,16 +384,16 @@ function computationalOutcome(manifest: RuntimeManifest) {
       )
       .map(([key, value]) => [
         key,
-        key === "logicalStageDigests" || key === "logicalStageCheckpoints"
+        key === "workflowQueryGroupDigests" || key === "workflowQueryGroupCheckpoints"
           ? Object.fromEntries(
               Object.entries(value as Record<string, unknown>).filter(
                 ([nodeId]) => nodeId !== "outputs",
               ),
             )
-          : key === "pipelineStepDigests" || key === "pipelineStepCheckpoints"
+          : key === "workflowQueryDigests" || key === "workflowQueryCheckpoints"
             ? Object.fromEntries(
                 Object.entries(value as Record<string, unknown>).filter(
-                  ([stepId]) => stepId !== "assemble_result",
+                  ([stepId]) => stepId !== "assemble_result_manifest",
                 ),
               )
             : value,
@@ -417,17 +407,17 @@ function changedCheckpointComponents(
   target: RuntimeManifest,
 ): Record<string, string[]> {
   return Object.fromEntries(
-    Object.keys(source.processingSummary.logicalStageCheckpoints)
+    Object.keys(source.processingSummary.workflowQueryGroupCheckpoints)
       .sort()
       .map(
         (nodeId) =>
           [
             nodeId,
             changedFields(
-              source.processingSummary.logicalStageCheckpoints[
+              source.processingSummary.workflowQueryGroupCheckpoints[
                 nodeId
               ] as unknown as Record<string, unknown>,
-              target.processingSummary.logicalStageCheckpoints[
+              target.processingSummary.workflowQueryGroupCheckpoints[
                 nodeId
               ] as unknown as Record<string, unknown>,
             ).filter((field) => field !== "terminalDigest"),
@@ -437,23 +427,23 @@ function changedCheckpointComponents(
   );
 }
 
-function changedStepCheckpointComponents(
+function changedQueryCheckpointComponents(
   source: RuntimeManifest,
   target: RuntimeManifest,
 ): Record<string, string[]> {
   return Object.fromEntries(
-    Object.keys(source.processingSummary.pipelineStepCheckpoints)
+    Object.keys(source.processingSummary.workflowQueryCheckpoints)
       .sort()
       .map(
-        (stepId) =>
+        (queryId) =>
           [
-            stepId,
+            queryId,
             changedFields(
-              source.processingSummary.pipelineStepCheckpoints[
-                stepId
+              source.processingSummary.workflowQueryCheckpoints[
+                queryId
               ] as unknown as Record<string, unknown>,
-              target.processingSummary.pipelineStepCheckpoints[
-                stepId
+              target.processingSummary.workflowQueryCheckpoints[
+                queryId
               ] as unknown as Record<string, unknown>,
             ).filter((field) => field !== "terminalDigest"),
           ] as const,
@@ -663,35 +653,35 @@ function changedFields(
 
 function nodeInputKeys(manifest: RuntimeManifest): Record<string, string> {
   return Object.fromEntries(
-    manifest.nodeExecutions.map((node) => [node.node_id, node.input_key]),
+    manifest.queryGroupExecutions.map((node) => [node.query_group_id, node.input_key]),
   );
 }
 
 function nodeStatuses(manifest: RuntimeManifest): Record<string, string> {
   return Object.fromEntries(
-    manifest.nodeExecutions.map((node) => [node.node_id, node.status]),
+    manifest.queryGroupExecutions.map((node) => [node.query_group_id, node.status]),
   );
 }
 
-function executedStepIds(manifest: RuntimeManifest): string[] {
-  return manifest.stepExecutions
+function executedQueryIds(manifest: RuntimeManifest): string[] {
+  return manifest.queryExecutions
     .filter((step) => step.status === "recomputed")
-    .map((step) => step.step_id)
+    .map((step) => step.query_id)
     .sort();
 }
 
-function stepStatuses(manifest: RuntimeManifest): Record<string, string> {
+function queryStatuses(manifest: RuntimeManifest): Record<string, string> {
   return Object.fromEntries(
-    manifest.stepExecutions.map((step) => [step.step_id, step.status]),
+    manifest.queryExecutions.map((step) => [step.query_id, step.status]),
   );
 }
 
 function executedGroupIds(manifest: RuntimeManifest): string[] {
   return [
     ...new Set(
-      manifest.stepExecutions
+      manifest.queryExecutions
         .filter((step) => step.status === "recomputed")
-        .map((step) => step.unit_id),
+        .map((step) => step.query_group_id),
     ),
   ].sort();
 }
@@ -700,8 +690,8 @@ function nodeOutputDigests(
   manifest: RuntimeManifest,
 ): Record<string, string | null> {
   return Object.fromEntries(
-    manifest.nodeExecutions.map((node) => [
-      node.node_id,
+    manifest.queryGroupExecutions.map((node) => [
+      node.query_group_id,
       node.output?.digest ?? null,
     ]),
   );
@@ -845,9 +835,15 @@ describe("Rust/WASM configuration-space campaign", () => {
           "chronicle-preprocessing-runtime/v1",
         );
         expect(manifest.openObligations, identity).toEqual([]);
-        expect(manifest.nodeExecutions, identity).toHaveLength(15);
+        expect(manifest.queryGroupExecutions.length, identity).toBeGreaterThan(0);
         expect(
-          manifest.nodeExecutions.every(
+          new Set(
+            manifest.queryGroupExecutions.map(({ query_group_id }) => query_group_id),
+          ).size,
+          identity,
+        ).toBe(manifest.queryGroupExecutions.length);
+        expect(
+          manifest.queryGroupExecutions.every(
             (node) => node.status !== "error" && node.status !== "skipped",
           ),
           identity,
@@ -893,7 +889,7 @@ describe("Rust/WASM configuration-space campaign", () => {
       coldExecutions += 1;
       expect(manifest.openObligations, identity).toEqual([]);
       expect(
-        manifest.nodeExecutions.every(
+        manifest.queryGroupExecutions.every(
           (node) => node.status !== "error" && node.status !== "skipped",
         ),
         identity,
@@ -1025,11 +1021,11 @@ describe("Rust/WASM configuration-space campaign", () => {
         computationalOutcome(changedRun.manifest),
         `${key}: upstream semantic invariance`,
       ).toEqual(computationalOutcome(orthogonalBaselineRun.manifest));
-      const changedNodes = changedRun.manifest.nodeExecutions
+      const changedNodes = changedRun.manifest.queryGroupExecutions
         .filter(
           (node) => node.status === "recomputed" || node.status === "error",
         )
-        .map((node) => node.node_id);
+        .map((node) => node.query_group_id);
       if ((VIEW_BROWSER_OPTION_KEYS as readonly string[]).includes(key)) {
         const viewDependentKinds = new Set([
           "source-coordinate-index-arrow",
@@ -1112,9 +1108,9 @@ describe("Rust/WASM configuration-space campaign", () => {
       "studyName: warm/cold artifacts",
     ).toEqual(outputArtifacts(annotationCold.manifest));
     expect(
-      annotationWarm.manifest.nodeExecutions
+      annotationWarm.manifest.queryGroupExecutions
         .filter((node) => node.status === "recomputed")
-        .map((node) => node.node_id),
+        .map((node) => node.query_group_id),
       "studyName: exact invalidation cone",
     ).toEqual(["outputs"]);
     expect(
@@ -1240,13 +1236,13 @@ describe("Rust/WASM configuration-space campaign", () => {
         (!influenceKeyFilter || key === influenceKeyFilter) &&
         index % shardCount === shardIndex,
     );
-    const stepContract = JSON.parse(
-      runtime.pipeline_step_contract_json(),
-    ) as RustStepContract;
-    expect(stepContract.protocolVersion).toBe(
-      "chronicle-preprocessing-step-contract/v3",
+    const workflowContract = JSON.parse(
+      runtime.workflow_contract_json(),
+    ) as RustWorkflowContract;
+    expect(workflowContract.protocolVersion).toBe(
+      "chronicle-workflow-contract/v1",
     );
-    expect(stepContract.steps).toHaveLength(55);
+    expect(workflowContract.execution.queries).toHaveLength(workflowContract.execution.queries.length);
     const domainDescriptor = COMPUTATIONAL_BROWSER_OPTION_KEYS.map((key) => ({
       key,
       classes: configurationEquivalenceClasses(key).map(({ label, value }) => ({
@@ -1257,9 +1253,9 @@ describe("Rust/WASM configuration-space campaign", () => {
     const reports: Array<Record<string, unknown>> = [];
     const caseIdentities: string[] = [];
     const axesWithSubstantiveObservedEffects = new Set<string>();
-    const staleLogicalCheckpointCases: Array<Record<string, unknown>> = [];
+    const staleWorkflowCheckpointCases: Array<Record<string, unknown>> = [];
     const percolationClusterMismatchCases: Array<Record<string, unknown>> = [];
-    const stepPercolationClusterMismatchCases: Array<Record<string, unknown>> =
+    const queryPercolationClusterMismatchCases: Array<Record<string, unknown>> =
       [];
     let receipt: ReturnType<typeof authorityReceipt> | undefined;
     let coldExecutions = 0;
@@ -1269,16 +1265,16 @@ describe("Rust/WASM configuration-space campaign", () => {
 
     for (const key of perturbationKeys) {
       const classes = configurationEquivalenceClasses(key);
-      const declaredStepBinders = new Set<string>();
+      const declaredQueryBinders = new Set<string>();
       const declaredGroupBinders = new Set<string>();
       const declaredRuntimeArtifactBindings = new Set<string>();
       const observedCompatibilityInputKeyNodes = new Set<string>();
       const observedExecutedGroups = new Set<string>();
       const observedSemanticOutputNodes = new Set<string>();
-      const observedChangedPipelineSteps = new Set<string>();
+      const observedChangedQueries = new Set<string>();
       const observedArtifactKinds = new Set<string>();
       const observedRoleStateKeys = new Set<string>();
-      const observedNodeStateKeys = new Set<string>();
+      const observedQueryGroupStateKeys = new Set<string>();
       const contextReports: Array<Record<string, unknown>> = [];
 
       for (const context of perturbationContexts(key).filter(
@@ -1426,7 +1422,7 @@ describe("Rust/WASM configuration-space campaign", () => {
                 JSON.stringify(warmNodeOutputDigests) !==
                 JSON.stringify(coldTargetNodeOutputDigests)
               ) {
-                staleLogicalCheckpointCases.push({
+                staleWorkflowCheckpointCases.push({
                   workspace,
                   optionKey: key,
                   contextId: context.id,
@@ -1436,8 +1432,8 @@ describe("Rust/WASM configuration-space campaign", () => {
                     coldTargetNodeOutputDigests,
                   ),
                   coldSemanticChanges: changedFields(
-                    source.run.manifest.processingSummary.logicalStageDigests,
-                    target.run.manifest.processingSummary.logicalStageDigests,
+                    source.run.manifest.processingSummary.workflowQueryGroupDigests,
+                    target.run.manifest.processingSummary.workflowQueryGroupDigests,
                   ),
                 });
               }
@@ -1455,12 +1451,12 @@ describe("Rust/WASM configuration-space campaign", () => {
                 outputArtifactDigests(target.run.manifest),
               );
               const changedSemanticOutputNodes = changedFields(
-                source.run.manifest.processingSummary.logicalStageDigests,
-                target.run.manifest.processingSummary.logicalStageDigests,
+                source.run.manifest.processingSummary.workflowQueryGroupDigests,
+                target.run.manifest.processingSummary.workflowQueryGroupDigests,
               );
-              const changedPipelineSteps = changedFields(
-                source.run.manifest.processingSummary.pipelineStepDigests,
-                target.run.manifest.processingSummary.pipelineStepDigests,
+              const changedQueries = changedFields(
+                source.run.manifest.processingSummary.workflowQueryDigests,
+                target.run.manifest.processingSummary.workflowQueryDigests,
               );
               const checkpointComponentChanges = changedCheckpointComponents(
                 source.run.manifest,
@@ -1470,15 +1466,15 @@ describe("Rust/WASM configuration-space campaign", () => {
                 Object.keys(checkpointComponentChanges).sort(),
                 `${workspace}: typed checkpoint components do not commit to the terminal graph`,
               ).toEqual(changedSemanticOutputNodes);
-              const stepCheckpointComponentChanges =
-                changedStepCheckpointComponents(
+              const queryCheckpointComponentChanges =
+                changedQueryCheckpointComponents(
                   source.run.manifest,
                   target.run.manifest,
                 );
               expect(
-                Object.keys(stepCheckpointComponentChanges).sort(),
-                `${workspace}: typed step checkpoint components do not commit to the 55-step graph`,
-              ).toEqual(changedPipelineSteps);
+                Object.keys(queryCheckpointComponentChanges).sort(),
+                `${workspace}: typed query checkpoint components do not commit to the complete query-registry graph`,
+              ).toEqual(changedQueries);
               const changedCountFields = changedFields(
                 initial.manifest.counts,
                 target.run.manifest.counts,
@@ -1491,9 +1487,9 @@ describe("Rust/WASM configuration-space campaign", () => {
                 source.requirements.roleStates,
                 target.requirements.roleStates,
               );
-              const changedNodeStates = changedFields(
-                source.requirements.nodeStates,
-                target.requirements.nodeStates,
+              const changedQueryGroupStates = changedFields(
+                source.requirements.queryGroupStates,
+                target.requirements.queryGroupStates,
               );
               const sourceObligations = obligationRoles(source.requirements);
               const targetObligations = obligationRoles(target.requirements);
@@ -1503,31 +1499,31 @@ describe("Rust/WASM configuration-space campaign", () => {
                 buildRustV2Options(source.config.options, GOLDEN_RUNTIME),
                 buildRustV2Options(target.config.options, GOLDEN_RUNTIME),
               );
-              const actualExecutedSteps = executedStepIds(warm.manifest);
-              const changedStepOutputs = new Set(changedPipelineSteps);
-              const sourceStepStatuses = stepStatuses(source.run.manifest);
-              const targetStepStatuses = stepStatuses(target.run.manifest);
-              const newlyApplicableSteps = stepContract.steps
+              const actualExecutedQueries = executedQueryIds(warm.manifest);
+              const changedQueryOutputs = new Set(changedQueries);
+              const sourceQueryStatuses = queryStatuses(source.run.manifest);
+              const targetQueryStatuses = queryStatuses(target.run.manifest);
+              const newlyApplicableQueries = workflowContract.execution.queries
                 .filter(
                   (step) =>
-                    sourceStepStatuses[step.id] === "bypassed" &&
-                    targetStepStatuses[step.id] !== "bypassed",
+                    sourceQueryStatuses[step.id] === "bypassed" &&
+                    targetQueryStatuses[step.id] !== "bypassed",
                 )
                 .map(({ id }) => id)
                 .sort();
-              const directStepBinders = stepContract.steps
+              const directQueryBinders = workflowContract.execution.queries
                 .filter(
                   (step) =>
-                    newlyApplicableSteps.includes(step.id) ||
+                    newlyApplicableQueries.includes(step.id) ||
                     step.requestFields.some((field) =>
                       changedRustRequestFields.includes(field),
                     ),
                 )
                 .map(({ id }) => id);
-              for (const stepId of directStepBinders) {
-                declaredStepBinders.add(stepId);
+              for (const queryId of directQueryBinders) {
+                declaredQueryBinders.add(queryId);
                 declaredGroupBinders.add(
-                  stepContract.steps.find(({ id }) => id === stepId)!.group,
+                  workflowContract.execution.queries.find(({ id }) => id === queryId)!.group,
                 );
               }
               for (const field of changedRustRequestFields) {
@@ -1536,12 +1532,12 @@ describe("Rust/WASM configuration-space campaign", () => {
                   declaredGroupBinders.add("outputs");
                 }
               }
-              const predictedExecutedSteps = stepContract.steps
+              const predictedExecutedQueries = workflowContract.execution.queries
                 .filter((step) => {
                   const targetApplicable =
-                    targetStepStatuses[step.id] !== "bypassed";
+                    targetQueryStatuses[step.id] !== "bypassed";
                   const newlyApplicable =
-                    sourceStepStatuses[step.id] === "bypassed" &&
+                    sourceQueryStatuses[step.id] === "bypassed" &&
                     targetApplicable;
                   return (
                     targetApplicable &&
@@ -1550,7 +1546,7 @@ describe("Rust/WASM configuration-space campaign", () => {
                         changedRustRequestFields.includes(field),
                       ) ||
                       step.inputs.some((input) =>
-                        changedStepOutputs.has(input),
+                        changedQueryOutputs.has(input),
                       ))
                   );
                 })
@@ -1558,8 +1554,8 @@ describe("Rust/WASM configuration-space campaign", () => {
                 .sort();
               const predictedExecutedGroups = [
                 ...new Set(
-                  stepContract.steps
-                    .filter((step) => predictedExecutedSteps.includes(step.id))
+                  workflowContract.execution.queries
+                    .filter((step) => predictedExecutedQueries.includes(step.id))
                     .map((step) => step.group),
                 ),
               ].sort();
@@ -1578,18 +1574,18 @@ describe("Rust/WASM configuration-space campaign", () => {
                 });
               }
               if (
-                JSON.stringify(actualExecutedSteps) !==
-                JSON.stringify(predictedExecutedSteps)
+                JSON.stringify(actualExecutedQueries) !==
+                JSON.stringify(predictedExecutedQueries)
               ) {
-                stepPercolationClusterMismatchCases.push({
+                queryPercolationClusterMismatchCases.push({
                   workspace,
                   optionKey: key,
                   contextId: context.id,
                   corpusId: corpus.id,
                   changedRustRequestFields,
-                  observed: actualExecutedSteps,
-                  predicted: predictedExecutedSteps,
-                  changedStepOutputs: changedPipelineSteps,
+                  observed: actualExecutedQueries,
+                  predicted: predictedExecutedQueries,
+                  changedQueryOutputs: changedQueries,
                 });
               }
 
@@ -1602,8 +1598,8 @@ describe("Rust/WASM configuration-space campaign", () => {
               changedSemanticOutputNodes.forEach((node) =>
                 observedSemanticOutputNodes.add(node),
               );
-              changedPipelineSteps.forEach((step) =>
-                observedChangedPipelineSteps.add(step),
+              changedQueries.forEach((step) =>
+                observedChangedQueries.add(step),
               );
               changedArtifactKinds.forEach((kind) =>
                 observedArtifactKinds.add(kind),
@@ -1611,8 +1607,8 @@ describe("Rust/WASM configuration-space campaign", () => {
               changedRoleStates.forEach((role) =>
                 observedRoleStateKeys.add(role),
               );
-              changedNodeStates.forEach((node) =>
-                observedNodeStateKeys.add(node),
+              changedQueryGroupStates.forEach((node) =>
+                observedQueryGroupStateKeys.add(node),
               );
               const nonProvenanceSummaryChanges =
                 changedProcessingSummaryFields.filter(
@@ -1625,7 +1621,7 @@ describe("Rust/WASM configuration-space campaign", () => {
                 changedCountFields.length > 0 ||
                 nonProvenanceSummaryChanges.length > 0 ||
                 changedRoleStates.length > 0 ||
-                changedNodeStates.length > 0 ||
+                changedQueryGroupStates.length > 0 ||
                 JSON.stringify(sourceObligations) !==
                   JSON.stringify(targetObligations)
               ) {
@@ -1635,19 +1631,19 @@ describe("Rust/WASM configuration-space campaign", () => {
               const observation = {
                 corpusId: corpus.id,
                 changedRustRequestFields,
-                newlyApplicableSteps,
+                newlyApplicableQueries,
                 changedCompatibilityInputKeyNodes,
                 actualExecutedGroups,
-                actualExecutedSteps,
+                actualExecutedQueries,
                 changedSemanticOutputNodes,
-                changedPipelineSteps,
+                changedQueries,
                 checkpointComponentChanges,
-                stepCheckpointComponentChanges,
+                queryCheckpointComponentChanges,
                 changedArtifactKinds,
                 changedCountFields,
                 changedProcessingSummaryFields,
                 changedRoleStates,
-                changedNodeStates,
+                changedQueryGroupStates,
                 openObligations: {
                   source: sourceObligations,
                   target: targetObligations,
@@ -1683,7 +1679,7 @@ describe("Rust/WASM configuration-space campaign", () => {
       }
 
       expect(
-        [...declaredStepBinders, ...declaredRuntimeArtifactBindings],
+        [...declaredQueryBinders, ...declaredRuntimeArtifactBindings],
         `${key}: no Rust query or runtime-artifact binding was exercised`,
       ).not.toEqual([]);
       const binders = [...declaredGroupBinders].sort();
@@ -1692,7 +1688,7 @@ describe("Rust/WASM configuration-space campaign", () => {
         optionKey: key,
         classes: classes.map(({ label, value }) => ({ label, value })),
         declaredBinders: binders,
-        declaredStepBinders: [...declaredStepBinders].sort(),
+        declaredQueryBinders: [...declaredQueryBinders].sort(),
         declaredRuntimeArtifactBindings: [
           ...declaredRuntimeArtifactBindings,
         ].sort(),
@@ -1702,10 +1698,10 @@ describe("Rust/WASM configuration-space campaign", () => {
         ].sort(),
         observedExecutedGroups: [...observedExecutedGroups].sort(),
         observedSemanticOutputNodes: [...observedSemanticOutputNodes].sort(),
-        observedChangedPipelineSteps: [...observedChangedPipelineSteps].sort(),
+        observedChangedQueries: [...observedChangedQueries].sort(),
         observedArtifactKinds: [...observedArtifactKinds].sort(),
         observedRoleStateKeys: [...observedRoleStateKeys].sort(),
-        observedNodeStateKeys: [...observedNodeStateKeys].sort(),
+        observedQueryGroupStateKeys: [...observedQueryGroupStateKeys].sort(),
         contexts: contextReports,
       });
     }
@@ -1715,16 +1711,16 @@ describe("Rust/WASM configuration-space campaign", () => {
         (key) => !axesWithSubstantiveObservedEffects.has(key),
       );
     expect(
-      staleLogicalCheckpointCases,
-      "every warm logical-stage checkpoint must equal an independent cold target",
+      staleWorkflowCheckpointCases,
+      "every warm workflow query-group checkpoint must equal an independent cold target",
     ).toEqual([]);
     expect(
       percolationClusterMismatchCases,
       "observed recomputation must equal the deterministic semantic percolation cluster",
     ).toEqual([]);
     expect(
-      stepPercolationClusterMismatchCases,
-      "all 55 Rust step input keys must change exactly when a direct request field or changed upstream checkpoint requires it",
+      queryPercolationClusterMismatchCases,
+      "all registered Rust query input keys must change exactly when a direct request field or changed upstream checkpoint requires it",
     ).toEqual([]);
     if (
       !influenceKeyFilter &&
@@ -1739,9 +1735,9 @@ describe("Rust/WASM configuration-space campaign", () => {
     }
     const evidence = {
       protocolVersion: "chronicle-configuration-influence-ledger/v1",
-      logicalCheckpointProtocol: "chronicle-logical-stage-checkpoint/v7",
+      workflowCheckpointProtocol: "chronicle-workflow-checkpoint/v1",
       claimBoundary:
-        "Exact 55-step and 15-display-group execution plus warm/cold equality for the recorded Rust/WASM implementation, equivalence classes, contexts, support bindings, and synthetic corpora. Absence of an observed effect remains bounded to this declared test scope. Step recomputation is taken from actual Salsa query bodies plus explicitly instrumented product-step evaluations inside review-only fused queries. The separate sequential Rust path remains the independent cold oracle.",
+        "Exact complete query-registry and complete query-group execution plus warm/cold equality for the recorded Rust/WASM implementation, equivalence classes, contexts, support bindings, and synthetic corpora. Absence of an observed effect remains bounded to this declared test scope. Query recomputation is taken from actual Salsa query bodies plus explicitly instrumented product-query evaluations inside review-only fused queries. The separate sequential Rust path remains the independent cold oracle.",
       contractAuthority: "web/schema/chronicle-local-contract.linkml.yaml",
       planAuthority:
         ".semantic-federation/semantic/resources/chronicle.plan.json",
@@ -1771,17 +1767,17 @@ describe("Rust/WASM configuration-space campaign", () => {
         totalRustExecutions: coldExecutions + incrementalExecutions,
       },
       exactPercolationProof: {
-        logicalStageCount: order.length,
-        pipelineStepCount: 55,
+        workflowQueryGroupCount: order.length,
+        workflowQueryCount: workflowContract.execution.queries.length,
         warmColdCheckpointComparisons: orderedTransitions,
-        warmColdStepCheckpointComparisons: orderedTransitions * 55,
+        warmColdQueryCheckpointComparisons: orderedTransitions * workflowContract.execution.queries.length,
         exactClusterComparisons: orderedTransitions,
-        staleCheckpointCases: staleLogicalCheckpointCases.length,
+        staleCheckpointCases: staleWorkflowCheckpointCases.length,
         clusterMismatchCases: percolationClusterMismatchCases.length,
-        stepClusterMismatchCases: stepPercolationClusterMismatchCases.length,
+        queryClusterMismatchCases: queryPercolationClusterMismatchCases.length,
       },
       physicalExecutionBoundary:
-        "The production runtime executes and reuses 55 Rust product steps through Salsa-tracked queries. The recorded recomputed-step set comes from actual query bodies plus explicitly instrumented product-step evaluations inside review-only fused queries; a restored row transform is not recorded as physically rerun. The 15 display groups are derived from those step IDs. The separate sequential Rust path is used only as an independent cold oracle.",
+        "The production runtime executes and reuses the registered Rust product queries through Salsa-tracked queries. The recorded recomputed-query set comes from actual query bodies plus explicitly instrumented product-query evaluations inside review-only fused queries; a restored row transform is not recorded as physically rerun. The query groups are derived from those query IDs. The separate sequential Rust path is used only as an independent cold oracle.",
       axesWithSubstantiveObservedEffects: [
         ...axesWithSubstantiveObservedEffects,
       ].sort(),

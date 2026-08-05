@@ -156,7 +156,7 @@ exclusion was added.
 | withdrawn from | expressions | mutants | why the reason was wrong | test that kills them now |
 | --- | ---: | ---: | --- | --- |
 | Review-cone Salsa equality | 13 | 16 | The class says an equality that reports "changed" for an unchanged value only costs reuse, and that "the opposite direction is what would be a defect and it is caught". Four types — `DecodedReviewBase`, `DecodedReconstructionBase`, `ReviewStaticAnnotations`, `ReviewUsageRowsBeforeFloor` — were nevertheless excluded in that opposite direction (`eq -> bool with true`), and re-running them showed **all sixteen** of their mutants missed, in both directions. Force `DecodedReviewBase::eq` to `true` and two persisted bases with different `encoded_digest` compare equal, so Salsa backdates `decoded_review_base` after recomputing it from other bytes and a review resumed against workspace base B keeps the rows reconstructed from base A. | `the_review_cone_equalities_separate_two_different_values` |
-| Allocation and buffer sizing | 1 | 4 | The class says a different reserve or growth step "produces the same parsed value and the same digest". `MAX_REVIEW_BASE_UNCOMPRESSED_BYTES` and `MAX_RECONSTRUCTION_BASE_UNCOMPRESSED_BYTES` are not sizing hints but hard reject bounds enforced in `encode_review_base`, `encode_reconstruction_base`, `verify_review_base_payload` and `verify_reconstruction_base_payload`. `128 * 1024 + 1024` = 132,096 bytes still clears every small fixture in the suite, so the whole step-16/step-28 typed resume would stop engaging on a real export with the gate green. | `the_resume_ceilings_stay_far_above_a_real_production_base` |
+| Allocation and buffer sizing | 1 | 4 | The class says a different reserve or growth step "produces the same parsed value and the same digest". `MAX_REVIEW_BASE_UNCOMPRESSED_BYTES` and `MAX_RECONSTRUCTION_BASE_UNCOMPRESSED_BYTES` are not sizing hints but hard reject bounds enforced in `encode_review_base`, `encode_reconstruction_base`, `verify_review_base_payload` and `verify_reconstruction_base_payload`. `128 * 1024 + 1024` = 132,096 bytes still clears every small fixture in the suite, so the whole review-event/reconstruction resume typed resume would stop engaging on a real export with the gate green. | `the_resume_ceilings_stay_far_above_a_real_production_base` |
 | Review-cone physical shortcuts | 2 | 4 | Same two ceilings, from the encode side: `> -> ==` and `> -> >=` on the reject bound. The exact boundary is now driven through `encode_review_base_within` / `encode_reconstruction_base_within`, which take the ceiling as an argument so at-ceiling and one-past-ceiling can both be exercised without serializing a 128 MiB base. | `a_base_is_encoded_at_the_ceiling_and_refused_one_byte_past_it` |
 
 The full reason for each class, and the tests that pin the invariant making it
@@ -265,8 +265,8 @@ Neither mutant was excluded to reach that state; the exclusion set is the same
 | mutant | what it broke | test |
 | --- | --- | --- |
 | `lib.rs:396:16: delete !` in `inspect_raw_file_v1` | every resolvable timezone was reported as invalid; the existing "clean file" test never asserted the advisory's absence | `the_invalid_timezone_advisory_names_only_timezones_chronicle_cannot_resolve` |
-| `lib.rs:1999:53: replace && with \|\|` and `:56: delete !` in `project_product_stages` | a warm review served a stale product-stage projection after an option edit | `a_warm_review_after_an_option_edit_projects_the_stages_a_cold_review_reports` |
-| `lib.rs:1999:30: delete !` in `project_product_stages` | a warm full repeat reused stage outputs and stopped publishing their artifacts | the stage-output assertion added to `warm_workspace_reuses_tracked_results_and_option_change_recomputes_exact_cone` |
+| `lib.rs:1999:53: replace && with \|\|` and `:56: delete !` in `project_query_groups` | a warm review served a stale query-group projection after an option edit | `a_warm_review_after_an_option_edit_projects_the_stages_a_cold_review_reports` |
+| `lib.rs:1999:30: delete !` in `project_query_groups` | a warm full repeat reused query-group outputs and stopped publishing their artifacts | the query-group-output assertion added to `warm_workspace_reuses_tracked_results_and_option_change_recomputes_exact_cone` |
 | `lib.rs:1073:17: replace && with \|\|` in `has_warm_review_input` | a warm review was claimed on a matching workspace root alone, resuming against a digest the engine never verified | `a_warm_review_needs_the_workspace_root_and_the_verified_input_together` |
 
 **3 eliminated with the code they mutated:** `lib.rs:1781:37`, `:54` and `:74`
@@ -305,7 +305,7 @@ different one.
 
 The key is now always built from the run's own inputs. The configuration
 influence ledger gains **864** previously suppressed
-`changedCompatibilityInputKeyNodes` entries across ten product stages and loses
+`changedCompatibilityInputKeyNodes` entries across ten query groups and loses
 none; no observed output, executed-step or artifact field moves.
 
 ### An exclusion that was hiding kills

@@ -3,7 +3,7 @@
 > **Historical backlog.** Keep the concrete behavior examples, but do not use
 > its old Python/TypeScript path references or multi-engine parity instructions
 > as current architecture. Processing now has one Rust/Salsa authority; current
-> status and paths are in `CLAUDE.md`, `README.md`, and the 55-step Rust plan.
+> status and paths are in `CLAUDE.md`, `README.md`, and the query-registry Rust plan.
 > `make parity` and `scripts/run_deterministic_web_parity.py` referenced below
 > were REMOVED with the desktop engine — the golden/cold-oracle gates replace
 > them; a "parity impact" note now means "changes golden-checked output".

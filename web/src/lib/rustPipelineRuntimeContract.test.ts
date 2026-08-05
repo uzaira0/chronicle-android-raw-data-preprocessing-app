@@ -3,6 +3,7 @@ import path from "node:path";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
+import { WORKFLOW_QUERY_IDS } from "@/lib/generatedInteractionTypes";
 import {
   decodeReviewRuntimeManifest,
   decodeRuntimeManifest,
@@ -10,6 +11,7 @@ import {
   queryPersistedRustReview,
   rustWasmMemoryBytes,
   queryRustReview,
+  setRustPersistenceForTesting,
   setRustRuntimeForTesting,
   verifyRuntimeArtifactCatalog,
   type RuntimeManifest,
@@ -204,15 +206,10 @@ const EXPECTED_SOURCE_COORDINATE_ROWS = 4_885;
 const EXPECTED_SOURCE_COORDINATE_BYTES = 37_866;
 const EXPECTED_RESULT_CELL_ROWS = 9_902;
 const EXPECTED_RESULT_CELL_BYTES = 45_810;
-// 64,658 -> 65,394 when the `exact-field` claim text was corrected: the class
-// carries the supplied value with surrounding whitespace removed, so the
-// metadata now says to compare trimmed source bytes rather than implying
-// `value_sha256` always equals `cell_value_sha256`. That is 352 characters of
-// schema metadata, which Arrow stores in both the schema message and the
-// footer, plus 8-byte alignment padding. The row count is deliberately
-// unchanged at 986 -- the witness DATA did not move, only what it says about
-// itself.
-const EXPECTED_INFLUENCE_WITNESS_BYTES = 65_394;
+// The policy-neutral matcher carve removed one obsolete dependency witness;
+// the checked v3 artifact therefore contains 985 rows in 65,210 bytes. Keep
+// both values exact because the published proof documents cite them.
+const EXPECTED_INFLUENCE_WITNESS_BYTES = 65_210;
 
 function representativeSourceFixture(): Uint8Array {
   const rows = [
@@ -329,6 +326,7 @@ function installFakeFullRuntime({
     implementation_build_digest: () => manifest.implementationDigest,
     build_environment_digest: () => manifest.buildEnvironmentDigest,
     runtime_identity_json: () => runtimeWasm.runtime_identity_json(),
+    workflow_contract_json: () => runtimeWasm.workflow_contract_json(),
     RuntimeSupportFiles: class {
       put() {}
       put_with_name() {}
@@ -521,11 +519,11 @@ const INVALID_CASES: Array<
     /derived_from\[0\].*non-empty string/,
   ],
   [
-    "unknown node execution status",
+    "unknown query-group execution status",
     (candidate) => {
-      firstRecord(candidate, "nodeExecutions").status = "silently_stale";
+      firstRecord(candidate, "queryGroupExecutions").status = "silently_stale";
     },
-    /nodeExecutions\[0\]\.status.*unknown execution status/,
+    /queryGroupExecutions\[0\]\.status.*unknown execution status/,
   ],
   [
     "qualification trace has an unknown decision",
@@ -575,7 +573,7 @@ const INVALID_CASES: Array<
     "checkpoint substitution",
     (candidate) => {
       const summary = record(candidate.processingSummary);
-      const checkpoints = record(summary.logicalStageCheckpoints);
+      const checkpoints = record(summary.workflowQueryGroupCheckpoints);
       const nodeId = firstKey(checkpoints);
       record(checkpoints[nodeId]).terminalDigest = `sha256:${"f".repeat(64)}`;
     },
@@ -585,7 +583,7 @@ const INVALID_CASES: Array<
     "checkpoint component uses the wrong digest family",
     (candidate) => {
       const checkpoints = record(
-        record(candidate.processingSummary).logicalStageCheckpoints,
+        record(candidate.processingSummary).workflowQueryGroupCheckpoints,
       );
       const nodeId = firstKey(checkpoints);
       record(checkpoints[nodeId]).payloadDigest = `sha256:${"a".repeat(64)}`;
@@ -596,11 +594,11 @@ const INVALID_CASES: Array<
     "checkpoint protocol is unsupported",
     (candidate) => {
       const checkpoints = record(
-        record(candidate.processingSummary).logicalStageCheckpoints,
+        record(candidate.processingSummary).workflowQueryGroupCheckpoints,
       );
       const nodeId = firstKey(checkpoints);
       record(checkpoints[nodeId]).protocolVersion =
-        "chronicle-logical-stage-checkpoint/v99";
+        "chronicle-workflow-checkpoint/v99";
     },
     /protocolVersion.*unsupported checkpoint protocol/,
   ],
@@ -608,10 +606,10 @@ const INVALID_CASES: Array<
     "checkpoint stage identity substitution",
     (candidate) => {
       const checkpoints = record(
-        record(candidate.processingSummary).logicalStageCheckpoints,
+        record(candidate.processingSummary).workflowQueryGroupCheckpoints,
       );
       const nodeId = firstKey(checkpoints);
-      record(checkpoints[nodeId]).nodeId = "different-node";
+      record(checkpoints[nodeId]).subjectId = "different-subject";
     },
     /checkpoint identity or terminal digest/,
   ],
@@ -619,19 +617,19 @@ const INVALID_CASES: Array<
     "empty stage checkpoint domain",
     (candidate) => {
       const summary = record(candidate.processingSummary);
-      summary.logicalStageDigests = {};
-      summary.logicalStageCheckpoints = {};
+      summary.workflowQueryGroupDigests = {};
+      summary.workflowQueryGroupCheckpoints = {};
     },
-    /digest and checkpoint domains must contain the same 15 identities/,
+    /digest, checkpoint, and execution-registry domains must contain the same identities/,
   ],
   [
     "stage digest and checkpoint domain mismatch",
     (candidate) => {
       const summary = record(candidate.processingSummary);
-      const checkpoints = record(summary.logicalStageCheckpoints);
+      const checkpoints = record(summary.workflowQueryGroupCheckpoints);
       delete checkpoints[firstKey(checkpoints)];
     },
-    /digest and checkpoint domains must contain the same 15 identities/,
+    /digest, checkpoint, and execution-registry domains must contain the same identities/,
   ],
   [
     "artifact metadata has a negative row count",
@@ -648,26 +646,26 @@ const INVALID_CASES: Array<
     /previewRows\[0\]\[1\].*expected a string/,
   ],
   [
-    "step execution has an unknown status",
+    "query execution has an unknown status",
     (candidate) => {
-      firstRecord(candidate, "stepExecutions").status = "silently_stale";
+      firstRecord(candidate, "queryExecutions").status = "silently_stale";
     },
-    /stepExecutions\[0\]\.status.*unknown execution status/,
+    /queryExecutions\[0\]\.status.*unknown execution status/,
   ],
   [
-    "step execution domain is incomplete",
+    "query execution domain is incomplete",
     (candidate) => {
-      array(candidate.stepExecutions).pop();
+      array(candidate.queryExecutions).pop();
     },
-    /expected exactly 55 unique Rust step executions/,
+    /query executions do not match the generated workflow registry/,
   ],
   [
-    "step execution output disagrees with its Rust checkpoint",
+    "query execution output disagrees with its Rust checkpoint",
     (candidate) => {
-      firstRecord(candidate, "stepExecutions").output_digest =
+      firstRecord(candidate, "queryExecutions").output_digest =
         `sha256:${"a".repeat(64)}`;
     },
-    /step execution output does not match its Rust checkpoint/,
+    /query execution output does not match its Rust checkpoint/,
   ],
   [
     "duplicate artifact identity",
@@ -698,14 +696,14 @@ const INVALID_CASES: Array<
     /duplicate role/,
   ],
   [
-    "duplicate node execution",
+    "duplicate query-group execution",
     (candidate) => {
-      const executions = array(candidate.nodeExecutions);
+      const executions = array(candidate.queryGroupExecutions);
       const duplicate = structuredClone(record(executions[0]));
       duplicate.capability_id = "duplicate-node-capability";
       executions.push(duplicate);
     },
-    /duplicate node/,
+    /query-group executions do not match the generated workflow registry/,
   ],
   [
     "missing materialization trace surface",
@@ -786,24 +784,33 @@ describe("Rust/WASM runtime manifest contract firewall", () => {
     [
       "an unknown execution status",
       (candidate: Record<string, unknown>) => {
-        firstRecord(candidate, "stepExecutions").status = "silently_stale";
+        firstRecord(candidate, "queryExecutions").status = "silently_stale";
       },
-      /reviewManifest\.stepExecutions\[0\]\.status.*unknown execution status/,
+      /reviewManifest\.queryExecutions\[0\]\.status.*unknown execution status/,
     ],
     [
-      "an incomplete step domain",
+      "an incomplete query domain",
       (candidate: Record<string, unknown>) => {
-        array(candidate.stepExecutions).pop();
+        array(candidate.queryExecutions).pop();
       },
-      /expected exactly 55 unique Rust step executions/,
+      /query executions do not match the generated workflow registry/,
     ],
     [
-      "duplicate step identities",
+      "duplicate query identities",
       (candidate: Record<string, unknown>) => {
-        const steps = array(candidate.stepExecutions);
-        record(steps[1]).step_id = record(steps[0]).step_id;
+        const queries = array(candidate.queryExecutions);
+        const source = queries.find(
+          (query) => record(query).query_id === "validate_remap_rules",
+        );
+        const target = queries.find(
+          (query) => record(query).query_id !== "validate_remap_rules",
+        );
+        if (source === undefined || target === undefined) {
+          throw new Error("query execution fixture lacks distinct registered identities");
+        }
+        record(target).query_id = record(source).query_id;
       },
-      /expected exactly 55 unique Rust step executions/,
+      /query executions do not match the generated workflow registry/,
     ],
     [
       "an unknown cache source",
@@ -830,23 +837,23 @@ describe("Rust/WASM runtime manifest contract firewall", () => {
 
   it("maps every valid review execution status to its exact step identity", () => {
     const candidate = structuredClone(reviewManifest);
-    const steps = array(candidate.stepExecutions).map(record);
-    const stepAt = (index: number): Record<string, unknown> => {
-      const step = steps[index];
+    const queries = array(candidate.queryExecutions).map(record);
+    const queryAt = (index: number): Record<string, unknown> => {
+      const step = queries[index];
       if (step === undefined) throw new Error(`fixture manifest has no step ${index}`);
       return step;
     };
     const statuses = ["recomputed", "cached", "bypassed", "skipped", "error"];
     statuses.forEach((status, index) => {
-      stepAt(index).status = status;
+      queryAt(index).status = status;
     });
 
     const decoded = decodeReviewRuntimeManifest(candidate);
-    expect(decoded.recomputedStepIds).toContain(stepAt(0).step_id);
-    expect(decoded.cachedStepIds).toContain(stepAt(1).step_id);
-    expect(decoded.bypassedStepIds).toContain(stepAt(2).step_id);
-    expect(decoded.skippedStepIds).toContain(stepAt(3).step_id);
-    expect(decoded.errorStepIds).toEqual([stepAt(4).step_id]);
+    expect(decoded.recomputedQueryIds).toContain(queryAt(0).query_id);
+    expect(decoded.cachedQueryIds).toContain(queryAt(1).query_id);
+    expect(decoded.bypassedQueryIds).toContain(queryAt(2).query_id);
+    expect(decoded.skippedQueryIds).toContain(queryAt(3).query_id);
+    expect(decoded.errorQueryIds).toEqual([queryAt(4).query_id]);
   });
 
   it.each([
@@ -1736,7 +1743,7 @@ describe("Rust/WASM runtime manifest contract firewall", () => {
     ).not.toThrow();
   });
 
-  it("keeps all 55 query results warm when OPFS persistence is disabled", async () => {
+  it("keeps the entire query registry warm when OPFS persistence is disabled", async () => {
     const raw = new TextEncoder().encode(
       [
         "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
@@ -1778,17 +1785,18 @@ describe("Rust/WASM runtime manifest contract firewall", () => {
       first.manifest.workspaceRootDigest,
     );
     expect(
-      second.manifest.stepExecutions.filter(
+      second.manifest.queryExecutions.filter(
         ({ status }) => status === "recomputed" || status === "error",
       ),
     ).toEqual([]);
     const runSpecificArtifacts = new Set([
       "execution-ledger-json",
+      "workflow-provenance-jsonld",
       "semantic-index-source-json",
       "correspondence-index-json",
       "evidence-journal",
       "execution-state-json",
-      "stage-view-json",
+      "workflow-explorer-view-json",
       "artifact-view-json",
       "obligation-view-json",
       "explanation-view-json",
@@ -1863,7 +1871,7 @@ describe("Rust/WASM runtime manifest contract firewall", () => {
       );
       expect([...first.artifacts.keys()].sort()).toEqual([
         "execution-ledger-json",
-        "stage-view-json",
+        "workflow-explorer-view-json",
       ]);
 
       const review = await queryPersistedRustReview(
@@ -1892,14 +1900,14 @@ describe("Rust/WASM runtime manifest contract firewall", () => {
       );
       expect(timezoneReview).not.toBeNull();
       expect(timezoneReview?.cacheSources).toEqual(["salsa-memory"]);
-      expect(timezoneReview?.recomputedStepIds).toEqual([
-        "select_timezone_strategy",
-        "restamp_rows",
-        "row_count_report",
-        "relabel_usage_with_floor",
-        "junk_downstream_mark",
-        "sort_episodes",
-        "assemble_result",
+      expect(timezoneReview?.recomputedQueryIds).toEqual([
+        "resolve_timezone_strategy",
+        "standardize_event_clock",
+        "summarize_row_selection",
+        "classify_episode_durations",
+        "apply_app_inclusion_policy",
+        "order_app_episodes",
+        "assemble_result_manifest",
       ]);
       expect(lockRequest).toHaveBeenCalledTimes(3);
       expect(lockRequest.mock.calls.map(([, options]) => options.mode)).toEqual(
@@ -1945,18 +1953,23 @@ describe("Rust/WASM runtime manifest contract firewall", () => {
     expect(review.reviewSummaryJsonBytes).toEqual(
       full.artifacts.get("review-summary-json"),
     );
-    expect(review.cachedStepIds).toHaveLength(35);
-    expect(review.recomputedStepIds).toEqual([
+    expect(review.recomputedQueryIds).toEqual([
       "resolve_participant_windows",
-      "filter_rows_to_window",
+      "apply_participant_windows",
       "resolve_sharing_status",
-      "attribute_rows",
-      "inject_placeholders",
-      "assemble_result",
+      "classify_person_attribution",
+      "synthesize_placeholder_rows",
+      "assemble_result_manifest",
     ]);
-    expect(review.bypassedStepIds).toHaveLength(13);
-    expect(review.skippedStepIds).toEqual(["build_raw_date_index"]);
-    expect(review.errorStepIds).toEqual([]);
+    expect(review.skippedQueryIds).toEqual(["index_raw_dates"]);
+    expect(review.errorQueryIds).toEqual([]);
+    expect(
+      review.cachedQueryIds.length +
+        review.recomputedQueryIds.length +
+        review.bypassedQueryIds.length +
+        review.skippedQueryIds.length +
+        review.errorQueryIds.length,
+    ).toBe(WORKFLOW_QUERY_IDS.length);
     expect(review.comparisonDigest).toMatch(/^sha256:[0-9a-f]{64}$/);
   });
 
@@ -1977,14 +1990,14 @@ describe("Rust/WASM runtime manifest contract firewall", () => {
       {
         obligation_id: "obligation:filter-file",
         role_id: "role:filter-file",
-        node_id: "filter-rows",
+        query_group_id: "filter-rows",
         state: "open",
         reason_id: "reason:missing-filter-file",
       },
       {
         obligation_id: "obligation:workspace",
         role_id: "role:workspace",
-        node_id: null,
+        query_group_id: null,
         state: "blocked",
         reason_id: "reason:workspace-blocked",
       },
@@ -1998,7 +2011,7 @@ describe("Rust/WASM runtime manifest contract firewall", () => {
           state: "open",
         },
         {
-          node_id: null,
+          query_group_id: null,
           state: "blocked",
         },
       ],
@@ -2007,12 +2020,12 @@ describe("Rust/WASM runtime manifest contract firewall", () => {
 
   it("accepts an explicit no-output node execution without inventing an artifact", () => {
     const candidate = cloneManifest();
-    const firstExecution = candidate.nodeExecutions[0];
+    const firstExecution = candidate.queryGroupExecutions[0];
     if (firstExecution === undefined) throw new Error("fixture manifest has no node executions");
     firstExecution.output = null;
 
     expect(
-      decodeRuntimeManifest(candidate).nodeExecutions[0]?.output,
+      decodeRuntimeManifest(candidate).queryGroupExecutions[0]?.output,
     ).toBeNull();
   });
 
@@ -2036,21 +2049,29 @@ describe("Rust/WASM runtime manifest contract firewall", () => {
   });
 
   it("rejects durable mutation when Web Locks are unavailable", async () => {
-    await expect(
-      executeRustRuntime(
-        new TextEncoder().encode("header\n"),
-        "no-web-locks.csv",
-        {
-          ...DEFAULT_BROWSER_OPTIONS,
-          timezoneHandling: "primary-convert",
-        },
-        undefined,
-        {
-          datetimeOfPreprocessing: "2026-07-22 00:00:00 UTC",
-          persistRustWorkspace: true,
-        },
-      ),
-    ).rejects.toThrow(/Durable processing requires the browser Web Locks API/);
+    const priorNavigator = globalThis.navigator;
+    setRustPersistenceForTesting(null);
+    vi.stubGlobal("navigator", {});
+    try {
+      await expect(
+        executeRustRuntime(
+          new TextEncoder().encode("header\n"),
+          "no-web-locks.csv",
+          {
+            ...DEFAULT_BROWSER_OPTIONS,
+            timezoneHandling: "primary-convert",
+            useAppCodebook: false,
+          },
+          undefined,
+          {
+            datetimeOfPreprocessing: "2026-07-22 00:00:00 UTC",
+            persistRustWorkspace: true,
+          },
+        ),
+      ).rejects.toThrow(/Durable processing requires the browser Web Locks API/);
+    } finally {
+      vi.stubGlobal("navigator", priorNavigator);
+    }
   });
 
   it("bounds the exact source-coordinate sidecar on a 600-event fixture", async () => {
@@ -2119,7 +2140,7 @@ describe("Rust/WASM runtime manifest contract firewall", () => {
     // scope for the output kinds that have no row lineage. v3 then moved the
     // search-window bounds into their own `lineage-search-window` key kind and
     // named index space, which changes the encoded size but not the row count.
-    expect(influenceMetadata?.rowCount).toBe(986);
+    expect(influenceMetadata?.rowCount).toBe(985);
     expect(influenceMetadata?.size).toBe(influenceBytes?.byteLength);
     // Pinned exactly, not merely bounded. `docs/semantic-federation` publishes
     // this byte count, and a bound of 262,144 let the published figure drift

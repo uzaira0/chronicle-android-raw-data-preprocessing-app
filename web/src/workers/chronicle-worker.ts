@@ -9,7 +9,7 @@ import {
   initializeRustRuntime,
   verifyPersistedRustWorkspace,
   getRustRuntimeVersion,
-  getRustPlanStageView,
+  getRustWorkflowExplorerView,
   inspectRustRawFile,
   readPersistedRustWorkspaceHead,
   readVerifiedSemanticIndexSnapshot,
@@ -37,6 +37,7 @@ import type {
   BrowserSupportFiles,
   ProcessedFileResult,
   ProgressEvent,
+  WorkflowExplorerSupportRole,
 } from "@/lib/types";
 import { comparisonSupportCacheKey } from "@/lib/comparisonSupportKey";
 
@@ -161,8 +162,11 @@ const api = {
   async initializeRuntime(compiledModule: WebAssembly.Module): Promise<void> {
     await initializeRustRuntime(compiledModule);
   },
-  planStageView(options: BrowserProcessingOptions) {
-    return getRustPlanStageView(options);
+  workflowExplorerView(
+    options: BrowserProcessingOptions,
+    supportRoles: WorkflowExplorerSupportRole[] = [],
+  ) {
+    return getRustWorkflowExplorerView(options, supportRoles);
   },
   /**
    * Probe durable storage from the thread that actually persists it. Every

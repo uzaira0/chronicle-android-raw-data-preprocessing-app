@@ -4,7 +4,7 @@ This repository is the first full implementation target for the generalized
 semantic federation. It already proves the shared profile, qualification,
 storage, provenance, browser, and product-ownership boundaries described below.
 The kernel proves minimal reuse for unchanged and output-only changes across
-55 real tracked Rust computations, plus complete parity in all four usage
+the registered tracked Rust computations, plus complete parity in all usage
 modes. Browser reload and worker replacement, the configuration/support/binding
 intervention campaigns, and runtime provenance from actual query events are now
 implemented and checked on `main`. What it does **not** yet prove is listed in
@@ -12,21 +12,19 @@ implemented and checked on `main`. What it does **not** yet prove is listed in
 [final review matrix](final-review-matrix.md); those items are open, not
 softened.
 
-`main` at `3c598ee` contains 55 Salsa-tracked Rust product computations and a
-stateful engine that produces complete `PipelineV2Result` values. Twenty-four
-internal derived-cache queries are observable separately and are not product
-steps; `pipeline_v2_incremental.rs` therefore holds 79 `#[salsa::tracked]`
-functions of which exactly 55 are product transformations.
-Runtime computation and step reporting consume actual executed-step IDs. There is no second
-TypeScript scheduler: Rust groups the 55 step events into 15 readable UI
-sections after execution. The generated empirical evidence is no longer stale:
+The runtime contains registered Salsa-tracked Rust product computations and a
+stateful engine that produces complete `PipelineV2Result` values. Internal
+derived-cache queries are observable separately and are not semantic
+operations. Runtime computation and query reporting consume actual
+executed-query IDs. There is no second TypeScript scheduler: Rust projects query
+events into readable views after execution. The generated empirical evidence is no longer stale:
 all six implementation-bound dependency ledgers and the dependency certificate
 were regenerated with `make dependency-evidence` on this merged provenance
 wave, not on the `3c598ee` tree the earlier revision of this document cited,
 and `cargo test --locked --manifest-path
 rust/chronicle_preprocessing_runtime_wasm/Cargo.toml` reports `69 passed;
 0 failed; 3 ignored`, with zero stale-receipt failures. The authoritative live status and remaining checks
-are in the [55-step incremental Rust plan](55-step-incremental-rust-plan.md).
+are in the [query-registry incremental Rust plan](incremental-runtime-plan.md).
 This document is still not a completed production claim, but the list of what is
 unproven is shorter than it was. The first provenance wave closed cross-browser
 durability, large-file memory and crash injection, streaming archive
@@ -60,8 +58,8 @@ flowchart LR
     A["Rust role assignments"]
     O["Open obligations and node states"]
     K["Salsa tracks the values each Rust step actually reads"]
-    P["55 tracked Rust computations with typed reused results"]
-    E["Actual step events grouped into 15 product views"]
+    P["Registered Rust queries with typed reused results"]
+    E["Actual query events projected into workflow views"]
     C["Verified artifact closure and OPFS root"]
     V["Typed stage, artifact, obligation and explanation views"]
     U["TypeScript rendering and interaction"]
@@ -73,21 +71,20 @@ The product plan declares exact roles, cardinalities, media types, options,
 applicability, bypass conditions, logical dependencies, and capability IDs.
 Ingestion hashes immutable candidates. Rust assigns valid candidates to roles;
 missing required roles remain explicit obligations. The tracked engine exposes
-each relevant source, support file, and option as Salsa inputs. Each of the 55
-queries reads only the values and upstream results it needs. Salsa reuses a
+each relevant source, support file, and option as Salsa inputs. Each query reads
+only the values and upstream results it needs. Salsa reuses a
 typed result when its dependencies remain valid and stops propagation when a
 recomputed value is equal.
 
-The fused path remains an independent cold oracle during migration. The old
-15-group input keys remain temporarily for provenance compatibility and gap
-detection; they must not decide which physical query executes after cutover.
+The fused path remains an independent cold oracle. Query-group input keys are
+provenance projections only; they never decide which physical query executes.
 
 ## Chronicle raw-data preprocessing authority
 
 Rust/WASM owns:
 
 - raw and support-file parsing, validation and normalization;
-- the complete 15-node/55-step plan, capability registry and scheduler;
+- the complete query-group/query-registry plan, capability registry and scheduler;
 - proximity matching, concurrent splitting, app/screen computation,
   attribution, coverage, compliance, aggregates and exports;
 - CSV, Parquet, SPSS, Arrow row lineage, and normalized result-cell
@@ -104,7 +101,7 @@ TypeScript owns only:
 - chart, graph, timeline and settings interaction/rendering;
 - download container and presentation formatting around Rust-owned artifacts.
 
-Production code does not import the retired TypeScript graph engine or its 55
+Production code does not import the retired TypeScript graph engine or its old
 step bodies. The old engine remains test-only as a byte-for-byte migration
 oracle and cannot be selected as production authority.
 
@@ -139,18 +136,18 @@ recalculates from it. No opaque query cache can hide a required computation.
 ## Dependency decisions
 
 - The scheduler remains product-owned; there is no federation-wide engine. The
-  existing custom 15-group scheduler has no physical execution authority. The previously approved
+  existing custom query-group scheduler has no physical execution authority. The previously approved
   Salsa trial now passes representative native/headless-browser WASM,
   actual-read, execution-event, early-cutoff, and qualification-hole tests.
   The measured trial—including the reason its snapshot path was removed—is in
   [the product-trial report](../perf/SALSA_PRODUCT_TRIAL.md). Salsa `0.28.1` is selected
-  and all 55 real step queries now pass native complete-result parity, exact
+  and all registered real step queries now pass native complete-result parity, exact
   unchanged reuse, output-only invalidation, Clippy, and browser-WASM compile
   checks. The broader actual-read campaigns, runtime event truth, and the
-  step-16/step-28 persistence-safety checks have run and are checked in;
+  review-event/reconstruction resume persistence-safety checks have run and are checked in;
   cross-browser durability and large-file memory/crash injection have not. The
   comparison with the other researched Rust incremental libraries is closed in
-  the [authoritative plan](55-step-incremental-rust-plan.md#existing-software-decision).
+  the [authoritative plan](incremental-runtime-plan.md#existing-software-decision).
   If a
   mandatory condition fails, Chronicle retains the bounded product memo
   fallback against the same tests rather than changing the product contract.
@@ -219,22 +216,22 @@ all 46 computational axes. The ledger records exact changed node input keys,
 execution statuses, role/node states, obligations, counts, summaries, and
 artifact digests under the semantic implementation receipt. This turns the
 empirical result into a permanent anti-staleness contract rather than a manual
-observation. All 1,380 transitions compare all 15 logical checkpoints with an
+observation. All 1,380 transitions compare all logical workflow checkpoints with an
 independent cold target and compare the observed invalidation set with the
 deterministically predicted semantic percolation cluster. Both mismatch counts
 are zero. This proves logical minimality for the recorded scope. The checked
 ledger was regenerated against the physical query executor with
 `make dependency-evidence` on this merged wave; it carries this tree's
 implementation receipt rather than a pre-cutover or lane-branch one. In the current
-implementation, actual Salsa `WillExecute` events, not the old 15-stage cache
+implementation, actual Salsa `WillExecute` events, rather than a presentation-group cache
 projection, are the only source for physical `cached` versus `recomputed`
 status.
 
 Code and contract changes are also explicit intervention dimensions. Every
-logical node input key commits independently to (1) the production Rust source,
+workflow query group input key commits independently to (1) the production Rust source,
 Rust compiler, target, profile, feature and flag identity and (2) the embedded
 product-plan/runtime-authority contract digest. A change to either invalidates
-all logical nodes, and separate scheduler tests prove both paths. Keeping the
+all workflow query groups, and separate scheduler tests prove both paths. Keeping the
 two digests separate makes the explanation truthful: a cache miss can be
 attributed to executable drift or semantic-contract drift instead of a generic
 version bump. Test-only Rust items and statements are removed before the
@@ -264,7 +261,7 @@ explicitly excluded from preprocessing keys. It also binds all ten root roles
 binder, the exact plan digest, and a canonical digest of that complete binding
 surface. An unclassified or missing runtime option, a plan/certificate or
 binding-surface mismatch, or an unknown certificate protocol disables narrow
-reuse and gives every logical node one conservative full-context key. An
+reuse and gives every workflow query group one conservative full-context key. An
 unknown role still fails closed because silently accepting an unregistered
 source would be less safe than recomputing it.
 
@@ -292,7 +289,7 @@ raw/support source roles from the six existing deterministic corpora, then
 crosses that role intervention with all 50 valid alternate configuration
 values across the 46 computational axes. All 450 role/value pairs execute in
 both orders—data then configuration and configuration then data—and both paths
-must equal an independent cold Rust/WASM target at every logical checkpoint,
+must equal an independent cold Rust/WASM target at every workflow checkpoint,
 output artifact, and canonical output cell. The nine process-recycled shards
 perform 3,620 executions, 2,700 warm/cold comparisons, and 900 exact cone
 comparisons. They identify 150 pairs where context introduces or masks a
@@ -332,7 +329,7 @@ On the checked 600-event fixture, the source index contains 4,885 coordinates
 in 37,866 bytes (0.62 times the 60,719 bytes of raw CSV plus canonical
 configuration JSON) and is guarded by a bounded-ratio regression.
 `result-cell-correspondence-arrow` assigns every canonical CSV cell and JSON
-leaf an exact address and value digest, records its terminal logical node, and
+leaf an exact address and value digest, records its terminal workflow query group, and
 joins row-addressed CSV cells exactly to `row-lineage-arrow`. The Arrow batch
 uses dictionary encoding plus LZ4 frame compression. On the checked 600-event
 representative fixture it contains 9,902 cells in 45,810 bytes, 0.51 times
@@ -342,8 +339,8 @@ contributor sets are conservative, and semantic dependencies are
 declared-transitive.
 
 `source-result-influence-arrow` makes those precision boundaries executable.
-Its protocol is now `chronicle-source-result-influence/v3` and it contains 986
-normalized witness rows in 65,394 bytes on the same fixture. The first
+Its protocol is now `chronicle-source-result-influence/v3` and it contains 985
+normalized witness rows in 65,210 bytes on the same fixture. The first
 Cartesian prototype (measured on the development fixture during design) emitted
 240,540 rows and 13,759,858 bytes; normalization reduces the bridge by two
 orders of magnitude while preserving lossless joins into the source-coordinate,
@@ -548,7 +545,7 @@ a separate UI/oracle boundary measurement, not a substitute for Rust authority
 coverage. The chrono-kernel mutation ledger is
 [docs/validation/KERNEL_MUTATION.md](../validation/KERNEL_MUTATION.md).
 
-This work now lives on `main`: PR #81 (`121e7b5`) landed the 55-step Rust/WASM
+This work now lives on `main`: PR #81 (`121e7b5`) landed the query-registry Rust/WASM
 single-engine cutover and PR #88 (`3c598ee`) landed the source-result influence
 witness, both as squash merges. Landing on `main` is not a deployment.
 `web-pwa-deploy.yml` is `workflow_dispatch` only since PR #85 (`b315858`), the

@@ -42,7 +42,7 @@ CARGO_TARGET_DIR="$target_dir" cargo build \
   --example profile_pipeline_v2 \
   --features incremental-v2
 
-metadata="$results_dir/chronicle-55-step-profile-metadata.txt"
+metadata="$results_dir/chronicle-incremental-runtime-profile-metadata.txt"
 {
   printf 'captured_utc=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   printf 'commit=%s\n' "$(git rev-parse HEAD)"
@@ -59,7 +59,7 @@ metadata="$results_dir/chronicle-55-step-profile-metadata.txt"
   printf 'incremental_source_sha256=%s\n' "$(shasum -a 256 rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs | awk '{print $1}')"
 } > "$metadata"
 
-: > "$results_dir/chronicle-55-step-native-cases.txt"
+: > "$results_dir/chronicle-incremental-runtime-native-cases.txt"
 for case_name in \
   unchanged \
   upstream_timezone_policy \
@@ -71,7 +71,7 @@ for case_name in \
 do
   for _ in $(seq 1 "$runs"); do
     "$executable" --rows "$rows" --mode incremental --case "$case_name" \
-      >> "$results_dir/chronicle-55-step-native-cases.txt"
+      >> "$results_dir/chronicle-incremental-runtime-native-cases.txt"
   done
 done
 
@@ -79,12 +79,12 @@ hyperfine \
   --warmup 1 \
   --runs "$runs" \
   --command-name "tracked Rust cold, ${rows} rows" \
-  --export-json "$results_dir/chronicle-55-step-after-hyperfine.json" \
+  --export-json "$results_dir/chronicle-incremental-runtime-after-hyperfine.json" \
   "$executable --rows $rows --mode incremental --case cold_benchmark"
 
 /usr/bin/time -l "$executable" --rows "$rows" --mode incremental --case cold_benchmark \
   > "$work_dir/cold-memory.stdout.txt" \
-  2> "$results_dir/chronicle-55-step-native-memory.txt"
+  2> "$results_dir/chronicle-incremental-runtime-native-memory.txt"
 
 (
   cd "$flamegraph_work_dir"
@@ -93,7 +93,7 @@ hyperfine \
     --example profile_pipeline_v2 \
     --features incremental-v2 \
     --profile profiling \
-    --output "$results_dir/chronicle-55-step-after-cold.svg" \
+    --output "$results_dir/chronicle-incremental-runtime-after-cold.svg" \
     -- \
     --rows "$rows" \
     --mode incremental \
@@ -103,8 +103,8 @@ hyperfine \
 samply record \
   --save-only \
   --unstable-presymbolicate \
-  --profile-name chronicle-55-step-after-cold \
-  --output "$results_dir/chronicle-55-step-after-cold.json.gz" \
+  --profile-name chronicle-incremental-runtime-after-cold \
+  --output "$results_dir/chronicle-incremental-runtime-after-cold.json.gz" \
   -- \
   "$executable" \
   --rows "$rows" \

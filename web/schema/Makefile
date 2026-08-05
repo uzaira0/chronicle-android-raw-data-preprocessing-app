@@ -8,17 +8,17 @@
 # byte-identical .ttl.
 #
 # These artifacts are DESCRIPTIVE scaffolding — they never touch the algorithm
-# outputs the golden harness locks (docs/pipeline-graph/13-research-ontology-design.md).
+# outputs the workflow validation harness locks (docs/workflow/research-ontology-design.md).
 
 .DELETE_ON_ERROR:
-.PHONY: all owl shacl pydantic json-schema sqlddl merge-axioms repro-check methods-doc methods-doc-check validate validate-sidecar check clean
+.PHONY: all owl shacl pydantic json-schema sqlddl merge-axioms repro-check methods-doc methods-doc-check validate validate-workflow emit-sidecar validate-sidecar check clean
 
 LINKML := uvx --from linkml==1.10.0
 # linkml (for linkml-convert) + pyshacl in one ephemeral env for the axiom test.
 VALIDATE_ENV := uvx --from linkml==1.10.0 --with pyshacl
 SCHEMA := chronicle-research-ontology.linkml.yaml
 CONTRACT := chronicle-local-contract.linkml.yaml
-GRAPH    := chronicle-pipeline-graph.yaml
+GRAPH    := chronicle-workflow.yaml
 GEN    := generated
 AXIOMS := axioms
 
@@ -35,6 +35,7 @@ MERGED    := $(GEN)/shacl/merged.shacl.ttl
 PYDANTIC  := $(GEN)/pydantic/chronicle_research_ontology.py
 JSONSCHEMA:= $(GEN)/json-schema/chronicle-research-ontology.schema.json
 DDL       := $(GEN)/sql/chronicle-research-ontology.ddl.sql
+RUNTIME_CRATE := ../../rust/chronicle_preprocessing_runtime_wasm
 
 all: owl shacl pydantic json-schema sqlddl merge-axioms methods-doc
 
@@ -88,7 +89,8 @@ $(MERGED): $(SHACL_TTL) $(wildcard $(AXIOMS)/*.shacl.ttl) tools/canonicalize_ttl
 # recipe) on purpose — a byte-repro guard must not call the recipe it verifies, so
 # any drift between the production merge and this one surfaces as a diff failure.
 repro-check: all
-	@set -e; tmp=$$(mktemp -d); trap 'rm -rf $$tmp' EXIT; \
+	@mkdir -p tests/.artifacts
+	@set -e; tmp=$$(mktemp -d tests/.artifacts/repro.XXXXXX); trap 'rm -rf $$tmp' EXIT; \
 	$(LINKML) gen-owl $(SCHEMA) > $$tmp/o.tmp; $(LINKML) python tools/canonicalize_ttl.py $$tmp/o.tmp $$tmp/owl.ttl; \
 	$(LINKML) gen-shacl $(SCHEMA) > $$tmp/s.tmp; $(LINKML) python tools/canonicalize_ttl.py $$tmp/s.tmp $$tmp/shacl.ttl; \
 	cat $$tmp/shacl.ttl > $$tmp/merged.ttl; \
@@ -113,7 +115,8 @@ $(METHODS_DOC): $(SCHEMA) $(CONTRACT) $(GRAPH) $(METHODS_GEN)
 # INDEPENDENTLY (not via the $(METHODS_DOC) recipe) so any drift surfaces as a
 # diff failure. Must exit 0.
 methods-doc-check: methods-doc
-	@set -e; tmp=$$(mktemp); trap 'rm -f $$tmp' EXIT; \
+	@mkdir -p tests/.artifacts
+	@set -e; tmp=$$(mktemp tests/.artifacts/methods.XXXXXX); trap 'rm -f $$tmp' EXIT; \
 	$(LINKML) python $(METHODS_GEN) $$tmp; \
 	diff -u $(METHODS_DOC) $$tmp; \
 	echo "methods-doc-check OK: docs/METHODS.md is byte-stable"
@@ -123,17 +126,28 @@ methods-doc-check: methods-doc
 validate: $(MERGED)
 	$(VALIDATE_ENV) python tests/validate_axioms.py
 
-# Loop closure: emit a REAL sidecar from a golden pipeline run (web toolchain),
-# then SHACL-validate it against the SAME merged shapes graph — proves the
-# runtime NodeExecution/StepDefinition lineage ledger conforms to the ontology.
+# Validate the generated YAML as an actual instance of the workflow classes
+# authored in the local LinkML contract. The validator also requires a broken
+# nested-operation fixture to fail, proving the gate has teeth.
+validate-workflow: $(GRAPH) $(CONTRACT) tests/validate_workflow_projection.py
+	$(VALIDATE_ENV) python tests/validate_workflow_projection.py
+
+# Loop closure: call the production Rust provenance builder through a thin Rust
+# fixture binary, then SHACL-validate those exact bytes against the same merged
+# shapes graph used for canonical ontology instances. TypeScript is not an
+# authority or fixture generator anywhere in this path.
 SIDECAR := tests/.artifacts/chronicle-provenance.jsonld
-validate-sidecar: $(MERGED)
-	cd .. && bunx vite-node scripts/emit_golden_sidecar.mts schema/$(SIDECAR)
+emit-sidecar:
+	@mkdir -p $(dir $(SIDECAR))
+	cargo run --quiet --locked --manifest-path $(RUNTIME_CRATE)/Cargo.toml --bin export_workflow_provenance > $(SIDECAR)
+
+validate-sidecar: $(MERGED) emit-sidecar
 	$(VALIDATE_ENV) python tests/validate_sidecar.py $(SIDECAR)
 
 # Full local verification: artifacts are byte-stable, the methods doc is
-# byte-stable, the axioms constrain, and the real runtime sidecar conforms.
-check: repro-check methods-doc-check validate validate-sidecar
+# byte-stable, both LinkML instances validate, the axioms constrain, and the
+# Rust runtime sidecar conforms.
+check: repro-check methods-doc-check validate validate-workflow validate-sidecar
 
 clean:
 	rm -rf $(GEN)

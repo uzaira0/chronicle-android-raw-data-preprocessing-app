@@ -16,8 +16,8 @@ pub struct ChroniclePlan {
     pub revision: String,
     pub family: String,
     pub root_roles: Vec<RootRole>,
-    pub nodes: Vec<PlanNode>,
-    pub steps: Vec<PlanStep>,
+    pub query_groups: Vec<PlanQueryGroup>,
+    pub queries: Vec<PlanQuery>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -176,12 +176,12 @@ pub struct KnobBinding {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct PlanNode {
-    pub node_id: String,
+pub struct PlanQueryGroup {
+    pub query_group_id: String,
     pub label: String,
     pub section: String,
     pub capability_id: String,
-    pub input_nodes: Vec<String>,
+    pub input_query_groups: Vec<String>,
     pub output_role: String,
     pub knobs: Vec<KnobBinding>,
     pub support_roles: Vec<String>,
@@ -193,31 +193,31 @@ pub struct PlanNode {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct PlanStep {
-    pub step_id: String,
-    pub unit_id: String,
+pub struct PlanQuery {
+    pub query_id: String,
+    pub query_group_id: String,
     pub label: String,
     pub description: String,
     pub capability_id: String,
-    pub input_steps: Vec<String>,
+    pub input_queries: Vec<String>,
     #[serde(default)]
     pub request_fields: Vec<String>,
     #[serde(default)]
-    pub source_role_bindings: Vec<PlanStepSourceRoleBinding>,
+    pub source_role_bindings: Vec<PlanQuerySourceRoleBinding>,
     pub applicability: Condition,
     pub can_bypass: bool,
     pub binding_set_id: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct PlanStepSourceRoleBinding {
+pub struct PlanQuerySourceRoleBinding {
     pub role: String,
-    pub when_all: Vec<PlanStepSourceRolePredicate>,
+    pub when_all: Vec<PlanQuerySourceRolePredicate>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "operator", rename_all = "snake_case")]
-pub enum PlanStepSourceRolePredicate {
+pub enum PlanQuerySourceRolePredicate {
     BooleanEquals {
         request_field: String,
         value: bool,
@@ -275,7 +275,7 @@ pub enum ExecutionStatus {
 pub struct OpenObligation {
     pub obligation_id: String,
     pub role_id: String,
-    pub node_id: Option<String>,
+    pub query_group_id: Option<String>,
     pub state: MaterializationState,
     pub reason_id: String,
 }
@@ -290,8 +290,8 @@ pub struct StateReason {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct NodeExecution {
-    pub node_id: String,
+pub struct QueryGroupExecution {
+    pub query_group_id: String,
     pub capability_id: String,
     pub status: ExecutionStatus,
     pub input_key: Sha256Digest,
