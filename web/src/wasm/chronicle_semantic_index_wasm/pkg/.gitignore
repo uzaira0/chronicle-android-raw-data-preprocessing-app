@@ -1,1 +1,9 @@
+# These generated files are committed deploy inputs. Keep new wasm-bindgen
+# outputs visible so a local build cannot silently leave the deploy incomplete.
 *
+!.gitignore
+!LICENSE
+!*.js
+!*.ts
+!*.wasm
+!package.json
