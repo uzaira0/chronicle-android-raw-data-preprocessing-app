@@ -257,7 +257,6 @@ web/dist/
 web/.vite/
 web/.tmp/
 web/.github-pages-dist/
-web/src/wasm/*/pkg/
 .cargo-target-shared/
 .superpowers/
 .mutation-scratch/

@@ -98,12 +98,13 @@ requires unique SHA-256s, cold-oracle matches, and exact query-registry statuses
 - `chronicle_preprocessing_runtime_wasm` — product contract, qualification,
   execution, evidence, typed views, and verified artifact closure. Salsa state
   is an in-worker cache only and an opaque Salsa database is **never**
-  serialized. What *is* persisted: typed Rust resume values around step 16 and
-  step 28 (reconstruction format v8, magic `CHRRX008`, row dispositions as
+  serialized. What *is* persisted: typed Rust review and reconstruction resume
+  values (reconstruction format v8, magic `CHRRX008`, row dispositions as
   reuse/replacement/drop) stored in the existing OPFS content-addressed store.
   A replacement worker verifies the saved header, object digest, options,
-  implementation, contract, schema, and row count before resuming at step 17
-  or 29; any mismatch fails closed to the normal full Rust path.
+  implementation, contract, schema, and row count before resuming from the
+  first downstream invalid query; any mismatch fails closed to the normal full
+  Rust path.
 - WASM package files under `web/src/wasm/*/pkg/` are generated but
   force-tracked deploy inputs. `npm run build:wasm` regenerates them from the
   reviewed Rust sources; commit the resulting package changes whenever the
