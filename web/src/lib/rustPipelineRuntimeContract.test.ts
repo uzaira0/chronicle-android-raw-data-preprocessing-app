@@ -325,6 +325,7 @@ function installFakeFullRuntime({
   const fakeRuntime = {
     implementation_build_digest: () => manifest.implementationDigest,
     build_environment_digest: () => manifest.buildEnvironmentDigest,
+    runtime_identity: () => runtimeWasm.runtime_identity(),
     runtime_identity_json: () => runtimeWasm.runtime_identity_json(),
     workflow_contract_json: () => runtimeWasm.workflow_contract_json(),
     RuntimeSupportFiles: class {

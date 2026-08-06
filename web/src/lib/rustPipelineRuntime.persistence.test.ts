@@ -397,6 +397,17 @@ const kernel = {
   runtime_version: vi.fn(() => "test-runtime"),
   implementation_build_digest: vi.fn(() => `sha256:${"0".repeat(64)}`),
   build_environment_digest: vi.fn(() => `sha256:${"f".repeat(64)}`),
+  runtime_identity: vi.fn(() => ({
+    protocolVersion: "chronicle-preprocessing-runtime/v1",
+    implementationDigest,
+    buildEnvironmentDigest,
+    productContractDigest,
+    planDigest,
+    profileDigest,
+    profileLockDigest,
+    runtimeAuthorityDigest,
+    dependencyCertificateDigest,
+  })),
   runtime_identity_json: vi.fn(() =>
     JSON.stringify({
       protocolVersion: "chronicle-preprocessing-runtime/v1",
@@ -1032,8 +1043,8 @@ describe("persisted Rust workspace boundary", () => {
   });
 
   it("rejects a persisted head from a different loaded Rust identity", async () => {
-    kernel.runtime_identity_json.mockReturnValueOnce(
-      JSON.stringify({
+    kernel.runtime_identity.mockReturnValueOnce(
+      {
         protocolVersion: "chronicle-preprocessing-runtime/v1",
         implementationDigest: `sha256:${"7".repeat(64)}`,
         buildEnvironmentDigest,
@@ -1043,7 +1054,7 @@ describe("persisted Rust workspace boundary", () => {
         profileLockDigest,
         runtimeAuthorityDigest,
         dependencyCertificateDigest,
-      }),
+      },
     );
     await expect(verifyPersistedRustWorkspace(workspaceId)).rejects.toThrow(
       /different runtime identity/,
@@ -1051,8 +1062,8 @@ describe("persisted Rust workspace boundary", () => {
   });
 
   it("rejects an unsupported loaded runtime protocol and duplicate retained digests", async () => {
-    kernel.runtime_identity_json.mockReturnValueOnce(
-      JSON.stringify({
+    kernel.runtime_identity.mockReturnValueOnce(
+      {
         protocolVersion: "chronicle-preprocessing-runtime/v99",
         implementationDigest,
         buildEnvironmentDigest,
@@ -1062,7 +1073,7 @@ describe("persisted Rust workspace boundary", () => {
         profileLockDigest,
         runtimeAuthorityDigest,
         dependencyCertificateDigest,
-      }),
+      },
     );
     await expect(verifyPersistedRustWorkspace(workspaceId)).rejects.toThrow(
       /identity protocol is invalid/,
