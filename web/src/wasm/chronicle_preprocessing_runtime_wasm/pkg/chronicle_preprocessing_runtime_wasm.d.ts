@@ -1,5 +1,22 @@
 /* tslint:disable */
 /* eslint-disable */
+/**
+ * Small, control-plane identity DTO exposed as a typed JS object. Bulk runtime
+ * requests, manifests, and artifacts deliberately stay on the existing
+ * string/byte boundary so they do not pay per-field JS allocation costs.
+ */
+export interface RuntimeIdentity {
+    protocolVersion: string;
+    implementationDigest: string;
+    buildEnvironmentDigest: string;
+    productContractDigest: string;
+    planDigest: string;
+    profileDigest: string;
+    profileLockDigest: string;
+    runtimeAuthorityDigest: string;
+    dependencyCertificateDigest: string;
+}
+
 
 export class PreparedReviewWorkspace {
     private constructor();
@@ -90,6 +107,8 @@ export function prepare_workspace_review(request_json: string, csv_bytes: Uint8A
 
 export function review_base_probe_spec_json(): string;
 
+export function runtime_identity(): RuntimeIdentity;
+
 export function runtime_identity_json(): string;
 
 export function runtime_version(): string;
@@ -121,6 +140,7 @@ export interface InitOutput {
     readonly preparedreviewworkspace_execute_selected_base: (a: number, b: number, c: number, d: number) => void;
     readonly preparedreviewworkspace_required_base_kind: (a: number, b: number) => void;
     readonly review_base_probe_spec_json: (a: number) => void;
+    readonly runtime_identity: () => number;
     readonly runtime_identity_json: (a: number) => void;
     readonly runtime_version: (a: number) => void;
     readonly runtimehandle_artifact_count: (a: number) => number;
@@ -134,10 +154,10 @@ export interface InitOutput {
     readonly verify_evidence_journal_cbor: (a: number, b: number, c: number) => void;
     readonly workflow_contract_json: (a: number) => void;
     readonly get_comparison_cache_retained: () => number;
+    readonly __wbindgen_export: (a: number, b: number) => number;
+    readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
-    readonly __wbindgen_export: (a: number, b: number, c: number) => void;
-    readonly __wbindgen_export2: (a: number, b: number) => number;
-    readonly __wbindgen_export3: (a: number, b: number, c: number, d: number) => number;
+    readonly __wbindgen_export3: (a: number, b: number, c: number) => void;
 }
 
 export type SyncInitInput = BufferSource | WebAssembly.Module;

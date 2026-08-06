@@ -28,7 +28,7 @@ SEM_PROF_BIN ?= $(if $(wildcard $(LOCAL_SEM_PROF_BIN)),$(LOCAL_SEM_PROF_BIN),sem
         typecheck web-test contract boundary semantic-federation combinatorial gate-truth \
         mutation mutation-web mutation-rust coverage coverage-rust coverage-all \
         knip profile profile-current profile-many e2e deploy-artifact dependency-evidence \
-        bench-regression
+        bench-regression fuzz-sanity
 
 help:
 	@echo 'Local CI (GitHub Actions carries CD only):'
@@ -43,6 +43,7 @@ help:
 	@echo '               mutation-web mutation-rust coverage coverage-rust coverage-all'
 	@echo '               knip profile profile-current profile-many combinatorial deploy-artifact dependency-evidence'
 	@echo '               bench-regression (criterion matcher benches vs benchmarks/baseline.json; local-only)'
+	@echo '               fuzz-sanity (bounded matcher + runtime ingestion cargo-fuzz targets; local-only)'
 
 # ---------- aggregates ----------
 ci: rust security
@@ -177,6 +178,9 @@ mutation-rust:
 bench-regression:
 	CRITERION_HOME=$(CURDIR)/benchmarks/criterion cargo bench --locked --manifest-path $(MATCHER) --no-default-features --bench matcher_bench
 	python3 scripts/check_bench_regression.py
+
+fuzz-sanity:
+	scripts/run-fuzz-sanity.sh
 
 # Measure the deployed worker -> authoritative Rust/WASM -> OPFS -> rendered
 # result path. The deterministic evidence ledger intentionally carries no wall
