@@ -27,6 +27,7 @@ const packages = [
       "function:prepare_workspace_review",
       "function:review_base_probe_spec_json",
       "function:runtime_identity_json",
+      "function:runtime_identity",
       "function:runtime_version",
       "function:set_comparison_cache_capacity",
       "function:verify_evidence_journal_cbor",

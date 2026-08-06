@@ -10,6 +10,7 @@ import type {
   TimezoneAction,
 } from "@/lib/types";
 import type { RawFileInspection } from "@/lib/fileInspection";
+import type { RuntimeIdentity } from "@/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm";
 import defaultAppCodebookUrl from "@/assets/defaults/unified_app_codebook.csv?url";
 import defaultAppsToFilterUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv?url";
 import defaultAppsForcingScreenOpenUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv?url";
@@ -83,6 +84,7 @@ type KernelModule = {
   runtime_version(): string;
   implementation_build_digest(): string;
   build_environment_digest(): string;
+  runtime_identity(): RuntimeIdentity;
   runtime_identity_json(): string;
   workflow_contract_json(): string;
   plan_workflow_explorer_view_json(requestJson: string): string;
@@ -1120,7 +1122,7 @@ async function verifyRootClosure(
   // been walked multiplied peak memory without strengthening the check.
   const maxCachedObjectBytes = 1024 * 1024;
   const currentIdentity = objectAt(
-    JSON.parse(kernel.runtime_identity_json()),
+    kernel.runtime_identity(),
     "runtimeIdentity",
   );
   const identityFields = [
