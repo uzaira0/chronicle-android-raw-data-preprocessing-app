@@ -302,5 +302,8 @@ web/.screenshots/
 # Cargo fuzz artifacts (crash inputs, corpus) — never commit
 rust/chronicle_app_usage_matcher/fuzz/artifacts/
 rust/chronicle_app_usage_matcher/fuzz/corpus/
+rust/chronicle_preprocessing_runtime_wasm/fuzz/artifacts/
+rust/chronicle_preprocessing_runtime_wasm/fuzz/corpus/
+!rust/chronicle_preprocessing_runtime_wasm/fuzz/seeds/raw_file_inspection/minimal.csv
 # Automation proposals — design docs, not source code
 automation-proposals/
