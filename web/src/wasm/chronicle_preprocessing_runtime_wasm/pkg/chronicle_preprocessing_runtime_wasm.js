@@ -24,7 +24,7 @@ export class PreparedReviewWorkspace {
     execute_selected_base(selected_base) {
         try {
             const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-            const ptr0 = passArray8ToWasm0(selected_base, wasm.__wbindgen_export2);
+            const ptr0 = passArray8ToWasm0(selected_base, wasm.__wbindgen_export);
             const len0 = WASM_VECTOR_LEN;
             wasm.preparedreviewworkspace_execute_selected_base(retptr, this.__wbg_ptr, ptr0, len0);
             var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
@@ -54,7 +54,7 @@ export class PreparedReviewWorkspace {
             return getStringFromWasm0(r0, r1);
         } finally {
             wasm.__wbindgen_add_to_stack_pointer(16);
-            wasm.__wbindgen_export(deferred1_0, deferred1_1, 1);
+            wasm.__wbindgen_export3(deferred1_0, deferred1_1, 1);
         }
     }
 }
@@ -109,7 +109,7 @@ export class RuntimeHandle {
             return getStringFromWasm0(ptr1, len1);
         } finally {
             wasm.__wbindgen_add_to_stack_pointer(16);
-            wasm.__wbindgen_export(deferred2_0, deferred2_1, 1);
+            wasm.__wbindgen_export3(deferred2_0, deferred2_1, 1);
         }
     }
     /**
@@ -128,7 +128,7 @@ export class RuntimeHandle {
             return getStringFromWasm0(r0, r1);
         } finally {
             wasm.__wbindgen_add_to_stack_pointer(16);
-            wasm.__wbindgen_export(deferred1_0, deferred1_1, 1);
+            wasm.__wbindgen_export3(deferred1_0, deferred1_1, 1);
         }
     }
     /**
@@ -147,7 +147,7 @@ export class RuntimeHandle {
                 throw takeObject(r2);
             }
             var v1 = getArrayU8FromWasm0(r0, r1).slice();
-            wasm.__wbindgen_export(r0, r1 * 1, 1);
+            wasm.__wbindgen_export3(r0, r1 * 1, 1);
             return v1;
         } finally {
             wasm.__wbindgen_add_to_stack_pointer(16);
@@ -184,9 +184,9 @@ export class RuntimeSupportFiles {
     put(role, bytes) {
         try {
             const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-            const ptr0 = passStringToWasm0(role, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+            const ptr0 = passStringToWasm0(role, wasm.__wbindgen_export, wasm.__wbindgen_export2);
             const len0 = WASM_VECTOR_LEN;
-            const ptr1 = passArray8ToWasm0(bytes, wasm.__wbindgen_export2);
+            const ptr1 = passArray8ToWasm0(bytes, wasm.__wbindgen_export);
             const len1 = WASM_VECTOR_LEN;
             wasm.runtimesupportfiles_put(retptr, this.__wbg_ptr, ptr0, len0, ptr1, len1);
             var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
@@ -206,11 +206,11 @@ export class RuntimeSupportFiles {
     put_with_name(role, name, bytes) {
         try {
             const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-            const ptr0 = passStringToWasm0(role, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+            const ptr0 = passStringToWasm0(role, wasm.__wbindgen_export, wasm.__wbindgen_export2);
             const len0 = WASM_VECTOR_LEN;
-            const ptr1 = passStringToWasm0(name, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+            const ptr1 = passStringToWasm0(name, wasm.__wbindgen_export, wasm.__wbindgen_export2);
             const len1 = WASM_VECTOR_LEN;
-            const ptr2 = passArray8ToWasm0(bytes, wasm.__wbindgen_export2);
+            const ptr2 = passArray8ToWasm0(bytes, wasm.__wbindgen_export);
             const len2 = WASM_VECTOR_LEN;
             wasm.runtimesupportfiles_put_with_name(retptr, this.__wbg_ptr, ptr0, len0, ptr1, len1, ptr2, len2);
             var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
@@ -241,7 +241,7 @@ export function build_environment_digest() {
         return getStringFromWasm0(r0, r1);
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
-        wasm.__wbindgen_export(deferred1_0, deferred1_1, 1);
+        wasm.__wbindgen_export3(deferred1_0, deferred1_1, 1);
     }
 }
 
@@ -254,7 +254,7 @@ export function build_environment_digest() {
 export function discover_timezones_v2(csv_bytes) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        const ptr0 = passArray8ToWasm0(csv_bytes, wasm.__wbindgen_export2);
+        const ptr0 = passArray8ToWasm0(csv_bytes, wasm.__wbindgen_export);
         const len0 = WASM_VECTOR_LEN;
         wasm.discover_timezones_v2(retptr, ptr0, len0);
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
@@ -265,7 +265,7 @@ export function discover_timezones_v2(csv_bytes) {
             throw takeObject(r2);
         }
         var v2 = getArrayJsValueFromWasm0(r0, r1).slice();
-        wasm.__wbindgen_export(r0, r1 * 4, 4);
+        wasm.__wbindgen_export3(r0, r1 * 4, 4);
         return v2;
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
@@ -287,9 +287,9 @@ export function evaluate_workspace_requirements(request_json, csv_bytes, support
     let deferred4_1;
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        const ptr0 = passStringToWasm0(request_json, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+        const ptr0 = passStringToWasm0(request_json, wasm.__wbindgen_export, wasm.__wbindgen_export2);
         const len0 = WASM_VECTOR_LEN;
-        const ptr1 = passArray8ToWasm0(csv_bytes, wasm.__wbindgen_export2);
+        const ptr1 = passArray8ToWasm0(csv_bytes, wasm.__wbindgen_export);
         const len1 = WASM_VECTOR_LEN;
         _assertClass(support_files, RuntimeSupportFiles);
         wasm.evaluate_workspace_requirements(retptr, ptr0, len0, ptr1, len1, support_files.__wbg_ptr);
@@ -308,7 +308,7 @@ export function evaluate_workspace_requirements(request_json, csv_bytes, support
         return getStringFromWasm0(ptr3, len3);
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
-        wasm.__wbindgen_export(deferred4_0, deferred4_1, 1);
+        wasm.__wbindgen_export3(deferred4_0, deferred4_1, 1);
     }
 }
 
@@ -321,9 +321,9 @@ export function evaluate_workspace_requirements(request_json, csv_bytes, support
 export function execute_workspace(request_json, csv_bytes, support_files) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        const ptr0 = passStringToWasm0(request_json, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+        const ptr0 = passStringToWasm0(request_json, wasm.__wbindgen_export, wasm.__wbindgen_export2);
         const len0 = WASM_VECTOR_LEN;
-        const ptr1 = passArray8ToWasm0(csv_bytes, wasm.__wbindgen_export2);
+        const ptr1 = passArray8ToWasm0(csv_bytes, wasm.__wbindgen_export);
         const len1 = WASM_VECTOR_LEN;
         _assertClass(support_files, RuntimeSupportFiles);
         wasm.execute_workspace(retptr, ptr0, len0, ptr1, len1, support_files.__wbg_ptr);
@@ -353,11 +353,11 @@ export function execute_workspace(request_json, csv_bytes, support_files) {
 export function execute_workspace_with_review_base(request_json, csv_bytes, review_base_bytes, support_files) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        const ptr0 = passStringToWasm0(request_json, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+        const ptr0 = passStringToWasm0(request_json, wasm.__wbindgen_export, wasm.__wbindgen_export2);
         const len0 = WASM_VECTOR_LEN;
-        const ptr1 = passArray8ToWasm0(csv_bytes, wasm.__wbindgen_export2);
+        const ptr1 = passArray8ToWasm0(csv_bytes, wasm.__wbindgen_export);
         const len1 = WASM_VECTOR_LEN;
-        const ptr2 = passArray8ToWasm0(review_base_bytes, wasm.__wbindgen_export2);
+        const ptr2 = passArray8ToWasm0(review_base_bytes, wasm.__wbindgen_export);
         const len2 = WASM_VECTOR_LEN;
         _assertClass(support_files, RuntimeSupportFiles);
         wasm.execute_workspace_with_review_base(retptr, ptr0, len0, ptr1, len1, ptr2, len2, support_files.__wbg_ptr);
@@ -387,13 +387,13 @@ export function execute_workspace_with_review_base(request_json, csv_bytes, revi
 export function execute_workspace_with_review_bases(request_json, csv_bytes, review_base_bytes, reconstruction_base_bytes, support_files) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        const ptr0 = passStringToWasm0(request_json, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+        const ptr0 = passStringToWasm0(request_json, wasm.__wbindgen_export, wasm.__wbindgen_export2);
         const len0 = WASM_VECTOR_LEN;
-        const ptr1 = passArray8ToWasm0(csv_bytes, wasm.__wbindgen_export2);
+        const ptr1 = passArray8ToWasm0(csv_bytes, wasm.__wbindgen_export);
         const len1 = WASM_VECTOR_LEN;
-        const ptr2 = passArray8ToWasm0(review_base_bytes, wasm.__wbindgen_export2);
+        const ptr2 = passArray8ToWasm0(review_base_bytes, wasm.__wbindgen_export);
         const len2 = WASM_VECTOR_LEN;
-        const ptr3 = passArray8ToWasm0(reconstruction_base_bytes, wasm.__wbindgen_export2);
+        const ptr3 = passArray8ToWasm0(reconstruction_base_bytes, wasm.__wbindgen_export);
         const len3 = WASM_VECTOR_LEN;
         _assertClass(support_files, RuntimeSupportFiles);
         wasm.execute_workspace_with_review_bases(retptr, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, support_files.__wbg_ptr);
@@ -433,7 +433,7 @@ export function implementation_build_digest() {
         return getStringFromWasm0(r0, r1);
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
-        wasm.__wbindgen_export(deferred1_0, deferred1_1, 1);
+        wasm.__wbindgen_export3(deferred1_0, deferred1_1, 1);
     }
 }
 
@@ -451,9 +451,9 @@ export function inspect_raw_file_v1(csv_bytes, file_name, size_bytes) {
     let deferred3_1;
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        const ptr0 = passArray8ToWasm0(csv_bytes, wasm.__wbindgen_export2);
+        const ptr0 = passArray8ToWasm0(csv_bytes, wasm.__wbindgen_export);
         const len0 = WASM_VECTOR_LEN;
-        const ptr1 = passStringToWasm0(file_name, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+        const ptr1 = passStringToWasm0(file_name, wasm.__wbindgen_export, wasm.__wbindgen_export2);
         const len1 = WASM_VECTOR_LEN;
         wasm.inspect_raw_file_v1(retptr, ptr0, len0, ptr1, len1, size_bytes);
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
@@ -463,7 +463,7 @@ export function inspect_raw_file_v1(csv_bytes, file_name, size_bytes) {
         return getStringFromWasm0(r0, r1);
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
-        wasm.__wbindgen_export(deferred3_0, deferred3_1, 1);
+        wasm.__wbindgen_export3(deferred3_0, deferred3_1, 1);
     }
 }
 
@@ -476,7 +476,7 @@ export function plan_workflow_explorer_view_json(request_json) {
     let deferred3_1;
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        const ptr0 = passStringToWasm0(request_json, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+        const ptr0 = passStringToWasm0(request_json, wasm.__wbindgen_export, wasm.__wbindgen_export2);
         const len0 = WASM_VECTOR_LEN;
         wasm.plan_workflow_explorer_view_json(retptr, ptr0, len0);
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
@@ -494,7 +494,7 @@ export function plan_workflow_explorer_view_json(request_json) {
         return getStringFromWasm0(ptr2, len2);
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
-        wasm.__wbindgen_export(deferred3_0, deferred3_1, 1);
+        wasm.__wbindgen_export3(deferred3_0, deferred3_1, 1);
     }
 }
 
@@ -514,11 +514,11 @@ export function plan_workflow_explorer_view_json(request_json) {
 export function prepare_persisted_workspace_review(request_json, input_size_bytes, review_probe, reconstruction_probe, support_files) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        const ptr0 = passStringToWasm0(request_json, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+        const ptr0 = passStringToWasm0(request_json, wasm.__wbindgen_export, wasm.__wbindgen_export2);
         const len0 = WASM_VECTOR_LEN;
-        const ptr1 = passArray8ToWasm0(review_probe, wasm.__wbindgen_export2);
+        const ptr1 = passArray8ToWasm0(review_probe, wasm.__wbindgen_export);
         const len1 = WASM_VECTOR_LEN;
-        const ptr2 = passArray8ToWasm0(reconstruction_probe, wasm.__wbindgen_export2);
+        const ptr2 = passArray8ToWasm0(reconstruction_probe, wasm.__wbindgen_export);
         const len2 = WASM_VECTOR_LEN;
         _assertClass(support_files, RuntimeSupportFiles);
         wasm.prepare_persisted_workspace_review(retptr, ptr0, len0, input_size_bytes, ptr1, len1, ptr2, len2, support_files.__wbg_ptr);
@@ -545,13 +545,13 @@ export function prepare_persisted_workspace_review(request_json, input_size_byte
 export function prepare_workspace_review(request_json, csv_bytes, review_probe, reconstruction_probe, support_files) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        const ptr0 = passStringToWasm0(request_json, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+        const ptr0 = passStringToWasm0(request_json, wasm.__wbindgen_export, wasm.__wbindgen_export2);
         const len0 = WASM_VECTOR_LEN;
-        const ptr1 = passArray8ToWasm0(csv_bytes, wasm.__wbindgen_export2);
+        const ptr1 = passArray8ToWasm0(csv_bytes, wasm.__wbindgen_export);
         const len1 = WASM_VECTOR_LEN;
-        const ptr2 = passArray8ToWasm0(review_probe, wasm.__wbindgen_export2);
+        const ptr2 = passArray8ToWasm0(review_probe, wasm.__wbindgen_export);
         const len2 = WASM_VECTOR_LEN;
-        const ptr3 = passArray8ToWasm0(reconstruction_probe, wasm.__wbindgen_export2);
+        const ptr3 = passArray8ToWasm0(reconstruction_probe, wasm.__wbindgen_export);
         const len3 = WASM_VECTOR_LEN;
         _assertClass(support_files, RuntimeSupportFiles);
         wasm.prepare_workspace_review(retptr, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, support_files.__wbg_ptr);
@@ -583,8 +583,16 @@ export function review_base_probe_spec_json() {
         return getStringFromWasm0(r0, r1);
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
-        wasm.__wbindgen_export(deferred1_0, deferred1_1, 1);
+        wasm.__wbindgen_export3(deferred1_0, deferred1_1, 1);
     }
+}
+
+/**
+ * @returns {RuntimeIdentity}
+ */
+export function runtime_identity() {
+    const ret = wasm.runtime_identity();
+    return takeObject(ret);
 }
 
 /**
@@ -603,7 +611,7 @@ export function runtime_identity_json() {
         return getStringFromWasm0(r0, r1);
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
-        wasm.__wbindgen_export(deferred1_0, deferred1_1, 1);
+        wasm.__wbindgen_export3(deferred1_0, deferred1_1, 1);
     }
 }
 
@@ -623,7 +631,7 @@ export function runtime_version() {
         return getStringFromWasm0(r0, r1);
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
-        wasm.__wbindgen_export(deferred1_0, deferred1_1, 1);
+        wasm.__wbindgen_export3(deferred1_0, deferred1_1, 1);
     }
 }
 
@@ -641,7 +649,7 @@ export function set_comparison_cache_capacity(capacity) {
 export function verify_evidence_journal_cbor(bytes) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        const ptr0 = passArray8ToWasm0(bytes, wasm.__wbindgen_export2);
+        const ptr0 = passArray8ToWasm0(bytes, wasm.__wbindgen_export);
         const len0 = WASM_VECTOR_LEN;
         wasm.verify_evidence_journal_cbor(retptr, ptr0, len0);
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
@@ -672,19 +680,40 @@ export function workflow_contract_json() {
         return getStringFromWasm0(r0, r1);
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
-        wasm.__wbindgen_export(deferred1_0, deferred1_1, 1);
+        wasm.__wbindgen_export3(deferred1_0, deferred1_1, 1);
     }
 }
 function __wbg_get_imports() {
     const import0 = {
         __proto__: null,
+        __wbg_String_8564e559799eccda: function(arg0, arg1) {
+            const ret = String(getObject(arg1));
+            const ptr1 = passStringToWasm0(ret, wasm.__wbindgen_export, wasm.__wbindgen_export2);
+            const len1 = WASM_VECTOR_LEN;
+            getDataViewMemory0().setInt32(arg0 + 4 * 1, len1, true);
+            getDataViewMemory0().setInt32(arg0 + 4 * 0, ptr1, true);
+        },
         __wbg___wbindgen_throw_344f42d3211c4765: function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
+        },
+        __wbg_new_da52cf8fe3429cb2: function() {
+            const ret = new Object();
+            return addHeapObject(ret);
+        },
+        __wbg_set_6be42768c690e380: function(arg0, arg1, arg2) {
+            getObject(arg0)[takeObject(arg1)] = takeObject(arg2);
         },
         __wbindgen_cast_0000000000000001: function(arg0, arg1) {
             // Cast intrinsic for `Ref(String) -> Externref`.
             const ret = getStringFromWasm0(arg0, arg1);
             return addHeapObject(ret);
+        },
+        __wbindgen_object_clone_ref: function(arg0) {
+            const ret = getObject(arg0);
+            return addHeapObject(ret);
+        },
+        __wbindgen_object_drop_ref: function(arg0) {
+            takeObject(arg0);
         },
     };
     return {

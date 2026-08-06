@@ -1,0 +1,2 @@
+study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone
+Synthetic Study,P001,Synthetic User,Chat,Activity Resumed,com.example.chat,2026-08-06 12:00:00,America/Chicago

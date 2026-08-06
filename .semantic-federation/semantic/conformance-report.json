@@ -1,7 +1,7 @@
 {
   "protocol_version": "0.1",
-  "profile_lock_digest": "sha256:8f3d0b544572f91489febbe0f76bbc9d143e1c952f2f86c26ac26e05786084d2",
-  "subject_digest": "sha256:79ab086d330b71451bd80ba58a053d897a320a67f2f73dbdddabfbf349fdc7bf",
+  "profile_lock_digest": "sha256:15c835bdd6cd30b6090e2b4ae1550646223987eeeedb2c367db149a9855a6283",
+  "subject_digest": "sha256:5021ee533c879e130c2abe108f2cd9d065de26eb586c00eae6166054c45a6da1",
   "conforms": true,
   "checks": [
     {
@@ -14,5 +14,5 @@
       "source": "semantic/semantic-profile.json"
     }
   ],
-  "report_digest": "sha256:7f2b3e56f2fe49b2e6c4168fff875cfebd11d047c9a28607d212ddf1e1a4d3b6"
+  "report_digest": "sha256:393cd0130ec3a1ff77ee53eee3bfbb16993800094be27de5091a825b37e5265f"
 }

@@ -44,6 +44,7 @@ use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::io::{Cursor, Write};
 use std::sync::{Arc, OnceLock};
+use tsify::Tsify;
 use wasm_bindgen::prelude::*;
 
 pub const RUNTIME_PROTOCOL_VERSION: &str = "chronicle-preprocessing-runtime/v1";
@@ -510,20 +511,46 @@ pub fn build_environment_digest() -> String {
     BUILD_ENVIRONMENT_DIGEST.into()
 }
 
+/// Small, control-plane identity DTO exposed as a typed JS object. Bulk runtime
+/// requests, manifests, and artifacts deliberately stay on the existing
+/// string/byte boundary so they do not pay per-field JS allocation costs.
+#[derive(Debug, Clone, Serialize, Deserialize, Tsify)]
+#[serde(rename_all = "camelCase")]
+#[tsify(into_wasm_abi)]
+pub struct RuntimeIdentity {
+    pub protocol_version: String,
+    pub implementation_digest: String,
+    pub build_environment_digest: String,
+    pub product_contract_digest: String,
+    pub plan_digest: String,
+    pub profile_digest: String,
+    pub profile_lock_digest: String,
+    pub runtime_authority_digest: String,
+    pub dependency_certificate_digest: String,
+}
+
+fn current_runtime_identity() -> RuntimeIdentity {
+    RuntimeIdentity {
+        protocol_version: RUNTIME_PROTOCOL_VERSION.into(),
+        implementation_digest: IMPLEMENTATION_BUILD_DIGEST.into(),
+        build_environment_digest: BUILD_ENVIRONMENT_DIGEST.into(),
+        product_contract_digest: EMBEDDED_PRODUCT_CONTRACT_SHA256.into(),
+        plan_digest: EMBEDDED_PLAN_SHA256.into(),
+        profile_digest: EMBEDDED_PROFILE_SHA256.into(),
+        profile_lock_digest: EMBEDDED_PROFILE_LOCK_SHA256.into(),
+        runtime_authority_digest: EMBEDDED_RUNTIME_AUTHORITY_SHA256.into(),
+        dependency_certificate_digest: EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256.into(),
+    }
+}
+
+#[wasm_bindgen]
+pub fn runtime_identity() -> RuntimeIdentity {
+    current_runtime_identity()
+}
+
 #[wasm_bindgen]
 pub fn runtime_identity_json() -> String {
-    serde_jcs::to_string(&serde_json::json!({
-        "protocolVersion": RUNTIME_PROTOCOL_VERSION,
-        "implementationDigest": IMPLEMENTATION_BUILD_DIGEST,
-        "buildEnvironmentDigest": BUILD_ENVIRONMENT_DIGEST,
-        "productContractDigest": EMBEDDED_PRODUCT_CONTRACT_SHA256,
-        "planDigest": EMBEDDED_PLAN_SHA256,
-        "profileDigest": EMBEDDED_PROFILE_SHA256,
-        "profileLockDigest": EMBEDDED_PROFILE_LOCK_SHA256,
-        "runtimeAuthorityDigest": EMBEDDED_RUNTIME_AUTHORITY_SHA256,
-        "dependencyCertificateDigest": EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256,
-    }))
-    .expect("runtime identity is serializable")
+    serde_jcs::to_string(&current_runtime_identity()).expect("runtime identity is serializable")
 }
 
 #[wasm_bindgen]
