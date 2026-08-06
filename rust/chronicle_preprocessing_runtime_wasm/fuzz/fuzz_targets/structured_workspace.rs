@@ -72,16 +72,20 @@ fuzz_target!(|input: FuzzInput| {
             4 => "Screen Interactive",
             _ => "Unknown importance: 1",
         };
-        let timezone = match row.timezone % 5 {
+        let timezone = match row.timezone % 3 {
             0 => "America/Chicago",
-            1 => "UTC",
-            2 => "America/New_York",
-            3 => "Invalid/Zone",
-            _ => "",
+            1 => "Etc/UTC",
+            _ => "America/New_York",
         };
+        let year = 2000 + row.year % 31;
+        let month = 1 + row.month % 12;
+        let day = 1 + row.day % 28;
+        let hour = row.hour % 24;
+        let minute = row.minute % 60;
+        let second = row.second % 60;
         let timestamp = format!(
             "{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
-            row.year, row.month, row.day, row.hour, row.minute, row.second
+            year, month, day, hour, minute, second
         );
         writer
             .write_record([
