@@ -22,6 +22,8 @@ Implemented today (all local — see `make help`):
 - `make mutation` — StrykerJS mutation score, thresholds high 95 / low 90 / break 93
 - `make coverage` — vitest v8 coverage with ratcheted floors
 - `make gate-truth` — seeded-defect proof that every drift gate fires
+- `make fuzz-sanity` — bounded native libFuzzer runs over the matcher, raw CSV
+  inspection, and structure-aware full-runtime ingestion boundaries
 - `make combinatorial` — PICT/ACTS covering arrays + NIST CCM measurement
 - `make deploy-artifact` — production build + CSP/_headers/PWA/bundle-budget checks
 
