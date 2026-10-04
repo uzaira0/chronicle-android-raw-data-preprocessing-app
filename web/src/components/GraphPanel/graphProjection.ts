@@ -11,7 +11,7 @@ export type ExplorerMode =
 
 export type SupportPresence = "available" | "unavailable" | "not_observed";
 
-export type ExplorerGraphNode = ViewGraph["nodes"][number] & {
+type ExplorerGraphNode = ViewGraph["nodes"][number] & {
   status: NodeStatus | null;
   off: boolean;
   eyebrow: string;

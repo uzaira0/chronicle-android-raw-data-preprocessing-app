@@ -150,19 +150,3 @@ export function spliceOut(graph: ViewGraph, hidden: ReadonlySet<string>): ViewGr
       })),
   };
 }
-
-export function sentenceFor(
-  query: "affectedBy" | "sharedUpstream" | "mustPassThrough" | "chain",
-  args: Record<string, string | number>,
-): string {
-  switch (query) {
-    case "affectedBy":
-      return `Changing ${args.source} re-runs ${args.count} step${args.count === 1 ? "" : "s"} and changes ${args.outputs ?? "the downstream results"}.`;
-    case "chain":
-      return `${args.from} feeds ${args.to} ${args.how} — one chain: the second step is built from the first, so they can never disagree independently.`;
-    case "sharedUpstream":
-      return `${args.a} and ${args.b} both depend on ${args.shared} — they move together, so they are not independent checks.`;
-    case "mustPassThrough":
-      return `Everything ${args.source} does to ${args.target} goes through ${args.through}.`;
-  }
-}
