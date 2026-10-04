@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type * as Comlink from "comlink";
 import {
   comparisonSupportCacheKey,
@@ -25,6 +25,17 @@ import type {
   BrowserProcessingOptions,
   ProcessedFileResult,
 } from "@/lib/types";
+
+// Node's built-in fetch (undici) compiles its HTTP parser with
+// WebAssembly.compile the first time a Response body is read. A test that
+// spies on WebAssembly.compile would count that call as the client's, so the
+// count depended on whether an earlier test happened to touch a Response
+// first. Warm the parser once, before any spy is installed.
+beforeAll(async () => {
+  const response = new Response(new Uint8Array([0]));
+  await response.clone().arrayBuffer();
+  await response.arrayBuffer();
+});
 
 type RemoteApi = Comlink.Remote<ChronicleWorkerApi>;
 
