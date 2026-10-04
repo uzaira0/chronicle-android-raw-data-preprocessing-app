@@ -89,7 +89,7 @@ requires unique SHA-256s, cold-oracle matches, and exact query-registry statuses
   production runtime. It uses `chronicle_app_usage_matcher` directly and has
   no standalone browser entry point.
 - `chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs` — the physical
-  preprocessing engine: a registry-derived set of Salsa `0.28.1` tracked Rust product computations;
+  preprocessing engine: a registry-derived set of Salsa `0.28.5` tracked Rust product computations;
   internal derived caches are reported separately and are not product steps.
   Their actual reads control invalidation; Salsa execution events are the only
   source of physical cached/recomputed status. The complete sequential

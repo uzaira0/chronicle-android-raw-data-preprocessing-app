@@ -102,7 +102,7 @@ REQUIRED_DOCUMENT_TEXT = {
         "Persisted Salsa snapshots were removed",
     ],
     REPOSITORY_ROOT / ".semantic-federation/PROJECT_DECISIONS.md": [
-        "Salsa `0.28.1`",
+        "Salsa `0.28.5`",
         "callable Rust queries",
     ],
     REPOSITORY_ROOT / "docs/semantic-federation/production-proof.md": [
