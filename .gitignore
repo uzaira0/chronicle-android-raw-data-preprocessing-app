@@ -205,6 +205,9 @@ preprocessors/survey_data_preprocessor.py
 !.ast-grep/rule-tests/
 !.ast-grep/rule-tests/**
 !web/src/**/*.test.tsx
+# The `npm run test` entry point. Its name matches the blanket `*test*` rule
+# above, which once hid it from git entirely and let a cleanup delete it.
+!web/scripts/run_test_suite.mjs
 *demo*
 *benchmark*
 !tests/benchmarks/

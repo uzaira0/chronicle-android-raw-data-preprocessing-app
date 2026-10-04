@@ -335,7 +335,7 @@ pub fn build_workflow_provenance_jsonld(
             ),
             (
                 "chron:depends_on".into(),
-                string_values(depends_on.into_iter()),
+                string_values(depends_on),
             ),
             (
                 "chron:configuration_dependencies".into(),

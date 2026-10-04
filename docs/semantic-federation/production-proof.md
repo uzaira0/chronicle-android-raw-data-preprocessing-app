@@ -140,7 +140,7 @@ recalculates from it. No opaque query cache can hide a required computation.
   Salsa trial now passes representative native/headless-browser WASM,
   actual-read, execution-event, early-cutoff, and qualification-hole tests.
   The measured trial—including the reason its snapshot path was removed—is in
-  [the product-trial report](../perf/SALSA_PRODUCT_TRIAL.md). Salsa `0.28.1` is selected
+  [the product-trial report](../perf/SALSA_PRODUCT_TRIAL.md). Salsa (`0.28.5`, trialled at `0.28.1`) is selected
   and all registered real step queries now pass native complete-result parity, exact
   unchanged reuse, output-only invalidation, Clippy, and browser-WASM compile
   checks. The broader actual-read campaigns, runtime event truth, and the

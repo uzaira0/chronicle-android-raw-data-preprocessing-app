@@ -26,7 +26,6 @@ export const MIXED_TIMEZONE_RAW_CSV = [
   "study,P01,Android,Target Child,Maps,Unknown importance: 2,com.example.maps,2026-03-07 11:01:00,,,America/New_York",
 ].join("\n");
 
-export const MULTI_FILE_RAW_CSV_A = APP_ONLY_RAW_CSV;
 
 export const MULTI_FILE_RAW_CSV_B = [
   "study_id,participant_id,possible_device_model,username,application_label,interaction_type,app_package_name,event_timestamp,start_timestamp,stop_timestamp,timezone",

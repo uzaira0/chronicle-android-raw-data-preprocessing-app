@@ -2,7 +2,17 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { leakedHomeDirectoryPrefixes, wasmBuildPaths } from "./wasm_build_flags.mjs";
+
 const webDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const repositoryRoot = path.resolve(webDir, "..");
+const buildPaths = wasmBuildPaths(repositoryRoot);
+const forbiddenBuildPaths = [
+  ["repository root", buildPaths.repositoryRoot],
+  ["home directory", buildPaths.home],
+  ["Cargo home", buildPaths.cargoHome],
+  ["Rust sysroot", buildPaths.rustcSysroot],
+];
 
 const packages = [
   {
@@ -63,4 +73,21 @@ for (const pkg of packages) {
   }
 }
 
-console.log("WASM export boundary: only the approved Rust runtime APIs are present.");
+// Every shipped WASM binary, not only the export-checked one: a build path in
+// either is the developer's username and folder layout in every user's browser.
+for (const name of ["chronicle_preprocessing_runtime_wasm", "chronicle_semantic_index_wasm"]) {
+  const wasm = await readFile(path.join(webDir, "src/wasm", name, "pkg", `${name}_bg.wasm`));
+  const leakedPaths = forbiddenBuildPaths
+    .filter(([, value]) => value && wasm.includes(Buffer.from(value)))
+    .map(([label]) => label);
+  const leakedHomePrefixes = leakedHomeDirectoryPrefixes(wasm.toString("latin1"));
+  if (leakedPaths.length > 0 || leakedHomePrefixes.length > 0) {
+    throw new Error(
+      `${name} embeds private build paths.\n` +
+        `build roots=${leakedPaths.join(",") || "none"}\n` +
+        `home prefixes=${leakedHomePrefixes.join(",") || "none"}`,
+    );
+  }
+}
+
+console.log("WASM export boundary and build-path privacy checks passed.");

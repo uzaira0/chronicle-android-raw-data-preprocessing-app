@@ -1,5 +1,5 @@
 /** Read-only projection of the execution ledger emitted by Rust. */
-export type RustExecutionStatus =
+type RustExecutionStatus =
   | "cached"
   | "recomputed"
   | "error"

@@ -342,7 +342,7 @@
   "runtime_authority_surface_count": 24,
   "dependency_certificate": {
     "path": ".semantic-federation/proofs/dependency-certificate.json",
-    "digest": "sha256:88127a71cc8d687697d5180565e36938a3a43878897c3cacb3cc20167f5c1395",
+    "digest": "sha256:e9cb5b635abda91310710cc33d29d0f028444859badb5a62a06d273ca3fd82c3",
     "fallback": "full-logical-recompute"
   },
   "resolved_baseline_findings": [

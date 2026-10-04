@@ -26,7 +26,7 @@
   until a crates.io release includes its `quick-xml 0.41` security update.
 - The scheduler remains product-owned; no generic federation-wide scheduler or
   execution IR is introduced. Salsa `0.28.1` passed the real native/browser-WASM
-  product trial and now owns actual-read tracking, memoization, early cutoff,
+  product trial; upgraded to Salsa `0.28.5` for RUSTSEC-2026-0308, it now owns actual-read tracking, memoization, early cutoff,
   and query execution in the registered-query kernel. The old fingerprint
   scheduler has no physical execution authority; query-group artifacts are
   projections only.

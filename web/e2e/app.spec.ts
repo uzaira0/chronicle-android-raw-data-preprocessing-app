@@ -17,7 +17,6 @@ import {
   APPS_FORCING_SCREEN_OPEN_CSV,
   MALFORMED_RAW_CSV,
   MIXED_TIMEZONE_RAW_CSV,
-  MULTI_FILE_RAW_CSV_A,
   MULTI_FILE_RAW_CSV_B,
 } from "./fixtures";
 import {
@@ -985,7 +984,7 @@ test("processes multiple uploaded files with parallel workers enabled", async ({
     {
       name: "Raw P01.csv",
       mimeType: "text/csv",
-      buffer: Buffer.from(MULTI_FILE_RAW_CSV_A, "utf-8"),
+      buffer: Buffer.from(APP_ONLY_RAW_CSV, "utf-8"),
     },
     {
       name: "Raw P02.csv",
