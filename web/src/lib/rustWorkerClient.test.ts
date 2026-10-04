@@ -894,6 +894,16 @@ class FakeWorker {
 }
 
 vi.stubGlobal("Worker", FakeWorker);
+// The fault-handling tests below use the module-level client, which fetches the
+// runtime WASM before initializing a worker. Unstubbed, that is a real request
+// to http://localhost/; where something answers on port 80 the response lands
+// during a later test and its WebAssembly.compileStreaming/compile calls are
+// counted by that test's spies. These tests settle through the fault race and
+// never need the module, so the fetch never settles.
+vi.stubGlobal(
+  "fetch",
+  vi.fn(() => new Promise<Response>(() => {})),
+);
 afterAll(() => vi.unstubAllGlobals());
 
 function lastWorker(): FakeWorker {
