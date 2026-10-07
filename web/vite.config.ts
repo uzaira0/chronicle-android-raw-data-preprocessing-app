@@ -177,7 +177,11 @@ export default defineConfig({
   build: {
     outDir: "dist",
     target: "esnext",
-    manifest: true,
+    // Not the default `.vite/manifest.json`: actions/upload-pages-artifact
+    // leaves every dot-path out of the production Pages artifact, so public/sw.js
+    // could not fetch the manifest, failed its install, and the site never
+    // worked offline. check_deploy_artifact.mts refuses any dot-path.
+    manifest: "asset-manifest.json",
     // The default 4 KB inline limit turns the small filter and keep-awake
     // default CSVs into data: URIs. Production CSP forbids `connect-src
     // data:`, so a `fetch()` against the inlined URI fails. Emit every
