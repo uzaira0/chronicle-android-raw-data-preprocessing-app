@@ -3,7 +3,7 @@
 > Historical ledger. Decisions 1, 3, 5, 8, 9, and 11 describe the former
 > TypeScript physical engine. They are retained to explain how the
 > current contract and tests evolved, but they no longer authorize production
-> execution. The current decision is Salsa `0.28.1` with a registry-derived set
+> execution. The current decision is Salsa `0.28.5` with a registry-derived set
 > of tracked Rust/WASM product queries; internal derived caches are reported
 > separately and do not add product steps. See the
 > [authoritative plan](../semantic-federation/incremental-runtime-plan.md#existing-software-decision).
@@ -30,7 +30,7 @@
 |---|---|---|
 | Graph rendering/interaction | **Adopt** `@xyflow/react` (React Flow 12; verified 12.11.2, MIT, peer react>=17) | Dominant, active, React-19-compatible |
 | Auto-layout | **Adopt** `@dagrejs/dagre` (verified 3.0.0, MIT) | Simple layered DAG layout; elkjs (EPL-2.0) as fallback if layout quality demands |
-| Recompute engine (typed edges, dirty-prop, content-hash memo) | **Superseded: adopt Salsa `0.28.1`** | The original bounded TypeScript engine is historical. The real registered-query Rust/WASM trial passed and now owns physical invalidation and memoization; the existing plan remains the product contract and grouped view. |
+| Recompute engine (typed edges, dirty-prop, content-hash memo) | **Superseded: adopt Salsa `0.28.1` (now `0.28.5`)** | The original bounded TypeScript engine is historical. The real registered-query Rust/WASM trial passed and now owns physical invalidation and memoization; the existing plan remains the product contract and grouped view. |
 | Options/knob contract | **Adopt existing** LinkML contract pipeline | Already in repo, CI-checked |
 | Screen-gated credit, attribution, and compliance logic | **Port** from Python with golden-fixture parity | Decided in #1 |
 | Session matcher | **Keep** shared Rust core (WASM + Python) | Existing byte-parity mechanism |

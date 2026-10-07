@@ -1,0 +1,47 @@
+{
+  "schemaVersion": "chronicle-participant-minimum-count-source-fixture/v1",
+  "sourceWorkId": "doi:10.1109/tifs.2015.2506542",
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-9ecc557d468c83a74e47b9cb",
+    "parameterKey": "authentication.minimum_training_vectors",
+    "sourceObservedSetting": "authentication.minimum_training_vectors: {\"comparator\":\"at least\",\"value\":80}",
+    "sourceValueSha256": "acd8ac1cd9ac5dff7c5bd0cf4ea6a1b63716ef6a251849cb2e9a2f92e85f488c"
+  },
+  "sourceArtifact": {
+    "locator": ".tmp-literature-review-private/corrective-packet-04-ranks-074-123-20260831/text/112.txt:278-291",
+    "sha256": "769cd3fcfeacc85e78a0dd7b1a11c75f615ac115ac93c1ece6d28c3cd7bf44fc"
+  },
+  "inputBoundary": "One already-derived nonnegative integer count of training vectors per user after the source-specific training-vector construction.",
+  "outputBoundary": "Discard a user from authentication below 80 training vectors and retain the user for authentication at or above 80; equality is retained.",
+  "limitations": [
+    "This binding does not select portrait-orientation observations or the first two source sessions.",
+    "This binding does not construct HMOG tap vectors or keystroke key-press vectors.",
+    "This binding does not group or count training vectors by user.",
+    "Template construction, feature scaling, SVM hypersphere construction, and verifier evaluation are separate downstream source operations.",
+    "A missing per-user training-vector count fails closed rather than being interpreted as zero."
+  ],
+  "minimumRetainedCount": 80,
+  "dispositions": ["discard_from_authentication", "retain_for_authentication"],
+  "participants": [
+    {
+      "participantId": "immediately-below",
+      "trainingVectorCount": 79,
+      "expectedDisposition": "discard_from_authentication"
+    },
+    {
+      "participantId": "at-boundary",
+      "trainingVectorCount": 80,
+      "expectedDisposition": "retain_for_authentication"
+    },
+    {
+      "participantId": "above-boundary",
+      "trainingVectorCount": 81,
+      "expectedDisposition": "retain_for_authentication"
+    }
+  ],
+  "missingCountCase": {
+    "participantId": "missing-count",
+    "trainingVectorCount": null,
+    "expectedError": "participant_training_vector_count_required"
+  }
+}

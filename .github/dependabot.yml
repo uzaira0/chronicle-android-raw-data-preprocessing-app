@@ -2,22 +2,24 @@ version: 2
 # Trimmed for minimal noise: monthly cadence, at most one grouped PR per
 # ecosystem (all bumps batched into a single PR). Keeps security currency
 # without the weekly per-package PR churn. All testing/builds are local
-# (see /Makefile); the only remote workflow is the Pages deploy.
+# (see /Makefile); remote workflows are scanners, the canary, and the
+# manual-dispatch Pages deploy. npm gets security PRs only.
+#
+# cooldown: a release must be 7 days old before a version-update PR proposes
+# it, so a compromised or yanked release has time to be caught upstream.
+# Security updates are not delayed. github-actions supports default-days only.
 updates:
-  - package-ecosystem: "pip"
-    directory: "/"
-    schedule:
-      interval: "monthly"
-    open-pull-requests-limit: 1
-    groups:
-      python:
-        patterns: ["*"]
-
   - package-ecosystem: "cargo"
     directory: "/rust/chronicle_app_usage_matcher"
     schedule:
       interval: "monthly"
     open-pull-requests-limit: 1
+    cooldown:
+      default-days: 7
+    # minicov is pinned =0.3.8: later releases write profraws from a newer
+    # LLVM than the dated nightly make dependency-evidence merges them with.
+    ignore:
+      - dependency-name: "minicov"
     groups:
       rust:
         patterns: ["*"]
@@ -27,6 +29,8 @@ updates:
     schedule:
       interval: "monthly"
     open-pull-requests-limit: 1
+    cooldown:
+      default-days: 7
     groups:
       actions:
         patterns: ["*"]

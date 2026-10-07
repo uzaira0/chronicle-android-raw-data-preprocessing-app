@@ -1,0 +1,656 @@
+schema_version: "1.0.0"
+ledger_version: "1.0.6"
+ledger_id: "chronicle:paper-claim-ledger"
+as_of: "2026-09-27"
+
+change_control:
+  versioning: >-
+    Bump the semantic ledger_version whenever a canonical statement, scope, status tuple,
+    prohibited inference, or required gate changes. Never rewrite a released status silently.
+  history_policy: "Append one history entry per released ledger revision."
+  manuscript_rule: "Outlines must copy canonical statements, status tuples, and gate IDs exactly or label their text as non-canonical prose."
+
+history:
+  - ledger_version: "1.0.0"
+    date: "2026-08-11"
+    change: "Established canonical IDs, statements, multidimensional statuses, gates, and prohibited inferences."
+  - ledger_version: "1.0.1"
+    date: "2026-08-11"
+    change: "Grounded the legacy retirement in the source/code audit and delegated component/parameter vocabulary ownership to rubric 0.2.0."
+  - ledger_version: "1.0.2"
+    date: "2026-08-17"
+    change: "Recorded the delivery:B02-B05 merge (01be6d2) and the delivery:B06 implementation in the H02 evidence limitations; no claim wording, status, or gate changed."
+  - ledger_version: "1.0.3"
+    date: "2026-08-25"
+    change: >-
+      Recorded the delivery:B06-B12 and delivery:B14 merges to private main (through d5fee649a,
+      2026-08-24) in the H02 evidence summary and limitations, including the eighth grouping
+      value (peng_zhu_2020_participant_median, the corpus's only individualized threshold,
+      implemented at the sessionization step) and the delivery:B12 resolution (the cap-scope
+      adaptive source remains a typed refusal); updated the delivery-axis-ledger version
+      pointer. No claim wording, status, or gate changed.
+  - ledger_version: "1.0.4"
+    date: "2026-08-25"
+    change: >-
+      Recorded the component-crosswalk 0.1.0 draft artifact (docs/paper/component-crosswalk.yaml,
+      DRAFT_FOR_FREEZE: the mapping half of GATE-H01-FREEZE, machine-verified against the
+      contract, ontology, and delivery-axis ledger, with two recorded adjudication gaps seeding
+      GATE-H01-COUNTEREXAMPLES) and the manuscript draft (docs/paper/manuscript-draft.md, gated
+      Results unfilled). No claim wording, status, or gate changed.
+  - ledger_version: "1.0.5"
+    date: "2026-09-27"
+    change: >-
+      Clarified the examined Android-origin trace boundary: callbacks, sampled observations,
+      temporal device/process counters and app/screen histories or aggregates remain distinct
+      eligible source forms when the target paper establishes Android provenance and actually
+      processes them. This does not reverse screening decisions or promote any claim status.
+  - ledger_version: "1.0.6"
+    date: "2026-09-27"
+    change: >-
+      Froze the Android completion corpus at the exact 143 identities in
+      docs/paper/android-143-corpus.json by operator instruction. Completion criteria are
+      recorded in docs/paper/android-143-completion.md. Outside citations are deferred to
+      docs/paper/android-literature-review-later.md; further discovery is not a prerequisite
+      for this fixed-corpus completion. No hypothesis or validation status is promoted.
+
+authority:
+  canonical_for:
+    - "Stable project claim identifiers and aliases."
+    - "Current claim wording, scope, lifecycle, validation state, and empirical state."
+    - "The gates that must pass before a claim can be promoted in a manuscript."
+    - "Explicitly prohibited inferences from evidence currently in hand."
+  not_authority_for:
+    - "Whether any claim is scientifically true."
+    - "Published-method semantics, which remain governed by verified primary sources and reference artifacts."
+    - "Literature-corpus contents, which remain governed by the consolidated corpus and its fixed-census records."
+    - "Repository terminology, which remains governed by the ontology and workflow schemas."
+    - "Implementation capability, which remains governed by source, tests, and artifact provenance at the named revision."
+  interpretation_rule: >-
+    Inclusion in this ledger gives a claim a stable identity and an auditable status; it is not
+    evidence for the claim. Paper and thesis text must cite the claim id and reproduce all status
+    qualifiers that apply at the cited ledger revision.
+
+status_dimensions:
+  lifecycle:
+    - "WITHDRAWN"
+    - "PROPOSED"
+    - "CONCEPTUAL"
+    - "HYPOTHESIS"
+    - "EXTERNAL_REPORT"
+    - "PLANNED"
+  validation:
+    - "INVALIDATED_AS_STATED"
+    - "UNVALIDATED"
+    - "PARTIALLY_SUPPORTED"
+    - "VALIDATED"
+    - "REFUTED"
+  empirical:
+    - "NOT_APPLICABLE"
+    - "PRELIMINARY_COUNTS_ONLY"
+    - "UNRUN"
+    - "EXTERNALLY_REPORTED_NOT_REPRODUCED"
+    - "NO_DATA"
+    - "RUN"
+    - "INDEPENDENTLY_REPRODUCED"
+
+claims:
+  - id: "claim:C01_LEGACY_MISSING_END"
+    display_name: "Legacy one-free-missing-end-slot claim"
+    aliases:
+      - "legacy C1"
+      - "one free missing-end slot"
+    superseded_by: "claim:H01_VECTOR_STRUCTURE"
+    canonical_statement: >-
+      The retired claim asserted that every published reconstruction rule examined was a special
+      case of one structure whose single free slot was what bounds an episode with no observed
+      end.
+    status:
+      lifecycle: "WITHDRAWN"
+      validation: "INVALIDATED_AS_STATED"
+      empirical: "NOT_APPLICABLE"
+      rationale: >-
+        The claim conflated unmatched-open episode reconstruction with a downstream
+        interval-quality transform. Culverhouse requires an already bounded interval and supplies
+        no rule for an opener with no end. Its truncation/collapse operations may rewrite downstream
+        output bounds, but they cannot occupy the proposed missing-end reconstruction slot.
+    scope:
+      historical_scope: "The narrow event-to-episode comparison recorded in the older thesis draft."
+      excluded_from_scope:
+        - "The broader vector-structure hypothesis."
+        - "Any claim that Culverhouse is an independent reconstruction method or external validation arm."
+    manuscript_role:
+      paper: "Guardrail or defect-history note only; never a finding or contribution."
+      thesis: "Historical claim correction only; it must not retain the C1 headline role."
+      result_eligible: false
+    current_evidence:
+      summary: >-
+        The older thesis draft contains the narrow formulation. The current source audit separates
+        the Parry & Toth contributor adaptation from the downstream Culverhouse quality policy and
+        therefore supplies a direct counterexample to the single-slot wording.
+      limitations:
+        - "Withdrawal of this formulation does not validate its broader replacement."
+        - "The audit is a classification correction, not an empirical comparison of methods."
+    required_gates:
+      - gate_id: "GATE-C01-LEGACY-NO-REVIVAL"
+        requirement: >-
+          Do not reactivate this id. Any materially new proposition must use a new versioned claim
+          id and pass primary-source, counterexample, and ontology review.
+    prohibited_inference:
+      - "Do not cite the retired claim as supported, unaffected, or merely renamed."
+      - "Do not describe Culverhouse downstream truncation/collapse as an unmatched-open reconstruction rule."
+      - "Do not use this withdrawal as evidence that the replacement vector hypothesis is true."
+    source_authority_pointers:
+      - path: "docs/paper/thesis.md"
+        authority_for: "Historical wording and historical status only."
+        authority_limit: "Stale draft; not current claim authority."
+      - path: "docs/workflow/prior-art-vocabulary.md"
+        authority_for: "Primary-source/code audit of the Parry & Toth contributor adaptation and downstream Culverhouse classification."
+        authority_limit: "Engineering/scientific audit; primary source and code remain the underlying semantic authorities."
+      - path: "web/schema/chronicle-workflow.yaml"
+        authority_for: "Current workflow-stage placement and operation identity."
+        authority_limit: "Does not establish published-method semantics."
+
+  - id: "claim:H01_VECTOR_STRUCTURE"
+    display_name: "Vector structure for typed mobile event-to-measure rules"
+    aliases:
+      - "H1"
+      - "broader C1"
+      - "common-structure hypothesis"
+    replaces: "claim:C01_LEGACY_MISSING_END"
+    canonical_statement: >-
+      Within the scoped corpus, every typed mobile event-to-cleaned-summary operationalization
+      examined is hypothesized to be representable as a vector spanning instrument and acquisition
+      semantics, event selection, episode reconstruction, session construction, temporal
+      assignment, aggregation and denominators, cleaning, and parameter provenance.
+    status:
+      lifecycle: "HYPOTHESIS"
+      validation: "UNVALIDATED"
+      empirical: "UNRUN"
+      rationale: >-
+        Recurrent rule families and executable axes make the structure plausible, but the component
+        model is not frozen and the fixed-corpus counterexample audit has not been completed.
+    scope:
+      included:
+        - "Typed or derived mobile-device traces used to construct usage episodes, sessions, daily totals, or cleaned summaries."
+        - "Rules actually examined and source verified in the fixed 143-paper Android corpus identified by docs/paper/android-143-corpus.json; inaccessible or uninspected source sections remain explicit limitations."
+        - "Within the Android review: device/app callbacks and event records; temporally sampled device, app, interaction or screen-content observations; temporal device/process counters; and device-recorded app/screen histories or their derived aggregates. These source forms remain distinct, not renamed as callback events."
+        - "The target paper must actually process, analyze or methodologically synthesize the qualifying trace. An advertised collector capability alone is insufficient."
+        - "Android provenance must be explicit in the target source. Mixed-platform reports qualify only for an identifiable Android branch; pooled results do not become Android-specific methods or defaults."
+      excluded:
+        - "A universal representation theorem for all event streams or all sensing domains."
+        - "Analysis-model choices unless a manuscript explicitly extends and versions the scope."
+        - "A claim that every component is currently implemented or scientifically certified."
+        - "Server/carrier-only records, self-reported usage without a qualifying device trace, generic physical-sensor streams alone, and records whose Android provenance remains unestablished. They remain neighboring evidence or pending leads, not inferred Android logs."
+    manuscript_role:
+      paper: "Primary conceptual hypothesis and target of the rule-family counterexample audit."
+      thesis: "Common-structure chapter hypothesis replacing the narrow legacy C1."
+      result_eligible: true
+      result_condition: "Only after the frozen-rubric, source-mapping, and counterexample gates pass."
+    current_evidence:
+      summary: >-
+        Six recurrent rule families, a draft 21-component model, current multi-axis runtime
+        behavior, and literature-to-implementation mappings provide formative evidence.
+      limitations:
+        - "The versioned component rubric and delivery-axis ledger now exist; the crosswalk artifact (component-crosswalk.yaml 0.1.0) is drafted and machine-verified but not yet frozen, and its two recorded adjudication gaps (polled emulation, screen-session construction) are unadjudicated."
+        - "Some paper-derived values remain source-unverified transcriptions."
+        - "Formal prior art already contains event, temporal, and provenance languages, so novelty cannot be inferred from structure alone."
+    required_gates:
+      - gate_id: "GATE-H01-FREEZE"
+        requirement: "Freeze a versioned component model and its mappings to ontology terms and delivery axes."
+      - gate_id: "GATE-H01-SOURCE-MAP"
+        requirement: "Map each included method from verified primary sources, with unresolved components explicit."
+      - gate_id: "GATE-H01-COUNTEREXAMPLES"
+        requirement: "Audit the fixed 143-paper corpus for rules the vector cannot express and adjudicate every candidate counterexample; outside citation leads are deferred and do not expand this gate."
+      - gate_id: "GATE-H01-PRIOR-ART"
+        requirement: "Compare the scoped contribution with formal event, temporal, measurement, and provenance languages."
+    prohibited_inference:
+      - "Do not generalize from 'rules examined' to all published rules, all mobile sensing, or all event processing."
+      - "Do not call the vector complete, validated, novel, or executable end to end before its gates pass."
+      - "Do not treat the absence of an observed counterexample in the draft corpus as proof of universal expressiveness."
+    vocabulary_authority_pointers:
+      - path: "docs/paper/measurement-component-rubric.yaml"
+        version: "0.2.0"
+        authority_for: "Stable scientific component IDs, meanings, and scoring-field ownership."
+        authority_limit: "Provisional rubric; not evidence for the hypothesis."
+      - path: "docs/paper/component-crosswalk.yaml"
+        version: "0.1.0"
+        authority_for: "Draft component-to-ontology, component-to-delivery-axis, and component-to-contract-slot mappings, with explicit gaps."
+        authority_limit: "DRAFT_FOR_FREEZE; a mapping row asserts vocabulary correspondence only and is not evidence for the hypothesis."
+      - path: "docs/paper/delivery-axis-ledger.yaml"
+        version: "2026-08-25.1"
+        authority_for: "Stable delivery-axis IDs, meanings, and baseline implementation statuses."
+        authority_limit: "Delivery sequencing is not scientific component coverage or evidence for the hypothesis."
+    source_authority_pointers:
+      - path: "web/schema/chronicle-research-ontology.linkml.yaml"
+        authority_for: "Canonical repository entities and relationships."
+        authority_limit: "Schema coverage does not validate the hypothesis."
+      - path: "web/schema/chronicle-workflow.yaml"
+        authority_for: "Canonical current workflow operations and stage structure."
+        authority_limit: "Current workflow coverage is not corpus coverage."
+      - path: "docs/workflow/research-ontology-design.md"
+        authority_for: "Design rationale and known ontology boundaries."
+        authority_limit: "Working design record, not claim evidence by itself."
+      - path: "docs/paper/consolidated-literature/master-review.md"
+        authority_for: "Consolidated literature synthesis and identified competing precedents."
+        authority_limit: "Primary sources control individual method semantics."
+
+  - id: "claim:H01A_DISCLOSURE_INSTRUMENT"
+    display_name: "Disclosure and classifiability instrument"
+    aliases:
+      - "H1a"
+      - "C1a"
+      - "classifiability claim"
+    canonical_statement: >-
+      The proposed vector and scoring rubric may function as an access-aware instrument for
+      classifying whether a publication declares, delegates, omits, or leaves undetermined the
+      components required to identify its constructed measure.
+    status:
+      lifecycle: "PROPOSED"
+      validation: "UNVALIDATED"
+      empirical: "PRELIMINARY_COUNTS_ONLY"
+      rationale: >-
+        A reconciled fixed-census count exists, but the full component rubric, independent scoring,
+        adjudication, and inter-rater validation have not been completed.
+    scope:
+      sampling_frame: >-
+        The 51-reference bibliography fixed externally by Winklbauer and Batinic before Chronicle
+        screening; it is a bibliography census, not a probability sample of the field.
+      scoring_scope:
+        - "Source access depth is recorded independently of disclosure."
+        - "Material not read in full is UNDET, never silently scored ABSENT; post-review ambiguity belongs in adjudication fields."
+        - "App-level and device-level eligibility use separate denominators."
+      excluded:
+        - "Author quality, methodological validity, or reproducibility inferred from one disclosure field."
+        - "Population-wide prevalence claims about all screen-time research."
+    manuscript_role:
+      paper: "Proposed methods instrument; reconciled counts may appear only as preliminary descriptive results."
+      thesis: "Literature-recovery and disclosure-rubric chapter, pending validation."
+      result_eligible: true
+      result_condition: "Counts must retain the preliminary/not-independently-verified qualifier until all validation gates pass."
+    current_evidence:
+      reconciliation_status: "PRELIMINARY_NOT_INDEPENDENTLY_VERIFIED"
+      reconciliation_note: >-
+        These values reconcile the current census artifacts and outline, but no independent coder
+        has yet reproduced the eligibility classifications or declaration scores.
+      fixed_frame_size: 51
+      access_depth:
+        full_text: 35
+        abstract_or_metadata_only: 16
+      app_level:
+        eligible_streams: 16
+        declare_reconstruction_rule: 2
+        empirical_studies_declaring_rule: 1
+        required_reporting: "2/16 declare a rule; only 1/16 is empirical."
+      device_level:
+        eligible_streams: 7
+        declare_pairing_rule: 5
+        required_reporting: "5/7 declare the device-level pair."
+      sensitivity_analysis:
+        threshold_sensitivity_analyses: 1
+        denominator: 51
+        required_reporting: "One threshold sensitivity analysis in the fixed 51-reference frame."
+      limitations:
+        - "The preliminary tally covers selected declaration questions, not all vector components."
+        - "Access counts and eligibility classifications have not been independently verified."
+    required_gates:
+      - gate_id: "GATE-H01A-RUBRIC"
+        requirement: "Freeze component definitions, access states, disclosure states, and eligibility rules before rescoring."
+      - gate_id: "GATE-H01A-INDEPENDENT-SCORING"
+        requirement: "Train at least one independent coder and score the fixed frame without using current labels as answers."
+      - gate_id: "GATE-H01A-ADJUDICATION"
+        requirement: "Publish disagreements, adjudication rules, and per-component reliability with source locators."
+      - gate_id: "GATE-H01A-RECONCILIATION"
+        requirement: "Regenerate every numerator and denominator from the frozen scored dataset and reconcile it to the manuscript."
+    prohibited_inference:
+      - "Do not describe these counts as independently verified, final, or representative of all literature."
+      - "Do not pool the app-level, device-level, access, and sensitivity denominators into one 'N of 51 declare' statistic."
+      - "Do not score abstract-only or inaccessible papers as silent, absent, or noncompliant."
+      - "Do not infer that disclosure establishes validity, fidelity, or reproducibility."
+    vocabulary_authority_pointers:
+      - path: "docs/paper/measurement-component-rubric.yaml"
+        version: "0.2.0"
+        authority_for: "Component IDs and exact access, disclosure, adjudication, and parameter-scoring fields/tokens."
+        authority_limit: "Vocabulary ownership does not validate the proposed instrument or preliminary counts."
+    source_authority_pointers:
+      - path: "docs/paper/citation-chase/census-reconciliation.md"
+        authority_for: "Current reconciled access, eligibility, declaration, and sensitivity counts."
+        authority_limit: "Preliminary internal reconciliation; not independently scored."
+      - path: "docs/paper/winklbauer-batinic-references.md"
+        authority_for: "Identity of the fixed 51-reference external frame."
+        authority_limit: "The bibliography is not a probability sample of the field."
+      - path: "docs/paper/consolidated-literature/README.md"
+        authority_for: "Corpus routing, source hierarchy, and evidence-handling rules."
+        authority_limit: "Does not validate the proposed scoring instrument."
+      - path: "docs/paper/consolidated-literature/master-review.md"
+        authority_for: "Current consolidated synthesis and known evidence gaps."
+        authority_limit: "Primary sources remain authoritative for individual papers."
+
+  - id: "claim:C01B_PARAMETER_PROVENANCE"
+    display_name: "Parameter provenance is part of method identity"
+    aliases:
+      - "C1b"
+      - "parameter-provenance claim"
+    canonical_statement: >-
+      Numeric thresholds and boundary operators are typed arguments to a method binding; their
+      origin, units, inclusivity, inheritance chain, and fitting context are part of the measure's
+      identity rather than facts about phones in general.
+    status:
+      lifecycle: "CONCEPTUAL"
+      validation: "PARTIALLY_SUPPORTED"
+      empirical: "NOT_APPLICABLE"
+      rationale: >-
+        Multiple threshold families and inheritance chains have been traced, but unresolved
+        second-hand values and incomplete boundary conventions prevent a closed provenance ledger.
+    scope:
+      included:
+        - "Thresholds, caps, gaps, windows, boundary operators, defaults, and fitted values used by a scoped method binding."
+      excluded:
+        - "A claim that any particular value is universally correct or biologically natural."
+        - "A scientific result about threshold sensitivity unless an empirical analysis is separately run."
+    parameter_vocabulary:
+      values_from: "docs/paper/measurement-component-rubric.yaml#census_scoring_contract.parameter_provenance"
+      rubric_version: "0.2.0"
+      fields:
+        - "derivation_kind"
+        - "transfer_kind"
+        - "source_support"
+      projection_rule: "Do not copy or redefine the allowed tokens in the claim ledger."
+    manuscript_role:
+      paper: "Methods and related-work claim that motivates typed parameters and provenance receipts."
+      thesis: "Conceptual bridge between literature recovery, ontology, executable bindings, and sensitivity analysis."
+      result_eligible: true
+      result_condition: "Only source-verified provenance counts may be presented as results."
+    current_evidence:
+      summary: >-
+        The corpus contains recurring 5-, 10-, 30-, 45-, and 60-second rules, longer caps, inherited
+        thresholds, repository defaults, and at least one reported threshold-sensitivity analysis.
+      limitations:
+        - "Some values are known only through secondary citations or source-unverified transcriptions."
+        - "Units alone do not identify inclusivity, clock, censoring, or application context."
+    required_gates:
+      - gate_id: "GATE-C01B-SOURCE-LEDGER"
+        requirement: "Record a verified primary-source locator or an explicit unresolved/secondary status for every parameter."
+      - gate_id: "GATE-C01B-BOUNDARIES"
+        requirement: "Record units, inclusivity, clock, missingness, and boundary conventions and test them at exact edges."
+      - gate_id: "GATE-C01B-BINDING"
+        requirement: "Bind each value to a versioned ParameterSet and method revision without duplicating schema provenance."
+    prohibited_inference:
+      - "Do not present a recurring threshold as a natural constant, platform fact, or recommended default."
+      - "Do not upgrade a secondary citation to primary-source verification."
+      - "Do not infer empirical sensitivity from the mere existence of alternative parameter values."
+    vocabulary_authority_pointers:
+      - path: "docs/paper/measurement-component-rubric.yaml"
+        version: "0.2.0"
+        authority_for: "component:C21 and the exact parameter derivation, transfer, and source-support fields/tokens."
+        authority_limit: "Vocabulary ownership does not establish a parameter's source, validity, or effect."
+    source_authority_pointers:
+      - path: "web/schema/chronicle-research-ontology.linkml.yaml"
+        authority_for: "Canonical ParameterSet and execution/provenance entity vocabulary."
+        authority_limit: "The schema does not establish the origin or validity of a specific value."
+      - path: "docs/paper/consolidated-literature/master-review.md"
+        authority_for: "Consolidated list of traced threshold families and method contexts."
+        authority_limit: "Primary sources control exact parameter semantics."
+      - path: "docs/paper/citation-chase/census-reconciliation.md"
+        authority_for: "Current fixed-frame threshold and sensitivity reconciliation."
+        authority_limit: "Preliminary internal scoring."
+
+  - id: "claim:H02_BINDING_DISAGREEMENT"
+    display_name: "Complete admissible bindings may disagree consequentially"
+    aliases:
+      - "H2"
+      - "C2"
+      - "bindings-disagree hypothesis"
+    canonical_statement: >-
+      Complete, source-faithful, scientifically admissible method bindings may produce materially
+      different episode, session, day, participant, and downstream-analysis results when applied
+      to the same authorized real event stream.
+    status:
+      lifecycle: "HYPOTHESIS"
+      validation: "UNVALIDATED"
+      empirical: "UNRUN"
+      rationale: >-
+        Current tests establish dispatch and synthetic non-degeneracy only. The complete admissible
+        binding set, source conformance, preregistered materiality rule, and authorized real-data
+        comparison do not yet exist as a passed evidence bundle.
+    scope:
+      included:
+        - "Preregistered, complete bindings certified for the same input capability and analysis window."
+        - "Absolute disagreement, rank change, agreement, variance decomposition, and downstream decision sensitivity."
+      excluded:
+        - "Synthetic-fixture magnitudes as scientific results."
+        - "Partial strategies labeled as complete published methods."
+        - "Population inference without a justified sampling and weighting design."
+    manuscript_role:
+      paper: "Headline empirical hypothesis; Results must remain unfilled until the real-data gate passes."
+      thesis: "Central empirical test across reconstruction, cleaning, and downstream-analysis chapters."
+      result_eligible: true
+      result_condition: "All conformance, preregistration, data-authority, and execution gates must pass."
+    current_evidence:
+      summary: >-
+        At the merged private-main revision (d5fee649a, 2026-08-24), selectable runtime values
+        include five retention-set values, eight reconstruction strategies, eight grouping
+        values (the default plus six published constants plus the Peng & Zhu 2020
+        per-participant median, the corpus's only individualized threshold), and two
+        interval-quality values, counting defaults. Focused synthetic tests show that branches
+        dispatch and can produce distinct outputs.
+      limitations:
+        - "Runtime enum values are not equivalent to independently validated published methods."
+        - "Several retained-event alternatives are source-unverified; delivery:B02 through delivery:B12 and delivery:B14 are merged to private main (through d5fee649a, 2026-08-24), delivery:B13 remains a conditional refusal by design, and delivery:B12's cap-scope adaptive source remains a standing typed refusal with the individualized threshold implemented at the sessionization step instead."
+        - "The current EYES arm is an ACTIVE-only partial replay/adaptation, not a certified EYES preset."
+        - "No authorized real-data comparison has been run."
+    required_gates:
+      - gate_id: "GATE-H02-COMPLETE-BINDINGS"
+        requirement: "Freeze complete versioned method manifests, refusals, interactions, and held-fixed axes."
+      - gate_id: "GATE-H02-CONFORMANCE"
+        requirement: "Pass source, component-oracle, and end-to-end conformance gates for every included binding."
+      - gate_id: "GATE-H02-PREREGISTRATION"
+        requirement: "Preregister admissible arms, estimands, smallest consequential difference, uncertainty, and decision rules."
+      - gate_id: "GATE-H02-DATA-AUTHORITY"
+        requirement: "Use an authorized real dataset with a frozen revision, privacy plan, cohort definition, and audit trail."
+      - gate_id: "GATE-H02-EXECUTION"
+        requirement: "Run the complete multiverse without representative collapsing and reconcile all outputs to provenance receipts."
+    prohibited_inference:
+      - "Do not report any synthetic or pre-fix magnitude as scientific evidence for disagreement."
+      - "Do not call the current strategy count a count of independent published methods."
+      - "Do not infer consequential disagreement from branch dispatch or non-degeneracy alone."
+      - "Do not claim population, causal, clinical, or policy consequences beyond the preregistered design."
+    source_authority_pointers:
+      - path: "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs"
+        authority_for: "Current baseline runtime behavior at the pinned implementation revision."
+        authority_limit: "Implementation is not source-method conformance or empirical evidence."
+      - path: "web/src/lib/rustPipelineRuntimeContract.test.ts"
+        authority_for: "Current browser-to-Rust contract and focused execution assertions."
+        authority_limit: "Tests on controlled fixtures do not establish scientific magnitude."
+      - path: "web/schema/chronicle-workflow.yaml"
+        authority_for: "Canonical workflow operations and artifact edges."
+        authority_limit: "Workflow completeness does not establish complete scientific bindings."
+      - path: "docs/paper/consolidated-literature/master-review.md"
+        authority_for: "Current literature synthesis and direct-method competitors."
+        authority_limit: "Primary sources and reference artifacts govern conformance."
+
+  - id: "claim:C03_CAPABILITY_DEFINABILITY"
+    display_name: "Instrument capability bounds definability and auditability"
+    aliases:
+      - "C3"
+      - "instrument ladder"
+      - "capability-definability claim"
+    canonical_statement: >-
+      The signals an instrument exposes constrain which usage constructs and processing decisions
+      can be defined or audited; capability is multidimensional and should be represented as a
+      partial order where a single ladder would imply a false total ranking.
+    status:
+      lifecycle: "CONCEPTUAL"
+      validation: "PARTIALLY_SUPPORTED"
+      empirical: "NOT_APPLICABLE"
+      rationale: >-
+        Android, research-app, vendor-derived, device-state, and aggregate sources demonstrate
+        distinct observable predicates, but the construct-by-instrument matrix and current
+        platform/version audit remain incomplete.
+    scope:
+      included:
+        - "Definability and auditability conditional on recorded signals, documented predicates, temporal resolution, and platform/version."
+        - "Android and iOS as the primary comparison, with vendor-derived signals represented explicitly."
+      excluded:
+        - "A ranking of truth, validity, study quality, privacy, or overall instrument merit."
+        - "Timeless claims about platform capability independent of version, jurisdiction, entitlement, or device class."
+    manuscript_role:
+      paper: "Cross-platform conceptual claim and boundary condition on admissible bindings."
+      thesis: "Instrument-capability chapter and construct-by-instrument matrix."
+      result_eligible: true
+      result_condition: "Only versioned, source-supported capability entries may be reported as findings."
+    current_evidence:
+      summary: >-
+        Current synthesis distinguishes raw declared platform events, app-level research streams,
+        vendor-derived streams with hidden predicates, screen/device-state streams, and vendor
+        aggregates, with Android/iOS and forensic examples.
+      limitations:
+        - "The existing numbered ladder is a pedagogical shorthand and is not a validated total order."
+        - "A richer event stream is not ground truth and can remain incomplete, reactive, or semantically opaque."
+        - "Platform and vendor behavior can change after the current review date."
+    required_gates:
+      - gate_id: "GATE-C03-MATRIX"
+        requirement: "Freeze a versioned construct-by-signal capability matrix with explicit incomparable dimensions."
+      - gate_id: "GATE-C03-PLATFORM-SOURCES"
+        requirement: "Verify every platform, jurisdiction, entitlement, and version claim against current primary documentation at submission."
+      - gate_id: "GATE-C03-COUNTEREXAMPLES"
+        requirement: "Search for instruments that define a claimed construct through a different auditable signal path."
+    prohibited_inference:
+      - "Do not treat higher capability as greater truth, validity, or research quality."
+      - "Do not treat raw logs as universal ground truth."
+      - "Do not collapse 'not recorded,' 'not documented,' 'not accessible,' and 'not definable' into one state."
+      - "Do not present the ladder as a total order when capabilities are incomparable."
+    source_authority_pointers:
+      - path: "docs/paper/literature-dossier.md"
+        authority_for: "Current capability-ladder rationale, Android/iOS examples, and Digital Wellbeing design caveats."
+        authority_limit: "Consolidated working dossier; current primary platform sources govern time-sensitive facts."
+      - path: "docs/paper/consolidated-literature/master-review.md"
+        authority_for: "Current platform and instrument synthesis and identified gaps."
+        authority_limit: "Does not freeze future platform behavior."
+      - path: "web/schema/chronicle-research-ontology.linkml.yaml"
+        authority_for: "Canonical distinctions among occurrences, records, assertions, intervals, and provenance entities."
+        authority_limit: "Ontology expressiveness does not establish instrument validity."
+
+  - id: "claim:C04_HOURLY_PLACEMENT"
+    display_name: "Sub-hour placement from hourly aggregates"
+    aliases:
+      - "C4"
+      - "hourly-placement claim"
+    canonical_statement: >-
+      When only hourly totals are observed, a specified placement procedure can be evaluated below
+      the hour using displacement and downstream-statistic preservation, provided its implementation,
+      ground-truth inputs, estimands, and uncertainty are independently reproducible.
+    status:
+      lifecycle: "EXTERNAL_REPORT"
+      validation: "UNVALIDATED"
+      empirical: "EXTERNALLY_REPORTED_NOT_REPRODUCED"
+      rationale: >-
+        The current dossier records user-reported results from an external consumer repository that
+        was not inspected in this project. No code, data, or output bundle has been independently
+        rerun here.
+    scope:
+      included:
+        - "The specifically reported TECH/GNSM placement analysis and its named estimands."
+        - "Conditional use as a thesis chapter or companion analysis only after independent reproduction."
+      excluded:
+        - "All hourly vendor aggregates, populations, placement algorithms, or downstream tasks in general."
+        - "Any result whose underlying data or implementation remains unavailable for the declared audit."
+    manuscript_role:
+      paper: "Omit from Results unless independently reproduced; at most identify as external future/companion work."
+      thesis: "Conditional chapter that is removed from the evidentiary thesis if reproduction fails."
+      result_eligible: false
+      result_condition: "Becomes eligible only after archive, independent rerun, and validation gates pass."
+    current_evidence:
+      summary: >-
+        A literature-dossier section records a user report of placement displacement and reliability
+        analyses. The report states that reliability at a 60-minute bin is exactly one because
+        within-hour placement conserves hourly mass.
+      limitations:
+        - "The underlying implementation, data, and rendered outputs were not independently inspected here."
+        - "The 60-minute equality is a structural identity, not an empirical validation result."
+        - "All reported sub-hour magnitudes remain external and unvalidated."
+    required_gates:
+      - gate_id: "GATE-C04-ARCHIVE"
+        requirement: "Archive the authorized code, input data, environment, configuration, and original outputs with digests."
+      - gate_id: "GATE-C04-INDEPENDENT-RERUN"
+        requirement: "Independently rerun the analysis and reconcile every reported estimate."
+      - gate_id: "GATE-C04-ESTIMANDS"
+        requirement: "Freeze displacement, reliability, bias, uncertainty, and intended-use estimands before manuscript promotion."
+      - gate_id: "GATE-C04-VALIDATION"
+        requirement: "Validate the placement procedure on data and use cases matching the stated scope."
+    prohibited_inference:
+      - "Do not publish the user-reported magnitudes as independently verified findings."
+      - "Do not describe the 60-minute identity as empirical accuracy or validation."
+      - "Do not generalize from the reported datasets to other vendors, populations, or placement procedures."
+      - "Do not inspect or disclose the external consumer repository without separate authority."
+    source_authority_pointers:
+      - path: "docs/paper/literature-dossier.md"
+        authority_for: "The exact external report, its provenance warning, and the 60-minute structural-identity caveat."
+        authority_limit: "Records a user report; it is not an independent reproduction."
+      - path: "docs/paper/consolidated-literature/master-review.md"
+        authority_for: "Published analogues and current placement-literature context."
+        authority_limit: "Does not validate the externally reported implementation."
+
+  - id: "claim:C05_VENDOR_CALIBRATION"
+    display_name: "Same-device Android vendor-aggregate calibration"
+    aliases:
+      - "C5"
+      - "Digital Wellbeing calibration study"
+      - "vendor-calibration claim"
+    canonical_statement: >-
+      A planned Android study could compare a versioned Digital Wellbeing aggregate with raw
+      UsageEvents bindings on the same device and window to characterize differences between an
+      opaque vendor measure and explicit reconstruction policies.
+    status:
+      lifecycle: "PLANNED"
+      validation: "UNVALIDATED"
+      empirical: "NO_DATA"
+      rationale: >-
+        The co-observation design is feasible in principle, but this project currently holds no
+        Digital Wellbeing calibration data and has run no acquisition or comparison protocol.
+    scope:
+      included:
+        - "Same-device, same-window Android Digital Wellbeing and raw UsageEvents observations with version metadata."
+        - "A planned comparison among the vendor aggregate and separately certified raw-log bindings."
+      excluded:
+        - "Existing evidence about the size, direction, or cause of a vendor-versus-raw difference."
+        - "Inference from an Android calibration result to iOS Screen Time without a separate design."
+    manuscript_role:
+      paper: "Future-work design unless data are collected and every gate passes."
+      thesis: "Conditional study chapter; otherwise retain only as a proposed protocol."
+      result_eligible: false
+      result_condition: "Becomes eligible only after approved collection, acquisition validation, and preregistered analysis."
+    current_evidence:
+      summary: >-
+        Android can expose UsageEvents while also rendering Digital Wellbeing summaries, which
+        motivates a same-device design. The dossier explicitly records that no Digital Wellbeing
+        data are held today and that there is no research API for the vendor aggregate.
+      limitations:
+        - "Feasibility and conceptual asymmetry are not calibration evidence."
+        - "Screenshot/OCR or annotation acquisition introduces its own error and missingness."
+        - "Raw UsageEvents bindings are constructed measures, not unquestioned ground truth."
+    required_gates:
+      - gate_id: "GATE-C05-AUTHORITY"
+        requirement: "Obtain data authority, ethics/privacy approval as applicable, and a versioned collection protocol."
+      - gate_id: "GATE-C05-ACQUISITION"
+        requirement: "Validate vendor-summary capture, OCR/annotation, window alignment, device clock, and platform/version metadata."
+      - gate_id: "GATE-C05-BINDINGS"
+        requirement: "Use complete source-conformant raw-log bindings with explicit refusal and uncertainty handling."
+      - gate_id: "GATE-C05-PREREGISTRATION"
+        requirement: "Preregister comparison estimands, missingness handling, sample/cohort scope, and uncertainty."
+      - gate_id: "GATE-C05-DATA"
+        requirement: "Collect and audit same-device paired observations before any result is stated."
+    prohibited_inference:
+      - "Do not claim that a vendor-versus-raw gap currently exists, has a particular magnitude, or favors either measure."
+      - "Do not call Digital Wellbeing or raw UsageEvents ground truth."
+      - "Do not transfer an Android result or its direction to iOS Screen Time."
+      - "Do not present a feasibility argument as collected data or validation."
+    source_authority_pointers:
+      - path: "docs/paper/literature-dossier.md"
+        authority_for: "Current same-device design rationale, no-data status, no-research-API caveat, and Android/iOS scope warning."
+        authority_limit: "Design argument only; no calibration evidence."
+      - path: "docs/paper/consolidated-literature/master-review.md"
+        authority_for: "Current vendor/platform context and published acquisition analogues."
+        authority_limit: "Primary platform documentation governs current capability; no paired data are supplied."
+      - path: "web/schema/chronicle-research-ontology.linkml.yaml"
+        authority_for: "Canonical provenance entities needed to identify inputs, bindings, and executions."
+        authority_limit: "Schema support does not validate a collection protocol or result."

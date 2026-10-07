@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type ReactElement } from "react";
+import { useEffect, useId, useRef, useState, type ReactElement } from "react";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ToggleField } from "@/components/ToggleField";
 
 import { ResetDefaultsButton } from "@/components/ResetDefaultsButton";
@@ -6,14 +7,18 @@ import {
   buildConfigExportBlob,
   buildShareableConfigUrl,
   persistPresets,
+  presetLibraryReadable,
+  PRESETS_STORAGE_KEY,
   readConfigFile,
   readPersistedPresets,
+  readStoredPresetLibrary,
+  SETTINGS_SCHEMA_VERSION,
   type SettingsPreset,
 } from "@/lib/settingsPersistence";
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import { BROWSER_OPTION_TOOLTIPS } from "@/lib/generatedContract";
 import { downloadBlob } from "@/lib/download";
-import type { BrowserProcessingOptions } from "@/lib/types";
+import type { BrowserProcessingOptions, MethodProfileReceipt } from "@/lib/types";
 import { safeUuid } from "@/lib/uuid";
 
 const OPTION_TOOLTIPS = BROWSER_OPTION_TOOLTIPS as Record<string, { title?: string } | undefined>;
@@ -62,6 +67,8 @@ function diffPresetOptions(
 type Props = {
   options: BrowserProcessingOptions;
   setOptions: (next: BrowserProcessingOptions) => void;
+  methodProfileReceipt: MethodProfileReceipt | null;
+  onMethodProfileReceiptChange: (receipt: MethodProfileReceipt | null) => void;
   hideDemoMetadata: boolean;
   onHideDemoMetadataChange: (next: boolean) => void;
   onStatus: (message: string, isError?: boolean) => void;
@@ -70,6 +77,8 @@ type Props = {
 export function SettingsManagementCard({
   options,
   setOptions,
+  methodProfileReceipt,
+  onMethodProfileReceiptChange,
   hideDemoMetadata,
   onHideDemoMetadataChange,
   onStatus,
@@ -78,35 +87,99 @@ export function SettingsManagementCard({
   const [presetName, setPresetName] = useState("");
   const importConfigRef = useRef<HTMLInputElement | null>(null);
   // Pre-reset snapshot so the user can undo a "Reset all to defaults".
-  const [undoSnapshot, setUndoSnapshot] = useState<BrowserProcessingOptions | null>(null);
+  // `before` is restored by Undo; `after` is what the reset produced. The
+  // button is offered only while the options are still that reset value:
+  // once the researcher edits, imports or applies a preset, an Undo would
+  // silently discard those changes.
+  const [undoSnapshot, setUndoSnapshot] = useState<{
+    before: BrowserProcessingOptions;
+    after: BrowserProcessingOptions;
+  } | null>(null);
+  const undoAvailable =
+    undoSnapshot !== null && JSON.stringify(options) === JSON.stringify(undoSnapshot.after);
   // Name awaiting an overwrite confirmation (a preset with that name exists).
   const [pendingOverwriteName, setPendingOverwriteName] = useState<string | null>(null);
   // Preset whose changes are being previewed before applying.
   const [pendingLoad, setPendingLoad] = useState<SettingsPreset | null>(null);
+  // Preset awaiting delete confirmation; deletion is irreversible.
+  const [pendingDeletePreset, setPendingDeletePreset] = useState<SettingsPreset | null>(null);
+  const presetNameInputId = useId();
 
+  // Another tab of this app saved, deleted or imported presets: show its
+  // library. Every change below is applied to the stored library, so this tab
+  // never writes back a list that is missing another tab's change.
   useEffect(() => {
-    persistPresets(presets);
-  }, [presets]);
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== PRESETS_STORAGE_KEY && event.key !== null) return;
+      void presetLibraryReadable().then(
+        () => setPresets(readPersistedPresets()),
+        (error: unknown) => onStatus(`Another tab changed the presets, but they could not be read here (${String(error)}). Reload to see them.`, true),
+      );
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [onStatus]);
+
+  /**
+   * Apply a preset-library change and write it to browser storage, reporting
+   * the outcome of that write: success only when it was stored, otherwise an
+   * error that says the change lasts only until a reload. The change is
+   * applied to the library as stored right now (read-modify-write), falling
+   * back to this tab's copy only where storage cannot be read.
+   */
+  const commitPresets = (
+    change: (current: SettingsPreset[]) => SettingsPreset[],
+    saved: string,
+    notSaved: (reason: string) => string,
+  ): void => {
+    void presetLibraryReadable().then(
+      () => {
+        const next = change(readStoredPresetLibrary() ?? presets);
+        setPresets(next);
+        const outcome = persistPresets(next);
+        if (outcome.ok) onStatus(saved);
+        else onStatus(notSaved(outcome.reason), true);
+      },
+      (error: unknown) => onStatus(notSaved(String(error)), true),
+    );
+  };
 
   const performSave = (name: string) => {
     const now = new Date().toISOString();
-    setPresets((current) => {
+    const snapshot = {
+      updatedAt: now,
+      schemaVersion: SETTINGS_SCHEMA_VERSION,
+      options,
+      methodProfileReceipt: methodProfileReceipt ?? undefined,
+    };
+    const next = (current: SettingsPreset[]): SettingsPreset[] => {
       const existing = current.find(
         (preset) => preset.name.toLowerCase() === name.toLowerCase(),
       );
-      if (existing) {
-        return current.map((preset) =>
-          preset.id === existing.id ? { ...preset, updatedAt: now, options } : preset,
-        );
-      }
-      return [
-        ...current,
-        { id: safeUuid(), name, createdAt: now, updatedAt: now, options },
-      ];
-    });
+      return existing
+        ? current.map((preset) => (preset.id === existing.id ? { ...preset, ...snapshot } : preset))
+        : [...current, { id: safeUuid(), name, createdAt: now, ...snapshot }];
+    };
     setPresetName("");
     setPendingOverwriteName(null);
-    onStatus(`Preset saved: ${name}`);
+    commitPresets(
+      next,
+      `Preset saved: ${name}`,
+      (reason) =>
+        `Preset “${name}” could not be saved in this browser (${reason}). It is usable until you reload; use Export config to keep it.`,
+    );
+  };
+
+  const deletePreset = (preset: SettingsPreset) => {
+    // If this preset's load-diff is open, close it so Apply can't act on a
+    // now-deleted preset.
+    if (pendingLoad?.id === preset.id) setPendingLoad(null);
+    commitPresets(
+      (current) => current.filter((entry) => entry.id !== preset.id),
+      `Deleted preset: ${preset.name}`,
+      (reason) =>
+        `Preset “${preset.name}” was removed from this list but could not be removed from this browser's storage (${reason}); it will reappear after a reload.`,
+    );
   };
 
   const savePreset = () => {
@@ -130,7 +203,7 @@ export function SettingsManagementCard({
   };
 
   const handleReset = (next: BrowserProcessingOptions) => {
-    setUndoSnapshot(options);
+    setUndoSnapshot({ before: options, after: next });
     setOptions(next);
     onStatus("All settings reset to defaults.");
   };
@@ -193,7 +266,7 @@ export function SettingsManagementCard({
             onClick={() => {
               downloadBlob(
                 "chronicle-config.json",
-                buildConfigExportBlob(options, presets),
+                buildConfigExportBlob(options, presets, methodProfileReceipt),
               );
             }}
           >
@@ -227,13 +300,13 @@ export function SettingsManagementCard({
             Copy share link
           </button>
           <ResetDefaultsButton options={options} onReset={handleReset} />
-          {undoSnapshot ? (
+          {undoAvailable && undoSnapshot ? (
             <button
               type="button"
               className="btn btn--secondary"
               data-testid="undo-reset-button"
               onClick={() => {
-                const snapshot = undoSnapshot;
+                const snapshot = undoSnapshot.before;
                 setUndoSnapshot(null);
                 setOptions(snapshot);
                 onStatus("Reset undone — previous settings restored.");
@@ -257,10 +330,15 @@ export function SettingsManagementCard({
               void readConfigFile(file)
                 .then((next) => {
                   setOptions(next.options);
-                  setPresets(next.presets);
-                  onStatus(
-                    `Config imported: active settings replaced, ${next.presets.length} preset` +
-                      `${next.presets.length === 1 ? "" : "s"} loaded.`,
+                  onMethodProfileReceiptChange(next.methodProfileReceipt ?? null);
+                  const loaded =
+                    `${next.presets.length} preset${next.presets.length === 1 ? "" : "s"}`;
+                  // Import replaces the library by design (the button says so).
+                  commitPresets(
+                    () => next.presets,
+                    `Config imported: active settings replaced, ${loaded} loaded.`,
+                    (reason) =>
+                      `Config imported for this session only: ${loaded} could not be saved in this browser (${reason}) and will be gone after a reload.`,
                   );
                 })
                 .catch((error: unknown) => {
@@ -281,11 +359,15 @@ export function SettingsManagementCard({
           captures the current active settings under a name. Load applies one back. Presets
           travel inside the config file above. There is no separate file for them.
         </p>
+        <label className="settings-field__label" htmlFor={presetNameInputId}>
+          Preset name
+        </label>
         <div className="preset-manager__save">
           <input
+            id={presetNameInputId}
             className="input"
             value={presetName}
-            placeholder="Preset name"
+            placeholder="e.g. Locked TECH config"
             data-testid="preset-name-input"
             onChange={(event) => setPresetName(event.target.value)}
           />
@@ -363,6 +445,7 @@ export function SettingsManagementCard({
                 disabled={!pendingLoadDiff.length}
                 onClick={() => {
                   setOptions(pendingLoad.options);
+                  onMethodProfileReceiptChange(pendingLoad.methodProfileReceipt ?? null);
                   onStatus(`Loaded preset: ${pendingLoad.name}`);
                   setPendingLoad(null);
                 }}
@@ -381,6 +464,7 @@ export function SettingsManagementCard({
                   <span className="text-faint u-meta-xs">
                     Created {new Date(preset.createdAt).toLocaleDateString()} · Updated{" "}
                     {new Date(preset.updatedAt).toLocaleString()}
+                    {preset.methodProfileReceipt ? ` · Source profile ${preset.methodProfileReceipt.sourceWorkId}` : ""}
                   </span>
                 </div>
                 <div className="button-row">
@@ -398,14 +482,9 @@ export function SettingsManagementCard({
                   <button
                     type="button"
                     className="btn btn--danger-ghost"
-                    onClick={() => {
-                      // If this preset's load-diff is open, close it so Apply can't
-                      // act on a now-deleted preset.
-                      if (pendingLoad?.id === preset.id) setPendingLoad(null);
-                      setPresets((current) =>
-                        current.filter((entry) => entry.id !== preset.id),
-                      );
-                    }}
+                    data-testid="preset-delete-button"
+                    aria-label={`Delete preset ${preset.name}`}
+                    onClick={() => setPendingDeletePreset(preset)}
                   >
                     Delete
                   </button>
@@ -417,6 +496,24 @@ export function SettingsManagementCard({
           <p className="empty-state">No saved presets yet.</p>
         )}
       </div>
+      {pendingDeletePreset ? (
+        <ConfirmDialog
+          title={`Delete preset “${pendingDeletePreset.name}”?`}
+          confirmLabel="Delete preset"
+          testId="delete-preset-dialog"
+          onCancel={() => setPendingDeletePreset(null)}
+          onConfirm={() => {
+            const target = pendingDeletePreset;
+            setPendingDeletePreset(null);
+            deletePreset(target);
+          }}
+        >
+          <p>
+            This removes the preset from this browser’s preset library. Your active settings are
+            not changed. Export config first if you want a copy. This cannot be undone.
+          </p>
+        </ConfirmDialog>
+      ) : null}
     </section>
   );
 }

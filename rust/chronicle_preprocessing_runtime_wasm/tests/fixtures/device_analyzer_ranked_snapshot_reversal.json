@@ -1,0 +1,72 @@
+{
+  "schemaVersion": "chronicle-device-analyzer-ranked-snapshot-reversal-source-fixture/v1",
+  "sourceWorkId": "doi:10.1145/2638728.2641700",
+  "exactCanonicalSettings": [
+    {
+      "settingId": "method-setting-804c0c3ca2c4ade88c9ae815",
+      "parameterKey": "collector.key_family",
+      "sourceObservedSetting": "collector.key_family: app|recent|[zero-based index]",
+      "sourceValueSha256": "af2852c910a1b6f2d397e03843a9146277c412b6b19f6f948da38b90e1803f17"
+    },
+    {
+      "settingId": "method-setting-a5986bb34d2c98401a017ece",
+      "parameterKey": "collector.snapshot_capacity",
+      "sourceObservedSetting": "collector.snapshot_capacity: {\"maximum_tasks\":10}",
+      "sourceValueSha256": "5418a86edc5d635c88ba1e985dbaafa453ef6e814b4460ab3708da55f20693b8"
+    },
+    {
+      "settingId": "atomic-f8ea5a33f3fcccb1fa06f145",
+      "parameterKey": "collector.rank_orientation",
+      "sourceObservedSetting": "collector.rank_orientation: zero-based; lower index is more recent; rank 0 is newest",
+      "sourceValueSha256": "5dc136513114a754446679131df905149347a642984c8bcddc1b6eafdc8c8f91"
+    },
+    {
+      "settingId": "method-setting-9383da8ffcad6889d1b1845a",
+      "parameterKey": "input.accepted_source",
+      "sourceObservedSetting": "input.accepted_source: app|recent snapshots",
+      "sourceValueSha256": "cb4f8729e08fc7b4959ce839dfe4d29d5d7624c1260e4edf9590b655d524cfa2"
+    },
+    {
+      "settingId": "method-setting-1266e78e4cb2fec463919751",
+      "parameterKey": "preprocessing.unchanged_snapshot_filter",
+      "sourceObservedSetting": "preprocessing.unchanged_snapshot_filter: filter unchanged app|recent snapshots to avoid analyzing the same list repeatedly and detect new launches",
+      "sourceValueSha256": "0f1324b809fad4767ccaf335088805d946010ffaa5dc77141dd2738cdd64a15c"
+    }
+  ],
+  "sourceArtifacts": [
+    {
+      "locator": ".tmp-literature-review-private/new-strict-methods-discovery-batch-c-20260830/artifacts/gouin-vallerand-mezghani-2014-app-transitions.pdf:pages 3-4",
+      "sha256": "5e53ab306fee55138b62ac9432e894b9b712963f6a6bc6f855c21990d90aa7f1"
+    },
+    {
+      "locator": ".tmp-literature-review-private/new-strict-methods-discovery-batch-c-20260830/extracted/gouin-vallerand-mezghani-2014-app-transitions.txt:100-128,139-166",
+      "sha256": "b36d6a7dbdbb2af834e0d9b16512de4d66095f28e68be115c919eb434907f02f"
+    },
+    {
+      "locator": ".tmp-literature-review-private/open-index-reference-frontier-wave3/artifact-verification/downloads/device-analyzer-keyvaluepairs-20151023035311.html:app|recent",
+      "sha256": "520f17b7e03a280e62981feafb0a76af2b7fa9100251651bb311790d888a366e"
+    }
+  ],
+  "maximumTasks": 10,
+  "inputBoundary": "Caller supplies Device Analyzer app|recent rows with a device-scoped opaque entity identifier, logged snapshot identifier, exact app|recent|N raw key, and opaque component value. Entity assignment and snapshot grouping are already known.",
+  "outputBoundary": "Preserve first-seen snapshot order per device and emit each retained snapshot's supplied rows from the largest source rank to rank zero, which is oldest-to-newest for that logged group.",
+  "rows": [
+    { "sourceRowId": "s1-newest", "entityId": "device-1", "snapshotId": "snapshot-1", "rawKey": "app|recent|0", "componentValue": "app.new/.Newest" },
+    { "sourceRowId": "s1-oldest", "entityId": "device-1", "snapshotId": "snapshot-1", "rawKey": "app|recent|2", "componentValue": "app.old/.Oldest" },
+    { "sourceRowId": "s1-middle", "entityId": "device-1", "snapshotId": "snapshot-1", "rawKey": "app|recent|1", "componentValue": "app.middle/.Middle" },
+    { "sourceRowId": "repeat-newest", "entityId": "device-1", "snapshotId": "snapshot-2", "rawKey": "app|recent|0", "componentValue": "app.new/.Newest" },
+    { "sourceRowId": "repeat-middle", "entityId": "device-1", "snapshotId": "snapshot-2", "rawKey": "app|recent|1", "componentValue": "app.middle/.Middle" },
+    { "sourceRowId": "repeat-oldest", "entityId": "device-1", "snapshotId": "snapshot-2", "rawKey": "app|recent|2", "componentValue": "app.old/.Oldest" },
+    { "sourceRowId": "s2-only", "entityId": "device-1", "snapshotId": "snapshot-3", "rawKey": "app|recent|0", "componentValue": "app.only/.Only" },
+    { "sourceRowId": "d2-newest", "entityId": "device-2", "snapshotId": "snapshot-1", "rawKey": "app|recent|0", "componentValue": "app.new/.Newest" },
+    { "sourceRowId": "d2-oldest", "entityId": "device-2", "snapshotId": "snapshot-1", "rawKey": "app|recent|2", "componentValue": "app.old/.Oldest" },
+    { "sourceRowId": "d2-middle", "entityId": "device-2", "snapshotId": "snapshot-1", "rawKey": "app|recent|1", "componentValue": "app.middle/.Middle" }
+  ],
+  "expectedSourceRowIds": ["s1-oldest", "s1-middle", "s1-newest", "s2-only", "d2-oldest", "d2-middle", "d2-newest"],
+  "limitations": [
+    "This component uses caller-supplied device and logged-snapshot identities; polling, elapsed-realtime conversion, time-reference joins, device attribution, and snapshot grouping remain upstream.",
+    "It drops consecutive exact rank-and-component list repeats, regardless of source row identifiers. It does not infer launches or remove partially overlapping snapshots. The paper does not disclose the exact cross-snapshot delta algorithm, so that behavior remains fail-closed.",
+    "Canonical decimal-key checks, duplicate-rank rejection, the ten-row maximum, and missing-field rejection are Chronicle typed-boundary safeguards; they are not attributed as additional source behavior.",
+    "Component values remain opaque. Chronicle does not claim to reproduce Intent.getComponent().flattenToShortString(), hashing, package/activity normalization, transitions, same-hour/day matrices, or downstream statistics here."
+  ]
+}

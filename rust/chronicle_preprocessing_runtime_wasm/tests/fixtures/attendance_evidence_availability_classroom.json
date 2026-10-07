@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "chronicle-attendance-evidence-availability-source-fixture/v1",
+  "sourceWorkId": "doi:10.1016/j.compedu.2019.103611",
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-f5d1364d0018c64801ccd99c",
+    "parameterKey": "attendance.exclude_without_wifi_or_gps",
+    "sourceObservedSetting": "attendance.exclude_without_wifi_or_gps: exclude log data when neither Wi-Fi nor GPS permits attendance checking",
+    "sourceValueSha256": "a5fd3a96d9bba7536f74a4d64af988da0c4984f28bc807ee2bdacbe43c60f6ae"
+  },
+  "sourceArtifact": {
+    "locator": ".tmp-literature-review-private/corrective-packet-08-ranks277-329-20260831/fulltext/rank288-primary.txt:305-328",
+    "sha256": "5444bf55d60696984c74e676bfc3dacd388e81074b3f5f09ba07120d2c3e414b"
+  },
+  "inputBoundary": "Two explicit source-aligned booleans state whether Wi-Fi and GPS, respectively, permit attendance checking for the log-data scope.",
+  "outputBoundary": "Exclude the log-data scope only when neither Wi-Fi nor GPS permits attendance checking; retain when either or both permit it.",
+  "limitations": [
+    "This binding does not infer whether raw Wi-Fi or GPS observations are present or usable.",
+    "This binding does not build or match the classroom Wi-Fi fingerprint database.",
+    "This binding does not derive building entry, exit, or boundary crossing from GPS observations.",
+    "This binding does not select which retained evidence source takes precedence or execute the source Wi-Fi-to-GPS fallback.",
+    "This binding does not join retained log data to a class schedule or infer attendance.",
+    "A missing Wi-Fi or GPS permit-attendance-check value fails closed rather than being interpreted as false."
+  ],
+  "minimumAvailableEvidenceSources": 1,
+  "dispositions": ["exclude_log_data", "retain_for_attendance_check"],
+  "availabilityCases": [
+    {
+      "observationId": "neither-source-permits",
+      "wifiPermitsAttendanceCheck": false,
+      "gpsPermitsAttendanceCheck": false,
+      "expectedDisposition": "exclude_log_data"
+    },
+    {
+      "observationId": "wifi-only-permits",
+      "wifiPermitsAttendanceCheck": true,
+      "gpsPermitsAttendanceCheck": false,
+      "expectedDisposition": "retain_for_attendance_check"
+    },
+    {
+      "observationId": "gps-only-permits",
+      "wifiPermitsAttendanceCheck": false,
+      "gpsPermitsAttendanceCheck": true,
+      "expectedDisposition": "retain_for_attendance_check"
+    },
+    {
+      "observationId": "both-sources-permit",
+      "wifiPermitsAttendanceCheck": true,
+      "gpsPermitsAttendanceCheck": true,
+      "expectedDisposition": "retain_for_attendance_check"
+    }
+  ],
+  "missingInputCases": [
+    {
+      "observationId": "missing-wifi-permission",
+      "wifiPermitsAttendanceCheck": null,
+      "gpsPermitsAttendanceCheck": true,
+      "expectedError": "wifi_attendance_evidence_required"
+    },
+    {
+      "observationId": "missing-gps-permission",
+      "wifiPermitsAttendanceCheck": true,
+      "gpsPermitsAttendanceCheck": null,
+      "expectedError": "gps_attendance_evidence_required"
+    }
+  ]
+}

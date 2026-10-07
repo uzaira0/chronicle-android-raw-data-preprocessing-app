@@ -8,11 +8,27 @@ import type {
   RustWorkflowExplorerView,
   WorkflowExplorerSupportRole,
 } from "@/lib/types";
+import type { RegisteredLiteratureComponentExecution } from "@/lib/literatureInputAdapters";
+import type { LiteratureComponentRuntimeExecution } from "@/lib/rustPipelineRuntime";
 import type { ChronicleWorkerApi } from "@/workers/chronicle-worker";
 import type { OpfsCapability } from "@/lib/opfsArtifactStore";
 import type { RawFileInspection } from "@/lib/fileInspection";
+import type {
+  ParticipantPartitionTransport,
+  RawFileInspectionBatch,
+} from "@/lib/fileInspection";
 export { comparisonSupportCacheKey } from "@/lib/comparisonSupportKey";
-import runtimeWasmUrl from "@/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm_bg.wasm?url";
+import runtimeWasmUrl, { packedWasmIdentity } from "@/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm_bg.wasm?chronicle-runtime-asset";
+import { loadPackedAssetBytes } from "@/lib/packedJsonAsset";
+import { requireDefined } from "@/lib/invariant";
+import { rehydrateScientificPreflightRefusal } from "@/lib/scientificPreflightTransport";
+import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
+import { requiresLiveScientificPreflight } from "@/lib/inputCapabilityEvidence";
+import { adaptiveWorkerBudgetBytes, WORKER_BASELINE_BYTES } from "@/lib/concurrency";
+import {
+  parseWorkerBackgroundFailure,
+  type WorkerBackgroundFailure,
+} from "@/lib/workerBackgroundFailure";
 
 /**
  * Browser client for the authoritative Rust/WASM worker. This file owns worker
@@ -41,6 +57,7 @@ type WorkerSlot = {
   retired: boolean;
   completedTasks: number;
   terminated: boolean;
+  wasmMemoryBytes: number;
   /** Last support-cache key confirmed loaded on this worker. */
   lastSupportCacheKey: string | undefined;
   /** SHA-256 of the last reviewed input, for workspace affinity in acquire(). */
@@ -51,8 +68,69 @@ type WorkerSlot = {
 const NEVER_FAULT: Promise<never> = new Promise<never>(() => {});
 let compiledRuntimeModule: Promise<WebAssembly.Module> | undefined;
 
+function exactPartitionSecret(
+  participantPartition: ParticipantPartitionTransport,
+  inspectionBatch: RawFileInspectionBatch | undefined,
+): ArrayBuffer {
+  if (
+    !inspectionBatch ||
+    inspectionBatch.participantPartitionBatchId !==
+      participantPartition.participantPartitionBatchId ||
+    inspectionBatch.secret.byteLength !== 32
+  ) {
+    throw new Error(
+      "Participant partition metadata expired; re-select and re-inspect the raw files.",
+    );
+  }
+  return inspectionBatch.secret.slice().buffer;
+}
+
+function activePartitionTransport(
+  options: Partial<BrowserProcessingOptions> | undefined,
+  participantPartition: ParticipantPartitionTransport | undefined,
+  inspectionBatch: RawFileInspectionBatch | undefined,
+): {
+  partition: ParticipantPartitionTransport | undefined;
+  secret: ArrayBuffer | undefined;
+} {
+  const effectiveOptions = { ...DEFAULT_BROWSER_OPTIONS, ...options };
+  if (!requiresLiveScientificPreflight(effectiveOptions)) {
+    return { partition: undefined, secret: undefined };
+  }
+  return participantPartition
+    ? {
+        partition: participantPartition,
+        secret: exactPartitionSecret(participantPartition, inspectionBatch),
+      }
+    : { partition: undefined, secret: undefined };
+}
+
+function wipeTransientSecret(secret: ArrayBuffer | undefined): void {
+  if (secret && secret.byteLength > 0) new Uint8Array(secret).fill(0);
+}
+
+async function withTransientSecret<T>(
+  secret: ArrayBuffer | undefined,
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } finally {
+    // A successful Comlink transfer detaches the buffer (byteLength=0) and the
+    // worker owns its wipe. A readiness/fetch/pool fault before transfer leaves
+    // it attached here, so the main thread must erase its ephemeral copy.
+    wipeTransientSecret(secret);
+  }
+}
+
 function getCompiledRuntimeModule(): Promise<WebAssembly.Module> {
-  compiledRuntimeModule ??= (async () => {
+  if (compiledRuntimeModule) return compiledRuntimeModule;
+  const pending = (async () => {
+    if (packedWasmIdentity) {
+      const bytes = await loadPackedAssetBytes(runtimeWasmUrl, packedWasmIdentity.decodedBytes,
+        packedWasmIdentity.decodedSha256, packedWasmIdentity.encodedSha256, packedWasmIdentity.encodedBytes);
+      return WebAssembly.compile(new Uint8Array(bytes).buffer);
+    }
     const response = await fetch(
       new URL(
         runtimeWasmUrl,
@@ -72,10 +150,32 @@ function getCompiledRuntimeModule(): Promise<WebAssembly.Module> {
     }
     return WebAssembly.compile(await response.arrayBuffer());
   })();
-  return compiledRuntimeModule;
+  compiledRuntimeModule = pending;
+  // A cold offline fetch or failed compilation is retryable. Keeping the
+  // rejected promise would brick every worker spawn for the lifetime of the
+  // page even after connectivity recovers.
+  pending.catch(() => {
+    if (compiledRuntimeModule === pending) compiledRuntimeModule = undefined;
+  });
+  return pending;
 }
 
-function spawnWorker(): {
+const backgroundFailureListeners = new Set<(failure: WorkerBackgroundFailure) => void>();
+
+/**
+ * Hear about failures inside any worker that no request is waiting on (see
+ * `workerBackgroundFailure.ts`). Returns the unsubscribe.
+ */
+export function onWorkerBackgroundFailure(
+  listener: (failure: WorkerBackgroundFailure) => void,
+): () => void {
+  backgroundFailureListeners.add(listener);
+  return () => {
+    backgroundFailureListeners.delete(listener);
+  };
+}
+
+function spawnWorker(payloadBudgetBytes?: number): {
   api: Comlink.Remote<ChronicleWorkerApi>;
   worker: Worker;
   fault: Promise<never>;
@@ -106,10 +206,31 @@ function spawnWorker(): {
   // Keep a handler attached so an un-raced fault never becomes an unhandled
   // rejection on the happy path; racing still observes the same rejection.
   fault.catch(() => {});
+  worker.addEventListener("message", (event: MessageEvent<unknown>) => {
+    const failure = parseWorkerBackgroundFailure(event.data);
+    if (failure) for (const listener of backgroundFailureListeners) listener(failure);
+  });
+  // Module imports may await lossless contract assets before Comlink installs
+  // its listener. Sending initializeRuntime early loses that RPC permanently.
+  const exposed = new Promise<void>((resolve) => {
+    const onMessage = (event: MessageEvent<unknown>) => {
+      const data = event.data;
+      if (data === null || typeof data !== "object" || !("type" in data)
+        || data.type !== "chronicle-worker-api-ready/v1") return;
+      worker.removeEventListener("message", onMessage);
+      resolve();
+    };
+    worker.addEventListener("message", onMessage);
+  });
   const api = Comlink.wrap<ChronicleWorkerApi>(worker);
-  const ready = getCompiledRuntimeModule().then((module) =>
-    api.initializeRuntime(module),
-  );
+  const ready = Promise.race([
+    Promise.all([getCompiledRuntimeModule(), exposed]).then(([module]) =>
+      payloadBudgetBytes === undefined
+        ? api.initializeRuntime(module)
+        : api.initializeRuntime(module, payloadBudgetBytes),
+    ),
+    fault,
+  ]);
   return { api, worker, fault, ready };
 }
 
@@ -136,17 +257,27 @@ function getSharedWorker(): SharedWorker {
     // NEXT call re-spawns a fresh one instead of bricking the module forever on a
     // one-off crash. A normal processing rejection doesn't reject `fault`, so a
     // healthy worker is never evicted.
-    entry.fault.catch(() => {
+    let terminated = false;
+    const evict = (): void => {
       if (sharedWorker === entry) {
         sharedWorker = null;
         sharedWorkerSupportCacheKey = undefined;
       }
-      try {
-        worker.terminate();
-      } catch {
-        /* ignore */
+      if (!terminated) {
+        terminated = true;
+        try {
+          worker.terminate();
+        } catch {
+          // Terminating a worker that already died can throw; it is gone
+          // either way, and the caller is reporting the reason it died.
+        }
       }
-    });
+    };
+    entry.fault.catch(evict);
+    // Initialization can reject without emitting Worker.error (for example a
+    // cold offline WASM fetch or initializeRuntime refusal). Evict that worker
+    // too, so the next explicit retry gets a fresh singleton.
+    entry.ready.catch(evict);
   }
   return sharedWorker;
 }
@@ -161,7 +292,11 @@ async function onSharedWorker<T>(
 ): Promise<T> {
   const { api, fault, ready } = getSharedWorker();
   await Promise.race([ready, fault]);
-  return Promise.race([fn(api), fault]);
+  try {
+    return await Promise.race([fn(api), fault]);
+  } catch (error) {
+    throw rehydrateScientificPreflightRefusal(error);
+  }
 }
 
 /**
@@ -176,6 +311,10 @@ type WaiterEntry = {
 
 export type WorkerPoolOptions = {
   spawn?: WorkerSpawn;
+  /** Pin to 512 MiB in tests or benchmarks that compare with the old store. */
+  payloadBudgetBytes?: number;
+  /** Called once a slot faults or fails initialization. */
+  onFault?: () => void;
   /** Retire and replace a healthy slot after this many settled tasks. */
   maxTasksPerWorker?: number;
 };
@@ -184,8 +323,10 @@ export class WorkerPool {
   private readonly slots: WorkerSlot[] = [];
   private readonly waiters: WaiterEntry[] = [];
   private readonly spawn: WorkerSpawn;
+  private readonly onFault: (() => void) | undefined;
   private readonly maxTasksPerWorker: number;
   private terminated = false;
+  private retainedMemoryBudgetBytes: number | undefined;
   /**
    * Rejects the moment {@link terminate} is called. Every submission races it in
    * {@link runOnSlot}, because `Worker.terminate()` does NOT settle the Comlink
@@ -208,15 +349,14 @@ export class WorkerPool {
    * A promise that exists for the pool's whole life cannot miss that window.
    */
   private readonly aborted: Promise<never>;
-  private abort: () => void = () => {};
+  private abort!: () => void;
 
   constructor(
     size: number,
     spawnOrOptions: WorkerSpawn | WorkerPoolOptions = spawnWorker,
   ) {
     this.aborted = new Promise<never>((_, reject) => {
-      this.abort = () =>
-        reject(new Error("Worker pool has been terminated."));
+      this.abort = () => reject(new Error("Worker pool has been terminated."));
     });
     // Pre-handle so an un-raced abort (a pool terminated with nothing in
     // flight) never surfaces as an unhandled rejection; racing still observes
@@ -226,7 +366,8 @@ export class WorkerPool {
       typeof spawnOrOptions === "function"
         ? { spawn: spawnOrOptions }
         : spawnOrOptions;
-    this.spawn = options.spawn ?? spawnWorker;
+    this.spawn = options.spawn ?? (() => spawnWorker(options.payloadBudgetBytes));
+    this.onFault = options.onFault;
     const taskLimit = options.maxTasksPerWorker;
     this.maxTasksPerWorker =
       typeof taskLimit === "number" && Number.isFinite(taskLimit)
@@ -244,6 +385,14 @@ export class WorkerPool {
     return this.slots.length;
   }
 
+  /** Whether a later submission can still reach at least one live slot. */
+  get usable(): boolean {
+    return (
+      !this.terminated &&
+      this.slots.some((slot) => !slot.dead && !slot.terminated)
+    );
+  }
+
   private createSlot(): WorkerSlot {
     const { api, worker, fault, ready } = this.spawn();
     return {
@@ -256,6 +405,7 @@ export class WorkerPool {
       retired: false,
       completedTasks: 0,
       terminated: false,
+      wasmMemoryBytes: 0,
       lastSupportCacheKey: undefined,
       lastInputSha256: undefined,
     };
@@ -263,7 +413,9 @@ export class WorkerPool {
 
   private watchSlot(slot: WorkerSlot): void {
     const markDead = (): void => {
+      if (slot.dead || this.terminated) return;
       slot.dead = true;
+      this.onFault?.();
       this.pump();
     };
     // A faulted or uninitializable worker must never receive another task.
@@ -285,12 +437,7 @@ export class WorkerPool {
 
   private replaceSlot(slot: WorkerSlot): WorkerSlot | undefined {
     const index = this.slots.indexOf(slot);
-    if (
-      this.terminated ||
-      index < 0 ||
-      slot.busy ||
-      !slot.retired
-    )
+    if (this.terminated || index < 0 || slot.busy || !slot.retired)
       return undefined;
     if (!this.terminateSlot(slot)) return undefined;
     try {
@@ -342,13 +489,11 @@ export class WorkerPool {
       }
       if (!idle) break;
       idle.busy = true;
-      this.waiters.shift()!.resolve(idle);
+      requireDefined(this.waiters.shift(), "the pump loop runs only while a waiter is queued").resolve(idle);
     }
     if (this.waiters.length && this.slots.every((slot) => slot.dead)) {
-      while (this.waiters.length) {
-        this.waiters
-          .shift()!
-          .reject(new Error("All Chronicle workers have failed."));
+      for (let waiter = this.waiters.shift(); waiter !== undefined; waiter = this.waiters.shift()) {
+        waiter.reject(new Error("All Chronicle workers have failed."));
       }
     }
   }
@@ -368,7 +513,43 @@ export class WorkerPool {
     if (slot.dead && this.waiters.length) {
       this.replaceSlot(slot);
     }
+    this.trimRetainedSlots();
     this.pump();
+  }
+
+  /** Account for every live WASM heap, including workers idle between runs. */
+  setRetainedMemoryBudget(deviceMemory: number | undefined): void {
+    this.retainedMemoryBudgetBytes = adaptiveWorkerBudgetBytes(deviceMemory);
+    this.trimRetainedSlots();
+  }
+
+  private trimRetainedSlots(): void {
+    const budget = this.retainedMemoryBudgetBytes;
+    if (budget === undefined || this.terminated) return;
+    const retainedBytes = () => this.slots.reduce(
+      (sum, slot) => sum +
+        (slot.dead || slot.terminated ? 0 : slot.wasmMemoryBytes + WORKER_BASELINE_BYTES),
+      0,
+    );
+    while (retainedBytes() > budget) {
+      const liveCount = this.slots.filter(
+        (slot) => !slot.dead && !slot.terminated,
+      ).length;
+      const idle = this.slots
+        .filter((slot) => !slot.busy && !slot.dead && !slot.terminated)
+        .sort((left, right) => left.wasmMemoryBytes - right.wasmMemoryBytes)[0];
+      if (!idle) break;
+      if (liveCount === 1) {
+        // Even one oversized heap cannot be donated to the next run.
+        idle.dead = true;
+        idle.retired = true;
+        this.terminateSlot(idle);
+        break;
+      }
+      idle.dead = true;
+      if (!this.terminateSlot(idle)) break;
+      this.slots.splice(this.slots.indexOf(idle), 1);
+    }
   }
 
   /**
@@ -383,7 +564,27 @@ export class WorkerPool {
     body: () => Promise<T>,
   ): Promise<T> {
     try {
-      return await Promise.race([body(), slot.fault, this.aborted]);
+      const result = await Promise.race([body(), slot.fault, this.aborted]);
+      const bytes = result && typeof result === "object" &&
+        "workerWasmMemoryBytes" in result
+        ? result.workerWasmMemoryBytes
+        : undefined;
+      if (typeof bytes === "number" && Number.isFinite(bytes) && bytes > 0) {
+        slot.wasmMemoryBytes = Math.max(slot.wasmMemoryBytes, bytes);
+      }
+      return result;
+    } catch (error) {
+      // A rejected task has no heap report. Its WASM memory may have grown
+      // before rejection, so a pool that retains workers under a memory
+      // budget retires it rather than trim from a stale reading.
+      if (!this.terminated && this.retainedMemoryBudgetBytes !== undefined) {
+        if (!slot.dead) {
+          slot.dead = true;
+          slot.retired = true;
+        }
+        this.terminateSlot(slot);
+      }
+      throw rehydrateScientificPreflightRefusal(error);
     } finally {
       this.release(slot);
     }
@@ -437,10 +638,8 @@ export class WorkerPool {
     // rejection covers all of them, including a submission still suspended in
     // `await this.acquire()` that has not reached `runOnSlot` yet.
     this.abort();
-    while (this.waiters.length) {
-      this.waiters
-        .shift()!
-        .reject(new Error("Worker pool has been terminated."));
+    for (let waiter = this.waiters.shift(); waiter !== undefined; waiter = this.waiters.shift()) {
+      waiter.reject(new Error("Worker pool has been terminated."));
     }
     this.slots.forEach((slot) => {
       this.terminateSlot(slot);
@@ -453,11 +652,49 @@ export async function getRuntimeVersion(): Promise<string> {
   return onSharedWorker((api) => api.runtimeVersion());
 }
 
+/** Reclaim old objects after the result is visible; the runtime takes the
+ * workspace Web Lock before scanning, so a later Process cannot race it. */
+export async function garbageCollectWorkspaceAfterResults(
+  workspaceId: string,
+): Promise<void> {
+  await onSharedWorker((api) => api.garbageCollectWorkspace(workspaceId));
+}
+
 /**
- * Fail-closed durable-storage gate, evaluated in the worker that owns every
- * production OPFS write. An unreachable worker is itself a hard stop: there is
- * no other path that can persist a verified workspace, so it is reported as an
- * unavailable capability rather than thrown into a caller that might continue.
+ * Delete each workspace's persisted OPFS history (root slots and every
+ * content-addressed object). Runs in the worker that owns OPFS writes; the
+ * runtime takes each workspace's exclusive Web Lock, so it cannot interleave
+ * with a run or a garbage-collection scan. Rejects on the first failure so the
+ * caller never reports a deletion that did not happen.
+ */
+export async function deletePersistedWorkspaces(
+  workspaceIds: readonly string[],
+): Promise<void> {
+  for (const workspaceId of new Set(workspaceIds)) {
+    await onSharedWorker((api) => api.deleteWorkspace(workspaceId));
+  }
+}
+
+/**
+ * Durable-storage gate, evaluated in the worker that owns every production
+ * OPFS write. The result is a CLASSIFIED capability, not a single yes/no: an
+ * `unavailable` verdict carries {@link OpfsUnavailableKind} in its optional
+ * `kind` field, and the two arms lead to different outcomes —
+ * `kind: "unsupported"` (OPFS/Web Locks absent, or the origin refuses a
+ * directory at all, as in Safari private browsing) degrades the run to the
+ * runtime's non-persisted branch via `workspaceDegradesToEphemeral`, while
+ * `kind: "indeterminate"` (exhausted quota, a worker that crashed mid-probe,
+ * an unexplained failure) keeps the hard refusal via `workspaceRefusesRun`,
+ * because those may succeed on retry and silently downgrading would lose the
+ * batch on reload. Both predicates and the classifier live in
+ * `lib/opfsArtifactStore.ts`.
+ *
+ * The catch below is the one producer that CANNOT classify: an unreachable
+ * worker says nothing about whether the context can persist. It therefore
+ * omits `kind` deliberately, and omission is the conservative arm — an
+ * unclassified failure refuses the run rather than degrading it. Returning the
+ * capability instead of rethrowing keeps that decision with the gate rather
+ * than with a caller that might continue.
  */
 export async function probeWorkerWorkspaceCapability(): Promise<OpfsCapability> {
   try {
@@ -485,8 +722,9 @@ export async function probeWorkerWorkspaceCapability(): Promise<OpfsCapability> 
  */
 export async function exportVerifiedWorkspaceClosure(
   workspaceId: string,
+  expectedWorkspaceRootDigest?: string,
 ): Promise<Blob> {
-  return onSharedWorker((api) => api.exportWorkspaceClosure(workspaceId));
+  return onSharedWorker((api) => api.exportWorkspaceClosure(workspaceId, expectedWorkspaceRootDigest));
 }
 
 export async function importVerifiedWorkspaceClosure(archive: Blob): Promise<{
@@ -514,7 +752,9 @@ export async function getWorkflowExplorerView(
   options: BrowserProcessingOptions,
   supportRoles: WorkflowExplorerSupportRole[] = [],
 ): Promise<RustWorkflowExplorerView> {
-  return onSharedWorker((api) => api.workflowExplorerView(options, supportRoles));
+  return onSharedWorker((api) =>
+    api.workflowExplorerView(options, supportRoles),
+  );
 }
 
 export async function discoverTimezonesBytes(
@@ -527,11 +767,20 @@ export async function discoverTimezonesBytes(
   );
 }
 
+export async function splitRawCsvByStudy(
+  csvBytes: ArrayBuffer,
+): Promise<Array<{ studyId: string; bytes: ArrayBuffer }>> {
+  return onSharedWorker((api) =>
+    api.splitRawCsvByStudy(Comlink.transfer(csvBytes, [csvBytes])),
+  );
+}
+
 export async function inspectRawCsvBytes(
   fileName: string,
   sizeBytes: number,
   csvBytes: ArrayBuffer,
   verifiedInputSha256?: string,
+  participantPartitionBatchId?: string,
 ): Promise<RawFileInspection> {
   return onSharedWorker((api) =>
     api.inspectRawCsvBytes(
@@ -539,7 +788,47 @@ export async function inspectRawCsvBytes(
       sizeBytes,
       Comlink.transfer(csvBytes, [csvBytes]),
       verifiedInputSha256,
+      participantPartitionBatchId,
     ),
+  );
+}
+
+/** Transfer the source activity CSV to the worker and run one registered component. */
+export async function executeLiteratureComponentBytes(
+  registration: RegisteredLiteratureComponentExecution,
+  inputFileName: string,
+  csvBytes: ArrayBuffer,
+  supportFiles: BrowserSupportFiles,
+  persistRustWorkspace: boolean,
+  verifiedInputSha256?: string,
+): Promise<LiteratureComponentRuntimeExecution> {
+  return onSharedWorker((api) =>
+    api.executeLiteratureComponentBytes(
+      registration,
+      inputFileName,
+      Comlink.transfer(csvBytes, [csvBytes]),
+      supportFiles,
+      persistRustWorkspace,
+      verifiedInputSha256,
+    ),
+  );
+}
+
+export async function beginRawInspectionBatch(
+  secretBytes: ArrayBuffer,
+): Promise<string> {
+  return withTransientSecret(secretBytes, () =>
+    onSharedWorker((api) =>
+      api.beginRawInspectionBatch(Comlink.transfer(secretBytes, [secretBytes])),
+    ),
+  );
+}
+
+export async function disposeRawInspectionBatch(
+  participantPartitionBatchId: string,
+): Promise<boolean> {
+  return onSharedWorker((api) =>
+    api.disposeRawInspectionBatch(participantPartitionBatchId),
   );
 }
 
@@ -553,16 +842,29 @@ export async function processRawCsvBytes(
   runtime?: BrowserProcessingRuntime,
   onProgress?: (event: ProgressEvent) => void,
   verifiedInputSha256?: string,
+  participantPartition?: ParticipantPartitionTransport,
+  inspectionBatch?: RawFileInspectionBatch,
 ): Promise<ProcessedFileResult> {
-  return onSharedWorker((api) =>
-    api.processRawCsvBytes(
-      inputFileName,
-      Comlink.transfer(csvBytes, [csvBytes]),
-      options,
-      supportFiles,
-      runtime,
-      onProgress ? Comlink.proxy(onProgress) : undefined,
-      verifiedInputSha256,
+  const active = activePartitionTransport(
+    options,
+    participantPartition,
+    inspectionBatch,
+  );
+  return withTransientSecret(active.secret, () =>
+    onSharedWorker((api) =>
+      api.processRawCsvBytes(
+        inputFileName,
+        Comlink.transfer(csvBytes, [csvBytes]),
+        options,
+        supportFiles,
+        runtime,
+        onProgress ? Comlink.proxy(onProgress) : undefined,
+        verifiedInputSha256,
+        active.partition,
+        active.secret
+          ? Comlink.transfer(active.secret, [active.secret])
+          : undefined,
+      ),
     ),
   );
 }
@@ -575,15 +877,30 @@ export async function processRawCsvReviewBytes(
   supportFiles?: BrowserSupportFiles,
   runtime?: BrowserProcessingRuntime,
   verifiedInputSha256?: string,
+  participantPartition?: ParticipantPartitionTransport,
+  inspectionBatch?: RawFileInspectionBatch,
 ): Promise<ProcessedFileResult> {
-  return onSharedWorker((api) =>
-    api.processReviewCsvBytes(
-      inputFileName,
-      Comlink.transfer(csvBytes, [csvBytes]),
-      options,
-      supportFiles,
-      runtime,
-      verifiedInputSha256,
+  const active = activePartitionTransport(
+    options,
+    participantPartition,
+    inspectionBatch,
+  );
+  return withTransientSecret(active.secret, () =>
+    onSharedWorker((api) =>
+      api.processReviewCsvBytes(
+        inputFileName,
+        Comlink.transfer(csvBytes, [csvBytes]),
+        options,
+        supportFiles,
+        runtime,
+        verifiedInputSha256,
+        undefined,
+        undefined,
+        active.partition,
+        active.secret
+          ? Comlink.transfer(active.secret, [active.secret])
+          : undefined,
+      ),
     ),
   );
 }
@@ -622,18 +939,33 @@ export async function processRawCsvChangedReviewBytesViaPool(
   changedSupportFiles?: BrowserSupportFiles,
   runtime?: BrowserProcessingRuntime,
   verifiedInputSha256?: string,
+  participantPartition?: ParticipantPartitionTransport,
+  inspectionBatch?: RawFileInspectionBatch,
 ): Promise<ProcessedFileResult> {
-  return pool.submit(
-    (api) =>
-      api.processReviewCsvBytes(
-        inputFileName,
-        Comlink.transfer(csvBytes, [csvBytes]),
-        changedOptions,
-        changedSupportFiles,
-        runtime,
-        verifiedInputSha256,
-      ),
-    verifiedInputSha256,
+  const active = activePartitionTransport(
+    changedOptions,
+    participantPartition,
+    inspectionBatch,
+  );
+  return withTransientSecret(active.secret, () =>
+    pool.submit(
+      (api) =>
+        api.processReviewCsvBytes(
+          inputFileName,
+          Comlink.transfer(csvBytes, [csvBytes]),
+          changedOptions,
+          changedSupportFiles,
+          runtime,
+          verifiedInputSha256,
+          undefined,
+          undefined,
+          active.partition,
+          active.secret
+            ? Comlink.transfer(active.secret, [active.secret])
+            : undefined,
+        ),
+      verifiedInputSha256,
+    ),
   );
 }
 
@@ -654,48 +986,201 @@ export async function processRawCsvChangedReviewBytesViaPool(
  * file is always the one just replaced.
  */
 const REVIEW_SUMMARY_REUSE_LRU_CAPACITY = 8;
-const reviewSummaryReuseCache = new Map<string, Map<string, Uint8Array>>();
+/**
+ * Whole-cache ceiling on retained summary bytes, evicting whole
+ * least-recently-touched inputs.
+ *
+ * The outer map needs a bound of its own: the post-run pre-warm in `App.tsx`
+ * submits EVERY unique input digest of the batch through the comparison pool,
+ * so with only the per-input cap a 124-file study batch retains up to
+ * 124 x {@link REVIEW_SUMMARY_REUSE_LRU_CAPACITY} multi-MB summaries on the
+ * main thread for the life of the tab (~2 GB at the 2 MB size this cache's
+ * ETag comment cites).
+ *
+ * The number is derived from the comparison path's own memory design rather
+ * than picked: `lib/concurrency.ts` sizes that pool at
+ * `COMPARISON_WORKER_LIMIT - 1` = 7 warm review workers measured at
+ * `WARM_REVIEW_WORKER_BYTES` (38 MB) + `WORKER_BASELINE_BYTES` (48 MB) each —
+ * about 600 MB of worker heap that this cache exists to keep busy. Holding the
+ * main-thread copy to 256 MB keeps a saving mechanism strictly cheaper than the
+ * pool it serves while still covering a ~120-summary working set. Past the
+ * ceiling the least-recently-touched input is dropped and its next review
+ * recomputes and ships bytes — exactly what every input did before this cache
+ * existed, so exceeding the bound costs wall-clock, never correctness.
+ *
+ * Two documented loosenesses of the bound, both transient and both bounded:
+ * an in-flight offer pins its snapshot by strong reference, so while a
+ * pre-warm sweep re-admits a second generation the true main-thread retention
+ * can reach roughly twice the ceiling until those requests settle; and a
+ * single input whose own {@link REVIEW_SUMMARY_REUSE_LRU_CAPACITY}-entry LRU
+ * alone exceeds the ceiling is never evicted while it is the one being
+ * touched, so the real invariant is "budget + one input's LRU", self-healing
+ * on the next admit for a different input.
+ */
+const REVIEW_SUMMARY_REUSE_BUDGET_BYTES = 256 * 1024 * 1024;
+/** One cached summary plus the size it was ADMITTED at. Eviction and refresh
+ * subtract the stored size, never the live `byteLength`: a buffer detached
+ * after admission reads 0 and would otherwise leak its bytes into the counter
+ * forever. */
+type ReviewSummaryEntry = { bytes: Uint8Array; size: number };
+const reviewSummaryReuseCache = new Map<
+  string,
+  Map<string, ReviewSummaryEntry>
+>();
+let reviewSummaryReuseBytes = 0;
+let reviewSummaryReuseBudgetBytes = REVIEW_SUMMARY_REUSE_BUDGET_BYTES;
 
 export function clearReviewSummaryReuseCache(): void {
   reviewSummaryReuseCache.clear();
+  reviewSummaryReuseBytes = 0;
 }
 
-function knownReviewSummaryDigestsFor(
+/** Retained bytes, so the bound is asserted against the real accounting rather
+ * than against a proxy for it. */
+export function reviewSummaryReuseRetainedBytes(): number {
+  return reviewSummaryReuseBytes;
+}
+
+/**
+ * Lower the byte ceiling so the outer-map eviction path is exercised without a
+ * unit test allocating a quarter of a gigabyte. Production never calls this;
+ * a non-positive value restores {@link REVIEW_SUMMARY_REUSE_BUDGET_BYTES}.
+ */
+export function setReviewSummaryReuseBudgetBytesForTesting(
+  bytes: number,
+): void {
+  reviewSummaryReuseBudgetBytes =
+    bytes > 0 ? bytes : REVIEW_SUMMARY_REUSE_BUDGET_BYTES;
+}
+
+/**
+ * The digests one in-flight request advertised, together with the byte buffers
+ * they promised. The pinned buffers are the same objects the LRU holds, kept
+ * alive by reference for the life of the request: a concurrent request for the
+ * same input can evict any of them between the moment the digests are sent and
+ * the moment the runtime answers "reused", and that must degrade to serving the
+ * pinned copy (and re-admitting it), never to failing a valid review.
+ */
+type ReviewSummaryOffer = {
+  digests: string[] | undefined;
+  pinned: ReadonlyMap<string, Uint8Array>;
+};
+
+const EMPTY_REVIEW_SUMMARY_OFFER: ReviewSummaryOffer = {
+  digests: undefined,
+  pinned: new Map(),
+};
+
+/** Remove entries whose buffer was detached after admission (live
+ * `byteLength` 0), subtracting the size they were admitted at. A digest that
+ * is never advertised cannot come back as "reused", so the runtime recomputes
+ * and ships bytes — the graceful arm, instead of promising bytes the client
+ * can no longer hand over. */
+function purgeDetachedReviewSummaries(
   verifiedInputSha256: string,
-): string[] | undefined {
+  lru: Map<string, ReviewSummaryEntry>,
+): void {
+  for (const [digest, entry] of lru) {
+    if (entry.bytes.byteLength !== 0) continue;
+    reviewSummaryReuseBytes -= entry.size;
+    lru.delete(digest);
+  }
+  if (!lru.size) reviewSummaryReuseCache.delete(verifiedInputSha256);
+}
+
+function offerReviewSummaryDigests(
+  verifiedInputSha256: string,
+): ReviewSummaryOffer {
   const lru = reviewSummaryReuseCache.get(verifiedInputSha256);
-  if (!lru?.size) return undefined;
-  return [...lru.keys()];
+  if (!lru?.size) return EMPTY_REVIEW_SUMMARY_OFFER;
+  purgeDetachedReviewSummaries(verifiedInputSha256, lru);
+  if (!lru.size) return EMPTY_REVIEW_SUMMARY_OFFER;
+  const pinned = new Map<string, Uint8Array>();
+  for (const [digest, entry] of lru) pinned.set(digest, entry.bytes);
+  return { digests: [...pinned.keys()], pinned };
+}
+
+/** Drop whole least-recently-touched inputs until the cache is inside its byte
+ * ceiling. The input just touched is never the one dropped; its own per-input
+ * cap already bounds it. */
+function enforceReviewSummaryReuseBudget(currentInput: string): void {
+  for (const [input, lru] of reviewSummaryReuseCache) {
+    if (reviewSummaryReuseBytes <= reviewSummaryReuseBudgetBytes) return;
+    if (input === currentInput) continue;
+    for (const entry of lru.values()) {
+      reviewSummaryReuseBytes -= entry.size;
+    }
+    reviewSummaryReuseCache.delete(input);
+  }
+}
+
+/** Insert (or refresh) one summary as newest for its input, apply both bounds,
+ * and move the input itself to newest in the outer LRU. */
+function admitReviewSummary(
+  verifiedInputSha256: string,
+  digest: string,
+  bytes: Uint8Array,
+): void {
+  let target = reviewSummaryReuseCache.get(verifiedInputSha256);
+  if (!target) {
+    target = new Map();
+    reviewSummaryReuseCache.set(verifiedInputSha256, target);
+  }
+  const existing = target.get(digest);
+  if (existing) reviewSummaryReuseBytes -= existing.size;
+  // Refresh LRU position: delete + set moves the digest to newest.
+  target.delete(digest);
+  target.set(digest, { bytes, size: bytes.byteLength });
+  reviewSummaryReuseBytes += bytes.byteLength;
+  while (target.size > REVIEW_SUMMARY_REUSE_LRU_CAPACITY) {
+    const [oldest, entry] = requireDefined(
+      target.entries().next().value,
+      "a map holding more entries than the LRU capacity has an oldest entry",
+    );
+    reviewSummaryReuseBytes -= entry.size;
+    target.delete(oldest);
+  }
+  reviewSummaryReuseCache.delete(verifiedInputSha256);
+  reviewSummaryReuseCache.set(verifiedInputSha256, target);
+  enforceReviewSummaryReuseBudget(verifiedInputSha256);
 }
 
 function applyReviewSummaryReuse(
   verifiedInputSha256: string,
+  offer: ReviewSummaryOffer,
   result: ProcessedFileResult,
 ): ProcessedFileResult {
-  const lru = reviewSummaryReuseCache.get(verifiedInputSha256);
   const digest = result.rustReviewReceipt?.reviewSummaryDigest;
   if (result.reviewSummaryReused) {
-    const cachedBytes = digest ? lru?.get(digest) : undefined;
-    if (!cachedBytes || !digest) {
+    const lru = reviewSummaryReuseCache.get(verifiedInputSha256);
+    // The offer is authoritative for what this request promised to honour; the
+    // live LRU is only a fallback for a digest admitted after the offer.
+    const cachedBytes = digest
+      ? (offer.pinned.get(digest) ?? lru?.get(digest)?.bytes)
+      : undefined;
+    if (!digest || !cachedBytes) {
       throw new Error(
         "runtime reused a review summary the client no longer holds",
       );
     }
-    // Refresh LRU position: delete + set moves the digest to newest.
-    lru!.delete(digest);
-    lru!.set(digest, cachedBytes);
+    if (cachedBytes.byteLength === 0) {
+      // Presence is not possession: a transferred (detached) buffer is still a
+      // truthy Uint8Array, and reattaching it would publish an empty summary.
+      // Purge the dead entry first so the next offer stops advertising it and
+      // the input recovers via the raw path instead of repeating this refusal.
+      if (lru) purgeDetachedReviewSummaries(verifiedInputSha256, lru);
+      throw new Error(
+        "runtime reused a review summary whose cached bytes were released",
+      );
+    }
+    admitReviewSummary(verifiedInputSha256, digest, cachedBytes);
     result.reviewSummaryJsonBytes = cachedBytes;
-  } else if (result.reviewSummaryJsonBytes && digest) {
-    let target = lru;
-    if (!target) {
-      target = new Map();
-      reviewSummaryReuseCache.set(verifiedInputSha256, target);
-    }
-    target.delete(digest);
-    target.set(digest, result.reviewSummaryJsonBytes);
-    while (target.size > REVIEW_SUMMARY_REUSE_LRU_CAPACITY) {
-      target.delete(target.keys().next().value!);
-    }
+  } else if (result.reviewSummaryJsonBytes?.byteLength && digest) {
+    admitReviewSummary(
+      verifiedInputSha256,
+      digest,
+      result.reviewSummaryJsonBytes,
+    );
   }
   return result;
 }
@@ -710,12 +1195,28 @@ export async function processPersistedOrRawChangedReviewViaPool(
   runtime: BrowserProcessingRuntime | undefined,
   verifiedInputSha256: string,
   supportCacheKey?: string,
+  participantPartition?: ParticipantPartitionTransport,
+  inspectionBatch?: RawFileInspectionBatch,
 ): Promise<ProcessedFileResult> {
-  const knownReviewSummaryDigests =
-    knownReviewSummaryDigestsFor(verifiedInputSha256);
+  // Own the transient copy for the entire pool submission. Creating it only
+  // after an awaited raw load lets pool termination win first, then leaves a
+  // new secret posted to a dead worker whose RPC/finally never settles.
+  const active = activePartitionTransport(
+    changedOptions,
+    participantPartition,
+    inspectionBatch,
+  );
   const action = async (
     api: Comlink.Remote<ChronicleWorkerApi>,
   ): Promise<ProcessedFileResult> => {
+    // Snapshot the offer only once a pool slot is granted: a pre-warm sweep
+    // maps every unique input into this function in one synchronous pass, so
+    // an offer taken before submission would pin buffers for the whole queue
+    // wait across ALL queued inputs at once. Inside the slot the pin is
+    // bounded by in-flight requests, and the snapshot is fresher — it sees
+    // digests admitted while this request was queued.
+    const offer = offerReviewSummaryDigests(verifiedInputSha256);
+    const knownReviewSummaryDigests = offer.digests;
     const persisted = await api.processPersistedReview(
       inputFileName,
       inputSizeBytes,
@@ -726,10 +1227,12 @@ export async function processPersistedOrRawChangedReviewViaPool(
       supportCacheKey,
       knownReviewSummaryDigests,
     );
-    if (persisted) return applyReviewSummaryReuse(verifiedInputSha256, persisted);
+    if (persisted)
+      return applyReviewSummaryReuse(verifiedInputSha256, offer, persisted);
     const csvBytes = await loadCsvBytes();
     return applyReviewSummaryReuse(
       verifiedInputSha256,
+      offer,
       await api.processReviewCsvBytes(
         inputFileName,
         Comlink.transfer(csvBytes, [csvBytes]),
@@ -739,19 +1242,26 @@ export async function processPersistedOrRawChangedReviewViaPool(
         verifiedInputSha256,
         supportCacheKey,
         knownReviewSummaryDigests,
+        active.partition,
+        active.secret
+          ? Comlink.transfer(active.secret, [active.secret])
+          : undefined,
       ),
     );
   };
-  if (!supportCacheKey) return pool.submit(action);
-  return pool.submitWithSupportCache(
-    supportCacheKey,
-    (api) =>
-      api.cacheComparisonSupportFiles(
-        supportCacheKey,
-        changedSupportFiles ?? {},
-      ),
-    action,
-    verifiedInputSha256,
+  return withTransientSecret(active.secret, () =>
+    !supportCacheKey
+      ? pool.submit(action)
+      : pool.submitWithSupportCache(
+          supportCacheKey,
+          (api) =>
+            api.cacheComparisonSupportFiles(
+              supportCacheKey,
+              changedSupportFiles ?? {},
+            ),
+          action,
+          verifiedInputSha256,
+        ),
   );
 }
 
@@ -769,43 +1279,58 @@ export async function processPersistedOrRawChangedReview(
   runtime: BrowserProcessingRuntime | undefined,
   verifiedInputSha256: string,
   supportCacheKey: string,
+  participantPartition?: ParticipantPartitionTransport,
+  inspectionBatch?: RawFileInspectionBatch,
 ): Promise<ProcessedFileResult> {
-  const knownReviewSummaryDigests =
-    knownReviewSummaryDigestsFor(verifiedInputSha256);
-  return onSharedWorker(async (api) => {
-    if (sharedWorkerSupportCacheKey !== supportCacheKey) {
-      await api.cacheComparisonSupportFiles(
-        supportCacheKey,
-        changedSupportFiles ?? {},
-      );
-      sharedWorkerSupportCacheKey = supportCacheKey;
-    }
-    const persisted = await api.processPersistedReview(
-      inputFileName,
-      inputSizeBytes,
-      changedOptions,
-      undefined,
-      runtime,
-      verifiedInputSha256,
-      supportCacheKey,
-      knownReviewSummaryDigests,
-    );
-    if (persisted) return applyReviewSummaryReuse(verifiedInputSha256, persisted);
-    const csvBytes = await loadCsvBytes();
-    return applyReviewSummaryReuse(
-      verifiedInputSha256,
-      await api.processReviewCsvBytes(
+  const offer = offerReviewSummaryDigests(verifiedInputSha256);
+  const knownReviewSummaryDigests = offer.digests;
+  const active = activePartitionTransport(
+    changedOptions,
+    participantPartition,
+    inspectionBatch,
+  );
+  return withTransientSecret(active.secret, () =>
+    onSharedWorker(async (api) => {
+      if (sharedWorkerSupportCacheKey !== supportCacheKey) {
+        await api.cacheComparisonSupportFiles(
+          supportCacheKey,
+          changedSupportFiles ?? {},
+        );
+        sharedWorkerSupportCacheKey = supportCacheKey;
+      }
+      const persisted = await api.processPersistedReview(
         inputFileName,
-        Comlink.transfer(csvBytes, [csvBytes]),
+        inputSizeBytes,
         changedOptions,
         undefined,
         runtime,
         verifiedInputSha256,
         supportCacheKey,
         knownReviewSummaryDigests,
-      ),
-    );
-  });
+      );
+      if (persisted)
+        return applyReviewSummaryReuse(verifiedInputSha256, offer, persisted);
+      const csvBytes = await loadCsvBytes();
+      return applyReviewSummaryReuse(
+        verifiedInputSha256,
+        offer,
+        await api.processReviewCsvBytes(
+          inputFileName,
+          Comlink.transfer(csvBytes, [csvBytes]),
+          changedOptions,
+          undefined,
+          runtime,
+          verifiedInputSha256,
+          supportCacheKey,
+          knownReviewSummaryDigests,
+          active.partition,
+          active.secret
+            ? Comlink.transfer(active.secret, [active.secret])
+            : undefined,
+        ),
+      );
+    }),
+  );
 }
 
 /**
@@ -823,11 +1348,18 @@ export async function processRawCsvBytesViaPool(
   runtime?: BrowserProcessingRuntime,
   onProgress?: (event: ProgressEvent) => void,
   verifiedInputSha256?: string,
+  participantPartition?: ParticipantPartitionTransport,
+  inspectionBatch?: RawFileInspectionBatch,
 ): Promise<ProcessedFileResult> {
-  return pool.submit(
-    async (api) => {
-      const proxied = onProgress ? Comlink.proxy(onProgress) : undefined;
-      return api.processRawCsvBytes(
+  return pool.submit(async (api) => {
+    const proxied = onProgress ? Comlink.proxy(onProgress) : undefined;
+    const active = activePartitionTransport(
+      options,
+      participantPartition,
+      inspectionBatch,
+    );
+    return withTransientSecret(active.secret, () =>
+      api.processRawCsvBytes(
         inputFileName,
         Comlink.transfer(csvBytes, [csvBytes]),
         options,
@@ -835,8 +1367,11 @@ export async function processRawCsvBytesViaPool(
         runtime,
         proxied,
         verifiedInputSha256,
-      );
-    },
-    verifiedInputSha256,
-  );
+        active.partition,
+        active.secret
+          ? Comlink.transfer(active.secret, [active.secret])
+          : undefined,
+      ),
+    );
+  }, verifiedInputSha256);
 }

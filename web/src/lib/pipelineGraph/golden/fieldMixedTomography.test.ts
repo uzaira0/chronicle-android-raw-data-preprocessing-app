@@ -2,18 +2,21 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import filterCsv from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv?raw";
 import forcingCsv from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv?raw";
 import backgroundCsv from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_background_apps.csv?raw";
 import codebookCsv from "@/assets/defaults/unified_app_codebook.csv?raw";
 import { COMPUTATIONAL_BROWSER_OPTION_KEYS } from "@/lib/generatedContract";
-import { ALL_ON, GOLDEN_RUNTIME } from "@/testSupport/rustCampaignGraph";
+import { usesInputCapabilityEvidence } from "@/lib/inputCapabilityEvidence";
+import { ALL_ON, GOLDEN_RUNTIME, validConfiguration, withValue } from "@/testSupport/rustCampaignGraph";
 import { buildRustV2Options } from "@/lib/rustPipelineRuntime";
 import type { BrowserProcessingOptions } from "@/lib/types";
 import {
   buildArtifactFixtureState,
   buildArtifactInterventions,
+  prepareArtifactFixtureForScientificExecution,
+  isCapabilityEvidenceIntervention,
   SUPPORT_ROLE_IDS,
   type ArtifactFixtureState,
   type ArtifactIntervention,
@@ -30,11 +33,33 @@ import {
   type RustWorkflowContract,
 } from "@/testSupport/workflowContract";
 import {
+  changedFields,
+  type CampaignRuntimeManifest,
+} from "@/testSupport/campaignManifest";
+import {
   captureCanonicalOutputCells,
   changedCellAddresses,
 } from "@/testSupport/outputCellTomography";
-import { dependencyCampaignRuntimeBytes } from "@/testSupport/dependencyCampaignRuntime";
+import {
+  CAMPAIGN_RUNTIME_INIT_TIMEOUT_MS,
+  dependencyCampaignRuntimeBytes,
+  captureCampaignFootprint,
+  CAMPAIGN_FOOTPRINT_CAPTURE_TIMEOUT_MS,
+} from "@/testSupport/dependencyCampaignRuntime";
+import {
+  executeScientificCampaignWorkspace,
+  putScientificCampaignSupportArtifact,
+  requireExecutedScientificCampaign,
+} from "@/testSupport/scientificCampaignExecution";
 import * as runtime from "@/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm.js";
+
+// Footprint selection: record which production source files this campaign
+// actually executed (no-op unless the evidence refresh sets the profraw dir).
+afterAll(
+  () => captureCampaignFootprint(runtime),
+  CAMPAIGN_FOOTPRINT_CAPTURE_TIMEOUT_MS,
+);
+import { CAMPAIGN_TEST_TIMEOUT_MS } from "@/testSupport/campaignTimeout";
 
 const EXPECTED_DIRECTORY = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -47,25 +72,16 @@ const AGGREGATE_FILE = join(
 const UPDATE = process.env.UPDATE_FIELD_MIXED === "1";
 const SHARD_COLUMN = process.env.FIELD_MIXED_COLUMN;
 /** Deterministic sample size for the predicted-unaffected control axes. */
-const CONTROL_AXES = Number(process.env.FIELD_MIXED_CONTROL_AXES ?? "4");
+const CONTROL_AXES = (() => {
+  const parsed = Number(process.env.FIELD_MIXED_CONTROL_AXES ?? "4");
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+    throw new Error(
+      `FIELD_MIXED_CONTROL_AXES must be a non-negative integer, got: ${process.env.FIELD_MIXED_CONTROL_AXES}`,
+    );
+  }
+  return parsed;
+})();
 const encoder = new TextEncoder();
-
-type RuntimeManifest = {
-  implementation: string;
-  implementationDigest: string;
-  planDigest: string;
-  profileDigest: string;
-  profileLockDigest: string;
-  runtimeAuthorityDigest: string;
-  productContractDigest: string;
-  openObligations: unknown[];
-  processingSummary: {
-    workflowQueryGroupDigests: Record<string, string>;
-    workflowQueryDigests: Record<string, string>;
-    [key: string]: unknown;
-  };
-  queryExecutions: Array<{ query_id: string; status: string }>;
-};
 
 type AxisValue = { label: string; value: unknown };
 
@@ -88,41 +104,14 @@ beforeAll(() => {
   const queryIds = workflowContract.execution.queries.map(({ id }) => id);
   expect(queryIds.length).toBeGreaterThan(0);
   expect(new Set(queryIds).size).toBe(queryIds.length);
-});
+}, CAMPAIGN_RUNTIME_INIT_TIMEOUT_MS);
 
 function sha256Uri(value: string): string {
   return `sha256:${createHash("sha256").update(value).digest("hex")}`;
 }
 
-function changedKeys(
-  left: Record<string, unknown>,
-  right: Record<string, unknown>,
-): string[] {
-  return [...new Set([...Object.keys(left), ...Object.keys(right)])]
-    .filter((key) => JSON.stringify(left[key]) !== JSON.stringify(right[key]))
-    .sort();
-}
-
-function withValue(
-  source: BrowserProcessingOptions,
-  key: string,
-  value: unknown,
-): BrowserProcessingOptions {
-  const target = { ...source } as unknown as Record<string, unknown>;
-  if (value === undefined) delete target[key];
-  else target[key] = value;
-  return target as unknown as BrowserProcessingOptions;
-}
-
-function validConfiguration(options: BrowserProcessingOptions): boolean {
-  return !(
-    options.timezoneHandling.startsWith("selected-") &&
-    !options.selectedTimezone?.trim()
-  );
-}
-
 type Observation = {
-  manifest: RuntimeManifest;
+  manifest: CampaignRuntimeManifest;
   /** Canonical researcher-visible cell surface, address → value. */
   cells: Record<string, string>;
 };
@@ -132,30 +121,51 @@ function execute(
   options: BrowserProcessingOptions,
   label: string,
 ): Observation {
-  const rawBytes = encoder.encode(state.rawCsv);
+  const executionState = prepareArtifactFixtureForScientificExecution(
+    state,
+    options,
+  );
+  const rawBytes = encoder.encode(executionState.rawCsv);
   const supports = new runtime.RuntimeSupportFiles();
+  const supportArtifacts = new Map<string, Uint8Array>();
   let handle: ReturnType<typeof runtime.execute_workspace> | undefined;
   try {
     for (const roleId of SUPPORT_ROLE_IDS) {
-      const support = state.supports[roleId];
-      supports.put_with_name(roleId, support.name, encoder.encode(support.csv));
+      const support = executionState.supports[roleId];
+      const bytes = encoder.encode(support.csv);
+      putScientificCampaignSupportArtifact({
+        roleId,
+        fileName: support.name,
+        bytes,
+        options,
+        supports,
+        supportArtifacts,
+      });
     }
-    handle = runtime.execute_workspace(
-      JSON.stringify({
-        protocolVersion: "chronicle-preprocessing-runtime/v1",
-        requestId: label,
-        command: "ExecuteWorkspace",
-        workspaceRootDigest: null,
-        workspaceId: sha256Uri(`field-mixed:${label}`),
-        inputFileName: "field-mixed-tomography.csv",
-        inputSha256: sha256Uri(state.rawCsv),
-        options: buildRustV2Options(options, GOLDEN_RUNTIME),
+    const requestJson = JSON.stringify({
+      protocolVersion: "chronicle-preprocessing-runtime/v2",
+      executionEngine: "incremental",
+      provenanceEvidence: true,
+      requestId: label,
+      command: "ExecuteWorkspace",
+      workspaceRootDigest: null,
+      workspaceId: sha256Uri(`field-mixed:${label}`),
+      inputFileName: "field-mixed-tomography.csv",
+      inputSha256: sha256Uri(executionState.rawCsv),
+      options: buildRustV2Options(options, GOLDEN_RUNTIME),
+    });
+    handle = requireExecutedScientificCampaign(
+      executeScientificCampaignWorkspace({
+        runtime,
+        options,
+        requestJson,
+        rawBytes,
+        supports,
+        supportArtifacts,
       }),
-      rawBytes,
-      supports,
-    );
+    ).handle;
     return {
-      manifest: JSON.parse(handle.manifest_json()) as RuntimeManifest,
+      manifest: JSON.parse(handle.manifest_json()) as CampaignRuntimeManifest,
       cells: captureCanonicalOutputCells(handle),
     };
   } finally {
@@ -166,7 +176,9 @@ function execute(
 
 /** Forward closure of the declared field edges from one supplied column. */
 function reachableFields(seed: string): Set<string> {
-  const edges = workflowContract.execution.queries.flatMap((query) => query.fieldEdges);
+  const edges = workflowContract.execution.queries.flatMap(
+    (query) => query.fieldEdges,
+  );
   const reached = new Set([seed]);
   let grew = true;
   while (grew) {
@@ -251,7 +263,7 @@ function coveringFamily(
 }
 
 function changedQueries(source: Observation, target: Observation): string[] {
-  return changedKeys(
+  return changedFields(
     source.manifest.processingSummary.workflowQueryDigests,
     target.manifest.processingSummary.workflowQueryDigests,
   );
@@ -269,7 +281,10 @@ function movedFamilies(
   for (const address of addresses) {
     const family = coveringFamily(declared, address);
     if (family) families.add(family);
-    else undeclared.add(`${cellFamilyOf(address).kind}#${cellFamilyOf(address).column}`);
+    else
+      undeclared.add(
+        `${cellFamilyOf(address).kind}#${cellFamilyOf(address).column}`,
+      );
   }
   return {
     families: [...families].sort(),
@@ -283,13 +298,13 @@ function axisAlternates(
   base: BrowserProcessingOptions,
 ): Array<{ key: string; alternate: AxisValue }> {
   return COMPUTATIONAL_BROWSER_OPTION_KEYS.flatMap((key) => {
-    const alternate = configurationEquivalenceClasses(key).find(
-      ({ value }) =>
-        JSON.stringify(value) !==
-        JSON.stringify((base as unknown as Record<string, unknown>)[key]),
-    );
+    const baseValue = (base as unknown as Record<string, unknown>)[key];
+    const alternate = configurationEquivalenceClasses(key).find(({ value }) => {
+      const differsFromBase =
+        JSON.stringify(value) !== JSON.stringify(baseValue);
+      return differsFromBase && validConfiguration(withValue(base, key, value));
+    });
     if (!alternate) return [];
-    if (!validConfiguration(withValue(base, key, alternate.value))) return [];
     return [{ key, alternate }];
   });
 }
@@ -300,7 +315,7 @@ function exactFieldsMovedBy(
   key: string,
   alternate: AxisValue,
 ): string[] {
-  return changedKeys(
+  return changedFields(
     buildRustV2Options(base, GOLDEN_RUNTIME),
     buildRustV2Options(withValue(base, key, alternate.value), GOLDEN_RUNTIME),
   );
@@ -313,7 +328,9 @@ function interventionColumns(
   return [
     ...new Set(
       interventions
-        .filter(({ expectedSemanticEffect }) => expectedSemanticEffect === "required")
+        .filter(
+          ({ expectedSemanticEffect }) => expectedSemanticEffect === "required",
+        )
         .flatMap(({ sourceFields }) => sourceFields)
         .filter((field) => field.includes(".") && !field.startsWith("source.")),
     ),
@@ -330,21 +347,42 @@ describe("per-field mixed source × configuration tomography", () => {
         const firstProfile = SYNTHETIC_CORPUS_PROFILES[0];
         if (!firstProfile) throw new Error("no synthetic corpus profiles");
         const corpus = generateSyntheticChronicleCorpus(firstProfile, catalog);
+        const interventions = buildArtifactInterventions({ corpus, catalog });
         const rewritten = interventionColumns(
-          buildArtifactInterventions({ corpus, catalog }),
+          interventions.filter(
+            (intervention) => !isCapabilityEvidenceIntervention(intervention),
+          ),
+        );
+        const sourceSensitiveCapabilityColumns = interventionColumns(
+          interventions.filter(isCapabilityEvidenceIntervention),
         );
         // A supplied column no query declares as read has no reach to cross with
-        // configuration. `filter_file.app_filter_category` is the checked
-        // example: only the review UI renders it. Such columns are reported so
-        // the aggregate names them instead of silently dropping them.
+        // configuration. `raw_chronicle_csv.possible_device_model` is the
+        // checked example: it is carried to the output but never computed on.
+        // (`filter_file.app_filter_category` was this example until the B10
+        // package-exclusion axis made it a read column.) Such columns are
+        // reported so the aggregate names them instead of silently dropping
+        // them.
         const columns = rewritten.filter(
           (column) => declaredCellReach(column).size > 0,
         );
+        for (const column of columns) {
+          expect(
+            interventions.some(
+              (intervention) =>
+                !isCapabilityEvidenceIntervention(intervention) &&
+                intervention.expectedSemanticEffect === "required" &&
+                intervention.sourceFields.includes(column),
+            ),
+            `${column}: listed generic field shard has no executable candidate`,
+          ).toBe(true);
+        }
         writeFileSync(
           listOutput,
           `${JSON.stringify(
             {
               columns,
+              sourceSensitiveCapabilityColumns,
               withoutDeclaredReach: rewritten.filter(
                 (column) => !columns.includes(column),
               ),
@@ -362,6 +400,7 @@ describe("per-field mixed source × configuration tomography", () => {
       const aggregate = JSON.parse(readFileSync(AGGREGATE_FILE, "utf8")) as {
         protocolVersion: string;
         columnsWithoutDeclaredReach: string[];
+        sourceSensitiveCapabilityColumns: string[];
         columnShards: Array<{
           sourceField: string;
           path: string;
@@ -371,14 +410,51 @@ describe("per-field mixed source × configuration tomography", () => {
       expect(aggregate.protocolVersion).toBe(
         "chronicle-field-mixed-tomography-aggregate/v2",
       );
+      expect(aggregate.sourceSensitiveCapabilityColumns).toEqual(
+        buildArtifactInterventions({
+          corpus: generateSyntheticChronicleCorpus(
+            SYNTHETIC_CORPUS_PROFILES[0]!,
+            catalog,
+          ),
+          catalog,
+        })
+          .filter(isCapabilityEvidenceIntervention)
+          .flatMap(({ sourceFields }) => sourceFields)
+          .filter((field, index, fields) => fields.indexOf(field) === index)
+          .sort(),
+      );
       for (const column of aggregate.columnsWithoutDeclaredReach) {
         expect(
           declaredCellReach(column).size,
           `${column}: recorded as unreachable but the contract now declares a reach`,
         ).toBe(0);
       }
+      // Completeness: the aggregate must carry one shard for EVERY enumerated
+      // generic column -- a FIELD_MIXED_ONLY-truncated recording otherwise
+      // verifies green (mirrors the sibling campaign's roleShards check).
+      {
+        const enumeratedCorpus = generateSyntheticChronicleCorpus(
+          SYNTHETIC_CORPUS_PROFILES[0]!,
+          catalog,
+        );
+        const enumeratedColumns = interventionColumns(
+          buildArtifactInterventions({
+            corpus: enumeratedCorpus,
+            catalog,
+          }).filter(
+            (intervention) => !isCapabilityEvidenceIntervention(intervention),
+          ),
+        ).filter((column) => declaredCellReach(column).size > 0);
+        expect(
+          aggregate.columnShards.map(({ sourceField }) => sourceField).sort(),
+          "aggregate column shards do not cover every enumerated generic column",
+        ).toEqual([...enumeratedColumns].sort());
+      }
       for (const shard of aggregate.columnShards) {
-        const bytes = readFileSync(join(EXPECTED_DIRECTORY, shard.path), "utf8");
+        const bytes = readFileSync(
+          join(EXPECTED_DIRECTORY, shard.path),
+          "utf8",
+        );
         expect(sha256Uri(bytes)).toBe(shard.contentDigest);
       }
     });
@@ -420,6 +496,7 @@ describe("per-field mixed source × configuration tomography", () => {
       });
       const candidates = buildArtifactInterventions({ corpus, catalog }).filter(
         (candidate) =>
+          !isCapabilityEvidenceIntervention(candidate) &&
           candidate.expectedSemanticEffect === "required" &&
           candidate.sourceFields.includes(SHARD_COLUMN),
       );
@@ -439,7 +516,7 @@ describe("per-field mixed source × configuration tomography", () => {
         );
         activationExecutions += 1;
         const movedStages =
-          changedKeys(
+          changedFields(
             baseline.manifest.processingSummary.workflowQueryGroupDigests,
             observed.manifest.processingSummary.workflowQueryGroupDigests,
           ).length > 0;
@@ -466,7 +543,19 @@ describe("per-field mixed source × configuration tomography", () => {
     const chosen = selected!;
 
     const coneSet = new Set(cone);
-    const axes = axisAlternates(baseOptions);
+    const allAxes = axisAlternates(baseOptions);
+    expect(allAxes).toHaveLength(COMPUTATIONAL_BROWSER_OPTION_KEYS.length);
+    const sourceSensitiveCompoundAxes =
+      chosen.intervention.roleId === "raw_chronicle_csv"
+        ? allAxes.filter(({ key, alternate }) =>
+            usesInputCapabilityEvidence(
+              withValue(baseOptions, key, alternate.value),
+            ),
+          )
+        : [];
+    const axes = allAxes.filter(
+      (axis) => !sourceSensitiveCompoundAxes.includes(axis),
+    );
     const predicted: Array<{ key: string; alternate: AxisValue }> = [];
     const unpredicted: Array<{ key: string; alternate: AxisValue }> = [];
     const coneRequestFields = new Set(
@@ -476,7 +565,8 @@ describe("per-field mixed source × configuration tomography", () => {
     );
     for (const axis of axes) {
       const moved = exactFieldsMovedBy(baseOptions, axis.key, axis.alternate);
-      if (moved.some((field) => coneRequestFields.has(field))) predicted.push(axis);
+      if (moved.some((field) => coneRequestFields.has(field)))
+        predicted.push(axis);
       else unpredicted.push(axis);
     }
     // Deterministic control sample: the first N predicted-unaffected axes in
@@ -586,7 +676,7 @@ describe("per-field mixed source × configuration tomography", () => {
       protocolVersion: "chronicle-field-mixed-tomography/v2",
       sourceField: SHARD_COLUMN,
       claimBoundary:
-        "One supplied source column, one empirically branch-activating intervention on it, crossed with every computational configuration axis the field-level workflow contract predicts can interact with that column, plus a deterministic control sample of axes it predicts cannot. Under every configuration executed, every canonical output cell the intervention changes belongs to a declared output-cell family of that column, and no control axis introduces a family the base configuration did not move. Declared families no configuration moved are listed, not asserted: a declared edge no run exercised is not evidence the edge is unreal. Changed query checkpoints are recorded as context only, because a query checkpoint also moves when the query merely carries a changed field through its records.",
+        "One supplied source column, one empirically branch-activating intervention on it, crossed with every non-compound computational configuration axis the field-level workflow contract predicts can interact with that column, plus a deterministic control sample of axes it predicts cannot. For raw-column shards, Parry/Zhu/Schoedel alternates that would necessarily rebind the digest-bound capability sidecar are explicitly excluded and remain unestimated as compound raw+capability interactions; the configuration-space sourceSensitiveScientificCells domain separately proves the generic LF-sidecar to CRLF-raw Parry rebind mechanism, not every excluded pair. Under every configuration executed, every canonical output cell the intervention changes belongs to a declared output-cell family of that column, and no control axis introduces a family the base configuration did not move. Declared families no configuration moved are listed, not asserted: a declared edge no run exercised is not evidence the edge is unreal. Changed query checkpoints are recorded as context only, because a query checkpoint also moves when the query merely carries a changed field through its records.",
       implementationReceipt: {
         implementation: baseSource.manifest.implementation,
         implementationDigest: baseSource.manifest.implementationDigest,
@@ -607,7 +697,11 @@ describe("per-field mixed source × configuration tomography", () => {
       declaredQueryCone: cone,
       declaredCellFamilies: declaredFamilies,
       coverage: {
-        computationalAxes: axes.length,
+        computationalAxes: allAxes.length,
+        directlyCrossedAxes: axes.length,
+        sourceSensitiveCompoundAxes: sourceSensitiveCompoundAxes.map(
+          ({ key, alternate }) => `${key}=${alternate.label}`,
+        ),
         predictedAffectedAxes: predicted.length,
         predictedUnaffectedAxes: unpredicted.length,
         controlAxesExecuted: controls.length,
@@ -639,9 +733,10 @@ describe("per-field mixed source × configuration tomography", () => {
       writeFileSync(path, serialized, "utf8");
       return;
     }
-    expect(existsSync(path), `missing field-mixed ledger for ${SHARD_COLUMN}`).toBe(
-      true,
-    );
+    expect(
+      existsSync(path),
+      `missing field-mixed ledger for ${SHARD_COLUMN}`,
+    ).toBe(true);
     expect(serialized).toBe(readFileSync(path, "utf8"));
-  }, 1_800_000);
+  }, CAMPAIGN_TEST_TIMEOUT_MS);
 });

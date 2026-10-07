@@ -1,0 +1,71 @@
+{
+  "source_repository_commit": "c9e3238c1d15d7e9837287e3c98a4b8b012c4ece",
+  "source_member": "Modelling_Python/prediction.py",
+  "source_member_sha256": "adb01866c722f2de0936c64fa7a444eb0060672bfb00af1968d53260f21665d6",
+  "source_lines": [131, 152],
+  "oracle_status": "source_read_hand_calculated_not_author_execution",
+  "carrier": "Chronicle comma CSV; empty numeric cells denote supplied null; no physical duration unit inferred",
+  "cases": [
+    {
+      "id": "direct_rates_zero_negative_null_and_ieee",
+      "input_csv": "source_row_id,f_clicks,f_scrolls,f_session_length\nfinite,6,3,2\nzero_counts,0,0,2\nzero_duration,1,0,0\nnegative,6,3,-2\nnull_clicks,,3,2\nmissing_duration,1,0,\nnan_input,NaN,nan,2\nnegative_zero,1,0,-0\ninfinite,inf,1,inf\n",
+      "expected_csv": "source_row_id,f_hour_of_day,f_weekday,f_click_frequency,f_scroll_frequency\nfinite,0,0,3,1.5\nzero_counts,0,0,0,0\nzero_duration,0,0,inf,NaN\nnegative,0,0,-3,-1.5\nnull_clicks,0,0,0,1.5\nmissing_duration,0,0,inf,NaN\nnan_input,0,0,0,0\nnegative_zero,0,0,-inf,NaN\ninfinite,0,0,NaN,0\n",
+      "expected_rows": 9
+    },
+    {
+      "id": "weighted_values_are_not_one_hot_or_bounded",
+      "input_csv": "source_row_id,f_clicks,f_scrolls,f_session_length,f_hour_of_day_6,prefix_f_hour_of_day_23,f_weekday_1,f_weekday_5\nweighted,6,3,2,0.5,1,1,1\nnull_weight,6,3,2,,NaN,0,0\n",
+      "expected_csv": "source_row_id,f_hour_of_day,f_weekday,f_click_frequency,f_scroll_frequency\nweighted,26,6,3,1.5\nnull_weight,0,0,3,1.5\n",
+      "expected_rows": 2
+    },
+    {
+      "id": "no_indicators_overwrite_existing_encodings_and_preserve_duplicate_rows",
+      "input_csv": "source_row_id,f_clicks,f_scrolls,f_session_length,f_hour_of_day,f_weekday,f_click_frequency,f_scroll_frequency\nsame,6,3,2,23,6,99,99\nsame,0,0,2,12,2,99,99\n",
+      "expected_csv": "source_row_id,f_hour_of_day,f_weekday,f_click_frequency,f_scroll_frequency\nsame,0,0,3,1.5\nsame,0,0,0,0\n",
+      "expected_rows": 2
+    },
+    {
+      "id": "header_order_sequential_sum_one",
+      "input_csv": "source_row_id,f_clicks,f_scrolls,f_session_length,z_f_hour_of_day_1,a_f_hour_of_day_1,m_f_hour_of_day_1\nordered,0,0,1,1e16,-1e16,1\n",
+      "expected_csv": "source_row_id,f_hour_of_day,f_weekday,f_click_frequency,f_scroll_frequency\nordered,1,0,0,0\n",
+      "expected_rows": 1
+    },
+    {
+      "id": "header_order_sequential_sum_zero",
+      "input_csv": "source_row_id,f_clicks,f_scrolls,f_session_length,z_f_hour_of_day_1,m_f_hour_of_day_1,a_f_hour_of_day_1\nordered,0,0,1,1e16,1,-1e16\n",
+      "expected_csv": "source_row_id,f_hour_of_day,f_weekday,f_click_frequency,f_scroll_frequency\nordered,0,0,0,0\n",
+      "expected_rows": 1
+    },
+    {
+      "id": "empty_prepared_table",
+      "input_csv": "source_row_id,f_clicks,f_scrolls,f_session_length\n",
+      "expected_csv": "source_row_id,f_hour_of_day,f_weekday,f_click_frequency,f_scroll_frequency\n",
+      "expected_rows": 0
+    },
+    {
+      "id": "nonnumeric_hour_suffix",
+      "input_csv": "source_row_id,f_clicks,f_scrolls,f_session_length,f_hour_of_day_bad\np,1,1,1,1\n",
+      "expected_error_contains": "header suffix"
+    },
+    {
+      "id": "nonnumeric_weekday_suffix_even_without_rows",
+      "input_csv": "source_row_id,f_clicks,f_scrolls,f_session_length,f_weekday_bad\n",
+      "expected_error_contains": "header suffix"
+    },
+    {
+      "id": "nonnumeric_count",
+      "input_csv": "source_row_id,f_clicks,f_scrolls,f_session_length\np,unknown,1,1\n",
+      "expected_error_contains": "Python numeric f_clicks"
+    },
+    {
+      "id": "missing_required_duration",
+      "input_csv": "source_row_id,f_clicks,f_scrolls\np,1,1\n",
+      "expected_error_contains": "requires raw column f_session_length"
+    },
+    {
+      "id": "duplicate_prepared_headers",
+      "input_csv": "source_row_id,f_clicks,f_clicks,f_scrolls,f_session_length\np,1,2,1,1\n",
+      "expected_error_contains": "unique prepared column names"
+    }
+  ]
+}

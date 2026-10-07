@@ -14,6 +14,12 @@ describe("supportFileInputList", () => {
       deviceSharingFile: "sharing",
       surveyAttributionFile: "survey",
       enrolledDevicesFile: "enrolled",
+      inputCapabilityEvidenceFile: "capability",
+      analysisFeatureMatrixFile: "feature-matrix",
+      callSmsEligibilityFile: "call-sms-eligibility",
+      phoneStudyPsCommunicationFile: "phonestudy-ps-communication",
+      phoneStudyEsFile: "phonestudy-es",
+      anchorEventsFile: "anchor-events",
     };
     expect(supportFileInputList(byRole)).toEqual([
       "filter",
@@ -24,6 +30,12 @@ describe("supportFileInputList", () => {
       "sharing",
       "survey",
       "enrolled",
+      "capability",
+      "feature-matrix",
+      "call-sms-eligibility",
+      "phonestudy-ps-communication",
+      "phonestudy-es",
+      "anchor-events",
     ]);
   });
 });

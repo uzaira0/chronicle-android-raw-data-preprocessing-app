@@ -1,0 +1,34 @@
+{
+  "schemaVersion": "chronicle-exact-category-membership-filter-source-fixture/v1",
+  "sourceWorkId": "doi:10.1080/15213269.2024.2334025",
+  "sourceArtifact": {
+    "locator": ".tmp-literature-review-private/corrective-packet-06-ranks174-223-20260831/artifacts/rank209-osf-45q72/osfstorage/Notification-disabling intervention study/Data & Analyses/(2) R script data cleaning [raw survey & tracking data].R:610-618",
+    "sha256": "2bd5bab0c9a917a64f347093972bff72e2b0b5cfd38539a1df229c65cdbd383b"
+  },
+  "sourceRuntime": "R 4.3.2 with dplyr",
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-f1678dedade69eec5fc81829",
+    "parameterKey": "clean.social_categories",
+    "sourceObservedSetting": "clean.social_categories: from CATEGORY_USAGE inputs retain key == social or communication",
+    "sourceValueSha256": "ef71431934eb7ada08027c0ae08ce6aa426f5398ef4280033a864c2a1e42b145"
+  },
+  "productionBindingStatus": "missing_exact_category_membership_filter_binding",
+  "inputBoundary": "Rows have already passed the source's exact aggregation_type == CATEGORY_USAGE filter and carry the source key field unchanged.",
+  "outputBoundary": "Retain the complete input row only when key is exactly social or communication; preserve input order and duplicate rows.",
+  "allowedValues": ["social", "communication"],
+  "limitations": [
+    "The upstream CATEGORY_USAGE filter is a distinct disclosed operation and is not inferred by this atom.",
+    "R string equality is case-sensitive and whitespace-sensitive; missing keys produce an NA predicate and are dropped by dplyr::filter.",
+    "Participant exclusion, date conversion, ordering, daily summation, division by 60, column selection, and deduplication occur after this atom and remain outside it."
+  ],
+  "cases": [
+    {"rowId": "social", "key": "social", "expectedRetained": true},
+    {"rowId": "communication", "key": "communication", "expectedRetained": true},
+    {"rowId": "other", "key": "games", "expectedRetained": false},
+    {"rowId": "uppercase", "key": "Social", "expectedRetained": false},
+    {"rowId": "whitespace", "key": "social ", "expectedRetained": false},
+    {"rowId": "empty", "key": "", "expectedRetained": false},
+    {"rowId": "missing", "key": null, "expectedRetained": false},
+    {"rowId": "social-duplicate", "key": "social", "expectedRetained": true}
+  ]
+}

@@ -1,0 +1,15 @@
+participant_id,application_name,application_category,start_unix_seconds,end_unix_seconds,derived_duration_seconds
+P1,Other,Tools,1591574421,1591574425,4
+P2,Other,Tools,1591574417,1591574418,1
+P1,Instagram,Social,1591574400,1591574410,10
+P2,Game B,Gaming,1591574414,1591574416,2
+P1,Game A,Gaming,1591574405,1591574415,10
+P1,Instagram,Social,1591574402,1591574408,6
+P1,YouTube,Video Players & Editors,1591574415,1591574420,5
+P2,Instagram,Social,1591574400,1591574410,10
+P1,Instagram,Social,1591574402,1591574408,6
+P1,Netflix,Video Players & Editors,1591574419,1591574422,3
+P1,Reddit,Social,1591574426,1591574430,4
+P2,YouTube,Video Players & Editors,1591574410,1591574415,5
+P1,WhatsApp Messenger,Social,1591574430,1591574435,5
+P1,youtube,Video Players & Editors,1591574440,1591574445,5

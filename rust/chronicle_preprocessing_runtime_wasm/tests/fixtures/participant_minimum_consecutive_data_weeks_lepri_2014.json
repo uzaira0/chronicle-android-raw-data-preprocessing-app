@@ -1,0 +1,59 @@
+{
+  "schemaVersion": "chronicle-participant-minimum-consecutive-data-weeks-source-fixture/v1",
+  "sourceWorkId": "doi:10.1145/2647868.2654933",
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-8564f76c3ce6576b1e10c475",
+    "parameterKey": "eligibility.consecutive_data_gate",
+    "sourceClause": "only subjects who had provided at least 2 weeks of consecutive data were used",
+    "sourceObservedSetting": "eligibility.consecutive_data_gate: {\"minimum\":\"at least 2 weeks\",\"consecutive\":true,\"eligible_subjects\":111}",
+    "sourceValueSha256": "22ddc0be7a8a92d16b2bd6db68119b1a4902fd6425144faa11ededd6fe6a1954"
+  },
+  "sourceArtifacts": [
+    {
+      "locator": ".tmp-literature-review-private/source-completeness-artifacts/doi-10.1145-2647868.2654933/arxiv-1410.5816v1-source.tar#member=fp266-lepri.tex;lines=317-321",
+      "sha256": "9ebfdf1dd12d842b8943672d7f94cfe6f984a73ff14261a267c88285c0c0b213"
+    },
+    {
+      "locator": ".tmp-literature-review-private/corrective-packet-04-ranks-074-123-20260831/text/080.txt:168-173",
+      "sha256": "ca9fd45f81f94a040de49d29bd334c24b30c0372d5c8a5ab607194b3a04c2252"
+    },
+    {
+      "locator": ".tmp-literature-review-private/corrective-packet-04-ranks-074-123-20260831/fulltext/080-primary.pdf:pages 1-10#audit-locator=080.txt:168-173",
+      "sha256": "cec0119cecc151a885b1da2a4562f9604e374e3c01cdc566f325f666495a61d2"
+    }
+  ],
+  "inputBoundary": "One caller-supplied finite duration in weeks for one participant, already adjudicated as the source's undefined consecutive-data span; continuity computation and stream selection occur before this gate.",
+  "outputBoundary": "Exclude a participant below 2 weeks of source-defined consecutive data and retain equality or a longer duration.",
+  "limitations": [
+    "The source does not identify which event, sensor, survey, or combined stream establishes consecutive data, so this binding does not select a stream.",
+    "The source does not define gap tolerance, required daily observations, missing-day handling, calendar-week anchoring, or duration precision.",
+    "Two weeks is not silently rewritten as fourteen complete participant-days; the caller must supply a duration already carrying the source-specific continuity adjudication.",
+    "A missing or nonfinite consecutive-data duration fails closed and is not synthesized from the study window.",
+    "The reported 111 eligible subjects are a cohort result, not a required output for an arbitrary fixture.",
+    "Raw Android and stress-survey parsing, participant linkage, feature construction, model training, and result reproduction are outside this eligibility boundary."
+  ],
+  "minimumRetainedWeeks": 2.0,
+  "dispositions": ["exclude", "retain"],
+  "participants": [
+    {
+      "participantId": "one-week-span",
+      "consecutiveDataWeeks": 1.0,
+      "expectedDisposition": "exclude"
+    },
+    {
+      "participantId": "exact-two-week-span",
+      "consecutiveDataWeeks": 2.0,
+      "expectedDisposition": "retain"
+    },
+    {
+      "participantId": "three-week-span",
+      "consecutiveDataWeeks": 3.0,
+      "expectedDisposition": "retain"
+    }
+  ],
+  "missingDurationCase": {
+    "participantId": "missing-consecutive-data-duration",
+    "consecutiveDataWeeks": null,
+    "expectedError": "participant_consecutive_data_duration_required"
+  }
+}

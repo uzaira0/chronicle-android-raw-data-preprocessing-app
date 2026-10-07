@@ -7,37 +7,37 @@
   },
   "implementationReceipt": {
     "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
-    "implementationDigest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb",
-    "planDigest": "sha256:f32b34442d2aad2bb027d53039f112f49bd375b7210a616fbda99aa5d11858d3",
-    "profileDigest": "sha256:444af27d8331523780e0480cda96b5af6d27f5ad6b8781bf137a1646b05e9c1c",
-    "profileLockDigest": "sha256:ae08bf61c3bde50b58deb445bc1f198d441a37f4bc9fe4fcad5f186cac30dd79",
-    "runtimeAuthorityDigest": "sha256:643041e4330b4aca4b2cdf9a8e0dc285fdfb50b24338be312bdbff98c3d3ddbd",
-    "productContractDigest": "sha256:ce4f7d309cea44fd24fcb85fb81f3cd0639ec9c6c77eb8041b6ca071659a7562"
+    "implementationDigest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43",
+    "planDigest": "sha256:be0258af6aafbc9a1855ae4223adcc642a8d22b5fa8bb87eb09f6b62dc3abbd0",
+    "profileDigest": "sha256:637623272b4ab1bfd901a4d45103bc95984cc2e272dfa400745541b96a5aaefb",
+    "profileLockDigest": "sha256:424844ecf7fceb750d1f409453abf2f0ab76754f36861bd86cec1464a4fc6655",
+    "runtimeAuthorityDigest": "sha256:7807fe99a35b4ede2c85d8e8868ec3dcb2accb22e8265c4643966eb9840ce4e4",
+    "productContractDigest": "sha256:81e857feb3c24afaf0b3bbbef63081e884a498cfaa8398a76fabfe23c8c5c61b"
   },
   "sourceLedgers": {
-    "configurationCaseSetDigest": "sha256:36bab126219263007536096d2d0554b9f5fda2c82f6eac0e78d074668cbc766d",
-    "artifactCaseSetDigest": "sha256:e37f52ea21b24536ecb5d5236b2ac00e7212156fc03307490a6fc65e67366a0b",
-    "rawBoundaryCaseSetDigest": "sha256:72b2b765d2fce5be0cbf7947c0cdc43d637a88253fe3d407a44fa154f10924c6"
+    "configurationCaseSetDigest": "sha256:509ce09728bb8895aeca5e5989f0a4d811de604c526d760ba019efd63c9c5f30",
+    "artifactCaseSetDigest": "sha256:272f837cf712532c683cc89b3aabe0cfb965c09c802ed6db1938e98c105a8a47",
+    "rawBoundaryCaseSetDigest": "sha256:d075f3ffe1893f0ffa92340bdc777dd492f4b70bb5862f1249584e00b0151de4"
   },
-  "observationCount": 1734,
+  "observationCount": 4846,
   "counts": {
-    "total": 350,
-    "killed": 350,
+    "total": 588,
+    "killed": 588,
     "survived": 0,
     "byClass": {
-      "remove-edge": 131,
-      "reverse-edge": 131,
-      "remove-option-binding": 75,
-      "remove-role-binding": 13
+      "remove-edge": 173,
+      "reverse-edge": 173,
+      "remove-option-binding": 219,
+      "remove-role-binding": 23
     },
-    "structuralCycles": 64,
-    "structuralConditionBindings": 7,
-    "structuralQueryBindings": 82,
-    "rustRequestReadBindings": 11
+    "structuralCycles": 88,
+    "structuralConditionBindings": 13,
+    "structuralQueryBindings": 150,
+    "rustRequestReadBindings": 40
   },
   "structuralProofs": {
-    "rustSource": "rust/chronicle_chrono_kernel_wasm/src/workflow_contract.rs::tests::declared_step_edges_equal_direct_salsa_query_calls",
-    "statement": "The Rust test parses pipeline_v2_incremental.rs with syn and compares each tracked query's direct calls and transitive option helper reads with the exported contract."
+    "rustSource": "rust/chronicle_chrono_kernel_wasm/src/workflow_contract.rs::tests::declared_query_edges_equal_direct_salsa_query_calls",
+    "statement": "The Rust test parses pipeline_v2_incremental.rs with syn and compares each tracked query's direct salsa query calls against the contract's declared query edges."
   },
   "mutants": [
     {
@@ -155,7 +155,7 @@
       "targetId": "collect_timezone_observations",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:interactionTypeRemap:active:none:custom:catalog-random"
+      "witnessId": "configuration:dropOutOfSourceOrderEvents:active:true:false:support-intersections"
     },
     {
       "mutantId": "reverse-edge:order_source_records->collect_timezone_observations",
@@ -164,7 +164,7 @@
       "targetId": "collect_timezone_observations",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:interactionTypeRemap:active:none:custom:catalog-random"
+      "witnessId": "configuration:dropOutOfSourceOrderEvents:active:true:false:support-intersections"
     },
     {
       "mutantId": "remove-edge:order_source_records->estimate_dominant_timezone",
@@ -173,7 +173,7 @@
       "targetId": "estimate_dominant_timezone",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:interactionTypeRemap:active:none:custom:catalog-random"
+      "witnessId": "configuration:dropOutOfSourceOrderEvents:active:true:false:support-intersections"
     },
     {
       "mutantId": "reverse-edge:order_source_records->estimate_dominant_timezone",
@@ -182,7 +182,7 @@
       "targetId": "estimate_dominant_timezone",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:interactionTypeRemap:active:none:custom:catalog-random"
+      "witnessId": "configuration:dropOutOfSourceOrderEvents:active:true:false:support-intersections"
     },
     {
       "mutantId": "remove-edge:order_source_records->resolve_timezone_strategy",
@@ -191,7 +191,7 @@
       "targetId": "resolve_timezone_strategy",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:interactionTypeRemap:active:none:custom:catalog-random"
+      "witnessId": "configuration:dropOutOfSourceOrderEvents:active:true:false:support-intersections"
     },
     {
       "mutantId": "reverse-edge:order_source_records->resolve_timezone_strategy",
@@ -227,7 +227,7 @@
       "targetId": "standardize_event_clock",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:selectedTimezone:active:america_chicago:america_new_york:catalog-random"
+      "witnessId": "configuration:dropOutOfSourceOrderEvents:active:true:false:support-intersections"
     },
     {
       "mutantId": "reverse-edge:resolve_timezone_strategy->standardize_event_clock",
@@ -236,7 +236,7 @@
       "targetId": "standardize_event_clock",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:selectedTimezone:active:america_chicago:america_new_york:catalog-random"
+      "witnessId": "configuration:dropOutOfSourceOrderEvents:active:true:false:support-intersections"
     },
     {
       "mutantId": "remove-edge:order_source_records->summarize_row_selection",
@@ -281,7 +281,7 @@
       "targetId": "coalesce_duplicate_event_keys",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:selectedTimezone:active:america_chicago:america_new_york:catalog-random"
+      "witnessId": "configuration:dropOutOfSourceOrderEvents:active:true:false:support-intersections"
     },
     {
       "mutantId": "reverse-edge:standardize_event_clock->coalesce_duplicate_event_keys",
@@ -290,7 +290,7 @@
       "targetId": "coalesce_duplicate_event_keys",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:selectedTimezone:active:america_chicago:america_new_york:catalog-random"
+      "witnessId": "configuration:dropOutOfSourceOrderEvents:active:true:false:support-intersections"
     },
     {
       "mutantId": "remove-edge:coalesce_duplicate_event_keys->summarize_duplicate_groups",
@@ -401,6 +401,60 @@
       "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
     },
     {
+      "mutantId": "remove-edge:decode_source_records->construct_screen_intervals",
+      "mutantClass": "remove-edge",
+      "sourceId": "decode_source_records",
+      "targetId": "construct_screen_intervals",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:decode_source_records->construct_screen_intervals",
+      "mutantClass": "reverse-edge",
+      "sourceId": "decode_source_records",
+      "targetId": "construct_screen_intervals",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:derive_time_gap_evidence->construct_screen_intervals",
+      "mutantClass": "remove-edge",
+      "sourceId": "derive_time_gap_evidence",
+      "targetId": "construct_screen_intervals",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:sameAppInteractionTypesToStopUsageAt:active:default:empty:support-intersections"
+    },
+    {
+      "mutantId": "reverse-edge:derive_time_gap_evidence->construct_screen_intervals",
+      "mutantClass": "reverse-edge",
+      "sourceId": "derive_time_gap_evidence",
+      "targetId": "construct_screen_intervals",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:infer_screen_session_skeletons->construct_screen_intervals",
+      "mutantClass": "remove-edge",
+      "sourceId": "infer_screen_session_skeletons",
+      "targetId": "construct_screen_intervals",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:infer_screen_session_skeletons->construct_screen_intervals",
+      "mutantClass": "reverse-edge",
+      "sourceId": "infer_screen_session_skeletons",
+      "targetId": "construct_screen_intervals",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
       "mutantId": "remove-edge:derive_time_gap_evidence->classify_screen_sessions",
       "mutantClass": "remove-edge",
       "sourceId": "derive_time_gap_evidence",
@@ -413,6 +467,24 @@
       "mutantId": "reverse-edge:derive_time_gap_evidence->classify_screen_sessions",
       "mutantClass": "reverse-edge",
       "sourceId": "derive_time_gap_evidence",
+      "targetId": "classify_screen_sessions",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:decode_source_records->classify_screen_sessions",
+      "mutantClass": "remove-edge",
+      "sourceId": "decode_source_records",
+      "targetId": "classify_screen_sessions",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:decode_source_records->classify_screen_sessions",
+      "mutantClass": "reverse-edge",
+      "sourceId": "decode_source_records",
       "targetId": "classify_screen_sessions",
       "killed": true,
       "killKind": "structural-cycle",
@@ -433,8 +505,8 @@
       "sourceId": "infer_screen_session_skeletons",
       "targetId": "classify_screen_sessions",
       "killed": true,
-      "killKind": "rust-source-call-binding",
-      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
     },
     {
       "mutantId": "remove-edge:index_keyguard_events->classify_screen_sessions",
@@ -449,6 +521,24 @@
       "mutantId": "reverse-edge:index_keyguard_events->classify_screen_sessions",
       "mutantClass": "reverse-edge",
       "sourceId": "index_keyguard_events",
+      "targetId": "classify_screen_sessions",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-edge:construct_screen_intervals->classify_screen_sessions",
+      "mutantClass": "remove-edge",
+      "sourceId": "construct_screen_intervals",
+      "targetId": "classify_screen_sessions",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:construct_screen_intervals->classify_screen_sessions",
+      "mutantClass": "reverse-edge",
+      "sourceId": "construct_screen_intervals",
       "targetId": "classify_screen_sessions",
       "killed": true,
       "killKind": "rust-source-call-binding",
@@ -497,7 +587,7 @@
       "targetId": "build_app_event_index",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
       "mutantId": "reverse-edge:mask_excluded_app_events->build_app_event_index",
@@ -506,7 +596,25 @@
       "targetId": "build_app_event_index",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
+    },
+    {
+      "mutantId": "remove-edge:decode_source_records->match_app_episodes",
+      "mutantClass": "remove-edge",
+      "sourceId": "decode_source_records",
+      "targetId": "match_app_episodes",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:decode_source_records->match_app_episodes",
+      "mutantClass": "reverse-edge",
+      "sourceId": "decode_source_records",
+      "targetId": "match_app_episodes",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
     },
     {
       "mutantId": "remove-edge:build_app_event_index->match_app_episodes",
@@ -515,7 +623,7 @@
       "targetId": "match_app_episodes",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
+      "witnessId": "configuration:useBackgroundAppsFile:active:true:false:catalog-random"
     },
     {
       "mutantId": "reverse-edge:build_app_event_index->match_app_episodes",
@@ -524,7 +632,43 @@
       "targetId": "match_app_episodes",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
+      "witnessId": "configuration:useBackgroundAppsFile:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-edge:mask_excluded_app_events->match_app_episodes",
+      "mutantClass": "remove-edge",
+      "sourceId": "mask_excluded_app_events",
+      "targetId": "match_app_episodes",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:selectedTimezone:active:america_chicago:america_new_york:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:mask_excluded_app_events->match_app_episodes",
+      "mutantClass": "reverse-edge",
+      "sourceId": "mask_excluded_app_events",
+      "targetId": "match_app_episodes",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:construct_screen_intervals->match_app_episodes",
+      "mutantClass": "remove-edge",
+      "sourceId": "construct_screen_intervals",
+      "targetId": "match_app_episodes",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:construct_screen_intervals->match_app_episodes",
+      "mutantClass": "reverse-edge",
+      "sourceId": "construct_screen_intervals",
+      "targetId": "match_app_episodes",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
     },
     {
       "mutantId": "remove-edge:mask_excluded_app_events->materialize_candidate_episodes",
@@ -533,7 +677,7 @@
       "targetId": "materialize_candidate_episodes",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:selectedTimezone:active:america_chicago:america_new_york:catalog-random"
+      "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
     },
     {
       "mutantId": "reverse-edge:mask_excluded_app_events->materialize_candidate_episodes",
@@ -551,7 +695,7 @@
       "targetId": "materialize_candidate_episodes",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:openerSet:active:strategydefined:resumedonly:catalog-random"
     },
     {
       "mutantId": "reverse-edge:match_app_episodes->materialize_candidate_episodes",
@@ -560,7 +704,7 @@
       "targetId": "materialize_candidate_episodes",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:openerSet:active:strategydefined:resumedonly:catalog-random"
     },
     {
       "mutantId": "remove-edge:resolve_excluded_packages->materialize_candidate_episodes",
@@ -581,13 +725,31 @@
       "witnessId": "configuration:useFilterFile:active:true:false:catalog-random"
     },
     {
+      "mutantId": "remove-edge:match_app_episodes->classify_episode_durations",
+      "mutantClass": "remove-edge",
+      "sourceId": "match_app_episodes",
+      "targetId": "classify_episode_durations",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:openerSet:active:strategydefined:resumedonly:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:match_app_episodes->classify_episode_durations",
+      "mutantClass": "reverse-edge",
+      "sourceId": "match_app_episodes",
+      "targetId": "classify_episode_durations",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
       "mutantId": "remove-edge:materialize_candidate_episodes->classify_episode_durations",
       "mutantClass": "remove-edge",
       "sourceId": "materialize_candidate_episodes",
       "targetId": "classify_episode_durations",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:usagelogger5:fgbgonly:configuration-influence-probes"
     },
     {
       "mutantId": "reverse-edge:materialize_candidate_episodes->classify_episode_durations",
@@ -596,7 +758,7 @@
       "targetId": "classify_episode_durations",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:usagelogger5:fgbgonly:configuration-influence-probes"
     },
     {
       "mutantId": "remove-edge:resolve_excluded_packages->classify_episode_durations",
@@ -623,7 +785,7 @@
       "targetId": "apply_app_inclusion_policy",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
       "mutantId": "reverse-edge:classify_episode_durations->apply_app_inclusion_policy",
@@ -632,7 +794,43 @@
       "targetId": "apply_app_inclusion_policy",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
+    },
+    {
+      "mutantId": "remove-edge:classify_screen_sessions->apply_app_inclusion_policy",
+      "mutantClass": "remove-edge",
+      "sourceId": "classify_screen_sessions",
+      "targetId": "apply_app_inclusion_policy",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:classify_screen_sessions->apply_app_inclusion_policy",
+      "mutantClass": "reverse-edge",
+      "sourceId": "classify_screen_sessions",
+      "targetId": "apply_app_inclusion_policy",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-edge:construct_screen_intervals->apply_app_inclusion_policy",
+      "mutantClass": "remove-edge",
+      "sourceId": "construct_screen_intervals",
+      "targetId": "apply_app_inclusion_policy",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:construct_screen_intervals->apply_app_inclusion_policy",
+      "mutantClass": "reverse-edge",
+      "sourceId": "construct_screen_intervals",
+      "targetId": "apply_app_inclusion_policy",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
     },
     {
       "mutantId": "remove-edge:resolve_excluded_packages->apply_app_inclusion_policy",
@@ -659,7 +857,7 @@
       "targetId": "order_app_episodes",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
       "mutantId": "reverse-edge:apply_app_inclusion_policy->order_app_episodes",
@@ -668,7 +866,7 @@
       "targetId": "order_app_episodes",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
       "mutantId": "remove-edge:order_app_episodes->segment_concurrent_usage",
@@ -677,7 +875,7 @@
       "targetId": "segment_concurrent_usage",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
       "mutantId": "reverse-edge:order_app_episodes->segment_concurrent_usage",
@@ -686,7 +884,7 @@
       "targetId": "segment_concurrent_usage",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
       "mutantId": "remove-edge:resolve_excluded_packages->segment_concurrent_usage",
@@ -713,7 +911,7 @@
       "targetId": "join_app_codebook",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
       "mutantId": "reverse-edge:segment_concurrent_usage->join_app_codebook",
@@ -722,7 +920,7 @@
       "targetId": "join_app_codebook",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
       "mutantId": "remove-edge:join_app_codebook->derive_broad_category",
@@ -731,7 +929,7 @@
       "targetId": "derive_broad_category",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
       "mutantId": "reverse-edge:join_app_codebook->derive_broad_category",
@@ -740,7 +938,7 @@
       "targetId": "derive_broad_category",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
       "mutantId": "remove-edge:derive_broad_category->collapse_app_genre",
@@ -749,7 +947,7 @@
       "targetId": "collapse_app_genre",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
       "mutantId": "reverse-edge:derive_broad_category->collapse_app_genre",
@@ -758,7 +956,7 @@
       "targetId": "collapse_app_genre",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
       "mutantId": "remove-edge:collapse_app_genre->derive_engagement_basis",
@@ -767,7 +965,7 @@
       "targetId": "derive_engagement_basis",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
       "mutantId": "reverse-edge:collapse_app_genre->derive_engagement_basis",
@@ -776,7 +974,7 @@
       "targetId": "derive_engagement_basis",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
       "mutantId": "remove-edge:derive_engagement_basis->apply_episode_flags",
@@ -785,7 +983,7 @@
       "targetId": "apply_episode_flags",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
       "mutantId": "reverse-edge:derive_engagement_basis->apply_episode_flags",
@@ -794,7 +992,7 @@
       "targetId": "apply_episode_flags",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
       "mutantId": "remove-edge:apply_episode_flags->suppress_excluded_timing",
@@ -803,7 +1001,7 @@
       "targetId": "suppress_excluded_timing",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
       "mutantId": "reverse-edge:apply_episode_flags->suppress_excluded_timing",
@@ -812,7 +1010,7 @@
       "targetId": "suppress_excluded_timing",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
       "mutantId": "remove-edge:resolve_excluded_packages->suppress_excluded_timing",
@@ -839,7 +1037,7 @@
       "targetId": "remove_selected_interaction_types",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
       "mutantId": "reverse-edge:suppress_excluded_timing->remove_selected_interaction_types",
@@ -848,7 +1046,7 @@
       "targetId": "remove_selected_interaction_types",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
       "mutantId": "remove-edge:remove_selected_interaction_types->remove_zero_duration_rows",
@@ -857,7 +1055,7 @@
       "targetId": "remove_zero_duration_rows",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
       "mutantId": "reverse-edge:remove_selected_interaction_types->remove_zero_duration_rows",
@@ -866,25 +1064,43 @@
       "targetId": "remove_zero_duration_rows",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
-      "mutantId": "remove-edge:remove_zero_duration_rows->identify_credit_eligible_sessions",
+      "mutantId": "remove-edge:remove_zero_duration_rows->assign_usage_session_ids",
       "mutantClass": "remove-edge",
       "sourceId": "remove_zero_duration_rows",
-      "targetId": "identify_credit_eligible_sessions",
+      "targetId": "assign_usage_session_ids",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
-      "mutantId": "reverse-edge:remove_zero_duration_rows->identify_credit_eligible_sessions",
+      "mutantId": "reverse-edge:remove_zero_duration_rows->assign_usage_session_ids",
       "mutantClass": "reverse-edge",
       "sourceId": "remove_zero_duration_rows",
+      "targetId": "assign_usage_session_ids",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
+    },
+    {
+      "mutantId": "remove-edge:assign_usage_session_ids->identify_credit_eligible_sessions",
+      "mutantClass": "remove-edge",
+      "sourceId": "assign_usage_session_ids",
       "targetId": "identify_credit_eligible_sessions",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:assign_usage_session_ids->identify_credit_eligible_sessions",
+      "mutantClass": "reverse-edge",
+      "sourceId": "assign_usage_session_ids",
+      "targetId": "identify_credit_eligible_sessions",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
       "mutantId": "remove-edge:mark_app_policy_matches->build_activity_witness_indexes",
@@ -905,13 +1121,31 @@
       "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
     },
     {
+      "mutantId": "remove-edge:construct_screen_intervals->build_activity_witness_indexes",
+      "mutantClass": "remove-edge",
+      "sourceId": "construct_screen_intervals",
+      "targetId": "build_activity_witness_indexes",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:construct_screen_intervals->build_activity_witness_indexes",
+      "mutantClass": "reverse-edge",
+      "sourceId": "construct_screen_intervals",
+      "targetId": "build_activity_witness_indexes",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
       "mutantId": "remove-edge:identify_credit_eligible_sessions->assess_screen_evidence_capability",
       "mutantClass": "remove-edge",
       "sourceId": "identify_credit_eligible_sessions",
       "targetId": "assess_screen_evidence_capability",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
       "mutantId": "reverse-edge:identify_credit_eligible_sessions->assess_screen_evidence_capability",
@@ -920,7 +1154,7 @@
       "targetId": "assess_screen_evidence_capability",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
       "mutantId": "remove-edge:build_activity_witness_indexes->assess_screen_evidence_capability",
@@ -947,7 +1181,7 @@
       "targetId": "summarize_daily_apps",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
       "mutantId": "reverse-edge:identify_credit_eligible_sessions->summarize_daily_apps",
@@ -956,7 +1190,7 @@
       "targetId": "summarize_daily_apps",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
       "mutantId": "remove-edge:identify_credit_eligible_sessions->derive_credited_intervals",
@@ -965,7 +1199,7 @@
       "targetId": "derive_credited_intervals",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:usagelogger5:tothtrifonova:configuration-influence-probes"
     },
     {
       "mutantId": "reverse-edge:identify_credit_eligible_sessions->derive_credited_intervals",
@@ -1019,7 +1253,7 @@
       "targetId": "materialize_credited_rows",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:longDurationThresholdHours:active:h12:h1:support-intersections"
+      "witnessId": "configuration:eventRetentionSet:active:usagelogger5:tothtrifonova:configuration-influence-probes"
     },
     {
       "mutantId": "reverse-edge:identify_credit_eligible_sessions->materialize_credited_rows",
@@ -1055,7 +1289,7 @@
       "targetId": "materialize_credited_rows",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:creditedSessionCapMinutes:active:m360:m0:catalog-random"
+      "witnessId": "configuration:screenGatingRule:active:screenandliveness:livenessonly:configuration-influence-probes"
     },
     {
       "mutantId": "reverse-edge:derive_credited_intervals->materialize_credited_rows",
@@ -1064,7 +1298,7 @@
       "targetId": "materialize_credited_rows",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:creditedSessionCapMinutes:active:m360:m0:catalog-random"
+      "witnessId": "configuration:screenGatingRule:active:screenandliveness:livenessonly:configuration-influence-probes"
     },
     {
       "mutantId": "remove-edge:identify_credit_eligible_sessions->assemble_credit_outputs",
@@ -1073,7 +1307,7 @@
       "targetId": "assemble_credit_outputs",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:longDurationThresholdHours:active:h12:h1:temporal-pathologies"
+      "witnessId": "configuration:longDurationThresholdHours:active:h12:h1:support-intersections"
     },
     {
       "mutantId": "reverse-edge:identify_credit_eligible_sessions->assemble_credit_outputs",
@@ -1109,7 +1343,7 @@
       "targetId": "assemble_credit_outputs",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:creditedSessionCapMinutes:active:m360:m0:catalog-random"
+      "witnessId": "configuration:screenGatingRule:active:screenandliveness:livenessonly:configuration-influence-probes"
     },
     {
       "mutantId": "reverse-edge:materialize_credited_rows->assemble_credit_outputs",
@@ -1118,39 +1352,291 @@
       "targetId": "assemble_credit_outputs",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:creditedSessionCapMinutes:active:m360:m0:catalog-random"
+      "witnessId": "configuration:screenGatingRule:active:screenandliveness:livenessonly:configuration-influence-probes"
     },
     {
-      "mutantId": "remove-edge:remove_zero_duration_rows->resolve_participant_windows",
+      "mutantId": "remove-edge:mark_app_policy_matches->select_notification_events",
       "mutantClass": "remove-edge",
-      "sourceId": "remove_zero_duration_rows",
-      "targetId": "resolve_participant_windows",
+      "sourceId": "mark_app_policy_matches",
+      "targetId": "select_notification_events",
       "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
     },
     {
-      "mutantId": "reverse-edge:remove_zero_duration_rows->resolve_participant_windows",
+      "mutantId": "reverse-edge:mark_app_policy_matches->select_notification_events",
       "mutantClass": "reverse-edge",
-      "sourceId": "remove_zero_duration_rows",
+      "sourceId": "mark_app_policy_matches",
+      "targetId": "select_notification_events",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-edge:construct_screen_intervals->select_notification_events",
+      "mutantClass": "remove-edge",
+      "sourceId": "construct_screen_intervals",
+      "targetId": "select_notification_events",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:construct_screen_intervals->select_notification_events",
+      "mutantClass": "reverse-edge",
+      "sourceId": "construct_screen_intervals",
+      "targetId": "select_notification_events",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-edge:assign_usage_session_ids->index_observed_usage_spans",
+      "mutantClass": "remove-edge",
+      "sourceId": "assign_usage_session_ids",
+      "targetId": "index_observed_usage_spans",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:assign_usage_session_ids->index_observed_usage_spans",
+      "mutantClass": "reverse-edge",
+      "sourceId": "assign_usage_session_ids",
+      "targetId": "index_observed_usage_spans",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-edge:select_notification_events->classify_notification_contacts",
+      "mutantClass": "remove-edge",
+      "sourceId": "select_notification_events",
+      "targetId": "classify_notification_contacts",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:select_notification_events->classify_notification_contacts",
+      "mutantClass": "reverse-edge",
+      "sourceId": "select_notification_events",
+      "targetId": "classify_notification_contacts",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-edge:index_observed_usage_spans->classify_notification_contacts",
+      "mutantClass": "remove-edge",
+      "sourceId": "index_observed_usage_spans",
+      "targetId": "classify_notification_contacts",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:index_observed_usage_spans->classify_notification_contacts",
+      "mutantClass": "reverse-edge",
+      "sourceId": "index_observed_usage_spans",
+      "targetId": "classify_notification_contacts",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-edge:classify_notification_contacts->assemble_notification_contact_outputs",
+      "mutantClass": "remove-edge",
+      "sourceId": "classify_notification_contacts",
+      "targetId": "assemble_notification_contact_outputs",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:classify_notification_contacts->assemble_notification_contact_outputs",
+      "mutantClass": "reverse-edge",
+      "sourceId": "classify_notification_contacts",
+      "targetId": "assemble_notification_contact_outputs",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-edge:assign_usage_session_ids->sample_polled_timeline",
+      "mutantClass": "remove-edge",
+      "sourceId": "assign_usage_session_ids",
+      "targetId": "sample_polled_timeline",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:assign_usage_session_ids->sample_polled_timeline",
+      "mutantClass": "reverse-edge",
+      "sourceId": "assign_usage_session_ids",
+      "targetId": "sample_polled_timeline",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-edge:assign_usage_session_ids->group_polled_runs",
+      "mutantClass": "remove-edge",
+      "sourceId": "assign_usage_session_ids",
+      "targetId": "group_polled_runs",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:assign_usage_session_ids->group_polled_runs",
+      "mutantClass": "reverse-edge",
+      "sourceId": "assign_usage_session_ids",
+      "targetId": "group_polled_runs",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:sample_polled_timeline->group_polled_runs",
+      "mutantClass": "remove-edge",
+      "sourceId": "sample_polled_timeline",
+      "targetId": "group_polled_runs",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:sample_polled_timeline->group_polled_runs",
+      "mutantClass": "reverse-edge",
+      "sourceId": "sample_polled_timeline",
+      "targetId": "group_polled_runs",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-edge:assign_usage_session_ids->materialize_polled_rows",
+      "mutantClass": "remove-edge",
+      "sourceId": "assign_usage_session_ids",
+      "targetId": "materialize_polled_rows",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:assign_usage_session_ids->materialize_polled_rows",
+      "mutantClass": "reverse-edge",
+      "sourceId": "assign_usage_session_ids",
+      "targetId": "materialize_polled_rows",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:group_polled_runs->materialize_polled_rows",
+      "mutantClass": "remove-edge",
+      "sourceId": "group_polled_runs",
+      "targetId": "materialize_polled_rows",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:group_polled_runs->materialize_polled_rows",
+      "mutantClass": "reverse-edge",
+      "sourceId": "group_polled_runs",
+      "targetId": "materialize_polled_rows",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-edge:materialize_polled_rows->assemble_polled_emulation_outputs",
+      "mutantClass": "remove-edge",
+      "sourceId": "materialize_polled_rows",
+      "targetId": "assemble_polled_emulation_outputs",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:materialize_polled_rows->assemble_polled_emulation_outputs",
+      "mutantClass": "reverse-edge",
+      "sourceId": "materialize_polled_rows",
+      "targetId": "assemble_polled_emulation_outputs",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-edge:assign_usage_session_ids->resolve_participant_windows",
+      "mutantClass": "remove-edge",
+      "sourceId": "assign_usage_session_ids",
       "targetId": "resolve_participant_windows",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
-      "mutantId": "remove-edge:remove_zero_duration_rows->apply_participant_windows",
+      "mutantId": "reverse-edge:assign_usage_session_ids->resolve_participant_windows",
+      "mutantClass": "reverse-edge",
+      "sourceId": "assign_usage_session_ids",
+      "targetId": "resolve_participant_windows",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
+    },
+    {
+      "mutantId": "remove-edge:classify_screen_sessions->resolve_participant_windows",
       "mutantClass": "remove-edge",
-      "sourceId": "remove_zero_duration_rows",
+      "sourceId": "classify_screen_sessions",
+      "targetId": "resolve_participant_windows",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:useAppsForcingScreenOpenFile:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:classify_screen_sessions->resolve_participant_windows",
+      "mutantClass": "reverse-edge",
+      "sourceId": "classify_screen_sessions",
+      "targetId": "resolve_participant_windows",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:assign_usage_session_ids->apply_participant_windows",
+      "mutantClass": "remove-edge",
+      "sourceId": "assign_usage_session_ids",
       "targetId": "apply_participant_windows",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
-      "mutantId": "reverse-edge:remove_zero_duration_rows->apply_participant_windows",
+      "mutantId": "reverse-edge:assign_usage_session_ids->apply_participant_windows",
       "mutantClass": "reverse-edge",
-      "sourceId": "remove_zero_duration_rows",
+      "sourceId": "assign_usage_session_ids",
+      "targetId": "apply_participant_windows",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:classify_screen_sessions->apply_participant_windows",
+      "mutantClass": "remove-edge",
+      "sourceId": "classify_screen_sessions",
+      "targetId": "apply_participant_windows",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:classify_screen_sessions->apply_participant_windows",
+      "mutantClass": "reverse-edge",
+      "sourceId": "classify_screen_sessions",
       "targetId": "apply_participant_windows",
       "killed": true,
       "killKind": "structural-cycle",
@@ -1181,7 +1667,7 @@
       "targetId": "resolve_sharing_status",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
       "mutantId": "reverse-edge:apply_participant_windows->resolve_sharing_status",
@@ -1190,7 +1676,7 @@
       "targetId": "resolve_sharing_status",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
       "mutantId": "remove-edge:apply_participant_windows->classify_person_attribution",
@@ -1199,7 +1685,7 @@
       "targetId": "classify_person_attribution",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
       "mutantId": "reverse-edge:apply_participant_windows->classify_person_attribution",
@@ -1247,22 +1733,40 @@
       "witnessId": "artifact:support:survey-target-to-other"
     },
     {
-      "mutantId": "remove-edge:classify_person_attribution->synthesize_placeholder_rows",
+      "mutantId": "remove-edge:classify_person_attribution->divide_sessions_at_day_boundary",
       "mutantClass": "remove-edge",
       "sourceId": "classify_person_attribution",
-      "targetId": "synthesize_placeholder_rows",
+      "targetId": "divide_sessions_at_day_boundary",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
-      "mutantId": "reverse-edge:classify_person_attribution->synthesize_placeholder_rows",
+      "mutantId": "reverse-edge:classify_person_attribution->divide_sessions_at_day_boundary",
       "mutantClass": "reverse-edge",
       "sourceId": "classify_person_attribution",
+      "targetId": "divide_sessions_at_day_boundary",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
+    },
+    {
+      "mutantId": "remove-edge:divide_sessions_at_day_boundary->synthesize_placeholder_rows",
+      "mutantClass": "remove-edge",
+      "sourceId": "divide_sessions_at_day_boundary",
       "targetId": "synthesize_placeholder_rows",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:divide_sessions_at_day_boundary->synthesize_placeholder_rows",
+      "mutantClass": "reverse-edge",
+      "sourceId": "divide_sessions_at_day_boundary",
+      "targetId": "synthesize_placeholder_rows",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
       "mutantId": "remove-edge:mark_app_policy_matches->synthesize_placeholder_rows",
@@ -1270,13 +1774,49 @@
       "sourceId": "mark_app_policy_matches",
       "targetId": "synthesize_placeholder_rows",
       "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "artifact:raw-field:study_id"
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
     },
     {
       "mutantId": "reverse-edge:mark_app_policy_matches->synthesize_placeholder_rows",
       "mutantClass": "reverse-edge",
       "sourceId": "mark_app_policy_matches",
+      "targetId": "synthesize_placeholder_rows",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:construct_screen_intervals->synthesize_placeholder_rows",
+      "mutantClass": "remove-edge",
+      "sourceId": "construct_screen_intervals",
+      "targetId": "synthesize_placeholder_rows",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:construct_screen_intervals->synthesize_placeholder_rows",
+      "mutantClass": "reverse-edge",
+      "sourceId": "construct_screen_intervals",
+      "targetId": "synthesize_placeholder_rows",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:resolve_participant_windows->synthesize_placeholder_rows",
+      "mutantClass": "remove-edge",
+      "sourceId": "resolve_participant_windows",
+      "targetId": "synthesize_placeholder_rows",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "artifact:support:study-window-narrow"
+    },
+    {
+      "mutantId": "reverse-edge:resolve_participant_windows->synthesize_placeholder_rows",
+      "mutantClass": "reverse-edge",
+      "sourceId": "resolve_participant_windows",
       "targetId": "synthesize_placeholder_rows",
       "killed": true,
       "killKind": "structural-cycle",
@@ -1301,13 +1841,31 @@
       "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
     },
     {
+      "mutantId": "remove-edge:construct_screen_intervals->index_raw_dates",
+      "mutantClass": "remove-edge",
+      "sourceId": "construct_screen_intervals",
+      "targetId": "index_raw_dates",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:construct_screen_intervals->index_raw_dates",
+      "mutantClass": "reverse-edge",
+      "sourceId": "construct_screen_intervals",
+      "targetId": "index_raw_dates",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
       "mutantId": "remove-edge:synthesize_placeholder_rows->build_participant_day_coverage",
       "mutantClass": "remove-edge",
       "sourceId": "synthesize_placeholder_rows",
       "targetId": "build_participant_day_coverage",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
       "mutantId": "reverse-edge:synthesize_placeholder_rows->build_participant_day_coverage",
@@ -1316,7 +1874,7 @@
       "targetId": "build_participant_day_coverage",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
       "mutantId": "remove-edge:index_raw_dates->build_participant_day_coverage",
@@ -1343,7 +1901,7 @@
       "targetId": "aggregate_attribution_minutes",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
       "mutantId": "reverse-edge:synthesize_placeholder_rows->aggregate_attribution_minutes",
@@ -1352,7 +1910,7 @@
       "targetId": "aggregate_attribution_minutes",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
       "mutantId": "remove-edge:aggregate_attribution_minutes->compute_attribution_completeness",
@@ -1379,7 +1937,7 @@
       "targetId": "compute_attribution_completeness",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:longDurationThresholdHours:active:h12:h1:support-intersections"
+      "witnessId": "configuration:eventRetentionSet:active:usagelogger5:tothtrifonova:configuration-influence-probes"
     },
     {
       "mutantId": "reverse-edge:classify_person_attribution->compute_attribution_completeness",
@@ -1397,7 +1955,7 @@
       "targetId": "classify_compliance_days",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
       "mutantId": "reverse-edge:compute_attribution_completeness->classify_compliance_days",
@@ -1406,7 +1964,7 @@
       "targetId": "classify_compliance_days",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
     },
     {
       "mutantId": "remove-edge:validate_remap_rules->assemble_result_manifest",
@@ -1479,24 +2037,6 @@
       "killed": true,
       "killKind": "structural-cycle",
       "witnessId": "plan-toposort"
-    },
-    {
-      "mutantId": "remove-edge:bind_processing_timestamp->assemble_result_manifest",
-      "mutantClass": "remove-edge",
-      "sourceId": "bind_processing_timestamp",
-      "targetId": "assemble_result_manifest",
-      "killed": true,
-      "killKind": "rust-source-call-binding",
-      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
-    },
-    {
-      "mutantId": "reverse-edge:bind_processing_timestamp->assemble_result_manifest",
-      "mutantClass": "reverse-edge",
-      "sourceId": "bind_processing_timestamp",
-      "targetId": "assemble_result_manifest",
-      "killed": true,
-      "killKind": "rust-source-call-binding",
-      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
     },
     {
       "mutantId": "remove-edge:canonicalize_source_rows->assemble_result_manifest",
@@ -1702,8 +2242,8 @@
       "sourceId": "mark_app_policy_matches",
       "targetId": "assemble_result_manifest",
       "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:useFilterFile:inactive:true:false:catalog-random"
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
     },
     {
       "mutantId": "reverse-edge:mark_app_policy_matches->assemble_result_manifest",
@@ -1751,13 +2291,31 @@
       "witnessId": "plan-toposort"
     },
     {
+      "mutantId": "remove-edge:construct_screen_intervals->assemble_result_manifest",
+      "mutantClass": "remove-edge",
+      "sourceId": "construct_screen_intervals",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "artifact:raw-field:possible_device_model"
+    },
+    {
+      "mutantId": "reverse-edge:construct_screen_intervals->assemble_result_manifest",
+      "mutantClass": "reverse-edge",
+      "sourceId": "construct_screen_intervals",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
       "mutantId": "remove-edge:classify_screen_sessions->assemble_result_manifest",
       "mutantClass": "remove-edge",
       "sourceId": "classify_screen_sessions",
       "targetId": "assemble_result_manifest",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:useAppsForcingScreenOpenFile:active:true:false:catalog-random"
+      "witnessId": "artifact:support:forcing-activate-screen-tail-package"
     },
     {
       "mutantId": "reverse-edge:classify_screen_sessions->assemble_result_manifest",
@@ -1765,8 +2323,8 @@
       "sourceId": "classify_screen_sessions",
       "targetId": "assemble_result_manifest",
       "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:useAppsForcingScreenOpenFile:active:true:false:catalog-random"
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
     },
     {
       "mutantId": "remove-edge:resolve_excluded_packages->assemble_result_manifest",
@@ -1810,8 +2368,8 @@
       "sourceId": "build_app_event_index",
       "targetId": "assemble_result_manifest",
       "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:otherInteractionTypesToStopUsageAt:nonconcurrent-other-stop:default:empty:catalog-random"
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
     },
     {
       "mutantId": "reverse-edge:build_app_event_index->assemble_result_manifest",
@@ -1828,8 +2386,8 @@
       "sourceId": "match_app_episodes",
       "targetId": "assemble_result_manifest",
       "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:proximityIntervalSeconds:active:s2:s0:catalog-random"
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
     },
     {
       "mutantId": "reverse-edge:match_app_episodes->assemble_result_manifest",
@@ -2075,6 +2633,24 @@
       "witnessId": "plan-toposort"
     },
     {
+      "mutantId": "remove-edge:assign_usage_session_ids->assemble_result_manifest",
+      "mutantClass": "remove-edge",
+      "sourceId": "assign_usage_session_ids",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:assign_usage_session_ids->assemble_result_manifest",
+      "mutantClass": "reverse-edge",
+      "sourceId": "assign_usage_session_ids",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
       "mutantId": "remove-edge:identify_credit_eligible_sessions->assemble_result_manifest",
       "mutantClass": "remove-edge",
       "sourceId": "identify_credit_eligible_sessions",
@@ -2201,6 +2777,150 @@
       "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
     },
     {
+      "mutantId": "remove-edge:select_notification_events->assemble_result_manifest",
+      "mutantClass": "remove-edge",
+      "sourceId": "select_notification_events",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:select_notification_events->assemble_result_manifest",
+      "mutantClass": "reverse-edge",
+      "sourceId": "select_notification_events",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:index_observed_usage_spans->assemble_result_manifest",
+      "mutantClass": "remove-edge",
+      "sourceId": "index_observed_usage_spans",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:index_observed_usage_spans->assemble_result_manifest",
+      "mutantClass": "reverse-edge",
+      "sourceId": "index_observed_usage_spans",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:classify_notification_contacts->assemble_result_manifest",
+      "mutantClass": "remove-edge",
+      "sourceId": "classify_notification_contacts",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:classify_notification_contacts->assemble_result_manifest",
+      "mutantClass": "reverse-edge",
+      "sourceId": "classify_notification_contacts",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:assemble_notification_contact_outputs->assemble_result_manifest",
+      "mutantClass": "remove-edge",
+      "sourceId": "assemble_notification_contact_outputs",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:assemble_notification_contact_outputs->assemble_result_manifest",
+      "mutantClass": "reverse-edge",
+      "sourceId": "assemble_notification_contact_outputs",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-edge:sample_polled_timeline->assemble_result_manifest",
+      "mutantClass": "remove-edge",
+      "sourceId": "sample_polled_timeline",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:sample_polled_timeline->assemble_result_manifest",
+      "mutantClass": "reverse-edge",
+      "sourceId": "sample_polled_timeline",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:group_polled_runs->assemble_result_manifest",
+      "mutantClass": "remove-edge",
+      "sourceId": "group_polled_runs",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:group_polled_runs->assemble_result_manifest",
+      "mutantClass": "reverse-edge",
+      "sourceId": "group_polled_runs",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:materialize_polled_rows->assemble_result_manifest",
+      "mutantClass": "remove-edge",
+      "sourceId": "materialize_polled_rows",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:materialize_polled_rows->assemble_result_manifest",
+      "mutantClass": "reverse-edge",
+      "sourceId": "materialize_polled_rows",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:assemble_polled_emulation_outputs->assemble_result_manifest",
+      "mutantClass": "remove-edge",
+      "sourceId": "assemble_polled_emulation_outputs",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:assemble_polled_emulation_outputs->assemble_result_manifest",
+      "mutantClass": "reverse-edge",
+      "sourceId": "assemble_polled_emulation_outputs",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
       "mutantId": "remove-edge:resolve_participant_windows->assemble_result_manifest",
       "mutantClass": "remove-edge",
       "sourceId": "resolve_participant_windows",
@@ -2224,8 +2944,8 @@
       "sourceId": "apply_participant_windows",
       "targetId": "assemble_result_manifest",
       "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:enableStudyWindowFilter:active:true:false:catalog-random"
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
     },
     {
       "mutantId": "reverse-edge:apply_participant_windows->assemble_result_manifest",
@@ -2291,13 +3011,31 @@
       "witnessId": "plan-toposort"
     },
     {
+      "mutantId": "remove-edge:divide_sessions_at_day_boundary->assemble_result_manifest",
+      "mutantClass": "remove-edge",
+      "sourceId": "divide_sessions_at_day_boundary",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:divide_sessions_at_day_boundary->assemble_result_manifest",
+      "mutantClass": "reverse-edge",
+      "sourceId": "divide_sessions_at_day_boundary",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
       "mutantId": "remove-edge:synthesize_placeholder_rows->assemble_result_manifest",
       "mutantClass": "remove-edge",
       "sourceId": "synthesize_placeholder_rows",
       "targetId": "assemble_result_manifest",
       "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:addNoActivityPlaceholderDays:active:true:false:support-intersections"
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
     },
     {
       "mutantId": "reverse-edge:synthesize_placeholder_rows->assemble_result_manifest",
@@ -2386,8 +3124,8 @@
       "sourceId": "classify_compliance_days",
       "targetId": "assemble_result_manifest",
       "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:complianceThresholdPercent:active:p70:p0:configuration-influence-probes"
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
     },
     {
       "mutantId": "reverse-edge:classify_compliance_days->assemble_result_manifest",
@@ -2395,14 +3133,68 @@
       "sourceId": "classify_compliance_days",
       "targetId": "assemble_result_manifest",
       "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:complianceThresholdPercent:active:p70:p0:configuration-influence-probes"
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-edge:bind_processing_timestamp->assemble_result_manifest",
+      "mutantClass": "remove-edge",
+      "sourceId": "bind_processing_timestamp",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:bind_processing_timestamp->assemble_result_manifest",
+      "mutantClass": "reverse-edge",
+      "sourceId": "bind_processing_timestamp",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-option-binding:processAppUsage->resolve_participant_windows",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "processAppUsage",
+      "targetId": "resolve_participant_windows",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-option-binding:processAppUsage->apply_participant_windows",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "processAppUsage",
+      "targetId": "apply_participant_windows",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
     },
     {
       "mutantId": "remove-option-binding:processAppUsage->assemble_result_manifest",
       "mutantClass": "remove-option-binding",
       "sourceId": "processAppUsage",
       "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-option-binding:processScreenUsage->resolve_participant_windows",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "processScreenUsage",
+      "targetId": "resolve_participant_windows",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-option-binding:processScreenUsage->apply_participant_windows",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "processScreenUsage",
+      "targetId": "apply_participant_windows",
       "killed": true,
       "killKind": "rust-request-read-binding",
       "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
@@ -2417,10 +3209,127 @@
       "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
     },
     {
+      "mutantId": "remove-option-binding:eventRetentionSet->mask_excluded_app_events",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "eventRetentionSet",
+      "targetId": "mask_excluded_app_events",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:eventRetentionSet:active:none:parrytoth7:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:eventRetentionSet->materialize_candidate_episodes",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "eventRetentionSet",
+      "targetId": "materialize_candidate_episodes",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:eventRetentionSet:active:usagelogger5:tothtrifonova:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:eventRetentionSet->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "eventRetentionSet",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:eventRetentionSet:active:usagelogger5:tothtrifonova:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:openerSet->match_app_episodes",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "openerSet",
+      "targetId": "match_app_episodes",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:openerSet:active:strategydefined:resumedonly:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:openerSet->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "openerSet",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:openerSet:inactive:strategydefined:resumedonly:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:episodeReconstructionStrategy->infer_screen_session_skeletons",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "episodeReconstructionStrategy",
+      "targetId": "infer_screen_session_skeletons",
+      "killed": true,
+      "killKind": "structural-condition-binding",
+      "witnessId": "infer_screen_session_skeletons:applicability-or-source-role-condition"
+    },
+    {
+      "mutantId": "remove-option-binding:episodeReconstructionStrategy->construct_screen_intervals",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "episodeReconstructionStrategy",
+      "targetId": "construct_screen_intervals",
+      "killed": true,
+      "killKind": "structural-condition-binding",
+      "witnessId": "construct_screen_intervals:applicability-or-source-role-condition"
+    },
+    {
+      "mutantId": "remove-option-binding:episodeReconstructionStrategy->match_app_episodes",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "episodeReconstructionStrategy",
+      "targetId": "match_app_episodes",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:episodeReconstructionStrategy:active:fused:forward:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:episodeReconstructionStrategy->segment_concurrent_usage",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "episodeReconstructionStrategy",
+      "targetId": "segment_concurrent_usage",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-option-binding:episodeReconstructionStrategy->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "episodeReconstructionStrategy",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:episodeReconstructionStrategy:inactive:fused:forward:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:microUseClassificationPolicy->classify_episode_durations",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "microUseClassificationPolicy",
+      "targetId": "classify_episode_durations",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:microUseClassificationPolicy:active:none:okoshilt5s:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:microUseClassificationPolicy->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "microUseClassificationPolicy",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:microUseClassificationPolicy:inactive:none:okoshilt5s:catalog-random"
+    },
+    {
       "mutantId": "remove-option-binding:allowStopEventReuse->match_app_episodes",
       "mutantClass": "remove-option-binding",
       "sourceId": "allowStopEventReuse",
       "targetId": "match_app_episodes",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:allowStopEventReuse->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "allowStopEventReuse",
+      "targetId": "assemble_result_manifest",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
       "witnessId": "configuration:allowStopEventReuse:active:true:false:catalog-random"
@@ -2435,10 +3344,28 @@
       "witnessId": "configuration:useActivityStoppedAsFallback:active:true:false:catalog-random"
     },
     {
+      "mutantId": "remove-option-binding:useActivityStoppedAsFallback->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "useActivityStoppedAsFallback",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:useActivityStoppedAsFallback:inactive:true:false:catalog-random"
+    },
+    {
       "mutantId": "remove-option-binding:applyThresholdToFallback->match_app_episodes",
       "mutantClass": "remove-option-binding",
       "sourceId": "applyThresholdToFallback",
       "targetId": "match_app_episodes",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:applyThresholdToFallback:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:applyThresholdToFallback->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "applyThresholdToFallback",
+      "targetId": "assemble_result_manifest",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
       "witnessId": "configuration:applyThresholdToFallback:active:true:false:catalog-random"
@@ -2451,6 +3378,96 @@
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
       "witnessId": "configuration:longDurationThresholdHours:active:h12:h1:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:longDurationThresholdHours->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "longDurationThresholdHours",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:longDurationThresholdHours:active:h12:h1:configuration-influence-probes"
+    },
+    {
+      "mutantId": "remove-option-binding:longDurationThresholdHoursExplicit->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "longDurationThresholdHoursExplicit",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:longDurationThresholdHoursExplicit:active:unset:true:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:maximumDurationPolicy->classify_episode_durations",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "maximumDurationPolicy",
+      "targetId": "classify_episode_durations",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:maximumDurationPolicy:active:unset:strategynative:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:maximumDurationPolicy->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "maximumDurationPolicy",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:maximumDurationPolicy:active:unset:strategynative:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:maximumDurationDisposition->classify_episode_durations",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "maximumDurationDisposition",
+      "targetId": "classify_episode_durations",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:maximumDurationDisposition:active:unset:notapplicable:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:maximumDurationDisposition->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "maximumDurationDisposition",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:maximumDurationDisposition:active:unset:notapplicable:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:maximumDurationThresholdSource->classify_episode_durations",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "maximumDurationThresholdSource",
+      "targetId": "classify_episode_durations",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:maximumDurationThresholdSource:active:unset:strategynative:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:maximumDurationThresholdSource->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "maximumDurationThresholdSource",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:maximumDurationThresholdSource:active:unset:strategynative:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:maximumDurationThresholdNs->classify_episode_durations",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "maximumDurationThresholdNs",
+      "targetId": "classify_episode_durations",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:maximumDurationThresholdNs:active:unset:ns1:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:maximumDurationThresholdNs->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "maximumDurationThresholdNs",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:maximumDurationThresholdNs:active:ns1h:ns12h:configuration-influence-probes"
     },
     {
       "mutantId": "remove-option-binding:correctDuplicateEventTimestamps->disambiguate_duplicate_timestamps",
@@ -2489,6 +3506,24 @@
       "witnessId": "configuration:deduplicateExactRows:active:true:false:catalog-random"
     },
     {
+      "mutantId": "remove-option-binding:dropOutOfSourceOrderEvents->order_source_records",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "dropOutOfSourceOrderEvents",
+      "targetId": "order_source_records",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:dropOutOfSourceOrderEvents:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:dropOutOfSourceOrderEvents->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "dropOutOfSourceOrderEvents",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:dropOutOfSourceOrderEvents:active:true:false:catalog-random"
+    },
+    {
       "mutantId": "remove-option-binding:selectedTimezone->canonicalize_source_rows",
       "mutantClass": "remove-option-binding",
       "sourceId": "selectedTimezone",
@@ -2505,6 +3540,15 @@
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
       "witnessId": "configuration:selectedTimezone:active:america_chicago:america_new_york:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:selectedTimezone->classify_screen_sessions",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "selectedTimezone",
+      "targetId": "classify_screen_sessions",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
     },
     {
       "mutantId": "remove-option-binding:selectedTimezone->assemble_result_manifest",
@@ -2534,6 +3578,24 @@
       "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
     },
     {
+      "mutantId": "remove-option-binding:dayBoundaryAttribution->divide_sessions_at_day_boundary",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "dayBoundaryAttribution",
+      "targetId": "divide_sessions_at_day_boundary",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:dayBoundaryAttribution:active:startday:splitmidnight:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:dayBoundaryAttribution->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "dayBoundaryAttribution",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:dayBoundaryAttribution:inactive:startday:splitmidnight:catalog-random"
+    },
+    {
       "mutantId": "remove-option-binding:useFilterFile->mark_app_policy_matches",
       "mutantClass": "remove-option-binding",
       "sourceId": "useFilterFile",
@@ -2541,6 +3603,105 @@
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
       "witnessId": "configuration:useFilterFile:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:useFilterFile->apply_app_inclusion_policy",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "useFilterFile",
+      "targetId": "apply_app_inclusion_policy",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-option-binding:useFilterFile->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "useFilterFile",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-option-binding:filterMatchField->mark_app_policy_matches",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "filterMatchField",
+      "targetId": "mark_app_policy_matches",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:filterMatchField:active:app_package_name:application_label:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:filterMatchField->apply_app_inclusion_policy",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "filterMatchField",
+      "targetId": "apply_app_inclusion_policy",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-option-binding:filterMatchField->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "filterMatchField",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:filterMatchField:inactive:app_package_name:application_label:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:applicationLabelExclusions->mark_app_policy_matches",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "applicationLabelExclusions",
+      "targetId": "mark_app_policy_matches",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:applicationLabelExclusions:active:none:unknown_app:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:applicationLabelExclusions->apply_app_inclusion_policy",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "applicationLabelExclusions",
+      "targetId": "apply_app_inclusion_policy",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:applicationLabelExclusions:active:none:unknown_app:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:applicationLabelExclusions->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "applicationLabelExclusions",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:applicationLabelExclusions:inactive:none:unknown_app:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:packageExclusionPreset->mark_app_policy_matches",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "packageExclusionPreset",
+      "targetId": "mark_app_policy_matches",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:packageExclusionPreset:active:allsuppliedrows:systemscopeonly:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:packageExclusionPreset->apply_app_inclusion_policy",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "packageExclusionPreset",
+      "targetId": "apply_app_inclusion_policy",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-option-binding:packageExclusionPreset->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "packageExclusionPreset",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:packageExclusionPreset:active:allsuppliedrows:honorfilterflag:catalog-random"
     },
     {
       "mutantId": "remove-option-binding:useAppsForcingScreenOpenFile->classify_screen_sessions",
@@ -2552,6 +3713,15 @@
       "witnessId": "configuration:useAppsForcingScreenOpenFile:active:true:false:catalog-random"
     },
     {
+      "mutantId": "remove-option-binding:useAppsForcingScreenOpenFile->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "useAppsForcingScreenOpenFile",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:useAppsForcingScreenOpenFile:inactive:true:false:catalog-random"
+    },
+    {
       "mutantId": "remove-option-binding:useBackgroundAppsFile->build_app_event_index",
       "mutantClass": "remove-option-binding",
       "sourceId": "useBackgroundAppsFile",
@@ -2559,6 +3729,15 @@
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
       "witnessId": "configuration:useBackgroundAppsFile:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:useBackgroundAppsFile->classify_episode_durations",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "useBackgroundAppsFile",
+      "targetId": "classify_episode_durations",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
     },
     {
       "mutantId": "remove-option-binding:useBackgroundAppsFile->apply_app_inclusion_policy",
@@ -2615,6 +3794,24 @@
       "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
     },
     {
+      "mutantId": "remove-option-binding:useAppCodebook->assemble_notification_contact_outputs",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "useAppCodebook",
+      "targetId": "assemble_notification_contact_outputs",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-option-binding:useAppCodebook->assemble_polled_emulation_outputs",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "useAppCodebook",
+      "targetId": "assemble_polled_emulation_outputs",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
       "mutantId": "remove-option-binding:useAppCodebook->assemble_result_manifest",
       "mutantClass": "remove-option-binding",
       "sourceId": "useAppCodebook",
@@ -2631,6 +3828,15 @@
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
       "witnessId": "configuration:includeCategoryColumn:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:includeAppUsageEndReason->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "includeAppUsageEndReason",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:includeAppUsageEndReason:active:true:false:catalog-random"
     },
     {
       "mutantId": "remove-option-binding:enableAggregates->assemble_result_manifest",
@@ -2651,6 +3857,33 @@
       "witnessId": "configuration:aggregateShape:active:wide:long:catalog-random"
     },
     {
+      "mutantId": "remove-option-binding:aggregateTopAppsLimit->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "aggregateTopAppsLimit",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:aggregateTopAppsLimit:active:all:top5:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:enableParticipantAmountSummary->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "enableParticipantAmountSummary",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:enableParticipantAmountSummary:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:neutralizeSpreadsheetFormulas->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "neutralizeSpreadsheetFormulas",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:neutralizeSpreadsheetFormulas:active:true:false:catalog-random"
+    },
+    {
       "mutantId": "remove-option-binding:minimumUsageDuration->classify_episode_durations",
       "mutantClass": "remove-option-binding",
       "sourceId": "minimumUsageDuration",
@@ -2669,6 +3902,51 @@
       "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
     },
     {
+      "mutantId": "remove-option-binding:minimumUsageDuration->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "minimumUsageDuration",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:minimumUsageDuration:inactive:s0:s60:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:minimumDurationComparator->classify_episode_durations",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "minimumDurationComparator",
+      "targetId": "classify_episode_durations",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:minimumDurationComparator:active:strictlt:inclusivele:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:minimumDurationComparator->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "minimumDurationComparator",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:minimumDurationComparator:inactive:strictlt:inclusivele:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:minimumDurationDisposition->classify_episode_durations",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "minimumDurationDisposition",
+      "targetId": "classify_episode_durations",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:minimumDurationDisposition:active:blankkeeprow:retaincredit:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:minimumDurationDisposition->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "minimumDurationDisposition",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:minimumDurationDisposition:inactive:blankkeeprow:retaincredit:catalog-random"
+    },
+    {
       "mutantId": "remove-option-binding:filterZeroDurationSessions->remove_zero_duration_rows",
       "mutantClass": "remove-option-binding",
       "sourceId": "filterZeroDurationSessions",
@@ -2676,6 +3954,105 @@
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
       "witnessId": "configuration:filterZeroDurationSessions:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:filterZeroDurationSessions->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "filterZeroDurationSessions",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:filterZeroDurationSessions:inactive:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:intervalQualityPolicy->suppress_excluded_timing",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "intervalQualityPolicy",
+      "targetId": "suppress_excluded_timing",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:intervalQualityPolicy:active:none:culverhouse:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:intervalQualityPolicy->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "intervalQualityPolicy",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:intervalQualityPolicy:inactive:none:culverhouse:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:sessionGroupingPolicy->assign_usage_session_ids",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "sessionGroupingPolicy",
+      "targetId": "assign_usage_session_ids",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:sessionGroupingPolicy:active:none:zerrer60s:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:sessionGroupingPolicy->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "sessionGroupingPolicy",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:sessionGroupingPolicy:inactive:none:zerrer60s:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:sessionGapBasis->assign_usage_session_ids",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "sessionGapBasis",
+      "targetId": "assign_usage_session_ids",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:sessionGapBasis:active:prevstop:runningmaxstop:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:sessionGapBasis->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "sessionGapBasis",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:sessionGapBasis:active:prevstop:runningmaxstop:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:sessionBoundaryScope->assign_usage_session_ids",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "sessionBoundaryScope",
+      "targetId": "assign_usage_session_ids",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:sessionBoundaryScope:active:participantonly:participantstudy:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:sessionBoundaryScope->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "sessionBoundaryScope",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:sessionBoundaryScope:active:participantonly:participantstudy:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:emitSessionBreakLineage->assign_usage_session_ids",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "emitSessionBreakLineage",
+      "targetId": "assign_usage_session_ids",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:emitSessionBreakLineage:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:emitSessionBreakLineage->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "emitSessionBreakLineage",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:emitSessionBreakLineage:active:true:false:catalog-random"
     },
     {
       "mutantId": "remove-option-binding:customAppEngagementDuration->derive_engagement_basis",
@@ -2705,6 +4082,15 @@
       "witnessId": "configuration:longUsageDurationThresholds:active:default:empty:catalog-random"
     },
     {
+      "mutantId": "remove-option-binding:longUsageDurationThresholds->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "longUsageDurationThresholds",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:longUsageDurationThresholds:inactive:default:empty:catalog-random"
+    },
+    {
       "mutantId": "remove-option-binding:longDataTimeGapThresholds->apply_episode_flags",
       "mutantClass": "remove-option-binding",
       "sourceId": "longDataTimeGapThresholds",
@@ -2723,6 +4109,303 @@
       "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
     },
     {
+      "mutantId": "remove-option-binding:longDataTimeGapThresholds->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "longDataTimeGapThresholds",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:longDataTimeGapThresholds:inactive:default:empty:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:screenSessionConstructionStrategy->index_keyguard_events",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenSessionConstructionStrategy",
+      "targetId": "index_keyguard_events",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:screenSessionConstructionStrategy:active:parrytothscreen:chroniclescreenv1:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:screenSessionConstructionStrategy->infer_screen_session_skeletons",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenSessionConstructionStrategy",
+      "targetId": "infer_screen_session_skeletons",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:screenSessionConstructionStrategy:active:parrytothscreen:chroniclescreenv1:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:screenSessionConstructionStrategy->construct_screen_intervals",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenSessionConstructionStrategy",
+      "targetId": "construct_screen_intervals",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:screenSessionConstructionStrategy:active:parrytothscreen:zhuscreen:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:screenSessionConstructionStrategy->classify_screen_sessions",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenSessionConstructionStrategy",
+      "targetId": "classify_screen_sessions",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-option-binding:screenSessionConstructionStrategy->match_app_episodes",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenSessionConstructionStrategy",
+      "targetId": "match_app_episodes",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-option-binding:screenSessionConstructionStrategy->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenSessionConstructionStrategy",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:screenSessionConstructionStrategy:inactive:chroniclescreenv1:parrytothscreen:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:screenSessionClassificationPolicy->classify_screen_sessions",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenSessionClassificationPolicy",
+      "targetId": "classify_screen_sessions",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:screenSessionClassificationPolicy:active:none:phone_check_inclusive_15s:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:screenSessionClassificationPolicy->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenSessionClassificationPolicy",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:screenSessionClassificationPolicy:active:none:phone_check_inclusive_15s:temporal-pathologies"
+    },
+    {
+      "mutantId": "remove-option-binding:screenSessionMaximumDurationMinutes->infer_screen_session_skeletons",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenSessionMaximumDurationMinutes",
+      "targetId": "infer_screen_session_skeletons",
+      "killed": true,
+      "killKind": "structural-condition-binding",
+      "witnessId": "infer_screen_session_skeletons:applicability-or-source-role-condition"
+    },
+    {
+      "mutantId": "remove-option-binding:screenSessionMaximumDurationMinutes->construct_screen_intervals",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenSessionMaximumDurationMinutes",
+      "targetId": "construct_screen_intervals",
+      "killed": true,
+      "killKind": "structural-condition-binding",
+      "witnessId": "construct_screen_intervals:applicability-or-source-role-condition"
+    },
+    {
+      "mutantId": "remove-option-binding:screenSessionMaximumDurationMinutes->classify_screen_sessions",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenSessionMaximumDurationMinutes",
+      "targetId": "classify_screen_sessions",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:screenSessionMaximumDurationMinutes:active:disabled:m60:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:screenSessionMaximumDurationMinutes->apply_app_inclusion_policy",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenSessionMaximumDurationMinutes",
+      "targetId": "apply_app_inclusion_policy",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-option-binding:screenSessionMaximumDurationMinutes->build_activity_witness_indexes",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenSessionMaximumDurationMinutes",
+      "targetId": "build_activity_witness_indexes",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:screenSessionMaximumDurationMinutes:active:disabled:m60:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:screenSessionMaximumDurationMinutes->select_notification_events",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenSessionMaximumDurationMinutes",
+      "targetId": "select_notification_events",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-option-binding:screenSessionMaximumDurationMinutes->synthesize_placeholder_rows",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenSessionMaximumDurationMinutes",
+      "targetId": "synthesize_placeholder_rows",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:screenSessionMaximumDurationMinutes:active:disabled:m60:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:screenSessionMaximumDurationMinutes->index_raw_dates",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenSessionMaximumDurationMinutes",
+      "targetId": "index_raw_dates",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:screenSessionMaximumDurationMinutes:active:disabled:m60:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:screenSessionMaximumDurationMinutes->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenSessionMaximumDurationMinutes",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:screenSessionMaximumDurationMinutes:inactive:disabled:m60:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:screenSessionMaximumDurationDisposition->infer_screen_session_skeletons",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenSessionMaximumDurationDisposition",
+      "targetId": "infer_screen_session_skeletons",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:screenSessionMaximumDurationDisposition:inactive:none:exclude_participant:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:screenSessionMaximumDurationDisposition->construct_screen_intervals",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenSessionMaximumDurationDisposition",
+      "targetId": "construct_screen_intervals",
+      "killed": true,
+      "killKind": "structural-condition-binding",
+      "witnessId": "construct_screen_intervals:applicability-or-source-role-condition"
+    },
+    {
+      "mutantId": "remove-option-binding:screenSessionMaximumDurationDisposition->classify_screen_sessions",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenSessionMaximumDurationDisposition",
+      "targetId": "classify_screen_sessions",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:screenSessionMaximumDurationDisposition:active:none:truncate:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:screenSessionMaximumDurationDisposition->apply_app_inclusion_policy",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenSessionMaximumDurationDisposition",
+      "targetId": "apply_app_inclusion_policy",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-option-binding:screenSessionMaximumDurationDisposition->build_activity_witness_indexes",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenSessionMaximumDurationDisposition",
+      "targetId": "build_activity_witness_indexes",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:screenSessionMaximumDurationDisposition:active:none:truncate:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:screenSessionMaximumDurationDisposition->select_notification_events",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenSessionMaximumDurationDisposition",
+      "targetId": "select_notification_events",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-option-binding:screenSessionMaximumDurationDisposition->synthesize_placeholder_rows",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenSessionMaximumDurationDisposition",
+      "targetId": "synthesize_placeholder_rows",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:screenSessionMaximumDurationDisposition:active:none:truncate:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:screenSessionMaximumDurationDisposition->index_raw_dates",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenSessionMaximumDurationDisposition",
+      "targetId": "index_raw_dates",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:screenSessionMaximumDurationDisposition:active:none:truncate:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:screenSessionMaximumDurationDisposition->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenSessionMaximumDurationDisposition",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:screenSessionMaximumDurationDisposition:inactive:none:truncate:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:lockedScreenAudioDisposition->index_keyguard_events",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "lockedScreenAudioDisposition",
+      "targetId": "index_keyguard_events",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:lockedScreenAudioDisposition:inactive:include:exclude_from_phone_and_app_sessions:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:lockedScreenAudioDisposition->infer_screen_session_skeletons",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "lockedScreenAudioDisposition",
+      "targetId": "infer_screen_session_skeletons",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:lockedScreenAudioDisposition:inactive:include:exclude_from_phone_and_app_sessions:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:lockedScreenAudioDisposition->construct_screen_intervals",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "lockedScreenAudioDisposition",
+      "targetId": "construct_screen_intervals",
+      "killed": true,
+      "killKind": "structural-condition-binding",
+      "witnessId": "construct_screen_intervals:applicability-or-source-role-condition"
+    },
+    {
+      "mutantId": "remove-option-binding:lockedScreenAudioDisposition->classify_screen_sessions",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "lockedScreenAudioDisposition",
+      "targetId": "classify_screen_sessions",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:lockedScreenAudioDisposition:active:include:exclude_from_phone_and_app_sessions:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:lockedScreenAudioDisposition->apply_app_inclusion_policy",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "lockedScreenAudioDisposition",
+      "targetId": "apply_app_inclusion_policy",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:lockedScreenAudioDisposition:active:include:exclude_from_phone_and_app_sessions:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:lockedScreenAudioDisposition->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "lockedScreenAudioDisposition",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
       "mutantId": "remove-option-binding:screenUsageAutoLockTimeoutSeconds->classify_screen_sessions",
       "mutantClass": "remove-option-binding",
       "sourceId": "screenUsageAutoLockTimeoutSeconds",
@@ -2730,6 +4413,15 @@
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
       "witnessId": "configuration:screenUsageAutoLockTimeoutSeconds:active:s120:s0:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:screenUsageAutoLockTimeoutSeconds->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenUsageAutoLockTimeoutSeconds",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:screenUsageAutoLockTimeoutSeconds:active:s120:s0:configuration-influence-probes"
     },
     {
       "mutantId": "remove-option-binding:screenUsageAutoLockToleranceSeconds->classify_screen_sessions",
@@ -2741,6 +4433,15 @@
       "witnessId": "configuration:screenUsageAutoLockToleranceSeconds:active:s30:s0:catalog-random"
     },
     {
+      "mutantId": "remove-option-binding:screenUsageAutoLockToleranceSeconds->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenUsageAutoLockToleranceSeconds",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:screenUsageAutoLockToleranceSeconds:active:s30:s0:configuration-influence-probes"
+    },
+    {
       "mutantId": "remove-option-binding:screenUsageManualLockMaxTailGapSeconds->classify_screen_sessions",
       "mutantClass": "remove-option-binding",
       "sourceId": "screenUsageManualLockMaxTailGapSeconds",
@@ -2750,10 +4451,28 @@
       "witnessId": "configuration:screenUsageManualLockMaxTailGapSeconds:active:s30:s0:catalog-random"
     },
     {
+      "mutantId": "remove-option-binding:screenUsageManualLockMaxTailGapSeconds->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenUsageManualLockMaxTailGapSeconds",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:screenUsageManualLockMaxTailGapSeconds:inactive:s30:s0:catalog-random"
+    },
+    {
       "mutantId": "remove-option-binding:screenUsageKeyguardNearStopSeconds->classify_screen_sessions",
       "mutantClass": "remove-option-binding",
       "sourceId": "screenUsageKeyguardNearStopSeconds",
       "targetId": "classify_screen_sessions",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:screenUsageKeyguardNearStopSeconds:active:s2:s0:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:screenUsageKeyguardNearStopSeconds->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenUsageKeyguardNearStopSeconds",
+      "targetId": "assemble_result_manifest",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
       "witnessId": "configuration:screenUsageKeyguardNearStopSeconds:active:s2:s0:catalog-random"
@@ -2777,6 +4496,15 @@
       "witnessId": "configuration:sameAppInteractionTypesToStopUsageAt:active:default:empty:catalog-random"
     },
     {
+      "mutantId": "remove-option-binding:sameAppInteractionTypesToStopUsageAt->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "sameAppInteractionTypesToStopUsageAt",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:sameAppInteractionTypesToStopUsageAt:inactive:default:empty:catalog-random"
+    },
+    {
       "mutantId": "remove-option-binding:otherInteractionTypesToStopUsageAt->disambiguate_duplicate_timestamps",
       "mutantClass": "remove-option-binding",
       "sourceId": "otherInteractionTypesToStopUsageAt",
@@ -2790,6 +4518,15 @@
       "mutantClass": "remove-option-binding",
       "sourceId": "otherInteractionTypesToStopUsageAt",
       "targetId": "build_app_event_index",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:otherInteractionTypesToStopUsageAt:active:default:empty:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:otherInteractionTypesToStopUsageAt->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "otherInteractionTypesToStopUsageAt",
+      "targetId": "assemble_result_manifest",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
       "witnessId": "configuration:otherInteractionTypesToStopUsageAt:active:default:empty:catalog-random"
@@ -2831,6 +4568,15 @@
       "witnessId": "configuration:applyMinimumUsageDurationToConcurrentSubintervals:active:true:false:catalog-random"
     },
     {
+      "mutantId": "remove-option-binding:applyMinimumUsageDurationToConcurrentSubintervals->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "applyMinimumUsageDurationToConcurrentSubintervals",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:applyMinimumUsageDurationToConcurrentSubintervals:active:true:false:configuration-influence-probes"
+    },
+    {
       "mutantId": "remove-option-binding:interactionTypesToRemove->remove_selected_interaction_types",
       "mutantClass": "remove-option-binding",
       "sourceId": "interactionTypesToRemove",
@@ -2838,6 +4584,33 @@
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
       "witnessId": "configuration:interactionTypesToRemove:active:none:usage_stat:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:interactionTypesToRemove->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "interactionTypesToRemove",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:interactionTypesToRemove:inactive:none:usage_stat:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:interactionTypeRemovalMode->remove_selected_interaction_types",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "interactionTypeRemovalMode",
+      "targetId": "remove_selected_interaction_types",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:interactionTypeRemovalMode:active:gap_preserving:unconditional:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:interactionTypeRemovalMode->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "interactionTypeRemovalMode",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:interactionTypeRemovalMode:active:gap_preserving:unconditional:catalog-random"
     },
     {
       "mutantId": "remove-option-binding:interactionTypeRemap->validate_remap_rules",
@@ -2849,6 +4622,15 @@
       "witnessId": "configuration:interactionTypeRemap:active:none:custom:catalog-random"
     },
     {
+      "mutantId": "remove-option-binding:interactionTypeRemap->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "interactionTypeRemap",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
       "mutantId": "remove-option-binding:proximityIntervalSeconds->match_app_episodes",
       "mutantClass": "remove-option-binding",
       "sourceId": "proximityIntervalSeconds",
@@ -2858,6 +4640,15 @@
       "witnessId": "configuration:proximityIntervalSeconds:active:s2:s0:catalog-random"
     },
     {
+      "mutantId": "remove-option-binding:proximityIntervalSeconds->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "proximityIntervalSeconds",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:proximityIntervalSeconds:active:s2:s60:catalog-random"
+    },
+    {
       "mutantId": "remove-option-binding:addNoActivityPlaceholderDays->synthesize_placeholder_rows",
       "mutantClass": "remove-option-binding",
       "sourceId": "addNoActivityPlaceholderDays",
@@ -2865,6 +4656,15 @@
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
       "witnessId": "configuration:addNoActivityPlaceholderDays:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:addNoActivityPlaceholderDays->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "addNoActivityPlaceholderDays",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:addNoActivityPlaceholderDays:inactive:true:false:catalog-random"
     },
     {
       "mutantId": "remove-option-binding:enableScreenGatedCrediting->identify_credit_eligible_sessions",
@@ -2939,6 +4739,24 @@
       "witnessId": "configuration:enableScreenGatedCrediting:inactive:true:false:catalog-random"
     },
     {
+      "mutantId": "remove-option-binding:screenGatingRule->derive_credited_intervals",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenGatingRule",
+      "targetId": "derive_credited_intervals",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:screenGatingRule:active:screenandliveness:screenonly:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:screenGatingRule->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenGatingRule",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:screenGatingRule:active:screenandliveness:screenonly:catalog-random"
+    },
+    {
       "mutantId": "remove-option-binding:creditedSessionCapMinutes->derive_credited_intervals",
       "mutantClass": "remove-option-binding",
       "sourceId": "creditedSessionCapMinutes",
@@ -2946,6 +4764,15 @@
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
       "witnessId": "configuration:creditedSessionCapMinutes:active:m360:m0:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:creditedSessionCapMinutes->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "creditedSessionCapMinutes",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:creditedSessionCapMinutes:inactive:m360:m0:catalog-random"
     },
     {
       "mutantId": "remove-option-binding:deviceLivenessGapToleranceMinutes->derive_credited_intervals",
@@ -2957,6 +4784,15 @@
       "witnessId": "configuration:deviceLivenessGapToleranceMinutes:active:m120:m0:catalog-random"
     },
     {
+      "mutantId": "remove-option-binding:deviceLivenessGapToleranceMinutes->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "deviceLivenessGapToleranceMinutes",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:deviceLivenessGapToleranceMinutes:inactive:m120:m0:catalog-random"
+    },
+    {
       "mutantId": "remove-option-binding:autoLockBridgeSeconds->derive_credited_intervals",
       "mutantClass": "remove-option-binding",
       "sourceId": "autoLockBridgeSeconds",
@@ -2964,6 +4800,15 @@
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
       "witnessId": "configuration:autoLockBridgeSeconds:active:s120:s0:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:autoLockBridgeSeconds->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "autoLockBridgeSeconds",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:autoLockBridgeSeconds:active:s120:s0:support-intersections"
     },
     {
       "mutantId": "remove-option-binding:noWitnessMinDayApps->derive_credited_intervals",
@@ -2975,6 +4820,177 @@
       "witnessId": "configuration:noWitnessMinDayApps:active:n2:n0:catalog-random"
     },
     {
+      "mutantId": "remove-option-binding:noWitnessMinDayApps->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "noWitnessMinDayApps",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:noWitnessMinDayApps:active:n2:n0:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:notificationProxyRule->select_notification_events",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "notificationProxyRule",
+      "targetId": "select_notification_events",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:notificationProxyRule:active:none:seencontact:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:notificationProxyRule->index_observed_usage_spans",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "notificationProxyRule",
+      "targetId": "index_observed_usage_spans",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:notificationProxyRule:active:none:seencontact:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:notificationProxyRule->classify_notification_contacts",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "notificationProxyRule",
+      "targetId": "classify_notification_contacts",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-option-binding:notificationProxyRule->assemble_notification_contact_outputs",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "notificationProxyRule",
+      "targetId": "assemble_notification_contact_outputs",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:notificationProxyRule:active:seencontact:interruptioncontact:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:notificationProxyRule->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "notificationProxyRule",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:notificationProxyRule:inactive:none:seencontact:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:polledEmulationMethod->sample_polled_timeline",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "polledEmulationMethod",
+      "targetId": "sample_polled_timeline",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:polledEmulationMethod:active:none:rosssampledgap:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:polledEmulationMethod->group_polled_runs",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "polledEmulationMethod",
+      "targetId": "group_polled_runs",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:polledEmulationMethod:active:rosssampledgap:ceritsamplecount:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:polledEmulationMethod->materialize_polled_rows",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "polledEmulationMethod",
+      "targetId": "materialize_polled_rows",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-option-binding:polledEmulationMethod->assemble_polled_emulation_outputs",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "polledEmulationMethod",
+      "targetId": "assemble_polled_emulation_outputs",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-option-binding:polledEmulationMethod->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "polledEmulationMethod",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:polledEmulationMethod:inactive:none:rosssampledgap:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:polledEmulationIntervalSeconds->sample_polled_timeline",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "polledEmulationIntervalSeconds",
+      "targetId": "sample_polled_timeline",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-option-binding:polledEmulationIntervalSeconds->group_polled_runs",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "polledEmulationIntervalSeconds",
+      "targetId": "group_polled_runs",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-option-binding:polledEmulationIntervalSeconds->materialize_polled_rows",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "polledEmulationIntervalSeconds",
+      "targetId": "materialize_polled_rows",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-option-binding:polledEmulationIntervalSeconds->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "polledEmulationIntervalSeconds",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:polledEmulationIntervalSeconds:active:cadence10s:cadence5s:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:polledEmulationGapSeconds->group_polled_runs",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "polledEmulationGapSeconds",
+      "targetId": "group_polled_runs",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-option-binding:polledEmulationGapSeconds->materialize_polled_rows",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "polledEmulationGapSeconds",
+      "targetId": "materialize_polled_rows",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-option-binding:polledEmulationGapSeconds->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "polledEmulationGapSeconds",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:polledEmulationGapSeconds:active:gap15s:gap0s:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:intervalExpansionMethod->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "intervalExpansionMethod",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:intervalExpansionMethod:active:none:behapp_start_anchored_half_open_1s_v1:catalog-random"
+    },
+    {
       "mutantId": "remove-option-binding:enableStudyWindowFilter->apply_participant_windows",
       "mutantClass": "remove-option-binding",
       "sourceId": "enableStudyWindowFilter",
@@ -2982,6 +4998,24 @@
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
       "witnessId": "configuration:enableStudyWindowFilter:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:enableStudyWindowFilter->synthesize_placeholder_rows",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "enableStudyWindowFilter",
+      "targetId": "synthesize_placeholder_rows",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:enableStudyWindowFilter:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:enableStudyWindowFilter->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "enableStudyWindowFilter",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:enableStudyWindowFilter:inactive:true:false:catalog-random"
     },
     {
       "mutantId": "remove-option-binding:enablePersonAttribution->resolve_sharing_status",
@@ -3009,6 +5043,15 @@
       "killed": true,
       "killKind": "rust-request-read-binding",
       "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-option-binding:enablePersonAttribution->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "enablePersonAttribution",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:enablePersonAttribution:inactive:true:false:catalog-random"
     },
     {
       "mutantId": "remove-option-binding:enableComplianceScoring->aggregate_attribution_minutes",
@@ -3056,6 +5099,15 @@
       "witnessId": "configuration:complianceThresholdPercent:active:p70:p0:catalog-random"
     },
     {
+      "mutantId": "remove-option-binding:complianceThresholdPercent->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "complianceThresholdPercent",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:complianceThresholdPercent:active:p70:p0:catalog-random"
+    },
+    {
       "mutantId": "remove-option-binding:enableDayCoverage->build_participant_day_coverage",
       "mutantClass": "remove-option-binding",
       "sourceId": "enableDayCoverage",
@@ -3083,6 +5135,33 @@
       "witnessId": "artifact:raw-field:study_id"
     },
     {
+      "mutantId": "remove-role-binding:raw_chronicle_csv->construct_screen_intervals",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "raw_chronicle_csv",
+      "targetId": "construct_screen_intervals",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "artifact:raw-field:possible_device_model"
+    },
+    {
+      "mutantId": "remove-role-binding:raw_chronicle_csv->match_app_episodes",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "raw_chronicle_csv",
+      "targetId": "match_app_episodes",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-role-binding:raw_chronicle_csv->assemble_result_manifest",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "raw_chronicle_csv",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
       "mutantId": "remove-role-binding:filter_file->mark_app_policy_matches",
       "mutantClass": "remove-role-binding",
       "sourceId": "filter_file",
@@ -3090,6 +5169,33 @@
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
       "witnessId": "artifact:support:filter-activate-used-package"
+    },
+    {
+      "mutantId": "remove-role-binding:filter_file->apply_app_inclusion_policy",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "filter_file",
+      "targetId": "apply_app_inclusion_policy",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-role-binding:input_capability_evidence_file->construct_screen_intervals",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "input_capability_evidence_file",
+      "targetId": "construct_screen_intervals",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-role-binding:input_capability_evidence_file->match_app_episodes",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "input_capability_evidence_file",
+      "targetId": "match_app_episodes",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
     },
     {
       "mutantId": "remove-role-binding:apps_forcing_screen_open_file->classify_screen_sessions",
@@ -3108,6 +5214,15 @@
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
       "witnessId": "artifact:support:background-remove-used-package"
+    },
+    {
+      "mutantId": "remove-role-binding:background_apps_file->classify_episode_durations",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "background_apps_file",
+      "targetId": "classify_episode_durations",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
     },
     {
       "mutantId": "remove-role-binding:background_apps_file->apply_app_inclusion_policy",
@@ -3137,6 +5252,24 @@
       "witnessId": "artifact:support:codebook-edit-category"
     },
     {
+      "mutantId": "remove-role-binding:app_codebook_file->assemble_notification_contact_outputs",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "app_codebook_file",
+      "targetId": "assemble_notification_contact_outputs",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-role-binding:app_codebook_file->assemble_polled_emulation_outputs",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "app_codebook_file",
+      "targetId": "assemble_polled_emulation_outputs",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
       "mutantId": "remove-role-binding:study_dates_file->resolve_participant_windows",
       "mutantClass": "remove-role-binding",
       "sourceId": "study_dates_file",
@@ -3162,6 +5295,15 @@
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
       "witnessId": "artifact:support:study-window-narrow"
+    },
+    {
+      "mutantId": "remove-role-binding:study_dates_file->assemble_result_manifest",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "study_dates_file",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
     },
     {
       "mutantId": "remove-role-binding:device_sharing_file->resolve_sharing_status",

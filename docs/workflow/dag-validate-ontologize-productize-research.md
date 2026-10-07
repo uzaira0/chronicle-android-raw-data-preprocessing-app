@@ -344,7 +344,7 @@ CSV rows, and get a before-number at t=2/3/4 — then generate arrays to close t
    arrays to close the measured gap. ✅ DONE 2026-07-17 — `web/combinatorial/` +
    `make combinatorial`. Before: 43.5% 2-way / 26.4% 3-way (150 executed configs).
    After adding PICT arrays (18 t=2 + 62 t=3 rows, executed in
-   coveringArrayValidation.test.ts): 100% at both strengths. CCM needed a headless
+   configurationSpaceCampaign.test.ts): 100% at both strengths. CCM needed a headless
    recompile (JFrame in static init) — patched build at /home/opt/nist-ccm.
 4. **O1 + V7** (DAG into the existing LinkML SSOT + bijection test) — makes the graph a
    schema-governed artifact instead of hand-authored TS.

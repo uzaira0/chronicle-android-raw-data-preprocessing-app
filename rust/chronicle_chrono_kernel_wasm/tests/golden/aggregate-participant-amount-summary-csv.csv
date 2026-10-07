@@ -1,0 +1,2 @@
+participant_id,days_tracked,total_app_usage_minutes,daily_average_minutes,daily_average_minutes_winsorized,huber_m_daily_minutes,sample_p1_minutes,sample_p99_minutes
+P01,2,225,112.5,112.5,112.5,112.5,112.5

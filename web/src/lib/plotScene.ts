@@ -44,7 +44,19 @@ export type TextPrim = {
   font: string;
   anchor: Anchor;
   baseline: Baseline;
+  /** Row-anchored text: `x` is a data position inside a waterfall row and the
+   * glyph sits `dx` px to its right. Interactive viewers move `x` with the
+   * row's zoom and keep `dx` fixed; static renderers draw at x + dx. Text
+   * without it never moves with row zoom. */
+  dx?: number;
 };
+
+/** Scene x at which a text primitive is painted, given its row's zoom `tx`
+ * (omitted when the row is not zoomed). Only row-anchored text moves. */
+export function textPaintX(p: TextPrim, tx?: (x: number) => number): number {
+  if (p.dx === undefined) return p.x;
+  return (tx ? tx(p.x) : p.x) + p.dx;
+}
 
 type LinePrim = {
   type: "line";
@@ -70,11 +82,17 @@ type PolyPrim = {
 
 export type Primitive = RectPrim | TextPrim | LinePrim | PolyPrim;
 
+/** What a DST (non-24 h) day row needs drawn beyond its bars: its real length
+ * and the wall-clock label at each elapsed hour. */
+export type DstRowMarks = { dayHours: number; labels: string[] };
+
 export type WaterfallSceneMeta = {
   kind: "waterfall";
   gutter: number;
   plotWidth: number;
-  rows: Array<{ date: string; y: number; h: number }>;
+  /** `dst` is set only on DST rows, so a derived scene (the A/B comparison)
+   * can redraw their marks without the timezone. */
+  rows: Array<{ date: string; y: number; h: number; dst?: DstRowMarks }>;
 };
 
 export type Scene = {
@@ -108,6 +126,36 @@ export type SceneRegion = {
   kind?: "session" | "gap" | "marker";
 };
 
+/**
+ * Return the nearest vertically matching region within a horizontal tolerance.
+ * Exact hits retain the scene's existing first-region ordering; expanded hits
+ * choose the closest real edge so adjacent sub-pixel bars stay deterministic.
+ */
+export function findNearestSceneRegion(
+  regions: SceneRegion[],
+  x: number,
+  y: number,
+  maxHorizontalDistance: number,
+): SceneRegion | undefined {
+  const tolerance = Math.max(0, maxHorizontalDistance);
+  let nearest: SceneRegion | undefined;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+
+  for (const region of regions) {
+    if (y < region.y || y > region.y + region.h) continue;
+    const left = Math.min(region.x, region.x + region.w);
+    const right = Math.max(region.x, region.x + region.w);
+    const distance = x < left ? left - x : x > right ? x - right : 0;
+    if (distance === 0) return region;
+    if (distance <= tolerance && distance < nearestDistance) {
+      nearest = region;
+      nearestDistance = distance;
+    }
+  }
+
+  return nearest;
+}
+
 const DEFAULT_FONT_FAMILY = "system-ui, sans-serif";
 
 function round(value: number): number {
@@ -116,6 +164,10 @@ function round(value: number): number {
 
 function escapeXml(value: string): string {
   return value
+    // XML 1.0 cannot carry these even escaped (a NUL in a label made the whole
+    // SVG unparseable), and lone surrogates are not characters.
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\ufffe\uffff]|[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g, "\ufffd")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -167,7 +219,7 @@ function rectToSvg(p: RectPrim): string {
 function textToSvg(p: TextPrim): string {
   const { fontSize, fontWeight, fontFamily } = parseFont(p.font);
   const attrs = [
-    `x="${round(p.x)}"`,
+    `x="${round(textPaintX(p))}"`,
     `y="${round(p.y)}"`,
     `fill="${p.fill}"`,
     `font-size="${fontSize}"`,

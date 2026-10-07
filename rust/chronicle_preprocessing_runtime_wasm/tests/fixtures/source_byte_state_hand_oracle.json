@@ -1,0 +1,61 @@
+{
+  "schema_version": "chronicle-source-byte-state-hand-oracle/v1",
+  "source_pins": [
+    {
+      "path": ".tmp-literature-review-private/ontology-sublation-20260831/work/114-raw.txt",
+      "sha256": "8dc10be1c73d1017b1c528e3a24646057bf288c60fce852ea0fe0738e5e2e17e",
+      "locator": "391-415; uniform five-minute assumption, not raw counter differencing/reset policy"
+    },
+    {
+      "path": ".tmp-literature-review-private/corrective-packet-04-ranks-074-123-20260831/text/102.txt",
+      "sha256": "bcc6bc66fc17cd1d8c105b005d13147734d3506c4a9a95276e202858199a8c7c",
+      "locator": "319-343 first sixty minutes before Android traffic gating; 360-369 existing one-minute reducer"
+    }
+  ],
+  "qualification": "Exact integer nanoseconds/bytes, positive declared precision metadata, one device/source stream/common clock per participant. Resolved window totals and complete ordered dwells are supplied, not counter readings. CLOSED interval construction and candidate packet association are upstream. Packet endpoint ownership is explicit caller convention, not a disclosed study setting.",
+  "cases": [
+    {
+      "stage": "uniform_five_minute_allocation",
+      "raw_csv_lines": [
+        "participant_id,source_row_id,source_device_id,source_stream_id,source_stream_role,clock_id,timestamp_unit,timestamp_precision_ns,byte_unit,window_id,poll_start_source_row_id,poll_end_source_row_id,window_start_timestamp_ns,window_end_timestamp_ns,window_bytes,counter_status,network_technology,state_start_timestamp_ns,state_end_timestamp_ns,rssi_dbm,screen_state,note",
+        "A,a1,dA,statesA,resolved_five_minute_joint_state_dwells,cA,nanoseconds,1000,bytes,wA,pA0,pA1,0,300000000000,9,resolved_nonnegative_window_total,WiFi,0,100000000000,-70,ON,first",
+        "B,b1,dB,statesB,resolved_five_minute_joint_state_dwells,cB,nanoseconds,1000,bytes,wB,pB0,pB1,900000000000,1200000000000,1,resolved_nonnegative_window_total,3G,900000000000,1050000000000,-95,OFF,fraction",
+        "A,a2,dA,statesA,resolved_five_minute_joint_state_dwells,cA,nanoseconds,2000,bytes,wA,pA0,pA1,0,300000000000,9,resolved_nonnegative_window_total,WiFi,100000000000,300000000000,-85,OFF,remainder",
+        "B,b2,dB,statesB,resolved_five_minute_joint_state_dwells,cB,nanoseconds,2000,bytes,wB,pB0,pB1,900000000000,1200000000000,1,resolved_nonnegative_window_total,3G,1050000000000,1200000000000,-80,ON,fraction"
+      ],
+      "expected_csv_lines": [
+        "participant_id,source_row_id,source_device_id,source_stream_id,source_stream_role,clock_id,timestamp_unit,timestamp_precision_ns,byte_unit,window_id,poll_start_source_row_id,poll_end_source_row_id,window_start_timestamp_ns,window_end_timestamp_ns,window_bytes,counter_status,network_technology,state_start_timestamp_ns,state_end_timestamp_ns,rssi_dbm,screen_state,note,state_dwell_ns,window_duration_ns,allocated_bytes_numerator,allocated_bytes_denominator",
+        "A,a1,dA,statesA,resolved_five_minute_joint_state_dwells,cA,nanoseconds,1000,bytes,wA,pA0,pA1,0,300000000000,9,resolved_nonnegative_window_total,WiFi,0,100000000000,-70,ON,first,100000000000,300000000000,900000000000,300000000000",
+        "B,b1,dB,statesB,resolved_five_minute_joint_state_dwells,cB,nanoseconds,1000,bytes,wB,pB0,pB1,900000000000,1200000000000,1,resolved_nonnegative_window_total,3G,900000000000,1050000000000,-95,OFF,fraction,150000000000,300000000000,150000000000,300000000000",
+        "A,a2,dA,statesA,resolved_five_minute_joint_state_dwells,cA,nanoseconds,2000,bytes,wA,pA0,pA1,0,300000000000,9,resolved_nonnegative_window_total,WiFi,100000000000,300000000000,-85,OFF,remainder,200000000000,300000000000,1800000000000,300000000000",
+        "B,b2,dB,statesB,resolved_five_minute_joint_state_dwells,cB,nanoseconds,2000,bytes,wB,pB0,pB1,900000000000,1200000000000,1,resolved_nonnegative_window_total,3G,1050000000000,1200000000000,-80,ON,fraction,150000000000,300000000000,150000000000,300000000000"
+      ],
+      "hand_calculation": "A:9×100/300=3,9×200/300=6 bytes. B:1×150/300=1/2 byte each. Exact fractions remain rational, never rounded."
+    },
+    {
+      "stage": "capped_closed_screen_packet_gate",
+      "raw_csv_lines": [
+        "participant_id,source_row_id,source_device_id,source_stream_id,source_stream_role,clock_id,timestamp_unit,timestamp_precision_ns,byte_unit,screen_interval_id,screen_on_source_row_id,screen_off_source_row_id,screen_on_timestamp_ns,screen_off_timestamp_ns,packet_endpoint_policy,phone_key,phone_address,timestamp_ns,source_address,destination_address,payload_bytes,note",
+        "A,a0,dA,packetsA,closed_android_screen_interval_packet_candidates,cA,nanoseconds,1000,bytes,iA,onA,offA,0,5400000000000,left_closed_right_open,dA,phoneA,0,phoneA,x,2,start retained",
+        "B,b0,dB,packetsB,closed_android_screen_interval_packet_candidates,cB,nanoseconds,1000,bytes,iB,onB,offB,0,3540000000000,left_closed_right_open,dB,phoneB,3539000000000,y,phoneB,4,59-minute interval",
+        "A,a1,dA,packetsA,closed_android_screen_interval_packet_candidates,cA,nanoseconds,2000,bytes,iA,onA,offA,0,5400000000000,left_closed_right_open,dA,phoneA,3599000000000,x,phoneA,3,just before cap",
+        "A,a2,dA,packetsA,closed_android_screen_interval_packet_candidates,cA,nanoseconds,1000,bytes,iA,onA,offA,0,5400000000000,left_closed_right_open,dA,phoneA,3600000000000,phoneA,x,7,caller endpoint equality",
+        "B,b1,dB,packetsB,closed_android_screen_interval_packet_candidates,cB,nanoseconds,1000,bytes,iB,onB,offB,0,3540000000000,left_closed_right_open,dB,phoneB,3540000000000,phoneB,y,6,original OFF equality",
+        "A,a3,dA,packetsA,closed_android_screen_interval_packet_candidates,cA,nanoseconds,1000,bytes,iA,onA,offA,0,5400000000000,left_closed_right_open,dA,phoneA,5000000000000,phoneA,x,11,after cap still before observed OFF"
+      ],
+      "expected_csv_lines": [
+        "participant_id,source_row_id,source_device_id,source_stream_id,source_stream_role,clock_id,timestamp_unit,timestamp_precision_ns,byte_unit,screen_interval_id,screen_on_source_row_id,screen_off_source_row_id,screen_on_timestamp_ns,screen_off_timestamp_ns,packet_endpoint_policy,phone_key,phone_address,timestamp_ns,source_address,destination_address,payload_bytes,note,capped_screen_off_timestamp_ns,capped_screen_on_duration_ns",
+        "A,a0,dA,packetsA,closed_android_screen_interval_packet_candidates,cA,nanoseconds,1000,bytes,iA,onA,offA,0,5400000000000,left_closed_right_open,dA,phoneA,0,phoneA,x,2,start retained,3600000000000,3600000000000",
+        "B,b0,dB,packetsB,closed_android_screen_interval_packet_candidates,cB,nanoseconds,1000,bytes,iB,onB,offB,0,3540000000000,left_closed_right_open,dB,phoneB,3539000000000,y,phoneB,4,59-minute interval,3540000000000,3540000000000",
+        "A,a1,dA,packetsA,closed_android_screen_interval_packet_candidates,cA,nanoseconds,2000,bytes,iA,onA,offA,0,5400000000000,left_closed_right_open,dA,phoneA,3599000000000,x,phoneA,3,just before cap,3600000000000,3600000000000"
+      ],
+      "expected_minute_csv_lines": [
+        "phone_key,external_address,bin_start_timestamp_ns,payload_bytes",
+        "dA,x,0,2",
+        "dA,x,3540000000000,3",
+        "dB,y,3480000000000,4"
+      ],
+      "hand_calculation": "A observed90min is capped60min; B59min unchanged. Explicit half-open candidate policy retains packets0,3539,3599s and removes3600/3540/5000s. Existing anchor0 minute sums are2,3,4, not after-cap7+11 or OFF-end6."
+    }
+  ]
+}

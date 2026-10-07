@@ -1,18 +1,20 @@
 {
   "title": "Chronicle Android Raw Data Preprocessing App",
-  "description": "Dual-engine (browser + desktop Python) preprocessing instrument for Chronicle Android usage-events data: app-usage and screen-usage session reconstruction under a versioned configuration contract, byte-exact cross-engine parity, golden-scenario locking, and per-run PROV provenance sidecars. Includes the LinkML/OWL/SHACL research ontology generated from the same source of truth.",
+  "description": "Browser-based preprocessing instrument for Chronicle Android usage-events data. A single Rust engine compiled to WebAssembly runs entirely in the user's browser and reconstructs app-usage and screen-usage sessions under a versioned configuration contract, with golden-scenario output locking and per-run PROV provenance sidecars. Includes the LinkML/OWL/SHACL research ontology generated from the same source of truth.",
   "creators": [
     {
       "name": "Alam, Uzair"
     }
   ],
   "upload_type": "software",
+  "license": "GPL-3.0-only",
   "keywords": [
     "Chronicle",
     "Android usage data",
     "screen time",
     "digital media use",
     "preprocessing",
+    "WebAssembly",
     "provenance",
     "reproducibility"
   ],

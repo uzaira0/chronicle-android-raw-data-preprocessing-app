@@ -2,7 +2,7 @@ import {
   startExclusiveDownload,
   type ExclusiveDownloadHooks,
 } from "@/lib/exclusiveDownload";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 
 import { createZipBlob } from "@/lib/zip";
@@ -11,6 +11,7 @@ import type {
   BrowserProcessingOptions,
   ProcessedFileResult,
   ProcessedOutputFileResult,
+  SkippedOutput,
   TimezoneAction,
 } from "@/lib/types";
 import { downloadBlob } from "@/lib/download";
@@ -37,8 +38,12 @@ type Props = {
   /** True when the current settings differ from the ones that produced these
    * results — surfaces an "out of date, re-run" banner. */
   stale?: boolean;
-  /** Delete the results (and the persisted last-run cache backing them). */
+  /** Delete the results, their persisted OPFS workspace history, and the
+   * last-run cache backing them. */
   onDelete?: () => void;
+  /** True while a run, retry or comparison may still write the same
+   * workspaces, so a deletion cannot race a commit. */
+  deleteDisabled?: boolean;
 };
 
 type BatchOutput = {
@@ -104,10 +109,18 @@ function buildPerFileWarnings(
     warnings.push("Zero app usage rows.");
   }
   if (options.processScreenUsage && result.screenRowCount === 0) {
-    warnings.push("Zero screen usage rows.");
+    warnings.push(
+      "Zero screen usage rows. No screen sessions could be built from this file's screen-state events " +
+        "(the upload inspection reports whether a file contains any); app usage is unaffected.",
+    );
   }
   (result.configNotices ?? []).forEach((notice) => {
     warnings.push(notice);
+  });
+  (result.skippedOutputs ?? []).forEach((skipped) => {
+    warnings.push(
+      `${displayMasker.fileName(skipped.outputFileName)} was not generated: ${skipped.reason}`,
+    );
   });
   if (result.restoredWithoutArtifacts) {
     return warnings;
@@ -179,6 +192,7 @@ async function downloadZip(
   const entries: Array<{ fileName: string; blob: Blob }> = [];
   // Receipt-pinned OPFS reads can be very large. Resolve one at a time instead
   // of making every Arrow/CSV allocation live at once before ZIP creation.
+  // A failed read is a failed integrity check and fails the download.
   for (const { output } of outputs) {
     entries.push({
       fileName: output.outputFileName,
@@ -189,15 +203,21 @@ async function downloadZip(
   downloadBlob(zipName(kind), zip);
 }
 
+// Only drawing a plot is fail-soft (addRenderedViews records it in `skipped`);
+// reading the verified visualization data still fails closed.
 async function materializeRequestedPlots(
   results: ProcessedFileResult[],
+  skipped: SkippedOutput[],
 ): Promise<BatchOutput[]> {
   const outputs: BatchOutput[] = [];
   // Plotting can briefly allocate a full-size canvas. Generate one file at a
   // time so a 100-file batch never has multiple plot canvases live together.
   for (const result of results) {
     if (!result.persistedPlotRequest) continue;
-    const plots = await materializePersistedPlots(result.persistedPlotRequest);
+    const plots = await materializePersistedPlots(
+      result.persistedPlotRequest,
+      skipped,
+    );
     outputs.push(
       ...plots.map((output) => ({
         inputFileName: result.inputFileName,
@@ -257,6 +277,7 @@ export function ResultPanel({
   displayMasker,
   stale = false,
   onDelete,
+  deleteDisabled = false,
 }: Props): ReactElement | null {
   const summary = useMemo(() => {
     return results.reduce(
@@ -353,6 +374,13 @@ export function ResultPanel({
   }, [results.length]);
   const [activeDownload, setActiveDownload] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [downloadSkipped, setDownloadSkipped] = useState<SkippedOutput[]>([]);
+  // The note describes one download of these results, never the next run's:
+  // cleared when results change, and a download that finishes after a re-run
+  // replaced them does not post it.
+  const resultsRef = useRef(results);
+  resultsRef.current = results;
+  useEffect(() => setDownloadSkipped([]), [results]);
 
   const downloadHooks: ExclusiveDownloadHooks = {
     isBusy: () => activeDownload !== null,
@@ -368,17 +396,21 @@ export function ResultPanel({
     includeDeferredTimelines = false,
   ): void => {
     void startExclusiveDownload(downloadHooks, id, async () => {
+      setDownloadSkipped([]);
+      const skipped: SkippedOutput[] = [];
       const deferredPlots = includeDeferredPlots
-        ? await materializeRequestedPlots(results)
+        ? await materializeRequestedPlots(results, skipped)
         : [];
       const deferredTimelines = includeDeferredTimelines
         ? await materializeRequestedTimelines(results)
         : [];
-      await downloadZip(id, [
-        ...outputs,
-        ...deferredPlots,
-        ...deferredTimelines,
-      ]);
+      const entries = [...outputs, ...deferredPlots, ...deferredTimelines];
+      const firstSkipped = skipped[0];
+      if (!entries.length && firstSkipped) {
+        throw new Error(firstSkipped.reason);
+      }
+      await downloadZip(id, entries);
+      if (resultsRef.current === results) setDownloadSkipped(skipped);
     });
   };
 
@@ -553,7 +585,8 @@ export function ResultPanel({
               type="button"
               className="btn btn--ghost"
               data-testid="delete-results"
-              title="Remove these results and the saved copy that would restore them on the next visit."
+              title="Remove these results and their saved copy in this browser."
+              disabled={deleteDisabled}
               onClick={onDelete}
             >
               Delete results
@@ -570,6 +603,27 @@ export function ResultPanel({
         >
           Could not prepare download: {downloadError}
         </p>
+      ) : null}
+      {downloadSkipped.length ? (
+        <div
+          className="result-warnings u-mb-3"
+          role="status"
+          data-testid="download-skipped"
+        >
+          <strong>
+            Downloaded without {downloadSkipped.length} output
+            {downloadSkipped.length === 1 ? "" : "s"} that could not be
+            prepared:
+          </strong>
+          <ul>
+            {downloadSkipped.map((skipped) => (
+              <li key={skipped.outputFileName}>
+                {displayMasker.fileName(skipped.outputFileName)}:{" "}
+                {skipped.reason}
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : null}
       {stale ? (
         <p

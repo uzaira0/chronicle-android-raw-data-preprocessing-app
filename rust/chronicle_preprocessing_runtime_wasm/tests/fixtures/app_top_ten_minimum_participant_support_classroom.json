@@ -1,0 +1,74 @@
+{
+  "schemaVersion": "chronicle-app-participant-support-threshold-source-fixture/v1",
+  "sourceWorkId": "doi:10.1016/j.compedu.2019.103611",
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-ff33809b707c5562646ed8ce",
+    "parameterKey": "apps.initial_support",
+    "sourceObservedSetting": "apps.initial_support: retain candidates appearing in the top 10 apps of at least 20% of participants (n=17)",
+    "sourceValueSha256": "5792187f5052639e8e4c781c73f08e1ce6ae93dc9ef8e72b45a4c61abd17983c"
+  },
+  "sourceArtifact": {
+    "locators": [
+      ".tmp-literature-review-private/corrective-packet-08-ranks277-329-20260831/fulltext/rank288-primary.txt:287-302",
+      ".tmp-literature-review-private/corrective-packet-08-ranks277-329-20260831/fulltext/rank288-primary.txt:461-475"
+    ],
+    "sha256": "5444bf55d60696984c74e676bfc3dacd388e81074b3f5f09ba07120d2c3e414b"
+  },
+  "inputBoundary": "An already-derived unique-participant support count for one candidate app among source-aligned per-participant top-10 app lists, plus the complete participant denominator.",
+  "outputBoundary": "Retain the candidate when support is at least 20% of 84 participants: the integer threshold is ceil(16.8) = 17, and equality is retained.",
+  "limitations": [
+    "This binding does not derive application-use events or participant identities.",
+    "This binding does not normalize or rank app frequency and duration within each participant.",
+    "This binding does not construct each participant's top-10 app membership list or deduplicate participant support.",
+    "This binding does not reproduce the manual 5-percentage-point support-threshold search.",
+    "This binding does not rank retained candidates or select the final top five apps.",
+    "A missing support count or participant denominator, a zero denominator, or support greater than the denominator fails closed."
+  ],
+  "participantCount": 84,
+  "minimumSupportPercent": 20,
+  "expectedMinimumSupportCount": 17,
+  "dispositions": ["below_initial_support", "retained_candidate"],
+  "candidateApps": [
+    {
+      "observationId": "immediately-below",
+      "supportingParticipantCount": 16,
+      "expectedDisposition": "below_initial_support"
+    },
+    {
+      "observationId": "at-boundary",
+      "supportingParticipantCount": 17,
+      "expectedDisposition": "retained_candidate"
+    },
+    {
+      "observationId": "above-boundary",
+      "supportingParticipantCount": 18,
+      "expectedDisposition": "retained_candidate"
+    }
+  ],
+  "invalidInputCases": [
+    {
+      "observationId": "missing-support-count",
+      "supportingParticipantCount": null,
+      "participantCount": 84,
+      "expectedError": "app_support_count_required"
+    },
+    {
+      "observationId": "missing-participant-denominator",
+      "supportingParticipantCount": 17,
+      "participantCount": null,
+      "expectedError": "participant_denominator_required"
+    },
+    {
+      "observationId": "zero-participant-denominator",
+      "supportingParticipantCount": 0,
+      "participantCount": 0,
+      "expectedError": "participant_denominator_must_be_positive"
+    },
+    {
+      "observationId": "support-exceeds-denominator",
+      "supportingParticipantCount": 85,
+      "participantCount": 84,
+      "expectedError": "app_support_count_exceeds_participant_denominator"
+    }
+  ]
+}

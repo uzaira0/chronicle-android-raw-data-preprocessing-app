@@ -1,0 +1,483 @@
+{
+  "schema_version": "supplied-android-behavior-reviewed-boundary-cases/v1",
+  "qualification": "Literal independent supplied facts; no source constructor, history replacement, tie policy or missing-row imputation.",
+  "cases": [
+    {
+      "name": "known-jones-negative-forward",
+      "stage_index": 3,
+      "expected_refusal": true,
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,coordinate_unit,timestamp_precision,previous_launch_json,current_launch_json",
+        "r1,P,D,stream,Android,pair,caller-qualified-consecutive-same-app-launch-pair,app,ms,1,\"{\"\"source_event_id\"\":\"\"a\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":10}\",\"{\"\"source_event_id\"\":\"\"b\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":null}\"",
+        "r2,P,D,stream,Android,pair,caller-qualified-consecutive-same-app-launch-pair,app,ms,1,\"{\"\"source_event_id\"\":\"\"a\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":null}\",\"{\"\"source_event_id\"\":\"\"b\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":5}\""
+      ]
+    },
+    {
+      "name": "known-jones-negative-reverse",
+      "stage_index": 3,
+      "expected_refusal": true,
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,coordinate_unit,timestamp_precision,previous_launch_json,current_launch_json",
+        "r2,P,D,stream,Android,pair,caller-qualified-consecutive-same-app-launch-pair,app,ms,1,\"{\"\"source_event_id\"\":\"\"a\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":null}\",\"{\"\"source_event_id\"\":\"\"b\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":5}\"",
+        "r1,P,D,stream,Android,pair,caller-qualified-consecutive-same-app-launch-pair,app,ms,1,\"{\"\"source_event_id\"\":\"\"a\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":10}\",\"{\"\"source_event_id\"\":\"\"b\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":null}\""
+      ]
+    },
+    {
+      "name": "known-jones-clock-conflict-forward",
+      "stage_index": 3,
+      "expected_refusal": true,
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,coordinate_unit,timestamp_precision,previous_launch_json,current_launch_json",
+        "r1,P,D,stream,Android,pair,caller-qualified-consecutive-same-app-launch-pair,app,ms,1,\"{\"\"source_event_id\"\":\"\"a\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c1\"\",\"\"coordinate\"\":1}\",\"{\"\"source_event_id\"\":\"\"b\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":null,\"\"coordinate\"\":8}\"",
+        "r2,P,D,stream,Android,pair,caller-qualified-consecutive-same-app-launch-pair,app,ms,1,\"{\"\"source_event_id\"\":\"\"a\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":null,\"\"coordinate\"\":1}\",\"{\"\"source_event_id\"\":\"\"b\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c2\"\",\"\"coordinate\"\":8}\""
+      ]
+    },
+    {
+      "name": "known-jones-clock-conflict-reverse",
+      "stage_index": 3,
+      "expected_refusal": true,
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,coordinate_unit,timestamp_precision,previous_launch_json,current_launch_json",
+        "r2,P,D,stream,Android,pair,caller-qualified-consecutive-same-app-launch-pair,app,ms,1,\"{\"\"source_event_id\"\":\"\"a\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":null,\"\"coordinate\"\":1}\",\"{\"\"source_event_id\"\":\"\"b\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c2\"\",\"\"coordinate\"\":8}\"",
+        "r1,P,D,stream,Android,pair,caller-qualified-consecutive-same-app-launch-pair,app,ms,1,\"{\"\"source_event_id\"\":\"\"a\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c1\"\",\"\"coordinate\"\":1}\",\"{\"\"source_event_id\"\":\"\"b\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":null,\"\"coordinate\"\":8}\""
+      ]
+    },
+    {
+      "name": "known-hold-negative-forward",
+      "stage_index": 5,
+      "expected_refusal": true,
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,coordinate_unit,timestamp_precision,typing_pairs_json",
+        "r1,P,D,stream,Android,pair,caller-qualified-complete-trial-session-hold-flight-pairs,ms,1,\"[{\"\"pair_id\"\":\"\"pair\"\",\"\"kind\"\":\"\"hold\"\",\"\"pair_stage\"\":\"\"caller-resolved-same-key-press-release\"\",\"\"start_anchor\"\":{\"\"source_event_id\"\":\"\"p\"\",\"\"key_instance_id\"\":\"\"k\"\",\"\"event_role\"\":\"\"key_press\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":10},\"\"end_anchor\"\":{\"\"source_event_id\"\":\"\"r\"\",\"\"key_instance_id\"\":\"\"k\"\",\"\"event_role\"\":\"\"key_release\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":null}}]\"",
+        "r2,P,D,stream,Android,pair,caller-qualified-complete-trial-session-hold-flight-pairs,ms,1,\"[{\"\"pair_id\"\":\"\"pair\"\",\"\"kind\"\":\"\"hold\"\",\"\"pair_stage\"\":\"\"caller-resolved-same-key-press-release\"\",\"\"start_anchor\"\":{\"\"source_event_id\"\":\"\"p\"\",\"\"key_instance_id\"\":\"\"k\"\",\"\"event_role\"\":\"\"key_press\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":null},\"\"end_anchor\"\":{\"\"source_event_id\"\":\"\"r\"\",\"\"key_instance_id\"\":\"\"k\"\",\"\"event_role\"\":\"\"key_release\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":5}}]\""
+      ]
+    },
+    {
+      "name": "known-hold-negative-reverse",
+      "stage_index": 5,
+      "expected_refusal": true,
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,coordinate_unit,timestamp_precision,typing_pairs_json",
+        "r2,P,D,stream,Android,pair,caller-qualified-complete-trial-session-hold-flight-pairs,ms,1,\"[{\"\"pair_id\"\":\"\"pair\"\",\"\"kind\"\":\"\"hold\"\",\"\"pair_stage\"\":\"\"caller-resolved-same-key-press-release\"\",\"\"start_anchor\"\":{\"\"source_event_id\"\":\"\"p\"\",\"\"key_instance_id\"\":\"\"k\"\",\"\"event_role\"\":\"\"key_press\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":null},\"\"end_anchor\"\":{\"\"source_event_id\"\":\"\"r\"\",\"\"key_instance_id\"\":\"\"k\"\",\"\"event_role\"\":\"\"key_release\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":5}}]\"",
+        "r1,P,D,stream,Android,pair,caller-qualified-complete-trial-session-hold-flight-pairs,ms,1,\"[{\"\"pair_id\"\":\"\"pair\"\",\"\"kind\"\":\"\"hold\"\",\"\"pair_stage\"\":\"\"caller-resolved-same-key-press-release\"\",\"\"start_anchor\"\":{\"\"source_event_id\"\":\"\"p\"\",\"\"key_instance_id\"\":\"\"k\"\",\"\"event_role\"\":\"\"key_press\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":10},\"\"end_anchor\"\":{\"\"source_event_id\"\":\"\"r\"\",\"\"key_instance_id\"\":\"\"k\"\",\"\"event_role\"\":\"\"key_release\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":null}}]\""
+      ]
+    },
+    {
+      "name": "known-typing-clock-conflict-forward",
+      "stage_index": 5,
+      "expected_refusal": true,
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,coordinate_unit,timestamp_precision,typing_pairs_json",
+        "r1,P,D,stream,Android,pair,caller-qualified-complete-trial-session-hold-flight-pairs,ms,1,\"[{\"\"pair_id\"\":\"\"pair\"\",\"\"kind\"\":\"\"hold\"\",\"\"pair_stage\"\":\"\"caller-resolved-same-key-press-release\"\",\"\"start_anchor\"\":{\"\"source_event_id\"\":\"\"p\"\",\"\"key_instance_id\"\":\"\"k\"\",\"\"event_role\"\":\"\"key_press\"\",\"\"clock_id\"\":\"\"c1\"\",\"\"coordinate\"\":1},\"\"end_anchor\"\":{\"\"source_event_id\"\":\"\"r\"\",\"\"key_instance_id\"\":\"\"k\"\",\"\"event_role\"\":\"\"key_release\"\",\"\"clock_id\"\":null,\"\"coordinate\"\":8}}]\"",
+        "r2,P,D,stream,Android,pair,caller-qualified-complete-trial-session-hold-flight-pairs,ms,1,\"[{\"\"pair_id\"\":\"\"pair\"\",\"\"kind\"\":\"\"hold\"\",\"\"pair_stage\"\":\"\"caller-resolved-same-key-press-release\"\",\"\"start_anchor\"\":{\"\"source_event_id\"\":\"\"p\"\",\"\"key_instance_id\"\":\"\"k\"\",\"\"event_role\"\":\"\"key_press\"\",\"\"clock_id\"\":null,\"\"coordinate\"\":1},\"\"end_anchor\"\":{\"\"source_event_id\"\":\"\"r\"\",\"\"key_instance_id\"\":\"\"k\"\",\"\"event_role\"\":\"\"key_release\"\",\"\"clock_id\"\":\"\"c2\"\",\"\"coordinate\"\":8}}]\""
+      ]
+    },
+    {
+      "name": "known-typing-clock-conflict-reverse",
+      "stage_index": 5,
+      "expected_refusal": true,
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,coordinate_unit,timestamp_precision,typing_pairs_json",
+        "r2,P,D,stream,Android,pair,caller-qualified-complete-trial-session-hold-flight-pairs,ms,1,\"[{\"\"pair_id\"\":\"\"pair\"\",\"\"kind\"\":\"\"hold\"\",\"\"pair_stage\"\":\"\"caller-resolved-same-key-press-release\"\",\"\"start_anchor\"\":{\"\"source_event_id\"\":\"\"p\"\",\"\"key_instance_id\"\":\"\"k\"\",\"\"event_role\"\":\"\"key_press\"\",\"\"clock_id\"\":null,\"\"coordinate\"\":1},\"\"end_anchor\"\":{\"\"source_event_id\"\":\"\"r\"\",\"\"key_instance_id\"\":\"\"k\"\",\"\"event_role\"\":\"\"key_release\"\",\"\"clock_id\"\":\"\"c2\"\",\"\"coordinate\"\":8}}]\"",
+        "r1,P,D,stream,Android,pair,caller-qualified-complete-trial-session-hold-flight-pairs,ms,1,\"[{\"\"pair_id\"\":\"\"pair\"\",\"\"kind\"\":\"\"hold\"\",\"\"pair_stage\"\":\"\"caller-resolved-same-key-press-release\"\",\"\"start_anchor\"\":{\"\"source_event_id\"\":\"\"p\"\",\"\"key_instance_id\"\":\"\"k\"\",\"\"event_role\"\":\"\"key_press\"\",\"\"clock_id\"\":\"\"c1\"\",\"\"coordinate\"\":1},\"\"end_anchor\"\":{\"\"source_event_id\"\":\"\"r\"\",\"\"key_instance_id\"\":\"\"k\"\",\"\"event_role\"\":\"\"key_release\"\",\"\"clock_id\"\":null,\"\"coordinate\"\":8}}]\""
+      ]
+    },
+    {
+      "name": "known-hush-negative-forward",
+      "stage_index": 1,
+      "expected_refusal": true,
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,coordinate_unit,timestamp_precision,foreground_activities_json",
+        "r1,P,D,stream,Android,activities,caller-qualified-complete-device-app-foregrounds-with-latest-prior-activities,app,ms,1,\"[{\"\"foreground\"\":{\"\"source_event_id\"\":\"\"f\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"foreground\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":5},\"\"prior_background_state\"\":\"\"present\"\",\"\"prior_background\"\":{\"\"source_event_id\"\":\"\"b\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"background\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":null},\"\"prior_foreground_state\"\":\"\"absent\"\",\"\"prior_foreground\"\":null}]\"",
+        "r2,P,D,stream,Android,activities,caller-qualified-complete-device-app-foregrounds-with-latest-prior-activities,app,ms,1,\"[{\"\"foreground\"\":{\"\"source_event_id\"\":\"\"f\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"foreground\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":null},\"\"prior_background_state\"\":\"\"present\"\",\"\"prior_background\"\":{\"\"source_event_id\"\":\"\"b\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"background\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":10},\"\"prior_foreground_state\"\":\"\"absent\"\",\"\"prior_foreground\"\":null}]\""
+      ]
+    },
+    {
+      "name": "known-hush-negative-reverse",
+      "stage_index": 1,
+      "expected_refusal": true,
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,coordinate_unit,timestamp_precision,foreground_activities_json",
+        "r2,P,D,stream,Android,activities,caller-qualified-complete-device-app-foregrounds-with-latest-prior-activities,app,ms,1,\"[{\"\"foreground\"\":{\"\"source_event_id\"\":\"\"f\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"foreground\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":null},\"\"prior_background_state\"\":\"\"present\"\",\"\"prior_background\"\":{\"\"source_event_id\"\":\"\"b\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"background\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":10},\"\"prior_foreground_state\"\":\"\"absent\"\",\"\"prior_foreground\"\":null}]\"",
+        "r1,P,D,stream,Android,activities,caller-qualified-complete-device-app-foregrounds-with-latest-prior-activities,app,ms,1,\"[{\"\"foreground\"\":{\"\"source_event_id\"\":\"\"f\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"foreground\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":5},\"\"prior_background_state\"\":\"\"present\"\",\"\"prior_background\"\":{\"\"source_event_id\"\":\"\"b\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"background\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":null},\"\"prior_foreground_state\"\":\"\"absent\"\",\"\"prior_foreground\"\":null}]\""
+      ]
+    },
+    {
+      "name": "known-hush-clock-conflict-forward",
+      "stage_index": 1,
+      "expected_refusal": true,
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,coordinate_unit,timestamp_precision,foreground_activities_json",
+        "r1,P,D,stream,Android,activities,caller-qualified-complete-device-app-foregrounds-with-latest-prior-activities,app,ms,1,\"[{\"\"foreground\"\":{\"\"source_event_id\"\":\"\"f\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"foreground\"\",\"\"clock_id\"\":null,\"\"coordinate\"\":10},\"\"prior_background_state\"\":\"\"present\"\",\"\"prior_background\"\":{\"\"source_event_id\"\":\"\"b\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"background\"\",\"\"clock_id\"\":\"\"c1\"\",\"\"coordinate\"\":1},\"\"prior_foreground_state\"\":\"\"absent\"\",\"\"prior_foreground\"\":null}]\"",
+        "r2,P,D,stream,Android,activities,caller-qualified-complete-device-app-foregrounds-with-latest-prior-activities,app,ms,1,\"[{\"\"foreground\"\":{\"\"source_event_id\"\":\"\"f\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"foreground\"\",\"\"clock_id\"\":\"\"c2\"\",\"\"coordinate\"\":10},\"\"prior_background_state\"\":\"\"present\"\",\"\"prior_background\"\":{\"\"source_event_id\"\":\"\"b\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"background\"\",\"\"clock_id\"\":null,\"\"coordinate\"\":1},\"\"prior_foreground_state\"\":\"\"absent\"\",\"\"prior_foreground\"\":null}]\""
+      ]
+    },
+    {
+      "name": "known-hush-clock-conflict-reverse",
+      "stage_index": 1,
+      "expected_refusal": true,
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,coordinate_unit,timestamp_precision,foreground_activities_json",
+        "r2,P,D,stream,Android,activities,caller-qualified-complete-device-app-foregrounds-with-latest-prior-activities,app,ms,1,\"[{\"\"foreground\"\":{\"\"source_event_id\"\":\"\"f\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"foreground\"\",\"\"clock_id\"\":\"\"c2\"\",\"\"coordinate\"\":10},\"\"prior_background_state\"\":\"\"present\"\",\"\"prior_background\"\":{\"\"source_event_id\"\":\"\"b\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"background\"\",\"\"clock_id\"\":null,\"\"coordinate\"\":1},\"\"prior_foreground_state\"\":\"\"absent\"\",\"\"prior_foreground\"\":null}]\"",
+        "r1,P,D,stream,Android,activities,caller-qualified-complete-device-app-foregrounds-with-latest-prior-activities,app,ms,1,\"[{\"\"foreground\"\":{\"\"source_event_id\"\":\"\"f\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"foreground\"\",\"\"clock_id\"\":null,\"\"coordinate\"\":10},\"\"prior_background_state\"\":\"\"present\"\",\"\"prior_background\"\":{\"\"source_event_id\"\":\"\"b\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"background\"\",\"\"clock_id\"\":\"\"c1\"\",\"\"coordinate\"\":1},\"\"prior_foreground_state\"\":\"\"absent\"\",\"\"prior_foreground\"\":null}]\""
+      ]
+    },
+    {
+      "name": "positive-jones-complementary-stays-unavailable",
+      "stage_index": 3,
+      "expected_refusal": false,
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,coordinate_unit,timestamp_precision,previous_launch_json,current_launch_json",
+        "r1,P,D,stream,Android,pair,caller-qualified-consecutive-same-app-launch-pair,app,ms,1,\"{\"\"source_event_id\"\":\"\"a\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":1}\",\"{\"\"source_event_id\"\":\"\"b\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":null}\"",
+        "r2,P,D,stream,Android,pair,caller-qualified-consecutive-same-app-launch-pair,app,ms,1,\"{\"\"source_event_id\"\":\"\"a\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":null}\",\"{\"\"source_event_id\"\":\"\"b\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":8}\""
+      ],
+      "expected_fields_per_row": [
+        {
+          "elapsed_coordinates": null
+        },
+        {
+          "elapsed_coordinates": null
+        }
+      ]
+    },
+    {
+      "name": "positive-hold-complementary-stays-unavailable",
+      "stage_index": 5,
+      "expected_refusal": false,
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,coordinate_unit,timestamp_precision,typing_pairs_json",
+        "r1,P,D,stream,Android,pair,caller-qualified-complete-trial-session-hold-flight-pairs,ms,1,\"[{\"\"pair_id\"\":\"\"pair\"\",\"\"kind\"\":\"\"hold\"\",\"\"pair_stage\"\":\"\"caller-resolved-same-key-press-release\"\",\"\"start_anchor\"\":{\"\"source_event_id\"\":\"\"p\"\",\"\"key_instance_id\"\":\"\"k\"\",\"\"event_role\"\":\"\"key_press\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":1},\"\"end_anchor\"\":{\"\"source_event_id\"\":\"\"r\"\",\"\"key_instance_id\"\":\"\"k\"\",\"\"event_role\"\":\"\"key_release\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":null}}]\"",
+        "r2,P,D,stream,Android,pair,caller-qualified-complete-trial-session-hold-flight-pairs,ms,1,\"[{\"\"pair_id\"\":\"\"pair\"\",\"\"kind\"\":\"\"hold\"\",\"\"pair_stage\"\":\"\"caller-resolved-same-key-press-release\"\",\"\"start_anchor\"\":{\"\"source_event_id\"\":\"\"p\"\",\"\"key_instance_id\"\":\"\"k\"\",\"\"event_role\"\":\"\"key_press\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":null},\"\"end_anchor\"\":{\"\"source_event_id\"\":\"\"r\"\",\"\"key_instance_id\"\":\"\"k\"\",\"\"event_role\"\":\"\"key_release\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":8}}]\""
+      ],
+      "expected_fields_per_row": [
+        {
+          "hold_mean_ms": null
+        },
+        {
+          "hold_mean_ms": null
+        }
+      ]
+    },
+    {
+      "name": "positive-hush-complementary-stays-unavailable",
+      "stage_index": 1,
+      "expected_refusal": false,
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,coordinate_unit,timestamp_precision,foreground_activities_json",
+        "r1,P,D,stream,Android,activities,caller-qualified-complete-device-app-foregrounds-with-latest-prior-activities,app,ms,1,\"[{\"\"foreground\"\":{\"\"source_event_id\"\":\"\"f\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"foreground\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":10},\"\"prior_background_state\"\":\"\"present\"\",\"\"prior_background\"\":{\"\"source_event_id\"\":\"\"b\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"background\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":null},\"\"prior_foreground_state\"\":\"\"absent\"\",\"\"prior_foreground\"\":null}]\"",
+        "r2,P,D,stream,Android,activities,caller-qualified-complete-device-app-foregrounds-with-latest-prior-activities,app,ms,1,\"[{\"\"foreground\"\":{\"\"source_event_id\"\":\"\"f\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"foreground\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":null},\"\"prior_background_state\"\":\"\"present\"\",\"\"prior_background\"\":{\"\"source_event_id\"\":\"\"b\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"background\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":1},\"\"prior_foreground_state\"\":\"\"absent\"\",\"\"prior_foreground\"\":null}]\""
+      ],
+      "expected_fields_per_row": [
+        {
+          "mean_staleness_coordinates": null
+        },
+        {
+          "mean_staleness_coordinates": null
+        }
+      ]
+    },
+    {
+      "name": "signed-flight-remains-computed",
+      "stage_index": 5,
+      "expected_refusal": false,
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,coordinate_unit,timestamp_precision,typing_pairs_json",
+        "r1,P,D,stream,Android,pair,caller-qualified-complete-trial-session-hold-flight-pairs,ms,1,\"[{\"\"pair_id\"\":\"\"pair\"\",\"\"kind\"\":\"\"flight\"\",\"\"pair_stage\"\":\"\"caller-resolved-release-next-keypress\"\",\"\"start_anchor\"\":{\"\"source_event_id\"\":\"\"r\"\",\"\"key_instance_id\"\":\"\"k1\"\",\"\"event_role\"\":\"\"key_release\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":10},\"\"end_anchor\"\":{\"\"source_event_id\"\":\"\"p\"\",\"\"key_instance_id\"\":\"\"k2\"\",\"\"event_role\"\":\"\"key_press\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":5}}]\""
+      ],
+      "expected_fields_per_row": [
+        {
+          "hold_mean_ms": null,
+          "flight_mean_ms": -5
+        }
+      ]
+    },
+    {
+      "name": "signed-flight-complementary-remains-unavailable",
+      "stage_index": 5,
+      "expected_refusal": false,
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,coordinate_unit,timestamp_precision,typing_pairs_json",
+        "r1,P,D,stream,Android,pair,caller-qualified-complete-trial-session-hold-flight-pairs,ms,1,\"[{\"\"pair_id\"\":\"\"pair\"\",\"\"kind\"\":\"\"flight\"\",\"\"pair_stage\"\":\"\"caller-resolved-release-next-keypress\"\",\"\"start_anchor\"\":{\"\"source_event_id\"\":\"\"r\"\",\"\"key_instance_id\"\":\"\"k1\"\",\"\"event_role\"\":\"\"key_release\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":10},\"\"end_anchor\"\":{\"\"source_event_id\"\":\"\"p\"\",\"\"key_instance_id\"\":\"\"k2\"\",\"\"event_role\"\":\"\"key_press\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":null}}]\"",
+        "r2,P,D,stream,Android,pair,caller-qualified-complete-trial-session-hold-flight-pairs,ms,1,\"[{\"\"pair_id\"\":\"\"pair\"\",\"\"kind\"\":\"\"flight\"\",\"\"pair_stage\"\":\"\"caller-resolved-release-next-keypress\"\",\"\"start_anchor\"\":{\"\"source_event_id\"\":\"\"r\"\",\"\"key_instance_id\"\":\"\"k1\"\",\"\"event_role\"\":\"\"key_release\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":null},\"\"end_anchor\"\":{\"\"source_event_id\"\":\"\"p\"\",\"\"key_instance_id\"\":\"\"k2\"\",\"\"event_role\"\":\"\"key_press\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":5}}]\""
+      ],
+      "expected_fields_per_row": [
+        {
+          "flight_mean_ms": null
+        },
+        {
+          "flight_mean_ms": null
+        }
+      ]
+    },
+    {
+      "name": "known-jones-strict-interior-forward",
+      "stage_index": 3,
+      "expected_refusal": true,
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,coordinate_unit,timestamp_precision,previous_launch_json,current_launch_json",
+        "r1,P,D,stream,Android,A,caller-qualified-consecutive-same-app-launch-pair,app,ms,1,\"{\"\"source_event_id\"\":\"\"a\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":1}\",\"{\"\"source_event_id\"\":\"\"b\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":10}\"",
+        "r2,P,D,stream,Android,B,caller-qualified-consecutive-same-app-launch-pair,app,ms,1,\"{\"\"source_event_id\"\":\"\"c\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":5}\",\"{\"\"source_event_id\"\":\"\"d\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":20}\""
+      ]
+    },
+    {
+      "name": "known-jones-strict-interior-reverse",
+      "stage_index": 3,
+      "expected_refusal": true,
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,coordinate_unit,timestamp_precision,previous_launch_json,current_launch_json",
+        "r2,P,D,stream,Android,B,caller-qualified-consecutive-same-app-launch-pair,app,ms,1,\"{\"\"source_event_id\"\":\"\"c\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":5}\",\"{\"\"source_event_id\"\":\"\"d\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":20}\"",
+        "r1,P,D,stream,Android,A,caller-qualified-consecutive-same-app-launch-pair,app,ms,1,\"{\"\"source_event_id\"\":\"\"a\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":1}\",\"{\"\"source_event_id\"\":\"\"b\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":10}\""
+      ]
+    },
+    {
+      "name": "known-hush-foreground-strict-interior-forward",
+      "stage_index": 1,
+      "expected_refusal": true,
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,coordinate_unit,timestamp_precision,foreground_activities_json",
+        "r1,P,D,stream,Android,A,caller-qualified-complete-device-app-foregrounds-with-latest-prior-activities,app,ms,1,\"[{\"\"foreground\"\":{\"\"source_event_id\"\":\"\"f10\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"foreground\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":10},\"\"prior_background_state\"\":\"\"absent\"\",\"\"prior_background\"\":null,\"\"prior_foreground_state\"\":\"\"present\"\",\"\"prior_foreground\"\":{\"\"source_event_id\"\":\"\"f1\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"foreground\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":1}}]\"",
+        "r2,P,D,stream,Android,B,caller-qualified-complete-device-app-foregrounds-with-latest-prior-activities,app,ms,1,\"[{\"\"foreground\"\":{\"\"source_event_id\"\":\"\"candidate\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"foreground\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":5},\"\"prior_background_state\"\":\"\"unavailable\"\",\"\"prior_background\"\":null,\"\"prior_foreground_state\"\":\"\"unavailable\"\",\"\"prior_foreground\"\":null}]\""
+      ]
+    },
+    {
+      "name": "known-hush-foreground-strict-interior-reverse",
+      "stage_index": 1,
+      "expected_refusal": true,
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,coordinate_unit,timestamp_precision,foreground_activities_json",
+        "r2,P,D,stream,Android,B,caller-qualified-complete-device-app-foregrounds-with-latest-prior-activities,app,ms,1,\"[{\"\"foreground\"\":{\"\"source_event_id\"\":\"\"candidate\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"foreground\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":5},\"\"prior_background_state\"\":\"\"unavailable\"\",\"\"prior_background\"\":null,\"\"prior_foreground_state\"\":\"\"unavailable\"\",\"\"prior_foreground\"\":null}]\"",
+        "r1,P,D,stream,Android,A,caller-qualified-complete-device-app-foregrounds-with-latest-prior-activities,app,ms,1,\"[{\"\"foreground\"\":{\"\"source_event_id\"\":\"\"f10\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"foreground\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":10},\"\"prior_background_state\"\":\"\"absent\"\",\"\"prior_background\"\":null,\"\"prior_foreground_state\"\":\"\"present\"\",\"\"prior_foreground\"\":{\"\"source_event_id\"\":\"\"f1\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"foreground\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":1}}]\""
+      ]
+    },
+    {
+      "name": "known-hush-background-strict-interior-forward",
+      "stage_index": 1,
+      "expected_refusal": true,
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,coordinate_unit,timestamp_precision,foreground_activities_json",
+        "r1,P,D,stream,Android,A,caller-qualified-complete-device-app-foregrounds-with-latest-prior-activities,app,ms,1,\"[{\"\"foreground\"\":{\"\"source_event_id\"\":\"\"f10\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"foreground\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":10},\"\"prior_background_state\"\":\"\"present\"\",\"\"prior_background\"\":{\"\"source_event_id\"\":\"\"b1\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"background\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":1},\"\"prior_foreground_state\"\":\"\"absent\"\",\"\"prior_foreground\"\":null}]\"",
+        "r2,P,D,stream,Android,B,caller-qualified-complete-device-app-foregrounds-with-latest-prior-activities,app,ms,1,\"[{\"\"foreground\"\":{\"\"source_event_id\"\":\"\"f20\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"foreground\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":20},\"\"prior_background_state\"\":\"\"present\"\",\"\"prior_background\"\":{\"\"source_event_id\"\":\"\"b5\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"background\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":5},\"\"prior_foreground_state\"\":\"\"unavailable\"\",\"\"prior_foreground\"\":null}]\""
+      ]
+    },
+    {
+      "name": "known-hush-background-strict-interior-reverse",
+      "stage_index": 1,
+      "expected_refusal": true,
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,coordinate_unit,timestamp_precision,foreground_activities_json",
+        "r2,P,D,stream,Android,B,caller-qualified-complete-device-app-foregrounds-with-latest-prior-activities,app,ms,1,\"[{\"\"foreground\"\":{\"\"source_event_id\"\":\"\"f20\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"foreground\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":20},\"\"prior_background_state\"\":\"\"present\"\",\"\"prior_background\"\":{\"\"source_event_id\"\":\"\"b5\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"background\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":5},\"\"prior_foreground_state\"\":\"\"unavailable\"\",\"\"prior_foreground\"\":null}]\"",
+        "r1,P,D,stream,Android,A,caller-qualified-complete-device-app-foregrounds-with-latest-prior-activities,app,ms,1,\"[{\"\"foreground\"\":{\"\"source_event_id\"\":\"\"f10\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"foreground\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":10},\"\"prior_background_state\"\":\"\"present\"\",\"\"prior_background\"\":{\"\"source_event_id\"\":\"\"b1\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"background\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":1},\"\"prior_foreground_state\"\":\"\"absent\"\",\"\"prior_foreground\"\":null}]\""
+      ]
+    },
+    {
+      "name": "jones-tie-1-not-a-strict-interior",
+      "stage_index": 3,
+      "expected_refusal": false,
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,coordinate_unit,timestamp_precision,previous_launch_json,current_launch_json",
+        "r1,P,D,stream,Android,A,caller-qualified-consecutive-same-app-launch-pair,app,ms,1,\"{\"\"source_event_id\"\":\"\"a\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":1}\",\"{\"\"source_event_id\"\":\"\"b\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":10}\"",
+        "r2,P,D,stream,Android,B,caller-qualified-consecutive-same-app-launch-pair,app,ms,1,\"{\"\"source_event_id\"\":\"\"c\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":1}\",\"{\"\"source_event_id\"\":\"\"d\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":null}\""
+      ],
+      "expected_fields_per_row": [
+        {
+          "elapsed_coordinates": "9"
+        },
+        {
+          "elapsed_coordinates": null
+        }
+      ]
+    },
+    {
+      "name": "jones-tie-10-not-a-strict-interior",
+      "stage_index": 3,
+      "expected_refusal": false,
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,coordinate_unit,timestamp_precision,previous_launch_json,current_launch_json",
+        "r1,P,D,stream,Android,A,caller-qualified-consecutive-same-app-launch-pair,app,ms,1,\"{\"\"source_event_id\"\":\"\"a\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":1}\",\"{\"\"source_event_id\"\":\"\"b\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":10}\"",
+        "r2,P,D,stream,Android,B,caller-qualified-consecutive-same-app-launch-pair,app,ms,1,\"{\"\"source_event_id\"\":\"\"c\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":10}\",\"{\"\"source_event_id\"\":\"\"d\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":null}\""
+      ],
+      "expected_fields_per_row": [
+        {
+          "elapsed_coordinates": "9"
+        },
+        {
+          "elapsed_coordinates": null
+        }
+      ]
+    },
+    {
+      "name": "jones-after-is-not-interior",
+      "stage_index": 3,
+      "expected_refusal": false,
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,coordinate_unit,timestamp_precision,previous_launch_json,current_launch_json",
+        "r1,P,D,stream,Android,A,caller-qualified-consecutive-same-app-launch-pair,app,ms,1,\"{\"\"source_event_id\"\":\"\"a\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":1}\",\"{\"\"source_event_id\"\":\"\"b\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":10}\"",
+        "r2,P,D,stream,Android,B,caller-qualified-consecutive-same-app-launch-pair,app,ms,1,\"{\"\"source_event_id\"\":\"\"c\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":11}\",\"{\"\"source_event_id\"\":\"\"d\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":20}\""
+      ],
+      "expected_fields_per_row": [
+        {
+          "elapsed_coordinates": "9"
+        },
+        {
+          "elapsed_coordinates": "9"
+        }
+      ]
+    },
+    {
+      "name": "jones-unknown-candidate-coordinate",
+      "stage_index": 3,
+      "expected_refusal": false,
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,coordinate_unit,timestamp_precision,previous_launch_json,current_launch_json",
+        "r1,P,D,stream,Android,A,caller-qualified-consecutive-same-app-launch-pair,app,ms,1,\"{\"\"source_event_id\"\":\"\"a\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":1}\",\"{\"\"source_event_id\"\":\"\"b\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":10}\"",
+        "r2,P,D,stream,Android,B,caller-qualified-consecutive-same-app-launch-pair,app,ms,1,\"{\"\"source_event_id\"\":\"\"c\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":null}\",\"{\"\"source_event_id\"\":\"\"d\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":20}\""
+      ],
+      "expected_fields_per_row": [
+        {
+          "elapsed_coordinates": "9"
+        },
+        {
+          "elapsed_coordinates": null
+        }
+      ]
+    },
+    {
+      "name": "jones-unknown-candidate-clock",
+      "stage_index": 3,
+      "expected_refusal": false,
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,coordinate_unit,timestamp_precision,previous_launch_json,current_launch_json",
+        "r1,P,D,stream,Android,A,caller-qualified-consecutive-same-app-launch-pair,app,ms,1,\"{\"\"source_event_id\"\":\"\"a\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":1}\",\"{\"\"source_event_id\"\":\"\"b\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":10}\"",
+        "r2,P,D,stream,Android,B,caller-qualified-consecutive-same-app-launch-pair,app,ms,1,\"{\"\"source_event_id\"\":\"\"c\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":null,\"\"coordinate\"\":5}\",\"{\"\"source_event_id\"\":\"\"d\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":null,\"\"coordinate\"\":20}\""
+      ],
+      "expected_fields_per_row": [
+        {
+          "elapsed_coordinates": "9"
+        },
+        {
+          "elapsed_coordinates": null
+        }
+      ]
+    },
+    {
+      "name": "jones-different-candidate-clock",
+      "stage_index": 3,
+      "expected_refusal": false,
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,coordinate_unit,timestamp_precision,previous_launch_json,current_launch_json",
+        "r1,P,D,stream,Android,A,caller-qualified-consecutive-same-app-launch-pair,app,ms,1,\"{\"\"source_event_id\"\":\"\"a\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":1}\",\"{\"\"source_event_id\"\":\"\"b\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":10}\"",
+        "r2,P,D,stream,Android,B,caller-qualified-consecutive-same-app-launch-pair,app,ms,1,\"{\"\"source_event_id\"\":\"\"c\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"q\"\",\"\"coordinate\"\":5}\",\"{\"\"source_event_id\"\":\"\"d\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"q\"\",\"\"coordinate\"\":20}\""
+      ],
+      "expected_fields_per_row": [
+        {
+          "elapsed_coordinates": "9"
+        },
+        {
+          "elapsed_coordinates": "15"
+        }
+      ]
+    },
+    {
+      "name": "jones-different-candidate-app",
+      "stage_index": 3,
+      "expected_refusal": false,
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,coordinate_unit,timestamp_precision,previous_launch_json,current_launch_json",
+        "r1,P,D,stream,Android,A,caller-qualified-consecutive-same-app-launch-pair,app,ms,1,\"{\"\"source_event_id\"\":\"\"a\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":1}\",\"{\"\"source_event_id\"\":\"\"b\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":10}\"",
+        "r2,P,D,stream,Android,B,caller-qualified-consecutive-same-app-launch-pair,other,ms,1,\"{\"\"source_event_id\"\":\"\"c\"\",\"\"app_id\"\":\"\"other\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":5}\",\"{\"\"source_event_id\"\":\"\"d\"\",\"\"app_id\"\":\"\"other\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":20}\""
+      ],
+      "expected_fields_per_row": [
+        {
+          "elapsed_coordinates": "9"
+        },
+        {
+          "elapsed_coordinates": "15"
+        }
+      ]
+    },
+    {
+      "name": "jones-different-candidate-device",
+      "stage_index": 3,
+      "expected_refusal": false,
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,coordinate_unit,timestamp_precision,previous_launch_json,current_launch_json",
+        "r1,P,D,stream,Android,A,caller-qualified-consecutive-same-app-launch-pair,app,ms,1,\"{\"\"source_event_id\"\":\"\"a\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":1}\",\"{\"\"source_event_id\"\":\"\"b\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":10}\"",
+        "r2,P,other-device,stream,Android,B,caller-qualified-consecutive-same-app-launch-pair,app,ms,1,\"{\"\"source_event_id\"\":\"\"c\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":5}\",\"{\"\"source_event_id\"\":\"\"d\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":20}\""
+      ],
+      "expected_fields_per_row": [
+        {
+          "elapsed_coordinates": "9"
+        },
+        {
+          "elapsed_coordinates": "15"
+        }
+      ]
+    },
+    {
+      "name": "hush-tie-is-not-strict-interior",
+      "stage_index": 1,
+      "expected_refusal": false,
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,coordinate_unit,timestamp_precision,foreground_activities_json",
+        "r1,P,D,stream,Android,A,caller-qualified-complete-device-app-foregrounds-with-latest-prior-activities,app,ms,1,\"[{\"\"foreground\"\":{\"\"source_event_id\"\":\"\"f10\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"foreground\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":10},\"\"prior_background_state\"\":\"\"absent\"\",\"\"prior_background\"\":null,\"\"prior_foreground_state\"\":\"\"present\"\",\"\"prior_foreground\"\":{\"\"source_event_id\"\":\"\"f1\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"foreground\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":1}}]\"",
+        "r2,P,D,stream,Android,B,caller-qualified-complete-device-app-foregrounds-with-latest-prior-activities,app,ms,1,\"[{\"\"foreground\"\":{\"\"source_event_id\"\":\"\"candidate\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"foreground\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":1},\"\"prior_background_state\"\":\"\"unavailable\"\",\"\"prior_background\"\":null,\"\"prior_foreground_state\"\":\"\"unavailable\"\",\"\"prior_foreground\"\":null}]\""
+      ],
+      "expected_fields_per_row": [
+        {
+          "mean_staleness_coordinates": 9
+        },
+        {
+          "mean_staleness_coordinates": null
+        }
+      ]
+    },
+    {
+      "name": "hush-different-candidate-clock",
+      "stage_index": 1,
+      "expected_refusal": false,
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,coordinate_unit,timestamp_precision,foreground_activities_json",
+        "r1,P,D,stream,Android,A,caller-qualified-complete-device-app-foregrounds-with-latest-prior-activities,app,ms,1,\"[{\"\"foreground\"\":{\"\"source_event_id\"\":\"\"f10\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"foreground\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":10},\"\"prior_background_state\"\":\"\"absent\"\",\"\"prior_background\"\":null,\"\"prior_foreground_state\"\":\"\"present\"\",\"\"prior_foreground\"\":{\"\"source_event_id\"\":\"\"f1\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"foreground\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":1}}]\"",
+        "r2,P,D,stream,Android,B,caller-qualified-complete-device-app-foregrounds-with-latest-prior-activities,app,ms,1,\"[{\"\"foreground\"\":{\"\"source_event_id\"\":\"\"candidate\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"foreground\"\",\"\"clock_id\"\":\"\"q\"\",\"\"coordinate\"\":5},\"\"prior_background_state\"\":\"\"unavailable\"\",\"\"prior_background\"\":null,\"\"prior_foreground_state\"\":\"\"unavailable\"\",\"\"prior_foreground\"\":null}]\""
+      ],
+      "expected_fields_per_row": [
+        {
+          "mean_staleness_coordinates": 9
+        },
+        {
+          "mean_staleness_coordinates": null
+        }
+      ]
+    },
+    {
+      "name": "typing-literal-slash-tuple-collision",
+      "stage_index": 5,
+      "expected_refusal": true,
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,coordinate_unit,timestamp_precision,typing_pairs_json",
+        "r1,P,D,stream,Android,pair,caller-qualified-complete-trial-session-hold-flight-pairs,ms,1,\"[{\"\"pair_id\"\":\"\"pair\"\",\"\"kind\"\":\"\"hold\"\",\"\"pair_stage\"\":\"\"caller-resolved-same-key-press-release\"\",\"\"start_anchor\"\":{\"\"source_event_id\"\":\"\"a/b\"\",\"\"key_instance_id\"\":\"\"k\"\",\"\"event_role\"\":\"\"key_press\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":0},\"\"end_anchor\"\":{\"\"source_event_id\"\":\"\"c\"\",\"\"key_instance_id\"\":\"\"k\"\",\"\"event_role\"\":\"\"key_release\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":10}}]\"",
+        "r2,P,D,stream,Android,pair,caller-qualified-complete-trial-session-hold-flight-pairs,ms,1,\"[{\"\"pair_id\"\":\"\"pair\"\",\"\"kind\"\":\"\"hold\"\",\"\"pair_stage\"\":\"\"caller-resolved-same-key-press-release\"\",\"\"start_anchor\"\":{\"\"source_event_id\"\":\"\"a\"\",\"\"key_instance_id\"\":\"\"k\"\",\"\"event_role\"\":\"\"key_press\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":0},\"\"end_anchor\"\":{\"\"source_event_id\"\":\"\"b/c\"\",\"\"key_instance_id\"\":\"\"k\"\",\"\"event_role\"\":\"\"key_release\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":10}}]\""
+      ]
+    },
+    {
+      "name": "typing-identical-literal-slash-repeat",
+      "stage_index": 5,
+      "expected_refusal": false,
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,coordinate_unit,timestamp_precision,typing_pairs_json",
+        "r1,P,D,stream,Android,pair,caller-qualified-complete-trial-session-hold-flight-pairs,ms,1,\"[{\"\"pair_id\"\":\"\"pair\"\",\"\"kind\"\":\"\"hold\"\",\"\"pair_stage\"\":\"\"caller-resolved-same-key-press-release\"\",\"\"start_anchor\"\":{\"\"source_event_id\"\":\"\"a/b\"\",\"\"key_instance_id\"\":\"\"k\"\",\"\"event_role\"\":\"\"key_press\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":0},\"\"end_anchor\"\":{\"\"source_event_id\"\":\"\"c\"\",\"\"key_instance_id\"\":\"\"k\"\",\"\"event_role\"\":\"\"key_release\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":10}}]\"",
+        "r2,P,D,stream,Android,pair,caller-qualified-complete-trial-session-hold-flight-pairs,ms,1,\"[{\"\"pair_id\"\":\"\"pair\"\",\"\"kind\"\":\"\"hold\"\",\"\"pair_stage\"\":\"\"caller-resolved-same-key-press-release\"\",\"\"start_anchor\"\":{\"\"source_event_id\"\":\"\"a/b\"\",\"\"key_instance_id\"\":\"\"k\"\",\"\"event_role\"\":\"\"key_press\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":0},\"\"end_anchor\"\":{\"\"source_event_id\"\":\"\"c\"\",\"\"key_instance_id\"\":\"\"k\"\",\"\"event_role\"\":\"\"key_release\"\",\"\"clock_id\"\":\"\"c\"\",\"\"coordinate\"\":10}}]\""
+      ],
+      "expected_fields_per_row": [
+        {
+          "hold_mean_ms": 10,
+          "flight_mean_ms": null
+        },
+        {
+          "hold_mean_ms": 10,
+          "flight_mean_ms": null
+        }
+      ]
+    }
+  ]
+}

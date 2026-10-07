@@ -1,0 +1,60 @@
+{
+  "schemaVersion": "chronicle-participant-minimum-count-source-fixture/v1",
+  "sourceWorkId": "doi:10.1007/s10865-024-00499-x",
+  "exactCanonicalSettings": [
+    {
+      "settingId": "method-setting-atomic-69156158af538c61d60d",
+      "parameterKey": "analysis.minimum_valid_days",
+      "sourceObservedSetting": "analysis.minimum_valid_days: 4",
+      "sourceValueSha256": "b9b9455f2833afe0da36c2688d27b64022d0ad5dd3fe74562fc61c5f2c2a473c"
+    },
+    {
+      "settingId": "method-setting-atomic-9cd62c7a581c151683c0",
+      "parameterKey": "analysis.insufficient_valid_days_disposition",
+      "sourceObservedSetting": "analysis.insufficient_valid_days_disposition: Exclude participant",
+      "sourceValueSha256": "0bff44dcdcc7c9c43cafa643d2b2cf8a40a2b5489a4c0725d3a0f37d01f1f99a"
+    }
+  ],
+  "sourceArtifact": {
+    "locator": ".tmp-literature-review-private/strict-screen-native-ranks37-73-20260831T0415Z/text/60-pastime.txt:176-177,191-198",
+    "sha256": "b1dc48785f5c0db64bb3b19349ed7304a315ea8c0abb50d9a8a5a073471bbd53"
+  },
+  "inputBoundary": "One already-derived nonnegative integer count of PALanalysis-valid activPAL days per participant.",
+  "outputBoundary": "Exclude a participant only when the supplied valid-activPAL-day count is strictly below four; retain equality and larger counts.",
+  "limitations": [
+    "This binding does not classify activPAL wear time or decide whether an activPAL day is valid.",
+    "This binding does not group activPAL observations or derive participant-level valid-day counts.",
+    "Android PASTime or iPhone usage-event calendar days are not substituted for activPAL-valid days.",
+    "A missing participant count fails closed rather than being interpreted as zero.",
+    "The reported two excluded participants are descriptive evidence, not asserted as a fixture oracle without participant data."
+  ],
+  "minimumRetainedCount": 4,
+  "dispositions": ["exclude_participant", "retain_participant"],
+  "participants": [
+    {
+      "participantId": "no-valid-days",
+      "validActivpalDayCount": 0,
+      "expectedDisposition": "exclude_participant"
+    },
+    {
+      "participantId": "immediately-below",
+      "validActivpalDayCount": 3,
+      "expectedDisposition": "exclude_participant"
+    },
+    {
+      "participantId": "at-boundary",
+      "validActivpalDayCount": 4,
+      "expectedDisposition": "retain_participant"
+    },
+    {
+      "participantId": "above-boundary",
+      "validActivpalDayCount": 5,
+      "expectedDisposition": "retain_participant"
+    }
+  ],
+  "missingCountCase": {
+    "participantId": "missing-count",
+    "validActivpalDayCount": null,
+    "expectedError": "participant_valid_activpal_day_count_required"
+  }
+}

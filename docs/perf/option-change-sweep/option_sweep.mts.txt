@@ -1,0 +1,237 @@
+// Per-option warm change-cost sweep on the large synthetic fixture.
+// Run from the repo's web/ directory:
+//   cap npm-free:  CAP_MEM=8G CAP_CPU=600% cap node scripts/run-clean-env.mjs \
+//     vite-node /home/opt/chronicle_campaign_backup/sweepwork/option-sweep/option_sweep.mts -- \
+//     --raw /home/opt/chronicle_campaign_backup/sweepwork/option-sweep/fixtures/synthetic-100k.csv \
+//     --out /home/opt/chronicle_campaign_backup/sweepwork/option-sweep/results.json
+//
+// Lives OUTSIDE web/scripts on purpose: the footprint harness-closure digest
+// covers every file in web/scripts, so a new file there would dirty all five
+// committed campaign footprints. This driver mirrors the warm loop of
+// web/scripts/benchmark_runtime_wasm.mts (stable workspaceId + previousRoot
+// threading) and measures, for each computational contract key, one changed
+// execute_workspace from the warm default baseline, then a restore run back
+// to the baseline.
+
+import { createHash } from "node:crypto";
+import { readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { performance } from "node:perf_hooks";
+import process from "node:process";
+import { pathToFileURL } from "node:url";
+
+import {
+  COMPUTATIONAL_BROWSER_OPTION_KEYS,
+  DEFAULT_BROWSER_OPTIONS,
+} from "@/lib/generatedContract";
+import { requiresLiveScientificPreflight } from "@/lib/inputCapabilityEvidence";
+import { buildRustV2Options } from "@/lib/rustPipelineRuntime";
+import { configurationEquivalenceClasses } from "@/testSupport/configurationEquivalenceClasses";
+import { validConfiguration, withValue } from "@/testSupport/rustCampaignGraph";
+
+function sha256(bytes: Uint8Array | string): string {
+  return `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
+}
+
+const argv = process.argv.slice(2);
+let raw: string | null = null;
+let out = "results.json";
+let only: string | null = null;
+const picks = new Map<string, string>();
+for (let index = 0; index < argv.length; index += 1) {
+  if (argv[index] === "--raw" && argv[index + 1]) raw = path.resolve(argv[++index]);
+  else if (argv[index] === "--out" && argv[index + 1]) out = path.resolve(argv[++index]);
+  else if (argv[index] === "--only" && argv[index + 1]) only = argv[++index];
+  else if (argv[index] === "--pick" && argv[index + 1]) {
+    const [pickKey, pickLabel] = argv[++index].split("=");
+    if (pickKey && pickLabel) picks.set(pickKey, pickLabel);
+  }
+}
+if (!raw) throw new Error("--raw <fixture.csv> is required");
+
+const repoWeb = process.cwd();
+const runtimeJs = path.join(
+  repoWeb,
+  "src/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm.js",
+);
+const wasmPath = path.join(
+  repoWeb,
+  "src/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm_bg.wasm",
+);
+const runtime = (await import(pathToFileURL(runtimeJs).href)) as any;
+const wasmBytes = await readFile(wasmPath);
+runtime.initSync({ module: wasmBytes });
+
+const inputBytes = new Uint8Array(await readFile(raw));
+const inputSha256 = sha256(inputBytes);
+const inputFileName = path.basename(raw);
+const supports = new runtime.RuntimeSupportFiles();
+
+// Same base as benchmark_runtime_wasm.mts with --full-options: every gated
+// feature live so its sub-options are measurable; support-file toggles off
+// because no support files are supplied in this harness.
+const baseOptions = {
+  ...DEFAULT_BROWSER_OPTIONS,
+  selectedTimezone: "America/Chicago",
+  timezoneHandling: "selected-filter" as const,
+  useFilterFile: false,
+  useAppsForcingScreenOpenFile: false,
+  useBackgroundAppsFile: false,
+  useAppCodebook: false,
+  modelConcurrentUsage: true,
+  enableScreenGatedCrediting: true,
+  enableAggregates: true,
+  enableDayCoverage: false,
+};
+
+const stableWorkspaceId = sha256(
+  `chronicle-preprocessing-workspace:${inputFileName}\n${inputSha256.replace(/^sha256:/, "")}`,
+);
+let previousRoot: string | null = null;
+let requestCounter = 0;
+
+function tally(statuses: Array<[string, string]>): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const [, status] of statuses) counts[status] = (counts[status] ?? 0) + 1;
+  return counts;
+}
+
+function runOnce(label: string, browserOptions: Record<string, unknown>) {
+  requestCounter += 1;
+  const requestJson = JSON.stringify({
+    protocolVersion: "chronicle-preprocessing-runtime/v2",
+    requestId: `option-sweep-${requestCounter}-${label}`,
+    command: "ExecuteWorkspace",
+    workspaceRootDigest: previousRoot,
+    workspaceId: stableWorkspaceId,
+    inputFileName,
+    inputSha256,
+    options: buildRustV2Options(browserOptions as any, {
+      datetimeOfPreprocessing: "2026-07-23 00:00:00 UTC",
+    }),
+  });
+  // The production path (rustPipelineRuntime.preflightScientificInputs) runs
+  // the scientific preflight before every execute when screen usage or a
+  // screen-derived reconstruction strategy is active, so the practical
+  // per-change cost includes it.
+  let preflightElapsedMs = 0;
+  if (requiresLiveScientificPreflight(browserOptions as any)) {
+    const preflightStarted = performance.now();
+    runtime.scientific_preflight_json(requestJson, inputBytes, supports);
+    preflightElapsedMs = performance.now() - preflightStarted;
+  }
+  const executeStarted = performance.now();
+  const handle = runtime.execute_workspace(requestJson, inputBytes, supports);
+  const executeElapsedMs = performance.now() - executeStarted;
+  try {
+    const manifest = JSON.parse(handle.manifest_json());
+    previousRoot = manifest.workspaceRootDigest ?? previousRoot;
+    let totalArtifactBytes = 0;
+    const extractionStarted = performance.now();
+    for (let index = 0; index < handle.artifact_count; index += 1) {
+      const bytes = handle.take_artifact_bytes(index);
+      totalArtifactBytes += bytes.byteLength;
+    }
+    const artifactExtractionElapsedMs = performance.now() - extractionStarted;
+    const queryStatusCounts = tally(
+      (manifest.queryExecutions ?? []).map(
+        (execution: { query_id: string; status: string }) => [
+          execution.query_id,
+          execution.status,
+        ],
+      ),
+    );
+    return {
+      preflightElapsedMs,
+      executeElapsedMs,
+      artifactExtractionElapsedMs,
+      totalElapsedMs:
+        preflightElapsedMs + executeElapsedMs + artifactExtractionElapsedMs,
+      totalArtifactBytes,
+      queryStatusCounts,
+    };
+  } finally {
+    handle.free();
+  }
+}
+
+const same = (a: unknown, b: unknown) =>
+  JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
+const results: unknown[] = [];
+
+// Cold seed: the very first run at defaults (nothing cached).
+const cold = runOnce("cold-seed", baseOptions);
+console.log(
+  `cold seed: ${cold.executeElapsedMs.toFixed(0)} ms execute, statuses ${JSON.stringify(cold.queryStatusCounts)}`,
+);
+// One warm no-change run to show the fully-cached floor.
+const warmFloor = runOnce("warm-floor", baseOptions);
+console.log(`warm no-change floor: ${warmFloor.executeElapsedMs.toFixed(0)} ms`);
+
+for (const key of COMPUTATIONAL_BROWSER_OPTION_KEYS as readonly string[]) {
+  if (only && key !== only) continue;
+  let classes;
+  try {
+    classes = configurationEquivalenceClasses(key);
+  } catch (error) {
+    results.push({ key, skipped: `no equivalence classes: ${String(error)}` });
+    continue;
+  }
+  const baseValue = (baseOptions as Record<string, unknown>)[key];
+  let chosen: { label: string; value: unknown } | null = null;
+  let changedOptions: Record<string, unknown> | null = null;
+  const forcedLabel = picks.get(key);
+  for (const candidate of classes) {
+    if (forcedLabel && candidate.label !== forcedLabel) continue;
+    if (same(candidate.value, baseValue)) continue;
+    const candidateOptions = withValue(
+      baseOptions as any,
+      key,
+      candidate.value,
+    ) as unknown as Record<string, unknown>;
+    if (!validConfiguration(candidateOptions as any)) continue;
+    chosen = candidate;
+    changedOptions = candidateOptions;
+    break;
+  }
+  if (!chosen || !changedOptions) {
+    results.push({ key, skipped: "no valid non-default class" });
+    continue;
+  }
+  try {
+    const changed = runOnce(`changed-${key}`, changedOptions);
+    const restored = runOnce(`restore-${key}`, baseOptions);
+    results.push({
+      key,
+      changedTo: chosen.label,
+      changedValue: chosen.value ?? null,
+      changed,
+      restored,
+    });
+    console.log(
+      `${key} -> ${chosen.label}: ${changed.executeElapsedMs.toFixed(0)} ms (restore ${restored.executeElapsedMs.toFixed(0)} ms) statuses ${JSON.stringify(changed.queryStatusCounts)}`,
+    );
+  } catch (error) {
+    results.push({ key, changedTo: chosen.label, error: String(error) });
+    console.log(`${key} -> ${chosen.label}: ERROR ${String(error)}`);
+  }
+}
+
+supports.free();
+await writeFile(
+  out,
+  `${JSON.stringify(
+    {
+      fixture: { path: raw, sha256: inputSha256, bytes: inputBytes.byteLength },
+      baseOptionsNote:
+        "DEFAULT_BROWSER_OPTIONS + America/Chicago selected-filter, support files off, concurrent+screen-gated+aggregates on, day coverage off",
+      coldSeed: cold,
+      warmFloor,
+      results,
+    },
+    null,
+    2,
+  )}\n`,
+);
+console.log(`wrote ${out}`);

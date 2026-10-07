@@ -18,7 +18,7 @@ export type { RuntimeClosureManifest } from "./workflowClosureProtocol";
 
 const STORE_DIRECTORY = "chronicle-workflow-runtime-v1";
 export const OPFS_WORKSPACES_DIRECTORY = "chronicle-workflow-workspaces-v1";
-const LEGACY_OPFS_DIRECTORIES = [
+export const LEGACY_OPFS_DIRECTORIES = [
   "chronicle-preprocessing-runtime-v1",
   "chronicle-preprocessing-workspaces-v1",
 ] as const;
@@ -27,7 +27,9 @@ const LEGACY_OPFS_DIRECTORIES = [
  * workspace tree so a probe write can never collide with, or be mistaken for,
  * a content-addressed object or a root slot.
  */
-const OPFS_CAPABILITY_PROBE_DIRECTORY = "chronicle-capability-probe-v1";
+export const OPFS_CAPABILITY_PROBE_DIRECTORY = "chronicle-capability-probe-v1";
+/** Per-worker payload spill files (`workers/payloadSpill.ts`). */
+export const OPFS_PAYLOAD_SPILL_DIRECTORY = "chronicle-payload-spill";
 const OBJECTS_DIRECTORY = "objects";
 const ROOTS_DIRECTORY = "roots";
 const CLOSURE_MAGIC = encodeWorkflowClosureMagic();
@@ -68,6 +70,8 @@ export type PersistedRuntimeArtifactMetadata = Omit<
  */
 type PersistedRuntimeArtifactSource = PersistedRuntimeArtifactMetadata & {
   digestVerified?: true;
+  /** `read()` returns a fresh buffer whose ownership transfers to this module. */
+  wipeAfterRead?: true;
   read: () => Promise<Uint8Array>;
 };
 
@@ -94,9 +98,195 @@ export type RuntimeClosureInspection = {
   object(digest: string): Promise<Uint8Array>;
 };
 
+/**
+ * Why durable storage is unavailable, which decides whether the run may
+ * proceed without it.
+ *
+ * - `unsupported` — this browsing context structurally cannot persist:
+ *   the OPFS or Web Locks API is absent, or the origin refuses to hand out a
+ *   directory at all (Safari private browsing). Retrying changes nothing, so
+ *   refusing here only locks the user out of a run the engine can perform.
+ * - `indeterminate` — storage exists and opened, but an operation on it
+ *   failed: an exhausted quota, a worker that crashed mid-probe, an
+ *   unexplained error. Any of these may succeed on the next attempt, so the
+ *   run is REFUSED and the user is told to retry. Silently downgrading a batch
+ *   to ephemeral on a momentary quota condition would lose it on reload.
+ *
+ * The field is optional so that a producer which cannot classify (the worker
+ * probe's unreachable-worker catch in rustWorkerClient.ts) lands on the
+ * conservative arm by omission rather than by remembering to.
+ */
+type OpfsUnavailableKind = "unsupported" | "indeterminate";
+
 export type OpfsCapability =
   | { status: "ready"; evictionProtected: boolean | null }
-  | { status: "unavailable"; reason: string };
+  | {
+      status: "unavailable";
+      reason: string;
+      kind?: OpfsUnavailableKind;
+    };
+
+/**
+ * May this run proceed on the runtime's non-persisted branch?
+ *
+ * Only a structurally unsupported context degrades. Everything else — an
+ * unclassified failure included — keeps the original fail-closed refusal.
+ */
+export function workspaceDegradesToEphemeral(
+  capability: OpfsCapability | null,
+): boolean {
+  return (
+    capability?.status === "unavailable" && capability.kind === "unsupported"
+  );
+}
+
+/**
+ * A refusal the user should retry rather than work around.
+ */
+export function workspaceRefusesRun(
+  capability: OpfsCapability | null,
+): boolean {
+  return (
+    capability?.status === "unavailable" && capability.kind !== "unsupported"
+  );
+}
+
+/** Retry guidance appended to an indeterminate refusal. */
+export function transientWorkspaceRefusalNotice(reason: string): string {
+  return (
+    `${reason} This may be temporary — an exhausted storage quota or a ` +
+    "processing worker that restarted both look like this. Free up disk " +
+    "space, close other tabs of this app, then reload and try again. " +
+    "Processing is refused rather than silently downgraded, because a run " +
+    "that is not persisted is lost on reload."
+  );
+}
+
+/**
+ * Names that mean the context itself cannot persist, whatever it is asked.
+ *
+ * `SecurityError` and `NotSupportedError` say so at any layer. `TypeError`
+ * only says so BEFORE a handle exists, where it means the API is simply not
+ * there (`navigator.storage.getDirectory` is not a function) — the oldest form
+ * of the same verdict. After a directory handle has been obtained, a
+ * `TypeError` is at least as likely to be a defect inside `writeFile` /
+ * `readFile` as a missing `createWritable`, and treating that as structural
+ * would silently degrade a durable browser to ephemeral mode on our own bug.
+ * Hence two sets, and `operationFailure` uses the narrow one.
+ */
+const POST_OPEN_STRUCTURAL_ERROR_NAMES = new Set([
+  "SecurityError",
+  "NotSupportedError",
+]);
+
+const STRUCTURAL_STORAGE_ERROR_NAMES = new Set([
+  ...POST_OPEN_STRUCTURAL_ERROR_NAMES,
+  "TypeError",
+]);
+
+function isStructurallyUnsupported(error: unknown): boolean {
+  return (
+    error instanceof Error && STRUCTURAL_STORAGE_ERROR_NAMES.has(error.name)
+  );
+}
+
+/**
+ * WebKit refuses `getDirectory()` in a non-persistent (private browsing)
+ * context with `UnknownError` "The operation failed for an unknown transient
+ * reason" — measured on WebKit 26.4, main thread and dedicated worker (see
+ * e2e/durabilityContext.ts). Despite the wording, that refusal holds for the
+ * life of the context. A genuinely transient fault clears when asked again; a
+ * private context refuses every time. So the root is requested a second time,
+ * and an `UnknownError` on both attempts — before any handle exists — is the
+ * private-browsing verdict. An `UnknownError` followed by any other failure
+ * stays unexplained, and unexplained refuses.
+ */
+const PRE_OPEN_UNKNOWN_ERROR_RETRY_MS = 250;
+
+function isUnknownError(error: unknown): error is Error {
+  return error instanceof Error && error.name === "UnknownError";
+}
+
+/** The opened root, or the second of two `UnknownError` refusals. */
+async function openOpfsRootForProbe(): Promise<
+  | { root: FileSystemDirectoryHandle }
+  | { refusedTwice: Error }
+> {
+  try {
+    return { root: await openOpfsRoot() };
+  } catch (first) {
+    if (!isUnknownError(first)) throw first;
+  }
+  await new Promise((resolve) =>
+    setTimeout(resolve, PRE_OPEN_UNKNOWN_ERROR_RETRY_MS),
+  );
+  try {
+    return { root: await openOpfsRoot() };
+  } catch (second) {
+    if (isUnknownError(second)) return { refusedTwice: second };
+    throw second;
+  }
+}
+
+/** The post-open verdict: `TypeError` is NOT structural here. See above. */
+function isStructurallyUnsupportedAfterOpen(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    POST_OPEN_STRUCTURAL_ERROR_NAMES.has(error.name)
+  );
+}
+
+/**
+ * Exactly what a run loses when origin-private file storage is unusable, and
+ * what the user can do about it.
+ *
+ * The Rust runtime has a complete non-persisted branch: with
+ * `persistRustWorkspace` false it skips root recovery and the root commit,
+ * keeps every artifact in memory instead of deleting the ones the OPFS
+ * locators would have served, renders plots and the interactive timeline
+ * immediately rather than lazily from a pinned workspace root, and carries a
+ * `workspaceRootDigest` forward in-process so a same-session re-run still
+ * reuses. Refusing to run at all was therefore stricter than the engine
+ * requires, and the banner did not say what was actually lost or how to get it
+ * back. Persistence stays fail-closed on the OPFS-available path: this text is
+ * only reachable once the verified round-trip probe has already failed.
+ */
+const EPHEMERAL_WORKSPACE_LOSSES: readonly string[] = [
+  "results are held in this tab only and are gone when it is closed or reloaded",
+  "a re-run recomputes from the raw bytes instead of resuming a saved workspace",
+  "workspace export, import, and cross-session run history are unavailable",
+];
+
+export function ephemeralWorkspaceNotice(reason: string): string {
+  return (
+    `${reason} Processing still runs in full, but ${EPHEMERAL_WORKSPACE_LOSSES.join("; ")}. ` +
+    "Download the outputs before leaving the page. To restore durable storage, " +
+    "leave private/incognito browsing, allow this site to store data, or free up disk quota, then reload."
+  );
+}
+
+/**
+ * Does this result set carry nothing that survives a reload?
+ *
+ * An ephemeral run's outputs live in `blob` — an in-memory/file-backed handle
+ * scoped to the tab — and carry no `persistedArtifact` locator. IndexedDB will
+ * happily store the record's metadata anyway, so a restored ephemeral run
+ * looks complete while every download is dead. Used both to refuse the save
+ * and, for records written before that guard existed, to say so on restore.
+ */
+export function resultsLackPersistedOutputs(
+  results: ReadonlyArray<{
+    outputs?: ReadonlyArray<{ persistedArtifact?: unknown }>;
+  }>,
+): boolean {
+  if (!results.length) return false;
+  return results.every(
+    (result) =>
+      !(result.outputs ?? []).some(
+        (output) => output.persistedArtifact !== undefined,
+      ),
+  );
+}
 
 export type LegacyOpfsState = {
   detected: boolean;
@@ -154,6 +344,7 @@ async function writeFile(
 ): Promise<void> {
   const handle = await directory.getFileHandle(name, { create: true });
   const writable = await handle.createWritable();
+  let copy: Uint8Array<ArrayBuffer> | undefined;
   try {
     // Copy unless the view already spans its whole buffer. Two engine facts
     // force this, and only one of them was previously handled:
@@ -169,10 +360,14 @@ async function writeFile(
       bytes.byteOffset === 0 &&
       bytes.byteLength === bytes.buffer.byteLength
         ? (bytes as Uint8Array<ArrayBuffer>)
-        : new Uint8Array(bytes);
+        : (copy = new Uint8Array(bytes));
     await writable.write(owned);
   } finally {
-    await writable.close();
+    try {
+      await writable.close();
+    } finally {
+      copy?.fill(0);
+    }
   }
 }
 
@@ -231,25 +426,36 @@ async function writeVerifiedObject(
   artifact: PersistedRuntimeArtifactSource,
 ): Promise<boolean> {
   const bytes = await artifact.read();
-  if (bytes.byteLength !== artifact.size) {
-    throw new Error(`artifact size mismatch for ${artifact.kind}`);
-  }
-  if (!artifact.digestVerified) {
-    const actual = await sha256(bytes);
-    if (actual !== artifact.digest) {
-      throw new Error(`artifact digest mismatch for ${artifact.kind}`);
-    }
-  }
   try {
-    const existing = await readFile(directory, name);
-    if (existing.byteLength === artifact.size && (await sha256(existing)) === artifact.digest) {
-      return true;
+    if (bytes.byteLength !== artifact.size) {
+      throw new Error(`artifact size mismatch for ${artifact.kind}`);
     }
-  } catch {
-    // Missing or unreadable objects are repaired by the verified write below.
+    if (!artifact.digestVerified) {
+      const actual = await sha256(bytes);
+      if (actual !== artifact.digest) {
+        throw new Error(`artifact digest mismatch for ${artifact.kind}`);
+      }
+    }
+    try {
+      const existing = await readFile(directory, name);
+      try {
+        if (
+          existing.byteLength === artifact.size &&
+          (await sha256(existing)) === artifact.digest
+        ) {
+          return true;
+        }
+      } finally {
+        existing.fill(0);
+      }
+    } catch {
+      // Missing or unreadable objects are repaired by the verified write below.
+    }
+    await writeFile(directory, name, bytes);
+    return false;
+  } finally {
+    if (artifact.wipeAfterRead) bytes.fill(0);
   }
-  await writeFile(directory, name, bytes);
-  return false;
 }
 
 async function putObject(
@@ -259,18 +465,22 @@ async function putObject(
   const { directory, name } = await objectDirectory(objects, artifact.digest, true);
   if (await writeVerifiedObject(directory, name, artifact)) return;
   const stored = await readFile(directory, name);
-  if (stored.byteLength !== artifact.size) {
-    // Naming the observed size is what turned a WebKit corruption into a
-    // one-line diagnosis: "wrote 812, read back 6291456" is the engine storing
-    // a view's whole backing buffer, not a random I/O fault.
-    throw new Error(
-      `OPFS verification failed for ${artifact.kind}: wrote ${artifact.size} bytes, read back ${stored.byteLength}`,
-    );
-  }
-  if ((await sha256(stored)) !== artifact.digest) {
-    throw new Error(
-      `OPFS verification failed for ${artifact.kind}: ${artifact.size} bytes stored with a different digest`,
-    );
+  try {
+    if (stored.byteLength !== artifact.size) {
+      // Naming the observed size is what turned a WebKit corruption into a
+      // one-line diagnosis: "wrote 812, read back 6291456" is the engine storing
+      // a view's whole backing buffer, not a random I/O fault.
+      throw new Error(
+        `OPFS verification failed for ${artifact.kind}: wrote ${artifact.size} bytes, read back ${stored.byteLength}`,
+      );
+    }
+    if ((await sha256(stored)) !== artifact.digest) {
+      throw new Error(
+        `OPFS verification failed for ${artifact.kind}: ${artifact.size} bytes stored with a different digest`,
+      );
+    }
+  } finally {
+    stored.fill(0);
   }
 }
 
@@ -310,10 +520,29 @@ async function readVerifiedObject(
 ): Promise<Uint8Array> {
   const { directory, name } = await objectDirectory(objects, digest, false);
   const bytes = await readFile(directory, name, maxBytes);
-  if ((await sha256(bytes)) !== digest) {
-    throw new Error(`corrupt OPFS object: ${digest}`);
+  try {
+    if ((await sha256(bytes)) !== digest) {
+      throw new Error(`corrupt OPFS object: ${digest}`);
+    }
+    return bytes;
+  } catch (error) {
+    bytes.fill(0);
+    throw error;
   }
-  return bytes;
+}
+
+async function withVerifiedObject<T>(
+  objects: FileSystemDirectoryHandle,
+  digest: string,
+  consume: (bytes: Uint8Array) => T | Promise<T>,
+  maxBytes?: number,
+): Promise<T> {
+  const bytes = await readVerifiedObject(objects, digest, maxBytes);
+  try {
+    return await consume(bytes);
+  } finally {
+    bytes.fill(0);
+  }
 }
 
 async function signedSlot(
@@ -359,7 +588,7 @@ function isRecoverableRootSlotError(error: unknown): boolean {
   );
 }
 
-function isRecoverableClosureObjectError(error: unknown): boolean {
+export function isRecoverableClosureObjectError(error: unknown): boolean {
   return (
     isNotFoundError(error) ||
     (error instanceof Error && error.message.startsWith("corrupt OPFS object:"))
@@ -374,8 +603,12 @@ async function rootSlotCandidates(
   for (const name of ["root-a.json", "root-b.json"]) {
     try {
       const bytes = await readFile(roots, name, MAX_ROOT_SLOT_BYTES);
-      rootSlotObserved = true;
-      candidates.push(await parseSlot(bytes));
+      try {
+        rootSlotObserved = true;
+        candidates.push(await parseSlot(bytes));
+      } finally {
+        bytes.fill(0);
+      }
     } catch (error) {
       if (!isNotFoundError(error)) rootSlotObserved = true;
       if (!isRecoverableRootSlotError(error)) throw error;
@@ -394,7 +627,7 @@ function cachedObjectVerifier(
   return (digest) => {
     let check = checks.get(digest);
     if (!check) {
-      check = readVerifiedObject(objects, digest).then(() => undefined);
+      check = withVerifiedObject(objects, digest, () => undefined);
       checks.set(digest, check);
     }
     return check;
@@ -461,21 +694,29 @@ async function recoverFromDirectories(
 async function recoverHeadFromDirectories(
   objects: FileSystemDirectoryHandle,
   roots: FileSystemDirectoryHandle,
+  fullRecovery: boolean,
 ): Promise<WorkspaceRootSlot | undefined> {
   const { candidates, rootSlotObserved } = await rootSlotCandidates(roots);
   const verifyObject = cachedObjectVerifier(objects);
   for (const candidate of candidates) {
     try {
+      if (fullRecovery) {
+        // Full verification owns the root contract check. A digest-valid but
+        // malformed head must reach it and fail rather than select an older slot.
+        await verifyObject(candidate.workspaceRootDigest);
+        return candidate;
+      }
       // Interactive review needs the signed slot and its root commit, then it
       // verifies the requested closure objects directly. Do not hash every
       // unrelated exported artifact just to locate those two cache objects.
-      const rootBytes = await readVerifiedObject(
+      const rootCommit = await withVerifiedObject(
         objects,
         candidate.workspaceRootDigest,
+        (rootBytes) =>
+          JSON.parse(new TextDecoder().decode(rootBytes)) as {
+            artifactClosureDigest?: unknown;
+          },
       );
-      const rootCommit = JSON.parse(new TextDecoder().decode(rootBytes)) as {
-        artifactClosureDigest?: unknown;
-      };
       if (typeof rootCommit.artifactClosureDigest !== "string") {
         throw new Error("invalid OPFS review head");
       }
@@ -517,6 +758,43 @@ export async function openOpfsWorkspace(
   return workspaces.getDirectoryHandle(digestHex(workspaceId), { create: true });
 }
 
+function isNotFound(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as { name?: unknown }).name === "NotFoundError"
+  );
+}
+
+/**
+ * Remove one workspace's whole directory — every root slot and every
+ * content-addressed object, including the result tables that carry participant
+ * identifiers. A workspace that is already absent counts as removed; any other
+ * failure is thrown so the caller never reports a deletion that did not
+ * happen. Callers that share the workspace with a run must hold its Web Lock
+ * (see `deletePersistedRustWorkspace`).
+ */
+export async function removeOpfsWorkspace(
+  workspaceId: string,
+  suppliedRoot?: FileSystemDirectoryHandle,
+): Promise<void> {
+  const name = digestHex(workspaceId);
+  const root = suppliedRoot ?? (await openOpfsRoot());
+  let workspaces: FileSystemDirectoryHandle;
+  try {
+    workspaces = await root.getDirectoryHandle(OPFS_WORKSPACES_DIRECTORY);
+  } catch (error) {
+    if (isNotFound(error)) return;
+    throw error;
+  }
+  try {
+    await workspaces.removeEntry(name, { recursive: true });
+  } catch (error) {
+    if (isNotFound(error)) return;
+    throw error;
+  }
+}
+
 function capabilityErrorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -533,9 +811,31 @@ function capabilityErrorText(error: unknown): string {
  * `garbageCollectRuntimeObjects` does, so a leftover 32-byte probe file must not
  * be reported as a durability failure.
  */
+type ProbeFailure = { reason: string; kind: OpfsUnavailableKind };
+
+/**
+ * Classify a failure that happened AFTER a directory handle was obtained.
+ *
+ * At this layer storage demonstrably exists, so the default is
+ * `indeterminate`: a `QuotaExceededError`, a filesystem hiccup, an unexplained
+ * rejection, or a `TypeError` thrown by our own `writeFile`/`readFile` can all
+ * clear on the next attempt or be a code defect, and the run must be refused
+ * rather than downgraded. Only a name that means "this context is not allowed
+ * to persist, ever" — and `TypeError` is not one of those once a handle is in
+ * hand — degrades.
+ */
+function operationFailure(prefix: string, error: unknown): ProbeFailure {
+  return {
+    reason: `${prefix}: ${capabilityErrorText(error)}`,
+    kind: isStructurallyUnsupportedAfterOpen(error)
+      ? "unsupported"
+      : "indeterminate",
+  };
+}
+
 async function probeVerifiedRoundTrip(
   root: FileSystemDirectoryHandle,
-): Promise<string | null> {
+): Promise<ProbeFailure | null> {
   // A unique name per probe: the boot probe, the worker probe and a second tab
   // can all be in flight at once, and a shared file name would make them read
   // back each other's random bytes and report a false failure.
@@ -544,67 +844,108 @@ async function probeVerifiedRoundTrip(
     crypto.getRandomValues(new Uint8Array(8)),
     (byte) => byte.toString(16).padStart(2, "0"),
   ).join("")}.bin`;
-  let probeDirectory: FileSystemDirectoryHandle;
+  let readBack: Uint8Array | undefined;
   try {
-    probeDirectory = await root.getDirectoryHandle(
-      OPFS_CAPABILITY_PROBE_DIRECTORY,
-      { create: true },
-    );
-  } catch (error) {
-    return `Origin-private file storage is readable but no directory can be created: ${capabilityErrorText(
-      error,
-    )}`;
+    let probeDirectory: FileSystemDirectoryHandle;
+    try {
+      probeDirectory = await root.getDirectoryHandle(
+        OPFS_CAPABILITY_PROBE_DIRECTORY,
+        { create: true },
+      );
+    } catch (error) {
+      return operationFailure(
+        "Origin-private file storage is readable but no directory can be created",
+        error,
+      );
+    }
+    try {
+      await writeFile(probeDirectory, name, expected);
+    } catch (error) {
+      return operationFailure(
+        "Origin-private file storage is open but not writable",
+        error,
+      );
+    }
+    try {
+      readBack = await readFile(probeDirectory, name);
+    } catch (error) {
+      return operationFailure(
+        "Origin-private file storage accepted a write it cannot read back",
+        error,
+      );
+    }
+    if (
+      readBack.byteLength !== expected.byteLength ||
+      readBack.some((byte, index) => byte !== expected[index])
+    ) {
+      // Storage that answers with the wrong bytes cannot be explained, so it
+      // is refused rather than downgraded: "we cannot persist and we do not
+      // know why" is never a licence to run without persistence.
+      return {
+        reason:
+          "Origin-private file storage returned different bytes than were written, so verified persistence is impossible.",
+        kind: "indeterminate",
+      };
+    }
+    try {
+      await probeDirectory.removeEntry(name);
+    } catch {
+      // Deletion is not a durability primitive; a stale probe file is harmless.
+    }
+    return null;
+  } finally {
+    expected.fill(0);
+    readBack?.fill(0);
   }
-  try {
-    await writeFile(probeDirectory, name, expected);
-  } catch (error) {
-    return `Origin-private file storage is open but not writable: ${capabilityErrorText(
-      error,
-    )}`;
-  }
-  let readBack: Uint8Array;
-  try {
-    readBack = await readFile(probeDirectory, name);
-  } catch (error) {
-    return `Origin-private file storage accepted a write it cannot read back: ${capabilityErrorText(
-      error,
-    )}`;
-  }
-  if (
-    readBack.byteLength !== expected.byteLength ||
-    readBack.some((byte, index) => byte !== expected[index])
-  ) {
-    return "Origin-private file storage returned different bytes than were written, so verified persistence is impossible.";
-  }
-  try {
-    await probeDirectory.removeEntry(name);
-  } catch {
-    // Deletion is not a durability primitive; a stale probe file is harmless.
-  }
-  return null;
 }
 
 export async function probeOpfsCapability(): Promise<OpfsCapability> {
   try {
     if (!navigator.locks?.request) {
+      // A missing browser API is the plainest structural verdict there is.
       return {
         status: "unavailable",
+        kind: "unsupported",
         reason:
           "The Web Locks API is unavailable, so workspace commits cannot be serialized safely.",
       };
     }
-    const root = await openOpfsRoot();
-    const roundTripFailure = await probeVerifiedRoundTrip(root);
+    const opened = await openOpfsRootForProbe();
+    if ("refusedTwice" in opened) {
+      return {
+        status: "unavailable",
+        kind: "unsupported",
+        reason:
+          `Origin-private file storage could not be opened: ${opened.refusedTwice.message} ` +
+          "The browser refused again when asked a second time, which is how " +
+          "Safari private browsing denies storage.",
+      };
+    }
+    const roundTripFailure = await probeVerifiedRoundTrip(opened.root);
     if (roundTripFailure !== null) {
-      return { status: "unavailable", reason: roundTripFailure };
+      return {
+        status: "unavailable",
+        reason: roundTripFailure.reason,
+        kind: roundTripFailure.kind,
+      };
     }
     const evictionProtected = navigator.storage.persisted
       ? await navigator.storage.persisted()
       : null;
     return { status: "ready", evictionProtected };
   } catch (error) {
+    // Nothing was ever opened. Either the API is absent, or the origin refuses
+    // to hand out a directory at all — the private-browsing class. Anything
+    // else that fails this early is unexplained, and unexplained means refuse.
+    const apiAbsent =
+      typeof navigator === "undefined" ||
+      typeof navigator.storage?.getDirectory !== "function";
     return {
       status: "unavailable",
+      kind:
+        apiAbsent || isStructurallyUnsupported(error)
+          ? "unsupported"
+          : "indeterminate",
       reason: `Origin-private file storage could not be opened: ${capabilityErrorText(
         error,
       )}`,
@@ -685,13 +1026,22 @@ async function persistRuntimeWorkspaceFromSources(
       }
       seen.add(rootDigest);
       const artifact = byDigest.get(rootDigest);
-      const bytes: Uint8Array = artifact
-        ? await artifact.read()
-        : await readVerifiedObject(objects, rootDigest);
-      if ((await sha256(bytes)) !== rootDigest) {
-        throw new Error(`incoming workspace root digest mismatch: ${rootDigest}`);
+      const consume = async (bytes: Uint8Array) => {
+        if ((await sha256(bytes)) !== rootDigest) {
+          throw new Error(`incoming workspace root digest mismatch: ${rootDigest}`);
+        }
+        return decodeHistoryRoot(bytes).previousWorkspaceRootDigest;
+      };
+      if (artifact) {
+        const bytes = await artifact.read();
+        try {
+          rootDigest = await consume(bytes);
+        } finally {
+          if (artifact.wipeAfterRead) bytes.fill(0);
+        }
+      } else {
+        rootDigest = await withVerifiedObject(objects, rootDigest, consume);
       }
-      rootDigest = decodeHistoryRoot(bytes).previousWorkspaceRootDigest;
     }
     return false;
   };
@@ -740,25 +1090,45 @@ async function persistRuntimeWorkspaceFromSources(
  */
 class ClosureArchiveBuilder {
   private readonly parts: Blob[] = [];
-  private staged: BlobPart[] = [];
+  private staged: Uint8Array[] = [];
   private stagedBytes = 0;
+  private disposed = false;
 
-  append(bytes: Uint8Array): void {
-    this.staged.push(bytes as BlobPart);
+  appendOwned(bytes: Uint8Array): void {
+    if (this.disposed) throw new Error("runtime closure builder is disposed");
+    this.staged.push(bytes);
     this.stagedBytes += bytes.byteLength;
     if (this.stagedBytes >= CLOSURE_STAGING_BYTES) this.flush();
   }
 
   private flush(): void {
     if (this.staged.length === 0) return;
-    this.parts.push(new Blob(this.staged));
-    this.staged = [];
-    this.stagedBytes = 0;
+    const staged = this.staged;
+    try {
+      this.parts.push(new Blob(staged as BlobPart[]));
+    } finally {
+      staged.forEach((bytes) => bytes.fill(0));
+      this.staged = [];
+      this.stagedBytes = 0;
+    }
   }
 
   finish(): Blob {
-    this.flush();
-    return new Blob(this.parts, { type: WORKFLOW_CLOSURE_ARCHIVE_MIME });
+    try {
+      this.flush();
+      return new Blob(this.parts, { type: WORKFLOW_CLOSURE_ARCHIVE_MIME });
+    } finally {
+      this.dispose();
+    }
+  }
+
+  dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.staged.forEach((bytes) => bytes.fill(0));
+    this.staged = [];
+    this.stagedBytes = 0;
+    this.parts.length = 0;
   }
 }
 
@@ -807,9 +1177,11 @@ export async function commitPersistedRuntimeWorkspace(
         throw new Error("incoming workspace history is cyclic or too large");
       }
       seen.add(rootDigest);
-      rootDigest = decodeHistoryRoot(
-        await readVerifiedObject(objects, rootDigest),
-      ).previousWorkspaceRootDigest;
+      rootDigest = await withVerifiedObject(
+        objects,
+        rootDigest,
+        (bytes) => decodeHistoryRoot(bytes).previousWorkspaceRootDigest,
+      );
     }
     return false;
   };
@@ -868,8 +1240,19 @@ export async function commitPersistedRuntimeWorkspace(
   }
   const slot = await signedSlot(unsigned);
   const slotName = slot.generation % 2 === 1 ? "root-a.json" : "root-b.json";
-  await writeFile(roots, slotName, encodeJson(slot));
-  const verified = await parseSlot(await readFile(roots, slotName));
+  const encodedSlot = encodeJson(slot);
+  try {
+    await writeFile(roots, slotName, encodedSlot);
+  } finally {
+    encodedSlot.fill(0);
+  }
+  const slotBytes = await readFile(roots, slotName);
+  let verified: WorkspaceRootSlot;
+  try {
+    verified = await parseSlot(slotBytes);
+  } finally {
+    slotBytes.fill(0);
+  }
   if (verified.workspaceRootDigest !== input.workspaceRootDigest) {
     throw new Error("OPFS root commit verification failed");
   }
@@ -886,13 +1269,15 @@ export async function recoverRuntimeWorkspace(
 /**
  * Recover only a checksum-valid root slot whose root object is intact.
  * Requested artifacts must still be verified individually before use. Full
- * closure recovery remains `recoverRuntimeWorkspace`.
+ * closure recovery remains `recoverRuntimeWorkspace`. Full execution leaves
+ * semantic head validation to its runtime verifier.
  */
 export async function recoverRuntimeWorkspaceHead(
   root: FileSystemDirectoryHandle,
+  fullRecovery = false,
 ): Promise<WorkspaceRootSlot | undefined> {
   const { objects, roots } = await storeDirectories(root);
-  return recoverHeadFromDirectories(objects, roots);
+  return recoverHeadFromDirectories(objects, roots, fullRecovery);
 }
 
 /** All independently recoverable alternating roots, newest first. */
@@ -1003,10 +1388,18 @@ function directRootDigests(
 async function collectCommittedHistoryFromObjects(
   objects: FileSystemDirectoryHandle,
   headRootDigest: string,
-): Promise<{ workspaceId: string; digests: string[]; rootDigests: string[] }> {
+): Promise<{
+  workspaceId: string;
+  digests: string[];
+  rootDigests: string[];
+  verifiedSizes: Map<string, number>;
+  headDirectDigests: string[];
+}> {
   digestHex(headRootDigest);
   const digests = new Set<string>();
+  const verifiedSizes = new Map<string, number>();
   const rootDigests: string[] = [];
+  let headDirectDigests: string[] = [];
   const seenRoots = new Set<string>();
   let workspaceId: string | undefined;
   let rootDigest: string | null = headRootDigest;
@@ -1019,12 +1412,22 @@ async function collectCommittedHistoryFromObjects(
     }
     seenRoots.add(rootDigest);
     rootDigests.push(rootDigest);
-    const commit = decodeHistoryRoot(await readVerifiedObject(objects, rootDigest));
+    const currentRootDigest = rootDigest;
+    const commit: HistoryRootCommit = await withVerifiedObject(
+      objects,
+      currentRootDigest,
+      (bytes) => {
+        verifiedSizes.set(currentRootDigest, bytes.byteLength);
+        return decodeHistoryRoot(bytes);
+      },
+    );
     workspaceId ??= commit.workspaceId;
     if (commit.workspaceId !== workspaceId) {
       throw new Error("workspace history crosses workspace identities");
     }
-    for (const digest of directRootDigests(rootDigest, commit)) {
+    const direct = directRootDigests(rootDigest, commit);
+    if (rootDigests.length === 1) headDirectDigests = [...direct];
+    for (const digest of direct) {
       digests.add(digest);
       if (digests.size > MAX_CLOSURE_OBJECTS) {
         throw new Error(`workspace history exceeds ${MAX_CLOSURE_OBJECTS} objects`);
@@ -1033,8 +1436,44 @@ async function collectCommittedHistoryFromObjects(
     rootDigest = commit.previousWorkspaceRootDigest;
   }
   if (!workspaceId) throw new Error("workspace history is empty");
-  for (const digest of digests) await readVerifiedObject(objects, digest);
-  return { workspaceId, digests: [...digests].sort(), rootDigests };
+  // Overlap two OPFS reads and digest checks while bounding resident artifact
+  // bytes. Root objects were already verified during the chain walk above.
+  const pending = [...digests].filter((digest) => !verifiedSizes.has(digest));
+  let next = 0;
+  const verifyNext = async (): Promise<void> => {
+    for (;;) {
+      const digest = pending[next];
+      next += 1;
+      if (!digest) return;
+      await withVerifiedObject(objects, digest, (bytes) => {
+        verifiedSizes.set(digest, bytes.byteLength);
+      });
+    }
+  };
+  await Promise.all([verifyNext(), verifyNext()]);
+  return {
+    workspaceId,
+    digests: [...digests].sort(),
+    rootDigests,
+    verifiedSizes,
+    headDirectDigests,
+  };
+}
+
+/** The same fail-closed history walk, with object sizes recorded while their
+ * digests are verified. Semantic validation can reuse these exact checks. */
+export async function collectRuntimeVerifiedHistory(
+  root: FileSystemDirectoryHandle,
+  headRootDigest: string,
+): Promise<{
+  digests: string[];
+  verifiedSizes: ReadonlyMap<string, number>;
+  headDirectDigests: string[];
+}> {
+  const { objects } = await storeDirectories(root);
+  const { digests, verifiedSizes, headDirectDigests } =
+    await collectCommittedHistoryFromObjects(objects, headRootDigest);
+  return { digests, verifiedSizes, headDirectDigests };
 }
 
 export async function collectRuntimeHistoryDigests(
@@ -1058,8 +1497,10 @@ export async function verifyRuntimeWorkspace(
     objects,
     slot.workspaceRootDigest,
   );
-  const head = decodeHistoryRoot(
-    await readVerifiedObject(objects, slot.workspaceRootDigest),
+  const head = await withVerifiedObject(
+    objects,
+    slot.workspaceRootDigest,
+    decodeHistoryRoot,
   );
   if (
     history.workspaceId !== head.workspaceId ||
@@ -1092,11 +1533,12 @@ export async function exportRuntimeClosure(
   slot: WorkspaceRootSlot,
 ): Promise<Blob> {
   await verifyRuntimeWorkspace(root, slot);
-  const rootCommit = JSON.parse(
-    new TextDecoder().decode(
-      await readRuntimeObject(root, slot.workspaceRootDigest),
-    ),
-  ) as { workspaceId?: string };
+  const { objects: objectDirectoryHandle } = await storeDirectories(root);
+  const rootCommit = await withVerifiedObject(
+    objectDirectoryHandle,
+    slot.workspaceRootDigest,
+    (bytes) => JSON.parse(new TextDecoder().decode(bytes)) as { workspaceId?: string },
+  );
   // Unreachable: verifyRuntimeWorkspace above already decoded this exact root
   // via decodeHistoryRoot, which rejects a non-string workspaceId. Kept as a
   // type-narrowing guard for the manifest below.
@@ -1110,7 +1552,6 @@ export async function exportRuntimeClosure(
     root,
     slot.workspaceRootDigest,
   );
-  const { objects: objectDirectoryHandle } = await storeDirectories(root);
   let offset = 0;
   const objects = [];
   for (const digest of sorted) {
@@ -1142,19 +1583,24 @@ export async function exportRuntimeClosure(
     true,
   );
   const builder = new ClosureArchiveBuilder();
-  builder.append(header);
-  builder.append(manifestBytes);
-  for (const entry of objects) {
-    const payload = await readVerifiedObject(objectDirectoryHandle, entry.digest);
-    // The manifest was written from filesystem metadata. A payload that no
-    // longer matches its declared length would silently shift every later
-    // offset, so it fails the export instead.
-    if (payload.byteLength !== entry.size) {
-      throw new Error(`runtime closure object changed while exporting: ${entry.digest}`);
+  try {
+    builder.appendOwned(header);
+    builder.appendOwned(manifestBytes);
+    for (const entry of objects) {
+      const payload = await readVerifiedObject(objectDirectoryHandle, entry.digest);
+      // Ownership transfers to the builder only after the metadata check. On
+      // every other path this scope wipes the buffer itself.
+      if (payload.byteLength !== entry.size) {
+        payload.fill(0);
+        throw new Error(`runtime closure object changed while exporting: ${entry.digest}`);
+      }
+      builder.appendOwned(payload);
     }
-    builder.append(payload);
+    return builder.finish();
+  } catch (error) {
+    builder.dispose();
+    throw error;
   }
-  return builder.finish();
 }
 
 async function readArchiveRange(
@@ -1183,14 +1629,19 @@ async function openRuntimeClosure(archive: Blob): Promise<RuntimeClosureInspecti
     throw new Error("invalid runtime closure magic");
   }
   const header = await readArchiveRange(archive, 0, headerSize);
-  if (!CLOSURE_MAGIC.every((byte, index) => header[index] === byte)) {
-    throw new Error("invalid runtime closure magic");
+  let manifestSize: number;
+  try {
+    if (!CLOSURE_MAGIC.every((byte, index) => header[index] === byte)) {
+      throw new Error("invalid runtime closure magic");
+    }
+    manifestSize = new DataView(
+      header.buffer,
+      header.byteOffset,
+      header.byteLength,
+    ).getUint32(CLOSURE_MAGIC.byteLength, true);
+  } finally {
+    header.fill(0);
   }
-  const manifestSize = new DataView(
-    header.buffer,
-    header.byteOffset,
-    header.byteLength,
-  ).getUint32(CLOSURE_MAGIC.byteLength, true);
   if (
     manifestSize === 0 ||
     manifestSize > MAX_CLOSURE_MANIFEST_BYTES ||
@@ -1199,11 +1650,15 @@ async function openRuntimeClosure(archive: Blob): Promise<RuntimeClosureInspecti
     throw new Error("invalid runtime closure manifest size");
   }
   const payloadStart = headerSize + manifestSize;
-  const manifest = JSON.parse(
-    new TextDecoder().decode(
-      await readArchiveRange(archive, headerSize, payloadStart),
-    ),
-  ) as RuntimeClosureManifest;
+  const manifestBytes = await readArchiveRange(archive, headerSize, payloadStart);
+  let manifest: RuntimeClosureManifest;
+  try {
+    manifest = JSON.parse(
+      new TextDecoder().decode(manifestBytes),
+    ) as RuntimeClosureManifest;
+  } finally {
+    manifestBytes.fill(0);
+  }
   if (
     manifest.protocolVersion !== WORKFLOW_CLOSURE_PROTOCOL_VERSION ||
     manifest.objects.length > MAX_CLOSURE_OBJECTS
@@ -1252,11 +1707,51 @@ async function openRuntimeClosure(archive: Blob): Promise<RuntimeClosureInspecti
       // `Blob.slice` clamps silently, so a source that shrank underneath an
       // already-validated table would otherwise yield a short object.
       if (bytes.byteLength !== entry.size) {
+        bytes.fill(0);
         throw new Error(`runtime closure object is truncated: ${digest}`);
       }
       return bytes;
     },
   };
+}
+
+/**
+ * Open a portable closure without mutating OPFS and verify every declared
+ * object against its content address before returning an accessor.
+ *
+ * This is the read-only counterpart to `importRuntimeClosure`. Keeping the
+ * framing, bounds, table, and payload verification in this module prevents
+ * proof/report tooling from growing a second archive parser or selecting an
+ * object by a digest copied from an older capture.
+ */
+export async function inspectVerifiedRuntimeClosure(
+  archive: Blob,
+): Promise<RuntimeClosureInspection> {
+  const closure = await openRuntimeClosure(archive);
+  for (const object of closure.manifest.objects) {
+    const bytes = await closure.object(object.digest);
+    try {
+      if ((await sha256(bytes)) !== object.digest) {
+        throw new Error(`runtime closure object digest mismatch: ${object.digest}`);
+      }
+    } finally {
+      bytes.fill(0);
+    }
+  }
+  return closure;
+}
+
+async function withRuntimeClosureObject<T>(
+  closure: RuntimeClosureInspection,
+  digest: string,
+  consume: (bytes: Uint8Array) => T | Promise<T>,
+): Promise<T> {
+  const bytes = await closure.object(digest);
+  try {
+    return await consume(bytes);
+  } finally {
+    bytes.fill(0);
+  }
 }
 
 export async function runtimeClosureWorkspaceId(archive: Blob): Promise<string> {
@@ -1279,14 +1774,12 @@ export async function importRuntimeClosure(
   archive: Blob,
   verify: (closure: RuntimeClosureInspection) => Promise<void>,
 ): Promise<WorkspaceRootSlot> {
-  const closure = await openRuntimeClosure(archive);
+  const closure = await inspectVerifiedRuntimeClosure(archive);
   const artifacts: PersistedRuntimeArtifactSource[] = [];
   for (const object of closure.manifest.objects) {
-    // Read, hash, compare, release. Only the verified metadata survives the
-    // iteration; the bytes are read again when this object is actually placed.
-    if ((await sha256(await closure.object(object.digest))) !== object.digest) {
-      throw new Error(`runtime closure object digest mismatch: ${object.digest}`);
-    }
+    // The read-only verifier above has already read, hashed, compared, and
+    // released every payload. Only verified metadata survives this loop; bytes
+    // are read again when the object is actually placed.
     artifacts.push({
       kind:
         object.digest === closure.manifest.workspaceRootDigest
@@ -1296,6 +1789,7 @@ export async function importRuntimeClosure(
       size: object.size,
       read: () => closure.object(object.digest),
       digestVerified: true,
+      wipeAfterRead: true,
     });
   }
   await verify(closure);
@@ -1311,7 +1805,11 @@ export async function importRuntimeClosure(
       throw new Error("runtime closure history is cyclic or too large");
     }
     seenRoots.add(importedRoot);
-    const commit = decodeHistoryRoot(await closure.object(importedRoot));
+    const commit: HistoryRootCommit = await withRuntimeClosureObject(
+      closure,
+      importedRoot,
+      decodeHistoryRoot,
+    );
     if (commit.workspaceId !== closure.manifest.workspaceId) {
       throw new Error("runtime closure history crosses workspace identities");
     }
@@ -1320,8 +1818,10 @@ export async function importRuntimeClosure(
   if (current && !seenRoots.has(current.workspaceRootDigest)) {
     throw new Error("runtime closure diverges from the existing workspace history");
   }
-  const headCommit = decodeHistoryRoot(
-    await closure.object(closure.manifest.workspaceRootDigest),
+  const headCommit = await withRuntimeClosureObject(
+    closure,
+    closure.manifest.workspaceRootDigest,
+    decodeHistoryRoot,
   );
   if (
     headCommit.workspaceId !== closure.manifest.workspaceId ||

@@ -6,6 +6,9 @@ license = "GPL-3.0-only"
 publish = false
 
 [features]
+# Passthrough: lets an instrumented top-level build link the profile runtime
+# into the matcher's own cdylib (see coverage-runtime in that crate).
+coverage-runtime = ["chronicle_app_usage_matcher/coverage-runtime"]
 default = []
 incremental-v2 = ["dep:salsa"]
 # Native profiling only; normal and browser builds compile the timer away.
@@ -23,8 +26,9 @@ csv = "1.3"
 ahash = { version = "0.8", default-features = false, features = ["std"] }
 blake3 = { version = "1.8.5", features = ["wasm32_simd"] }
 xxhash-rust = { version = "0.8.12", features = ["xxh3"] }
-chronicle_app_usage_matcher = { path = "../chronicle_app_usage_matcher", default-features = false }
+chronicle_app_usage_matcher = { path = "deps/chronicle_app_usage_matcher", default-features = false }
 serde_json = "1.0"
+serde_jcs = "0.2"
 postcard = { version = "1.1.3", default-features = false, features = ["alloc"] }
 lz4_flex = { version = "0.13.1", default-features = false, features = ["safe-encode", "safe-decode"] }
 ryu-js = "1.0"
@@ -35,6 +39,11 @@ smallvec = { version = "1.15", default-features = false }
 
 [dev-dependencies]
 syn = { version = "2.0", features = ["full", "visit"] }
+# G4 randomized intervention walks only. Default features pull `fork`/`timeout`
+# (rusty-fork + wait-timeout), which the walks do not use, so they are off: the
+# walks are ordinary in-process tests and a forked child would not share the
+# engine under test.
+proptest = { version = "1.11", default-features = false, features = ["std", "bit-set", "alloc"] }
 
 [profile.release]
 opt-level = 3

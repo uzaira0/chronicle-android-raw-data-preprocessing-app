@@ -1,6 +1,39 @@
 import { describe, expect, it } from "vitest";
 
-import { parseFont, renderSceneToSvg, sceneToSvgBlob, type Scene } from "@/lib/plotScene";
+import {
+  findNearestSceneRegion,
+  parseFont,
+  renderSceneToSvg,
+  sceneToSvgBlob,
+  type Scene,
+  type SceneRegion,
+} from "@/lib/plotScene";
+
+describe("findNearestSceneRegion", () => {
+  const region = (title: string, x: number): SceneRegion => ({
+    x,
+    y: 10,
+    w: 0.5,
+    h: 8,
+    title,
+    lines: [],
+  });
+
+  it("keeps sub-pixel regions hoverable within the caller's scene tolerance", () => {
+    const tiny = region("tiny", 20.4);
+    expect(findNearestSceneRegion([tiny], 20, 14, 0.5)).toBe(tiny);
+    expect(findNearestSceneRegion([tiny], 20, 14, 0.39)).toBeUndefined();
+  });
+
+  it("prefers an exact or nearer region and ignores other rows", () => {
+    const left = region("left", 20.4);
+    const right = region("right", 22);
+    const otherRow = { ...region("other row", 21), y: 30 };
+    expect(findNearestSceneRegion([left, right, otherRow], 21.8, 14, 2)).toBe(right);
+    expect(findNearestSceneRegion([left, right, otherRow], 21.25, 14, 2)).toBe(left);
+    expect(findNearestSceneRegion([otherRow], 21, 14, 2)).toBeUndefined();
+  });
+});
 
 describe("parseFont", () => {
   it("extracts size, weight and family from a Canvas font shorthand", () => {
@@ -62,6 +95,19 @@ describe("renderSceneToSvg", () => {
     expect(svg).toContain('text-anchor="middle"');
     expect(svg).toContain('<polygon');
     expect(svg).toContain('fill="green"');
+  });
+
+  it("keeps the SVG well-formed when a label carries characters XML forbids", () => {
+    const svg = renderSceneToSvg({
+      width: 10,
+      height: 10,
+      primitives: [
+        { type: "text", x: 1, y: 1, text: "a\u0000b\u001fc\ud800d\u{1F600}", fill: "#111", font: "12px sans-serif", anchor: "start", baseline: "alphabetic" },
+      ],
+    });
+    expect(svg).toContain("a\ufffdb\ufffdc\ufffdd\u{1F600}");
+    // eslint-disable-next-line no-control-regex
+    expect(svg).not.toMatch(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/);
   });
 
   it("escapes XML metacharacters in text content", () => {

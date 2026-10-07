@@ -15,6 +15,12 @@ type TooltipProps = {
 };
 
 const POPOVER_OFFSET = 8;
+/**
+ * Grace period before a hover-opened popover closes, long enough to cross the
+ * POPOVER_OFFSET gap from the trigger onto the popover (WCAG 1.4.13: content
+ * shown on hover must stay while the pointer moves over it).
+ */
+const HOVER_CLOSE_DELAY_MS = 200;
 const POPOVER_GAP = 12;
 
 type Anchor = { top: number; left: number };
@@ -44,6 +50,26 @@ export function Tooltip({ content, label }: TooltipProps): ReactElement | null {
   const popoverId = useId();
 
   const visible = open || pinned;
+  const closeTimerRef = useRef<number | null>(null);
+  const cancelHoverClose = () => {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  };
+  const scheduleHoverClose = () => {
+    cancelHoverClose();
+    closeTimerRef.current = window.setTimeout(() => {
+      closeTimerRef.current = null;
+      setOpen(false);
+    }, HOVER_CLOSE_DELAY_MS);
+  };
+  useEffect(
+    () => () => {
+      if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current);
+    },
+    [],
+  );
 
   const applyAnchor = (anchor: Anchor) => {
     const popover = popoverRef.current;
@@ -109,8 +135,11 @@ export function Tooltip({ content, label }: TooltipProps): ReactElement | null {
         aria-label={label ?? content.title ?? "Help"}
         aria-describedby={visible ? popoverId : undefined}
         aria-expanded={visible}
-        onMouseEnter={() => setOpen(true)}
-        onMouseLeave={() => setOpen(false)}
+        onMouseEnter={() => {
+          cancelHoverClose();
+          setOpen(true);
+        }}
+        onMouseLeave={scheduleHoverClose}
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
         onClick={(event) => {
@@ -127,6 +156,8 @@ export function Tooltip({ content, label }: TooltipProps): ReactElement | null {
               role="tooltip"
               ref={popoverRef}
               className="popover"
+              onMouseEnter={cancelHoverClose}
+              onMouseLeave={scheduleHoverClose}
             >
               {content.title ? <p className="popover__title">{content.title}</p> : null}
               {content.body ? <p className="popover__body">{content.body}</p> : null}

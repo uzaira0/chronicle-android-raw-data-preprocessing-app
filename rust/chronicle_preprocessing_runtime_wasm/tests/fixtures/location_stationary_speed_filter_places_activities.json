@@ -1,0 +1,74 @@
+{
+  "schemaVersion": "chronicle-location-stationary-speed-filter-source-fixture/v1",
+  "sourceWorkId": "doi:10.1145/3131901",
+  "canonicalIdentity": {
+    "settingId": "method-setting-2c6e3ce303322e1543eee698",
+    "sourceCurrentSettingId": "method-setting-2c6e3ce303322e1543eee698",
+    "sourceExtractionId": "extraction-2c6e3ce303322e1543eee698",
+    "sourceExecutionUnitId": "location-3131901:location.motion_filter",
+    "aliasResolution": "canonical_current_no_alias_or_tombstone",
+    "tombstoneRegistrySha256": "018221f6036218887355a0a2dcd9d6d54a9e90eb93f380b4e1b81cc75c0f76b5"
+  },
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-2c6e3ce303322e1543eee698",
+    "parameterKey": "location.motion_filter",
+    "sourceObservedSetting": "location.motion_filter: {\"stationary_when\":\"speed_kmh < 5\",\"discard_moving\":true}",
+    "sourceValueSha256": "21c40d25365e0477e39a88c4d1740141b957c5cafbb15b1fe2c1c9059f20f46b"
+  },
+  "sourceArtifacts": [
+    {
+      "locator": ".tmp-literature-review-private/corrective-queue-audit-b-20260831/packet-05-ranks-124-173/fulltext/rank149.txt:284-301",
+      "sha256": "2f1a06612f0ea26c2c09c634850b99a91e125784f2f4412b74725d69b1ea146e"
+    },
+    {
+      "locator": ".tmp-literature-review-private/screened-include-oa-recovery-wave/pdfs/149-8LF898Z3-understanding-the-role-of-places-and-activities-on-mobile-phone-interact.pdf",
+      "sha256": "f16aaeda02375162832f60e61b75819be4a10d15442ba50a4c0038282905e082"
+    },
+    {
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/source-completeness-audits/doi-10.1145-3131901.json#key=location.motion_filter",
+      "sha256": "62f04437c016a6fd4d0ceee9be5be74ad0f3175949c7ee6dab96b2f0a4ba50c6"
+    },
+    {
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/method-setting-alias-tombstones.json#lookup=method-setting-2c6e3ce303322e1543eee698",
+      "sha256": "018221f6036218887355a0a2dcd9d6d54a9e90eb93f380b4e1b81cc75c0f76b5"
+    }
+  ],
+  "inputBoundary": "One caller-supplied finite speed in kilometers per hour for a location reading. The paper derives speed from distance and elapsed time between the previous and current location points; ordering, first-row handling, distance calculation, and timestamp normalization remain upstream.",
+  "outputBoundary": "Retain readings with speed strictly below 5 km/h as stationary and exclude readings at or above 5 km/h as moving.",
+  "limitations": [
+    "The separate accuracy filter that discards readings with more than 50 meters accuracy is not part of this setting.",
+    "The source discloses the strict stationary comparator but not coordinate-distance formula, ordering tie behavior, zero or negative elapsed-time handling, or first-row disposition; those operations remain upstream and unresolved.",
+    "A missing or nonfinite speed fails closed before classification; no rounding, tolerance, or physical speed range is invented.",
+    "Significant-place clustering, the 200-meter centroid rule, centroid updates, place ranking, coder ratings, and downstream notification/app analyses are outside this setting."
+  ],
+  "pivotSpeedKmh": 5.0,
+  "categories": {
+    "below": "retain_stationary",
+    "equal": "exclude_moving",
+    "above": "exclude_moving"
+  },
+  "observations": [
+    {
+      "caseId": "immediately-below-threshold",
+      "speedKmh": 4.999,
+      "expectedClass": "retain_stationary"
+    },
+    {
+      "caseId": "exact-threshold-is-not-strictly-below",
+      "speedKmh": 5.0,
+      "expectedClass": "exclude_moving"
+    },
+    {
+      "caseId": "immediately-above-threshold",
+      "speedKmh": 5.001,
+      "expectedClass": "exclude_moving"
+    }
+  ],
+  "invalidObservations": [
+    {
+      "caseId": "missing-speed",
+      "speedKmh": null,
+      "expectedError": "location_speed_kmh_required"
+    }
+  ]
+}

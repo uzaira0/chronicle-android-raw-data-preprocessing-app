@@ -1,0 +1,209 @@
+{
+  "schema": "chronicle-campaign-footprint/v1",
+  "campaign": "mixed-artifact-configuration",
+  "coveredFiles": [
+    {
+      "path": "rust/chronicle_app_usage_matcher/src/lib.rs",
+      "digest": "sha256:d9bd4a614688504ae0361f6a6197cb39d893e1ded2d2c3b4a9ea4f9e745ec184"
+    },
+    {
+      "path": "rust/chronicle_chrono_kernel_wasm/src/b05_foundational_semantics.rs",
+      "digest": "sha256:3c71c34184f7034dde7bbd13c4c11ca4912347f69e823d1c8757b4dc2ebad8ef"
+    },
+    {
+      "path": "rust/chronicle_chrono_kernel_wasm/src/b06_maximum_duration.rs",
+      "digest": "sha256:0f1ae7f8e38ba4fd8c350410babff3b3c5a64e03704ad4d632b22da64d32fcc9"
+    },
+    {
+      "path": "rust/chronicle_chrono_kernel_wasm/src/eyes_complement.rs",
+      "digest": "sha256:8afa13d2c52332553887289aabd89c6fb99486671e9e48151c328253d11d0202"
+    },
+    {
+      "path": "rust/chronicle_chrono_kernel_wasm/src/jcs.rs",
+      "digest": "sha256:bd67b0dad56470e7052b4078b1c5fa929f02c9e883d72b0c038eade7696dc870"
+    },
+    {
+      "path": "rust/chronicle_chrono_kernel_wasm/src/lib.rs",
+      "digest": "sha256:70c8fb3af99f4c9b0625ccf2f29e4a129a932f4b9c66d1d3a6345e9a0b93f923"
+    },
+    {
+      "path": "rust/chronicle_chrono_kernel_wasm/src/payload_store.rs",
+      "digest": "sha256:01f940bd21fdbab2929f44a134dc534ec87d878f059f86b31cf18c595577d5f8"
+    },
+    {
+      "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_aggregates.rs",
+      "digest": "sha256:cafcacef042f58dadb3efde68c204581d8294890b96829dce34807b291f43830"
+    },
+    {
+      "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+      "digest": "sha256:40426b5c1babc3c5104f9236835bfc9aac516aeddea83cd729bbc90a5d6427bc"
+    },
+    {
+      "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/checkpoint.rs",
+      "digest": "sha256:c5f4e9f073f7a4118defb2f110c1f944046c241a5d6985dd7fd12aede03274f0"
+    },
+    {
+      "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/execution.rs",
+      "digest": "sha256:aadd15c2205dca15c65033d50b676d35e78b459614f8d25fc0170550eb5c1e09"
+    },
+    {
+      "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/incremental/checkpoints.rs",
+      "digest": "sha256:b6fb9482b887dc1bf78bba836055ccb71aa375abfcbbc3761d0eb656b4f48129"
+    },
+    {
+      "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/incremental/db.rs",
+      "digest": "sha256:56a837a22f66e1162968e41767ab492485b9e5b06938651061f035bde1adafc9"
+    },
+    {
+      "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/incremental/inputs.rs",
+      "digest": "sha256:678778d16877668c311fa4a0a8cf2496d1b347b8b49e4fe08027d3facaf3f8aa"
+    },
+    {
+      "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/incremental/persistence.rs",
+      "digest": "sha256:a88017f9628126b05b42b53f9b517814d1ad7ce55bbbaaefffec33a6b24e2bfe"
+    },
+    {
+      "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/model.rs",
+      "digest": "sha256:e377f5f263ddacb119e9f2879aa5b8e54e3efd6b273be851ca84b39c96570b08"
+    },
+    {
+      "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/options.rs",
+      "digest": "sha256:fbc9dd7056a427f3ea2315c61b24791cef475926ab6b9ccce917c2b559ca1cad"
+    },
+    {
+      "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/output.rs",
+      "digest": "sha256:a07e9a13f7a37b9c6210c4a214430a335c8d028d0907825ca93bb087f8c58471"
+    },
+    {
+      "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/payload.rs",
+      "digest": "sha256:f5e8b0a2d27b541aafcbef56c16aae4398e2a91cf1cb77ed8c99a338c6a5aceb"
+    },
+    {
+      "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/row_codec.rs",
+      "digest": "sha256:0b6b5e97c1b1c2878ab5cb3368a173fdc94512234ef0ee2a9effc3833aeb5340"
+    },
+    {
+      "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/scientific.rs",
+      "digest": "sha256:624e2e5f504ede5808fcdfc646556d90ea56d1c01a44b16af63a25075de84dec"
+    },
+    {
+      "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/sequential.rs",
+      "digest": "sha256:a59e4bbe736d5a3003ffffcfcc7a6f9a7bcc9f5927eb91ca949d3725c625af98"
+    },
+    {
+      "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/stage_functions.rs",
+      "digest": "sha256:cbb45f61b8f5efbb4bb6deb955bf2cc8420f8dc1511d7bd6c5dd68e4e9f14f06"
+    },
+    {
+      "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/stages/annotations.rs",
+      "digest": "sha256:4f87c96325ec7b2f71e7509fb37338003e8964467bb79fb2c4205edb9feb853f"
+    },
+    {
+      "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/stages/attribution.rs",
+      "digest": "sha256:2cbac7d692d558ffa2cda9bb1ca8664f38c0704efb804bd5136339dc9d0bc7c0"
+    },
+    {
+      "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/stages/credit.rs",
+      "digest": "sha256:afcafb3d9c01c14d842a52bb8db0628dcd39d29dbcfacfd695c9eda9423494f0"
+    },
+    {
+      "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/stages/notification.rs",
+      "digest": "sha256:3a0f8f3e25efe7eda2135f589ef3ef96494460fb228003b32eaadacad206c5ba"
+    },
+    {
+      "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/stages/polled.rs",
+      "digest": "sha256:6169b6049fdba68db9130fb70dc66520fd6a4ec6f858bf4f59b5795403962a1b"
+    },
+    {
+      "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/stages/reconstruction.rs",
+      "digest": "sha256:f7fbd1631c103c0d0415e7f2634a7a6db9fcb25db84f80530a6a277db2d39d2d"
+    },
+    {
+      "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/stages/screen.rs",
+      "digest": "sha256:8df124702a1681886cdffc5e68ee5f79e9ccb7f7f7179896c8e57bae24e735e4"
+    },
+    {
+      "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/stages/source.rs",
+      "digest": "sha256:d409fbe2ccfa8018ea49400efd0d9656bcfdd7ff412629f5a50060c9f12f2c6c"
+    },
+    {
+      "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/stages/support.rs",
+      "digest": "sha256:d708f0ab5238354f771460aceb1794b60b4ecff29a4ba6e6153acb0048fc9fca"
+    },
+    {
+      "path": "rust/chronicle_chrono_kernel_wasm/src/workflow_contract.rs",
+      "digest": "sha256:05ae63fff21accf54e3a6541e5b34996e4605f87394ce97d2ef4fa514956484d"
+    },
+    {
+      "path": "rust/chronicle_preprocessing_runtime_wasm/src/binary_exports.rs",
+      "digest": "sha256:5eb7dc2ea1d974e720774835126813092085b272cb9563744e4fc7b27990c3c3"
+    },
+    {
+      "path": "rust/chronicle_preprocessing_runtime_wasm/src/execution/dispatch.rs",
+      "digest": "sha256:e861682b1798e590e23d2024060ca492854cf5a5f6a54d0e4d84c83a0266682e"
+    },
+    {
+      "path": "rust/chronicle_preprocessing_runtime_wasm/src/execution/preflight.rs",
+      "digest": "sha256:3573037d5ae49f0dc187ce432e48a54b491745875f37b704a8b5a65efa5ecbe2"
+    },
+    {
+      "path": "rust/chronicle_preprocessing_runtime_wasm/src/execution/state.rs",
+      "digest": "sha256:f5d3398a958414343cc827eabf56bb35d16ebf49003d606a5c36175bf6af3baa"
+    },
+    {
+      "path": "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",
+      "digest": "sha256:293e5f20d2b687f739d1e0fb2037d89db755645aee33be44c26bad170a7e9c28"
+    },
+    {
+      "path": "rust/chronicle_preprocessing_runtime_wasm/src/literature_input_adapters.rs",
+      "digest": "sha256:0b9acf6ab005f17050ddd7920c4d61747fc3f85e2f6012707ac4603a67594b8a"
+    },
+    {
+      "path": "rust/chronicle_preprocessing_runtime_wasm/src/workflow_provenance.rs",
+      "digest": "sha256:2d554377853d351efbb4bd320bfb753986e3da549dad3683371db3d4153b0d60"
+    },
+    {
+      "path": "rust/chronicle_preprocessing_semantic_adapter/src/dependency_cache.rs",
+      "digest": "sha256:4b9f1db3607a8c9eb2d93b1b4bbe5e5ac3ef08e7ed54d390a5afcae53d66e1e6"
+    },
+    {
+      "path": "rust/chronicle_preprocessing_semantic_adapter/src/journal.rs",
+      "digest": "sha256:42032346953aa9570ca489c1eaddcb9cd0d23168e95858349055b738dfa00b1a"
+    },
+    {
+      "path": "rust/chronicle_preprocessing_semantic_adapter/src/lib.rs",
+      "digest": "sha256:7cd472a0de0f319a77e2d012f5f71c475db79f195533a9e6d231605a9b8cb48d"
+    },
+    {
+      "path": "rust/chronicle_preprocessing_semantic_adapter/src/materialize.rs",
+      "digest": "sha256:3b6f7a783abcc75a6f1777c97bfe5a6be304064aa1562243a1a84ac72857b432"
+    },
+    {
+      "path": "rust/chronicle_preprocessing_semantic_adapter/src/model.rs",
+      "digest": "sha256:17bbcb4e1b0a7ac3988ead8a3375eae0e58644cc1220165d561cd9588ae335f8"
+    },
+    {
+      "path": "rust/chronicle_preprocessing_semantic_adapter/src/qualify.rs",
+      "digest": "sha256:5bc1a662ec7575b12cd04bedab79e1a987163d51e79a1f22333be1ed0418bf5f"
+    },
+    {
+      "path": "rust/chronicle_preprocessing_semantic_adapter/src/views.rs",
+      "digest": "sha256:929cadea9813dbd23eb198e4f4c6f9c765c926ab032d0982748645a1ecfa6dcd"
+    }
+  ],
+  "untrackedTouchedFiles": [
+    "/rustc/913e4bea83424658d76712fee9c52452a3a9ef0e/library/std/src/sys/thread_local/no_threads.rs"
+  ],
+  "externallyPinnedFiles": {
+    "registry": [
+      "/cargo-home/registry/src/index.crates.io-1949cf8c6b5b557f/salsa-macro-rules-0.28.5/src/setup_input_struct.rs",
+      "/cargo-home/registry/src/index.crates.io-1949cf8c6b5b557f/salsa-macro-rules-0.28.5/src/setup_tracked_fn.rs"
+    ],
+    "toolchain": []
+  },
+  "manifestClosureDigest": "sha256:a6b7d5ef50091aea58cb024735e0964219f159587cc7b01fee41cb3d14b2d49b",
+  "harnessDigest": "sha256:075d181be1be6c051e511d5c4c4a4d3c3bcb2b86830349773fd718d78f6ed976",
+  "contractDigest": "sha256:890037158a2eac9f0c834e1192b32b25de068e0e1675fc36d0b5907b08fb2917",
+  "toolchain": "rustc 1.97.0-nightly (913e4bea8 2026-04-22) | binary: rustc",
+  "claimBoundary": "Executed-production-file set for this record-mode campaign under LLVM coverage; each file pinned by the digest of its test-stripped normalized source. Conditions the right to inherit this campaign's committed ledger payload without re-measuring; never consulted for runtime invalidation."
+}

@@ -1,0 +1,74 @@
+{
+  "schemaVersion": "chronicle-session-micro-duration-source-fixture/v1",
+  "sourceWorkId": "doi:10.1145/3429360.3468192",
+  "canonicalIdentityResolution": {
+    "settingId": "method-setting-06352b6f143bde0daf1066ba",
+    "supersededExtractionId": "extraction-381d9bfaca7066d98ab6",
+    "aliasTombstoneDisposition": "canonical projected setting has no alias or tombstone entry",
+    "aliasTombstoneRegistrySha256": "018221f6036218887355a0a2dcd9d6d54a9e90eb93f380b4e1b81cc75c0f76b5"
+  },
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-06352b6f143bde0daf1066ba",
+    "parameterKey": "sessions.micro",
+    "sourceObservedSetting": "sessions.micro: duration <=15 seconds",
+    "sourceValueSha256": "64bb4472c477dcc9c1dff55b91854d25c3ec4bc1407e7f6f6471ff6c8af283d2"
+  },
+  "sourceArtifacts": [
+    {
+      "locator": ".tmp-literature-review-private/corrective-packet-09-ranks330-381-20260831/text/360.txt:186-201",
+      "sha256": "9300cc3091f69f5a6b07c54995b783672c5fcfe16f7bb90c01b8db97317025ff"
+    },
+    {
+      "locator": ".tmp-literature-review-private/corrective-packet-09-ranks330-381-20260831/pdfs/360-primary.pdf:pages 1-8#audit-locator=360.txt:186-201",
+      "sha256": "f714a8cdcf5911c105217acf800a2ec5ad47023dad0c43085d41631a03554b0e"
+    },
+    {
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/source-completeness-audits/doi-10.1145-3429360.3468192.json:842-862",
+      "sha256": "03e335522e628862b3b05eef97e99aac1c0517af27f21bbf73c833f43f933225"
+    },
+    {
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/method-setting-alias-tombstones.json#no-entry-for-method-setting-06352b6f143bde0daf1066ba",
+      "sha256": "018221f6036218887355a0a2dcd9d6d54a9e90eb93f380b4e1b81cc75c0f76b5"
+    }
+  ],
+  "inputBoundary": "One caller-supplied finite nonnegative duration in seconds for an already-reconstructed app-usage session.",
+  "outputBoundary": "Classify the session as micro when its supplied duration is at most fifteen seconds; equality remains micro and any greater duration is not micro.",
+  "limitations": [
+    "The source's separate greater-than-45-second inter-app break rule constructs sessions upstream; this binding does not reconstruct sessions from foreground/background events.",
+    "The paper says two duration-calculation methods were consistent but does not disclose either algorithm or which derived duration feeds this classification; the caller supplies the selected source-defined duration.",
+    "The source does not disclose timestamp ordering, missing-event handling, duration resolution, rounding, or tolerance; no sub-second measurement policy is inferred.",
+    "The adjacent 16-to-60-second review and greater-than-60-second engage categories remain separate canonical settings and are not claimed by this one-atom fixture.",
+    "Negative, missing, or nonfinite duration fails closed instead of being converted into a zero-duration session.",
+    "No study app, source code, dataset, or machine-readable source oracle was found; this fixture proves the disclosed micro-session boundary against a reusable scalar operator, not end-to-end result reproduction."
+  ],
+  "pivotSeconds": 15.0,
+  "sessions": [
+    {
+      "sessionId": "below-micro-maximum",
+      "sourceDefinedDurationSeconds": 14.0,
+      "expectedCategory": "micro"
+    },
+    {
+      "sessionId": "exact-micro-maximum",
+      "sourceDefinedDurationSeconds": 15.0,
+      "expectedCategory": "micro"
+    },
+    {
+      "sessionId": "above-micro-maximum",
+      "sourceDefinedDurationSeconds": 16.0,
+      "expectedCategory": "not_micro"
+    }
+  ],
+  "invalidInputCases": [
+    {
+      "sessionId": "missing-session-duration",
+      "sourceDefinedDurationSeconds": null,
+      "expectedError": "source_defined_session_duration_required"
+    },
+    {
+      "sessionId": "negative-session-duration",
+      "sourceDefinedDurationSeconds": -1.0,
+      "expectedError": "source_defined_session_duration_must_be_nonnegative_finite"
+    }
+  ]
+}

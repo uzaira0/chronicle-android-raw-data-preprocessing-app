@@ -1,0 +1,83 @@
+{
+  "source": {
+    "doi": "10.1145/3613904.3642832",
+    "commit": "9203534419c39862351c694f05daf11a7734df94",
+    "file": "sequence-v9.py",
+    "sha256": "7617852f43cf258628845de399ab11aa8db1b1a5f3c5482f438f02d19bf5212d",
+    "lines": "14–18,28,31–43(field choice),49–104",
+    "oracle": "independent source-read hand cases; author code not executed"
+  },
+  "defaults": {
+    "requirements": ["0", "zzzz", "count,offsetTimestamp,timestamp,value,datumType", "EVENT"],
+    "lower": "0",
+    "upper": "zzzz",
+    "sort_type": "int64"
+  },
+  "cases": [
+    {"id":"numeric_sort_first_match_counts_and_kept_keys","lines":"28,67–99,100–104","requirements":["0","zzzz","count","EVENT-App-true-EXTRA","EVENT-App"],"rows":[
+      {"id":"late","datum":"event","offset":"2021-08-11 11:19:02.123456","timestamp":"20","key":"20","value":"{\"packageName\":\"App\",\"isPosted\":true,\"timeTaken\":9007199254740993,\"ignored\":4}"},
+      {"id":"early","datum":"EVENT","offset":"2021-08-11 11:19:01","timestamp":"10","key":"10","value":"{\"packageName\":\"APP\",\"isPosted\":true}"}
+    ],"expected":[
+      ["early","EVENT_App_true_EXTRA","EVENT","2021-08-11T11:19:01.000Z","10","{\"packageName\":\"APP\",\"isPosted\":true}","1 / 2"],
+      ["late","EVENT_App_true_EXTRA","event","2021-08-11T11:19:02.123456.000Z","20","{\"packageName\":\"App\",\"isPosted\":true,\"timeTaken\":9007199254740993}","2 / 2"]
+    ]},
+    {"id":"int64_sort_above_f64_integer_precision","lines":"28","rows":[
+      {"id":"b","key":"9007199254740993","timestamp":"b","value":"{}"},
+      {"id":"a","key":"9007199254740992","timestamp":"a","value":"{}"}
+    ],"expected":[["a","EVENT","EVENT","NaTT.000Z","a","{}","1 / 2"],["b","EVENT","EVENT","NaTT.000Z","b","{}","2 / 2"]]},
+    {"id":"uint64_full_range_sort","lines":"28","sort_type":"uint64","rows":[
+      {"id":"max","key":"18446744073709551615","timestamp":"max","value":"{}"},
+      {"id":"zero","key":"0","timestamp":"zero","value":"{}"}
+    ],"expected":[["zero","EVENT","EVENT","NaTT.000Z","zero","{}","1 / 2"],["max","EVENT","EVENT","NaTT.000Z","max","{}","2 / 2"]]},
+    {"id":"string_sort_is_lexical","lines":"28","sort_type":"string","rows":[
+      {"id":"two","key":"2","timestamp":"2","value":"{}"},
+      {"id":"ten","key":"10","timestamp":"10","value":"{}"}
+    ],"expected":[["ten","EVENT","EVENT","NaTT.000Z","10","{}","1 / 2"],["two","EVENT","EVENT","NaTT.000Z","2","{}","2 / 2"]]},
+    {"id":"float_ieee_infinities_missing_last","lines":"28","sort_type":"float64","rows":[
+      {"id":"missing","key":"","missing":true,"timestamp":"nan","value":"{}"},
+      {"id":"pos","key":"inf","timestamp":"inf","value":"{}"},
+      {"id":"neg","key":"-inf","timestamp":"-inf","value":"{}"}
+    ],"lower":"-inf","requirements":["-inf","zzzz","count","EVENT"],"expected":[["neg","EVENT","EVENT","NaTT.000Z","-inf","{}","1 / 3"],["pos","EVENT","EVENT","NaTT.000Z","inf","{}","2 / 3"],["missing","EVENT","EVENT","NaTT.000Z","nan","{}","3 / 3"]]},
+    {"id":"upper_break_before_lower_activation_lexical","lines":"50–59","requirements":["0","10","count","EVENT"],"upper":"10","rows":[
+      {"id":"nine","key":"9","timestamp":"9","value":"invalid"},
+      {"id":"ten","key":"10","timestamp":"10","value":"{}"}
+    ],"expected":[]},
+    {"id":"independent_offset_lower_timestamp_upper_activation_sticks","lines":"31–43,50–59","requirements":["2021-08-11T11:18:00.000Z","30","MESSAGE-INBOX","EVENT"],"lower":"2021-08-11 11:18:00","upper":"30","rows":[
+      {"id":"pre","key":"1","timestamp":"10","offset":"2021-08-11 11:17:00","value":"invalid"},
+      {"id":"equal","key":"2","timestamp":"20","offset":"2021-08-11 11:18:00","value":"{}"},
+      {"id":"back","key":"3","timestamp":"30","offset":"2021-08-11 11:00:00","value":"{}"},
+      {"id":"stop","key":"4","timestamp":"31","value":"invalid"},
+      {"id":"unused","key":"5","timestamp":"21","value":"invalid"}
+    ],"expected":[["equal","EVENT","EVENT","2021-08-11T11:18:00.000Z","20","{}","1 / 2"],["back","EVENT","EVENT","2021-08-11T11:00:00.000Z","30","{}","2 / 2"]]},
+    {"id":"rstrip_not_internal_trim","lines":"17,64,67","requirements":["0\u001c","zzzz  ","count"," EVENT ","EVENT-App "],"rows":[{"id":"a","key":"1","timestamp":"1","value":"{\"packageName\":\"App\"}"}],"expected":[["a","EVENT_App","EVENT","NaTT.000Z","1","{\"packageName\":\"App\"}","1 / 1"]]},
+    {"id":"underscore_requirement_id_collision_combines_counts","lines":"93–104","requirements":["0","zzzz","count","EVENT-a_b","EVENT-a-b"],"rows":[
+      {"id":"one","key":"1","timestamp":"1","value":"{\"type\":\"a_b\"}"},
+      {"id":"two","key":"2","timestamp":"2","value":"{\"type\":\"a\",\"isPosted\":\"b\"}"}
+    ],"expected":[["one","EVENT_a_b","EVENT","NaTT.000Z","1","{\"type\":\"a_b\"}","1 / 2"],["two","EVENT_a_b","EVENT","NaTT.000Z","2","{\"type\":\"a\",\"isPosted\":\"b\"}","2 / 2"]]},
+    {"id":"or_short_circuit_and_messagebox_second_term_only","lines":"71–79","requirements":["0","zzzz","count","EVENT-match-match"],"rows":[
+      {"id":"short","key":"1","timestamp":"1","value":"{\"type\":\"match\",\"packageName\":3}"},
+      {"id":"message","key":"2","timestamp":"2","value":"{\"messageBox\":\"match\"}"}
+    ],"expected":[["short","EVENT_match_match","EVENT","NaTT.000Z","1","{\"packageName\":3,\"type\":\"match\"}","1 / 1"]]},
+    {"id":"bool_null_big_integer_and_qualified_float_posted","lines":"73,78","requirements":["0","zzzz","count","EVENT-false","EVENT-none","EVENT-9007199254740993","EVENT-1.0"],"rows":[
+      {"id":"bool","key":"1","timestamp":"1","value":"{\"isPosted\":false}"},
+      {"id":"null","key":"2","timestamp":"2","value":"{\"isPosted\":null}"},
+      {"id":"int","key":"3","timestamp":"3","value":"{\"isPosted\":9007199254740993}"},
+      {"id":"float","key":"4","timestamp":"4","value":"{\"isPosted\":1.0}","posted":"1.0"}
+    ],"expected":[["bool","EVENT_false","EVENT","NaTT.000Z","1","{\"isPosted\":false}","1 / 1"],["null","EVENT_none","EVENT","NaTT.000Z","2","{\"isPosted\":null}","1 / 1"],["int","EVENT_9007199254740993","EVENT","NaTT.000Z","3","{\"isPosted\":9007199254740993}","1 / 1"],["float","EVENT_1.0","EVENT","NaTT.000Z","4","{\"isPosted\":1.0}","1 / 1"]]},
+    {"id":"parsed_json_binary64_values_and_arbitrary_integer_values","lines":"65,83–85","rows":[{"id":"a","key":"1","timestamp":"1","value":"{\"currentKey\":[1.0000000000000001,9007199254740993,-0,-0.0],\"timeTaken\":1e0}"}],"expected":[["a","EVENT","EVENT","NaTT.000Z","1","{\"currentKey\":[1.0,9007199254740993,0,-0.0],\"timeTaken\":1.0}","1 / 1"]]},
+    {"id":"retained_overflow_float_has_explicit_transport_error","lines":"65,83–85","rows":[{"id":"a","key":"1","value":"{\"timeTaken\":1e999}"}],"error":"retained nonfinite JSON float has no strict JSON"},
+    {"id":"valid_scalar_unmatched_type_is_ignored","lines":"65–67","rows":[{"id":"a","datum":"other","key":"1","timestamp":"1","value":"[]"}],"expected":[]},
+    {"id":"no_predicates_does_not_parse_json","lines":"62","requirements":["0","zzzz","count"],"rows":[{"id":"a","key":"1","timestamp":"1","value":"invalid"}],"expected":[]},
+    {"id":"unmatched_type_still_parses_json","lines":"65–67","rows":[{"id":"a","datum":"other","key":"1","timestamp":"1","value":"invalid"}],"error":"activated row a JSON"},
+    {"id":"matching_scalar_raises_keys_error","lines":"83–85","rows":[{"id":"a","key":"1","timestamp":"1","value":"[]"}],"error":"source value.keys() requires an object"},
+    {"id":"nonstring_type_errors_before_package_match","lines":"71–74","requirements":["0","zzzz","count","EVENT-App"],"rows":[{"id":"a","key":"1","timestamp":"1","value":"{\"type\":3,\"packageName\":\"App\"}"}],"error":"source .lower() requires string type"},
+    {"id":"float_posted_without_rendering_fails_explicitly","lines":"73","requirements":["0","zzzz","count","EVENT-1.0"],"rows":[{"id":"a","key":"1","timestamp":"1","value":"{\"isPosted\":1.0}"}],"error":"float/composite isPosted requires qualified"},
+    {"id":"integer_tie_refused","lines":"28","rows":[{"id":"a","key":"1"},{"id":"b","key":"1"}],"error":"tied timestamp keys"},
+    {"id":"signed_zero_float_tie_refused","lines":"28","sort_type":"float64","rows":[{"id":"a","key":"0"},{"id":"b","key":"-0"}],"error":"tied timestamp keys"},
+    {"id":"multiple_missing_tie_refused","lines":"28","rows":[{"id":"a","key":"","missing":true},{"id":"b","key":"","missing":true}],"error":"tied timestamp keys"},
+    {"id":"nan_requires_explicit_missing","lines":"28","sort_type":"float64","rows":[{"id":"a","key":"NaN"}],"error":"NaN timestamp key requires explicit"},
+    {"id":"header_only_cannot_carry_invocation","lines":"carrier","rows":[],"error":"requires a metadata-bearing source row"},
+    {"id":"unused_row_metadata_still_consistent","lines":"carrier","rows":[{"id":"a","key":"1"},{"id":"b","key":"2","upper_override":"other","requirements_override":["0","other","count","EVENT"]}],"error":"inconsistent invocation metadata"},
+    {"id":"unicode_comparison_is_explicitly_unclaimed","lines":"67","rows":[{"id":"a","datum":"ÉVENT","key":"1","value":"{}"}],"error":"declared ASCII domain"}
+  ]
+}

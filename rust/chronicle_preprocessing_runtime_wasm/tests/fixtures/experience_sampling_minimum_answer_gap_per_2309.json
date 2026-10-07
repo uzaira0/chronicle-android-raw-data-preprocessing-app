@@ -1,0 +1,64 @@
+{
+  "schemaVersion": "chronicle-experience-sampling-minimum-answer-gap-source-fixture/v1",
+  "sourceWorkId": "doi:10.1002/per.2309",
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-9853159ea7a1ec5f47c85d34",
+    "parameterKey": "preparation.minimum_spacing",
+    "sourceObservedSetting": "preparation.minimum_spacing: remove surveys less than 30 minutes after the previous survey answer",
+    "sourceValueSha256": "2450aef6cee0e0fdcdd3528fe6ea7460fdd4b3b2c999d9b16f06d5c55a3e20ef"
+  },
+  "sourceArtifacts": [
+    {
+      "locator": ".tmp-literature-review-private/corrective-packet-06-ranks174-223-20260831/artifacts/rank183-osf-j93bs/osfstorage/processing/data_preparation/prepare-data-REVISION2.Rmd:51-63",
+      "sha256": "0da09adaa61068b4e410c519a7e9fb365290e8cf79931fc144bb632b2276fcfd"
+    },
+    {
+      "locator": ".tmp-literature-review-private/corrective-packet-06-ranks174-223-20260831/text/183-1-b3facb592d62.txt",
+      "sha256": "990b3f3289030e18c5ed2abf6b0766af6616787a020f529545f2fb9f4d9c780b"
+    },
+    {
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/source-completeness-audits/doi-10.1002-per.2309.json",
+      "sha256": "83d64d098978094763d197968c262b0ea200a38b6e46b1c91ef57eca101cb253"
+    }
+  ],
+  "inputBoundary": "One caller-supplied finite nonnegative elapsed duration in minutes from the previous experience-sampling survey answer to the candidate survey answer.",
+  "outputBoundary": "Remove a candidate answer when the supplied gap is strictly less than 30 minutes and retain it at equality or above.",
+  "limitations": [
+    "The released analysis invokes filter_kurzbefragung but does not include that helper's implementation; this binding executes only the explicitly documented gap predicate.",
+    "Participant partitioning, timestamp parsing, answer ordering, selection of the previous answer, duplicate handling, and iterative versus single-pass behavior occur upstream.",
+    "The source reports 15,699 rows before and 15,682 after filtering, but the private input rows needed to replay that aggregate oracle are unavailable.",
+    "No integer rounding, timestamp resolution, clock, timezone, or tolerance policy is inferred.",
+    "Missing, negative, or nonfinite elapsed duration fails closed instead of being treated as zero or retained."
+  ],
+  "minimumRetainedGapMinutes": 30,
+  "dispositions": ["remove", "retain"],
+  "candidateAnswers": [
+    {
+      "caseId": "immediately-below",
+      "elapsedMinutesSincePreviousAnswer": 29.999,
+      "expectedDisposition": "remove"
+    },
+    {
+      "caseId": "at-boundary",
+      "elapsedMinutesSincePreviousAnswer": 30,
+      "expectedDisposition": "retain"
+    },
+    {
+      "caseId": "immediately-above",
+      "elapsedMinutesSincePreviousAnswer": 30.001,
+      "expectedDisposition": "retain"
+    }
+  ],
+  "invalidGapCases": [
+    {
+      "caseId": "missing-gap",
+      "elapsedMinutesSincePreviousAnswer": null,
+      "expectedError": "elapsed_minutes_since_previous_answer_required"
+    },
+    {
+      "caseId": "negative-gap",
+      "elapsedMinutesSincePreviousAnswer": -0.001,
+      "expectedError": "elapsed_minutes_since_previous_answer_must_be_nonnegative_finite"
+    }
+  ]
+}

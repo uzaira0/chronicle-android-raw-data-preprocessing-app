@@ -1,8 +1,8 @@
 {
   "envelope": {
-    "fields": ["view_id", "family", "schema_id", "revision", "root_digest", "payload"],
+    "fields": ["protocol_version", "view_id", "family", "schema_id", "revision", "root_digest", "payload"],
     "payload_is_family_specific": true,
     "generic_items_links_forbidden": true
   },
-  "selected_views": ["stage", "artifact", "obligation", "temporal_subject", "explanation", "assurance"]
+  "selected_views": ["stage", "artifact", "obligation", "temporal_subject", "explanation", "assurance", "scientific_evidence", "scientific_source_bindings"]
 }

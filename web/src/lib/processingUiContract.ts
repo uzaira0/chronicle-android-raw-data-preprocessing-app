@@ -4,6 +4,7 @@ import defaultAppsForcingScreenOpenUrl from "@/assets/defaults/Chronicle_Android
 import defaultBackgroundAppsUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_background_apps.csv?url";
 import { fetchBundledAssetBytes } from "@/lib/bundledAssetLoader";
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
+import { usesInputCapabilityEvidence } from "@/lib/inputCapabilityEvidence";
 import type {
   BrowserProcessingOptions,
   BrowserSupportFiles,
@@ -137,5 +138,21 @@ export async function resolveDefaultSupportFiles(
     result.surveyAttributionFile = uploads.surveyAttributionFile;
   if (uploads?.enrolledDevicesFile)
     result.enrolledDevicesFile = uploads.enrolledDevicesFile;
+  if (uploads?.analysisFeatureMatrixFile)
+    result.analysisFeatureMatrixFile = uploads.analysisFeatureMatrixFile;
+  if (uploads?.callSmsEligibilityFile)
+    result.callSmsEligibilityFile = uploads.callSmsEligibilityFile;
+  if (uploads?.phoneStudyPsCommunicationFile)
+    result.phoneStudyPsCommunicationFile = uploads.phoneStudyPsCommunicationFile;
+  if (uploads?.phoneStudyEsFile)
+    result.phoneStudyEsFile = uploads.phoneStudyEsFile;
+  if (uploads?.anchorEventsFile)
+    result.anchorEventsFile = uploads.anchorEventsFile;
+  if (
+    usesInputCapabilityEvidence(options) &&
+    uploads?.inputCapabilityEvidenceFile
+  ) {
+    result.inputCapabilityEvidenceFile = uploads.inputCapabilityEvidenceFile;
+  }
   return result;
 }

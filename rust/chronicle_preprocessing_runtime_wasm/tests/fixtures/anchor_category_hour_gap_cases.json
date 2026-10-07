@@ -1,0 +1,59 @@
+{
+  "threshold_hours": [18, 12, 24],
+  "windows_minutes": [30, 60, 90],
+  "cases": [
+    {
+      "id": "duplicate_anchor_right_join_multiplies_rows",
+      "intervals": [{"start_seconds": 0, "duration_seconds": 7200, "category": "use"}],
+      "anchors_seconds": [1800, 1800, 3600]
+    },
+    {
+      "id": "final_duplicate_anchor_recovers_computed_features",
+      "intervals": [{"start_seconds": 0, "duration_seconds": 7200, "category": "use"}],
+      "anchors_seconds": [1800, 3600, 1800]
+    },
+    {
+      "id": "continuous_usage_is_not_an_endpoint_gap",
+      "intervals": [{"start_seconds": 3600, "duration_seconds": 79200, "category": "use"}],
+      "anchors_seconds": [43200, 129600]
+    },
+    {
+      "id": "trailing_gap_masks_features_and_retains_unobserved_day",
+      "intervals": [{"start_seconds": 3600, "duration_seconds": 3600, "category": "use"}],
+      "anchors_seconds": [5400, 91800]
+    },
+    {
+      "id": "exactly_eighteen_hour_boundary",
+      "intervals": [{"start_seconds": 21600, "duration_seconds": 3600, "category": "use"}],
+      "anchors_seconds": [23400, 25200]
+    },
+    {
+      "id": "only_first_recorded_leading_gap_is_ignored",
+      "intervals": [
+        {"start_seconds": 72000, "duration_seconds": 3600, "category": "use"},
+        {"start_seconds": 158400, "duration_seconds": 3600, "category": "use"}
+      ],
+      "anchors_seconds": [73800, 160200, 165600]
+    },
+    {
+      "id": "interior_eighteen_vs_nineteen_hour_gap",
+      "intervals": [
+        {"start_seconds": 0, "duration_seconds": 3600, "category": "use"},
+        {"start_seconds": 64800, "duration_seconds": 3600, "category": "use"},
+        {"start_seconds": 86400, "duration_seconds": 3600, "category": "use"},
+        {"start_seconds": 154800, "duration_seconds": 3600, "category": "use"}
+      ],
+      "anchors_seconds": [1800, 66600, 88200, 156600, 171000]
+    },
+    {
+      "id": "mask_before_window_column_union",
+      "intervals": [
+        {"start_seconds": 1200, "duration_seconds": 1, "category": "wide"},
+        {"start_seconds": 3500, "duration_seconds": 1, "category": "near"},
+        {"start_seconds": 3700, "duration_seconds": 1, "category": "near"},
+        {"start_seconds": 6000, "duration_seconds": 1, "category": "wide"}
+      ],
+      "anchors_seconds": [3600, 90000]
+    }
+  ]
+}

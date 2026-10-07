@@ -1,0 +1,194 @@
+study_id,participant_id,possible_device_model,username,application_label,interaction_type,app_package_name,event_timestamp,start_timestamp,stop_timestamp,timezone
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,System,Screen Interactive,android,2026-04-05 07:59:59.000000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,System,Keyguard Hidden,android,2026-04-05 07:59:59.500000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,android.rk.RockVideoPlayer,Activity Resumed,android.rk.RockVideoPlayer,2026-04-05 08:00:00.000000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,"Clock, Reloj",Activity Resumed,com.sec.android.app.clockpackage,2026-04-05 08:00:00.500000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,"Clock, Reloj",Activity Paused,com.sec.android.app.clockpackage,2026-04-05 08:00:01.000000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,android.rk.RockVideoPlayer,Activity Stopped,android.rk.RockVideoPlayer,2026-04-05 08:00:00.000000,2026-04-05 08:00:00.000000,2026-04-05 08:00:00.000000,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,android.rk.RockVideoPlayer,Custom Foreground,android.rk.RockVideoPlayer,2026-04-05 08:00:01.000000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,android.rk.RockVideoPlayer,Usage Stat,android.rk.RockVideoPlayer,2026-04-05 08:00:02.000000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,android.rk.RockVideoPlayer,Usage Stat,android.rk.RockVideoPlayer,2026-04-05 08:00:02.000000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,System,Screen Non-Interactive,android,2026-04-05 08:00:03.000000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,System,Screen Interactive,android,2026-04-05 08:00:20.000000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,"MetroPlay, Rewards+",Unknown importance: 1,com.metro.minus1,2026-04-05 08:01:10.109000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,"MetroPlay, Rewards+",Unknown importance: 2,com.metro.minus1,2026-04-05 08:01:11.109000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,com.audible.application.kindle,Activity Resumed,com.audible.application.kindle,2026-04-05 08:10:08.342000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,com.audible.application.kindle,Unknown importance: 2,com.audible.application.kindle,2026-04-05 08:10:10.342000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Disney+,Unknown importance: 1,com.disney.disneyplus,2026-04-05 08:13:12.498000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Disney+,Activity Paused,com.disney.disneyplus,2026-04-05 08:13:41.498000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Uncatalogued Research App,Activity Resumed,org.example.uncatalogued.research,2026-04-05 08:16:56.299000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Uncatalogued Research App,Unknown importance: 2,org.example.uncatalogued.research,2026-04-05 08:17:26.299000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Piano,Unknown importance: 1,com.yousician.piano,2026-04-05 08:20:45.688000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Piano,Activity Stopped,com.yousician.piano,2026-04-05 08:21:44.688000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Pandora,Activity Resumed,com.pandora.android,2026-04-05 08:29:56.652000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Pandora,Activity Paused,com.pandora.android,2026-04-05 08:30:56.652000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,com.audible.application.kindle,Unknown importance: 1,com.audible.application.kindle,2026-04-05 08:34:36.472000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,YouTube,Activity Resumed,com.google.android.youtube,2026-04-05 08:34:36.972000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,YouTube,Activity Paused,com.google.android.youtube,2026-04-05 08:35:06.972000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,com.audible.application.kindle,Unknown importance: 2,com.audible.application.kindle,2026-04-05 08:35:37.472000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,System,Keyguard Hidden,android,2026-04-05 08:41:32.995000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Hulu,Activity Resumed,com.hulu.plus,2026-04-05 08:41:33.495000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Hulu,Unknown importance: 2,com.hulu.plus,2026-04-05 08:43:32.495000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,System,Screen Non-Interactive,android,2026-04-05 08:43:35.495000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,System,Screen Interactive,android,2026-04-05 08:43:52.495000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Uncatalogued Research App,Unknown importance: 1,org.example.uncatalogued.research,2026-04-05 08:53:06.831000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Uncatalogued Research App,Activity Paused,org.example.uncatalogued.research,2026-04-05 08:55:06.831000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Uncatalogued Research App,Activity Paused,org.example.uncatalogued.research,2026-04-05 08:55:06.831000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,MyRadar Weather Radar Pro,Activity Resumed,com.acmeaom.android.myradarpro,2026-04-05 08:58:24.433000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,MyRadar Weather Radar Pro,Activity Stopped,com.acmeaom.android.myradarpro,2026-04-05 09:00:25.433000,2026-04-05 08:58:24.433000,2026-04-05 09:00:25.433000,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Samsung account,Unknown importance: 1,com.osp.app.signin,2026-04-05 09:08:30.149000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Samsung account,Unknown importance: 2,com.osp.app.signin,2026-04-05 09:13:29.149000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Samsung account,Custom Foreground,com.osp.app.signin,2026-04-05 09:13:30.149000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Spotify,Activity Resumed,com.spotify.music,2026-04-05 09:19:50.050000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Spotify,Activity Paused,com.spotify.music,2026-04-05 09:24:50.050000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Disney+,Unknown importance: 1,com.disney.disneyplus,2026-04-05 09:29:13.158000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Disney+,Unknown importance: 2,com.disney.disneyplus,2026-04-05 09:34:14.158000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Disney+,Usage Stat,com.disney.disneyplus,2026-04-05 09:34:16.158000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Uncatalogued Research App,Activity Resumed,org.example.uncatalogued.research,2026-04-05 09:37:00.221000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,com.budgestudios.MyLittlePonyHarmonyQuest_amazon,Activity Resumed,com.budgestudios.MyLittlePonyHarmonyQuest_amazon,2026-04-05 09:37:00.721000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,com.budgestudios.MyLittlePonyHarmonyQuest_amazon,Activity Paused,com.budgestudios.MyLittlePonyHarmonyQuest_amazon,2026-04-05 10:06:59.721000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Uncatalogued Research App,Unknown importance: 2,org.example.uncatalogued.research,2026-04-05 10:36:59.221000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,com.android.partnerbrowsercustomizations.example,Unknown importance: 1,com.android.partnerbrowsercustomizations.example,2026-04-05 10:38:07.376000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,com.android.partnerbrowsercustomizations.example,Activity Stopped,com.android.partnerbrowsercustomizations.example,2026-04-05 11:38:07.376000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,System,Keyguard Hidden,android,2026-04-05 11:43:31.632000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,"Fondo de pantalla y estilo, Fondos de pantalla, Wallpaper and style, Wallpapers",Activity Resumed,com.samsung.android.app.dressroom,2026-04-05 11:43:32.132000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,"Fondo de pantalla y estilo, Fondos de pantalla, Wallpaper and style, Wallpapers",Unknown importance: 2,com.samsung.android.app.dressroom,2026-04-05 11:43:32.132000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,System,Screen Non-Interactive,android,2026-04-05 11:43:35.132000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,System,Screen Interactive,android,2026-04-05 11:43:52.132000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Spotify,Unknown importance: 1,com.spotify.music,2026-04-05 11:49:05.890000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Spotify,Unknown importance: 2,com.spotify.music,2026-04-05 11:49:06.890000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Twitch,Activity Resumed,tv.twitch.android.app,2026-04-05 11:53:52.722000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Twitch,Activity Paused,tv.twitch.android.app,2026-04-05 11:53:54.722000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Twitch,Activity Paused,tv.twitch.android.app,2026-04-05 11:53:54.722000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Uncatalogued Research App,Unknown importance: 1,org.example.uncatalogued.research,2026-04-05 11:59:29.550000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Uncatalogued Research App,Unknown importance: 2,org.example.uncatalogued.research,2026-04-05 11:59:58.550000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Ultra data saving mode,Activity Resumed,com.samsung.android.uds,2026-04-05 12:07:06.063000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Ultra data saving mode,Activity Stopped,com.samsung.android.uds,2026-04-05 12:07:36.063000,2026-04-05 12:07:06.063000,2026-04-05 12:07:36.063000,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,"Instalador de paquetes, Instalador del paquete, Package installer",Unknown importance: 1,com.google.android.packageinstaller,2026-04-05 12:11:50.602000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Maps,Activity Resumed,com.google.android.apps.maps,2026-04-05 12:11:51.102000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Maps,Activity Paused,com.google.android.apps.maps,2026-04-05 12:12:20.102000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,"Instalador de paquetes, Instalador del paquete, Package installer",Activity Paused,com.google.android.packageinstaller,2026-04-05 12:12:49.602000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Pandora,Activity Resumed,com.pandora.android,2026-04-05 12:23:15.794000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Pandora,Unknown importance: 2,com.pandora.android,2026-04-05 12:24:15.794000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Pandora,Custom Foreground,com.pandora.android,2026-04-05 12:24:16.794000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Netflix,Unknown importance: 1,com.netflix.mediaclient,2026-04-05 12:28:40.989000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Netflix,Unknown importance: 2,com.netflix.mediaclient,2026-04-05 12:29:41.989000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,System,Keyguard Hidden,android,2026-04-05 12:32:23.558000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Uncatalogued Research App,Activity Resumed,org.example.uncatalogued.research,2026-04-05 12:32:24.058000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Uncatalogued Research App,Activity Paused,org.example.uncatalogued.research,2026-04-05 12:34:23.058000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,System,Screen Non-Interactive,android,2026-04-05 12:34:26.058000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,System,Screen Interactive,android,2026-04-05 12:34:43.058000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,com.amazon.storagemanager,Unknown importance: 1,com.amazon.storagemanager,2026-04-05 12:43:37.007000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,com.amazon.storagemanager,Activity Stopped,com.amazon.storagemanager,2026-04-05 12:45:37.007000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Clock,Activity Resumed,com.android.deskclock,2026-04-05 12:48:23.800000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Clock,Unknown importance: 2,com.android.deskclock,2026-04-05 12:50:24.800000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Clock,Usage Stat,com.android.deskclock,2026-04-05 12:50:26.800000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Maps,Unknown importance: 1,com.google.android.apps.maps,2026-04-05 12:53:27.219000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Maps,Activity Paused,com.google.android.apps.maps,2026-04-05 12:58:26.219000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Maps,Activity Paused,com.google.android.apps.maps,2026-04-05 12:58:26.219000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Twitch,Activity Resumed,tv.twitch.android.app,2026-04-05 13:05:45.996000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Uncatalogued Research App,Activity Resumed,org.example.uncatalogued.research,2026-04-05 13:05:46.496000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Uncatalogued Research App,Activity Paused,org.example.uncatalogued.research,2026-04-05 13:08:15.996000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Twitch,Unknown importance: 2,tv.twitch.android.app,2026-04-05 13:10:45.996000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Uncatalogued Research App,Unknown importance: 1,org.example.uncatalogued.research,2026-04-05 13:14:45.208000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Uncatalogued Research App,Unknown importance: 2,org.example.uncatalogued.research,2026-04-05 13:19:46.208000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,PowerDirector,Activity Resumed,com.cyberlink.powerdirector.DRA140225_01,2026-04-05 13:29:14.662000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,PowerDirector,Activity Stopped,com.cyberlink.powerdirector.DRA140225_01,2026-04-05 14:29:13.662000,2026-04-05 13:29:14.662000,2026-04-05 14:29:13.662000,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,com.wefi.qlink,Unknown importance: 1,com.wefi.qlink,2026-04-05 14:33:55.725000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,com.wefi.qlink,Unknown importance: 2,com.wefi.qlink,2026-04-05 15:33:55.725000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,System,Keyguard Hidden,android,2026-04-05 15:41:05.689000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Pandora,Activity Resumed,com.pandora.android,2026-04-05 15:41:06.189000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Pandora,Unknown importance: 2,com.pandora.android,2026-04-05 15:41:06.189000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,System,Screen Non-Interactive,android,2026-04-05 15:41:09.189000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,System,Screen Interactive,android,2026-04-05 15:41:26.189000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,YouTube,Unknown importance: 1,com.google.android.youtube,2026-04-05 15:44:28.039000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,YouTube,Activity Paused,com.google.android.youtube,2026-04-05 15:44:29.039000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,YouTube,Custom Foreground,com.google.android.youtube,2026-04-05 15:44:30.039000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Uncatalogued Research App,Activity Resumed,org.example.uncatalogued.research,2026-04-05 15:48:40.191000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Uncatalogued Research App,Unknown importance: 2,org.example.uncatalogued.research,2026-04-05 15:48:42.191000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Tubi,Unknown importance: 1,com.tubitv,2026-04-05 15:58:52.334000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,"Emergency Alerts, Wireless emergency alerts",Activity Resumed,com.android.cellbroadcastreceiver,2026-04-05 15:58:52.834000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,"Emergency Alerts, Wireless emergency alerts",Activity Paused,com.android.cellbroadcastreceiver,2026-04-05 15:59:06.834000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Tubi,Activity Stopped,com.tubitv,2026-04-05 15:59:21.334000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Home,Activity Resumed,com.lge.launcher3,2026-04-05 16:08:02.691000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Home,Activity Paused,com.lge.launcher3,2026-04-05 16:08:32.691000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Home,Activity Paused,com.lge.launcher3,2026-04-05 16:08:32.691000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Pandora,Unknown importance: 1,com.pandora.android,2026-04-05 16:11:27.315000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Pandora,Unknown importance: 2,com.pandora.android,2026-04-05 16:12:26.315000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Hulu,Activity Resumed,com.hulu.plus,2026-04-05 16:15:51.005000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Hulu,Unknown importance: 2,com.hulu.plus,2026-04-05 16:16:51.005000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Uncatalogued Research App,Unknown importance: 1,org.example.uncatalogued.research,2026-04-05 16:23:47.733000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Uncatalogued Research App,Activity Paused,org.example.uncatalogued.research,2026-04-05 16:24:48.733000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Uncatalogued Research App,Usage Stat,org.example.uncatalogued.research,2026-04-05 16:24:50.733000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,System,Keyguard Hidden,android,2026-04-05 16:25:19.985000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,com.taptaptales.mashasdaygamesforkidsftu,Activity Resumed,com.taptaptales.mashasdaygamesforkidsftu,2026-04-05 16:25:20.485000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,com.taptaptales.mashasdaygamesforkidsftu,Activity Stopped,com.taptaptales.mashasdaygamesforkidsftu,2026-04-05 16:27:19.485000,2026-04-05 16:25:20.485000,2026-04-05 16:27:19.485000,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,System,Screen Non-Interactive,android,2026-04-05 16:27:22.485000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,System,Screen Interactive,android,2026-04-05 16:27:39.485000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,"Phone, Teléfono",Unknown importance: 1,com.google.android.dialer,2026-04-05 16:34:21.696000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,"Phone, Teléfono",Unknown importance: 2,com.google.android.dialer,2026-04-05 16:36:21.696000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Spotify,Activity Resumed,com.spotify.music,2026-04-05 16:39:19.226000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,YouTube,Activity Resumed,com.google.android.youtube,2026-04-05 16:39:19.726000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,YouTube,Activity Paused,com.google.android.youtube,2026-04-05 16:40:19.726000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Spotify,Activity Paused,com.spotify.music,2026-04-05 16:41:20.226000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Twitch,Unknown importance: 1,tv.twitch.android.app,2026-04-05 16:42:47.999000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Twitch,Unknown importance: 2,tv.twitch.android.app,2026-04-05 16:47:46.999000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Uncatalogued Research App,Activity Resumed,org.example.uncatalogued.research,2026-04-05 16:49:03.877000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Uncatalogued Research App,Unknown importance: 2,org.example.uncatalogued.research,2026-04-05 16:54:03.877000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Uncatalogued Research App,Custom Foreground,org.example.uncatalogued.research,2026-04-05 16:54:04.877000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Down the Hole!,Unknown importance: 1,com.ISAAC.DOWNTHEHOLE,2026-04-05 16:55:30.502000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Down the Hole!,Activity Stopped,com.ISAAC.DOWNTHEHOLE,2026-04-05 17:00:31.502000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Down the Hole!,Activity Stopped,com.ISAAC.DOWNTHEHOLE,2026-04-05 17:00:31.502000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,"Emergency Alerts, Wireless emergency alerts",Activity Resumed,com.android.cellbroadcastreceiver,2026-04-05 17:09:24.306000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,"Emergency Alerts, Wireless emergency alerts",Unknown importance: 2,com.android.cellbroadcastreceiver,2026-04-05 18:09:23.306000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Spotify,Unknown importance: 1,com.spotify.music,2026-04-05 18:15:32.800000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Spotify,Unknown importance: 2,com.spotify.music,2026-04-05 19:15:32.800000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,System,Keyguard Hidden,android,2026-04-05 19:17:50.598000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Netflix,Activity Resumed,com.netflix.mediaclient,2026-04-05 19:17:51.098000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Netflix,Activity Paused,com.netflix.mediaclient,2026-04-05 19:17:51.098000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,System,Screen Non-Interactive,android,2026-04-05 19:17:54.098000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,System,Screen Interactive,android,2026-04-05 19:18:11.098000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Uncatalogued Research App,Unknown importance: 1,org.example.uncatalogued.research,2026-04-05 19:20:54.170000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,ANTON,Activity Resumed,com.solocode.anton,2026-04-05 19:20:54.670000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,ANTON,Activity Paused,com.solocode.anton,2026-04-05 19:20:55.170000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Uncatalogued Research App,Unknown importance: 2,org.example.uncatalogued.research,2026-04-05 19:20:55.170000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,com.naquatic.footballshowdown2015,Activity Resumed,com.naquatic.footballshowdown2015,2026-04-05 19:22:07.462000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,com.naquatic.footballshowdown2015,Activity Stopped,com.naquatic.footballshowdown2015,2026-04-05 19:22:09.462000,2026-04-05 19:22:07.462000,2026-04-05 19:22:09.462000,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,PLS Mobile,Unknown importance: 1,com.pls247.mobile.pls_android,2026-04-05 19:24:05.279000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,PLS Mobile,Activity Paused,com.pls247.mobile.pls_android,2026-04-05 19:24:34.279000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Maps,Activity Resumed,com.google.android.apps.maps,2026-04-05 19:28:39.448000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Maps,Unknown importance: 2,com.google.android.apps.maps,2026-04-05 19:29:09.448000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Maps,Usage Stat,com.google.android.apps.maps,2026-04-05 19:29:11.448000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Twitch,Unknown importance: 1,tv.twitch.android.app,2026-04-05 19:32:08.612000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Twitch,Unknown importance: 2,tv.twitch.android.app,2026-04-05 19:33:07.612000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Uncatalogued Research App,Activity Resumed,org.example.uncatalogued.research,2026-04-05 19:36:04.499000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Uncatalogued Research App,Activity Paused,org.example.uncatalogued.research,2026-04-05 19:37:04.499000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Uncatalogued Research App,Activity Paused,org.example.uncatalogued.research,2026-04-05 19:37:04.499000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Reverse Lookup: Phone Search,Unknown importance: 1,com.orave.ReverseLookup,2026-04-05 19:44:29.056000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Reverse Lookup: Phone Search,Activity Stopped,com.orave.ReverseLookup,2026-04-05 19:45:30.056000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Reverse Lookup: Phone Search,Custom Foreground,com.orave.ReverseLookup,2026-04-05 19:45:31.056000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,System,Keyguard Hidden,android,2026-04-05 19:50:26.316000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Moto App Launcher,Activity Resumed,com.motorola.launcher3,2026-04-05 19:50:26.816000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Spotify,Activity Resumed,com.spotify.music,2026-04-05 19:50:27.316000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Spotify,Activity Paused,com.spotify.music,2026-04-05 19:51:26.316000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Moto App Launcher,Unknown importance: 2,com.motorola.launcher3,2026-04-05 19:52:25.816000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,System,Screen Non-Interactive,android,2026-04-05 19:52:28.816000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,System,Screen Interactive,android,2026-04-05 19:52:45.816000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Spotify,Unknown importance: 1,com.spotify.music,2026-04-05 20:01:23.349000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Spotify,Activity Paused,com.spotify.music,2026-04-05 20:03:23.349000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Netflix,Activity Resumed,com.netflix.mediaclient,2026-04-05 20:06:03.861000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Netflix,Unknown importance: 2,com.netflix.mediaclient,2026-04-05 20:08:04.861000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Uncatalogued Research App,Unknown importance: 1,org.example.uncatalogued.research,2026-04-05 20:13:21.126000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Uncatalogued Research App,Unknown importance: 2,org.example.uncatalogued.research,2026-04-05 20:18:20.126000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,com.air.camera.photo.editor.beauty,Activity Resumed,com.air.camera.photo.editor.beauty,2026-04-05 20:20:37.488000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,com.air.camera.photo.editor.beauty,Activity Stopped,com.air.camera.photo.editor.beauty,2026-04-05 20:25:37.488000,2026-04-05 20:20:37.488000,2026-04-05 20:25:37.488000,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,com.amazon.csapp,Unknown importance: 1,com.amazon.csapp,2026-04-05 20:27:50.793000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,com.amazon.csapp,Unknown importance: 2,com.amazon.csapp,2026-04-05 20:32:51.793000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Pandora,Activity Resumed,com.pandora.android,2026-04-05 20:43:19.681000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Pandora,Unknown importance: 2,com.pandora.android,2026-04-05 21:43:18.681000,,,America/Chicago
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Hulu,Unknown importance: 1,com.hulu.plus,2026-04-05 21:49:07.110000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Uncatalogued Research App,Activity Resumed,org.example.uncatalogued.research,2026-04-05 21:49:07.610000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Uncatalogued Research App,Activity Paused,org.example.uncatalogued.research,2026-04-05 22:19:07.110000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Hulu,Activity Paused,com.hulu.plus,2026-04-05 22:49:07.110000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,Hulu,Activity Paused,com.hulu.plus,2026-04-05 22:49:07.110000,,,America/New_York
+synthetic-configuration-campaign,P-SYN-51a7e5aa,Synthetic Android,Target Child,System,Device Shutdown,android,2026-04-05 22:54:31.660000,,,America/Chicago

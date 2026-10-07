@@ -1,0 +1,65 @@
+{
+  "schemaVersion": "chronicle-esm-app-sampling-gate-source-fixture/v1",
+  "sourceWorkId": "doi:10.1145/3191754",
+  "sourceArtifacts": {
+    "paperTextSha256": "62ca882c4385d020b1462331736224aa48d9a6c9dcf10e384c978af9eb12e62c",
+    "releasedCollectorSha256": "e2007dd9eaadc581b900195409ebf78222ce6ace3660ae18177187e62d1caae3",
+    "releasedSampleSha256": "0edeae88ed09004873fedb8a3431052096b20c49e079d7b4118c88af58ef9c8b",
+    "releasedCodeCommit": "2181ae41d0633ae1708df8fe0b0c8e35c3c8fdca"
+  },
+  "sourceLocator": ".tmp-literature-review-private/corrective-packet-04-ranks-074-123-20260831/text/098.txt:276-296; code-data/098-emotion-sampling/app/src/main/java/com/uw/hcde/esm/DetectAppsService.java:121-211,447-450; Sample.java:95-110",
+  "exactCanonicalSettingIds": [
+    "method-setting-637f4a759da2b57b320dc1a9",
+    "method-setting-e53245d4f933ef1951b8bd61",
+    "method-setting-89b295319a78af875144a91f",
+    "method-setting-984ba339b7d47ce4ae74beb2"
+  ],
+  "inputBoundary": "A caller-observed, contiguous foreground app-use episode that has already passed the released app's new-app, installed-app and launcher exclusions; the exact zero-based during-use draw outcome; the latest three successful sampled package IDs; and caller-computed elapsed milliseconds since the last prompt in the selected state scope.",
+  "outputBoundary": "The source delay, end-prompt threshold eligibility, same-app resampling eligibility and updated three-success history, plus cooldown eligibility under one explicitly selected source variant.",
+  "limitations": [
+    "No random seed or realized branch draws were released; the exact draw index is therefore caller-supplied.",
+    "The released collector's one-second Android polling race and scheduler timing are not reconstructed from a nominal duration.",
+    "Foreground detection, installed-app filtering, launcher exclusion and new-app transition detection remain caller-owned prerequisites.",
+    "Prompt UI, dismissal, timeout, questionnaire branching, serialization and transport are outside this isolated gate.",
+    "The released collector stores last-sample type and three package IDs but not its last-prompt time; callers must choose process-local state explicitly rather than silently persisting it."
+  ],
+  "duringDelayCases": [
+    {"drawIndex": 0, "expectedDelayMs": 15000},
+    {"drawIndex": 44, "expectedDelayMs": 59000},
+    {"drawIndex": 105, "expectedDelayMs": 120000}
+  ],
+  "endPromptCases": [
+    {"contiguousUseDurationMs": 14999, "expectedEligible": false},
+    {"contiguousUseDurationMs": 15000, "expectedEligible": true},
+    {"contiguousUseDurationMs": 15001, "expectedEligible": true}
+  ],
+  "sameAppSequence": ["app.a", "app.b", "app.c", "app.d"],
+  "sameAppExpectedAfterEachSuccess": [
+    ["app.a"],
+    ["app.a", "app.b"],
+    ["app.a", "app.b", "app.c"],
+    ["app.b", "app.c", "app.d"]
+  ],
+  "sameAppCandidateAEligibleAfterEachSuccess": [false, false, false, true],
+  "cooldownCanonicalSettingId": "method-setting-984ba339b7d47ce4ae74beb2",
+  "cooldownVariants": [
+    {
+      "variantId": "paper_at_least_30_minutes",
+      "sourceArtifactSha256": "62ca882c4385d020b1462331736224aa48d9a6c9dcf10e384c978af9eb12e62c",
+      "configurationCanonical": "paper_at_least_30_minutes|threshold_ms=1800000|comparison=greater_than_or_equal",
+      "configurationSha256": "1d04a62c6113e874206248ba6e69baa07b5676c30746ce5d48dd419a494cdac6",
+      "equalityOutcomeCanonical": "paper_at_least_30_minutes|elapsed_ms=1800000|eligible=true",
+      "equalityOutcomeSha256": "4eb4444cf90a23a490f6c3b6cf21a88cbd145da0b07e705d9448a97bf389e000",
+      "expectedEligibleAtExactly30Minutes": true
+    },
+    {
+      "variantId": "released_code_strictly_after_30_minutes",
+      "sourceArtifactSha256": "e2007dd9eaadc581b900195409ebf78222ce6ace3660ae18177187e62d1caae3",
+      "configurationCanonical": "released_code_strictly_after_30_minutes|threshold_ms=1800000|comparison=strictly_greater_than",
+      "configurationSha256": "77e09da8bd03d68575884751e085fb11c3e24a9228381c8c85aa60999d7fbafa",
+      "equalityOutcomeCanonical": "released_code_strictly_after_30_minutes|elapsed_ms=1800000|eligible=false",
+      "equalityOutcomeSha256": "15034b5e82778971caa842c54b407b8b6c95f1fd9d5f1c4c232616a0f9274cdd",
+      "expectedEligibleAtExactly30Minutes": false
+    }
+  ]
+}

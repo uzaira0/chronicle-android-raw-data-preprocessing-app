@@ -1,0 +1,71 @@
+{
+  "_comment": "Accepted findings of the Semgrep registry packs gated by scripts/check-semgrep-packs.sh. Each entry matches one finding by rule, path and the trimmed source line it points at; when that line changes the entry goes stale and the gate fails until it is re-reviewed. Product sources cannot carry nosemgrep comments for a registry pack without the pack being part of their review, so the reasons live here.",
+  "ignores": [
+    {
+      "rule": "rust.lang.security.args.args",
+      "path": "rust/chronicle_app_usage_matcher/examples/profile_overlap_split.rs",
+      "match": "let mut args = std::env::args().skip(1);",
+      "reason": "Local profiling example: argv[1..] are row counts and file paths typed by the developer running it. argv[0] is skipped and nothing is a security decision."
+    },
+    {
+      "rule": "rust.lang.security.args.args",
+      "path": "rust/chronicle_chrono_kernel_wasm/examples/profile_b05_decisiveness.rs",
+      "match": "let target_rows: usize = std::env::args()",
+      "reason": "Local profiling example: reads a row count from the command line; a bad value only changes the size of the synthetic workload."
+    },
+    {
+      "rule": "rust.lang.security.args.args",
+      "path": "rust/chronicle_chrono_kernel_wasm/examples/profile_pipeline_v2.rs",
+      "match": "let mut args = std::env::args().skip(1);",
+      "reason": "Local profiling example: argv[1..] select the input file and run count; argv[0] is skipped and nothing is a security decision."
+    },
+    {
+      "rule": "rust.lang.security.args-os.args-os",
+      "path": "rust/chronicle_preprocessing_runtime_wasm/examples/footprint_digests.rs",
+      "match": "let repository_root = std::env::args_os()",
+      "reason": "Evidence tooling run by make dependency-evidence: the argument is the repository root to hash, supplied by the repo's own script. It grants no access the caller does not already have."
+    },
+    {
+      "rule": "rust.lang.security.args.args",
+      "path": "rust/chronicle_preprocessing_runtime_wasm/examples/profile_execute_workspace_native.rs",
+      "match": "let mut values = env::args().skip(1);",
+      "reason": "Local profiling example: argv[1..] are the CSV path and options of a developer-run benchmark; argv[0] is skipped."
+    },
+    {
+      "rule": "rust.lang.security.temp-dir.temp-dir",
+      "path": "rust/chronicle_chrono_kernel_wasm/src/payload_store.rs",
+      "match": "std::env::temp_dir().join(format!(\"chronicle-payload-{}-{id}\", std::process::id()));",
+      "reason": "Native-only payload spill directory. It is created with DirBuilder::create (not create_all), mode 0o700, under a pid+counter name, and the loop retries on AlreadyExists, so a pre-planted directory or symlink is never adopted. The browser build spills to OPFS, not here."
+    },
+    {
+      "rule": "rust.lang.security.unsafe-usage.unsafe-usage",
+      "path": "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",
+      "match": "unsafe { std::ptr::write_volatile(byte, 0) };",
+      "reason": "secure_zero_bytes: a volatile store through an exclusive &mut u8 so the optimizer cannot drop the wipe of sensitive bytes. The SAFETY comment above it states the invariant."
+    },
+    {
+      "rule": "rust.lang.security.unsafe-usage.unsafe-usage",
+      "path": "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",
+      "match": "let res = unsafe { lprofWriteData(&mut writer, core::ptr::null_mut(), 0) };",
+      "reason": "footprint_capture is compiled only with the dependency-campaign-bootstrap feature (evidence WASM, never the shipped package). It calls the linked LLVM profile runtime with a NULL value-profile reader, which the runtime documents as a no-op."
+    },
+    {
+      "rule": "rust.lang.security.current-exe.current-exe",
+      "path": "rust/chronicle_preprocessing_runtime_wasm/tests/workflow_contract_cache_byte_identity.rs",
+      "match": "let status = Command::new(std::env::current_exe().expect(\"test executable\"))",
+      "reason": "Integration test re-runs its own test binary once as a fresh process (a cold OnceLock) to compare output bytes. Only the test harness runs it; the path grants nothing the developer running cargo test does not already have, and nothing ships."
+    },
+    {
+      "rule": "rust.lang.security.unsafe-usage.unsafe-usage",
+      "path": "rust/chronicle_chrono_kernel_wasm/examples/profile_pipeline_v2.rs",
+      "match": "let status = unsafe { getrusage(RUSAGE_SELF, &mut usage) };",
+      "reason": "Local profiling example: reads this process's resident-set high-water mark from libc getrusage(RUSAGE_SELF) into an exclusively borrowed repr(C) struct with the 64-bit macOS/Linux struct rusage layout; compiled only for 64-bit unix. Nothing shipped; the value is only printed."
+    },
+    {
+      "rule": "rust.lang.security.unsafe-usage.unsafe-usage",
+      "path": "rust/chronicle_chrono_kernel_wasm/examples/profile_pipeline_v2.rs",
+      "match": "let written = unsafe { getloadavg(values.as_mut_ptr(), 3) };",
+      "reason": "Local profiling example: libc getloadavg writes at most the three doubles requested into a three-element array, so each published timing records the system load it ran under. Nothing shipped; the value is only printed."
+    }
+  ]
+}

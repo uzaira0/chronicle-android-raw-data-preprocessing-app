@@ -3,18 +3,98 @@ import type { ReactElement } from "react";
 
 import { SectionCard } from "@/components/SectionCard";
 import { SettingsField } from "@/components/SettingsField";
-import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
+import {
+  DEFAULT_BROWSER_OPTIONS,
+  LOCKED_SCREEN_AUDIO_DISPOSITION_VALUES,
+  SCREEN_SESSION_CLASSIFICATION_POLICY_VALUES,
+  SCREEN_SESSION_CONSTRUCTION_STRATEGY_VALUES,
+  SCREEN_SESSION_MAXIMUM_DURATION_DISPOSITION_VALUES,
+  type LockedScreenAudioDisposition,
+  type ScreenSessionClassificationPolicy,
+  type ScreenSessionConstructionStrategy,
+  type ScreenSessionMaximumDurationDisposition,
+} from "@/lib/generatedContract";
+import { hasSourceSensitiveScreenStrategy } from "@/lib/inputCapabilityEvidence";
 import { TOOLTIPS } from "@/lib/tooltipText";
 import { anyOptionModified, isOptionDefault, type OptionKey } from "@/lib/optionDefaults";
-import { rangeError } from "@/lib/validation";
+import { optionRangeError } from "@/lib/validation";
 import type { BrowserProcessingOptions } from "@/lib/types";
 
 const KEYS: readonly OptionKey[] = [
+  "screenSessionConstructionStrategy",
+  "screenSessionClassificationPolicy",
+  "screenSessionMaximumDurationMinutes",
+  "screenSessionMaximumDurationDisposition",
+  "lockedScreenAudioDisposition",
   "screenUsageAutoLockTimeoutSeconds",
   "screenUsageAutoLockToleranceSeconds",
   "screenUsageManualLockMaxTailGapSeconds",
   "screenUsageKeyguardNearStopSeconds",
 ];
+
+const SCREEN_SESSION_CONSTRUCTION_LABELS = {
+  chronicle_screen_interactive_v1: "Chronicle screen interactive v1 (default)",
+  parry_toth_2025_session_glance_v1:
+    "Parry–Toth session/glance construction (2025)",
+  zhu_2018_unlock_lock_v1: "Zhu unlock/lock construction (2018)",
+  unlock_to_lock_v1: "Unlock to keyguard lock",
+  unlock_to_off_or_lock_v1: "Unlock to first screen-off or keyguard lock",
+} satisfies Record<ScreenSessionConstructionStrategy, string>;
+
+export const SCREEN_SESSION_CONSTRUCTION_STRATEGIES =
+  SCREEN_SESSION_CONSTRUCTION_STRATEGY_VALUES.map((value) => ({
+    value,
+    label: SCREEN_SESSION_CONSTRUCTION_LABELS[value],
+  }));
+
+const CLASSIFICATION_LABELS = {
+  none: "No literature classification (default)",
+  phone_check_inclusive_15s: "Phone check at or below 15 seconds",
+  null_no_app_strict_gt15s_vs_app: "Null over 15 seconds vs app-evidenced",
+} satisfies Record<ScreenSessionClassificationPolicy, string>;
+
+const MAXIMUM_DURATION_LABELS = {
+  none: "No screen-session cap (default)",
+  truncate: "Truncate strictly over the maximum",
+  exclude_participant: "Exclude participant if any session is strictly over",
+} satisfies Record<ScreenSessionMaximumDurationDisposition, string>;
+
+const LOCKED_AUDIO_LABELS = {
+  include: "Include under normal reconstruction (default)",
+  exclude_from_phone_and_app_sessions: "Exclude without unlocked screen witness",
+} satisfies Record<LockedScreenAudioDisposition, string>;
+
+type ScreenMaximumDurationChange =
+  | { disposition: ScreenSessionMaximumDurationDisposition }
+  | { minutes: number };
+
+export function applyScreenMaximumDurationChange(
+  current: BrowserProcessingOptions,
+  change: ScreenMaximumDurationChange,
+): BrowserProcessingOptions {
+  if ("disposition" in change) {
+    return {
+      ...current,
+      screenSessionMaximumDurationDisposition: change.disposition,
+      screenSessionMaximumDurationMinutes:
+        change.disposition === "none"
+          ? 0
+          : current.screenSessionMaximumDurationMinutes > 0
+            ? current.screenSessionMaximumDurationMinutes
+            : 60,
+    };
+  }
+  const enabled = Number.isFinite(change.minutes) && change.minutes > 0;
+  return {
+    ...current,
+    screenSessionMaximumDurationMinutes: enabled ? change.minutes : 0,
+    screenSessionMaximumDurationDisposition: enabled
+      ? current.screenSessionMaximumDurationDisposition === "none"
+        ? "truncate"
+        : current.screenSessionMaximumDurationDisposition
+      : "none",
+  };
+}
 
 type Props = {
   options: BrowserProcessingOptions;
@@ -28,7 +108,23 @@ export function ScreenDetectionCard({ options, setOptions }: Props): ReactElemen
   const reset = (key: OptionKey) => {
     setOptions((current) => ({ ...current, [key]: DEFAULT_BROWSER_OPTIONS[key] }));
   };
+  const updateScreenMaximumDuration = (change: ScreenMaximumDurationChange) => {
+    setOptions((current) => applyScreenMaximumDurationChange(current, change));
+  };
   const isMod = <K extends OptionKey>(key: K) => !isOptionDefault(key, options[key]);
+  const schoedelUsesScreenIntervals =
+    options.processAppUsage &&
+    options.episodeReconstructionStrategy ===
+      "schoedel_2026_app_within_screen_prose_v1";
+  const lockedAudioUsesScreenIntervals =
+    options.processAppUsage &&
+    options.lockedScreenAudioDisposition === "exclude_from_phone_and_app_sessions";
+  const participantExclusionUsesScreenIntervals =
+    options.screenSessionMaximumDurationDisposition === "exclude_participant";
+  const screenIntervalsAffectAnalysis =
+    schoedelUsesScreenIntervals ||
+    lockedAudioUsesScreenIntervals ||
+    participantExclusionUsesScreenIntervals;
 
   return (
     <SectionCard
@@ -42,19 +138,166 @@ export function ScreenDetectionCard({ options, setOptions }: Props): ReactElemen
         Tunes how the screen usage derivation infers locks and unlocks. Defaults reflect the
         canonical desktop pipeline; only adjust if your traces have unusual lock behavior.
       </p>
-      {!options.processScreenUsage ? (
+      {!options.processScreenUsage && !screenIntervalsAffectAnalysis ? (
         <p className="settings-dependency-note" role="note" data-testid="screen-dependency-note">
           Screen usage output is off, so these screen-detection settings won’t change any output.
           Turn on “Screen usage output” in Output &amp; plots to use them.
         </p>
       ) : null}
+      {!options.processScreenUsage && screenIntervalsAffectAnalysis ? (
+        <p
+          className="settings-dependency-note"
+          role="note"
+          data-testid="screen-internal-dependency-note"
+        >
+          Screen CSV publication is off, but the selected screen-session rule is still computed
+          as an analytical input. Only the separate screen product is omitted.
+        </p>
+      ) : null}
+      {hasSourceSensitiveScreenStrategy(options) ? (
+        <p
+          className="settings-dependency-note"
+          role="note"
+          data-testid="screen-capability-evidence-note"
+        >
+          This source-sensitive rule needs a digest-bound Input capability evidence CSV from
+          Study inputs. Missing or insufficient evidence produces a typed scientific refusal;
+          Chronicle never substitutes its default screen rule.
+        </p>
+      ) : null}
+      <div className="settings-grid-1">
+        <SettingsField
+          label="Screen-session construction rule"
+          htmlFor="screen-session-construction-strategy-select"
+          tooltip={TOOLTIPS.screenSessionConstructionStrategy}
+          modified={isMod("screenSessionConstructionStrategy")}
+          onReset={() => reset("screenSessionConstructionStrategy")}
+        >
+          <select
+            id="screen-session-construction-strategy-select"
+            data-testid="screen-session-construction-strategy-select"
+            className="select"
+            value={options.screenSessionConstructionStrategy}
+            onChange={(event) =>
+              update(
+                "screenSessionConstructionStrategy",
+                event.target
+                  .value as BrowserProcessingOptions["screenSessionConstructionStrategy"],
+              )
+            }
+          >
+            {SCREEN_SESSION_CONSTRUCTION_STRATEGIES.map((strategy) => (
+              <option key={strategy.value} value={strategy.value}>
+                {strategy.label}
+              </option>
+            ))}
+          </select>
+        </SettingsField>
+      </div>
+      <div className="settings-grid-2">
+        <SettingsField
+          label="Screen-session classification"
+          htmlFor="screen-session-classification-select"
+          tooltip={TOOLTIPS.screenSessionClassificationPolicy}
+          modified={isMod("screenSessionClassificationPolicy")}
+          onReset={() => reset("screenSessionClassificationPolicy")}
+        >
+          <select
+            id="screen-session-classification-select"
+            className="select"
+            value={options.screenSessionClassificationPolicy}
+            onChange={(event) =>
+              update(
+                "screenSessionClassificationPolicy",
+                event.target.value as BrowserProcessingOptions["screenSessionClassificationPolicy"],
+              )
+            }
+          >
+            {SCREEN_SESSION_CLASSIFICATION_POLICY_VALUES.map((value) => (
+              <option key={value} value={value}>{CLASSIFICATION_LABELS[value]}</option>
+            ))}
+          </select>
+        </SettingsField>
+        <SettingsField
+          label="Locked-screen audio"
+          htmlFor="locked-screen-audio-select"
+          tooltip={TOOLTIPS.lockedScreenAudioDisposition}
+          modified={isMod("lockedScreenAudioDisposition")}
+          onReset={() => reset("lockedScreenAudioDisposition")}
+        >
+          <select
+            id="locked-screen-audio-select"
+            className="select"
+            value={options.lockedScreenAudioDisposition}
+            onChange={(event) =>
+              update(
+                "lockedScreenAudioDisposition",
+                event.target.value as BrowserProcessingOptions["lockedScreenAudioDisposition"],
+              )
+            }
+          >
+            {LOCKED_SCREEN_AUDIO_DISPOSITION_VALUES.map((value) => (
+              <option key={value} value={value}>{LOCKED_AUDIO_LABELS[value]}</option>
+            ))}
+          </select>
+        </SettingsField>
+        <SettingsField
+          label="Screen-session maximum-duration action"
+          htmlFor="screen-session-cap-disposition-select"
+          tooltip={TOOLTIPS.screenSessionMaximumDurationDisposition}
+          modified={isMod("screenSessionMaximumDurationDisposition")}
+          onReset={() =>
+            updateScreenMaximumDuration({
+              disposition: DEFAULT_BROWSER_OPTIONS.screenSessionMaximumDurationDisposition,
+            })
+          }
+        >
+          <select
+            id="screen-session-cap-disposition-select"
+            className="select"
+            value={options.screenSessionMaximumDurationDisposition}
+            onChange={(event) => {
+              const value = event.target.value as BrowserProcessingOptions["screenSessionMaximumDurationDisposition"];
+              updateScreenMaximumDuration({ disposition: value });
+            }}
+          >
+            {SCREEN_SESSION_MAXIMUM_DURATION_DISPOSITION_VALUES.map((value) => (
+              <option key={value} value={value}>{MAXIMUM_DURATION_LABELS[value]}</option>
+            ))}
+          </select>
+        </SettingsField>
+        <SettingsField
+          label="Screen-session maximum duration (minutes)"
+          tooltip={TOOLTIPS.screenSessionMaximumDurationMinutes}
+          modified={isMod("screenSessionMaximumDurationMinutes")}
+          onReset={() =>
+            updateScreenMaximumDuration({
+              minutes: DEFAULT_BROWSER_OPTIONS.screenSessionMaximumDurationMinutes,
+            })
+          }
+          error={optionRangeError("screenSessionMaximumDurationMinutes", options.screenSessionMaximumDurationMinutes)}
+        >
+          <input
+            type="number"
+            className="input"
+            data-testid="screen-session-cap-minutes-input"
+            min={0}
+            max={1440}
+            disabled={options.screenSessionMaximumDurationDisposition === "none"}
+            value={options.screenSessionMaximumDurationMinutes}
+            onChange={(event) =>
+              updateScreenMaximumDuration({ minutes: Number(event.target.value) })
+            }
+          />
+        </SettingsField>
+      </div>
       <div className="settings-grid-2">
         <SettingsField
           label="Auto lock timeout (seconds)"
           tooltip={TOOLTIPS.screenUsageAutoLockTimeoutSeconds}
           modified={isMod("screenUsageAutoLockTimeoutSeconds")}
           onReset={() => reset("screenUsageAutoLockTimeoutSeconds")}
-          error={rangeError(options.screenUsageAutoLockTimeoutSeconds, 1, 3600)}
+          error={optionRangeError("screenUsageAutoLockTimeoutSeconds", options.screenUsageAutoLockTimeoutSeconds)}
         >
           <input
             type="number"
@@ -73,7 +316,7 @@ export function ScreenDetectionCard({ options, setOptions }: Props): ReactElemen
           tooltip={TOOLTIPS.screenUsageAutoLockToleranceSeconds}
           modified={isMod("screenUsageAutoLockToleranceSeconds")}
           onReset={() => reset("screenUsageAutoLockToleranceSeconds")}
-          error={rangeError(options.screenUsageAutoLockToleranceSeconds, 0, 600)}
+          error={optionRangeError("screenUsageAutoLockToleranceSeconds", options.screenUsageAutoLockToleranceSeconds)}
         >
           <input
             type="number"
@@ -92,7 +335,7 @@ export function ScreenDetectionCard({ options, setOptions }: Props): ReactElemen
           tooltip={TOOLTIPS.screenUsageManualLockMaxTailGapSeconds}
           modified={isMod("screenUsageManualLockMaxTailGapSeconds")}
           onReset={() => reset("screenUsageManualLockMaxTailGapSeconds")}
-          error={rangeError(options.screenUsageManualLockMaxTailGapSeconds, 0, 600)}
+          error={optionRangeError("screenUsageManualLockMaxTailGapSeconds", options.screenUsageManualLockMaxTailGapSeconds)}
         >
           <input
             type="number"
@@ -111,7 +354,7 @@ export function ScreenDetectionCard({ options, setOptions }: Props): ReactElemen
           tooltip={TOOLTIPS.screenUsageKeyguardNearStopSeconds}
           modified={isMod("screenUsageKeyguardNearStopSeconds")}
           onReset={() => reset("screenUsageKeyguardNearStopSeconds")}
-          error={rangeError(options.screenUsageKeyguardNearStopSeconds, 0, 60)}
+          error={optionRangeError("screenUsageKeyguardNearStopSeconds", options.screenUsageKeyguardNearStopSeconds)}
         >
           <input
             type="number"

@@ -1,0 +1,351 @@
+{
+  "in_process_cold": {
+    "processes": 5,
+    "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "distinct_input_sha256": 5,
+    "distinct_oracle_result_digests": 5,
+    "oracle_matched_iterations": 25,
+    "executed_count_per_process": [
+      59,
+      59,
+      59,
+      59,
+      59
+    ],
+    "internal_executed_count_per_process": [
+      9,
+      9,
+      9,
+      9,
+      9
+    ],
+    "pooled_all_iterations": {
+      "n": 25,
+      "min_ms": 590.710458,
+      "median_ms": 867.3765,
+      "p90_nearest_rank_ms": 1012.746042,
+      "max_ms": 1021.289625
+    },
+    "load_average_1m_min_max_over_before_and_after_readings": [
+      21.14501953125,
+      21.80224609375
+    ],
+    "first_iteration_per_process": {
+      "n": 5,
+      "min_ms": 621.333833,
+      "median_ms": 895.180875,
+      "p90_nearest_rank_ms": 1021.2896250000001,
+      "max_ms": 1021.2896250000001
+    },
+    "pooled_iterations_after_first": {
+      "n": 20,
+      "min_ms": 590.710458,
+      "median_ms": 858.2723745000001,
+      "p90_nearest_rank_ms": 998.846209,
+      "max_ms": 1013.169708
+    },
+    "process_peak_resident_bytes_after_first_execute": [
+      531316736,
+      612564992,
+      535527424,
+      398360576,
+      542998528
+    ],
+    "timing_scope": "in-process cold execute: IncrementalPipelineV2Engine::default() + execute() of the baseline request on a fresh engine; excludes process start, fixture construction, result digesting, freeing earlier iterations' results (drained before the timer) and the oracle. Iteration 1 is the first pipeline execution in the process (first_iteration_ms); iterations 2..N run in a process that has already executed it, and `distribution` pools all iterations"
+  },
+  "in_process_ab_cases": {
+    "unchanged": {
+      "processes": 5,
+      "seeds": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "distinct_input_sha256": 5,
+      "distinct_oracle_result_digests": 5,
+      "oracle_matched_iterations": 25,
+      "executed_count_per_process": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "internal_executed_count_per_process": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "pooled_all_iterations": {
+        "n": 25,
+        "min_ms": 0.570292,
+        "median_ms": 0.624417,
+        "p90_nearest_rank_ms": 0.937333,
+        "max_ms": 1.398667
+      },
+      "load_average_1m_min_max_over_before_and_after_readings": [
+        22.603515625,
+        26.14892578125
+      ],
+      "timing_scope": "in-process: one execute() of the changed request on a fresh engine that has just executed the baseline request; excludes the baseline execute, freeing the baseline result (drained before the timer), result digesting and the oracle. Every iteration runs after at least one execute in the same process"
+    },
+    "upstream_timezone_policy": {
+      "processes": 5,
+      "seeds": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "distinct_input_sha256": 5,
+      "distinct_oracle_result_digests": 5,
+      "oracle_matched_iterations": 25,
+      "executed_count_per_process": [
+        4,
+        4,
+        4,
+        4,
+        4
+      ],
+      "internal_executed_count_per_process": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "pooled_all_iterations": {
+        "n": 25,
+        "min_ms": 177.51875,
+        "median_ms": 325.025375,
+        "p90_nearest_rank_ms": 429.284166,
+        "max_ms": 431.301958
+      },
+      "load_average_1m_min_max_over_before_and_after_readings": [
+        20.2470703125,
+        22.603515625
+      ],
+      "timing_scope": "in-process: one execute() of the changed request on a fresh engine that has just executed the baseline request; excludes the baseline execute, freeing the baseline result (drained before the timer), result digesting and the oracle. Every iteration runs after at least one execute in the same process"
+    },
+    "middle_concurrent_usage": {
+      "processes": 5,
+      "seeds": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "distinct_input_sha256": 5,
+      "distinct_oracle_result_digests": 5,
+      "oracle_matched_iterations": 25,
+      "executed_count_per_process": [
+        33,
+        33,
+        33,
+        4,
+        33
+      ],
+      "internal_executed_count_per_process": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "pooled_all_iterations": {
+        "n": 25,
+        "min_ms": 199.247042,
+        "median_ms": 398.708333,
+        "p90_nearest_rank_ms": 1568.798125,
+        "max_ms": 1624.866791
+      },
+      "load_average_1m_min_max_over_before_and_after_readings": [
+        20.2470703125,
+        23.068359375
+      ],
+      "timing_scope": "in-process: one execute() of the changed request on a fresh engine that has just executed the baseline request; excludes the baseline execute, freeing the baseline result (drained before the timer), result digesting and the oracle. Every iteration runs after at least one execute in the same process"
+    },
+    "downstream_day_coverage": {
+      "processes": 5,
+      "seeds": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "distinct_input_sha256": 5,
+      "distinct_oracle_result_digests": 5,
+      "oracle_matched_iterations": 25,
+      "executed_count_per_process": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "internal_executed_count_per_process": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "pooled_all_iterations": {
+        "n": 25,
+        "min_ms": 54.818792,
+        "median_ms": 77.353334,
+        "p90_nearest_rank_ms": 99.187459,
+        "max_ms": 101.031417
+      },
+      "load_average_1m_min_max_over_before_and_after_readings": [
+        20.26953125,
+        22.26171875
+      ],
+      "timing_scope": "in-process: one execute() of the changed request on a fresh engine that has just executed the baseline request; excludes the baseline execute, freeing the baseline result (drained before the timer), result digesting and the oracle. Every iteration runs after at least one execute in the same process"
+    },
+    "output_study_name": {
+      "processes": 5,
+      "seeds": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "distinct_input_sha256": 5,
+      "distinct_oracle_result_digests": 5,
+      "oracle_matched_iterations": 25,
+      "executed_count_per_process": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "internal_executed_count_per_process": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "pooled_all_iterations": {
+        "n": 25,
+        "min_ms": 173.56975,
+        "median_ms": 316.465708,
+        "p90_nearest_rank_ms": 413.713916,
+        "max_ms": 420.7235
+      },
+      "load_average_1m_min_max_over_before_and_after_readings": [
+        18.7978515625,
+        20.26953125
+      ],
+      "timing_scope": "in-process: one execute() of the changed request on a fresh engine that has just executed the baseline request; excludes the baseline execute, freeing the baseline result (drained before the timer), result digesting and the oracle. Every iteration runs after at least one execute in the same process"
+    },
+    "raw_representation_only": {
+      "processes": 5,
+      "seeds": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "distinct_input_sha256": 5,
+      "distinct_oracle_result_digests": 5,
+      "oracle_matched_iterations": 25,
+      "executed_count_per_process": [
+        3,
+        3,
+        3,
+        3,
+        3
+      ],
+      "internal_executed_count_per_process": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "pooled_all_iterations": {
+        "n": 25,
+        "min_ms": 263.154666,
+        "median_ms": 406.32725,
+        "p90_nearest_rank_ms": 500.07375,
+        "max_ms": 503.528875
+      },
+      "load_average_1m_min_max_over_before_and_after_readings": [
+        17.90380859375,
+        19.96826171875
+      ],
+      "timing_scope": "in-process: one execute() of the changed request on a fresh engine that has just executed the baseline request; excludes the baseline execute, freeing the baseline result (drained before the timer), result digesting and the oracle. Every iteration runs after at least one execute in the same process"
+    },
+    "support_filter_add_absent_app": {
+      "processes": 5,
+      "seeds": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "distinct_input_sha256": 5,
+      "distinct_oracle_result_digests": 5,
+      "oracle_matched_iterations": 25,
+      "executed_count_per_process": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "internal_executed_count_per_process": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "pooled_all_iterations": {
+        "n": 25,
+        "min_ms": 18.876083,
+        "median_ms": 23.897208,
+        "p90_nearest_rank_ms": 25.801875,
+        "max_ms": 26.913917
+      },
+      "load_average_1m_min_max_over_before_and_after_readings": [
+        19.96826171875,
+        21.80224609375
+      ],
+      "timing_scope": "in-process: one execute() of the changed request on a fresh engine that has just executed the baseline request; excludes the baseline execute, freeing the baseline result (drained before the timer), result digesting and the oracle. Every iteration runs after at least one execute in the same process"
+    }
+  },
+  "process_wall_cold": {
+    "scope": "process wall: start-up + fixture (seed 1, 60624 rows) + one cold execute + digest + sequential oracle",
+    "runs": 5,
+    "median_ms": 1825.7239798399999,
+    "mean_ms": 1941.9999124400001,
+    "stddev_ms": 260.77833249763336,
+    "min_ms": 1782.62385384,
+    "max_ms": 2397.30360384
+  },
+  "process_peak_resident_bytes": {
+    "whole_process_usr_bin_time": 689422336,
+    "same_run_in_process_high_water_after_cold_execute": 526548992,
+    "same_run_in_process_high_water_before_first_execute": 10190848
+  }
+}

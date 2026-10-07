@@ -1,0 +1,77 @@
+{
+  "task_occurrences": [
+    {
+      "task_occurrence_id": "example:dock-navigation",
+      "method_profile_id": "method-profile:doi:10.1145/2493190.2493219",
+      "source_work_id": "doi:10.1145/2493190.2493219",
+      "participant_id": "example:not-a-source-participant",
+      "record_origin": "analyst_constructed_example",
+      "task_label": "Navigation to an app",
+      "denotes_interval": {"start_instant": "example:opening", "end_instant": "example:app-start", "duration_seconds": null},
+      "task_actions": [
+        {
+          "task_action_id": "example:opening",
+          "action_label": "Navigation type opened",
+          "assigned_role_labels": ["navigation start"],
+          "action_content_json": " {\"launch_origin\":\"launcher\",\"launcher_mechanism\":\"dock\",\"matching_rule\":null} ",
+          "source_locators": ["Oh App physical p3 Navigation Time/Launching Behaviour; constructed supplied action, not a recovered logger row"]
+        },
+        {
+          "task_action_id": "example:start",
+          "action_label": "App started",
+          "assigned_role_labels": ["navigation end"],
+          "action_content_json": null,
+          "source_locators": ["Oh App physical p3 Navigation Time; unknown raw app identity and constructor retained"]
+        }
+      ],
+      "source_locators": ["Oh App primary SHA256:08a65b34b8d2d95f67f2d07bc060044639f7abc68ef9102a5bf5b635a738051e; physical p3 Navigation Time; analyst-constructed normalized example, not source data or inferred duration"]
+    },
+    {
+      "task_occurrence_id": "example:drawer-navigation",
+      "method_profile_id": "method-profile:doi:10.1145/2493190.2493219",
+      "source_work_id": "doi:10.1145/2493190.2493219",
+      "participant_id": "example:not-a-source-participant",
+      "record_origin": "analyst_constructed_example",
+      "task_label": "Navigation to an app",
+      "expected_script_setting_reference": null,
+      "denotes_interval": {"start_instant": "example:opening", "end_instant": "example:app-start", "duration_seconds": null},
+      "task_actions": [
+        {
+          "task_action_id": "example:opening",
+          "action_label": "Navigation type opened",
+          "assigned_role_labels": ["navigation start"],
+          "action_content_json": " {\"launch_origin\":\"launcher\",\"launcher_mechanism\":\"vertical app drawer\",\"matching_rule\":null} ",
+          "source_locators": ["Oh App physical p3 Navigation Time/Launching Behaviour; constructed supplied action, not a recovered logger row"]
+        },
+        {
+          "task_action_id": "example:start",
+          "action_label": "App started",
+          "assigned_role_labels": ["navigation end"],
+          "action_content_json": null,
+          "source_locators": ["Oh App physical p3 Navigation Time; unknown raw app identity and constructor retained"]
+        }
+      ],
+      "criterion_assessments": null,
+      "source_locators": ["Oh App primary SHA256:08a65b34b8d2d95f67f2d07bc060044639f7abc68ef9102a5bf5b635a738051e; physical p3 Navigation Time; separately identified equal-bound example, not inferred simultaneity or matching"]
+    },
+    {
+      "task_occurrence_id": "example:post-study-self-assessment",
+      "method_profile_id": "method-profile:doi:10.1145/2493190.2493219",
+      "source_work_id": "doi:10.1145/2493190.2493219",
+      "participant_id": "example:not-a-source-participant",
+      "record_origin": "analyst_constructed_example",
+      "task_label": "Post-study self-assessment completion",
+      "task_questionnaire_responses": [
+        {
+          "questionnaire_response_id": "example:subjective-speed-response",
+          "questionnaire_setting_reference": "method-setting-0ba99f8f6f9738e3fc2e6297",
+          "observed_property": "Subjective navigation speed",
+          "questionnaire_item_label": null,
+          "response_value_json": " \"fast\" ",
+          "source_locators": ["Oh App physical p2 Procedure and p3 Self-Assessment; hypothetical supplied answer, not a recovered questionnaire row, offered intermediate code or navigation-trial join"]
+        }
+      ],
+      "source_locators": ["Oh App primary SHA256:08a65b34b8d2d95f67f2d07bc060044639f7abc68ef9102a5bf5b635a738051e; physical pp2-3; independent analyst-constructed subjective response with unknown time/script and no correctness criterion"]
+    }
+  ]
+}

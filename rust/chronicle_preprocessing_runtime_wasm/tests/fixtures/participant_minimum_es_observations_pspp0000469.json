@@ -1,0 +1,47 @@
+{
+  "schemaVersion": "chronicle-participant-minimum-count-source-fixture/v1",
+  "sourceWorkId": "doi:10.1037/pspp0000469",
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-fe3940aa365717252569bced",
+    "parameterKey": "quality.participant_minimum_es",
+    "sourceObservedSetting": "quality.participant_minimum_es: retain participants with at least 14 ES observations",
+    "sourceValueSha256": "806d692a174f7959f4797885c312c0880939a5bf551205871a1ab23bef97a8cc"
+  },
+  "sourceArtifact": {
+    "locator": ".tmp-literature-review-private/corrective-packet-06-ranks174-223-20260831/artifacts/rank203-osf-b7krz/osfstorage/Feature_Engineering/04_SOURCE_ExclusionCriteria.R:5-9,28-31",
+    "sha256": "fb9eb6fa5ae224d9a840fe2211f572b2d097c412e510360bf6f32928b5ea123d"
+  },
+  "inputBoundary": "One already-derived nonnegative integer row count per user from the initially loaded sensingVariables.rds. The released code computes this count before applying its later exclusions and treats those rows as ES observations for this gate.",
+  "outputBoundary": "Exclude a user below 14 initially loaded sensing-variable rows and retain a user at or above 14; equality is retained.",
+  "limitations": [
+    "This binding does not load or construct sensingVariables.rds.",
+    "This binding does not group sensing rows by user or derive the per-user row count.",
+    "This binding does not reinterpret the source row count as a distinct es_questionnaire_id count or deduplicate observations.",
+    "The manual smartphone-change exclusion, screen-day exclusion, complete-case filtering, and constant-answer checks are separate adjacent source operations.",
+    "A missing per-user row count fails closed rather than being interpreted as zero."
+  ],
+  "minimumRetainedCount": 14,
+  "dispositions": ["exclude", "retain"],
+  "participants": [
+    {
+      "participantId": "immediately-below",
+      "initialSensingRowCount": 13,
+      "expectedDisposition": "exclude"
+    },
+    {
+      "participantId": "at-boundary",
+      "initialSensingRowCount": 14,
+      "expectedDisposition": "retain"
+    },
+    {
+      "participantId": "above-boundary",
+      "initialSensingRowCount": 15,
+      "expectedDisposition": "retain"
+    }
+  ],
+  "missingCountCase": {
+    "participantId": "missing-count",
+    "initialSensingRowCount": null,
+    "expectedError": "participant_initial_sensing_row_count_required"
+  }
+}

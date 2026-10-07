@@ -1,0 +1,49 @@
+{
+  "schemaVersion": "chronicle-exact-app-usage-row-filter-source-fixture/v1",
+  "sourceWorkId": "doi:10.1080/15213269.2024.2334025",
+  "sourceArtifact": {
+    "locator": ".tmp-literature-review-private/corrective-packet-06-ranks174-223-20260831/artifacts/rank209-osf-45q72/osfstorage/Notification-disabling intervention study/Data & Analyses/(2) R script data cleaning [raw survey & tracking data].R:316-328",
+    "sha256": "2bd5bab0c9a917a64f347093972bff72e2b0b5cfd38539a1df229c65cdbd383b"
+  },
+  "sourceRuntime": "R 4.3.2 with dplyr",
+  "exactCanonicalSettings": [
+    {
+      "settingId": "method-setting-577ac433c188e9c0d1f21311",
+      "parameterKey": "clean.screen_app_usage_only",
+      "sourceObservedSetting": "clean.screen_app_usage_only: retain aggregation_type == APP_USAGE before cohort union",
+      "sourceValueSha256": "2bab83b916897b855fd8719f90d76f2752c7be7c234ca761acd088da90d9def2"
+    },
+    {
+      "settingId": "method-setting-3f07e9131d5492926afe8c63",
+      "parameterKey": "clean.screen_exclude.youtube_vanced",
+      "sourceObservedSetting": "clean.screen_exclude.youtube_vanced: app_name != YouTube Vanced",
+      "sourceValueSha256": "5e593c0468120b0e35452329f46f6234a158c1aefef57880669eefd779e325b9"
+    },
+    {
+      "settingId": "method-setting-6945d62974714b285e78cca0",
+      "parameterKey": "clean.screen_exclude.basic_daydreams",
+      "sourceObservedSetting": "clean.screen_exclude.basic_daydreams: app_name != Basic Daydreams",
+      "sourceValueSha256": "16a8521864c9e4a4edacea8a4fb0f234ac1806b0770200a003f268dc2411d96f"
+    }
+  ],
+  "requiredAggregationType": "APP_USAGE",
+  "excludedAppNames": ["YouTube Vanced", "Basic Daydreams"],
+  "inputBoundary": "Rows from the two raw app-use files before cohort union, with the source aggregation_type and app_name strings unchanged.",
+  "outputBoundary": "Retain exact APP_USAGE rows except exact YouTube Vanced and Basic Daydreams app names; preserve input order, row identity, and duplicates.",
+  "cases": [
+    { "sourceRowId": "ordinary", "aggregationType": "APP_USAGE", "appName": "Ordinary App", "expectedRetained": true },
+    { "sourceRowId": "youtube-vanced", "aggregationType": "APP_USAGE", "appName": "YouTube Vanced", "expectedRetained": false },
+    { "sourceRowId": "basic-daydreams", "aggregationType": "APP_USAGE", "appName": "Basic Daydreams", "expectedRetained": false },
+    { "sourceRowId": "other-aggregation", "aggregationType": "SCREEN_TOTAL", "appName": "Ordinary App", "expectedRetained": false },
+    { "sourceRowId": "case-variant", "aggregationType": "APP_USAGE", "appName": "youtube vanced", "expectedRetained": true },
+    { "sourceRowId": "space-variant", "aggregationType": "APP_USAGE", "appName": "Basic Daydreams ", "expectedRetained": true },
+    { "sourceRowId": "missing-aggregation", "aggregationType": null, "appName": "Ordinary App", "expectedRetained": false },
+    { "sourceRowId": "missing-app", "aggregationType": "APP_USAGE", "appName": null, "expectedRetained": false },
+    { "sourceRowId": "ordinary-duplicate", "aggregationType": "APP_USAGE", "appName": "Ordinary App", "expectedRetained": true }
+  ],
+  "limitations": [
+    "Matching reproduces dplyr string equality without trimming, normalization, case folding, or whitespace folding; missing predicate values are not retained by filter.",
+    "File loading, cohort labels, column renaming, test-participant exclusion, date parsing, grouping, daily sums, unit conversion, and later joins remain outside this component.",
+    "The excluded names are applied only to the app_name field after the exact APP_USAGE predicate; this component does not generalize them to other categorical fields."
+  ]
+}

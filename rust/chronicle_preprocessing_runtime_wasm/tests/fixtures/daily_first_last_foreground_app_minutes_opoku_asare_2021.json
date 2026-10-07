@@ -1,0 +1,61 @@
+{
+  "schemaVersion": "chronicle-daily-first-last-foreground-app-minutes-source-fixture/v1",
+  "sourceWorkId": "doi:10.2196/26540",
+  "exactCanonicalSettings": [
+    {
+      "settingId": "method-setting-14cb0448e56480a00b2d0400",
+      "parameterKey": "feature.first_last_app_minutes",
+      "sourceObservedSetting": "feature.first_last_app_minutes: minutes from hour 0 to first and last foreground-app use per day",
+      "sourceValueSha256": "b297fd7594594b73cb3195864b2f16f42b7f9b5737101dc5ec458abbe8f890ba",
+      "sourceLocator": ".tmp-literature-review-private/corrective-packet-04-ranks-074-123-20260831/text/100.txt:282-288; .tmp-literature-review-private/corrective-packet-04-ranks-074-123-20260831/supplements/100-app1.pdf:page 2"
+    },
+    {
+      "settingId": "method-setting-bb801a6f54629c17a9364a0a",
+      "parameterKey": "output.app_timeOfFirstUse",
+      "sourceObservedSetting": "output.app_timeOfFirstUse: minutes from hour 0 to first foreground-app use",
+      "sourceValueSha256": "3f3cc88ca8f56440e40b788e44765384e3d6542f9f1b5ff0b3dd3bc5c4ad672d",
+      "sourceLocator": ".tmp-literature-review-private/corrective-packet-04-ranks-074-123-20260831/supplements/100-app1.pdf:pages 1-2 (app feature row)"
+    },
+    {
+      "settingId": "method-setting-92122010fb7d055d808726d2",
+      "parameterKey": "output.app_timeOfLastUse",
+      "sourceObservedSetting": "output.app_timeOfLastUse: minutes from hour 0 to last foreground-app use",
+      "sourceValueSha256": "bcabe153150abd467b8894cd938a4b1e349e8dad2fee38d0cebbe30cbf0820ab",
+      "sourceLocator": ".tmp-literature-review-private/corrective-packet-04-ranks-074-123-20260831/supplements/100-app1.pdf:pages 1-2 (app feature row)"
+    }
+  ],
+  "sourceArtifacts": [
+    {
+      "locator": ".tmp-literature-review-private/corrective-packet-04-ranks-074-123-20260831/text/100.txt:282-288",
+      "sha256": "a4683ab2ede60c1fb9ebae8c57bd55fdb71cae47ee1a1ade10318ab943f1ad69"
+    },
+    {
+      "locator": ".tmp-literature-review-private/corrective-packet-04-ranks-074-123-20260831/supplements/100-app1.pdf:pages 1-2",
+      "sha256": "b122f1467e8c44107223201cd1b5a349f3ca198c8f30ce06800ab0052d8f4275"
+    }
+  ],
+  "inputBoundary": "Already-selected foreground-application-use observations carrying caller-reconstructed participant and source-local day identities plus an integer count of minutes from source-local hour 0.",
+  "outputBoundary": "The minimum and maximum supplied minute counts for each observed participant/source-local-day group, corresponding to first and last foreground-app use.",
+  "limitations": [
+    "This binding does not classify foreground-application-use records.",
+    "This binding does not parse timestamps, select a timezone, reconstruct source-local hour 0, or derive a source-local day.",
+    "The source discloses no sub-minute rounding or truncation rule; this fixture therefore supplies integer minute counts and infers neither rule.",
+    "Participant-day groups absent from the supplied observations are not synthesized or zero-filled.",
+    "Repeated equal minute counts do not change the first or last supplied minute extremum."
+  ],
+  "observations": [
+    {"participantId": "P01", "sourceDayId": "2018-03-01", "minutesFromHourZero": 610},
+    {"participantId": "P01", "sourceDayId": "2018-03-01", "minutesFromHourZero": 5},
+    {"participantId": "P01", "sourceDayId": "2018-03-01", "minutesFromHourZero": 1200},
+    {"participantId": "P01", "sourceDayId": "2018-03-01", "minutesFromHourZero": 5},
+    {"participantId": "P01", "sourceDayId": "2018-03-02", "minutesFromHourZero": 1439},
+    {"participantId": "P01", "sourceDayId": "2018-03-02", "minutesFromHourZero": 0},
+    {"participantId": "P02", "sourceDayId": "2018-03-01", "minutesFromHourZero": 300}
+  ],
+  "expectedExtrema": [
+    {"participantId": "P01", "sourceDayId": "2018-03-01", "firstUseMinutes": 5, "lastUseMinutes": 1200},
+    {"participantId": "P01", "sourceDayId": "2018-03-02", "firstUseMinutes": 0, "lastUseMinutes": 1439},
+    {"participantId": "P02", "sourceDayId": "2018-03-01", "firstUseMinutes": 300, "lastUseMinutes": 300}
+  ],
+  "explicitlyAbsentGroup": {"participantId": "P02", "sourceDayId": "2018-03-02"}
+}

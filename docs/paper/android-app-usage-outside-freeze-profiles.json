@@ -1,0 +1,1009 @@
+{
+  "schema_version": "chronicle-method-profile-library-v1",
+  "profiles": [
+    {
+      "method_profile_id": "outside143:usage-logger:v1",
+      "source_work_id": "doi:10.3758/s13428-021-01585-7",
+      "source_method_variant_id": "usage-logger:source-qualified-outside143:v1",
+      "source_method_variant_label": "Source-qualified specification outside frozen143; supplied-input/runtime limitations retained",
+      "source_method_platform": "Android; other-platform methods explicitly qualified, not enabled",
+      "method_configuration_structure": "documentary_only",
+      "method_profile_version": "1",
+      "profile_implementation_status": "blocked",
+      "method_settings": [
+        {
+          "method_setting_id": "outside143:usage-logger:v1:collection_modes",
+          "source_extraction_id": "outside143:usage-logger:v1:extraction:collection_modes",
+          "source_work_id": "doi:10.3758/s13428-021-01585-7",
+          "method_setting_role": "acquisition",
+          "method_target_layer": "collector",
+          "method_parameter_key": "collection_modes",
+          "method_value_kind": "object",
+          "method_value_json": "{\"modes\":[\"retrospective recorded occurrence events\",\"continuous collection\",\"context snapshot\"],\"scope\":\"Only app usage, screen/lifecycle and tracking quality; no notification/content/location analysis\"}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "Paper133–196; collector/data variants remain separate; no automatic equivalence",
+          "source_locators": [
+            "Geyer primary text133–220; paper-era code commit6d1f4d44560ccd9a158c04adb37c6fc988bbbd35; Paper133–196; collector/data variants remain separate; no automatic equivalence"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:usage-logger:v1:retrospective_occurrence_schema",
+          "source_extraction_id": "outside143:usage-logger:v1:extraction:retrospective_occurrence_schema",
+          "source_work_id": "doi:10.3758/s13428-021-01585-7",
+          "method_setting_role": "event_schema",
+          "method_target_layer": "raw_occurrence",
+          "method_parameter_key": "retrospective_occurrence_schema",
+          "method_value_kind": "object",
+          "method_value_json": "{\"fields\":[\"Unix occurrence timestamp\",\"application identity\",\"event type\"],\"lookback_duration\":null,\"edge_carry\":null}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "Paper174–196; device history varies; requested5days is an example, not a universal supported horizon",
+          "source_locators": [
+            "Geyer primary text133–220; paper-era code commit6d1f4d44560ccd9a158c04adb37c6fc988bbbd35; Paper174–196; device history varies; requested5days is an example, not a universal supported horizon"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:usage-logger:v1:prospective_foreground_poll",
+          "source_extraction_id": "outside143:usage-logger:v1:extraction:prospective_foreground_poll",
+          "source_work_id": "doi:10.3758/s13428-021-01585-7",
+          "method_setting_role": "acquisition",
+          "method_target_layer": "acquired_snapshot",
+          "method_parameter_key": "prospective_foreground_poll",
+          "method_value_kind": "object",
+          "method_value_json": "{\"requested_period_seconds\":1,\"eligibility\":\"screen on\",\"quantity\":\"most recently used foreground application\"}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "ProspectiveLogger.java193–219,334–356; IdentifyAppInForeground.java35–43; sampled state can miss between-poll transitions",
+          "source_locators": [
+            "Geyer primary text133–220; paper-era code commit6d1f4d44560ccd9a158c04adb37c6fc988bbbd35; ProspectiveLogger.java193–219,334–356; IdentifyAppInForeground.java35–43; sampled state can miss between-poll transitions"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:usage-logger:v1:prospective_screen_reboot",
+          "source_extraction_id": "outside143:usage-logger:v1:extraction:prospective_screen_reboot",
+          "source_work_id": "doi:10.3758/s13428-021-01585-7",
+          "method_setting_role": "event_schema",
+          "method_target_layer": "raw_occurrence",
+          "method_parameter_key": "prospective_screen_reboot",
+          "method_value_kind": "object",
+          "method_value_json": "{\"screen\":[\"SCREEN_ON\",\"SCREEN_OFF\"],\"reboot\":\"always recorded by default\",\"timestamp\":\"Unix\",\"collection_write_time\":null}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "Paper133–150; broadcast observation differs from the1second app poll and from a queue/write timestamp",
+          "source_locators": [
+            "Geyer primary text133–220; paper-era code commit6d1f4d44560ccd9a158c04adb37c6fc988bbbd35; Paper133–150; broadcast observation differs from the1second app poll and from a queue/write timestamp"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:usage-logger:v1:collection_configuration",
+          "source_extraction_id": "outside143:usage-logger:v1:extraction:collection_configuration",
+          "source_work_id": "doi:10.3758/s13428-021-01585-7",
+          "method_setting_role": "acquisition",
+          "method_target_layer": "collector",
+          "method_parameter_key": "collection_configuration",
+          "method_value_kind": "object",
+          "method_value_json": "{\"configuration\":\"researcher-defined QR code\",\"source_order\":\"researcher ordered\",\"source_switch\":\"participant triggered\",\"overlapping_modes\":\"possible prospective then retrospective query\"}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "Paper133–145,197–220; no recovered guarantee of missingness recovery or automatic event deduplication",
+          "source_locators": [
+            "Geyer primary text133–220; paper-era code commit6d1f4d44560ccd9a158c04adb37c6fc988bbbd35; Paper133–145,197–220; no recovered guarantee of missingness recovery or automatic event deduplication"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:usage-logger:v1:retrospective_r_pipeline",
+          "source_extraction_id": "outside143:usage-logger:v1:extraction:retrospective_r_pipeline",
+          "source_work_id": "doi:10.3758/s13428-021-01585-7",
+          "method_setting_role": "reconstruction",
+          "method_target_layer": "app_episode",
+          "method_parameter_key": "retrospective_r_pipeline",
+          "method_value_kind": "object",
+          "method_value_json": "{\"file\":\"Data/R/Past Usage Analysis.R\",\"retained_types\":[1,2,7,26,27],\"timestamp_coercion\":\"truncate Unix milliseconds to integer seconds\",\"cleaning\":\"sequence-specific same-second/same-app rules\",\"duration\":\"next retained mixed row minus current row; terminal0\"}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "Released R10–113; not a matched foreground/background session constructor; empty deletion-index source quirks retained",
+          "source_locators": [
+            "Geyer primary text133–220; paper-era code commit6d1f4d44560ccd9a158c04adb37c6fc988bbbd35; Released R10–113; not a matched foreground/background session constructor; empty deletion-index source quirks retained"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:usage-logger:v1:retrospective_r_cap",
+          "source_extraction_id": "outside143:usage-logger:v1:extraction:retrospective_r_cap",
+          "source_work_id": "doi:10.3758/s13428-021-01585-7",
+          "method_setting_role": "quality_control",
+          "method_target_layer": "raw_record",
+          "method_parameter_key": "retrospective_r_cap",
+          "method_value_kind": "object",
+          "method_value_json": "{\"limit_seconds\":7200,\"drop\":\"any duration>7200 OR type2 with0duration\"}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "Released R64–73; equality7200 retained; differs from companion Python cleaning4",
+          "source_locators": [
+            "Geyer primary text133–220; paper-era code commit6d1f4d44560ccd9a158c04adb37c6fc988bbbd35; Released R64–73; equality7200 retained; differs from companion Python cleaning4"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:usage-logger:v1:retrospective_python_cap",
+          "source_extraction_id": "outside143:usage-logger:v1:extraction:retrospective_python_cap",
+          "source_work_id": "doi:10.3758/s13428-021-01585-7",
+          "method_setting_role": "quality_control",
+          "method_target_layer": "raw_record",
+          "method_parameter_key": "retrospective_python_cap",
+          "method_value_kind": "object",
+          "method_value_json": "{\"limit_seconds\":7200,\"drop\":\"non-type2 duration>7200 OR type2 with0duration\"}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "Released Past Usage Analysis.ipynb cleaning4; type2 above7200 is retained; not interchangeable with R",
+          "source_locators": [
+            "Geyer primary text133–220; paper-era code commit6d1f4d44560ccd9a158c04adb37c6fc988bbbd35; Released Past Usage Analysis.ipynb cleaning4; type2 above7200 is retained; not interchangeable with R"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:usage-logger:v1:retrospective_daily_output",
+          "source_extraction_id": "outside143:usage-logger:v1:extraction:retrospective_daily_output",
+          "source_work_id": "doi:10.3758/s13428-021-01585-7",
+          "method_setting_role": "aggregation",
+          "method_target_layer": "participant_day",
+          "method_parameter_key": "retrospective_daily_output",
+          "method_value_kind": "object",
+          "method_value_json": "{\"screen_hours\":\"sum duration except type2 /3600\",\"app_hours\":\"same exclusion per literal app\",\"grouping\":\"R local POSIXct day-of-month; Python variant preserved separately\"}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "Released R125–157; month/year/timezone/DST, equal-time priority and midnight clipping not standardized by the source",
+          "source_locators": [
+            "Geyer primary text133–220; paper-era code commit6d1f4d44560ccd9a158c04adb37c6fc988bbbd35; Released R125–157; month/year/timezone/DST, equal-time priority and midnight clipping not standardized by the source"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:usage-logger:v1:continuous_output",
+          "source_extraction_id": "outside143:usage-logger:v1:extraction:continuous_output",
+          "source_work_id": "doi:10.3758/s13428-021-01585-7",
+          "method_setting_role": "aggregation",
+          "method_target_layer": "participant_measure",
+          "method_parameter_key": "continuous_output",
+          "method_value_kind": "object",
+          "method_value_json": "{\"duration\":\"next mixed row; final opener0\",\"screen\":\"sum eligible screen-state gaps\",\"apps\":\"sum literal App-labelled gaps\",\"daily_r_key\":\"UTC day-of-month via as.Date(POSIXct)\",\"daily_python_key\":\"local day-of-month via datetime.fromtimestamp\",\"daily_state\":\"screen state reset separately within each day-key subset\",\"cross_day_pairs\":\"can disappear from daily totals; no carry or clipping disclosed\"}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "Released continuous R56–64/Python cell5; month/year not preserved in keys; next-row gaps must not be renamed matched app episodes; source smoke37s screen, Alpha15s/Beta20s",
+          "source_locators": [
+            "Geyer primary text133–220; paper-era code commit6d1f4d44560ccd9a158c04adb37c6fc988bbbd35; Released continuous R56–64/Python cell5; month/year not preserved in keys; next-row gaps must not be renamed matched app episodes; source smoke37s screen, Alpha15s/Beta20s"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:usage-logger:v1:released_numeric",
+          "source_extraction_id": "outside143:usage-logger:v1:extraction:released_numeric",
+          "source_work_id": "doi:10.3758/s13428-021-01585-7",
+          "method_setting_role": "aggregation",
+          "method_target_layer": "participant_measure",
+          "method_parameter_key": "released_numeric",
+          "method_value_kind": "object",
+          "method_value_json": "{\"source_commit\":\"6d1f4d44560ccd9a158c04adb37c6fc988bbbd35\",\"analysis_variants\":[\"continuous_python\",\"continuous_r\",\"retrospective_python\",\"retrospective_r\"],\"app_duration\":\"next mixed row\",\"screen_duration\":\"continuous: independent literal screen state; retrospective: retained non-background mixed-row durations, including startup/shutdown\",\"calendar_group\":\"supplied source day-of-month\",\"retrospective_cap_seconds\":7200,\"retrospective_cap_comparator\":\">; Python non-background only; R all types\",\"source_locator\":\"Prospective Python cells3/5/7; Prospective R12–86; Past Python3/5/7/9/11; Past R10–121 and130–161\"}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "Bounded standalone registered component; supplied complete post-header-consumption rows and source calendar keys; ordered signed gaps/independent screen state/source sequential divisions retained. Retrospective R empty-after-filter/NULL deletion-list source errors are preserved as explicit stage failures, never repaired to zero. No plotting, calendar extraction or whole-parent execution.",
+          "source_locators": [
+            "Geyer primary text133–220; paper-era code commit6d1f4d44560ccd9a158c04adb37c6fc988bbbd35; Bounded standalone registered component; supplied complete post-header-consumption rows and source calendar keys; ordered signed gaps/independent screen state/source sequential divisions retained. Retrospective R empty-after-filter/NULL deletion-list source errors are preserved as explicit stage failures, never repaired to zero. No plotting, calendar extraction or whole-parent execution."
+          ]
+        },
+        {
+          "method_setting_id": "outside143:usage-logger:v1:quality_boundaries",
+          "source_extraction_id": "outside143:usage-logger:v1:extraction:quality_boundaries",
+          "source_work_id": "doi:10.3758/s13428-021-01585-7",
+          "method_setting_role": "quality_control",
+          "method_target_layer": "study_window",
+          "method_parameter_key": "quality_boundaries",
+          "method_value_kind": "object",
+          "method_value_json": "{\"equal_time_priority\":null,\"historical_timezone\":null,\"logger_gap_repair\":null,\"validation_of_derived_totals\":null}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "No uniquely disclosed raw-boundary/carry/clock repair; original log or supplied qualification required",
+          "source_locators": [
+            "Geyer primary text133–220; paper-era code commit6d1f4d44560ccd9a158c04adb37c6fc988bbbd35; No uniquely disclosed raw-boundary/carry/clock repair; original log or supplied qualification required"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:usage-logger:v1:released_resources",
+          "source_extraction_id": "outside143:usage-logger:v1:extraction:released_resources",
+          "source_work_id": "doi:10.3758/s13428-021-01585-7",
+          "method_setting_role": "provenance",
+          "method_target_layer": "released_artifact",
+          "method_parameter_key": "released_resources",
+          "method_value_kind": "object",
+          "method_value_json": "{\"repository\":\"https://github.com/kris-geyer/UsageLoggerPublished\",\"commit\":\"6d1f4d44560ccd9a158c04adb37c6fc988bbbd35\",\"app_version\":\"1.102\",\"version_code\":4,\"artifacts\":[\"Android collector\",\"configuration/decryption websites\",\"R scripts\",\"Python notebooks\",\"sample CSVs\"],\"retained_zip\":\"four article figures1–4, each JPG+GIF:8files; not an analytical/data supplement\",\"validation_tool\":\"Psych Validator commit a763b135b00c769a949c5e61b7a11c3721d95c98; not authenticated deployed build\"}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "Retained code/images; primary XML has no supplementary-material attachment; later Usage Logger2 is a separate resource; source numeric smoke is not product execution",
+          "source_locators": [
+            "Geyer primary text133–220; paper-era code commit6d1f4d44560ccd9a158c04adb37c6fc988bbbd35; Retained code/images; primary XML has no supplementary-material attachment; later Usage Logger2 is a separate resource; source numeric smoke is not product execution"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:usage-logger:v1:primary_artifact",
+          "source_extraction_id": "outside143:usage-logger:v1:extraction:primary_artifact",
+          "source_work_id": "doi:10.3758/s13428-021-01585-7",
+          "method_setting_role": "provenance",
+          "method_target_layer": "released_artifact",
+          "method_parameter_key": "primary_artifact",
+          "method_value_kind": "object",
+          "method_value_json": "{\"doi\":\"10.3758/s13428-021-01585-7\",\"sha256\":\"7d1e36f28268c073c0ae7fdaad3c247496ccb7cfbd566edde1fd4b03f1dc57f5\",\"primary_path\":\"web/.tmp/literature-review/runs/20260830T022500Z/fulltext/geyer-usage-logger-2021.pdf\",\"scope\":\"Separately authorized nine-paper goal; no admission into frozen143; no original participant rows supplied\"}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "Geyer primary text133–220; paper-era code commit6d1f4d44560ccd9a158c04adb37c6fc988bbbd35",
+          "source_locators": [
+            "Geyer primary text133–220; paper-era code commit6d1f4d44560ccd9a158c04adb37c6fc988bbbd35; Geyer primary text133–220; paper-era code commit6d1f4d44560ccd9a158c04adb37c6fc988bbbd35"
+          ]
+        }
+      ],
+      "method_setting_count": 14,
+      "method_setting_ids": [
+        "outside143:usage-logger:v1:collection_modes",
+        "outside143:usage-logger:v1:retrospective_occurrence_schema",
+        "outside143:usage-logger:v1:prospective_foreground_poll",
+        "outside143:usage-logger:v1:prospective_screen_reboot",
+        "outside143:usage-logger:v1:collection_configuration",
+        "outside143:usage-logger:v1:retrospective_r_pipeline",
+        "outside143:usage-logger:v1:retrospective_r_cap",
+        "outside143:usage-logger:v1:retrospective_python_cap",
+        "outside143:usage-logger:v1:retrospective_daily_output",
+        "outside143:usage-logger:v1:continuous_output",
+        "outside143:usage-logger:v1:released_numeric",
+        "outside143:usage-logger:v1:quality_boundaries",
+        "outside143:usage-logger:v1:released_resources",
+        "outside143:usage-logger:v1:primary_artifact"
+      ],
+      "source_locators": [
+        "Geyer primary text133–220; paper-era code commit6d1f4d44560ccd9a158c04adb37c6fc988bbbd35"
+      ]
+    },
+    {
+      "method_profile_id": "outside143:device-analyzer-understanding:v1",
+      "source_work_id": "doi:10.1007/978-3-319-11569-6_16",
+      "source_method_variant_id": "device-analyzer-understanding:source-qualified-outside143:v1",
+      "source_method_variant_label": "Source-qualified specification outside frozen143; supplied-input/runtime limitations retained",
+      "source_method_platform": "Android; other-platform methods explicitly qualified, not enabled",
+      "method_configuration_structure": "documentary_only",
+      "method_profile_version": "1",
+      "profile_implementation_status": "blocked",
+      "method_settings": [
+        {
+          "method_setting_id": "outside143:device-analyzer-understanding:v1:background_collection",
+          "source_extraction_id": "outside143:device-analyzer-understanding:v1:extraction:background_collection",
+          "source_work_id": "doi:10.1007/978-3-319-11569-6_16",
+          "method_setting_role": "acquisition",
+          "method_target_layer": "collector",
+          "method_parameter_key": "background_collection",
+          "method_value_kind": "object",
+          "method_value_json": "{\"android_minimum\":\"2.1\",\"mode\":\"continuous background; asynchronous event driven where possible; poll otherwise\",\"exact_build\":null,\"realized_cadence\":null}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "p3 §3 lines94–106; requested cadence is not measured coverage",
+          "source_locators": [
+            "Exact Understanding author manuscript; understanding.txt94–229,327–471; p3 §3 lines94–106; requested cadence is not measured coverage"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:device-analyzer-understanding:v1:non_event_poll",
+          "source_extraction_id": "outside143:device-analyzer-understanding:v1:extraction:non_event_poll",
+          "source_work_id": "doi:10.1007/978-3-319-11569-6_16",
+          "method_setting_role": "acquisition",
+          "method_target_layer": "collector",
+          "method_parameter_key": "non_event_poll",
+          "method_value_kind": "object",
+          "method_value_json": "{\"period_seconds\":300}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "p3 §3.1 lines134–137; not Chronicle recorded-occurrence polling or a session gap",
+          "source_locators": [
+            "Exact Understanding author manuscript; understanding.txt94–229,327–471; p3 §3.1 lines134–137; not Chronicle recorded-occurrence polling or a session gap"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:device-analyzer-understanding:v1:recent_app_snapshot",
+          "source_extraction_id": "outside143:device-analyzer-understanding:v1:extraction:recent_app_snapshot",
+          "source_work_id": "doi:10.1007/978-3-319-11569-6_16",
+          "method_setting_role": "event_schema",
+          "method_target_layer": "acquired_snapshot",
+          "method_parameter_key": "recent_app_snapshot",
+          "method_value_kind": "object",
+          "method_value_json": "{\"list_length\":10,\"meaning\":\"most recently started applications\",\"rank_direction\":null,\"source_keys\":null}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "p3 lines134–137; snapshot is not a foreground transition; do not inherit adjacent-publication extrapolation",
+          "source_locators": [
+            "Exact Understanding author manuscript; understanding.txt94–229,327–471; p3 lines134–137; snapshot is not a foreground transition; do not inherit adjacent-publication extrapolation"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:device-analyzer-understanding:v1:traffic_snapshot",
+          "source_extraction_id": "outside143:device-analyzer-understanding:v1:extraction:traffic_snapshot",
+          "source_work_id": "doi:10.1007/978-3-319-11569-6_16",
+          "method_setting_role": "event_schema",
+          "method_target_layer": "acquired_snapshot",
+          "method_parameter_key": "traffic_snapshot",
+          "method_value_kind": "object",
+          "method_value_json": "{\"meaning\":\"network traffic included in non-event polling\",\"units\":null,\"uid_scope\":null,\"reset_behavior\":null}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "p3 lines134–137; Play8 does not supply per-app cumulative traffic; no delta algorithm disclosed",
+          "source_locators": [
+            "Exact Understanding author manuscript; understanding.txt94–229,327–471; p3 lines134–137; Play8 does not supply per-app cumulative traffic; no delta algorithm disclosed"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:device-analyzer-understanding:v1:conditional_app_start_rate",
+          "source_extraction_id": "outside143:device-analyzer-understanding:v1:extraction:conditional_app_start_rate",
+          "source_work_id": "doi:10.1007/978-3-319-11569-6_16",
+          "method_setting_role": "acquisition",
+          "method_target_layer": "collector",
+          "method_parameter_key": "conditional_app_start_rate",
+          "method_value_kind": "object",
+          "method_value_json": "{\"rate_hz\":2,\"screen_on_session_fraction\":0.1,\"selection_rule\":null}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "p3 lines137–139; source does NOT say random or last-started-only; seed/weighting/API absent",
+          "source_locators": [
+            "Exact Understanding author manuscript; understanding.txt94–229,327–471; p3 lines137–139; source does NOT say random or last-started-only; seed/weighting/API absent"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:device-analyzer-understanding:v1:compression_upload",
+          "source_extraction_id": "outside143:device-analyzer-understanding:v1:extraction:compression_upload",
+          "source_work_id": "doi:10.1007/978-3-319-11569-6_16",
+          "method_setting_role": "acquisition",
+          "method_target_layer": "collector",
+          "method_parameter_key": "compression_upload",
+          "method_value_kind": "object",
+          "method_value_json": "{\"compression\":\"periodic\",\"upload\":\"encrypted while charging\",\"deletion\":\"local data deleted after uploading finishes\",\"compression_period\":null,\"retry_ack_dedup\":null}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "p3 lines107–111; not evidence of a collector acknowledgement or exact export schema",
+          "source_locators": [
+            "Exact Understanding author manuscript; understanding.txt94–229,327–471; p3 lines107–111; not evidence of a collector acknowledgement or exact export schema"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:device-analyzer-understanding:v1:private_identity",
+          "source_extraction_id": "outside143:device-analyzer-understanding:v1:extraction:private_identity",
+          "source_work_id": "doi:10.1007/978-3-319-11569-6_16",
+          "method_setting_role": "quality_control",
+          "method_target_layer": "raw_record",
+          "method_parameter_key": "private_identity",
+          "method_value_kind": "object",
+          "method_value_json": "{\"identifiers\":\"removed on device\",\"personally_identifying_values\":\"salted hash\",\"salt_basis\":\"hardware identifier\",\"reinstall_correlation\":\"within device\",\"cross_device_correlation\":false,\"algorithm\":null}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "p4 lines143–166; Chronicle app-private identity is distinct; no hardware hash implementation recovered",
+          "source_locators": [
+            "Exact Understanding author manuscript; understanding.txt94–229,327–471; p4 lines143–166; Chronicle app-private identity is distinct; no hardware hash implementation recovered"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:device-analyzer-understanding:v1:consent_pause",
+          "source_extraction_id": "outside143:device-analyzer-understanding:v1:extraction:consent_pause",
+          "source_work_id": "doi:10.1007/978-3-319-11569-6_16",
+          "method_setting_role": "acquisition",
+          "method_target_layer": "collector",
+          "method_parameter_key": "consent_pause",
+          "method_value_kind": "object",
+          "method_value_json": "{\"upload_consent\":\"required\",\"inspection\":\"before upload\",\"pause_withdrawal\":\"supported\",\"historical_deletion\":\"optional request\",\"third_party_sharing\":\"participant choice\"}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "p4 lines167–180; no event-level pause ledger or missingness recovery disclosed",
+          "source_locators": [
+            "Exact Understanding author manuscript; understanding.txt94–229,327–471; p4 lines167–180; no event-level pause ledger or missingness recovery disclosed"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:device-analyzer-understanding:v1:study_identity",
+          "source_extraction_id": "outside143:device-analyzer-understanding:v1:extraction:study_identity",
+          "source_work_id": "doi:10.1007/978-3-319-11569-6_16",
+          "method_setting_role": "participant_schema",
+          "method_target_layer": "participant_record",
+          "method_parameter_key": "study_identity",
+          "method_value_kind": "object",
+          "method_value_json": "{\"demographic_collection\":false,\"reidentification\":\"custom study participation codes\",\"universal_identity\":null}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "pp3–5 lines125–128,181–193; no inferred demographics or survey instrument",
+          "source_locators": [
+            "Exact Understanding author manuscript; understanding.txt94–229,327–471; pp3–5 lines125–128,181–193; no inferred demographics or survey instrument"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:device-analyzer-understanding:v1:relevant_category_inventory",
+          "source_extraction_id": "outside143:device-analyzer-understanding:v1:extraction:relevant_category_inventory",
+          "source_work_id": "doi:10.1007/978-3-319-11569-6_16",
+          "method_setting_role": "event_schema",
+          "method_target_layer": "raw_record",
+          "method_parameter_key": "relevant_category_inventory",
+          "method_value_kind": "object",
+          "method_value_json": "{\"categories\":[\"Device settings\",\"Installed Applications\",\"System Properties\",\"Bluetooth devices\",\"WiFi networks\",\"Energy & Charging\",\"Data usage\"],\"counts\":\"Table1 descriptive inventory; not literal source schemas\",\"dictionary_version\":null}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "p5 §4/Table1 lines195–229; excluded telephony/location branches are not enabled",
+          "source_locators": [
+            "Exact Understanding author manuscript; understanding.txt94–229,327–471; p5 §4/Table1 lines195–229; excluded telephony/location branches are not enabled"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:device-analyzer-understanding:v1:technology_time_shares",
+          "source_extraction_id": "outside143:device-analyzer-understanding:v1:extraction:technology_time_shares",
+          "source_work_id": "doi:10.1007/978-3-319-11569-6_16",
+          "method_setting_role": "aggregation",
+          "method_target_layer": "participant_measure",
+          "method_parameter_key": "technology_time_shares",
+          "method_value_kind": "object",
+          "method_value_json": "{\"measures\":[\"no connection time\",\"technology share\",\"connected-time conditional share\",\"weekly per-device histograms\"],\"interval_constructor\":null,\"denominator\":null,\"week_anchor\":null}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "pp7–8 §5.2 lines327–351; Play broad transport differs from2G/3G/LTE/HSPA and missing signal dBm",
+          "source_locators": [
+            "Exact Understanding author manuscript; understanding.txt94–229,327–471; pp7–8 §5.2 lines327–351; Play broad transport differs from2G/3G/LTE/HSPA and missing signal dBm"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:device-analyzer-understanding:v1:signal_distributions",
+          "source_extraction_id": "outside143:device-analyzer-understanding:v1:extraction:signal_distributions",
+          "source_work_id": "doi:10.1007/978-3-319-11569-6_16",
+          "method_setting_role": "analysis",
+          "method_target_layer": "participant_measure",
+          "method_parameter_key": "signal_distributions",
+          "method_value_kind": "object",
+          "method_value_json": "{\"quantities\":[\"GSM signal strength in dBm\",\"CDMA signal quality\",\"WiFi signal quality\"],\"distributions\":\"per-device longitudinal signal/time distributions\",\"signal_rows\":\"not supplied by Play8\",\"time_weights\":null,\"bins\":null,\"numerical_results\":\"descriptive findings, not processing thresholds\"}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "p8 §5.2/Fig2 lines355–364; source-family scales remain separate; no invented bins or field mapping",
+          "source_locators": [
+            "Exact Understanding author manuscript; understanding.txt94–229,327–471; p8 §5.2/Fig2 lines355–364; source-family scales remain separate; no invented bins or field mapping"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:device-analyzer-understanding:v1:wifi_enabled_vs_connected",
+          "source_extraction_id": "outside143:device-analyzer-understanding:v1:extraction:wifi_enabled_vs_connected",
+          "source_work_id": "doi:10.1007/978-3-319-11569-6_16",
+          "method_setting_role": "aggregation",
+          "method_target_layer": "device_setting_state_interval",
+          "method_parameter_key": "wifi_enabled_vs_connected",
+          "method_value_kind": "object",
+          "method_value_json": "{\"measures\":[\"WiFi enabled fraction\",\"enabled but unconnected fraction\"],\"denominator\":null,\"interval_constructor\":null}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "p9 §5.3 lines384–390; enabled and connected are not aliases; no AP-density or fingerprinting analysis",
+          "source_locators": [
+            "Exact Understanding author manuscript; understanding.txt94–229,327–471; p9 §5.3 lines384–390; enabled and connected are not aliases; no AP-density or fingerprinting analysis"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:device-analyzer-understanding:v1:bluetooth_activation",
+          "source_extraction_id": "outside143:device-analyzer-understanding:v1:extraction:bluetooth_activation",
+          "source_work_id": "doi:10.1007/978-3-319-11569-6_16",
+          "method_setting_role": "aggregation",
+          "method_target_layer": "participant_day",
+          "method_parameter_key": "bluetooth_activation",
+          "method_value_kind": "object",
+          "method_value_json": "{\"measures\":[\"activation-day frequency\",\"active-day duration\"],\"activation_definition\":null,\"day_boundary\":null}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "p9 lines399–402; Bluetooth enabled state not supplied by Play8 device settings",
+          "source_locators": [
+            "Exact Understanding author manuscript; understanding.txt94–229,327–471; p9 lines399–402; Bluetooth enabled state not supplied by Play8 device settings"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:device-analyzer-understanding:v1:battery_charge_days",
+          "source_extraction_id": "outside143:device-analyzer-understanding:v1:extraction:battery_charge_days",
+          "source_work_id": "doi:10.1007/978-3-319-11569-6_16",
+          "method_setting_role": "feature_engineering",
+          "method_target_layer": "participant_day",
+          "method_parameter_key": "battery_charge_days",
+          "method_value_kind": "object",
+          "method_value_json": "{\"measures\":[\"battery depletion\",\"full-charge day frequency\",\"AC versus USB charges\"],\"charge_cycle_constructor\":null,\"full_charge_rule\":null}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "p9 §5.4 lines404–413; measured snapshots are not reconstructed cycles or an invented100percent threshold",
+          "source_locators": [
+            "Exact Understanding author manuscript; understanding.txt94–229,327–471; p9 §5.4 lines404–413; measured snapshots are not reconstructed cycles or an invented100percent threshold"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:device-analyzer-understanding:v1:battery_down_time",
+          "source_extraction_id": "outside143:device-analyzer-understanding:v1:extraction:battery_down_time",
+          "source_work_id": "doi:10.1007/978-3-319-11569-6_16",
+          "method_setting_role": "reconstruction",
+          "method_target_layer": "device_session",
+          "method_parameter_key": "battery_down_time",
+          "method_value_kind": "object",
+          "method_value_json": "{\"measures\":[\"exhaustion frequency\",\"restoration delay\",\"low-battery downtime\",\"uptime fraction\"],\"cause_attribution\":null,\"off_interval_constructor\":null,\"censoring\":null}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "p9 lines413–423; powered off and unobserved must remain distinct",
+          "source_locators": [
+            "Exact Understanding author manuscript; understanding.txt94–229,327–471; p9 lines413–423; powered off and unobserved must remain distinct"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:device-analyzer-understanding:v1:joint_charge_state",
+          "source_extraction_id": "outside143:device-analyzer-understanding:v1:extraction:joint_charge_state",
+          "source_work_id": "doi:10.1007/978-3-319-11569-6_16",
+          "method_setting_role": "aggregation",
+          "method_target_layer": "participant_day",
+          "method_parameter_key": "joint_charge_state",
+          "method_value_kind": "object",
+          "method_value_json": "{\"meaning\":\"powered-on time plugged in and fully charged; day-level available duration\",\"interval_constructor\":null,\"exposure_coverage\":null}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "p9 lines423–431; no supplied joint-state intervals or original observation rows",
+          "source_locators": [
+            "Exact Understanding author manuscript; understanding.txt94–229,327–471; p9 lines423–431; no supplied joint-state intervals or original observation rows"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:device-analyzer-understanding:v1:charge_duration",
+          "source_extraction_id": "outside143:device-analyzer-understanding:v1:extraction:charge_duration",
+          "source_work_id": "doi:10.1007/978-3-319-11569-6_16",
+          "method_setting_role": "analysis",
+          "method_target_layer": "participant_measure",
+          "method_parameter_key": "charge_duration",
+          "method_value_kind": "object",
+          "method_value_json": "{\"summaries\":[\"distributions\",\"mean\",\"median\",\"AC/USB stratification\"],\"overnight_window\":[\"22:00\",\"05:00\"],\"window_endpoint_rule\":null,\"timezone\":null}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "p10 lines433–449; supplied charge intervals needed; reported population values are not processing controls",
+          "source_locators": [
+            "Exact Understanding author manuscript; understanding.txt94–229,327–471; p10 lines433–449; supplied charge intervals needed; reported population values are not processing controls"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:device-analyzer-understanding:v1:status_checks",
+          "source_extraction_id": "outside143:device-analyzer-understanding:v1:extraction:status_checks",
+          "source_work_id": "doi:10.1007/978-3-319-11569-6_16",
+          "method_setting_role": "reconstruction",
+          "method_target_layer": "screen_bout",
+          "method_parameter_key": "status_checks",
+          "method_value_kind": "object",
+          "method_value_json": "{\"meaning\":\"screen activated but device never unlocked\",\"boundary_timeout_orphan_rules\":null}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "p10 §5.5 lines451–461; no notification-attendance inference or first-touch invention",
+          "source_locators": [
+            "Exact Understanding author manuscript; understanding.txt94–229,327–471; p10 §5.5 lines451–461; no notification-attendance inference or first-touch invention"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:device-analyzer-understanding:v1:daily_interactions",
+          "source_extraction_id": "outside143:device-analyzer-understanding:v1:extraction:daily_interactions",
+          "source_work_id": "doi:10.1007/978-3-319-11569-6_16",
+          "method_setting_role": "aggregation",
+          "method_target_layer": "participant_day",
+          "method_parameter_key": "daily_interactions",
+          "method_value_kind": "object",
+          "method_value_json": "{\"measures\":[\"daily device-use duration\",\"interactions/day\",\"duration/interaction\"],\"interaction_constructor\":null,\"denominator\":null}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "pp10–11 lines463–471; Android results separate from cited BlackBerry comparison",
+          "source_locators": [
+            "Exact Understanding author manuscript; understanding.txt94–229,327–471; pp10–11 lines463–471; Android results separate from cited BlackBerry comparison"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:device-analyzer-understanding:v1:longitudinal_quality",
+          "source_extraction_id": "outside143:device-analyzer-understanding:v1:extraction:longitudinal_quality",
+          "source_work_id": "doi:10.1007/978-3-319-11569-6_16",
+          "method_setting_role": "quality_control",
+          "method_target_layer": "study_window",
+          "method_parameter_key": "longitudinal_quality",
+          "method_value_kind": "object",
+          "method_value_json": "{\"interpretation\":\"device heterogeneity and abrupt longitudinal changes\",\"automatic_exclusion\":null}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "pp3,5,8,11; not a participant admission threshold or coverage guarantee",
+          "source_locators": [
+            "Exact Understanding author manuscript; understanding.txt94–229,327–471; pp3,5,8,11; not a participant admission threshold or coverage guarantee"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:device-analyzer-understanding:v1:resources",
+          "source_extraction_id": "outside143:device-analyzer-understanding:v1:extraction:resources",
+          "source_work_id": "doi:10.1007/978-3-319-11569-6_16",
+          "method_setting_role": "provenance",
+          "method_target_layer": "released_artifact",
+          "method_parameter_key": "resources",
+          "method_value_kind": "object",
+          "method_value_json": "{\"collector_source\":\"explicitly withheld\",\"data\":\"historical participant download; summary by request; dataset by contract; custom-study raw access\",\"dictionary\":\"http://deviceanalyzer.cl.cam.ac.uk/keyValuePairs.htm\",\"dictionary_version\":null,\"analysis_framework\":\"reference26 only; no inherited algorithms\"}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "pp4–5 lines149–152,175–193; links/access claims not current downloaded source or data",
+          "source_locators": [
+            "Exact Understanding author manuscript; understanding.txt94–229,327–471; pp4–5 lines149–152,175–193; links/access claims not current downloaded source or data"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:device-analyzer-understanding:v1:primary_artifact",
+          "source_extraction_id": "outside143:device-analyzer-understanding:v1:extraction:primary_artifact",
+          "source_work_id": "doi:10.1007/978-3-319-11569-6_16",
+          "method_setting_role": "provenance",
+          "method_target_layer": "released_artifact",
+          "method_parameter_key": "primary_artifact",
+          "method_value_kind": "object",
+          "method_value_json": "{\"doi\":\"10.1007/978-3-319-11569-6_16\",\"sha256\":\"6c72d3d0a4e87cd34fc71471cc8bc4780306bd63c80b3f17c70ee319f5c4c757\",\"primary_path\":\".tmp-literature-review-private/tmc-expanded-search-20260830/artifacts/device-analyzer-lineage/understanding.pdf\",\"scope\":\"Separately authorized nine-paper goal; no admission into frozen143; no original participant rows supplied\"}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "Exact Understanding author manuscript; understanding.txt94–229,327–471",
+          "source_locators": [
+            "Exact Understanding author manuscript; understanding.txt94–229,327–471; Exact Understanding author manuscript; understanding.txt94–229,327–471"
+          ]
+        }
+      ],
+      "method_setting_count": 23,
+      "method_setting_ids": [
+        "outside143:device-analyzer-understanding:v1:background_collection",
+        "outside143:device-analyzer-understanding:v1:non_event_poll",
+        "outside143:device-analyzer-understanding:v1:recent_app_snapshot",
+        "outside143:device-analyzer-understanding:v1:traffic_snapshot",
+        "outside143:device-analyzer-understanding:v1:conditional_app_start_rate",
+        "outside143:device-analyzer-understanding:v1:compression_upload",
+        "outside143:device-analyzer-understanding:v1:private_identity",
+        "outside143:device-analyzer-understanding:v1:consent_pause",
+        "outside143:device-analyzer-understanding:v1:study_identity",
+        "outside143:device-analyzer-understanding:v1:relevant_category_inventory",
+        "outside143:device-analyzer-understanding:v1:technology_time_shares",
+        "outside143:device-analyzer-understanding:v1:signal_distributions",
+        "outside143:device-analyzer-understanding:v1:wifi_enabled_vs_connected",
+        "outside143:device-analyzer-understanding:v1:bluetooth_activation",
+        "outside143:device-analyzer-understanding:v1:battery_charge_days",
+        "outside143:device-analyzer-understanding:v1:battery_down_time",
+        "outside143:device-analyzer-understanding:v1:joint_charge_state",
+        "outside143:device-analyzer-understanding:v1:charge_duration",
+        "outside143:device-analyzer-understanding:v1:status_checks",
+        "outside143:device-analyzer-understanding:v1:daily_interactions",
+        "outside143:device-analyzer-understanding:v1:longitudinal_quality",
+        "outside143:device-analyzer-understanding:v1:resources",
+        "outside143:device-analyzer-understanding:v1:primary_artifact"
+      ],
+      "source_locators": [
+        "Exact Understanding author manuscript; understanding.txt94–229,327–471"
+      ]
+    },
+    {
+      "method_profile_id": "outside143:sdu-device-tracker:v1",
+      "source_work_id": "doi:10.1016/j.chbr.2021.100164",
+      "source_method_variant_id": "sdu-device-tracker:source-qualified-outside143:v1",
+      "source_method_variant_label": "Source-qualified specification outside frozen143; supplied-input/runtime limitations retained",
+      "source_method_platform": "Android; other-platform methods explicitly qualified, not enabled",
+      "method_configuration_structure": "documentary_only",
+      "method_profile_version": "1",
+      "profile_implementation_status": "blocked",
+      "method_settings": [
+        {
+          "method_setting_id": "outside143:sdu-device-tracker:v1:participant_activation",
+          "source_extraction_id": "outside143:sdu-device-tracker:v1:extraction:participant_activation",
+          "source_work_id": "doi:10.1016/j.chbr.2021.100164",
+          "method_setting_role": "acquisition",
+          "method_target_layer": "collector",
+          "method_parameter_key": "participant_activation",
+          "method_value_kind": "object",
+          "method_value_json": "{\"setup\":\"personal QR code\",\"payload\":[\"identification number\",\"measurement period length\"]}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "p2 §2.4.1; supplied participant/study identity, not a universal device identifier",
+          "source_locators": [
+            "Kristensen final article pp2–3; extracted text192–275; Android branch only unless explicitly qualified; p2 §2.4.1; supplied participant/study identity, not a universal device identifier"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:sdu-device-tracker:v1:android_event_schema",
+          "source_extraction_id": "outside143:sdu-device-tracker:v1:extraction:android_event_schema",
+          "source_work_id": "doi:10.1016/j.chbr.2021.100164",
+          "method_setting_role": "event_schema",
+          "method_target_layer": "raw_occurrence",
+          "method_parameter_key": "android_event_schema",
+          "method_value_kind": "object",
+          "method_value_json": "{\"broadcasts\":[\"SCREEN_ON\",\"SCREEN_OFF\"],\"occurrence_timestamp\":\"exact timestamp for each event\",\"offline\":\"stored locally whether offline or online\",\"timestamp_unit\":null}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "p2 §2.4.1.2 lines192–203; iOS millisecond statement is not an Android unit claim",
+          "source_locators": [
+            "Kristensen final article pp2–3; extracted text192–275; Android branch only unless explicitly qualified; p2 §2.4.1.2 lines192–203; iOS millisecond statement is not an Android unit claim"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:sdu-device-tracker:v1:screen_activation_semantics",
+          "source_extraction_id": "outside143:sdu-device-tracker:v1:extraction:screen_activation_semantics",
+          "source_work_id": "doi:10.1016/j.chbr.2021.100164",
+          "method_setting_role": "reconstruction",
+          "method_target_layer": "pickup_activation",
+          "method_parameter_key": "screen_activation_semantics",
+          "method_value_kind": "object",
+          "method_value_json": "{\"meaning\":\"screen activations including locked notification wakes\",\"calls_music\":\"only while display is on\",\"keyguard_unlock_equivalence\":false}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "p2 §2.4.1.2; reported Android unlockings must not become keyguard dismissals",
+          "source_locators": [
+            "Kristensen final article pp2–3; extracted text192–275; Android branch only unless explicitly qualified; p2 §2.4.1.2; reported Android unlockings must not become keyguard dismissals"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:sdu-device-tracker:v1:android_upload",
+          "source_extraction_id": "outside143:sdu-device-tracker:v1:extraction:android_upload",
+          "source_work_id": "doi:10.1016/j.chbr.2021.100164",
+          "method_setting_role": "acquisition",
+          "method_target_layer": "collector",
+          "method_parameter_key": "android_upload",
+          "method_value_kind": "object",
+          "method_value_json": "{\"requested_period_seconds\":1800,\"transport\":\"encrypted information to secure university server\",\"local_persistence\":\"database\",\"uninstall\":\"paper says collection stops\",\"realized_cadence\":null,\"study_failures\":\"17Android:1Huawei install failed,2Huawei no data,2short records not necessarily loss\",\"minimum_six_day_exclusion\":null}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "p2 lines192–210; p7 lines552–558 records study-era collection failures; neither historical claims nor modern background assumptions prove complete days",
+          "source_locators": [
+            "Kristensen final article pp2–3; extracted text192–275; Android branch only unless explicitly qualified; p2 lines192–210; p7 lines552–558 records study-era collection failures; neither historical claims nor modern background assumptions prove complete days"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:sdu-device-tracker:v1:period_reductions",
+          "source_extraction_id": "outside143:sdu-device-tracker:v1:extraction:period_reductions",
+          "source_work_id": "doi:10.1016/j.chbr.2021.100164",
+          "method_setting_role": "aggregation",
+          "method_target_layer": "participant_day",
+          "method_parameter_key": "period_reductions",
+          "method_value_kind": "object",
+          "method_value_json": "{\"quantities\":[\"screen duration sum\",\"screen activation count\"],\"scopes\":[\"per user/day\",\"per user/hour\"],\"supplied_input\":\"independent qualified duration fragments and activation memberships\",\"supplied_input_origin\":\"Chronicle engineered boundary, not a disclosed author Python file format\",\"calendar_allocation\":null}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "p3 §2.4.3 lines231–237; splitting duration across hours must not create additional activations; generic supplied observation import is not a reducer",
+          "source_locators": [
+            "Kristensen final article pp2–3; extracted text192–275; Android branch only unless explicitly qualified; p3 §2.4.3 lines231–237; splitting duration across hours must not create additional activations; generic supplied observation import is not a reducer"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:sdu-device-tracker:v1:comparison_alignment",
+          "source_extraction_id": "outside143:sdu-device-tracker:v1:extraction:comparison_alignment",
+          "source_work_id": "doi:10.1016/j.chbr.2021.100164",
+          "method_setting_role": "validation",
+          "method_target_layer": "analysis_record_set",
+          "method_parameter_key": "comparison_alignment",
+          "method_value_kind": "object",
+          "method_value_json": "{\"reference\":\"ActionDash on Android\",\"settings_standardized\":true,\"standardized_setting_values\":null,\"author_algorithms\":\"not publicly described\"}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "p3 §2.4.2 lines220–221; settings standardized to match SDU, exact values absent; comparator-specific cleaned output separate from collector default",
+          "source_locators": [
+            "Kristensen final article pp2–3; extracted text192–275; Android branch only unless explicitly qualified; p3 §2.4.2 lines220–221; settings standardized to match SDU, exact values absent; comparator-specific cleaned output separate from collector default"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:sdu-device-tracker:v1:validation_arithmetic",
+          "source_extraction_id": "outside143:sdu-device-tracker:v1:extraction:validation_arithmetic",
+          "source_work_id": "doi:10.1016/j.chbr.2021.100164",
+          "method_setting_role": "validation",
+          "method_target_layer": "participant_measure",
+          "method_parameter_key": "validation_arithmetic",
+          "method_value_kind": "object",
+          "method_value_json": "{\"operations\":[\"percentage_pair_mean\",\"spearman_brown_required_days\"],\"percentage_formula\":\"100 * supplied_signed_difference / supplied_pair_mean\",\"percentage_quantity\":\"Android daily activation count comparison\",\"difference_orientation\":\"explicitly supplied, never inferred\",\"required_days_formula\":\"R * (1 - supplied_single_day_ICC) / (supplied_single_day_ICC * (1 - R))\",\"reliability_targets\":[0.7,0.8,0.9],\"required_days_rounding\":\"none; fractional, no minimum-one convention\",\"icc_estimation\":null}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "p3 §2.5 lines230–233 and245–250; Fig3 lines382–391; Table5 lines427–435; caller-qualified operands only, not comparator cleaning or ICC model fitting; binary64 fractional required-days, no rounding/minimum-one; pooled rounded ICC is not an Android default",
+          "source_locators": [
+            "Kristensen final article pp2–3; extracted text192–275; Android branch only unless explicitly qualified; p3 §2.5 lines230–233 and245–250; Fig3 lines382–391; Table5 lines427–435; caller-qualified operands only, not comparator cleaning or ICC model fitting; binary64 fractional required-days, no rounding/minimum-one; pooled rounded ICC is not an Android default"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:sdu-device-tracker:v1:recurrent_short_bout_filter",
+          "source_extraction_id": "outside143:sdu-device-tracker:v1:extraction:recurrent_short_bout_filter",
+          "source_work_id": "doi:10.1016/j.chbr.2021.100164",
+          "method_setting_role": "quality_control",
+          "method_target_layer": "screen_bout",
+          "method_parameter_key": "recurrent_short_bout_filter",
+          "method_value_kind": "object",
+          "method_value_json": "{\"duration_seconds\":{\"comparator\":\"<\",\"value\":40},\"duration_accuracy_decimal_places\":1,\"recurrence_minimum\":3,\"all_event_recording_share_minimum\":0.01,\"purpose\":\"Android comparison with ActionDash\",\"recurrence_partition\":null,\"rounding_convention\":null,\"event_denominator\":null}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "p3 lines269–275; heuristic classification retained, not notification-item analysis or fabricated recurrence algorithm",
+          "source_locators": [
+            "Kristensen final article pp2–3; extracted text192–275; Android branch only unless explicitly qualified; p3 lines269–275; heuristic classification retained, not notification-item analysis or fabricated recurrence algorithm"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:sdu-device-tracker:v1:mixed_platform_repairs",
+          "source_extraction_id": "outside143:sdu-device-tracker:v1:extraction:mixed_platform_repairs",
+          "source_work_id": "doi:10.1016/j.chbr.2021.100164",
+          "method_setting_role": "quality_control",
+          "method_target_layer": "screen_bout",
+          "method_parameter_key": "mixed_platform_repairs",
+          "method_value_kind": "object",
+          "method_value_json": "{\"imputed_interval_seconds\":60,\"maximum_bout_hours\":6,\"motivation\":\"iOS unexpected lock/unlock order\",\"android_results\":\"no inconsistencies observed\",\"six_hour_equality\":null}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "p3 lines238–267; optional capabilities are not demonstrated Android corrections; raw pairing/tails/orphans missing",
+          "source_locators": [
+            "Kristensen final article pp2–3; extracted text192–275; Android branch only unless explicitly qualified; p3 lines238–267; optional capabilities are not demonstrated Android corrections; raw pairing/tails/orphans missing"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:sdu-device-tracker:v1:quality_counts",
+          "source_extraction_id": "outside143:sdu-device-tracker:v1:extraction:quality_counts",
+          "source_work_id": "doi:10.1016/j.chbr.2021.100164",
+          "method_setting_role": "quality_control",
+          "method_target_layer": "participant_measure",
+          "method_parameter_key": "quality_counts",
+          "method_value_kind": "object",
+          "method_value_json": "{\"outputs\":[\"unexpected-order count\",\"maximum-bout exclusions\",\"lost registration time\"],\"exact_gap_recovery\":null}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "p3 §2.4.3; lost-registration discussion motivated by iOS force quit; no invented Android repair",
+          "source_locators": [
+            "Kristensen final article pp2–3; extracted text192–275; Android branch only unless explicitly qualified; p3 §2.4.3; lost-registration discussion motivated by iOS force quit; no invented Android repair"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:sdu-device-tracker:v1:validation_methods",
+          "source_extraction_id": "outside143:sdu-device-tracker:v1:extraction:validation_methods",
+          "source_work_id": "doi:10.1016/j.chbr.2021.100164",
+          "method_setting_role": "validation",
+          "method_target_layer": "participant_measure",
+          "method_parameter_key": "validation_methods",
+          "method_value_kind": "object",
+          "method_value_json": "{\"methods\":[\"repeated-measure changing-quantity agreement\",\"within-subject repeated-measure correlation\",\"mixed-effect reproducibility\",\"Spearman-Brown required-days estimate\"],\"android_activation_differences\":\"nonparametric after log transformation failed normality\",\"proportional_bias_transform\":\"difference as percentage of pair mean\",\"measurement_range\":\"Preiss–Fisher1000random mispairings; randomization details undisclosed\",\"relationship_check\":\"lowess\",\"correlation_package\":\"rmcorr\",\"reliability_targets\":[0.7,0.8,0.9],\"covariate_conflict\":\"Methods day type versus Table5 day type and gender\",\"software\":[\"Stata/IC16.1\",\"R4.0.2\"],\"estimator_details\":null}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "p3 §2.5 lines215–252; pp5–6 lines392–434; source-located validation choices, not executed outcome/statistical reproduction; Figure3 quantile labels conflict with limits-of-agreement caption",
+          "source_locators": [
+            "Kristensen final article pp2–3; extracted text192–275; Android branch only unless explicitly qualified; p3 §2.5 lines215–252; pp5–6 lines392–434; source-located validation choices, not executed outcome/statistical reproduction; Figure3 quantile labels conflict with limits-of-agreement caption"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:sdu-device-tracker:v1:resources",
+          "source_extraction_id": "outside143:sdu-device-tracker:v1:extraction:resources",
+          "source_work_id": "doi:10.1016/j.chbr.2021.100164",
+          "method_setting_role": "provenance",
+          "method_target_layer": "released_artifact",
+          "method_parameter_key": "resources",
+          "method_value_kind": "object",
+          "method_value_json": "{\"app_source\":\"available on request; not acquired\",\"python_processor\":\"not acquired; request availability not stated\",\"statistical_code\":\"not acquired; request availability not stated\",\"participant_data\":\"not acquired\",\"later_manuals\":\"study-build correspondence unverified; separate manual/cohort contexts\"}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "p7 lines563–571 offers DeviceTracker app source for development, not explicitly processing/analysis code; no public executable supplement identified/acquired or authenticated source build",
+          "source_locators": [
+            "Kristensen final article pp2–3; extracted text192–275; Android branch only unless explicitly qualified; p7 lines563–571 offers DeviceTracker app source for development, not explicitly processing/analysis code; no public executable supplement identified/acquired or authenticated source build"
+          ]
+        },
+        {
+          "method_setting_id": "outside143:sdu-device-tracker:v1:primary_artifact",
+          "source_extraction_id": "outside143:sdu-device-tracker:v1:extraction:primary_artifact",
+          "source_work_id": "doi:10.1016/j.chbr.2021.100164",
+          "method_setting_role": "provenance",
+          "method_target_layer": "released_artifact",
+          "method_parameter_key": "primary_artifact",
+          "method_value_kind": "object",
+          "method_value_json": "{\"doi\":\"10.1016/j.chbr.2021.100164\",\"sha256\":\"31c48a45306cbc1f9bb9675185bd8aa05e35940999a9b8744e4aa378fe5ae04a\",\"primary_path\":\"web/.tmp/literature-review/fulltext/358a161016ecbe2b60e4.pdf\",\"scope\":\"Separately authorized nine-paper goal; no admission into frozen143; no original participant rows supplied\"}",
+          "method_applicability_status": "applicable",
+          "method_disclosure_status": "declared_partial",
+          "method_implementation_status": "specification_only",
+          "contract_bindings": [],
+          "ontology_mapping_note": "Kristensen final article pp2–3; extracted text192–275; Android branch only unless explicitly qualified",
+          "source_locators": [
+            "Kristensen final article pp2–3; extracted text192–275; Android branch only unless explicitly qualified; Kristensen final article pp2–3; extracted text192–275; Android branch only unless explicitly qualified"
+          ]
+        }
+      ],
+      "method_setting_count": 13,
+      "method_setting_ids": [
+        "outside143:sdu-device-tracker:v1:participant_activation",
+        "outside143:sdu-device-tracker:v1:android_event_schema",
+        "outside143:sdu-device-tracker:v1:screen_activation_semantics",
+        "outside143:sdu-device-tracker:v1:android_upload",
+        "outside143:sdu-device-tracker:v1:period_reductions",
+        "outside143:sdu-device-tracker:v1:comparison_alignment",
+        "outside143:sdu-device-tracker:v1:validation_arithmetic",
+        "outside143:sdu-device-tracker:v1:recurrent_short_bout_filter",
+        "outside143:sdu-device-tracker:v1:mixed_platform_repairs",
+        "outside143:sdu-device-tracker:v1:quality_counts",
+        "outside143:sdu-device-tracker:v1:validation_methods",
+        "outside143:sdu-device-tracker:v1:resources",
+        "outside143:sdu-device-tracker:v1:primary_artifact"
+      ],
+      "source_locators": [
+        "Kristensen final article pp2–3; extracted text192–275; Android branch only unless explicitly qualified"
+      ]
+    }
+  ]
+}

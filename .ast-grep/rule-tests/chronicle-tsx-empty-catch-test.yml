@@ -1,0 +1,8 @@
+id: chronicle-tsx-empty-catch
+valid:
+  - "try { load(); } catch { /* A missing cache is rebuilt on the next run. */ }"
+  - "const view = <div onClick={() => save().catch((error) => report(error))} />;"
+  - "promise.then(() => {});"
+invalid:
+  - "try { load(); } catch {}"
+  - "const view = <div onClick={() => save().catch(() => {})} />;"

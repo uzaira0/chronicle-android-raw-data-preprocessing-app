@@ -1,0 +1,1899 @@
+{
+  "fixture": {
+    "path": "/home/opt/chronicle_campaign_backup/sweepwork/option-sweep/fixtures/synthetic-100k.csv",
+    "sha256": "sha256:80fc25329e2b9e5f08726c34e81701ed758f95332fc10485c96120ab6703af35",
+    "bytes": 19018650
+  },
+  "baseOptionsNote": "DEFAULT_BROWSER_OPTIONS + America/Chicago selected-filter, support files off, concurrent+screen-gated+aggregates on, day coverage off",
+  "coldSeed": {
+    "preflightElapsedMs": 1025.557954,
+    "executeElapsedMs": 8102.499798999999,
+    "artifactExtractionElapsedMs": 60.97924099999909,
+    "totalElapsedMs": 9189.036993999998,
+    "totalArtifactBytes": 190396571,
+    "queryStatusCounts": {
+      "recomputed": 55,
+      "bypassed": 12
+    }
+  },
+  "warmFloor": {
+    "preflightElapsedMs": 85.71763800000008,
+    "executeElapsedMs": 5506.722083000001,
+    "artifactExtractionElapsedMs": 50.09795699999995,
+    "totalElapsedMs": 5642.537678000001,
+    "totalArtifactBytes": 190398301,
+    "queryStatusCounts": {
+      "cached": 55,
+      "bypassed": 12
+    }
+  },
+  "results": [
+    {
+      "key": "processAppUsage",
+      "changedTo": "false",
+      "changedValue": false,
+      "changed": {
+        "preflightElapsedMs": 86.14791499999956,
+        "executeElapsedMs": 854.6059189999996,
+        "artifactExtractionElapsedMs": 7.587978999999905,
+        "totalElapsedMs": 948.3418129999991,
+        "totalArtifactBytes": 26683753,
+        "queryStatusCounts": {
+          "cached": 21,
+          "bypassed": 45,
+          "recomputed": 1
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 84.82381600000008,
+        "executeElapsedMs": 5767.368422,
+        "artifactExtractionElapsedMs": 52.750944999999774,
+        "totalElapsedMs": 5904.943182999999,
+        "totalArtifactBytes": 190398280,
+        "queryStatusCounts": {
+          "cached": 54,
+          "bypassed": 12,
+          "recomputed": 1
+        }
+      }
+    },
+    {
+      "key": "processScreenUsage",
+      "changedTo": "false",
+      "changedValue": false,
+      "changed": {
+        "preflightElapsedMs": 0,
+        "executeElapsedMs": 6400.7266469999995,
+        "artifactExtractionElapsedMs": 47.68468999999823,
+        "totalElapsedMs": 6448.411336999998,
+        "totalArtifactBytes": 178574258,
+        "queryStatusCounts": {
+          "cached": 50,
+          "bypassed": 16,
+          "recomputed": 1
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 88.4781550000007,
+        "executeElapsedMs": 5802.362765999998,
+        "artifactExtractionElapsedMs": 35.75210900000093,
+        "totalElapsedMs": 5926.59303,
+        "totalArtifactBytes": 190398280,
+        "queryStatusCounts": {
+          "cached": 54,
+          "bypassed": 12,
+          "recomputed": 1
+        }
+      }
+    },
+    {
+      "key": "eventRetentionSet",
+      "changedTo": "parrytoth7",
+      "changedValue": "parry_toth_7",
+      "changed": {
+        "preflightElapsedMs": 87.51781800000026,
+        "executeElapsedMs": 4602.162006999999,
+        "artifactExtractionElapsedMs": 34.73044200000004,
+        "totalElapsedMs": 4724.410266999999,
+        "totalArtifactBytes": 126814705,
+        "queryStatusCounts": {
+          "cached": 25,
+          "recomputed": 30,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 118.10063800000353,
+        "executeElapsedMs": 6310.913957999997,
+        "artifactExtractionElapsedMs": 47.121460000002116,
+        "totalElapsedMs": 6476.136056000003,
+        "totalArtifactBytes": 190397471,
+        "queryStatusCounts": {
+          "cached": 25,
+          "recomputed": 30,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "openerSet",
+      "changedTo": "resumedonly",
+      "changedValue": "activity_resumed_only",
+      "changed": {
+        "preflightElapsedMs": 97.62169100000028,
+        "executeElapsedMs": 7048.287224,
+        "artifactExtractionElapsedMs": 48.5474569999933,
+        "totalElapsedMs": 7194.456371999993,
+        "totalArtifactBytes": 190398302,
+        "queryStatusCounts": {
+          "cached": 51,
+          "recomputed": 4,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 93.6488989999998,
+        "executeElapsedMs": 5976.467589,
+        "artifactExtractionElapsedMs": 47.60475299999962,
+        "totalElapsedMs": 6117.721240999999,
+        "totalArtifactBytes": 190398201,
+        "queryStatusCounts": {
+          "cached": 51,
+          "recomputed": 4,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "episodeReconstructionStrategy",
+      "changedTo": "forward",
+      "changedValue": "parry_toth_forward_pairing",
+      "changed": {
+        "preflightElapsedMs": 99.61886799999775,
+        "executeElapsedMs": 6193.624837999996,
+        "artifactExtractionElapsedMs": 43.283281000003626,
+        "totalElapsedMs": 6336.5269869999975,
+        "totalArtifactBytes": 167572336,
+        "queryStatusCounts": {
+          "cached": 27,
+          "recomputed": 28,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 115.66590500000166,
+        "executeElapsedMs": 6297.236351000007,
+        "artifactExtractionElapsedMs": 49.52119300000777,
+        "totalElapsedMs": 6462.423449000016,
+        "totalArtifactBytes": 190397529,
+        "queryStatusCounts": {
+          "cached": 27,
+          "recomputed": 28,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "microUseClassificationPolicy",
+      "changedTo": "okoshilt5s",
+      "changedValue": "okoshi_lt_5s",
+      "changed": {
+        "preflightElapsedMs": 111.03360500000417,
+        "executeElapsedMs": 7407.734467000002,
+        "artifactExtractionElapsedMs": 49.016740999999456,
+        "totalElapsedMs": 7567.784813000006,
+        "totalArtifactBytes": 194486632,
+        "queryStatusCounts": {
+          "cached": 29,
+          "recomputed": 26,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 103.09280399999989,
+        "executeElapsedMs": 6163.357315000001,
+        "artifactExtractionElapsedMs": 54.28084399999352,
+        "totalElapsedMs": 6320.7309629999945,
+        "totalArtifactBytes": 190397587,
+        "queryStatusCounts": {
+          "cached": 29,
+          "recomputed": 26,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "allowStopEventReuse",
+      "changedTo": "true",
+      "changedValue": true,
+      "changed": {
+        "preflightElapsedMs": 120.18760200000543,
+        "executeElapsedMs": 7481.994525000002,
+        "artifactExtractionElapsedMs": 48.662492999996175,
+        "totalElapsedMs": 7650.8446200000035,
+        "totalArtifactBytes": 190477309,
+        "queryStatusCounts": {
+          "cached": 27,
+          "recomputed": 28,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 116.21743100001186,
+        "executeElapsedMs": 6333.387789,
+        "artifactExtractionElapsedMs": 51.33206900001096,
+        "totalElapsedMs": 6500.937289000023,
+        "totalArtifactBytes": 190397529,
+        "queryStatusCounts": {
+          "cached": 27,
+          "recomputed": 28,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "useActivityStoppedAsFallback",
+      "changedTo": "false",
+      "changedValue": false,
+      "changed": {
+        "preflightElapsedMs": 122.03622300000279,
+        "executeElapsedMs": 6961.303647000008,
+        "artifactExtractionElapsedMs": 45.84044099999301,
+        "totalElapsedMs": 7129.180311000004,
+        "totalArtifactBytes": 179522523,
+        "queryStatusCounts": {
+          "cached": 27,
+          "recomputed": 28,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 121.30739499999618,
+        "executeElapsedMs": 6282.200906000013,
+        "artifactExtractionElapsedMs": 49.692264000012074,
+        "totalElapsedMs": 6453.200565000021,
+        "totalArtifactBytes": 190397529,
+        "queryStatusCounts": {
+          "cached": 27,
+          "recomputed": 28,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "applyThresholdToFallback",
+      "changedTo": "false",
+      "changedValue": false,
+      "changed": {
+        "preflightElapsedMs": 114.22889600000053,
+        "executeElapsedMs": 7644.887898000001,
+        "artifactExtractionElapsedMs": 50.16819799999939,
+        "totalElapsedMs": 7809.284992000001,
+        "totalArtifactBytes": 190594906,
+        "queryStatusCounts": {
+          "cached": 27,
+          "recomputed": 28,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 128.02176700001291,
+        "executeElapsedMs": 6334.418409999998,
+        "artifactExtractionElapsedMs": 48.68053599999985,
+        "totalElapsedMs": 6511.120713000011,
+        "totalArtifactBytes": 190397529,
+        "queryStatusCounts": {
+          "cached": 27,
+          "recomputed": 28,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "longDurationThresholdHours",
+      "changedTo": "h1",
+      "changedValue": 1,
+      "changed": {
+        "preflightElapsedMs": 120.50137100000575,
+        "executeElapsedMs": 7184.863430000012,
+        "artifactExtractionElapsedMs": 46.72521800000686,
+        "totalElapsedMs": 7352.090019000025,
+        "totalArtifactBytes": 184022732,
+        "queryStatusCounts": {
+          "cached": 27,
+          "recomputed": 28,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 119.20895900001051,
+        "executeElapsedMs": 6323.515159999981,
+        "artifactExtractionElapsedMs": 48.56547500001034,
+        "totalElapsedMs": 6491.289594000002,
+        "totalArtifactBytes": 190397529,
+        "queryStatusCounts": {
+          "cached": 27,
+          "recomputed": 28,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "longDurationThresholdHoursExplicit",
+      "changedTo": "true",
+      "changedValue": true,
+      "changed": {
+        "preflightElapsedMs": 123.17504099998041,
+        "executeElapsedMs": 6945.072895999998,
+        "artifactExtractionElapsedMs": 51.123010999988765,
+        "totalElapsedMs": 7119.370947999967,
+        "totalArtifactBytes": 190399338,
+        "queryStatusCounts": {
+          "cached": 54,
+          "bypassed": 12,
+          "recomputed": 1
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 95.53617099998519,
+        "executeElapsedMs": 5987.800862999982,
+        "artifactExtractionElapsedMs": 52.58022300002631,
+        "totalElapsedMs": 6135.917256999994,
+        "totalArtifactBytes": 190398280,
+        "queryStatusCounts": {
+          "cached": 54,
+          "bypassed": 12,
+          "recomputed": 1
+        }
+      }
+    },
+    {
+      "key": "maximumDurationPolicy",
+      "changedTo": "strategynative",
+      "changedValue": "strategy_native",
+      "changed": {
+        "preflightElapsedMs": 95.37112699999125,
+        "executeElapsedMs": 7088.267330000002,
+        "artifactExtractionElapsedMs": 47.70648199997959,
+        "totalElapsedMs": 7231.344938999973,
+        "totalArtifactBytes": 190407804,
+        "queryStatusCounts": {
+          "cached": 53,
+          "recomputed": 2,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 88.42880900000455,
+        "executeElapsedMs": 6008.523788999999,
+        "artifactExtractionElapsedMs": 50.48387199998251,
+        "totalElapsedMs": 6147.436469999986,
+        "totalArtifactBytes": 190398259,
+        "queryStatusCounts": {
+          "cached": 53,
+          "recomputed": 2,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "maximumDurationDisposition",
+      "changedTo": "notapplicable",
+      "changedValue": "not_applicable",
+      "changed": {
+        "preflightElapsedMs": 102.50346499998705,
+        "executeElapsedMs": 6020.543017999997,
+        "artifactExtractionElapsedMs": 51.09655099999509,
+        "totalElapsedMs": 6174.143033999979,
+        "totalArtifactBytes": 190407804,
+        "queryStatusCounts": {
+          "cached": 53,
+          "recomputed": 2,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 99.46369099998265,
+        "executeElapsedMs": 6035.734081999981,
+        "artifactExtractionElapsedMs": 49.29832999999053,
+        "totalElapsedMs": 6184.496102999954,
+        "totalArtifactBytes": 190398259,
+        "queryStatusCounts": {
+          "cached": 53,
+          "recomputed": 2,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "maximumDurationThresholdSource",
+      "changedTo": "strategynative",
+      "changedValue": "strategy_native",
+      "changed": {
+        "preflightElapsedMs": 98.48650600001565,
+        "executeElapsedMs": 6018.227048999979,
+        "artifactExtractionElapsedMs": 48.73570399999153,
+        "totalElapsedMs": 6165.449258999986,
+        "totalArtifactBytes": 190407804,
+        "queryStatusCounts": {
+          "cached": 53,
+          "recomputed": 2,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 95.82131999998819,
+        "executeElapsedMs": 6021.765453,
+        "artifactExtractionElapsedMs": 49.66174199999659,
+        "totalElapsedMs": 6167.248514999985,
+        "totalArtifactBytes": 190398259,
+        "queryStatusCounts": {
+          "cached": 53,
+          "recomputed": 2,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "maximumDurationThresholdNs",
+      "changedTo": "ns1",
+      "changedValue": "1",
+      "changed": {
+        "preflightElapsedMs": 98.26574799997616,
+        "executeElapsedMs": 7579.330897000007,
+        "artifactExtractionElapsedMs": 51.27206499999738,
+        "totalElapsedMs": 7728.868709999981,
+        "totalArtifactBytes": 194054287,
+        "queryStatusCounts": {
+          "cached": 29,
+          "recomputed": 26,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 131.4940559999959,
+        "executeElapsedMs": 6187.998400000011,
+        "artifactExtractionElapsedMs": 48.376822999998694,
+        "totalElapsedMs": 6367.869279000006,
+        "totalArtifactBytes": 190397587,
+        "queryStatusCounts": {
+          "cached": 29,
+          "recomputed": 26,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "correctDuplicateEventTimestamps",
+      "changedTo": "false",
+      "changedValue": false,
+      "changed": {
+        "preflightElapsedMs": 268.1636160000053,
+        "executeElapsedMs": 7600.524344000005,
+        "artifactExtractionElapsedMs": 50.89359600000898,
+        "totalElapsedMs": 7919.581556000019,
+        "totalArtifactBytes": 188470251,
+        "queryStatusCounts": {
+          "cached": 15,
+          "recomputed": 40,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 343.1293719999958,
+        "executeElapsedMs": 6570.007029,
+        "artifactExtractionElapsedMs": 53.326052999997046,
+        "totalElapsedMs": 6966.462453999993,
+        "totalArtifactBytes": 190479565,
+        "queryStatusCounts": {
+          "cached": 15,
+          "recomputed": 40,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "deduplicateExactRows",
+      "changedTo": "false",
+      "changedValue": false,
+      "changed": {
+        "preflightElapsedMs": 335.6889979999978,
+        "executeElapsedMs": 7876.459017999994,
+        "artifactExtractionElapsedMs": 49.24740799999563,
+        "totalElapsedMs": 8261.395423999988,
+        "totalArtifactBytes": 192985016,
+        "queryStatusCounts": {
+          "cached": 13,
+          "recomputed": 42,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 376.05909399999655,
+        "executeElapsedMs": 6668.282718999981,
+        "artifactExtractionElapsedMs": 49.09574600000633,
+        "totalElapsedMs": 7093.437558999984,
+        "totalArtifactBytes": 190482583,
+        "queryStatusCounts": {
+          "cached": 13,
+          "recomputed": 42,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "selectedTimezone",
+      "changedTo": "america_new_york",
+      "error": "selected timezone America/New_York is not present in the input; filtering would remove all rows"
+    },
+    {
+      "key": "timezoneHandling",
+      "changedTo": "selected_convert",
+      "changedValue": "selected-convert",
+      "changed": {
+        "preflightElapsedMs": 439.6747580000083,
+        "executeElapsedMs": 7064.39136400001,
+        "artifactExtractionElapsedMs": 50.361871000000974,
+        "totalElapsedMs": 7554.427993000019,
+        "totalArtifactBytes": 190483434,
+        "queryStatusCounts": {
+          "cached": 40,
+          "recomputed": 15,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 113.29239700001199,
+        "executeElapsedMs": 6294.347012999991,
+        "artifactExtractionElapsedMs": 51.60264999998617,
+        "totalElapsedMs": 6459.24205999999,
+        "totalArtifactBytes": 190483645,
+        "queryStatusCounts": {
+          "cached": 51,
+          "recomputed": 4,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "dayBoundaryAttribution",
+      "changedTo": "splitmidnight",
+      "changedValue": "split_at_local_midnight",
+      "changed": {
+        "preflightElapsedMs": 87.39181399997324,
+        "executeElapsedMs": 7116.025300999987,
+        "artifactExtractionElapsedMs": 48.77321899999515,
+        "totalElapsedMs": 7252.190333999955,
+        "totalArtifactBytes": 190771184,
+        "queryStatusCounts": {
+          "cached": 52,
+          "bypassed": 12,
+          "recomputed": 3
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 89.95134800000233,
+        "executeElapsedMs": 6173.480290999985,
+        "artifactExtractionElapsedMs": 48.68242300004931,
+        "totalElapsedMs": 6312.114062000037,
+        "totalArtifactBytes": 190483666,
+        "queryStatusCounts": {
+          "cached": 52,
+          "bypassed": 12,
+          "recomputed": 3
+        }
+      }
+    },
+    {
+      "key": "useFilterFile",
+      "changedTo": "true",
+      "error": "unresolved binding holes for required roles: filter_file; evaluate requirements before execution"
+    },
+    {
+      "key": "packageExclusionPreset",
+      "changedTo": "honorfilterflag",
+      "changedValue": "honor_filter_flag",
+      "changed": {
+        "preflightElapsedMs": 90.71572500001639,
+        "executeElapsedMs": 7150.342286000028,
+        "artifactExtractionElapsedMs": 47.305202000017744,
+        "totalElapsedMs": 7288.363213000062,
+        "totalArtifactBytes": 190483788,
+        "queryStatusCounts": {
+          "cached": 54,
+          "bypassed": 12,
+          "recomputed": 1
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 87.44632500002626,
+        "executeElapsedMs": 6158.591882000037,
+        "artifactExtractionElapsedMs": 50.00428000005195,
+        "totalElapsedMs": 6296.042487000115,
+        "totalArtifactBytes": 190483724,
+        "queryStatusCounts": {
+          "cached": 54,
+          "bypassed": 12,
+          "recomputed": 1
+        }
+      }
+    },
+    {
+      "key": "useAppsForcingScreenOpenFile",
+      "changedTo": "true",
+      "error": "unresolved binding holes for required roles: apps_forcing_screen_open_file; evaluate requirements before execution"
+    },
+    {
+      "key": "useBackgroundAppsFile",
+      "changedTo": "true",
+      "error": "unresolved binding holes for required roles: background_apps_file; evaluate requirements before execution"
+    },
+    {
+      "key": "useAppCodebook",
+      "changedTo": "true",
+      "error": "unresolved binding holes for required roles: app_codebook_file; evaluate requirements before execution"
+    },
+    {
+      "key": "includeCategoryColumn",
+      "changedTo": "true",
+      "changedValue": true,
+      "changed": {
+        "preflightElapsedMs": 88.9956189999939,
+        "executeElapsedMs": 7079.059122000006,
+        "artifactExtractionElapsedMs": 49.864326000039,
+        "totalElapsedMs": 7217.919067000039,
+        "totalArtifactBytes": 190483785,
+        "queryStatusCounts": {
+          "cached": 54,
+          "bypassed": 12,
+          "recomputed": 1
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 92.43600800004788,
+        "executeElapsedMs": 6156.280520999979,
+        "artifactExtractionElapsedMs": 48.63131700002123,
+        "totalElapsedMs": 6297.347846000048,
+        "totalArtifactBytes": 190483724,
+        "queryStatusCounts": {
+          "cached": 54,
+          "bypassed": 12,
+          "recomputed": 1
+        }
+      }
+    },
+    {
+      "key": "includeAppUsageEndReason",
+      "changedTo": "false",
+      "changedValue": false,
+      "changed": {
+        "preflightElapsedMs": 85.93745299999136,
+        "executeElapsedMs": 7102.889181000006,
+        "artifactExtractionElapsedMs": 48.17998000001535,
+        "totalElapsedMs": 7237.006614000013,
+        "totalArtifactBytes": 187634965,
+        "queryStatusCounts": {
+          "cached": 54,
+          "bypassed": 12,
+          "recomputed": 1
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 88.57271599996602,
+        "executeElapsedMs": 6181.544376000005,
+        "artifactExtractionElapsedMs": 48.06791699997848,
+        "totalElapsedMs": 6318.18500899995,
+        "totalArtifactBytes": 190483724,
+        "queryStatusCounts": {
+          "cached": 54,
+          "bypassed": 12,
+          "recomputed": 1
+        }
+      }
+    },
+    {
+      "key": "enableAggregates",
+      "changedTo": "false",
+      "changedValue": false,
+      "changed": {
+        "preflightElapsedMs": 89.83139299997129,
+        "executeElapsedMs": 6807.413090999995,
+        "artifactExtractionElapsedMs": 49.87927599996328,
+        "totalElapsedMs": 6947.1237599999295,
+        "totalArtifactBytes": 184823845,
+        "queryStatusCounts": {
+          "cached": 54,
+          "bypassed": 12,
+          "recomputed": 1
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 92.0647970000282,
+        "executeElapsedMs": 6202.0929539999925,
+        "artifactExtractionElapsedMs": 48.82001499994658,
+        "totalElapsedMs": 6342.977765999967,
+        "totalArtifactBytes": 190483724,
+        "queryStatusCounts": {
+          "cached": 54,
+          "bypassed": 12,
+          "recomputed": 1
+        }
+      }
+    },
+    {
+      "key": "aggregateShape",
+      "changedTo": "long",
+      "changedValue": "long",
+      "changed": {
+        "preflightElapsedMs": 87.6440639999928,
+        "executeElapsedMs": 7117.174730000028,
+        "artifactExtractionElapsedMs": 49.622801000019535,
+        "totalElapsedMs": 7254.44159500004,
+        "totalArtifactBytes": 191918844,
+        "queryStatusCounts": {
+          "cached": 54,
+          "bypassed": 12,
+          "recomputed": 1
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 92.64743499999167,
+        "executeElapsedMs": 6147.551716999966,
+        "artifactExtractionElapsedMs": 53.37230499996804,
+        "totalElapsedMs": 6293.571456999925,
+        "totalArtifactBytes": 190483724,
+        "queryStatusCounts": {
+          "cached": 54,
+          "bypassed": 12,
+          "recomputed": 1
+        }
+      }
+    },
+    {
+      "key": "enableParticipantAmountSummary",
+      "changedTo": "true",
+      "changedValue": true,
+      "changed": {
+        "preflightElapsedMs": 89.38969000003999,
+        "executeElapsedMs": 7110.4888009999995,
+        "artifactExtractionElapsedMs": 47.884199999971315,
+        "totalElapsedMs": 7247.762691000011,
+        "totalArtifactBytes": 190492197,
+        "queryStatusCounts": {
+          "cached": 54,
+          "bypassed": 12,
+          "recomputed": 1
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 85.3595379999606,
+        "executeElapsedMs": 6116.88933700003,
+        "artifactExtractionElapsedMs": 47.89914100000169,
+        "totalElapsedMs": 6250.148015999992,
+        "totalArtifactBytes": 190483724,
+        "queryStatusCounts": {
+          "cached": 54,
+          "bypassed": 12,
+          "recomputed": 1
+        }
+      }
+    },
+    {
+      "key": "enableParquetExport",
+      "changedTo": "true",
+      "changedValue": true,
+      "changed": {
+        "preflightElapsedMs": 84.85785799997393,
+        "executeElapsedMs": 6301.357361999981,
+        "artifactExtractionElapsedMs": 51.77371599996695,
+        "totalElapsedMs": 6437.9889359999215,
+        "totalArtifactBytes": 197514905,
+        "queryStatusCounts": {
+          "cached": 55,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 89.6178920000093,
+        "executeElapsedMs": 5862.886123000004,
+        "artifactExtractionElapsedMs": 51.056213000032585,
+        "totalElapsedMs": 6003.560228000046,
+        "totalArtifactBytes": 190483745,
+        "queryStatusCounts": {
+          "cached": 55,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "enableSpssExport",
+      "changedTo": "true",
+      "changedValue": true,
+      "changed": {
+        "preflightElapsedMs": 92.35780400002841,
+        "executeElapsedMs": 6217.763628999994,
+        "artifactExtractionElapsedMs": 62.18995999998879,
+        "totalElapsedMs": 6372.311393000011,
+        "totalArtifactBytes": 226367948,
+        "queryStatusCounts": {
+          "cached": 55,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 90.27088899997761,
+        "executeElapsedMs": 5836.049692999979,
+        "artifactExtractionElapsedMs": 52.00162100000307,
+        "totalElapsedMs": 5978.32220299996,
+        "totalArtifactBytes": 190483745,
+        "queryStatusCounts": {
+          "cached": 55,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "minimumUsageDuration",
+      "changedTo": "s0",
+      "changedValue": 0,
+      "changed": {
+        "preflightElapsedMs": 95.54341199999908,
+        "executeElapsedMs": 7151.096088999999,
+        "artifactExtractionElapsedMs": 54.41324500000337,
+        "totalElapsedMs": 7301.052746000001,
+        "totalArtifactBytes": 183895368,
+        "queryStatusCounts": {
+          "cached": 29,
+          "recomputed": 26,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 123.77145399997244,
+        "executeElapsedMs": 6236.809389000002,
+        "artifactExtractionElapsedMs": 35.423200999968685,
+        "totalElapsedMs": 6396.004043999943,
+        "totalArtifactBytes": 190483031,
+        "queryStatusCounts": {
+          "cached": 29,
+          "recomputed": 26,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "minimumDurationComparator",
+      "changedTo": "inclusivele",
+      "changedValue": "inclusive_le",
+      "changed": {
+        "preflightElapsedMs": 120.88560799998231,
+        "executeElapsedMs": 7889.253226000001,
+        "artifactExtractionElapsedMs": 48.68104300001869,
+        "totalElapsedMs": 8058.819877000002,
+        "totalArtifactBytes": 194305703,
+        "queryStatusCounts": {
+          "cached": 29,
+          "recomputed": 26,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 119.19897800002946,
+        "executeElapsedMs": 6251.731445999991,
+        "artifactExtractionElapsedMs": 49.04240099998424,
+        "totalElapsedMs": 6419.972825000004,
+        "totalArtifactBytes": 190483031,
+        "queryStatusCounts": {
+          "cached": 29,
+          "recomputed": 26,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "minimumDurationDisposition",
+      "changedTo": "retaincredit",
+      "changedValue": "retain_and_credit",
+      "changed": {
+        "preflightElapsedMs": 119.66716700000688,
+        "executeElapsedMs": 7365.59820899996,
+        "artifactExtractionElapsedMs": 54.11347199999727,
+        "totalElapsedMs": 7539.378847999964,
+        "totalArtifactBytes": 186804577,
+        "queryStatusCounts": {
+          "cached": 29,
+          "recomputed": 26,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 124.32159800000954,
+        "executeElapsedMs": 6394.863408999983,
+        "artifactExtractionElapsedMs": 35.46476400003303,
+        "totalElapsedMs": 6554.649771000026,
+        "totalArtifactBytes": 190483031,
+        "queryStatusCounts": {
+          "cached": 29,
+          "recomputed": 26,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "filterZeroDurationSessions",
+      "changedTo": "true",
+      "changedValue": true,
+      "changed": {
+        "preflightElapsedMs": 121.84463000000687,
+        "executeElapsedMs": 7309.1453029999975,
+        "artifactExtractionElapsedMs": 48.71179099997971,
+        "totalElapsedMs": 7479.701723999984,
+        "totalArtifactBytes": 190483718,
+        "queryStatusCounts": {
+          "cached": 52,
+          "recomputed": 3,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 89.61465900001349,
+        "executeElapsedMs": 6264.312022999977,
+        "artifactExtractionElapsedMs": 49.17314400000032,
+        "totalElapsedMs": 6403.099825999991,
+        "totalArtifactBytes": 190483674,
+        "queryStatusCounts": {
+          "cached": 52,
+          "recomputed": 3,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "intervalQualityPolicy",
+      "changedTo": "culverhouse",
+      "changedValue": "culverhouse_trim_and_log",
+      "changed": {
+        "preflightElapsedMs": 89.91229300003033,
+        "executeElapsedMs": 7440.983983999991,
+        "artifactExtractionElapsedMs": 49.141643000009935,
+        "totalElapsedMs": 7580.037920000032,
+        "totalArtifactBytes": 192188107,
+        "queryStatusCounts": {
+          "cached": 38,
+          "recomputed": 17,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 105.62533199996687,
+        "executeElapsedMs": 6228.223927000014,
+        "artifactExtractionElapsedMs": 52.01709800004028,
+        "totalElapsedMs": 6385.866357000021,
+        "totalArtifactBytes": 190483276,
+        "queryStatusCounts": {
+          "cached": 38,
+          "recomputed": 17,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "sessionGapBasis",
+      "changedTo": "runningmaxstop",
+      "changedValue": "session_running_maximum_stop_v1",
+      "changed": {
+        "preflightElapsedMs": 111.5775020000292,
+        "executeElapsedMs": 7233.016350999998,
+        "artifactExtractionElapsedMs": 49.30716399999801,
+        "totalElapsedMs": 7393.901017000026,
+        "totalArtifactBytes": 190483788,
+        "queryStatusCounts": {
+          "cached": 53,
+          "recomputed": 2,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 92.08764799998607,
+        "executeElapsedMs": 6174.9380099999835,
+        "artifactExtractionElapsedMs": 50.73544199997559,
+        "totalElapsedMs": 6317.761099999945,
+        "totalArtifactBytes": 190483703,
+        "queryStatusCounts": {
+          "cached": 53,
+          "recomputed": 2,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "sessionBoundaryScope",
+      "changedTo": "participantstudy",
+      "changedValue": "participant_and_study_v1",
+      "changed": {
+        "preflightElapsedMs": 95.75183399999514,
+        "executeElapsedMs": 7220.71444099996,
+        "artifactExtractionElapsedMs": 50.88971499999752,
+        "totalElapsedMs": 7367.355989999953,
+        "totalArtifactBytes": 190483797,
+        "queryStatusCounts": {
+          "cached": 53,
+          "recomputed": 2,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 89.91143600002397,
+        "executeElapsedMs": 6243.060412999999,
+        "artifactExtractionElapsedMs": 50.79526500002248,
+        "totalElapsedMs": 6383.767114000046,
+        "totalArtifactBytes": 190483703,
+        "queryStatusCounts": {
+          "cached": 53,
+          "recomputed": 2,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "emitSessionBreakLineage",
+      "changedTo": "true",
+      "changedValue": true,
+      "changed": {
+        "preflightElapsedMs": 90.15815199998906,
+        "executeElapsedMs": 7131.585017999983,
+        "artifactExtractionElapsedMs": 49.66538300004322,
+        "totalElapsedMs": 7271.408553000016,
+        "totalArtifactBytes": 190483700,
+        "queryStatusCounts": {
+          "cached": 53,
+          "recomputed": 2,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 92.96266299998388,
+        "executeElapsedMs": 6160.597469999979,
+        "artifactExtractionElapsedMs": 49.116634999983944,
+        "totalElapsedMs": 6302.676767999947,
+        "totalArtifactBytes": 190483703,
+        "queryStatusCounts": {
+          "cached": 53,
+          "recomputed": 2,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "customAppEngagementDuration",
+      "changedTo": "s0",
+      "changedValue": 0,
+      "changed": {
+        "preflightElapsedMs": 89.12244900001679,
+        "executeElapsedMs": 7388.806970000034,
+        "artifactExtractionElapsedMs": 52.73092500003986,
+        "totalElapsedMs": 7530.660344000091,
+        "totalArtifactBytes": 190183121,
+        "queryStatusCounts": {
+          "cached": 36,
+          "recomputed": 19,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 113.31643400003668,
+        "executeElapsedMs": 6233.65012299997,
+        "artifactExtractionElapsedMs": 49.84643999999389,
+        "totalElapsedMs": 6396.812997000001,
+        "totalArtifactBytes": 190483226,
+        "queryStatusCounts": {
+          "cached": 36,
+          "recomputed": 19,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "longUsageDurationThresholds",
+      "changedTo": "empty",
+      "changedValue": [],
+      "changed": {
+        "preflightElapsedMs": 106.71662399999332,
+        "executeElapsedMs": 7239.984782000014,
+        "artifactExtractionElapsedMs": 48.409164000011515,
+        "totalElapsedMs": 7395.110570000019,
+        "totalArtifactBytes": 190372544,
+        "queryStatusCounts": {
+          "cached": 37,
+          "recomputed": 18,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 110.78903799998807,
+        "executeElapsedMs": 6196.484630000021,
+        "artifactExtractionElapsedMs": 49.06505500001367,
+        "totalElapsedMs": 6356.338723000023,
+        "totalArtifactBytes": 190483255,
+        "queryStatusCounts": {
+          "cached": 37,
+          "recomputed": 18,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "longDataTimeGapThresholds",
+      "changedTo": "empty",
+      "changedValue": [],
+      "changed": {
+        "preflightElapsedMs": 112.74568699998781,
+        "executeElapsedMs": 7378.984426000039,
+        "artifactExtractionElapsedMs": 50.573007999919355,
+        "totalElapsedMs": 7542.303120999946,
+        "totalArtifactBytes": 190274993,
+        "queryStatusCounts": {
+          "cached": 37,
+          "recomputed": 18,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 101.99370800005272,
+        "executeElapsedMs": 6227.972603000002,
+        "artifactExtractionElapsedMs": 48.6922060000943,
+        "totalElapsedMs": 6378.658517000149,
+        "totalArtifactBytes": 190483255,
+        "queryStatusCounts": {
+          "cached": 37,
+          "recomputed": 18,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "screenSessionConstructionStrategy",
+      "changedTo": "parrytothscreen",
+      "error": "scientific_preflight_retry_required:verified_raw_and_support_required:required_base_kind=none"
+    },
+    {
+      "key": "screenUsageAutoLockTimeoutSeconds",
+      "changedTo": "s0",
+      "changedValue": 0,
+      "changed": {
+        "preflightElapsedMs": 160.99683299998287,
+        "executeElapsedMs": 7678.991964999936,
+        "artifactExtractionElapsedMs": 48.448142999899574,
+        "totalElapsedMs": 7888.436940999818,
+        "totalArtifactBytes": 190499764,
+        "queryStatusCounts": {
+          "cached": 52,
+          "recomputed": 3,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 88.97799300006591,
+        "executeElapsedMs": 6036.304181000101,
+        "artifactExtractionElapsedMs": 50.587305999943055,
+        "totalElapsedMs": 6175.86948000011,
+        "totalArtifactBytes": 190483703,
+        "queryStatusCounts": {
+          "cached": 53,
+          "recomputed": 2,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "screenUsageAutoLockToleranceSeconds",
+      "changedTo": "s0",
+      "changedValue": 0,
+      "changed": {
+        "preflightElapsedMs": 98.79886700003408,
+        "executeElapsedMs": 6941.060860999976,
+        "artifactExtractionElapsedMs": 51.54407299996819,
+        "totalElapsedMs": 7091.403800999979,
+        "totalArtifactBytes": 190499796,
+        "queryStatusCounts": {
+          "cached": 53,
+          "recomputed": 2,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 92.44976800004952,
+        "executeElapsedMs": 6027.909692000016,
+        "artifactExtractionElapsedMs": 49.90622800006531,
+        "totalElapsedMs": 6170.2656880001305,
+        "totalArtifactBytes": 190483703,
+        "queryStatusCounts": {
+          "cached": 53,
+          "recomputed": 2,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "screenUsageManualLockMaxTailGapSeconds",
+      "changedTo": "s0",
+      "changedValue": 0,
+      "changed": {
+        "preflightElapsedMs": 90.37539300008211,
+        "executeElapsedMs": 9190.578804000048,
+        "artifactExtractionElapsedMs": 117.63409200008027,
+        "totalElapsedMs": 9398.58828900021,
+        "totalArtifactBytes": 190488253,
+        "queryStatusCounts": {
+          "cached": 53,
+          "recomputed": 2,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 198.35426300007384,
+        "executeElapsedMs": 8084.260422999971,
+        "artifactExtractionElapsedMs": 64.33563899993896,
+        "totalElapsedMs": 8346.950324999983,
+        "totalArtifactBytes": 190483703,
+        "queryStatusCounts": {
+          "cached": 53,
+          "recomputed": 2,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "screenUsageKeyguardNearStopSeconds",
+      "changedTo": "s0",
+      "changedValue": 0,
+      "changed": {
+        "preflightElapsedMs": 107.28817199997138,
+        "executeElapsedMs": 8915.239601999987,
+        "artifactExtractionElapsedMs": 60.63487999991048,
+        "totalElapsedMs": 9083.162653999869,
+        "totalArtifactBytes": 190483716,
+        "queryStatusCounts": {
+          "cached": 53,
+          "recomputed": 2,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 124.40116000000853,
+        "executeElapsedMs": 9605.267624000087,
+        "artifactExtractionElapsedMs": 59.318100000033155,
+        "totalElapsedMs": 9788.986884000129,
+        "totalArtifactBytes": 190483703,
+        "queryStatusCounts": {
+          "cached": 53,
+          "recomputed": 2,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "sameAppInteractionTypesToStopUsageAt",
+      "changedTo": "empty",
+      "changedValue": [],
+      "changed": {
+        "preflightElapsedMs": 359.2791829999769,
+        "executeElapsedMs": 6854.138543999987,
+        "artifactExtractionElapsedMs": 45.464937999960966,
+        "totalElapsedMs": 7258.882664999925,
+        "totalArtifactBytes": 139020272,
+        "queryStatusCounts": {
+          "cached": 15,
+          "recomputed": 40,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 462.0666719999863,
+        "executeElapsedMs": 7535.668261000072,
+        "artifactExtractionElapsedMs": 47.083998000016436,
+        "totalElapsedMs": 8044.818931000074,
+        "totalArtifactBytes": 190482641,
+        "queryStatusCounts": {
+          "cached": 15,
+          "recomputed": 40,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "otherInteractionTypesToStopUsageAt",
+      "changedTo": "empty",
+      "changedValue": [],
+      "changed": {
+        "preflightElapsedMs": 183.57621699990705,
+        "executeElapsedMs": 7414.7639130000025,
+        "artifactExtractionElapsedMs": 46.28775600006338,
+        "totalElapsedMs": 7644.627885999973,
+        "totalArtifactBytes": 190483072,
+        "queryStatusCounts": {
+          "cached": 52,
+          "recomputed": 3,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 161.87671400001273,
+        "executeElapsedMs": 6362.360759000061,
+        "artifactExtractionElapsedMs": 37.16905799997039,
+        "totalElapsedMs": 6561.406531000044,
+        "totalArtifactBytes": 190483682,
+        "queryStatusCounts": {
+          "cached": 52,
+          "recomputed": 3,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "modelConcurrentUsage",
+      "changedTo": "false",
+      "changedValue": false,
+      "changed": {
+        "preflightElapsedMs": 103.60169300006237,
+        "executeElapsedMs": 7574.271996000083,
+        "artifactExtractionElapsedMs": 32.0761600000551,
+        "totalElapsedMs": 7709.949849000201,
+        "totalArtifactBytes": 167339995,
+        "queryStatusCounts": {
+          "cached": 26,
+          "recomputed": 29,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 149.6812880000798,
+        "executeElapsedMs": 7047.710003999993,
+        "artifactExtractionElapsedMs": 39.981804999988526,
+        "totalElapsedMs": 7237.3730970000615,
+        "totalArtifactBytes": 190482944,
+        "queryStatusCounts": {
+          "cached": 26,
+          "recomputed": 29,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "applyMinimumUsageDurationToConcurrentSubintervals",
+      "changedTo": "true",
+      "changedValue": true,
+      "changed": {
+        "preflightElapsedMs": 111.31643799995072,
+        "executeElapsedMs": 7280.1562130000675,
+        "artifactExtractionElapsedMs": 33.84878000000026,
+        "totalElapsedMs": 7425.3214310000185,
+        "totalArtifactBytes": 189460971,
+        "queryStatusCounts": {
+          "cached": 32,
+          "recomputed": 23,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 120.84407300001476,
+        "executeElapsedMs": 6322.081936000031,
+        "artifactExtractionElapsedMs": 34.74059900001157,
+        "totalElapsedMs": 6477.666608000058,
+        "totalArtifactBytes": 190483118,
+        "queryStatusCounts": {
+          "cached": 32,
+          "recomputed": 23,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "interactionTypesToRemove",
+      "changedTo": "usage_stat",
+      "changedValue": [
+        "Usage Stat"
+      ],
+      "changed": {
+        "preflightElapsedMs": 115.28691600007005,
+        "executeElapsedMs": 7177.443622999941,
+        "artifactExtractionElapsedMs": 34.209415999939665,
+        "totalElapsedMs": 7326.939954999951,
+        "totalArtifactBytes": 187791098,
+        "queryStatusCounts": {
+          "cached": 39,
+          "recomputed": 16,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 106.60492499999236,
+        "executeElapsedMs": 6165.08338299999,
+        "artifactExtractionElapsedMs": 34.64958199998364,
+        "totalElapsedMs": 6306.337889999966,
+        "totalArtifactBytes": 190483305,
+        "queryStatusCounts": {
+          "cached": 39,
+          "recomputed": 16,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "interactionTypeRemap",
+      "changedTo": "custom",
+      "changedValue": [
+        "Custom Foreground => Activity Resumed"
+      ],
+      "changed": {
+        "preflightElapsedMs": 526.6222149999812,
+        "executeElapsedMs": 8614.967343999888,
+        "artifactExtractionElapsedMs": 34.336205999949016,
+        "totalElapsedMs": 9175.925764999818,
+        "totalArtifactBytes": 203768721,
+        "queryStatusCounts": {
+          "recomputed": 50,
+          "cached": 5,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 637.620193000068,
+        "executeElapsedMs": 6961.971028,
+        "artifactExtractionElapsedMs": 32.76395299995784,
+        "totalElapsedMs": 7632.355174000026,
+        "totalArtifactBytes": 190534490,
+        "queryStatusCounts": {
+          "recomputed": 50,
+          "cached": 5,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "proximityIntervalSeconds",
+      "changedTo": "s0",
+      "changedValue": 0,
+      "changed": {
+        "preflightElapsedMs": 137.99114699999336,
+        "executeElapsedMs": 7987.502974000061,
+        "artifactExtractionElapsedMs": 34.95411299995612,
+        "totalElapsedMs": 8160.44823400001,
+        "totalArtifactBytes": 190477413,
+        "queryStatusCounts": {
+          "cached": 27,
+          "recomputed": 28,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 126.7877130000852,
+        "executeElapsedMs": 6507.607767999987,
+        "artifactExtractionElapsedMs": 33.55801499995869,
+        "totalElapsedMs": 6667.953496000031,
+        "totalArtifactBytes": 190535096,
+        "queryStatusCounts": {
+          "cached": 27,
+          "recomputed": 28,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "addNoActivityPlaceholderDays",
+      "changedTo": "true",
+      "changedValue": true,
+      "changed": {
+        "preflightElapsedMs": 138.17857099999674,
+        "executeElapsedMs": 7732.57712599996,
+        "artifactExtractionElapsedMs": 36.27021400001831,
+        "totalElapsedMs": 7907.025910999975,
+        "totalArtifactBytes": 190535849,
+        "queryStatusCounts": {
+          "cached": 53,
+          "bypassed": 12,
+          "recomputed": 2
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 94.59058700001333,
+        "executeElapsedMs": 7091.923421000014,
+        "artifactExtractionElapsedMs": 35.11826499993913,
+        "totalElapsedMs": 7221.6322729999665,
+        "totalArtifactBytes": 190535818,
+        "queryStatusCounts": {
+          "cached": 53,
+          "bypassed": 12,
+          "recomputed": 2
+        }
+      }
+    },
+    {
+      "key": "enableScreenGatedCrediting",
+      "changedTo": "false",
+      "changedValue": false,
+      "changed": {
+        "preflightElapsedMs": 102.53845999995247,
+        "executeElapsedMs": 5117.705903999973,
+        "artifactExtractionElapsedMs": 25.377997000003234,
+        "totalElapsedMs": 5245.622360999929,
+        "totalArtifactBytes": 133094987,
+        "queryStatusCounts": {
+          "cached": 47,
+          "bypassed": 19,
+          "recomputed": 1
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 94.07330399996135,
+        "executeElapsedMs": 7032.900406999979,
+        "artifactExtractionElapsedMs": 37.1360519999871,
+        "totalElapsedMs": 7164.109762999928,
+        "totalArtifactBytes": 190535847,
+        "queryStatusCounts": {
+          "cached": 54,
+          "bypassed": 12,
+          "recomputed": 1
+        }
+      }
+    },
+    {
+      "key": "screenGatingRule",
+      "changedTo": "screenonly",
+      "changedValue": "screen_witness_only",
+      "changed": {
+        "preflightElapsedMs": 99.27583099994808,
+        "executeElapsedMs": 8003.369097999996,
+        "artifactExtractionElapsedMs": 36.41213199996855,
+        "totalElapsedMs": 8139.057060999912,
+        "totalArtifactBytes": 190535881,
+        "queryStatusCounts": {
+          "cached": 53,
+          "recomputed": 2,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 104.3192969999509,
+        "executeElapsedMs": 6846.777881999966,
+        "artifactExtractionElapsedMs": 37.99629099993035,
+        "totalElapsedMs": 6989.093469999847,
+        "totalArtifactBytes": 190535826,
+        "queryStatusCounts": {
+          "cached": 53,
+          "recomputed": 2,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "creditedSessionCapMinutes",
+      "changedTo": "m0",
+      "changedValue": 0,
+      "changed": {
+        "preflightElapsedMs": 105.68096799997147,
+        "executeElapsedMs": 6371.458391000051,
+        "artifactExtractionElapsedMs": 30.319042000104673,
+        "totalElapsedMs": 6507.458401000127,
+        "totalArtifactBytes": 163893340,
+        "queryStatusCounts": {
+          "cached": 51,
+          "recomputed": 4,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 106.20054099999834,
+        "executeElapsedMs": 6877.598729999969,
+        "artifactExtractionElapsedMs": 35.76679599995259,
+        "totalElapsedMs": 7019.56606699992,
+        "totalArtifactBytes": 190535768,
+        "queryStatusCounts": {
+          "cached": 51,
+          "recomputed": 4,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "deviceLivenessGapToleranceMinutes",
+      "changedTo": "m0",
+      "changedValue": 0,
+      "changed": {
+        "preflightElapsedMs": 97.57941000000574,
+        "executeElapsedMs": 6400.884443999967,
+        "artifactExtractionElapsedMs": 33.23389200004749,
+        "totalElapsedMs": 6531.69774600002,
+        "totalArtifactBytes": 163893404,
+        "queryStatusCounts": {
+          "cached": 51,
+          "recomputed": 4,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 119.43702800001483,
+        "executeElapsedMs": 7036.269267999916,
+        "artifactExtractionElapsedMs": 35.93594000011217,
+        "totalElapsedMs": 7191.642236000043,
+        "totalArtifactBytes": 190535768,
+        "queryStatusCounts": {
+          "cached": 51,
+          "recomputed": 4,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "autoLockBridgeSeconds",
+      "changedTo": "s0",
+      "changedValue": 0,
+      "changed": {
+        "preflightElapsedMs": 99.47540300001856,
+        "executeElapsedMs": 7979.471550000017,
+        "artifactExtractionElapsedMs": 33.84041900001466,
+        "totalElapsedMs": 8112.78737200005,
+        "totalArtifactBytes": 190923763,
+        "queryStatusCounts": {
+          "cached": 51,
+          "recomputed": 4,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 117.89626000006683,
+        "executeElapsedMs": 7098.044748999993,
+        "artifactExtractionElapsedMs": 39.419376000063494,
+        "totalElapsedMs": 7255.360385000124,
+        "totalArtifactBytes": 190535768,
+        "queryStatusCounts": {
+          "cached": 51,
+          "recomputed": 4,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "noWitnessMinDayApps",
+      "changedTo": "n0",
+      "changedValue": 0,
+      "changed": {
+        "preflightElapsedMs": 119.01451699994504,
+        "executeElapsedMs": 8125.12954600004,
+        "artifactExtractionElapsedMs": 35.115156000014395,
+        "totalElapsedMs": 8279.259219,
+        "totalArtifactBytes": 190568704,
+        "queryStatusCounts": {
+          "cached": 51,
+          "recomputed": 4,
+          "bypassed": 12
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 110.64110499992967,
+        "executeElapsedMs": 6905.6718670000555,
+        "artifactExtractionElapsedMs": 36.85635999997612,
+        "totalElapsedMs": 7053.169331999961,
+        "totalArtifactBytes": 190535768,
+        "queryStatusCounts": {
+          "cached": 51,
+          "recomputed": 4,
+          "bypassed": 12
+        }
+      }
+    },
+    {
+      "key": "notificationProxyRule",
+      "changedTo": "seencontact",
+      "changedValue": "seen_contact_v1",
+      "changed": {
+        "preflightElapsedMs": 111.98746299999766,
+        "executeElapsedMs": 7962.39575799997,
+        "artifactExtractionElapsedMs": 41.14119700004812,
+        "totalElapsedMs": 8115.524418000015,
+        "totalArtifactBytes": 192872922,
+        "queryStatusCounts": {
+          "cached": 54,
+          "recomputed": 5,
+          "bypassed": 8
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 98.7619630000554,
+        "executeElapsedMs": 6878.31990500004,
+        "artifactExtractionElapsedMs": 41.49868900002912,
+        "totalElapsedMs": 7018.580557000125,
+        "totalArtifactBytes": 190535847,
+        "queryStatusCounts": {
+          "cached": 54,
+          "bypassed": 12,
+          "recomputed": 1
+        }
+      }
+    },
+    {
+      "key": "polledEmulationMethod",
+      "changedTo": "rosssampledgap",
+      "changedValue": "ross_2025_sampled_gap_v1",
+      "changed": {
+        "preflightElapsedMs": 102.79321800009347,
+        "executeElapsedMs": 22052.714843000052,
+        "artifactExtractionElapsedMs": 183.3726640000241,
+        "totalElapsedMs": 22338.88072500017,
+        "totalArtifactBytes": 508027391,
+        "queryStatusCounts": {
+          "cached": 54,
+          "bypassed": 8,
+          "recomputed": 5
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 102.3517330000177,
+        "executeElapsedMs": 6819.656530000037,
+        "artifactExtractionElapsedMs": 57.95538399997167,
+        "totalElapsedMs": 6979.963647000026,
+        "totalArtifactBytes": 190535847,
+        "queryStatusCounts": {
+          "cached": 54,
+          "bypassed": 12,
+          "recomputed": 1
+        }
+      }
+    },
+    {
+      "key": "polledEmulationIntervalSeconds",
+      "changedTo": "cadence5s",
+      "changedValue": 5,
+      "changed": {
+        "preflightElapsedMs": 99.95476200000849,
+        "executeElapsedMs": 7842.589499000111,
+        "artifactExtractionElapsedMs": 38.228118999977596,
+        "totalElapsedMs": 7980.772380000097,
+        "totalArtifactBytes": 190535908,
+        "queryStatusCounts": {
+          "cached": 54,
+          "bypassed": 12,
+          "recomputed": 1
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 99.55255700007547,
+        "executeElapsedMs": 6911.237565000076,
+        "artifactExtractionElapsedMs": 51.78369199996814,
+        "totalElapsedMs": 7062.5738140001195,
+        "totalArtifactBytes": 190535847,
+        "queryStatusCounts": {
+          "cached": 54,
+          "bypassed": 12,
+          "recomputed": 1
+        }
+      }
+    },
+    {
+      "key": "polledEmulationGapSeconds",
+      "changedTo": "gap0s",
+      "changedValue": 0,
+      "changed": {
+        "preflightElapsedMs": 97.3547059999546,
+        "executeElapsedMs": 7825.098836999969,
+        "artifactExtractionElapsedMs": 50.63640899991151,
+        "totalElapsedMs": 7973.089951999835,
+        "totalArtifactBytes": 190535908,
+        "queryStatusCounts": {
+          "cached": 54,
+          "bypassed": 12,
+          "recomputed": 1
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 97.93976799992379,
+        "executeElapsedMs": 6797.967164999922,
+        "artifactExtractionElapsedMs": 51.05707500001881,
+        "totalElapsedMs": 6946.964007999864,
+        "totalArtifactBytes": 190535847,
+        "queryStatusCounts": {
+          "cached": 54,
+          "bypassed": 12,
+          "recomputed": 1
+        }
+      }
+    },
+    {
+      "key": "enableStudyWindowFilter",
+      "changedTo": "true",
+      "error": "unresolved binding holes for required roles: study_dates_file; evaluate requirements before execution"
+    },
+    {
+      "key": "enablePersonAttribution",
+      "changedTo": "true",
+      "error": "unresolved binding holes for required roles: device_sharing_file; evaluate requirements before execution"
+    },
+    {
+      "key": "enableComplianceScoring",
+      "changedTo": "true",
+      "changedValue": true,
+      "changed": {
+        "preflightElapsedMs": 99.01263199991081,
+        "executeElapsedMs": 7873.775493999943,
+        "artifactExtractionElapsedMs": 51.849319000029936,
+        "totalElapsedMs": 8024.637444999884,
+        "totalArtifactBytes": 190726534,
+        "queryStatusCounts": {
+          "cached": 54,
+          "bypassed": 9,
+          "recomputed": 4
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 97.9562750000041,
+        "executeElapsedMs": 6734.078250999912,
+        "artifactExtractionElapsedMs": 53.24925200000871,
+        "totalElapsedMs": 6885.2837779999245,
+        "totalArtifactBytes": 190535847,
+        "queryStatusCounts": {
+          "cached": 54,
+          "bypassed": 12,
+          "recomputed": 1
+        }
+      }
+    },
+    {
+      "key": "complianceThresholdPercent",
+      "changedTo": "p0",
+      "changedValue": 0,
+      "changed": {
+        "preflightElapsedMs": 100.36726400000043,
+        "executeElapsedMs": 7779.121328999987,
+        "artifactExtractionElapsedMs": 51.867761999950744,
+        "totalElapsedMs": 7931.356354999938,
+        "totalArtifactBytes": 190535908,
+        "queryStatusCounts": {
+          "cached": 54,
+          "bypassed": 12,
+          "recomputed": 1
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 101.48097799997777,
+        "executeElapsedMs": 6738.085005000001,
+        "artifactExtractionElapsedMs": 54.99342800001614,
+        "totalElapsedMs": 6894.559410999995,
+        "totalArtifactBytes": 190535847,
+        "queryStatusCounts": {
+          "cached": 54,
+          "bypassed": 12,
+          "recomputed": 1
+        }
+      }
+    },
+    {
+      "key": "enableDayCoverage",
+      "changedTo": "true",
+      "changedValue": true,
+      "changed": {
+        "preflightElapsedMs": 105.92010600003414,
+        "executeElapsedMs": 7930.412139999913,
+        "artifactExtractionElapsedMs": 52.8665129999863,
+        "totalElapsedMs": 8089.1987589999335,
+        "totalArtifactBytes": 190643146,
+        "queryStatusCounts": {
+          "cached": 54,
+          "bypassed": 11,
+          "recomputed": 2
+        }
+      },
+      "restored": {
+        "preflightElapsedMs": 96.6326790000312,
+        "executeElapsedMs": 6751.215832000016,
+        "artifactExtractionElapsedMs": 53.112618000013754,
+        "totalElapsedMs": 6900.961129000061,
+        "totalArtifactBytes": 190535847,
+        "queryStatusCounts": {
+          "cached": 54,
+          "bypassed": 12,
+          "recomputed": 1
+        }
+      }
+    }
+  ]
+}

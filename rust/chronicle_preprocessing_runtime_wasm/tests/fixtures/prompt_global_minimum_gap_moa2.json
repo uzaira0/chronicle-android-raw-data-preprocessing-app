@@ -1,0 +1,68 @@
+{
+  "schemaVersion": "chronicle-prompt-global-minimum-gap-source-fixture/v1",
+  "sourceWorkId": "doi:10.1145/2968219.2968302",
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-9394a68ebba99f6c81d9b845",
+    "parameterKey": "prompt.global_gap",
+    "sourceObservedSetting": "prompt.global_gap: at least 15 minutes between any two prompts",
+    "sourceValueSha256": "386abfdd27b50067be43ffaf13baf08e3a8aa2354291ff94efe931adf9172085"
+  },
+  "sourceArtifacts": [
+    {
+      "locator": ".tmp-literature-review-private/corrective-packet-09-ranks330-381-20260831/text/357.txt:108-114",
+      "sha256": "758788f984b88a328c855c98e7363509ed8b025e14f57b0c4d8a88ef17db08a2"
+    },
+    {
+      "locator": ".tmp-literature-review-private/corrective-packet-09-ranks330-381-20260831/pdfs/357-primary.pdf:pages 1-9#audit-locator=357.txt:108-114",
+      "sha256": "5d7e3f6afe00bbd31350968444575475339717d4ea2cc982e0acfd195b9c700a"
+    },
+    {
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/source-completeness-audits/doi-10.1145-2968219.2968302.json:552-564",
+      "sha256": "1b04586877ab30b6d49f2d94a64b99f1b657b0fefc6aece09c903be96e300d64"
+    }
+  ],
+  "inputBoundary": "One caller-supplied finite nonnegative elapsed duration in minutes between the immediately previous emitted prompt and one already-triggered candidate prompt.",
+  "outputBoundary": "Suppress the candidate below fifteen elapsed minutes and permit it at equality or above; this is only the global inter-prompt gap decision.",
+  "limitations": [
+    "The source does not define the no-prior-prompt case, process versus persisted state scope, restart behavior, or whether prompt means scheduled, displayed, or successfully delivered; a missing prior-gap value fails closed in this binding.",
+    "The source does not disclose clock source, timestamp resolution, timezone handling, monotonicity, rounding, or tolerance, so the caller supplies an already-derived elapsed duration and no sub-minute policy is inferred.",
+    "Time-triggered, calendar, connectivity, message, call, and voluntary trigger detection and collision or priority handling occur before this boundary.",
+    "The neighboring connectivity-change rule is a separate five-minute, screen-active guard and is not generalized into or replaced by this fifteen-minute global gap.",
+    "Prompt delivery across phone and watch, MDMQ response handling, and study-procedure behavior are outside this gate.",
+    "No study-version source, dataset, scheduler trace, or machine-readable source oracle was found; this fixture proves the disclosed threshold logic, not the complete prompt state machine."
+  ],
+  "minimumPermittedGapMinutes": 15.0,
+  "dispositions": [
+    "suppress_candidate",
+    "permit_candidate"
+  ],
+  "candidatePrompts": [
+    {
+      "candidateId": "below-global-gap",
+      "elapsedMinutesSincePreviousPrompt": 14.0,
+      "expectedDisposition": "suppress_candidate"
+    },
+    {
+      "candidateId": "exact-global-gap",
+      "elapsedMinutesSincePreviousPrompt": 15.0,
+      "expectedDisposition": "permit_candidate"
+    },
+    {
+      "candidateId": "above-global-gap",
+      "elapsedMinutesSincePreviousPrompt": 16.0,
+      "expectedDisposition": "permit_candidate"
+    }
+  ],
+  "invalidInputCases": [
+    {
+      "candidateId": "missing-previous-gap",
+      "elapsedMinutesSincePreviousPrompt": null,
+      "expectedError": "elapsed_since_previous_prompt_required"
+    },
+    {
+      "candidateId": "negative-elapsed-gap",
+      "elapsedMinutesSincePreviousPrompt": -1.0,
+      "expectedError": "elapsed_since_previous_prompt_must_be_nonnegative_finite"
+    }
+  ]
+}

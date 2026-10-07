@@ -112,7 +112,8 @@ workflow_operations:
     workflow_phase_id: standardize_timeline
     workflow_query_ids:
       - order_source_records
-    workflow_config_dependency_ids: []
+    workflow_config_dependency_ids:
+      - drop_out_of_source_order_events
   - workflow_id: evidence.collect_timezone_observations
     workflow_label: Collect timezone observations
     workflow_description: Collect timezone evidence without selecting a policy.
@@ -196,6 +197,9 @@ workflow_operations:
     workflow_query_ids:
       - mark_app_policy_matches
     workflow_config_dependency_ids:
+      - application_label_exclusions
+      - filter_match_field
+      - package_exclusion_preset
       - use_filter_file
   - workflow_id: evidence.index_keyguard_events
     workflow_label: Index keyguard events
@@ -204,7 +208,9 @@ workflow_operations:
     workflow_query_ids:
       - index_keyguard_events
     workflow_config_dependency_ids:
+      - locked_screen_audio_disposition
       - process_screen_usage
+      - screen_session_construction_strategy
   - workflow_id: reconstruct.infer_screen_session_skeletons
     workflow_label: Infer screen-session skeletons
     workflow_description: Reconstruct policy-neutral screen-session candidates.
@@ -212,7 +218,26 @@ workflow_operations:
     workflow_query_ids:
       - infer_screen_session_skeletons
     workflow_config_dependency_ids:
+      - episode_reconstruction_strategy
+      - locked_screen_audio_disposition
+      - process_app_usage
       - process_screen_usage
+      - screen_session_construction_strategy
+      - screen_session_maximum_duration_disposition
+  - workflow_id: reconstruct.construct_screen_intervals
+    workflow_label: Construct selected screen intervals
+    workflow_description: Resolve the selected B05 strategy and construct immutable
+      participant-isolated screen intervals.
+    workflow_phase_id: reconstruct_activity
+    workflow_query_ids:
+      - construct_screen_intervals
+    workflow_config_dependency_ids:
+      - episode_reconstruction_strategy
+      - locked_screen_audio_disposition
+      - process_app_usage
+      - process_screen_usage
+      - screen_session_construction_strategy
+      - screen_session_maximum_duration_disposition
   - workflow_id: evidence.derive_screen_session_features
     workflow_label: Derive screen-session evidence
     workflow_description: Derive reusable evidence features for candidate screen sessions.
@@ -220,6 +245,7 @@ workflow_operations:
     workflow_query_ids:
       - classify_screen_sessions
     workflow_config_dependency_ids:
+      - locked_screen_audio_disposition
       - process_screen_usage
   - workflow_id: policy.classify_screen_end_reasons
     workflow_label: Classify screen-session endings
@@ -228,11 +254,15 @@ workflow_operations:
     workflow_query_ids:
       - classify_screen_sessions
     workflow_config_dependency_ids:
+      - locked_screen_audio_disposition
       - process_screen_usage
       - screen_auto_lock_timeout_seconds
       - screen_auto_lock_tolerance_seconds
       - screen_keyguard_near_stop_seconds
       - screen_manual_lock_max_tail_seconds
+      - screen_session_classification_policy
+      - screen_session_maximum_duration_disposition
+      - screen_session_maximum_duration_minutes
       - use_apps_forcing_screen_open
   - workflow_id: reconstruct.materialize_screen_sessions
     workflow_label: Materialize screen sessions
@@ -241,6 +271,7 @@ workflow_operations:
     workflow_query_ids:
       - classify_screen_sessions
     workflow_config_dependency_ids:
+      - locked_screen_audio_disposition
       - process_screen_usage
   - workflow_id: policy.resolve_effective_app_exclusions
     workflow_label: Resolve excluded app packages
@@ -258,6 +289,7 @@ workflow_operations:
     workflow_query_ids:
       - mask_excluded_app_events
     workflow_config_dependency_ids:
+      - event_retention_set
       - process_app_usage
   - workflow_id: policy.resolve_matcher_masks
     workflow_label: Resolve matcher masks
@@ -288,9 +320,12 @@ workflow_operations:
     workflow_config_dependency_ids:
       - allow_stop_event_reuse
       - apply_threshold_to_fallback
+      - episode_reconstruction_strategy
       - long_duration_threshold_ns
+      - opener_set
       - process_app_usage
       - proximity_interval_ns
+      - screen_session_construction_strategy
       - use_activity_stopped_as_fallback
   - workflow_id: reconstruct.materialize_candidate_episodes
     workflow_label: Materialize candidate episodes
@@ -299,6 +334,7 @@ workflow_operations:
     workflow_query_ids:
       - materialize_candidate_episodes
     workflow_config_dependency_ids:
+      - event_retention_set
       - process_app_usage
   - workflow_id: reconstruct.discard_structural_events
     workflow_label: Discard structural event rows
@@ -311,20 +347,42 @@ workflow_operations:
       - process_app_usage
   - workflow_id: reconstruct.classify_app_episodes
     workflow_label: Classify reconstructed episodes
-    workflow_description: Finalize the reconstructed episode representation.
+    workflow_description: Capture immutable raw episode evidence and apply the
+      selected descriptive micro-use class.
     workflow_phase_id: reconstruct_activity
     workflow_query_ids:
       - classify_episode_durations
     workflow_config_dependency_ids:
       - process_app_usage
+      - use_background_apps_file
   - workflow_id: policy.suppress_short_durations
-    workflow_label: Suppress short durations
-    workflow_description: Blank durations below the configured minimum without deleting episodes.
+    workflow_label: Apply minimum-duration disposition
+    workflow_description: Qualify raw reconstructed duration once, then blank,
+      retain, exclude, or mark the row for lineage-preserving removal.
     workflow_phase_id: apply_measurement_rules
     workflow_query_ids:
       - classify_episode_durations
     workflow_config_dependency_ids:
+      - micro_use_classification_policy
+      - minimum_duration_comparator
+      - minimum_duration_disposition
       - minimum_usage_duration
+      - process_app_usage
+  - workflow_id: policy.apply_maximum_duration
+    workflow_label: Apply maximum-duration policy
+    workflow_description: When a maximum-duration policy is selected explicitly,
+      qualify raw reconstructed duration against the maximum once (strictly
+      greater; equality retained), then flag, exclude, truncate, or mark the row
+      for lineage-preserving removal. Absent keys leave Chronicle's legacy
+      candidate-rejection behaviour untouched.
+    workflow_phase_id: apply_measurement_rules
+    workflow_query_ids:
+      - classify_episode_durations
+    workflow_config_dependency_ids:
+      - maximum_duration_disposition
+      - maximum_duration_policy
+      - maximum_duration_threshold_ns
+      - maximum_duration_threshold_source
       - process_app_usage
   - workflow_id: policy.apply_app_inclusion
     workflow_label: Apply app inclusion policy
@@ -333,8 +391,15 @@ workflow_operations:
     workflow_query_ids:
       - apply_app_inclusion_policy
     workflow_config_dependency_ids:
+      - application_label_exclusions
+      - filter_match_field
+      - locked_screen_audio_disposition
+      - package_exclusion_preset
       - process_app_usage
+      - screen_session_maximum_duration_disposition
+      - screen_session_maximum_duration_minutes
       - use_background_apps_file
+      - use_filter_file
   - workflow_id: reconstruct.order_app_episodes
     workflow_label: Order app episodes
     workflow_description: Establish deterministic episode order for downstream interval logic.
@@ -427,11 +492,14 @@ workflow_operations:
       - process_app_usage
   - workflow_id: policy.suppress_excluded_timing
     workflow_label: Suppress excluded timing
-    workflow_description: Blank timing values excluded from measurement.
+    workflow_description: "Apply the selected interval-quality policy: blank timing
+      values excluded from measurement, or trim, flag and log implausible
+      intervals and collapse same-app rows that are one usage."
     workflow_phase_id: apply_measurement_rules
     workflow_query_ids:
       - suppress_excluded_timing
     workflow_config_dependency_ids:
+      - interval_quality_policy
       - process_app_usage
   - workflow_id: policy.remove_selected_interaction_types
     workflow_label: Remove selected interaction types
@@ -441,6 +509,7 @@ workflow_operations:
     workflow_query_ids:
       - remove_selected_interaction_types
     workflow_config_dependency_ids:
+      - interaction_type_removal_mode
       - interaction_types_to_remove
       - long_data_time_gap_thresholds
       - process_app_usage
@@ -453,6 +522,19 @@ workflow_operations:
     workflow_config_dependency_ids:
       - filter_zero_duration_sessions
       - process_app_usage
+  - workflow_id: policy.assign_usage_session_ids
+    workflow_label: Number usage sessions
+    workflow_description: Number consecutive episodes into usage sessions under the
+      selected published gap definition.
+    workflow_phase_id: apply_measurement_rules
+    workflow_query_ids:
+      - assign_usage_session_ids
+    workflow_config_dependency_ids:
+      - emit_session_break_lineage
+      - process_app_usage
+      - session_boundary_scope
+      - session_gap_basis
+      - session_grouping_policy
   - workflow_id: credit.identify_eligible_sessions
     workflow_label: Identify credit-eligible sessions
     workflow_description: Partition reconstructed sessions by credit eligibility.
@@ -546,6 +628,7 @@ workflow_operations:
     workflow_config_dependency_ids:
       - enable_screen_gated_crediting
       - process_app_usage
+      - screen_gating_rule
   - workflow_id: credit.apply_no_witness_fallback
     workflow_label: Apply no-witness fallback
     workflow_description: Apply the declared fallback for missing or incapable screen evidence.
@@ -582,6 +665,8 @@ workflow_operations:
       - resolve_participant_windows
     workflow_config_dependency_ids:
       - process_app_usage
+      - process_screen_usage
+      - usage_session_mode
   - workflow_id: study.apply_participant_windows
     workflow_label: Apply participant windows
     workflow_description: Retain rows inside each participant observation window.
@@ -591,6 +676,8 @@ workflow_operations:
     workflow_config_dependency_ids:
       - enable_study_window_filter
       - process_app_usage
+      - process_screen_usage
+      - usage_session_mode
   - workflow_id: study.resolve_sharing_status
     workflow_label: Resolve device sharing
     workflow_description: Resolve device-sharing evidence for person attribution.
@@ -633,6 +720,16 @@ workflow_operations:
       - classify_person_attribution
     workflow_config_dependency_ids:
       - process_app_usage
+  - workflow_id: assessment.divide_sessions_at_day_boundary
+    workflow_label: Divide sessions at the day boundary
+    workflow_description: Divide a session that spans local midnight so each
+      calendar day carries the part that fell inside it.
+    workflow_phase_id: assess_coverage
+    workflow_query_ids:
+      - divide_sessions_at_day_boundary
+    workflow_config_dependency_ids:
+      - day_boundary_attribution
+      - process_app_usage
   - workflow_id: assessment.synthesize_placeholder_rows
     workflow_label: Add missing-day placeholders
     workflow_description: Create explicitly synthetic rows for missing participant days.
@@ -641,7 +738,10 @@ workflow_operations:
       - synthesize_placeholder_rows
     workflow_config_dependency_ids:
       - add_no_activity_placeholder_days
+      - enable_study_window_filter
       - process_app_usage
+      - screen_session_maximum_duration_disposition
+      - screen_session_maximum_duration_minutes
   - workflow_id: evidence.index_raw_dates
     workflow_label: Index observed dates
     workflow_description: Index pre-window source dates used by coverage and placeholders.
@@ -650,6 +750,8 @@ workflow_operations:
       - index_raw_dates
     workflow_config_dependency_ids:
       - process_app_usage
+      - screen_session_maximum_duration_disposition
+      - screen_session_maximum_duration_minutes
   - workflow_id: assessment.build_participant_day_spine
     workflow_label: Build the participant-day spine
     workflow_description: Create the participant-day domain used for coverage.
@@ -715,8 +817,10 @@ workflow_operations:
     workflow_config_dependency_ids:
       - datetime_of_preprocessing
       - include_app_output
+      - include_app_usage_end_reason
       - include_category_column
       - model_concurrent_usage
+      - session_grouping_policy
       - study_name
       - timezone
       - usage_session_mode
@@ -758,11 +862,22 @@ workflow_operations:
       - assemble_result_manifest
     workflow_config_dependency_ids:
       - aggregate_shape
+      - aggregate_top_apps_limit
       - enable_aggregates
       - model_concurrent_usage
       - study_name
       - use_app_codebook
       - use_background_apps_file
+  - workflow_id: publish.build_participant_amount_summary
+    workflow_label: Build the participant amount summary
+    workflow_description: "One row per participant: tracked days, daily amount of
+      use, its sample-winsorized variant, and a Huber M column."
+    workflow_phase_id: create_deliverables
+    workflow_query_ids:
+      - assemble_result_manifest
+    workflow_config_dependency_ids:
+      - enable_participant_amount_summary
+      - usage_session_mode
   - workflow_id: publish.encode_selected_formats
     workflow_label: Encode selected formats
     workflow_description: Encode only the requested CSV, Parquet, and SPSS deliverables.
@@ -807,37 +922,50 @@ workflow_operations:
     workflow_phase_id: create_deliverables
     workflow_query_ids:
       - assemble_result_manifest
-    workflow_config_dependency_ids: []
+    workflow_config_dependency_ids:
+      - neutralize_spreadsheet_formulas
 workflow_artifacts:
   - workflow_id: artifact.assessment.aggregate_attribution_minutes
     workflow_label: Aggregate attributed minutes output
     workflow_producer_id: assessment.aggregate_attribution_minutes
     workflow_consumer_ids:
       - assessment.compute_completeness
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.assessment.build_participant_day_spine
     workflow_label: Build the participant-day spine output
     workflow_producer_id: assessment.build_participant_day_spine
     workflow_consumer_ids:
       - assessment.classify_days
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.assessment.classify_days
     workflow_label: Classify participant days output
     workflow_producer_id: assessment.classify_days
     workflow_consumer_ids:
       - assessment.summarize_coverage
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.assessment.compute_completeness
     workflow_label: Compute completeness output
     workflow_producer_id: assessment.compute_completeness
     workflow_consumer_ids:
       - policy.apply_compliance_threshold
+      - publish.build_participant_amount_summary
+  - workflow_id: artifact.assessment.divide_sessions_at_day_boundary
+    workflow_label: Divide sessions at the day boundary output
+    workflow_producer_id: assessment.divide_sessions_at_day_boundary
+    workflow_consumer_ids:
+      - assessment.synthesize_placeholder_rows
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.assessment.report_screen_evidence_capability
     workflow_label: Assess screen evidence capability output
     workflow_producer_id: assessment.report_screen_evidence_capability
     workflow_consumer_ids:
       - credit.publish_credit_result
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.assessment.summarize_coverage
     workflow_label: Summarize study coverage output
     workflow_producer_id: assessment.summarize_coverage
     workflow_consumer_ids:
+      - publish.build_participant_amount_summary
       - publish.encode_selected_formats
   - workflow_id: artifact.assessment.synthesize_placeholder_rows
     workflow_label: Add missing-day placeholders output
@@ -845,65 +973,76 @@ workflow_artifacts:
     workflow_consumer_ids:
       - assessment.aggregate_attribution_minutes
       - assessment.build_participant_day_spine
+      - publish.build_participant_amount_summary
       - publish.project_app_table
   - workflow_id: artifact.context.apply_survey_person_override
     workflow_label: Apply survey attribution output
     workflow_producer_id: context.apply_survey_person_override
     workflow_consumer_ids:
       - assessment.compute_completeness
-      - assessment.synthesize_placeholder_rows
+      - assessment.divide_sessions_at_day_boundary
       - context.classify_person_attribution
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.context.classify_person_attribution
     workflow_label: Classify person attribution output
     workflow_producer_id: context.classify_person_attribution
     workflow_consumer_ids:
       - assessment.compute_completeness
-      - assessment.synthesize_placeholder_rows
+      - assessment.divide_sessions_at_day_boundary
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.context.collapse_app_genre
     workflow_label: Collapse app genres output
     workflow_producer_id: context.collapse_app_genre
     workflow_consumer_ids:
+      - publish.build_participant_amount_summary
       - reconstruct.derive_engagement_basis
   - workflow_id: artifact.context.derive_broad_category
     workflow_label: Derive broad app categories output
     workflow_producer_id: context.derive_broad_category
     workflow_consumer_ids:
       - context.collapse_app_genre
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.context.infer_default_person
     workflow_label: Infer the default person output
     workflow_producer_id: context.infer_default_person
     workflow_consumer_ids:
       - assessment.compute_completeness
-      - assessment.synthesize_placeholder_rows
+      - assessment.divide_sessions_at_day_boundary
       - context.apply_survey_person_override
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.context.join_app_codebook
     workflow_label: Join the app codebook output
     workflow_producer_id: context.join_app_codebook
     workflow_consumer_ids:
       - context.derive_broad_category
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.credit.apply_no_witness_fallback
     workflow_label: Apply no-witness fallback output
     workflow_producer_id: credit.apply_no_witness_fallback
     workflow_consumer_ids:
       - credit.materialize_credited_rows
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.credit.cap_candidate_intervals
     workflow_label: Cap candidate intervals output
     workflow_producer_id: credit.cap_candidate_intervals
     workflow_consumer_ids:
       - credit.derive_device_live_spans
       - credit.materialize_credited_rows
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.credit.derive_device_live_spans
     workflow_label: Derive device-live spans output
     workflow_producer_id: credit.derive_device_live_spans
     workflow_consumer_ids:
       - credit.derive_screen_creditable_spans
       - credit.materialize_credited_rows
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.credit.derive_screen_creditable_spans
     workflow_label: Derive screen-creditable spans output
     workflow_producer_id: credit.derive_screen_creditable_spans
     workflow_consumer_ids:
       - credit.intersect_evidence
       - credit.materialize_credited_rows
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.credit.identify_eligible_sessions
     workflow_label: Identify credit-eligible sessions output
     workflow_producer_id: credit.identify_eligible_sessions
@@ -913,31 +1052,40 @@ workflow_artifacts:
       - credit.materialize_credited_rows
       - credit.publish_credit_result
       - evidence.summarize_daily_apps
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.credit.intersect_evidence
     workflow_label: Intersect credit evidence output
     workflow_producer_id: credit.intersect_evidence
     workflow_consumer_ids:
       - credit.apply_no_witness_fallback
       - credit.materialize_credited_rows
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.credit.materialize_credited_rows
     workflow_label: Materialize credited rows output
     workflow_producer_id: credit.materialize_credited_rows
     workflow_consumer_ids:
       - credit.publish_credit_result
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.credit.publish_credit_result
     workflow_label: Assemble credit outputs output
     workflow_producer_id: credit.publish_credit_result
     workflow_consumer_ids:
+      - publish.build_participant_amount_summary
       - publish.project_credited_table
   - workflow_id: artifact.evidence.collect_timezone_observations
     workflow_label: Collect timezone observations output
     workflow_producer_id: evidence.collect_timezone_observations
-    workflow_consumer_ids: []
+    workflow_consumer_ids:
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.evidence.derive_screen_session_features
     workflow_label: Derive screen-session evidence output
     workflow_producer_id: evidence.derive_screen_session_features
     workflow_consumer_ids:
+      - policy.apply_app_inclusion
       - policy.classify_screen_end_reasons
+      - publish.build_participant_amount_summary
+      - study.apply_participant_windows
+      - study.resolve_participant_windows
   - workflow_id: artifact.evidence.derive_time_gaps
     workflow_label: Derive timeline gaps output
     workflow_producer_id: evidence.derive_time_gaps
@@ -946,12 +1094,15 @@ workflow_artifacts:
       - evidence.index_keyguard_events
       - policy.mask_excluded_app_events
       - policy.match_app_exclusion_rows
+      - publish.build_participant_amount_summary
+      - reconstruct.construct_screen_intervals
       - reconstruct.infer_screen_session_skeletons
   - workflow_id: artifact.evidence.estimate_dominant_timezone
     workflow_label: Estimate the dominant timezone output
     workflow_producer_id: evidence.estimate_dominant_timezone
     workflow_consumer_ids:
       - policy.resolve_timezone_strategy
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.evidence.index_device_activity
     workflow_label: Index device activity output
     workflow_producer_id: evidence.index_device_activity
@@ -959,16 +1110,19 @@ workflow_artifacts:
       - assessment.report_screen_evidence_capability
       - credit.cap_candidate_intervals
       - credit.materialize_credited_rows
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.evidence.index_keyguard_events
     workflow_label: Index keyguard events output
     workflow_producer_id: evidence.index_keyguard_events
     workflow_consumer_ids:
       - evidence.derive_screen_session_features
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.evidence.index_raw_dates
     workflow_label: Index observed dates output
     workflow_producer_id: evidence.index_raw_dates
     workflow_consumer_ids:
       - assessment.build_participant_day_spine
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.evidence.index_reboots
     workflow_label: Index device reboots output
     workflow_producer_id: evidence.index_reboots
@@ -976,6 +1130,7 @@ workflow_artifacts:
       - assessment.report_screen_evidence_capability
       - credit.cap_candidate_intervals
       - credit.materialize_credited_rows
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.evidence.index_screen_witnesses
     workflow_label: Index screen witnesses output
     workflow_producer_id: evidence.index_screen_witnesses
@@ -983,78 +1138,111 @@ workflow_artifacts:
       - assessment.report_screen_evidence_capability
       - credit.cap_candidate_intervals
       - credit.materialize_credited_rows
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.evidence.summarize_daily_apps
     workflow_label: Summarize daily apps output
     workflow_producer_id: evidence.summarize_daily_apps
     workflow_consumer_ids:
       - credit.cap_candidate_intervals
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.evidence.summarize_device_models
     workflow_label: Summarize device models output
     workflow_producer_id: evidence.summarize_device_models
     workflow_consumer_ids:
+      - publish.build_participant_amount_summary
       - source.attach_device_models
       - source.decode_record_fields
   - workflow_id: artifact.evidence.summarize_duplicate_groups
     workflow_label: Summarize duplicate groups output
     workflow_producer_id: evidence.summarize_duplicate_groups
-    workflow_consumer_ids: []
+    workflow_consumer_ids:
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.evidence.summarize_row_selection
     workflow_label: Summarize row selection output
     workflow_producer_id: evidence.summarize_row_selection
-    workflow_consumer_ids: []
+    workflow_consumer_ids:
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.identity.normalize_usernames
     workflow_label: Normalize participant usernames output
     workflow_producer_id: identity.normalize_usernames
     workflow_consumer_ids:
+      - publish.build_participant_amount_summary
       - source.initialize_lineage
       - time.order_source_records
   - workflow_id: artifact.interaction.normalize_names
     workflow_label: Normalize interaction names output
     workflow_producer_id: interaction.normalize_names
     workflow_consumer_ids:
+      - publish.build_participant_amount_summary
       - time.derive_target_calendar
       - time.order_source_records
   - workflow_id: artifact.policy.apply_app_inclusion
     workflow_label: Apply app inclusion policy output
     workflow_producer_id: policy.apply_app_inclusion
     workflow_consumer_ids:
+      - publish.build_participant_amount_summary
       - reconstruct.order_app_episodes
   - workflow_id: artifact.policy.apply_compliance_threshold
     workflow_label: Apply the compliance threshold output
     workflow_producer_id: policy.apply_compliance_threshold
     workflow_consumer_ids:
+      - publish.build_participant_amount_summary
       - publish.encode_selected_formats
   - workflow_id: artifact.policy.apply_concurrent_segment_floor
     workflow_label: Apply the concurrent-segment floor output
     workflow_producer_id: policy.apply_concurrent_segment_floor
     workflow_consumer_ids:
       - context.join_app_codebook
+      - publish.build_participant_amount_summary
+  - workflow_id: artifact.policy.apply_maximum_duration
+    workflow_label: Apply maximum-duration policy output
+    workflow_producer_id: policy.apply_maximum_duration
+    workflow_consumer_ids:
+      - policy.apply_app_inclusion
+      - publish.build_participant_amount_summary
+  - workflow_id: artifact.policy.assign_usage_session_ids
+    workflow_label: Number usage sessions output
+    workflow_producer_id: policy.assign_usage_session_ids
+    workflow_consumer_ids:
+      - credit.identify_eligible_sessions
+      - publish.build_participant_amount_summary
+      - study.apply_participant_windows
+      - study.resolve_participant_windows
   - workflow_id: artifact.policy.classify_engagement
     workflow_label: Classify engagement output
     workflow_producer_id: policy.classify_engagement
     workflow_consumer_ids:
       - policy.flag_long_gaps
       - policy.flag_long_usage
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.policy.classify_screen_end_reasons
     workflow_label: Classify screen-session endings output
     workflow_producer_id: policy.classify_screen_end_reasons
     workflow_consumer_ids:
+      - policy.apply_app_inclusion
+      - publish.build_participant_amount_summary
       - reconstruct.materialize_screen_sessions
+      - study.apply_participant_windows
+      - study.resolve_participant_windows
   - workflow_id: artifact.policy.flag_long_gaps
     workflow_label: Flag long data gaps output
     workflow_producer_id: policy.flag_long_gaps
     workflow_consumer_ids:
       - policy.suppress_excluded_timing
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.policy.flag_long_usage
     workflow_label: Flag long usage output
     workflow_producer_id: policy.flag_long_usage
     workflow_consumer_ids:
       - policy.suppress_excluded_timing
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.policy.mask_excluded_app_events
     workflow_label: Mask excluded app events output
     workflow_producer_id: policy.mask_excluded_app_events
     workflow_consumer_ids:
       - policy.resolve_matcher_masks
+      - publish.build_participant_amount_summary
+      - reconstruct.match_app_episodes
       - reconstruct.materialize_candidate_episodes
   - workflow_id: artifact.policy.match_app_exclusion_rows
     workflow_label: Match app-exclusion rows output
@@ -1066,10 +1254,12 @@ workflow_artifacts:
       - evidence.index_reboots
       - evidence.index_screen_witnesses
       - policy.resolve_effective_app_exclusions
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.policy.remove_selected_interaction_types
     workflow_label: Remove selected interaction types output
     workflow_producer_id: policy.remove_selected_interaction_types
     workflow_consumer_ids:
+      - publish.build_participant_amount_summary
       - quality.remove_zero_duration_rows
   - workflow_id: artifact.policy.resolve_effective_app_exclusions
     workflow_label: Resolve excluded app packages output
@@ -1077,6 +1267,7 @@ workflow_artifacts:
     workflow_consumer_ids:
       - policy.apply_app_inclusion
       - policy.suppress_excluded_timing
+      - publish.build_participant_amount_summary
       - reconstruct.discard_structural_events
       - reconstruct.materialize_candidate_episodes
       - reconstruct.segment_concurrent_usage
@@ -1084,6 +1275,7 @@ workflow_artifacts:
     workflow_label: Resolve matcher masks output
     workflow_producer_id: policy.resolve_matcher_masks
     workflow_consumer_ids:
+      - publish.build_participant_amount_summary
       - reconstruct.index_app_events
       - reconstruct.match_app_episodes
   - workflow_id: artifact.policy.resolve_timezone_strategy
@@ -1091,6 +1283,7 @@ workflow_artifacts:
     workflow_producer_id: policy.resolve_timezone_strategy
     workflow_consumer_ids:
       - evidence.summarize_row_selection
+      - publish.build_participant_amount_summary
       - quality.select_timezone_eligible_records
       - time.standardize_event_clock
   - workflow_id: artifact.policy.suppress_excluded_timing
@@ -1098,17 +1291,24 @@ workflow_artifacts:
     workflow_producer_id: policy.suppress_excluded_timing
     workflow_consumer_ids:
       - policy.remove_selected_interaction_types
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.policy.suppress_short_durations
-    workflow_label: Suppress short durations output
+    workflow_label: Apply minimum-duration disposition output
     workflow_producer_id: policy.suppress_short_durations
     workflow_consumer_ids:
       - policy.apply_app_inclusion
+      - policy.apply_maximum_duration
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.publish.build_aggregate_tables
     workflow_label: Build aggregate tables output
     workflow_producer_id: publish.build_aggregate_tables
     workflow_consumer_ids:
       - publish.commit_workspace_bundle
       - publish.encode_selected_formats
+  - workflow_id: artifact.publish.build_participant_amount_summary
+    workflow_label: Build the participant amount summary output
+    workflow_producer_id: publish.build_participant_amount_summary
+    workflow_consumer_ids: []
   - workflow_id: artifact.publish.build_review_data
     workflow_label: Build review data output
     workflow_producer_id: publish.build_review_data
@@ -1170,30 +1370,33 @@ workflow_artifacts:
     workflow_producer_id: quality.coalesce_duplicate_event_keys
     workflow_consumer_ids:
       - evidence.summarize_duplicate_groups
+      - publish.build_participant_amount_summary
       - quality.disambiguate_duplicate_timestamps
   - workflow_id: artifact.quality.disambiguate_duplicate_timestamps
     workflow_label: Disambiguate duplicate timestamps output
     workflow_producer_id: quality.disambiguate_duplicate_timestamps
     workflow_consumer_ids:
       - evidence.derive_time_gaps
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.quality.remove_missing_timestamps
     workflow_label: Remove records without timestamps output
     workflow_producer_id: quality.remove_missing_timestamps
     workflow_consumer_ids:
       - evidence.summarize_device_models
+      - publish.build_participant_amount_summary
       - source.decode_record_fields
   - workflow_id: artifact.quality.remove_zero_duration_rows
     workflow_label: Remove zero-duration rows output
     workflow_producer_id: quality.remove_zero_duration_rows
     workflow_consumer_ids:
-      - credit.identify_eligible_sessions
-      - study.apply_participant_windows
-      - study.resolve_participant_windows
+      - policy.assign_usage_session_ids
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.quality.select_timezone_eligible_records
     workflow_label: Select timezone-eligible records output
     workflow_producer_id: quality.select_timezone_eligible_records
     workflow_consumer_ids:
       - evidence.summarize_row_selection
+      - publish.build_participant_amount_summary
       - time.standardize_event_clock
   - workflow_id: artifact.reconstruct.classify_app_episodes
     workflow_label: Classify reconstructed episodes output
@@ -1201,6 +1404,20 @@ workflow_artifacts:
     workflow_consumer_ids:
       - policy.apply_app_inclusion
       - policy.suppress_short_durations
+      - publish.build_participant_amount_summary
+  - workflow_id: artifact.reconstruct.construct_screen_intervals
+    workflow_label: Construct selected screen intervals output
+    workflow_producer_id: reconstruct.construct_screen_intervals
+    workflow_consumer_ids:
+      - assessment.synthesize_placeholder_rows
+      - evidence.derive_screen_session_features
+      - evidence.index_device_activity
+      - evidence.index_raw_dates
+      - evidence.index_reboots
+      - evidence.index_screen_witnesses
+      - policy.apply_app_inclusion
+      - publish.build_participant_amount_summary
+      - reconstruct.match_app_episodes
   - workflow_id: artifact.reconstruct.derive_engagement_basis
     workflow_label: Derive engagement evidence output
     workflow_producer_id: reconstruct.derive_engagement_basis
@@ -1208,41 +1425,54 @@ workflow_artifacts:
       - policy.classify_engagement
       - policy.flag_long_gaps
       - policy.flag_long_usage
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.reconstruct.discard_structural_events
     workflow_label: Discard structural event rows output
     workflow_producer_id: reconstruct.discard_structural_events
     workflow_consumer_ids:
       - policy.apply_app_inclusion
+      - publish.build_participant_amount_summary
       - reconstruct.classify_app_episodes
   - workflow_id: artifact.reconstruct.index_app_events
     workflow_label: Index app events output
     workflow_producer_id: reconstruct.index_app_events
     workflow_consumer_ids:
+      - publish.build_participant_amount_summary
       - reconstruct.match_app_episodes
   - workflow_id: artifact.reconstruct.infer_screen_session_skeletons
     workflow_label: Infer screen-session skeletons output
     workflow_producer_id: reconstruct.infer_screen_session_skeletons
     workflow_consumer_ids:
       - evidence.derive_screen_session_features
+      - publish.build_participant_amount_summary
+      - reconstruct.construct_screen_intervals
   - workflow_id: artifact.reconstruct.match_app_episodes
     workflow_label: Match app episodes output
     workflow_producer_id: reconstruct.match_app_episodes
     workflow_consumer_ids:
+      - publish.build_participant_amount_summary
+      - reconstruct.discard_structural_events
       - reconstruct.materialize_candidate_episodes
   - workflow_id: artifact.reconstruct.materialize_candidate_episodes
     workflow_label: Materialize candidate episodes output
     workflow_producer_id: reconstruct.materialize_candidate_episodes
     workflow_consumer_ids:
+      - publish.build_participant_amount_summary
       - reconstruct.discard_structural_events
   - workflow_id: artifact.reconstruct.materialize_screen_sessions
     workflow_label: Materialize screen sessions output
     workflow_producer_id: reconstruct.materialize_screen_sessions
     workflow_consumer_ids:
+      - policy.apply_app_inclusion
+      - publish.build_participant_amount_summary
       - publish.project_screen_table
+      - study.apply_participant_windows
+      - study.resolve_participant_windows
   - workflow_id: artifact.reconstruct.order_app_episodes
     workflow_label: Order app episodes output
     workflow_producer_id: reconstruct.order_app_episodes
     workflow_consumer_ids:
+      - publish.build_participant_amount_summary
       - reconstruct.segment_concurrent_usage
   - workflow_id: artifact.reconstruct.segment_concurrent_usage
     workflow_label: Segment concurrent usage output
@@ -1250,64 +1480,80 @@ workflow_artifacts:
     workflow_consumer_ids:
       - context.join_app_codebook
       - policy.apply_concurrent_segment_floor
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.source.attach_device_models
     workflow_label: Attach device models output
     workflow_producer_id: source.attach_device_models
     workflow_consumer_ids:
+      - publish.build_participant_amount_summary
       - source.decode_record_fields
   - workflow_id: artifact.source.decode_record_fields
     workflow_label: Decode record fields output
     workflow_producer_id: source.decode_record_fields
     workflow_consumer_ids:
+      - publish.build_participant_amount_summary
       - time.apply_missing_timezone_rule
       - time.order_source_records
   - workflow_id: artifact.source.decode_records
     workflow_label: Decode source records output
     workflow_producer_id: source.decode_records
     workflow_consumer_ids:
+      - evidence.derive_screen_session_features
+      - publish.build_participant_amount_summary
       - quality.remove_missing_timestamps
+      - reconstruct.construct_screen_intervals
+      - reconstruct.match_app_episodes
   - workflow_id: artifact.source.initialize_lineage
     workflow_label: Initialize source lineage output
     workflow_producer_id: source.initialize_lineage
     workflow_consumer_ids:
       - interaction.normalize_names
+      - publish.build_participant_amount_summary
       - time.order_source_records
   - workflow_id: artifact.source.validate_remap_rules
     workflow_label: Validate remapping rules output
     workflow_producer_id: source.validate_remap_rules
     workflow_consumer_ids:
+      - publish.build_participant_amount_summary
       - source.decode_record_fields
   - workflow_id: artifact.study.apply_participant_windows
     workflow_label: Apply participant windows output
     workflow_producer_id: study.apply_participant_windows
     workflow_consumer_ids:
       - context.infer_default_person
+      - publish.build_participant_amount_summary
       - study.resolve_sharing_status
   - workflow_id: artifact.study.index_survey_responses
     workflow_label: Index survey responses output
     workflow_producer_id: study.index_survey_responses
     workflow_consumer_ids:
       - context.infer_default_person
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.study.resolve_participant_windows
     workflow_label: Resolve participant windows output
     workflow_producer_id: study.resolve_participant_windows
     workflow_consumer_ids:
+      - assessment.synthesize_placeholder_rows
+      - publish.build_participant_amount_summary
       - study.apply_participant_windows
   - workflow_id: artifact.study.resolve_sharing_status
     workflow_label: Resolve device sharing output
     workflow_producer_id: study.resolve_sharing_status
     workflow_consumer_ids:
       - context.infer_default_person
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.time.apply_missing_timezone_rule
     workflow_label: Resolve missing timezone values output
     workflow_producer_id: time.apply_missing_timezone_rule
     workflow_consumer_ids:
       - identity.normalize_usernames
+      - publish.build_participant_amount_summary
       - time.order_source_records
   - workflow_id: artifact.time.derive_target_calendar
     workflow_label: Derive calendar fields output
     workflow_producer_id: time.derive_target_calendar
     workflow_consumer_ids:
+      - publish.build_participant_amount_summary
       - time.order_source_records
   - workflow_id: artifact.time.order_source_records
     workflow_label: Order source records output
@@ -1317,10 +1563,12 @@ workflow_artifacts:
       - evidence.estimate_dominant_timezone
       - evidence.summarize_row_selection
       - policy.resolve_timezone_strategy
+      - publish.build_participant_amount_summary
   - workflow_id: artifact.time.standardize_event_clock
     workflow_label: Standardize event clocks output
     workflow_producer_id: time.standardize_event_clock
     workflow_consumer_ids:
+      - publish.build_participant_amount_summary
       - quality.coalesce_duplicate_event_keys
   - workflow_id: config.processing_options
     workflow_label: processing options
@@ -1330,6 +1578,7 @@ workflow_artifacts:
       - assessment.build_participant_day_spine
       - assessment.classify_days
       - assessment.compute_completeness
+      - assessment.divide_sessions_at_day_boundary
       - assessment.report_screen_evidence_capability
       - assessment.summarize_coverage
       - assessment.synthesize_placeholder_rows
@@ -1357,6 +1606,8 @@ workflow_artifacts:
       - policy.apply_app_inclusion
       - policy.apply_compliance_threshold
       - policy.apply_concurrent_segment_floor
+      - policy.apply_maximum_duration
+      - policy.assign_usage_session_ids
       - policy.classify_engagement
       - policy.classify_screen_end_reasons
       - policy.flag_long_gaps
@@ -1370,7 +1621,9 @@ workflow_artifacts:
       - policy.suppress_excluded_timing
       - policy.suppress_short_durations
       - publish.build_aggregate_tables
+      - publish.build_participant_amount_summary
       - publish.build_visualization_data
+      - publish.commit_workspace_bundle
       - publish.emit_provenance
       - publish.encode_selected_formats
       - publish.project_app_table
@@ -1380,6 +1633,7 @@ workflow_artifacts:
       - quality.disambiguate_duplicate_timestamps
       - quality.remove_zero_duration_rows
       - reconstruct.classify_app_episodes
+      - reconstruct.construct_screen_intervals
       - reconstruct.derive_engagement_basis
       - reconstruct.discard_structural_events
       - reconstruct.index_app_events
@@ -1395,10 +1649,12 @@ workflow_artifacts:
       - study.resolve_participant_windows
       - study.resolve_sharing_status
       - time.apply_missing_timezone_rule
+      - time.order_source_records
   - workflow_id: provenance.processing_timestamp
     workflow_label: processing timestamp provenance
     workflow_producer_id: null
     workflow_consumer_ids:
+      - publish.build_participant_amount_summary
       - publish.emit_provenance
   - workflow_id: source.app_codebook_file
     workflow_label: app codebook file
@@ -1431,11 +1687,20 @@ workflow_artifacts:
     workflow_label: filter file
     workflow_producer_id: null
     workflow_consumer_ids:
+      - policy.apply_app_inclusion
       - policy.match_app_exclusion_rows
+  - workflow_id: source.input_capability_evidence_file
+    workflow_label: input capability evidence file
+    workflow_producer_id: null
+    workflow_consumer_ids:
+      - reconstruct.construct_screen_intervals
+      - reconstruct.match_app_episodes
   - workflow_id: source.raw_chronicle_csv
     workflow_label: raw chronicle csv
     workflow_producer_id: null
     workflow_consumer_ids:
+      - reconstruct.construct_screen_intervals
+      - reconstruct.match_app_episodes
       - source.decode_records
   - workflow_id: source.study_dates_file
     workflow_label: study dates file
@@ -1478,11 +1743,6 @@ workflow_queries:
     workflow_output_ids:
       - artifact.evidence.summarize_device_models
       - artifact.source.attach_device_models
-  - workflow_id: bind_processing_timestamp
-    workflow_input_ids: []
-    workflow_operation_ids: []
-    workflow_output_ids:
-      - provenance.processing_timestamp
   - workflow_id: canonicalize_source_rows
     workflow_input_ids:
       - remove_missing_timestamps
@@ -1597,11 +1857,22 @@ workflow_queries:
       - reconstruct.infer_screen_session_skeletons
     workflow_output_ids:
       - artifact.reconstruct.infer_screen_session_skeletons
+  - workflow_id: construct_screen_intervals
+    workflow_input_ids:
+      - decode_source_records
+      - derive_time_gap_evidence
+      - infer_screen_session_skeletons
+    workflow_operation_ids:
+      - reconstruct.construct_screen_intervals
+    workflow_output_ids:
+      - artifact.reconstruct.construct_screen_intervals
   - workflow_id: classify_screen_sessions
     workflow_input_ids:
       - derive_time_gap_evidence
+      - decode_source_records
       - infer_screen_session_skeletons
       - index_keyguard_events
+      - construct_screen_intervals
     workflow_operation_ids:
       - evidence.derive_screen_session_features
       - policy.classify_screen_end_reasons
@@ -1635,7 +1906,10 @@ workflow_queries:
       - artifact.reconstruct.index_app_events
   - workflow_id: match_app_episodes
     workflow_input_ids:
+      - decode_source_records
       - build_app_event_index
+      - mask_excluded_app_events
+      - construct_screen_intervals
     workflow_operation_ids:
       - reconstruct.match_app_episodes
     workflow_output_ids:
@@ -1651,19 +1925,24 @@ workflow_queries:
       - artifact.reconstruct.materialize_candidate_episodes
   - workflow_id: classify_episode_durations
     workflow_input_ids:
+      - match_app_episodes
       - materialize_candidate_episodes
       - resolve_excluded_packages
     workflow_operation_ids:
       - reconstruct.discard_structural_events
       - reconstruct.classify_app_episodes
       - policy.suppress_short_durations
+      - policy.apply_maximum_duration
     workflow_output_ids:
       - artifact.reconstruct.discard_structural_events
       - artifact.reconstruct.classify_app_episodes
       - artifact.policy.suppress_short_durations
+      - artifact.policy.apply_maximum_duration
   - workflow_id: apply_app_inclusion_policy
     workflow_input_ids:
       - classify_episode_durations
+      - classify_screen_sessions
+      - construct_screen_intervals
       - resolve_excluded_packages
     workflow_operation_ids:
       - policy.apply_app_inclusion
@@ -1747,9 +2026,16 @@ workflow_queries:
       - quality.remove_zero_duration_rows
     workflow_output_ids:
       - artifact.quality.remove_zero_duration_rows
-  - workflow_id: identify_credit_eligible_sessions
+  - workflow_id: assign_usage_session_ids
     workflow_input_ids:
       - remove_zero_duration_rows
+    workflow_operation_ids:
+      - policy.assign_usage_session_ids
+    workflow_output_ids:
+      - artifact.policy.assign_usage_session_ids
+  - workflow_id: identify_credit_eligible_sessions
+    workflow_input_ids:
+      - assign_usage_session_ids
     workflow_operation_ids:
       - credit.identify_eligible_sessions
     workflow_output_ids:
@@ -1757,6 +2043,7 @@ workflow_queries:
   - workflow_id: build_activity_witness_indexes
     workflow_input_ids:
       - mark_app_policy_matches
+      - construct_screen_intervals
     workflow_operation_ids:
       - evidence.index_device_activity
       - evidence.index_reboots
@@ -1815,16 +2102,62 @@ workflow_queries:
       - credit.publish_credit_result
     workflow_output_ids:
       - artifact.credit.publish_credit_result
+  - workflow_id: select_notification_events
+    workflow_input_ids:
+      - mark_app_policy_matches
+      - construct_screen_intervals
+    workflow_operation_ids: []
+    workflow_output_ids: []
+  - workflow_id: index_observed_usage_spans
+    workflow_input_ids:
+      - assign_usage_session_ids
+    workflow_operation_ids: []
+    workflow_output_ids: []
+  - workflow_id: classify_notification_contacts
+    workflow_input_ids:
+      - select_notification_events
+      - index_observed_usage_spans
+    workflow_operation_ids: []
+    workflow_output_ids: []
+  - workflow_id: assemble_notification_contact_outputs
+    workflow_input_ids:
+      - classify_notification_contacts
+    workflow_operation_ids: []
+    workflow_output_ids: []
+  - workflow_id: sample_polled_timeline
+    workflow_input_ids:
+      - assign_usage_session_ids
+    workflow_operation_ids: []
+    workflow_output_ids: []
+  - workflow_id: group_polled_runs
+    workflow_input_ids:
+      - assign_usage_session_ids
+      - sample_polled_timeline
+    workflow_operation_ids: []
+    workflow_output_ids: []
+  - workflow_id: materialize_polled_rows
+    workflow_input_ids:
+      - assign_usage_session_ids
+      - group_polled_runs
+    workflow_operation_ids: []
+    workflow_output_ids: []
+  - workflow_id: assemble_polled_emulation_outputs
+    workflow_input_ids:
+      - materialize_polled_rows
+    workflow_operation_ids: []
+    workflow_output_ids: []
   - workflow_id: resolve_participant_windows
     workflow_input_ids:
-      - remove_zero_duration_rows
+      - assign_usage_session_ids
+      - classify_screen_sessions
     workflow_operation_ids:
       - study.resolve_participant_windows
     workflow_output_ids:
       - artifact.study.resolve_participant_windows
   - workflow_id: apply_participant_windows
     workflow_input_ids:
-      - remove_zero_duration_rows
+      - assign_usage_session_ids
+      - classify_screen_sessions
       - resolve_participant_windows
     workflow_operation_ids:
       - study.apply_participant_windows
@@ -1856,10 +2189,19 @@ workflow_queries:
       - artifact.context.infer_default_person
       - artifact.context.apply_survey_person_override
       - artifact.context.classify_person_attribution
-  - workflow_id: synthesize_placeholder_rows
+  - workflow_id: divide_sessions_at_day_boundary
     workflow_input_ids:
       - classify_person_attribution
+    workflow_operation_ids:
+      - assessment.divide_sessions_at_day_boundary
+    workflow_output_ids:
+      - artifact.assessment.divide_sessions_at_day_boundary
+  - workflow_id: synthesize_placeholder_rows
+    workflow_input_ids:
+      - divide_sessions_at_day_boundary
       - mark_app_policy_matches
+      - construct_screen_intervals
+      - resolve_participant_windows
     workflow_operation_ids:
       - assessment.synthesize_placeholder_rows
     workflow_output_ids:
@@ -1867,6 +2209,7 @@ workflow_queries:
   - workflow_id: index_raw_dates
     workflow_input_ids:
       - mark_app_policy_matches
+      - construct_screen_intervals
     workflow_operation_ids:
       - evidence.index_raw_dates
     workflow_output_ids:
@@ -1905,13 +2248,17 @@ workflow_queries:
       - policy.apply_compliance_threshold
     workflow_output_ids:
       - artifact.policy.apply_compliance_threshold
+  - workflow_id: bind_processing_timestamp
+    workflow_input_ids: []
+    workflow_operation_ids: []
+    workflow_output_ids:
+      - provenance.processing_timestamp
   - workflow_id: assemble_result_manifest
     workflow_input_ids:
       - validate_remap_rules
       - decode_source_records
       - remove_missing_timestamps
       - attach_device_models
-      - bind_processing_timestamp
       - canonicalize_source_rows
       - order_source_records
       - collect_timezone_observations
@@ -1926,6 +2273,7 @@ workflow_queries:
       - mark_app_policy_matches
       - index_keyguard_events
       - infer_screen_session_skeletons
+      - construct_screen_intervals
       - classify_screen_sessions
       - resolve_excluded_packages
       - mask_excluded_app_events
@@ -1944,6 +2292,7 @@ workflow_queries:
       - suppress_excluded_timing
       - remove_selected_interaction_types
       - remove_zero_duration_rows
+      - assign_usage_session_ids
       - identify_credit_eligible_sessions
       - build_activity_witness_indexes
       - assess_screen_evidence_capability
@@ -1951,22 +2300,33 @@ workflow_queries:
       - derive_credited_intervals
       - materialize_credited_rows
       - assemble_credit_outputs
+      - select_notification_events
+      - index_observed_usage_spans
+      - classify_notification_contacts
+      - assemble_notification_contact_outputs
+      - sample_polled_timeline
+      - group_polled_runs
+      - materialize_polled_rows
+      - assemble_polled_emulation_outputs
       - resolve_participant_windows
       - apply_participant_windows
       - resolve_sharing_status
       - index_survey_responses
       - classify_person_attribution
+      - divide_sessions_at_day_boundary
       - synthesize_placeholder_rows
       - index_raw_dates
       - build_participant_day_coverage
       - aggregate_attribution_minutes
       - compute_attribution_completeness
       - classify_compliance_days
+      - bind_processing_timestamp
     workflow_operation_ids:
       - publish.project_app_table
       - publish.project_screen_table
       - publish.project_credited_table
       - publish.build_aggregate_tables
+      - publish.build_participant_amount_summary
       - publish.encode_selected_formats
       - publish.build_review_data
       - publish.build_visualization_data
@@ -1978,6 +2338,7 @@ workflow_queries:
       - artifact.publish.project_screen_table
       - artifact.publish.project_credited_table
       - artifact.publish.build_aggregate_tables
+      - artifact.publish.build_participant_amount_summary
       - artifact.publish.encode_selected_formats
       - artifact.publish.build_review_data
       - artifact.publish.build_visualization_data

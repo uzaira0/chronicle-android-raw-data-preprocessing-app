@@ -1,0 +1,76 @@
+{
+  "schemaVersion": "chronicle-wifi-signal-trace-threshold-source-fixture/v1",
+  "sourceWorkId": "doi:10.1145/2465529.2466586",
+  "canonicalIdentity": {
+    "settingId": "method-setting-8a188c8364d1d50b36e04783",
+    "sourceCurrentSettingId": "method-setting-8a188c8364d1d50b36e04783",
+    "sourceExtractionId": "extraction-831e2a46ae19dfa4ec63",
+    "sourceExecutionUnitId": "signal-power-2466586:trace.analysis.wifi",
+    "aliasResolution": "canonical_current_no_alias_or_tombstone",
+    "tombstoneRegistrySha256": "018221f6036218887355a0a2dcd9d6d54a9e90eb93f380b4e1b81cc75c0f76b5"
+  },
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-8a188c8364d1d50b36e04783",
+    "parameterKey": "trace.threshold.wifi",
+    "sourceObservedSetting": "trace.threshold.wifi: {\"technology\":\"Wi-Fi\",\"poor_when\":\"RSSI <= -80 dBm\"}",
+    "sourceValueSha256": "d90349279abc742944b37eae2f42c4610afb85d0064cff92e964eea5531b5239"
+  },
+  "sourceArtifacts": [
+    {
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/work/114-raw.txt:427-447",
+      "sha256": "8dc10be1c73d1017b1c528e3a24646057bf288c60fce852ea0fe0738e5e2e17e"
+    },
+    {
+      "locator": ".tmp-literature-review-private/corrective-packet-04-ranks-074-123-20260831/fulltext/114-primary.pdf#audit-locator=114-raw.txt:427-447",
+      "sha256": "9022b28ab8725ae23e7766edda71b295d32e7e7fbe75a7e762d62db8e18ff164"
+    },
+    {
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/source-completeness-audits/doi-10.1145-2465529.2466586.json#key=trace.threshold.wifi",
+      "sha256": "5e6dfd5f5b87c0850a39ad9aa28412b542dc090c557e69a8282c4a65781554df"
+    },
+    {
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/method-setting-alias-tombstones.json#lookup=method-setting-8a188c8364d1d50b36e04783",
+      "sha256": "018221f6036218887355a0a2dcd9d6d54a9e90eb93f380b4e1b81cc75c0f76b5"
+    }
+  ],
+  "inputBoundary": "One caller-supplied finite Wi-Fi received-signal-strength value expressed in dBm from the study trace. Technology selection, Android field decoding, trace joins, measurement calibration, and missing/censored-value handling occur upstream.",
+  "outputBoundary": "For this canonical trace-analysis variant only, classify Wi-Fi RSSI below or equal to -80 dBm as poor and values above -80 dBm as not_poor.",
+  "limitations": [
+    "The first definition says '-80 dBm and below' while nearby trace prose paraphrases poor signal as 'below -80 dBm'; this binding implements only the canonical <= trace-analysis atom and does not adjudicate or erase that wording conflict.",
+    "The paper's controlled validation separately uses RSSI < -80 dBm in method-setting-9897b5f9ba40756397553301; that strict validation variant is not substituted for this trace-analysis setting.",
+    "The source does not disclose a measurement serialization type, quantization rule, physical range, rounding, or tolerance, so none is invented around -80 dBm.",
+    "A missing or nonfinite RSSI value fails closed before classification.",
+    "This binding does not parse collector records, select Wi-Fi rows, reconstruct byte-counter deltas, infer screen state, calculate time or traffic fractions, aggregate participants, or reproduce the 3,785-user trace.",
+    "Controlled packet/power experiments, the eprof model, trained artifacts, validation figures, and what-if analyses are outside this threshold boundary and remain blocked without their source-qualified inputs and runtime."
+  ],
+  "pivotDbm": -80.0,
+  "categories": {
+    "below": "poor",
+    "equal": "poor",
+    "above": "not_poor"
+  },
+  "observations": [
+    {
+      "caseId": "immediately-below-threshold",
+      "rssiDbm": -80.1,
+      "expectedClass": "poor"
+    },
+    {
+      "caseId": "exact-threshold-included-by-and-below-definition",
+      "rssiDbm": -80.0,
+      "expectedClass": "poor"
+    },
+    {
+      "caseId": "immediately-above-threshold",
+      "rssiDbm": -79.9,
+      "expectedClass": "not_poor"
+    }
+  ],
+  "invalidObservations": [
+    {
+      "caseId": "missing-rssi",
+      "rssiDbm": null,
+      "expectedError": "wifi_rssi_dbm_required"
+    }
+  ]
+}

@@ -1,0 +1,100 @@
+{
+  "schemaVersion": "chronicle-daily-categorical-counts-source-fixture/v1",
+  "sourceWorkId": "doi:10.2196/26540",
+  "exactCanonicalSettings": [
+    {
+      "settingId": "method-setting-50478a371ba022b67e2e5dc6",
+      "parameterKey": "output.screen_onCount",
+      "sourceValue": "count of instances where screen was on",
+      "sourceValueSha256": "5909f3f8a1af01924c7c905a65a31389c839a53dbc08b60a48a460a36ee9a3bd"
+    },
+    {
+      "settingId": "method-setting-66cceba329f0393e7d73f395",
+      "parameterKey": "output.screen_offCount",
+      "sourceValue": "count of instances where screen was off",
+      "sourceValueSha256": "36bb6cde3e5c288948eefc063df44dea6601a89cb3a9f789c8d882238b7ad8c0"
+    },
+    {
+      "settingId": "method-setting-473c8f4c5145e4c2332cc28a",
+      "parameterKey": "output.internet_connectedCount",
+      "sourceValue": "count of connected instances",
+      "sourceValueSha256": "251ec271f9cfc59f11f47c86d4b17f5f677764876b7e2f3c83bdb6d0a26951b3"
+    },
+    {
+      "settingId": "method-setting-c2e09f6fb72e82a070824d46",
+      "parameterKey": "output.internet_disconnectedCount",
+      "sourceValue": "count of disconnected instances",
+      "sourceValueSha256": "4cfb7b9ba29e4037fc475fb124bdd8643d4152a47b747e4f04d644625a13e743"
+    },
+    {
+      "settingId": "method-setting-780c2f0eb3dd7067b0774dfe",
+      "parameterKey": "output.app_count",
+      "sourceValue": "count of foreground applications used",
+      "sourceValueSha256": "11e0b158e4f3dea4912e7b6b84b6a8bcde4ad4a297e31d982863d87b4b2ee7f2"
+    }
+  ],
+  "sourceArtifacts": [
+    {
+      "locator": ".tmp-literature-review-private/corrective-packet-04-ranks-074-123-20260831/supplements/100-app1.pdf:pages 1-2",
+      "sha256": "b122f1467e8c44107223201cd1b5a349f3ca198c8f30ce06800ab0052d8f4275"
+    },
+    {
+      "locator": ".tmp-literature-review-private/corrective-packet-04-ranks-074-123-20260831/text/100.txt:281-288",
+      "sha256": "a4683ab2ede60c1fb9ebae8c57bd55fdb71cae47ee1a1ade10318ab943f1ad69"
+    }
+  ],
+  "inputBoundary": "Already-classified screen, connectivity, or foreground-application-use observations carrying caller-reconstructed participant and source-local day identities.",
+  "outputBoundary": "Observed instance counts by participant, source-local day, and supplied category.",
+  "limitations": [
+    "This binding does not classify raw screen, connectivity, or foreground-application records.",
+    "This binding does not parse timestamps, select a timezone, or derive the source-local day.",
+    "Repeated supplied observations count repeatedly; no source event identity or duplicate-removal rule is inferred.",
+    "Participant-day/category combinations absent from the supplied observations are not synthesized or zero-filled."
+  ],
+  "streams": [
+    {
+      "streamId": "screen",
+      "observations": [
+        {"participantId": "P01", "sourceDayId": "2018-03-01", "category": "screen_on"},
+        {"participantId": "P01", "sourceDayId": "2018-03-01", "category": "screen_off"},
+        {"participantId": "P01", "sourceDayId": "2018-03-01", "category": "screen_on"},
+        {"participantId": "P01", "sourceDayId": "2018-03-02", "category": "screen_off"}
+      ],
+      "expectedCounts": [
+        {"participantId": "P01", "sourceDayId": "2018-03-01", "category": "screen_off", "count": 1},
+        {"participantId": "P01", "sourceDayId": "2018-03-01", "category": "screen_on", "count": 2},
+        {"participantId": "P01", "sourceDayId": "2018-03-02", "category": "screen_off", "count": 1}
+      ]
+    },
+    {
+      "streamId": "internet",
+      "observations": [
+        {"participantId": "P01", "sourceDayId": "2018-03-01", "category": "connected"},
+        {"participantId": "P01", "sourceDayId": "2018-03-01", "category": "disconnected"},
+        {"participantId": "P01", "sourceDayId": "2018-03-01", "category": "connected"},
+        {"participantId": "P02", "sourceDayId": "2018-03-01", "category": "disconnected"},
+        {"participantId": "P02", "sourceDayId": "2018-03-01", "category": "disconnected"}
+      ],
+      "expectedCounts": [
+        {"participantId": "P01", "sourceDayId": "2018-03-01", "category": "connected", "count": 2},
+        {"participantId": "P01", "sourceDayId": "2018-03-01", "category": "disconnected", "count": 1},
+        {"participantId": "P02", "sourceDayId": "2018-03-01", "category": "disconnected", "count": 2}
+      ]
+    },
+    {
+      "streamId": "foreground_app_use",
+      "observations": [
+        {"participantId": "P01", "sourceDayId": "2018-03-01", "category": "foreground_app_use"},
+        {"participantId": "P01", "sourceDayId": "2018-03-01", "category": "foreground_app_use"},
+        {"participantId": "P01", "sourceDayId": "2018-03-02", "category": "foreground_app_use"},
+        {"participantId": "P02", "sourceDayId": "2018-03-01", "category": "foreground_app_use"}
+      ],
+      "expectedCounts": [
+        {"participantId": "P01", "sourceDayId": "2018-03-01", "category": "foreground_app_use", "count": 2},
+        {"participantId": "P01", "sourceDayId": "2018-03-02", "category": "foreground_app_use", "count": 1},
+        {"participantId": "P02", "sourceDayId": "2018-03-01", "category": "foreground_app_use", "count": 1}
+      ]
+    }
+  ],
+  "explicitlyAbsentCount": {"participantId": "P01", "sourceDayId": "2018-03-02", "category": "screen_on"}
+}

@@ -1,0 +1,849 @@
+{
+  "protocolVersion": "chronicle-b03-b05-scientific-proof-expectations/v1",
+  "fixtureManifestSha256": "sha256:00b63ce1f55b5e6a3ed5b3ced87cd31b8f10b5361829480e55f162b7bd978734",
+  "status": "synthetic_engineering_evidence_only",
+  "limitations": [
+    "contains_no_real_participant_or_study_data",
+    "cannot_support_headline_empirical_magnitudes",
+    "fixture_specific_assertions_must_be_opt_in"
+  ],
+  "arms": [
+    {
+      "id": "b03-b04-strict-credit",
+      "fixtureId": "b03_b04_duration_boundaries",
+      "witnessIds": ["b03_b04_strict_credit_vector"],
+      "options": {
+        "processAppUsage": true,
+        "processScreenUsage": false,
+        "eventRetentionSet": "foreground_background_only",
+        "openerSet": "strategy_defined",
+        "episodeReconstructionStrategy": "foreground_background_pairing",
+        "microUseClassificationPolicy": "okoshi_lt_5s",
+        "minimumUsageDuration": 5,
+        "minimumDurationComparator": "strict_lt",
+        "minimumDurationDisposition": "retain_and_credit",
+        "filterZeroDurationSessions": false
+      },
+      "expected": {
+        "status": "executed",
+        "preflight": null,
+        "scientific": {
+          "microUse": {
+            "protocolVersion": "chronicle-micro-use-receipt/v2",
+            "requestedPolicy": "okoshi_lt5s",
+            "effectivePolicy": "okoshi_lt5s",
+            "relation": "source_aligned_adapter",
+            "sourceId": "okoshi_cyberoception_2025_arxiv_2504.16378v1",
+            "comparator": "strict_lt",
+            "thresholdNs": 5000000000,
+            "checkpoint": "episode_materialized_pre_concurrency",
+            "classCounts": {
+              "micro_use": 3,
+              "not_classifiable": 1,
+              "not_micro_use": 7
+            }
+          },
+          "minimumDuration": {
+            "protocolVersion": "chronicle-minimum-duration-receipt/v2",
+            "relation": "controlled_derivative",
+            "requestedComparator": "strict_lt",
+            "effectiveComparator": "strict_lt",
+            "thresholdNs": 5000000000,
+            "requestedDisposition": "retain_and_credit",
+            "effectiveDisposition": "retain_and_credit",
+            "checkpoint": "episode_materialized_pre_concurrency",
+            "boundedEpisodeCount": 11,
+            "unboundedEpisodeCount": 0,
+            "qualifyingCount": 4,
+            "retainedCreditedCount": 11,
+            "retainedExcludedCount": 0,
+            "droppedCount": 0
+          },
+          "zeroDurationCleanup": {
+            "protocolVersion": "chronicle-zero-duration-cleanup-receipt/v1",
+            "requestedApplied": false,
+            "effectiveApplied": false,
+            "checkpoint": "post_interval_quality_before_zero_duration_cleanup",
+            "zeroEpisodeCandidateCount": 1,
+            "removedRowCount": 0
+          },
+          "appRows": [
+            {
+              "participantId": "P01",
+              "appPackageName": "com.example.chat",
+              "durationSeconds": "4.999999999",
+              "microUseClassification": "micro_use",
+              "rawEpisodeDurationSeconds": "4.999999999",
+              "minimumDurationQualified": "true",
+              "minimumDurationAggregateEligible": "true",
+              "appUsageEndReason": "same_app_pause_event"
+            },
+            {
+              "participantId": "P02",
+              "appPackageName": "com.example.chat",
+              "durationSeconds": "5.0",
+              "microUseClassification": "not_micro_use",
+              "rawEpisodeDurationSeconds": "5.0",
+              "minimumDurationQualified": "false",
+              "minimumDurationAggregateEligible": "true",
+              "appUsageEndReason": "same_app_pause_event"
+            },
+            {
+              "participantId": "P03",
+              "appPackageName": "com.example.chat",
+              "durationSeconds": "5.000000001",
+              "microUseClassification": "not_micro_use",
+              "rawEpisodeDurationSeconds": "5.000000001",
+              "minimumDurationQualified": "false",
+              "minimumDurationAggregateEligible": "true",
+              "appUsageEndReason": "same_app_pause_event"
+            },
+            {
+              "participantId": "P07",
+              "appPackageName": "com.example.maps",
+              "durationSeconds": "4.0",
+              "microUseClassification": "micro_use",
+              "rawEpisodeDurationSeconds": "4.0",
+              "minimumDurationQualified": "true",
+              "minimumDurationAggregateEligible": "true",
+              "appUsageEndReason": "same_app_pause_event"
+            },
+            {
+              "participantId": "P08",
+              "appPackageName": "com.example.maps",
+              "durationSeconds": "6.0",
+              "microUseClassification": "not_micro_use",
+              "rawEpisodeDurationSeconds": "6.0",
+              "minimumDurationQualified": "false",
+              "minimumDurationAggregateEligible": "true",
+              "appUsageEndReason": "same_app_pause_event"
+            },
+            {
+              "participantId": "P09",
+              "appPackageName": "com.example.zero",
+              "durationSeconds": "0.0",
+              "microUseClassification": "not_classifiable",
+              "rawEpisodeDurationSeconds": "0.0",
+              "minimumDurationQualified": "true",
+              "minimumDurationAggregateEligible": "true",
+              "appUsageEndReason": "same_app_pause_event"
+            }
+          ],
+          "requiredArtifactKinds": [
+            "b05-schoedel-validation-receipt-json",
+            "foundational-semantics-receipt-json",
+            "zero-duration-cleanup-evidence-json"
+          ],
+          "forbiddenArtifactKinds": [
+            "b05-screen-construction-evidence-json",
+            "eyes-tagged-fau-evidence-json",
+            "schoedel-reconstruction-evidence-json",
+            "zero-duration-removed-lineage-json"
+          ],
+          "scientificArtifactCatalog": null
+        }
+      }
+    },
+    {
+      "id": "b03-b04-inclusive-exclude-zero",
+      "fixtureId": "b03_b04_duration_boundaries",
+      "witnessIds": ["b03_b04_inclusive_exclude_zero_vector"],
+      "options": {
+        "processAppUsage": true,
+        "processScreenUsage": false,
+        "eventRetentionSet": "foreground_background_only",
+        "openerSet": "strategy_defined",
+        "episodeReconstructionStrategy": "foreground_background_pairing",
+        "microUseClassificationPolicy": "okoshi_lt_5s",
+        "minimumUsageDuration": 5,
+        "minimumDurationComparator": "inclusive_le",
+        "minimumDurationDisposition": "retain_but_exclude",
+        "filterZeroDurationSessions": true
+      },
+      "expected": {
+        "status": "executed",
+        "preflight": null,
+        "scientific": {
+          "microUse": {
+            "protocolVersion": "chronicle-micro-use-receipt/v2",
+            "requestedPolicy": "okoshi_lt5s",
+            "effectivePolicy": "okoshi_lt5s",
+            "relation": "source_aligned_adapter",
+            "sourceId": "okoshi_cyberoception_2025_arxiv_2504.16378v1",
+            "comparator": "strict_lt",
+            "thresholdNs": 5000000000,
+            "checkpoint": "episode_materialized_pre_concurrency",
+            "classCounts": {
+              "micro_use": 3,
+              "not_classifiable": 1,
+              "not_micro_use": 7
+            }
+          },
+          "minimumDuration": {
+            "protocolVersion": "chronicle-minimum-duration-receipt/v2",
+            "relation": "controlled_derivative",
+            "requestedComparator": "inclusive_le",
+            "effectiveComparator": "inclusive_le",
+            "thresholdNs": 5000000000,
+            "requestedDisposition": "retain_but_exclude",
+            "effectiveDisposition": "retain_but_exclude",
+            "checkpoint": "episode_materialized_pre_concurrency",
+            "boundedEpisodeCount": 11,
+            "unboundedEpisodeCount": 0,
+            "qualifyingCount": 5,
+            "retainedCreditedCount": 6,
+            "retainedExcludedCount": 5,
+            "droppedCount": 0
+          },
+          "zeroDurationCleanup": {
+            "protocolVersion": "chronicle-zero-duration-cleanup-receipt/v1",
+            "requestedApplied": true,
+            "effectiveApplied": true,
+            "checkpoint": "post_interval_quality_before_zero_duration_cleanup",
+            "zeroEpisodeCandidateCount": 1,
+            "removedRowCount": 1
+          },
+          "appRows": [
+            {
+              "participantId": "P01",
+              "appPackageName": "com.example.chat",
+              "durationSeconds": "4.999999999",
+              "microUseClassification": "micro_use",
+              "rawEpisodeDurationSeconds": "4.999999999",
+              "minimumDurationQualified": "true",
+              "minimumDurationAggregateEligible": "false",
+              "appUsageEndReason": "same_app_pause_event"
+            },
+            {
+              "participantId": "P02",
+              "appPackageName": "com.example.chat",
+              "durationSeconds": "5.0",
+              "microUseClassification": "not_micro_use",
+              "rawEpisodeDurationSeconds": "5.0",
+              "minimumDurationQualified": "true",
+              "minimumDurationAggregateEligible": "false",
+              "appUsageEndReason": "same_app_pause_event"
+            },
+            {
+              "participantId": "P03",
+              "appPackageName": "com.example.chat",
+              "durationSeconds": "5.000000001",
+              "microUseClassification": "not_micro_use",
+              "rawEpisodeDurationSeconds": "5.000000001",
+              "minimumDurationQualified": "false",
+              "minimumDurationAggregateEligible": "true",
+              "appUsageEndReason": "same_app_pause_event"
+            },
+            {
+              "participantId": "P08",
+              "appPackageName": "com.example.maps",
+              "durationSeconds": "6.0",
+              "microUseClassification": "not_micro_use",
+              "rawEpisodeDurationSeconds": "6.0",
+              "minimumDurationQualified": "false",
+              "minimumDurationAggregateEligible": "true",
+              "appUsageEndReason": "same_app_pause_event"
+            }
+          ],
+          "requiredArtifactKinds": [
+            "b05-schoedel-validation-receipt-json",
+            "foundational-semantics-receipt-json",
+            "minimum-duration-excluded-lineage-json",
+            "zero-duration-cleanup-evidence-json",
+            "zero-duration-removed-lineage-json"
+          ],
+          "forbiddenArtifactKinds": [
+            "b05-screen-construction-evidence-json",
+            "eyes-tagged-fau-evidence-json",
+            "schoedel-reconstruction-evidence-json"
+          ],
+          "scientificArtifactCatalog": null
+        }
+      }
+    },
+    {
+      "id": "b04-strict-drop-lineage",
+      "fixtureId": "b03_b04_duration_boundaries",
+      "witnessIds": ["b04_strict_drop_lineage_vector"],
+      "options": {
+        "processAppUsage": true,
+        "processScreenUsage": false,
+        "eventRetentionSet": "foreground_background_only",
+        "openerSet": "strategy_defined",
+        "episodeReconstructionStrategy": "foreground_background_pairing",
+        "microUseClassificationPolicy": "okoshi_lt_5s",
+        "minimumUsageDuration": 5,
+        "minimumDurationComparator": "strict_lt",
+        "minimumDurationDisposition": "drop_row",
+        "filterZeroDurationSessions": false
+      },
+      "expected": {
+        "status": "executed",
+        "preflight": null,
+        "scientific": {
+          "microUse": {
+            "protocolVersion": "chronicle-micro-use-receipt/v2",
+            "requestedPolicy": "okoshi_lt5s",
+            "effectivePolicy": "okoshi_lt5s",
+            "relation": "source_aligned_adapter",
+            "sourceId": "okoshi_cyberoception_2025_arxiv_2504.16378v1",
+            "comparator": "strict_lt",
+            "thresholdNs": 5000000000,
+            "checkpoint": "episode_materialized_pre_concurrency",
+            "classCounts": {
+              "micro_use": 3,
+              "not_classifiable": 1,
+              "not_micro_use": 7
+            }
+          },
+          "minimumDuration": {
+            "protocolVersion": "chronicle-minimum-duration-receipt/v2",
+            "relation": "controlled_derivative",
+            "requestedComparator": "strict_lt",
+            "effectiveComparator": "strict_lt",
+            "thresholdNs": 5000000000,
+            "requestedDisposition": "drop_row",
+            "effectiveDisposition": "drop_row",
+            "checkpoint": "episode_materialized_pre_concurrency",
+            "boundedEpisodeCount": 11,
+            "unboundedEpisodeCount": 0,
+            "qualifyingCount": 4,
+            "retainedCreditedCount": 7,
+            "retainedExcludedCount": 0,
+            "droppedCount": 4
+          },
+          "zeroDurationCleanup": {
+            "protocolVersion": "chronicle-zero-duration-cleanup-receipt/v1",
+            "requestedApplied": false,
+            "effectiveApplied": false,
+            "checkpoint": "post_interval_quality_before_zero_duration_cleanup",
+            "zeroEpisodeCandidateCount": 0,
+            "removedRowCount": 0
+          },
+          "minimumDurationExcludedLineage": [
+            {
+              "participantId": "P01",
+              "appPackageName": "com.example.chat",
+              "sourceDataRowRanges": [
+                {
+                  "first": 2,
+                  "last": 3
+                }
+              ],
+              "rawStartTimestampNs": "1772982000000000000",
+              "rawStopTimestampNs": "1772982004999999999",
+              "rawDurationNs": 4999999999,
+              "reason": "below_minimum_duration_drop_row",
+              "disposition": "drop_row"
+            },
+            {
+              "participantId": "P07",
+              "appPackageName": "com.example.maps",
+              "sourceDataRowRanges": [
+                {
+                  "first": 20,
+                  "last": 21
+                }
+              ],
+              "rawStartTimestampNs": "1772989200000000000",
+              "rawStopTimestampNs": "1772989204000000000",
+              "rawDurationNs": 4000000000,
+              "reason": "below_minimum_duration_drop_row",
+              "disposition": "drop_row"
+            },
+            {
+              "participantId": "P09",
+              "appPackageName": "com.example.zero",
+              "sourceDataRowRanges": [
+                {
+                  "first": 26,
+                  "last": 27
+                }
+              ],
+              "rawStartTimestampNs": "1772990400000000000",
+              "rawStopTimestampNs": "1772990400000000000",
+              "rawDurationNs": 0,
+              "reason": "below_minimum_duration_drop_row",
+              "disposition": "drop_row"
+            },
+            {
+              "participantId": "P10",
+              "appPackageName": "com.example.beta",
+              "sourceDataRowRanges": [
+                {
+                  "first": 30,
+                  "last": 31
+                }
+              ],
+              "rawStartTimestampNs": "1772992804000000000",
+              "rawStopTimestampNs": "1772992808000000000",
+              "rawDurationNs": 4000000000,
+              "reason": "below_minimum_duration_drop_row",
+              "disposition": "drop_row"
+            }
+          ],
+          "absentAppRows": [
+            {
+              "participantId": "P01",
+              "appPackageName": "com.example.chat"
+            },
+            {
+              "participantId": "P07",
+              "appPackageName": "com.example.maps"
+            },
+            {
+              "participantId": "P09",
+              "appPackageName": "com.example.zero"
+            },
+            {
+              "participantId": "P10",
+              "appPackageName": "com.example.beta"
+            }
+          ],
+          "requiredArtifactKinds": [
+            "b05-schoedel-validation-receipt-json",
+            "foundational-semantics-receipt-json",
+            "minimum-duration-excluded-lineage-json",
+            "zero-duration-cleanup-evidence-json"
+          ],
+          "forbiddenArtifactKinds": [
+            "b05-screen-construction-evidence-json",
+            "eyes-tagged-fau-evidence-json",
+            "schoedel-reconstruction-evidence-json",
+            "zero-duration-removed-lineage-json"
+          ],
+          "scientificArtifactCatalog": null
+        }
+      }
+    },
+    {
+      "id": "b04-chronicle-blank",
+      "fixtureId": "b03_b04_duration_boundaries",
+      "witnessIds": ["b04_chronicle_blank_vector"],
+      "options": {
+        "processAppUsage": true,
+        "processScreenUsage": false,
+        "eventRetentionSet": "foreground_background_only",
+        "openerSet": "strategy_defined",
+        "episodeReconstructionStrategy": "foreground_background_pairing",
+        "microUseClassificationPolicy": "okoshi_lt_5s",
+        "minimumUsageDuration": 5,
+        "minimumDurationComparator": "inclusive_le",
+        "minimumDurationDisposition": "chronicle_blank_keep_row",
+        "filterZeroDurationSessions": false
+      },
+      "expected": {
+        "status": "executed",
+        "preflight": null,
+        "scientific": {
+          "microUse": {
+            "protocolVersion": "chronicle-micro-use-receipt/v2",
+            "requestedPolicy": "okoshi_lt5s",
+            "effectivePolicy": "okoshi_lt5s",
+            "relation": "source_aligned_adapter",
+            "sourceId": "okoshi_cyberoception_2025_arxiv_2504.16378v1",
+            "comparator": "strict_lt",
+            "thresholdNs": 5000000000,
+            "checkpoint": "episode_materialized_pre_concurrency",
+            "classCounts": {
+              "micro_use": 3,
+              "not_classifiable": 1,
+              "not_micro_use": 7
+            }
+          },
+          "minimumDuration": {
+            "protocolVersion": "chronicle-minimum-duration-receipt/v2",
+            "relation": "controlled_derivative",
+            "requestedComparator": "inclusive_le",
+            "effectiveComparator": "inclusive_le",
+            "thresholdNs": 5000000000,
+            "requestedDisposition": "chronicle_blank_keep_row",
+            "effectiveDisposition": "chronicle_blank_keep_row",
+            "checkpoint": "episode_materialized_pre_concurrency",
+            "boundedEpisodeCount": 11,
+            "unboundedEpisodeCount": 0,
+            "qualifyingCount": 5,
+            "retainedCreditedCount": 6,
+            "retainedExcludedCount": 5,
+            "droppedCount": 0
+          },
+          "zeroDurationCleanup": {
+            "protocolVersion": "chronicle-zero-duration-cleanup-receipt/v1",
+            "requestedApplied": false,
+            "effectiveApplied": false,
+            "checkpoint": "post_interval_quality_before_zero_duration_cleanup",
+            "zeroEpisodeCandidateCount": 1,
+            "removedRowCount": 0
+          },
+          "appRows": [
+            {
+              "participantId": "P01",
+              "appPackageName": "com.example.chat",
+              "durationSeconds": null,
+              "microUseClassification": "micro_use",
+              "rawEpisodeDurationSeconds": "4.999999999",
+              "minimumDurationQualified": "true",
+              "minimumDurationAggregateEligible": "true",
+              "appUsageEndReason": "same_app_pause_event"
+            },
+            {
+              "participantId": "P02",
+              "appPackageName": "com.example.chat",
+              "durationSeconds": null,
+              "microUseClassification": "not_micro_use",
+              "rawEpisodeDurationSeconds": "5.0",
+              "minimumDurationQualified": "true",
+              "minimumDurationAggregateEligible": "true",
+              "appUsageEndReason": "same_app_pause_event"
+            },
+            {
+              "participantId": "P09",
+              "appPackageName": "com.example.zero",
+              "durationSeconds": null,
+              "microUseClassification": "not_classifiable",
+              "rawEpisodeDurationSeconds": "0.0",
+              "minimumDurationQualified": "true",
+              "minimumDurationAggregateEligible": "true",
+              "appUsageEndReason": "same_app_pause_event"
+            }
+          ],
+          "requiredArtifactKinds": [
+            "b05-schoedel-validation-receipt-json",
+            "foundational-semantics-receipt-json",
+            "minimum-duration-excluded-lineage-json",
+            "zero-duration-cleanup-evidence-json"
+          ],
+          "forbiddenArtifactKinds": [
+            "b05-screen-construction-evidence-json",
+            "eyes-tagged-fau-evidence-json",
+            "schoedel-reconstruction-evidence-json",
+            "zero-duration-removed-lineage-json"
+          ],
+          "scientificArtifactCatalog": null
+        }
+      }
+    },
+    {
+      "id": "b05-parry-missing-capability",
+      "fixtureId": "b05_screen_construction",
+      "witnessIds": ["b05_parry_missing_capability_refusal_vector"],
+      "options": {
+        "processAppUsage": false,
+        "processScreenUsage": true,
+        "screenSessionConstructionStrategy": "parry_toth_2025_session_glance_v1"
+      },
+      "expected": {
+        "status": "refused",
+        "preflight": {
+          "disposition": "refused",
+          "requestedScreenStrategyId": "parry_toth_2025_session_glance_v1",
+          "effectiveScreenStrategyId": "parry_toth_2025_session_glance_v1",
+          "requestedEpisodeStrategyId": "fused_matcher",
+          "effectiveEpisodeStrategyId": null,
+          "screenConstructionPhase": "prepared_raw_source_arm",
+          "schoedelReconstructionPhase": "not_applicable",
+          "screenApplicability": {
+            "protocolVersion": "chronicle-b05-foundational-semantics/v1",
+            "relation": "refused",
+            "executable": false,
+            "refusalReason": "input_capability_evidence_absent",
+            "refusalDetail": "capability_evidence_absent"
+          },
+          "schoedelApplicability": null,
+          "eyesDisposition": "not_applicable",
+          "eyesRefusalReason": null,
+          "activeCapabilityRole": null
+        },
+        "scientific": null
+      }
+    },
+    {
+      "id": "b05-parry-combined-label-refusal",
+      "fixtureId": "b05_screen_construction",
+      "supportFixtureId": "b05_input_capability_evidence",
+      "witnessIds": ["b05_parry_combined_label_refusal_vector"],
+      "options": {
+        "processAppUsage": false,
+        "processScreenUsage": true,
+        "screenSessionConstructionStrategy": "parry_toth_2025_session_glance_v1"
+      },
+      "expected": {
+        "status": "refused",
+        "preflight": {
+          "disposition": "refused",
+          "requestedScreenStrategyId": "parry_toth_2025_session_glance_v1",
+          "effectiveScreenStrategyId": "parry_toth_2025_session_glance_v1",
+          "requestedEpisodeStrategyId": "fused_matcher",
+          "effectiveEpisodeStrategyId": null,
+          "screenConstructionPhase": "prepared_raw_source_arm",
+          "schoedelReconstructionPhase": "not_applicable",
+          "screenApplicability": {
+            "protocolVersion": "chronicle-b05-foundational-semantics/v1",
+            "relation": "refused",
+            "executable": false,
+            "refusalReason": "combined_event_representation",
+            "refusalDetail": "combined_event_representation"
+          },
+          "schoedelApplicability": null,
+          "eyesDisposition": "not_applicable",
+          "eyesRefusalReason": null,
+          "activeCapabilityRole": {
+            "artifactDigest": "sha256:9b1c554d3c0d9bb0fc5f297addbe447a3c64a87ce6a966ffe99de79c6391feb3",
+            "assignmentId": "sha256:c1ac4fe8baf06e2fb701bbfe86c5e4c3119b012f09ba655db2571565085a55e6"
+          }
+        },
+        "scientific": null
+      }
+    },
+    {
+      "id": "b05-chronicle-baseline",
+      "fixtureId": "b05_screen_construction",
+      "witnessIds": ["b05_chronicle_baseline_vector"],
+      "options": {
+        "processAppUsage": false,
+        "processScreenUsage": true,
+        "screenSessionConstructionStrategy": "chronicle_screen_interactive_v1"
+      },
+      "expected": {
+        "status": "executed",
+        "preflight": {
+          "disposition": "executable",
+          "requestedScreenStrategyId": "chronicle_screen_interactive_v1",
+          "effectiveScreenStrategyId": "chronicle_screen_interactive_v1",
+          "requestedEpisodeStrategyId": "fused_matcher",
+          "effectiveEpisodeStrategyId": null,
+          "screenConstructionPhase": "deferred_canonical_baseline",
+          "schoedelReconstructionPhase": "not_applicable",
+          "screenApplicability": null,
+          "schoedelApplicability": null,
+          "eyesDisposition": "not_applicable",
+          "eyesRefusalReason": null,
+          "activeCapabilityRole": null
+        },
+        "scientific": {
+          "b05ScreenConstruction": {
+            "protocolVersion": "chronicle-b05-foundational-semantics/v1",
+            "strategyId": "chronicle_screen_interactive_v1",
+            "relation": "baseline_equivalent",
+            "sourceIdentity": "chronicle_feature_baseline_080801a",
+            "sourceArtifactSha256": null,
+            "sourceLicenseStatus": "GPL-3.0-only_project_native",
+            "inputRowCount": 46,
+            "participantCount": 12,
+            "intervalCount": 12,
+            "sessionCount": 12,
+            "glanceCount": 0,
+            "rightCensoredCount": 2,
+            "issueCounts": {
+              "chronicle_orphan_stop": 2
+            }
+          },
+          "requiredArtifactKinds": [
+            "b05-schoedel-validation-receipt-json",
+            "b05-screen-construction-evidence-json",
+            "foundational-semantics-receipt-json"
+          ],
+          "forbiddenArtifactKinds": [
+            "eyes-tagged-fau-evidence-json",
+            "schoedel-reconstruction-evidence-json",
+            "zero-duration-cleanup-evidence-json"
+          ],
+          "scientificArtifactCatalog": null
+        }
+      }
+    },
+    {
+      "id": "schoedel-chronicle-prose",
+      "fixtureId": "schoedel_prose_reconstruction",
+      "supportFixtureId": "schoedel_input_capability_evidence",
+      "witnessIds": ["schoedel_chronicle_prose_vector"],
+      "options": {
+        "processAppUsage": true,
+        "processScreenUsage": false,
+        "eventRetentionSet": "foreground_background_only",
+        "episodeReconstructionStrategy": "schoedel_2026_app_within_screen_prose_v1",
+        "screenSessionConstructionStrategy": "chronicle_screen_interactive_v1",
+        "minimumUsageDuration": 0,
+        "filterZeroDurationSessions": false
+      },
+      "expected": {
+        "status": "executed",
+        "preflight": {
+          "disposition": "executable",
+          "requestedScreenStrategyId": "chronicle_screen_interactive_v1",
+          "effectiveScreenStrategyId": "chronicle_screen_interactive_v1",
+          "requestedEpisodeStrategyId": "schoedel_2026_app_within_screen_prose_v1",
+          "effectiveEpisodeStrategyId": "schoedel_2026_app_within_screen_prose_v1",
+          "screenConstructionPhase": "deferred_canonical_baseline",
+          "schoedelReconstructionPhase": "deferred_retained_app_stream",
+          "screenApplicability": null,
+          "schoedelApplicability": null,
+          "eyesDisposition": "not_applicable",
+          "eyesRefusalReason": null,
+          "activeCapabilityRole": {
+            "artifactDigest": "sha256:4c7b842a26a4cd4fc9b6d809bd2929443368328709084ae245c448a4968091c9",
+            "assignmentId": "sha256:85d647c0c8455e9ad63e2850834fd64ab636340e4eefedefa902ebcff7fd83a2"
+          }
+        },
+        "scientific": {
+          "schoedelReconstruction": {
+            "protocolVersion": "chronicle-schoedel-reconstruction-receipt/v1",
+            "strategyId": "schoedel_2026_app_within_screen_prose_v1",
+            "relation": "controlled_derivative",
+            "sourceIdentity": "doi:10.1017/psy.2026.10083",
+            "sourceVersion": "psychometrika_91_3_final_article",
+            "sourceLicenseStatus": "cc_by_nc_4_0",
+            "sourceScopeId": "published_prose_core_not_full_osf_pipeline",
+            "adapterId": "chronicle_schoedel_2026_app_within_screen_prose_adapter_v1",
+            "completionRuleIds": [
+              "source_last_same_package_event_before_next_type_1_or_observed_screen_end",
+              "chronicle_singleton_zero_length_v1",
+              "chronicle_equal_timestamp_source_row_order_v1",
+              "chronicle_right_censored_unbounded_v1"
+            ],
+            "inputScreenIntervalCount": 5,
+            "inputEventCount": 13,
+            "episodeCount": 7,
+            "boundedEpisodeCount": 6,
+            "singletonZeroLengthCount": 2,
+            "rightCensoredEvidenceCount": 1,
+            "issueCounts": {}
+          },
+          "appRows": [
+            {
+              "participantId": "P01",
+              "appPackageName": "com.example.alpha",
+              "durationSeconds": "2.0",
+              "schoedelCompletion": "last_package_event_before_different_app",
+              "appUsageEndReason": "last_package_event_before_different_app"
+            },
+            {
+              "participantId": "P01",
+              "appPackageName": "com.example.beta",
+              "durationSeconds": "2.0",
+              "schoedelCompletion": "last_package_event_before_screen_end",
+              "appUsageEndReason": "last_package_event_before_screen_end"
+            },
+            {
+              "participantId": "P02",
+              "appPackageName": "com.example.alpha",
+              "durationSeconds": "0.0",
+              "schoedelCompletion": "singleton_zero_length",
+              "appUsageEndReason": "singleton_zero_length"
+            },
+            {
+              "participantId": "P05",
+              "appPackageName": "com.example.alpha",
+              "durationSeconds": null,
+              "schoedelCompletion": "right_censored_screen_interval",
+              "appUsageEndReason": "right_censored_screen_interval"
+            }
+          ],
+          "requiredArtifactKinds": [
+            "b05-schoedel-validation-receipt-json",
+            "b05-screen-construction-evidence-json",
+            "foundational-semantics-receipt-json",
+            "schoedel-reconstruction-evidence-json",
+            "zero-duration-cleanup-evidence-json"
+          ],
+          "forbiddenArtifactKinds": ["eyes-tagged-fau-evidence-json"],
+          "scientificArtifactCatalog": null
+        }
+      }
+    },
+    {
+      "id": "eyes-partial-replay",
+      "fixtureId": "eyes_fau_close_provenance",
+      "witnessIds": ["eyes_partial_replay_vector"],
+      "options": {
+        "processAppUsage": true,
+        "processScreenUsage": false,
+        "episodeReconstructionStrategy": "eyes_complement",
+        "minimumUsageDuration": 0
+      },
+      "expected": {
+        "status": "executed",
+        "preflight": {
+          "disposition": "not_applicable",
+          "requestedScreenStrategyId": "chronicle_screen_interactive_v1",
+          "effectiveScreenStrategyId": "chronicle_screen_interactive_v1",
+          "requestedEpisodeStrategyId": "eyes_complement",
+          "effectiveEpisodeStrategyId": null,
+          "screenConstructionPhase": "not_applicable",
+          "schoedelReconstructionPhase": "not_applicable",
+          "screenApplicability": null,
+          "schoedelApplicability": null,
+          "eyesDisposition": "executable",
+          "eyesRefusalReason": null,
+          "activeCapabilityRole": null
+        },
+        "scientific": {
+          "eyesValidation": {
+            "protocolVersion": "chronicle-eyes-tagged-fau-validation/v1",
+            "status": "validated",
+            "verifiedRawInputDigest": "sha256:d492c19344bf638bcdfdb14a035f38941eeaf062fcb564641d02ea8d64918cb1",
+            "decodedInputRowCount": 17,
+            "optionsDigestOrigin": "verified_request_jcs",
+            "effectiveOptions": {
+              "proximityIntervalSeconds": 2,
+              "durationMode": "triplet_structured",
+              "blockGlueSeconds": 60,
+              "gapSilenceHours": 3,
+              "gapRebootNeighborSeconds": 1,
+              "gapReconcileSeconds": 10,
+              "pickupMinimumSeconds": 5,
+              "pickupActiveHoleSeconds": 5,
+              "fauBlockMinimumSeconds": 5
+            },
+            "sourceVersion": "0.1.0",
+            "sourceCommit": "89549a2d5d9732d8aaaa2f1fed25c1dbffd9a108",
+            "sourceLicenseStatus": "unresolved",
+            "referenceDefectRepairIds": [
+              "stale_predecessor_after_forward_reboot_gap",
+              "non_monotonic_gap_emission",
+              "nested_block_cursor_reset"
+            ],
+            "headlineProjection": "active_only",
+            "referencePrimarySecondaryConcurrencyPorted": false,
+            "pickupExportExposed": false,
+            "limitations": [
+              "reference_primary_secondary_concurrency_unported",
+              "pickup_export_unavailable_on_product_surface",
+              "headline_projects_active_fragments_only"
+            ],
+            "participantCount": 2
+          },
+          "eyesEvidence": {
+            "participantCount": 2,
+            "p01AlphaFragmentStatuses": ["active", "idle", "active"],
+            "endpointSelections": [
+              {
+                "participantId": "P01",
+                "appPackageName": "com.example.alpha",
+                "selectedEndInference": "observed_stop"
+              },
+              {
+                "participantId": "P02",
+                "appPackageName": "com.example.alpha",
+                "selectedEndInference": "missing_stop"
+              }
+            ]
+          },
+          "appUsageEndReasons": ["device_powered_off_or_idle"],
+          "requiredArtifactKinds": [
+            "b05-schoedel-validation-receipt-json",
+            "eyes-tagged-fau-evidence-json",
+            "eyes-tagged-fau-validation-receipt-json",
+            "foundational-semantics-receipt-json",
+            "zero-duration-cleanup-evidence-json"
+          ],
+          "forbiddenArtifactKinds": [
+            "b05-screen-construction-evidence-json",
+            "schoedel-reconstruction-evidence-json"
+          ],
+          "scientificArtifactCatalog": null
+        }
+      }
+    }
+  ]
+}

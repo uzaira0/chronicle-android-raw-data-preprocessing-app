@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "chronicle-participant-minimum-emotion-label-count-source-fixture/v1",
+  "sourceWorkId": "doi:10.1109/acii.2019.8925518",
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-ec87781289767a090935fe87",
+    "parameterKey": "cohort.lt40_excluded",
+    "sourceObservedSetting": "cohort.lt40_excluded: {\"participants\":2,\"rule\":\"fewer than 40 emotion samples during entire period\"}",
+    "sourceClause": "2 participants entered less than 40 emotion samples during entire period; data from the remaining participants were retained",
+    "sourceValueSha256": "344db3415da7b966eaf8f2d9c3ca284ca761a4b23268f04c8e9bebb45f335664"
+  },
+  "sourceArtifacts": [
+    {
+      "locator": ".tmp-literature-review-private/corrective-packet-06-ranks174-223-20260831/source-pdfs/214-primary.txt:211-225",
+      "sha256": "e7541b1d4d0c67e705b9b60fbb80e486931dda3240fc28c9ee53a6b3358560dd"
+    },
+    {
+      "locator": ".tmp-literature-review-private/corrective-packet-06-ranks174-223-20260831/source-pdfs/214-primary.pdf:pages 1-8#audit-locator=214-primary.txt:211-225",
+      "sha256": "8e067249f2f1c5800cdac260be9edfabe5ea2e6c6165ee4d59587dbd5b38f792"
+    }
+  ],
+  "inputBoundary": "One caller-supplied nonnegative integer count of emotion labels entered by one participant over the complete study period; constructing that count from keyboard, survey, or session records occurs before this gate.",
+  "outputBoundary": "Exclude a participant only when the complete-period emotion-label count is strictly less than 40; retain equality and larger counts.",
+  "limitations": [
+    "This binding does not identify, deduplicate, or count emotion-label records and does not infer the start or end of the study period.",
+    "A missing participant count fails closed; no zero count or partial-period count is synthesized.",
+    "The four mid-study dropouts are a separate cohort decision and are not classified by this threshold.",
+    "No Response session elimination, the separate less-than-80-touch session filter, and per-user SMOTE are adjacent operations outside this participant-level gate.",
+    "The source reports that two participants met the exclusion rule; that empirical total is not treated as a required output of an arbitrary fixture.",
+    "The generic scalar bucketizer accepts finite real values, but this source binding requires a nonnegative integer count before invoking it."
+  ],
+  "minimumRetainedCount": 40,
+  "dispositions": [
+    "exclude",
+    "retain"
+  ],
+  "participants": [
+    {
+      "participantId": "immediately-below-threshold",
+      "emotionLabelCount": 39,
+      "expectedDisposition": "exclude"
+    },
+    {
+      "participantId": "exact-threshold",
+      "emotionLabelCount": 40,
+      "expectedDisposition": "retain"
+    },
+    {
+      "participantId": "immediately-above-threshold",
+      "emotionLabelCount": 41,
+      "expectedDisposition": "retain"
+    }
+  ],
+  "missingCountCase": {
+    "participantId": "missing-complete-period-count",
+    "emotionLabelCount": null,
+    "expectedError": "participant_complete_period_emotion_label_count_required"
+  }
+}

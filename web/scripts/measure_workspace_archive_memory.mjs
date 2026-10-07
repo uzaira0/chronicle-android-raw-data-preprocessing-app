@@ -304,10 +304,19 @@ async function openApp(page, baseUrl) {
     (value) => {
       window.__CHRONICLE_TEST_RUNTIME__ = value;
     },
-    { datetimeOfPreprocessing: "2026-04-24 00:32:53" },
+    {
+      datetimeOfPreprocessing: "2026-04-24 00:32:53",
+      incrementalEngine: true,
+      provenanceEvidence: true,
+    },
   );
   await page.goto(baseUrl);
   await page.waitForLoadState("networkidle");
+  // The injected runtime is honoured only by a test build (npm run build:test);
+  // against a deploy build this would silently measure the default runtime.
+  if ((await page.locator('meta[name="chronicle-test-hooks"]').count()) !== 1) {
+    throw new Error("the served build ignores the injected test runtime: build it with `npm run build:test`");
+  }
   await page.waitForFunction(async () => {
     if (!("serviceWorker" in navigator)) return false;
     await navigator.serviceWorker.ready;

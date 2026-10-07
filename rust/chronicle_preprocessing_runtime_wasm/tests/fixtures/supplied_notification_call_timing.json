@@ -1,0 +1,2798 @@
+{
+  "schemaVersion": "supplied-notification-call-hand-oracle/v1",
+  "evidenceBoundary": "Source-located hand mathematics on constructed normalized typed inputs, not recovered raw export/cohort/clock encoding or a publication runtime.",
+  "cases": [
+    {
+      "id": "lab-postpone-included",
+      "kind": "call",
+      "sourceLocator": "Boehmer primary pp5/8",
+      "rows": [
+        {
+          "source_row_id": "lab-postpone-included",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "source_item_id": "lab-postpone-included item",
+          "app_id": "app ",
+          "start_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "lab-first",
+            "role": "first_incoming_call_notification",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 1000
+          },
+          "end_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "lab-conversation",
+            "role": "conversation_start",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 7000
+          },
+          "measure": "lab_TN",
+          "endpoint_resolution_stage": "caller-resolved-lab-TN-with-postpone-included"
+        }
+      ],
+      "expected": [
+        [
+          "6000",
+          "ms",
+          "6",
+          "computed_supplied_anchor_arithmetic",
+          "supplied_call_span_not_TOT1_TNV_new_call_or_trial_aggregation"
+        ]
+      ]
+    },
+    {
+      "id": "field-accepted",
+      "kind": "call",
+      "sourceLocator": "Boehmer primary pp5/8",
+      "rows": [
+        {
+          "source_row_id": "field-accepted",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "source_item_id": "field-accepted item",
+          "app_id": "app ",
+          "start_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "first",
+            "role": "first_incoming_call_notification",
+            "clock_id": "clock ",
+            "time_unit": "s",
+            "precision": 7,
+            "timestamp": 1
+          },
+          "end_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "accepted",
+            "role": "call_accepted",
+            "clock_id": "clock ",
+            "time_unit": "s",
+            "precision": 7,
+            "timestamp": 8
+          },
+          "measure": "field_accepted",
+          "endpoint_resolution_stage": "caller-resolved-interruptive-call-outcome"
+        }
+      ],
+      "expected": [
+        [
+          "7",
+          "s",
+          "7",
+          "computed_supplied_anchor_arithmetic",
+          "supplied_call_span_not_TOT1_TNV_new_call_or_trial_aggregation"
+        ]
+      ]
+    },
+    {
+      "id": "field-declined",
+      "kind": "call",
+      "sourceLocator": "Boehmer primary pp5/8",
+      "rows": [
+        {
+          "source_row_id": "field-declined",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "source_item_id": "field-declined item",
+          "app_id": "app ",
+          "start_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "first",
+            "role": "first_incoming_call_notification",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 1000
+          },
+          "end_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "declined",
+            "role": "call_declined",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 12060
+          },
+          "measure": "field_declined",
+          "endpoint_resolution_stage": "caller-resolved-interruptive-call-outcome"
+        }
+      ],
+      "expected": [
+        [
+          "11060",
+          "ms",
+          "11.06",
+          "computed_supplied_anchor_arithmetic",
+          "supplied_call_span_not_TOT1_TNV_new_call_or_trial_aggregation"
+        ]
+      ]
+    },
+    {
+      "id": "field-unanswered",
+      "kind": "call",
+      "sourceLocator": "Boehmer primary pp5/8",
+      "rows": [
+        {
+          "source_row_id": "field-unanswered",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "source_item_id": "field-unanswered item",
+          "app_id": "app ",
+          "start_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "first",
+            "role": "first_incoming_call_notification",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 1000
+          },
+          "end_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "stop",
+            "role": "phone_stopped_ringing",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 24350
+          },
+          "measure": "field_unanswered",
+          "endpoint_resolution_stage": "caller-resolved-interruptive-call-outcome"
+        }
+      ],
+      "expected": [
+        [
+          "23350",
+          "ms",
+          "23.35",
+          "computed_supplied_anchor_arithmetic",
+          "supplied_call_span_not_TOT1_TNV_new_call_or_trial_aggregation"
+        ]
+      ]
+    },
+    {
+      "id": "zero-span-not-visibility",
+      "kind": "call",
+      "sourceLocator": "Boehmer primary pp5/8",
+      "rows": [
+        {
+          "source_row_id": "zero-span-not-visibility",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "source_item_id": "zero-span-not-visibility item",
+          "app_id": "app ",
+          "start_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "first",
+            "role": "first_incoming_call_notification",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 1000
+          },
+          "end_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "conversation",
+            "role": "conversation_start",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 1000
+          },
+          "measure": "lab_TN",
+          "endpoint_resolution_stage": "caller-resolved-lab-TN-with-postpone-included"
+        }
+      ],
+      "expected": [
+        [
+          "0",
+          "ms",
+          "0",
+          "computed_supplied_anchor_arithmetic",
+          "supplied_call_span_not_TOT1_TNV_new_call_or_trial_aggregation"
+        ]
+      ]
+    },
+    {
+      "id": "signed-full-range",
+      "kind": "call",
+      "sourceLocator": "Boehmer primary pp5/8",
+      "rows": [
+        {
+          "source_row_id": "signed-full-range",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "source_item_id": "signed-full-range item",
+          "app_id": "app ",
+          "start_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "first",
+            "role": "first_incoming_call_notification",
+            "clock_id": "clock ",
+            "time_unit": "ns",
+            "precision": 7,
+          "timestamp": {
+            "i64Exact": "-9223372036854775808"
+          }
+          },
+          "end_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "conversation",
+            "role": "conversation_start",
+            "clock_id": "clock ",
+            "time_unit": "ns",
+            "precision": 7,
+          "timestamp": {
+            "i64Exact": "9223372036854775807"
+          }
+          },
+          "measure": "lab_TN",
+          "endpoint_resolution_stage": "caller-resolved-lab-TN-with-postpone-included"
+        }
+      ],
+      "expected": [
+        [
+          "18446744073709551615",
+          "ns",
+          "18446744073.709551615",
+          "computed_supplied_anchor_arithmetic",
+          "supplied_call_span_not_TOT1_TNV_new_call_or_trial_aggregation"
+        ]
+      ]
+    },
+    {
+      "id": "negative-call-refused",
+      "kind": "call",
+      "sourceLocator": "Boehmer primary pp5/8",
+      "rows": [
+        {
+          "source_row_id": "negative-call-refused",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "source_item_id": "negative-call-refused item",
+          "app_id": "app ",
+          "start_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "first",
+            "role": "first_incoming_call_notification",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 10
+          },
+          "end_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "conversation",
+            "role": "conversation_start",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 9
+          },
+          "measure": "lab_TN",
+          "endpoint_resolution_stage": "caller-resolved-lab-TN-with-postpone-included"
+        }
+      ],
+      "error": "known endpoint order"
+    },
+    {
+      "id": "wrong-lab-endpoint",
+      "kind": "call",
+      "sourceLocator": "Boehmer primary pp5/8",
+      "rows": [
+        {
+          "source_row_id": "wrong-lab-endpoint",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "source_item_id": "wrong-lab-endpoint item",
+          "app_id": "app ",
+          "start_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "first",
+            "role": "first_incoming_call_notification",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 1000
+          },
+          "end_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "accepted",
+            "role": "call_accepted",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 7000
+          },
+          "measure": "lab_TN",
+          "endpoint_resolution_stage": "caller-resolved-lab-TN-with-postpone-included"
+        }
+      ],
+      "error": "wrong source endpoint"
+    },
+    {
+      "id": "missing-clock-local",
+      "kind": "call",
+      "sourceLocator": "Boehmer primary pp5/8",
+      "rows": [
+        {
+          "source_row_id": "missing-clock-local",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "source_item_id": "missing-clock-local item",
+          "app_id": "app ",
+          "start_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "first",
+            "role": "first_incoming_call_notification",
+            "clock_id": null,
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 1000
+          },
+          "end_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "conversation",
+            "role": "conversation_start",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 7000
+          },
+          "measure": "lab_TN",
+          "endpoint_resolution_stage": "caller-resolved-lab-TN-with-postpone-included"
+        }
+      ],
+      "expected": [
+        [
+          "",
+          "",
+          "",
+          "unavailable:missing_clock_id",
+          "supplied_call_span_not_TOT1_TNV_new_call_or_trial_aggregation"
+        ]
+      ]
+    },
+    {
+      "id": "missing-unit-local",
+      "kind": "call",
+      "sourceLocator": "Boehmer primary pp5/8",
+      "rows": [
+        {
+          "source_row_id": "missing-unit-local",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "source_item_id": "missing-unit-local item",
+          "app_id": "app ",
+          "start_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "first",
+            "role": "first_incoming_call_notification",
+            "clock_id": "clock ",
+            "time_unit": null,
+            "precision": 7,
+            "timestamp": 1000
+          },
+          "end_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "conversation",
+            "role": "conversation_start",
+            "clock_id": "clock ",
+            "time_unit": null,
+            "precision": 7,
+            "timestamp": 7000
+          },
+          "measure": "lab_TN",
+          "endpoint_resolution_stage": "caller-resolved-lab-TN-with-postpone-included"
+        }
+      ],
+      "expected": [
+        [
+          "",
+          "",
+          "",
+          "unavailable:missing_coordinate_unit",
+          "supplied_call_span_not_TOT1_TNV_new_call_or_trial_aggregation"
+        ]
+      ]
+    },
+    {
+      "id": "precision-metadata-not-modulo",
+      "kind": "call",
+      "sourceLocator": "Boehmer primary pp5/8",
+      "rows": [
+        {
+          "source_row_id": "precision-metadata-not-modulo",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "source_item_id": "precision-metadata-not-modulo item",
+          "app_id": "app ",
+          "start_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "first",
+            "role": "first_incoming_call_notification",
+            "clock_id": "clock ",
+            "time_unit": "us",
+            "precision": 13,
+            "timestamp": 1
+          },
+          "end_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "conversation",
+            "role": "conversation_start",
+            "clock_id": "clock ",
+            "time_unit": "us",
+            "precision": 11,
+            "timestamp": 1501
+          },
+          "measure": "lab_TN",
+          "endpoint_resolution_stage": "caller-resolved-lab-TN-with-postpone-included"
+        }
+      ],
+      "expected": [
+        [
+          "1500",
+          "us",
+          "0.0015",
+          "computed_supplied_anchor_arithmetic",
+          "supplied_call_span_not_TOT1_TNV_new_call_or_trial_aggregation"
+        ]
+      ]
+    },
+    {
+      "id": "missing-time-local",
+      "kind": "call",
+      "sourceLocator": "Boehmer primary pp5/8",
+      "rows": [
+        {
+          "source_row_id": "missing-time-local",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "source_item_id": "missing-time-local item",
+          "app_id": "app ",
+          "start_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "first",
+            "role": "first_incoming_call_notification",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": null
+          },
+          "end_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "conversation",
+            "role": "conversation_start",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 7000
+          },
+          "measure": "lab_TN",
+          "endpoint_resolution_stage": "caller-resolved-lab-TN-with-postpone-included"
+        }
+      ],
+      "expected": [
+        [
+          "",
+          "",
+          "",
+          "unavailable:missing_timestamp",
+          "supplied_call_span_not_TOT1_TNV_new_call_or_trial_aggregation"
+        ]
+      ]
+    },
+    {
+      "id": "clock-ambiguity-local",
+      "kind": "call",
+      "sourceLocator": "Boehmer primary pp5/8",
+      "rows": [
+        {
+          "source_row_id": "clock-ambiguity-local",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "source_item_id": "clock-ambiguity-local item",
+          "app_id": "app ",
+          "start_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "first",
+            "role": "first_incoming_call_notification",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 1000
+          },
+          "end_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "conversation",
+            "role": "conversation_start",
+            "clock_id": "other",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 7000
+          },
+          "measure": "lab_TN",
+          "endpoint_resolution_stage": "caller-resolved-lab-TN-with-postpone-included"
+        }
+      ],
+      "expected": [
+        [
+          "",
+          "",
+          "",
+          "unavailable:incompatible_clock_ids",
+          "supplied_call_span_not_TOT1_TNV_new_call_or_trial_aggregation"
+        ]
+      ]
+    },
+    {
+      "id": "foreign-device",
+      "kind": "call",
+      "sourceLocator": "Boehmer primary pp5/8",
+      "rows": [
+        {
+          "source_row_id": "foreign-device",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "source_item_id": "foreign-device item",
+          "app_id": "app ",
+          "start_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "first",
+            "role": "first_incoming_call_notification",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 1000
+          },
+          "end_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "other",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "conversation",
+            "role": "conversation_start",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 7000
+          },
+          "measure": "lab_TN",
+          "endpoint_resolution_stage": "caller-resolved-lab-TN-with-postpone-included"
+        }
+      ],
+      "error": "cross-owned"
+    },
+    {
+      "id": "literal-app-owner",
+      "kind": "call",
+      "sourceLocator": "Boehmer primary pp5/8",
+      "rows": [
+        {
+          "source_row_id": "literal-app-owner",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "source_item_id": "literal-app-owner item",
+          "app_id": "app  ",
+          "start_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "first",
+            "role": "first_incoming_call_notification",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 1000
+          },
+          "end_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "conversation",
+            "role": "conversation_start",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 2000
+          },
+          "measure": "lab_TN",
+          "endpoint_resolution_stage": "caller-resolved-lab-TN-with-postpone-included"
+        }
+      ],
+      "expected": [
+        [
+          "1000",
+          "ms",
+          "1",
+          "computed_supplied_anchor_arithmetic",
+          "supplied_call_span_not_TOT1_TNV_new_call_or_trial_aggregation"
+        ]
+      ]
+    },
+    {
+      "id": "snooze-first-to-final",
+      "kind": "snooze",
+      "sourceLocator": "Snooze primary p6/Fig5",
+      "rows": [
+        {
+          "source_row_id": "snooze-first-to-final",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "source_item_id": "snooze-first-to-final item",
+          "app_id": "app ",
+          "start_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "initial",
+            "role": "initial_notification_posting",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 1000
+          },
+          "end_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "final",
+            "role": "final_notification_retrigger",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 41401000
+          },
+          "measure": "post_to_final_retrigger",
+          "endpoint_resolution_stage": "caller-resolved-initial-post-final-retrigger"
+        }
+      ],
+      "expected": [
+        [
+          "41400000",
+          "ms",
+          "41400",
+          "computed_supplied_anchor_arithmetic",
+          "supplied_initial_to_final_only_not_snooze_action_or_retrigger_matching"
+        ]
+      ]
+    },
+    {
+      "id": "snooze-action-not-end",
+      "kind": "snooze",
+      "sourceLocator": "Snooze primary p6/Fig5",
+      "rows": [
+        {
+          "source_row_id": "snooze-action-not-end",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "source_item_id": "snooze-action-not-end item",
+          "app_id": "app ",
+          "start_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "initial",
+            "role": "initial_notification_posting",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 1000
+          },
+          "end_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "snooze-action",
+            "role": "snooze_pressed",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 2000
+          },
+          "measure": "post_to_final_retrigger",
+          "endpoint_resolution_stage": "caller-resolved-initial-post-final-retrigger"
+        }
+      ],
+      "error": "wrong source endpoint"
+    },
+    {
+      "id": "idl-integer-positive",
+      "kind": "idl",
+      "sourceLocator": "Sensors primary p7 section3.2/p21 section5.2",
+      "rows": [
+        {
+          "source_row_id": "idl-integer-positive",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "source_item_id": "idl-integer-positive item",
+          "app_id": "app ",
+          "start_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "appeared",
+            "role": "notification_appearance",
+            "clock_id": "clock ",
+            "time_unit": "s",
+            "precision": 7,
+            "timestamp": 100
+          },
+          "end_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "removed",
+            "role": "notification_bar_removal",
+            "clock_id": "clock ",
+            "time_unit": "s",
+            "precision": 7,
+            "timestamp": 103
+          },
+          "measure": "integer_seconds_IDL",
+          "endpoint_resolution_stage": "caller-resolved-appearance-removal-integer-seconds"
+        }
+      ],
+      "expected": [
+        [
+          "3",
+          "s",
+          "3",
+          "computed_supplied_anchor_arithmetic",
+          "supplied_integer_seconds_positive_IDL_not_removal_reason_or_attention"
+        ]
+      ]
+    },
+    {
+      "id": "idl-zero-excluded",
+      "kind": "idl",
+      "sourceLocator": "Sensors primary p7 section3.2/p21 section5.2",
+      "rows": [
+        {
+          "source_row_id": "idl-zero-excluded",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "source_item_id": "idl-zero-excluded item",
+          "app_id": "app ",
+          "start_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "appeared",
+            "role": "notification_appearance",
+            "clock_id": "clock ",
+            "time_unit": "s",
+            "precision": 7,
+            "timestamp": 100
+          },
+          "end_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "removed",
+            "role": "notification_bar_removal",
+            "clock_id": "clock ",
+            "time_unit": "s",
+            "precision": 7,
+            "timestamp": 100
+          },
+          "measure": "integer_seconds_IDL",
+          "endpoint_resolution_stage": "caller-resolved-appearance-removal-integer-seconds"
+        }
+      ],
+      "expected": []
+    },
+    {
+      "id": "idl-negative-excluded",
+      "kind": "idl",
+      "sourceLocator": "Sensors primary p7 section3.2/p21 section5.2",
+      "rows": [
+        {
+          "source_row_id": "idl-negative-excluded",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "source_item_id": "idl-negative-excluded item",
+          "app_id": "app ",
+          "start_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "appeared",
+            "role": "notification_appearance",
+            "clock_id": "clock ",
+            "time_unit": "s",
+            "precision": 7,
+            "timestamp": 100
+          },
+          "end_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "removed",
+            "role": "notification_bar_removal",
+            "clock_id": "clock ",
+            "time_unit": "s",
+            "precision": 7,
+            "timestamp": 99
+          },
+          "measure": "integer_seconds_IDL",
+          "endpoint_resolution_stage": "caller-resolved-appearance-removal-integer-seconds"
+        }
+      ],
+      "expected": []
+    },
+    {
+      "id": "idl-fractional-unreported",
+      "kind": "idl",
+      "sourceLocator": "Sensors primary p7 section3.2/p21 section5.2",
+      "rows": [
+        {
+          "source_row_id": "idl-fractional-unreported",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "source_item_id": "idl-fractional-unreported item",
+          "app_id": "app ",
+          "start_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "appeared",
+            "role": "notification_appearance",
+            "clock_id": "clock ",
+            "time_unit": "s",
+            "precision": 7,
+            "timestamp": 100.5
+          },
+          "end_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "removed",
+            "role": "notification_bar_removal",
+            "clock_id": "clock ",
+            "time_unit": "s",
+            "precision": 7,
+            "timestamp": 103
+          },
+          "measure": "integer_seconds_IDL",
+          "endpoint_resolution_stage": "caller-resolved-appearance-removal-integer-seconds"
+        }
+      ],
+      "error": "typed supplied JSON"
+    },
+    {
+      "id": "idl-ms-no-rounding",
+      "kind": "idl",
+      "sourceLocator": "Sensors primary p7 section3.2/p21 section5.2",
+      "rows": [
+        {
+          "source_row_id": "idl-ms-no-rounding",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "source_item_id": "idl-ms-no-rounding item",
+          "app_id": "app ",
+          "start_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "appeared",
+            "role": "notification_appearance",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 100000
+          },
+          "end_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "removed",
+            "role": "notification_bar_removal",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 103000
+          },
+          "measure": "integer_seconds_IDL",
+          "endpoint_resolution_stage": "caller-resolved-appearance-removal-integer-seconds"
+        }
+      ],
+      "error": "integer-second endpoints"
+    },
+    {
+      "id": "idl-missing-not-zero",
+      "kind": "idl",
+      "sourceLocator": "Sensors primary p7 section3.2/p21 section5.2",
+      "rows": [
+        {
+          "source_row_id": "idl-missing-not-zero",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "source_item_id": "idl-missing-not-zero item",
+          "app_id": "app ",
+          "start_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "appeared",
+            "role": "notification_appearance",
+            "clock_id": "clock ",
+            "time_unit": "s",
+            "precision": 7,
+            "timestamp": null
+          },
+          "end_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "removed",
+            "role": "notification_bar_removal",
+            "clock_id": "clock ",
+            "time_unit": "s",
+            "precision": 7,
+            "timestamp": 103
+          },
+          "measure": "integer_seconds_IDL",
+          "endpoint_resolution_stage": "caller-resolved-appearance-removal-integer-seconds"
+        }
+      ],
+      "error": "complete comparable"
+    },
+    {
+      "id": "idl-click-not-removal",
+      "kind": "idl",
+      "sourceLocator": "Sensors primary p7 section3.2/p21 section5.2",
+      "rows": [
+        {
+          "source_row_id": "idl-click-not-removal",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "source_item_id": "idl-click-not-removal item",
+          "app_id": "app ",
+          "start_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "appeared",
+            "role": "notification_appearance",
+            "clock_id": "clock ",
+            "time_unit": "s",
+            "precision": 7,
+            "timestamp": 100
+          },
+          "end_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "removed",
+            "role": "notification_click",
+            "clock_id": "clock ",
+            "time_unit": "s",
+            "precision": 7,
+            "timestamp": 103
+          },
+          "measure": "integer_seconds_IDL",
+          "endpoint_resolution_stage": "caller-resolved-appearance-removal-integer-seconds"
+        }
+      ],
+      "error": "wrong source endpoint"
+    },
+    {
+      "id": "message-drawer-all",
+      "kind": "message",
+      "sourceLocator": "MessageMonitor primary pp5–6",
+      "rows": [
+        {
+          "source_row_id": "message-drawer",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "action_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "message-drawer action",
+            "role": "notification_drawer_open",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 1000
+          },
+          "opened_app_id": "",
+          "pending_population_role": "unread_messages",
+          "pending_membership_stage": "caller-qualified-complete-preaction-pending-set",
+          "pending_items_json": [
+            {
+              "source_item_id": "one",
+              "app_id": "chat",
+              "pending": true,
+              "shown_in_drawer": true,
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "one arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "ms",
+                "precision": 7,
+                "timestamp": 100
+              }
+            },
+            {
+              "source_item_id": "two",
+              "app_id": "chat ",
+              "pending": true,
+              "shown_in_drawer": true,
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "two arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "ms",
+                "precision": 7,
+                "timestamp": 200
+              }
+            },
+            {
+              "source_item_id": "three",
+              "app_id": "other",
+              "pending": true,
+              "shown_in_drawer": true,
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "three arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "ms",
+                "precision": 7,
+                "timestamp": 300
+              }
+            }
+          ],
+          "attendance_resolution_stage": "caller-resolved-first-attendance-proxy"
+        }
+      ],
+      "attributed": [
+        [
+          {
+            "id": "one",
+            "seconds": "0.9"
+          },
+          {
+            "id": "two",
+            "seconds": "0.8"
+          },
+          {
+            "id": "three",
+            "seconds": "0.7"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "message-matching-app-literal",
+      "kind": "message",
+      "sourceLocator": "MessageMonitor primary pp5–6",
+      "rows": [
+        {
+          "source_row_id": "message-app",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "action_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "message-app action",
+            "role": "application_open",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 1000
+          },
+          "opened_app_id": "chat",
+          "pending_population_role": "unread_messages",
+          "pending_membership_stage": "caller-qualified-complete-preaction-pending-set",
+          "pending_items_json": [
+            {
+              "source_item_id": "one",
+              "app_id": "chat",
+              "pending": true,
+              "shown_in_drawer": true,
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "one arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "ms",
+                "precision": 7,
+                "timestamp": 100
+              }
+            },
+            {
+              "source_item_id": "two",
+              "app_id": "chat ",
+              "pending": true,
+              "shown_in_drawer": true,
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "two arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "ms",
+                "precision": 7,
+                "timestamp": 200
+              }
+            },
+            {
+              "source_item_id": "three",
+              "app_id": "other",
+              "pending": true,
+              "shown_in_drawer": true,
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "three arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "ms",
+                "precision": 7,
+                "timestamp": 300
+              }
+            }
+          ],
+          "attendance_resolution_stage": "caller-resolved-first-attendance-proxy"
+        }
+      ],
+      "attributed": [
+        [
+          {
+            "id": "one",
+            "seconds": "0.9"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "message-explicit-empty",
+      "kind": "message",
+      "sourceLocator": "MessageMonitor primary pp5–6",
+      "rows": [
+        {
+          "source_row_id": "message-empty",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "action_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "message-empty action",
+            "role": "notification_drawer_open",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 1000
+          },
+          "opened_app_id": "",
+          "pending_population_role": "unread_messages",
+          "pending_membership_stage": "caller-qualified-complete-preaction-pending-set",
+          "pending_items_json": [],
+          "attendance_resolution_stage": "caller-resolved-first-attendance-proxy"
+        }
+      ],
+      "attributed": [
+        []
+      ]
+    },
+    {
+      "id": "message-unknown-not-complete",
+      "kind": "message",
+      "rows": [
+        {
+          "source_row_id": "unqualified",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "action_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "unqualified action",
+            "role": "notification_drawer_open",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 1000
+          },
+          "opened_app_id": "",
+          "pending_population_role": "unread_messages",
+          "pending_membership_stage": "unknown",
+          "pending_items_json": [
+            {
+              "source_item_id": "one",
+              "app_id": "chat",
+              "pending": true,
+              "shown_in_drawer": true,
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "one arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "ms",
+                "precision": 7,
+                "timestamp": 100
+              }
+            },
+            {
+              "source_item_id": "two",
+              "app_id": "chat ",
+              "pending": true,
+              "shown_in_drawer": true,
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "two arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "ms",
+                "precision": 7,
+                "timestamp": 200
+              }
+            },
+            {
+              "source_item_id": "three",
+              "app_id": "other",
+              "pending": true,
+              "shown_in_drawer": true,
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "three arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "ms",
+                "precision": 7,
+                "timestamp": 300
+              }
+            }
+          ],
+          "attendance_resolution_stage": "caller-resolved-first-attendance-proxy"
+        }
+      ],
+      "error": "explicit caller qualification"
+    },
+    {
+      "id": "message-duplicate-item-not-raw-dedup",
+      "kind": "message",
+      "rows": [
+        {
+          "source_row_id": "duplicate-set",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "action_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "duplicate-set action",
+            "role": "notification_drawer_open",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 1000
+          },
+          "opened_app_id": "",
+          "pending_population_role": "unread_messages",
+          "pending_membership_stage": "caller-qualified-complete-preaction-pending-set",
+          "pending_items_json": [
+            {
+              "source_item_id": "one",
+              "app_id": "chat",
+              "pending": true,
+              "shown_in_drawer": true,
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "one arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "ms",
+                "precision": 7,
+                "timestamp": 100
+              }
+            },
+            {
+              "source_item_id": "one",
+              "app_id": "chat",
+              "pending": true,
+              "shown_in_drawer": true,
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "one arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "ms",
+                "precision": 7,
+                "timestamp": 100
+              }
+            }
+          ],
+          "attendance_resolution_stage": "caller-resolved-first-attendance-proxy"
+        }
+      ],
+      "error": "unique literal item"
+    },
+    {
+      "id": "message-future-arrival-known-contradiction",
+      "kind": "message",
+      "rows": [
+        {
+          "source_row_id": "future",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "action_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "future action",
+            "role": "notification_drawer_open",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 1000
+          },
+          "opened_app_id": "",
+          "pending_population_role": "unread_messages",
+          "pending_membership_stage": "caller-qualified-complete-preaction-pending-set",
+          "pending_items_json": [
+            {
+              "source_item_id": "future",
+              "app_id": "chat",
+              "pending": true,
+              "shown_in_drawer": true,
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "future arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "ms",
+                "precision": 7,
+                "timestamp": 1001
+              }
+            }
+          ],
+          "attendance_resolution_stage": "caller-resolved-first-attendance-proxy"
+        }
+      ],
+      "error": "known arrival follows"
+    },
+    {
+      "id": "message-not-pending",
+      "kind": "message",
+      "rows": [
+        {
+          "source_row_id": "seen",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "action_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "seen action",
+            "role": "notification_drawer_open",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 1000
+          },
+          "opened_app_id": "",
+          "pending_population_role": "unread_messages",
+          "pending_membership_stage": "caller-qualified-complete-preaction-pending-set",
+          "pending_items_json": [
+            {
+              "source_item_id": "one",
+              "app_id": "chat",
+              "pending": false,
+              "shown_in_drawer": true,
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "one arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "ms",
+                "precision": 7,
+                "timestamp": 100
+              }
+            }
+          ],
+          "attendance_resolution_stage": "caller-resolved-first-attendance-proxy"
+        }
+      ],
+      "error": "contradict"
+    },
+    {
+      "id": "message-whole-occurrences-retained",
+      "kind": "message",
+      "rows": [
+        {
+          "source_row_id": "duplicate-occurrence",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "action_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "duplicate-occurrence action",
+            "role": "notification_drawer_open",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 1000
+          },
+          "opened_app_id": "",
+          "pending_population_role": "unread_messages",
+          "pending_membership_stage": "caller-qualified-complete-preaction-pending-set",
+          "pending_items_json": [
+            {
+              "source_item_id": "one",
+              "app_id": "chat",
+              "pending": true,
+              "shown_in_drawer": true,
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "one arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "ms",
+                "precision": 7,
+                "timestamp": 100
+              }
+            }
+          ],
+          "attendance_resolution_stage": "caller-resolved-first-attendance-proxy"
+        },
+        {
+          "source_row_id": "duplicate-occurrence",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "action_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "duplicate-occurrence action",
+            "role": "notification_drawer_open",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 1000
+          },
+          "opened_app_id": "",
+          "pending_population_role": "unread_messages",
+          "pending_membership_stage": "caller-qualified-complete-preaction-pending-set",
+          "pending_items_json": [
+            {
+              "source_item_id": "one",
+              "app_id": "chat",
+              "pending": true,
+              "shown_in_drawer": true,
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "one arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "ms",
+                "precision": 7,
+                "timestamp": 100
+              }
+            }
+          ],
+          "attendance_resolution_stage": "caller-resolved-first-attendance-proxy"
+        }
+      ],
+      "attributed": [
+        [
+          {
+            "id": "one",
+            "seconds": "0.9"
+          }
+        ],
+        [
+          {
+            "id": "one",
+            "seconds": "0.9"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "insitu-drawer-all",
+      "kind": "insitu",
+      "sourceLocator": "InSitu primary p4",
+      "rows": [
+        {
+          "source_row_id": "insitu-drawer",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "action_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "insitu-drawer action",
+            "role": "notification_drawer_open",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 1000
+          },
+          "opened_app_id": "",
+          "pending_population_role": "pending_notifications_shown_in_drawer",
+          "pending_membership_stage": "caller-qualified-complete-preaction-pending-set",
+          "pending_items_json": [
+            {
+              "source_item_id": "one",
+              "app_id": "chat",
+              "pending": true,
+              "shown_in_drawer": true,
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "one arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "ms",
+                "precision": 7,
+                "timestamp": 100
+              }
+            },
+            {
+              "source_item_id": "two",
+              "app_id": "chat ",
+              "pending": true,
+              "shown_in_drawer": true,
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "two arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "ms",
+                "precision": 7,
+                "timestamp": 200
+              }
+            },
+            {
+              "source_item_id": "three",
+              "app_id": "other",
+              "pending": true,
+              "shown_in_drawer": true,
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "three arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "ms",
+                "precision": 7,
+                "timestamp": 300
+              }
+            }
+          ],
+          "attendance_resolution_stage": "caller-resolved-first-attendance-proxy"
+        }
+      ],
+      "attributed": [
+        [
+          {
+            "id": "one",
+            "seconds": "0.9"
+          },
+          {
+            "id": "two",
+            "seconds": "0.8"
+          },
+          {
+            "id": "three",
+            "seconds": "0.7"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "insitu-matching-app-literal",
+      "kind": "insitu",
+      "sourceLocator": "InSitu primary p4",
+      "rows": [
+        {
+          "source_row_id": "insitu-app",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "action_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "insitu-app action",
+            "role": "application_open",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 1000
+          },
+          "opened_app_id": "chat",
+          "pending_population_role": "pending_notifications",
+          "pending_membership_stage": "caller-qualified-complete-preaction-pending-set",
+          "pending_items_json": [
+            {
+              "source_item_id": "one",
+              "app_id": "chat",
+              "pending": true,
+              "shown_in_drawer": true,
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "one arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "ms",
+                "precision": 7,
+                "timestamp": 100
+              }
+            },
+            {
+              "source_item_id": "two",
+              "app_id": "chat ",
+              "pending": true,
+              "shown_in_drawer": true,
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "two arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "ms",
+                "precision": 7,
+                "timestamp": 200
+              }
+            },
+            {
+              "source_item_id": "three",
+              "app_id": "other",
+              "pending": true,
+              "shown_in_drawer": true,
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "three arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "ms",
+                "precision": 7,
+                "timestamp": 300
+              }
+            }
+          ],
+          "attendance_resolution_stage": "caller-resolved-first-attendance-proxy"
+        }
+      ],
+      "attributed": [
+        [
+          {
+            "id": "one",
+            "seconds": "0.9"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "insitu-explicit-empty",
+      "kind": "insitu",
+      "sourceLocator": "InSitu primary p4",
+      "rows": [
+        {
+          "source_row_id": "insitu-empty",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "action_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "insitu-empty action",
+            "role": "notification_drawer_open",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 1000
+          },
+          "opened_app_id": "",
+          "pending_population_role": "pending_notifications_shown_in_drawer",
+          "pending_membership_stage": "caller-qualified-complete-preaction-pending-set",
+          "pending_items_json": [],
+          "attendance_resolution_stage": "caller-resolved-first-attendance-proxy"
+        }
+      ],
+      "attributed": [
+        []
+      ]
+    },
+    {
+      "id": "insitu-unknown-not-complete",
+      "kind": "insitu",
+      "rows": [
+        {
+          "source_row_id": "unqualified",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "action_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "unqualified action",
+            "role": "notification_drawer_open",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 1000
+          },
+          "opened_app_id": "",
+          "pending_population_role": "pending_notifications_shown_in_drawer",
+          "pending_membership_stage": "unknown",
+          "pending_items_json": [
+            {
+              "source_item_id": "one",
+              "app_id": "chat",
+              "pending": true,
+              "shown_in_drawer": true,
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "one arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "ms",
+                "precision": 7,
+                "timestamp": 100
+              }
+            },
+            {
+              "source_item_id": "two",
+              "app_id": "chat ",
+              "pending": true,
+              "shown_in_drawer": true,
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "two arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "ms",
+                "precision": 7,
+                "timestamp": 200
+              }
+            },
+            {
+              "source_item_id": "three",
+              "app_id": "other",
+              "pending": true,
+              "shown_in_drawer": true,
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "three arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "ms",
+                "precision": 7,
+                "timestamp": 300
+              }
+            }
+          ],
+          "attendance_resolution_stage": "caller-resolved-first-attendance-proxy"
+        }
+      ],
+      "error": "explicit caller qualification"
+    },
+    {
+      "id": "insitu-duplicate-item-not-raw-dedup",
+      "kind": "insitu",
+      "rows": [
+        {
+          "source_row_id": "duplicate-set",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "action_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "duplicate-set action",
+            "role": "notification_drawer_open",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 1000
+          },
+          "opened_app_id": "",
+          "pending_population_role": "pending_notifications_shown_in_drawer",
+          "pending_membership_stage": "caller-qualified-complete-preaction-pending-set",
+          "pending_items_json": [
+            {
+              "source_item_id": "one",
+              "app_id": "chat",
+              "pending": true,
+              "shown_in_drawer": true,
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "one arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "ms",
+                "precision": 7,
+                "timestamp": 100
+              }
+            },
+            {
+              "source_item_id": "one",
+              "app_id": "chat",
+              "pending": true,
+              "shown_in_drawer": true,
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "one arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "ms",
+                "precision": 7,
+                "timestamp": 100
+              }
+            }
+          ],
+          "attendance_resolution_stage": "caller-resolved-first-attendance-proxy"
+        }
+      ],
+      "error": "unique literal item"
+    },
+    {
+      "id": "insitu-future-arrival-known-contradiction",
+      "kind": "insitu",
+      "rows": [
+        {
+          "source_row_id": "future",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "action_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "future action",
+            "role": "notification_drawer_open",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 1000
+          },
+          "opened_app_id": "",
+          "pending_population_role": "pending_notifications_shown_in_drawer",
+          "pending_membership_stage": "caller-qualified-complete-preaction-pending-set",
+          "pending_items_json": [
+            {
+              "source_item_id": "future",
+              "app_id": "chat",
+              "pending": true,
+              "shown_in_drawer": true,
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "future arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "ms",
+                "precision": 7,
+                "timestamp": 1001
+              }
+            }
+          ],
+          "attendance_resolution_stage": "caller-resolved-first-attendance-proxy"
+        }
+      ],
+      "error": "known arrival follows"
+    },
+    {
+      "id": "insitu-not-pending",
+      "kind": "insitu",
+      "rows": [
+        {
+          "source_row_id": "seen",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "action_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "seen action",
+            "role": "notification_drawer_open",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 1000
+          },
+          "opened_app_id": "",
+          "pending_population_role": "pending_notifications_shown_in_drawer",
+          "pending_membership_stage": "caller-qualified-complete-preaction-pending-set",
+          "pending_items_json": [
+            {
+              "source_item_id": "one",
+              "app_id": "chat",
+              "pending": false,
+              "shown_in_drawer": true,
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "one arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "ms",
+                "precision": 7,
+                "timestamp": 100
+              }
+            }
+          ],
+          "attendance_resolution_stage": "caller-resolved-first-attendance-proxy"
+        }
+      ],
+      "error": "contradict"
+    },
+    {
+      "id": "insitu-whole-occurrences-retained",
+      "kind": "insitu",
+      "rows": [
+        {
+          "source_row_id": "duplicate-occurrence",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "action_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "duplicate-occurrence action",
+            "role": "notification_drawer_open",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 1000
+          },
+          "opened_app_id": "",
+          "pending_population_role": "pending_notifications_shown_in_drawer",
+          "pending_membership_stage": "caller-qualified-complete-preaction-pending-set",
+          "pending_items_json": [
+            {
+              "source_item_id": "one",
+              "app_id": "chat",
+              "pending": true,
+              "shown_in_drawer": true,
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "one arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "ms",
+                "precision": 7,
+                "timestamp": 100
+              }
+            }
+          ],
+          "attendance_resolution_stage": "caller-resolved-first-attendance-proxy"
+        },
+        {
+          "source_row_id": "duplicate-occurrence",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "action_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "duplicate-occurrence action",
+            "role": "notification_drawer_open",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 1000
+          },
+          "opened_app_id": "",
+          "pending_population_role": "pending_notifications_shown_in_drawer",
+          "pending_membership_stage": "caller-qualified-complete-preaction-pending-set",
+          "pending_items_json": [
+            {
+              "source_item_id": "one",
+              "app_id": "chat",
+              "pending": true,
+              "shown_in_drawer": true,
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "one arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "ms",
+                "precision": 7,
+                "timestamp": 100
+              }
+            }
+          ],
+          "attendance_resolution_stage": "caller-resolved-first-attendance-proxy"
+        }
+      ],
+      "attributed": [
+        [
+          {
+            "id": "one",
+            "seconds": "0.9"
+          }
+        ],
+        [
+          {
+            "id": "one",
+            "seconds": "0.9"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "insitu-not-shown-refused",
+      "kind": "insitu",
+      "rows": [
+        {
+          "source_row_id": "not-shown",
+          "participant_id": "P ",
+          "device_id": "phone",
+          "source_stream_id": "retained ",
+          "source_sequence_id": "sequence ",
+          "action_anchor_json": {
+            "participant_id": "P ",
+            "device_id": "phone",
+            "source_stream_id": "retained ",
+            "source_sequence_id": "sequence ",
+            "event_id": "not-shown action",
+            "role": "notification_drawer_open",
+            "clock_id": "clock ",
+            "time_unit": "ms",
+            "precision": 7,
+            "timestamp": 1000
+          },
+          "opened_app_id": "",
+          "pending_population_role": "pending_notifications_shown_in_drawer",
+          "pending_membership_stage": "caller-qualified-complete-preaction-pending-set",
+          "pending_items_json": [
+            {
+              "source_item_id": "hidden",
+              "app_id": "chat",
+              "pending": true,
+              "shown_in_drawer": false,
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "hidden arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "ms",
+                "precision": 7,
+                "timestamp": 100
+              }
+            }
+          ],
+          "attendance_resolution_stage": "caller-resolved-first-attendance-proxy"
+        }
+      ],
+      "error": "shown_in_drawer=true"
+    },
+    {
+      "id": "median-even-minutes",
+      "kind": "median",
+      "sourceLocator": "InSitu primary pp5–6/Fig4",
+      "rows": [
+        {
+          "source_row_id": "even",
+          "stratum_id": "even stratum",
+          "notification_category": "messengers",
+          "weekday_group": "weekend",
+          "latency_membership_stage": "caller-qualified-complete-nonempty-latency-stratum",
+          "latency_members_json": [
+            {
+              "source_item_id": "a",
+              "app_id": "chat",
+              "notification_category": "messengers",
+              "weekday_group": "weekend",
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "a arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "s",
+                "precision": 7,
+                "timestamp": 100
+              },
+              "proxy_view": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "a action",
+                "role": "notification_drawer_open",
+                "clock_id": "clock ",
+                "time_unit": "s",
+                "precision": 7,
+                "timestamp": 160
+              },
+              "endpoint_resolution_stage": "caller-resolved-first-attendance-proxy",
+              "opened_app_id": null,
+              "shown_in_drawer": true
+            },
+            {
+              "source_item_id": "b",
+              "app_id": "chat",
+              "notification_category": "messengers",
+              "weekday_group": "weekend",
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "b arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "s",
+                "precision": 7,
+                "timestamp": 100
+              },
+              "proxy_view": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "b action",
+                "role": "notification_drawer_open",
+                "clock_id": "clock ",
+                "time_unit": "s",
+                "precision": 7,
+                "timestamp": 280
+              },
+              "endpoint_resolution_stage": "caller-resolved-first-attendance-proxy",
+              "opened_app_id": null,
+              "shown_in_drawer": true
+            }
+          ],
+          "aggregation_boundary": "caller-supplied-category-weekday-stratum-not-recovered-source-aggregation-unit"
+        }
+      ],
+      "expected": [
+        [
+          "2",
+          "120",
+          "2",
+          "supplied_nonempty_stratum_median_not_category_calendar_population_constructor_or_empty_policy"
+        ]
+      ]
+    },
+    {
+      "id": "median-duplicate-weights",
+      "kind": "median",
+      "sourceLocator": "InSitu primary pp5–6/Fig4",
+      "rows": [
+        {
+          "source_row_id": "weights",
+          "stratum_id": "weights stratum",
+          "notification_category": "messengers",
+          "weekday_group": "weekend",
+          "latency_membership_stage": "caller-qualified-complete-nonempty-latency-stratum",
+          "latency_members_json": [
+            {
+              "source_item_id": "a",
+              "app_id": "chat",
+              "notification_category": "messengers",
+              "weekday_group": "weekend",
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "a arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "s",
+                "precision": 7,
+                "timestamp": 100
+              },
+              "proxy_view": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "a action",
+                "role": "notification_drawer_open",
+                "clock_id": "clock ",
+                "time_unit": "s",
+                "precision": 7,
+                "timestamp": 100
+              },
+              "endpoint_resolution_stage": "caller-resolved-first-attendance-proxy",
+              "opened_app_id": null,
+              "shown_in_drawer": true
+            },
+            {
+              "source_item_id": "b",
+              "app_id": "chat",
+              "notification_category": "messengers",
+              "weekday_group": "weekend",
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "b arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "s",
+                "precision": 7,
+                "timestamp": 100
+              },
+              "proxy_view": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "b action",
+                "role": "notification_drawer_open",
+                "clock_id": "clock ",
+                "time_unit": "s",
+                "precision": 7,
+                "timestamp": 160
+              },
+              "endpoint_resolution_stage": "caller-resolved-first-attendance-proxy",
+              "opened_app_id": null,
+              "shown_in_drawer": true
+            },
+            {
+              "source_item_id": "b",
+              "app_id": "chat",
+              "notification_category": "messengers",
+              "weekday_group": "weekend",
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "b arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "s",
+                "precision": 7,
+                "timestamp": 100
+              },
+              "proxy_view": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "b action",
+                "role": "notification_drawer_open",
+                "clock_id": "clock ",
+                "time_unit": "s",
+                "precision": 7,
+                "timestamp": 160
+              },
+              "endpoint_resolution_stage": "caller-resolved-first-attendance-proxy",
+              "opened_app_id": null,
+              "shown_in_drawer": true
+            },
+            {
+              "source_item_id": "c",
+              "app_id": "chat",
+              "notification_category": "messengers",
+              "weekday_group": "weekend",
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "c arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "s",
+                "precision": 7,
+                "timestamp": 100
+              },
+              "proxy_view": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "c action",
+                "role": "notification_drawer_open",
+                "clock_id": "clock ",
+                "time_unit": "s",
+                "precision": 7,
+                "timestamp": 280
+              },
+              "endpoint_resolution_stage": "caller-resolved-first-attendance-proxy",
+              "opened_app_id": null,
+              "shown_in_drawer": true
+            }
+          ],
+          "aggregation_boundary": "caller-supplied-category-weekday-stratum-not-recovered-source-aggregation-unit"
+        }
+      ],
+      "expected": [
+        [
+          "4",
+          "60",
+          "1",
+          "supplied_nonempty_stratum_median_not_category_calendar_population_constructor_or_empty_policy"
+        ]
+      ]
+    },
+    {
+      "id": "median-empty-unknown",
+      "kind": "median",
+      "rows": [
+        {
+          "source_row_id": "empty",
+          "stratum_id": "empty stratum",
+          "notification_category": "messengers",
+          "weekday_group": "weekend",
+          "latency_membership_stage": "caller-qualified-complete-nonempty-latency-stratum",
+          "latency_members_json": [],
+          "aggregation_boundary": "caller-supplied-category-weekday-stratum-not-recovered-source-aggregation-unit"
+        }
+      ],
+      "error": "empty source stratum"
+    },
+    {
+      "id": "median-category-known-contradiction",
+      "kind": "median",
+      "rows": [
+        {
+          "source_row_id": "wrong",
+          "stratum_id": "wrong stratum",
+          "notification_category": "messengers",
+          "weekday_group": "weekend",
+          "latency_membership_stage": "caller-qualified-complete-nonempty-latency-stratum",
+          "latency_members_json": [
+            {
+              "source_item_id": "a",
+              "app_id": "chat",
+              "notification_category": "email",
+              "weekday_group": "weekend",
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "a arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "s",
+                "precision": 7,
+                "timestamp": 100
+              },
+              "proxy_view": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "a action",
+                "role": "notification_drawer_open",
+                "clock_id": "clock ",
+                "time_unit": "s",
+                "precision": 7,
+                "timestamp": 160
+              },
+              "endpoint_resolution_stage": "caller-resolved-first-attendance-proxy",
+              "opened_app_id": null,
+              "shown_in_drawer": true
+            }
+          ],
+          "aggregation_boundary": "caller-supplied-category-weekday-stratum-not-recovered-source-aggregation-unit"
+        }
+      ],
+      "error": "contradicts qualified"
+    },
+    {
+      "id": "median-incomplete-no-drop",
+      "kind": "median",
+      "rows": [
+        {
+          "source_row_id": "missing",
+          "stratum_id": "missing stratum",
+          "notification_category": "messengers",
+          "weekday_group": "weekend",
+          "latency_membership_stage": "caller-qualified-complete-nonempty-latency-stratum",
+          "latency_members_json": [
+            {
+              "source_item_id": "a",
+              "app_id": "chat",
+              "notification_category": "messengers",
+              "weekday_group": "weekend",
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "a arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "s",
+                "precision": 7,
+                "timestamp": null
+              },
+              "proxy_view": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "a action",
+                "role": "notification_drawer_open",
+                "clock_id": "clock ",
+                "time_unit": "s",
+                "precision": 7,
+                "timestamp": 160
+              },
+              "endpoint_resolution_stage": "caller-resolved-first-attendance-proxy",
+              "opened_app_id": null,
+              "shown_in_drawer": true
+            }
+          ],
+          "aggregation_boundary": "caller-supplied-category-weekday-stratum-not-recovered-source-aggregation-unit"
+        }
+      ],
+      "error": "all comparable"
+    },
+    {
+      "id": "median-wrong-app-known-contradiction",
+      "kind": "median",
+      "rows": [
+        {
+          "source_row_id": "wrong-app",
+          "stratum_id": "wrong-app stratum",
+          "notification_category": "messengers",
+          "weekday_group": "weekend",
+          "latency_membership_stage": "caller-qualified-complete-nonempty-latency-stratum",
+          "latency_members_json": [
+            {
+              "source_item_id": "a",
+              "app_id": "chat",
+              "notification_category": "messengers",
+              "weekday_group": "weekend",
+              "arrival": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "a arrival",
+                "role": "notification_arrival",
+                "clock_id": "clock ",
+                "time_unit": "s",
+                "precision": 7,
+                "timestamp": 100
+              },
+              "proxy_view": {
+                "participant_id": "P ",
+                "device_id": "phone",
+                "source_stream_id": "retained ",
+                "source_sequence_id": "sequence ",
+                "event_id": "a action",
+                "role": "application_open",
+                "clock_id": "clock ",
+                "time_unit": "s",
+                "precision": 7,
+                "timestamp": 160
+              },
+              "endpoint_resolution_stage": "caller-resolved-first-attendance-proxy",
+              "opened_app_id": "chat ",
+              "shown_in_drawer": true
+            }
+          ],
+          "aggregation_boundary": "caller-supplied-category-weekday-stratum-not-recovered-source-aggregation-unit"
+        }
+      ],
+      "error": "contradicts qualified item app"
+    }
+  ]
+}

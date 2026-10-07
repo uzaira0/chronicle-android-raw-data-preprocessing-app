@@ -41,4 +41,7 @@ if [ "$LISTENER" != "$PREVIEW_PID" ]; then
   echo "port $PORT is held by PID ${LISTENER:-none}, not our preview ($PREVIEW_PID) — refusing" >&2
   exit 1
 fi
-PLAYWRIGHT_BASE_URL="http://127.0.0.1:$PORT" npx playwright test --project=chromium --grep "@visual"
+# Extra arguments are forwarded to Playwright, so a deliberate re-record
+# (`scripts/run-visual-regression.sh --update-snapshots`) goes through the same
+# fresh-build/own-server guarantees as the check itself.
+PLAYWRIGHT_BASE_URL="http://127.0.0.1:$PORT" npx playwright test --project=chromium --grep "@visual" "$@"

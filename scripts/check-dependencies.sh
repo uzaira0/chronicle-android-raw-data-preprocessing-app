@@ -59,13 +59,23 @@ echo "=== Trivy filesystem scan ==="
 #      mutation campaign, cargo-mutants scratch copies of the whole crate. One
 #      lane left 208 GB there and trivy died with the same semaphore timeout.
 #      None of it is repository source, so it is never in scope for this scan.
+#   4. ".tmp-literature-review-private" holds retrieved third-party literature
+#      artifacts — upstream clones (beiwe-android, sensus, R/Python runtimes)
+#      kept to read the published methods. Gitignored, never built, never
+#      shipped. Scanning it reported 27 HIGH/CRITICAL findings that are all
+#      upstream's: bundler/nuget/pip lockfile CVEs and two example PEM keys in a
+#      vendored `openssl` vignette. This repository's own dependencies are still
+#      covered from its own lockfiles.
+#
+# NOTE: --skip-dirs REPLACES trivy.yaml's scan.skip-dirs rather than adding to
+# it, so a directory has to be named HERE to actually be skipped by this gate.
 if command -v trivy &>/dev/null; then
   trivy fs \
     --exit-code 1 \
     --severity HIGH,CRITICAL \
     --ignore-unfixed \
     --scanners vuln,secret \
-    --skip-dirs "web/node_modules,web/dist,target,OutputSize*,.claude" \
+    --skip-dirs "web/node_modules,web/dist,target,OutputSize*,.claude,.tmp-literature-review-private" \
     --skip-files "**/*.csv" \
     "$REPO_ROOT" 2>&1 || FAIL=1
 else

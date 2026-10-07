@@ -1,0 +1,82 @@
+{
+  "schemaVersion": "chronicle-battery-logger-call-state-mapping-canonical-source-fixture/v1",
+  "sourceWorkId": "doi:10.1109/APNOMS.2011.6077030",
+  "canonicalSetting": {
+    "settingId": "method-setting-edc157e8995c64e134eff044",
+    "parameterKey": "schema.call_state_mapping",
+    "sourceObservedSetting": "schema.call_state_mapping: {\"0\":\"Ringing\",\"1\":\"Waiting/Android idle\",\"2\":\"Calling/off-hook\",\"-1\":\"Unknown\"}",
+    "sourceValueSha256": "404fe180226fd6ee24a206b3e526af2c1dfa2f36bbfcadc3422bbd80c905f33a"
+  },
+  "supersededAliases": [
+    "method-setting-7ba4199fa1442d0d09159602",
+    "method-setting-e2b4d3c650e3bd81c1920c80",
+    "method-setting-f8c9a89d47ec1407f7c1d128"
+  ],
+  "sourceArtifacts": [
+    {
+      "role": "primary paper",
+      "locator": ".tmp-literature-review-private/corrective-packet-08-ranks277-329-20260831/fulltext/rank323-primary.pdf; page 2 voice-call status vocabulary",
+      "sha256": "98ce983b218b401d2538af7f9ee0d7926192e89dfa723562f069cb219e2c3fe1"
+    },
+    {
+      "role": "recovered supplementary package",
+      "locator": ".tmp-literature-review-private/corrective-packet-08-ranks277-329-20260831/artifacts/rank323/BatteryLogger-supplementary-software.zip",
+      "sha256": "966b11e6ac2c883266b2b1d27de433bb1b75e3b594e1fa9fc98446dbbad8c1c2"
+    },
+    {
+      "role": "historical project HTML member",
+      "locator": "BatteryLogger-supplementary-software.zip#member=battery-logger-project.html;lines=75-80",
+      "sha256": "aea800f553bad4fec2b9b478eb4743b670f38df3b6e97a520c3c86019074b645"
+    },
+    {
+      "role": "recovered APK member",
+      "locator": "BatteryLogger-supplementary-software.zip#member=BatteryLogger.apk",
+      "sha256": "fcd9c183150b9191526bdb2c8a1dde3d82e32c0ca1279b43031611e7620fcf94"
+    },
+    {
+      "role": "decompiled listener source",
+      "locator": "BatteryLogger.apk; decompiled=dpnm/batterylogger/BatteryLoggerService.java; lines=44,72-91,293",
+      "sha256": "bdeb75f99b80fde113326a8c2b65eacac6bee08a912fb4c82fdf8a677c508042"
+    },
+    {
+      "role": "canonical source-completeness audit",
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/source-completeness-audits/doi-10.1109-apnoms.2011.6077030.json",
+      "sha256": "51583955bf456da7f6681b9ecccb90d8ee0448cee346cbeb9a29f104e7d7bee3"
+    },
+    {
+      "role": "alias and tombstone ledger",
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/method-setting-alias-tombstones.json",
+      "sha256": "018221f6036218887355a0a2dcd9d6d54a9e90eb93f380b4e1b81cc75c0f76b5"
+    }
+  ],
+  "inputBoundary": "Caller extracts the first BatteryLogger pipe-row field and strictly parses its exact numeric token as a JSON integer. The typed mapper does not coerce strings. The logger code is preserved separately from both the source meaning and Chronicle communication-state projection.",
+  "outputBoundary": "The complete closed mapping is -1 to Unknown/unknown, 0 to Ringing/ringing, 1 to Waiting or Android idle/waiting, and 2 to Calling or off-hook/calling. No call direction, peer, duration, or state precedence is inferred.",
+  "sharedIntegrationRequirement": "Add one source-neutral closed integer-category map ahead of chronicle.communication-event-schema, permit unknown for this source configuration, and bind the entire four-value map to the one canonical setting. Never promote the three tombstoned normalized-state aliases individually.",
+  "validRawStates": [
+    {"caseId": "unknown", "rawCallState": -1, "expectedSourceMeaning": "Unknown", "expectedCommunicationState": "unknown"},
+    {"caseId": "ringing", "rawCallState": 0, "expectedSourceMeaning": "Ringing", "expectedCommunicationState": "ringing"},
+    {"caseId": "waiting", "rawCallState": 1, "expectedSourceMeaning": "Waiting/Android idle", "expectedCommunicationState": "waiting"},
+    {"caseId": "calling", "rawCallState": 2, "expectedSourceMeaning": "Calling/off-hook", "expectedCommunicationState": "calling"}
+  ],
+  "invalidRawStates": [
+    {"caseId": "foreign_positive_integer", "rawCallState": 3, "expectedError": "raw_call_state_outside_closed_set"},
+    {"caseId": "foreign_negative_integer", "rawCallState": -2, "expectedError": "raw_call_state_outside_closed_set"},
+    {"caseId": "fractional_number", "rawCallState": 1.5, "expectedError": "integer_raw_call_state_required"},
+    {"caseId": "numeric_string", "rawCallState": "0", "expectedError": "integer_raw_call_state_required"},
+    {"caseId": "missing_value", "rawCallState": null, "expectedError": "integer_raw_call_state_required"}
+  ],
+  "apkFrameworkToLoggerCases": [
+    {"frameworkState": 0, "expectedRawCallState": 1},
+    {"frameworkState": 1, "expectedRawCallState": 0},
+    {"frameworkState": 2, "expectedRawCallState": 2},
+    {"frameworkState": 99, "expectedRawCallState": -1}
+  ],
+  "limitations": [
+    "The mapping is proved for the recovered supplementary HTML and APK bytes, not an attested deployed study build.",
+    "The recovered study logs are unavailable, so this fixture does not claim the original row distribution, missingness, or cohort linkage.",
+    "Pipe-row field extraction and strict numeric-token parsing are caller-owned; the executable seam begins at the typed integer category.",
+    "Waiting is the project-page label for logger code 1 and corresponds to the listener's framework-state 0 path; the fixture preserves the audit's Waiting/Android idle wording without adding a new state.",
+    "The source does not disclose state precedence, simultaneous-state policy, gap handling, session boundaries, or battery attribution; all remain unresolved.",
+    "The obsolete network-upload path is neither invoked nor modeled."
+  ]
+}

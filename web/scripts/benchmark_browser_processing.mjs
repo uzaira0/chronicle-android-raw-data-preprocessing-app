@@ -19,6 +19,11 @@ function parseArgs(argv) {
    *   datetime: string;
    *   maxElapsedMs: number | null;
    *   maxHeapDeltaBytes: number | null;
+   *   engine: string;
+   *   provenanceEvidence: boolean;
+   *   settingsSwitch: boolean;
+   *   trace: boolean;
+   *   payloadBudgetMib: number | null;
    * }}
    */
   const args = {
@@ -33,6 +38,13 @@ function parseArgs(argv) {
     datetime: "2026-04-24 00:32:53",
     maxElapsedMs: null,
     maxHeapDeltaBytes: null,
+    // The app's only engine; --engine incremental reaches Salsa through the
+    // injected test runtime, which the app itself never sends.
+    engine: "sequential",
+    provenanceEvidence: false,
+    settingsSwitch: false,
+    trace: false,
+    payloadBudgetMib: null,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -62,6 +74,18 @@ function parseArgs(argv) {
     } else if (token === "--datetime" && next) {
       args.datetime = next;
       index += 1;
+    } else if (token === "--engine" && next) {
+      args.engine = next;
+      index += 1;
+    } else if (token === "--provenance-evidence") {
+      args.provenanceEvidence = true;
+    } else if (token === "--settings-switch") {
+      args.settingsSwitch = true;
+    } else if (token === "--trace") {
+      args.trace = true;
+    } else if (token === "--payload-budget-mib" && next) {
+      args.payloadBudgetMib = Number(next);
+      index += 1;
     } else if (token === "--output-json") {
       args.outputJson = true;
     } else if (token === "--max-elapsed-ms" && next) {
@@ -78,8 +102,14 @@ function parseArgs(argv) {
   if (args.raw.length === 0) {
     throw new Error("At least one --raw <path> argument is required.");
   }
+  if (!["incremental", "sequential"].includes(args.engine)) {
+    throw new Error("--engine must be either incremental or sequential.");
+  }
   if (!["full", "app_usage"].includes(args.mode)) {
     throw new Error("--mode must be either full or app_usage.");
+  }
+  if (args.payloadBudgetMib !== null && args.payloadBudgetMib !== 512) {
+    throw new Error("--payload-budget-mib currently supports only the old 512 MiB budget.");
   }
   if (
     (args.maxElapsedMs !== null && !(args.maxElapsedMs > 0)) ||
@@ -136,6 +166,71 @@ async function readDownload(download) {
   return readFile(path, "utf-8");
 }
 
+/**
+ * Waits for a run started by `click` to finish: first for `busyText` on the
+ * button, then for it to leave. A run too short to paint its busy state
+ * counts as finished.
+ * @param {import("@playwright/test").Page} page
+ * @param {import("@playwright/test").Locator} button
+ * @param {string} busyText
+ * @param {() => Promise<void>} click
+ * @param {Record<string, number>} phaseMs traced phases so far (empty without --trace)
+ */
+async function timeRun(page, button, busyText, click, phaseMs) {
+  const before = { ...phaseMs };
+  const started = performance.now();
+  await click();
+  await button.filter({ hasText: busyText }).waitFor({ timeout: 2_000 }).catch(() => {});
+  await button.filter({ hasText: busyText }).waitFor({ state: "detached", timeout: 600_000 });
+  const elapsedMs = performance.now() - started;
+  const errors = await page.locator(".error-text, [data-testid='error-detail']").allTextContents();
+  if (errors.length > 0) throw new Error(`run failed: ${errors.join(" | ")}`);
+  /** @type {Record<string, number>} */
+  const phases = {};
+  for (const [phase, ms] of Object.entries(phaseMs)) {
+    const delta = ms - (before[phase] ?? 0);
+    if (delta > 0) phases[phase] = Math.round(delta);
+  }
+  return { elapsedMs, phases };
+}
+
+/**
+ * What a researcher does after a first run: change one processing setting
+ * (the minimum usage duration) and process again, then compare two further
+ * values against the run in the View tab's comparison drawer.
+ * @param {import("@playwright/test").Page} page
+ * @param {Record<string, number>} phaseMs
+ */
+async function measureSettingsSwitch(page, phaseMs) {
+  await page.getByRole("tab", { name: /Settings/i }).click();
+  const card = page.locator(".section-card__header", { hasText: "Session detection" });
+  if ((await card.getAttribute("aria-expanded")) !== "true") await card.click();
+  const input = page.getByTestId("minimum-usage-duration-input").first();
+  const base = Number(await input.inputValue());
+  await input.fill(String(base + 30));
+  await page.locator("#process-tab").click();
+  const processButton = page.getByTestId("process-files-button");
+  const reprocess = await timeRun(page, processButton, "Processing...", () =>
+    processButton.click(), phaseMs,
+  );
+
+  await page.getByRole("tab", { name: /View/i }).click();
+  const toggle = page.getByTestId("review-compare-toggle");
+  const drawer = page.getByTestId("review-compare-drawer");
+  const runComparison = drawer.getByTestId("review-run-comparison");
+  /** @type {Array<{elapsedMs: number, phases: Record<string, number>}>} */
+  const compare = [];
+  for (const value of [base + 60, base + 90]) {
+    if (!(await drawer.isVisible())) await toggle.click();
+    await drawer.getByTestId("minimum-usage-duration-input").fill(String(value));
+    compare.push(
+      await timeRun(page, runComparison, "Running", () => runComparison.click(), phaseMs),
+    );
+    await page.getByTestId("review-mcard-b").waitFor();
+  }
+  return { minimumUsageDurationBase: base, reprocess, compare };
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const preview = spawnPreview();
@@ -148,6 +243,14 @@ async function main() {
       const page = await context.newPage();
       /** @type {string[]} */
       const externalRequests = [];
+      /** @type {Record<string, number>} */
+      const phaseMs = {};
+      page.on("console", (message) => {
+        const text = message.text();
+        if (!text.startsWith("CHRONICLE_RUNTIME_PERF ")) return;
+        const entry = JSON.parse(text.slice("CHRONICLE_RUNTIME_PERF ".length));
+        phaseMs[entry.phase] = (phaseMs[entry.phase] ?? 0) + entry.elapsedMs;
+      });
       page.on("request", (request) => {
         const url = request.url();
         if (!/^https?:/i.test(url)) {
@@ -161,9 +264,24 @@ async function main() {
 
       await page.addInitScript((value) => {
         window.__CHRONICLE_TEST_RUNTIME__ = value;
-      }, { datetimeOfPreprocessing: args.datetime });
+      }, {
+        ...(args.datetime === "auto" ? {} : { datetimeOfPreprocessing: args.datetime }),
+        incrementalEngine: args.engine === "incremental",
+        provenanceEvidence: args.provenanceEvidence,
+        ...(args.trace ? { performanceTraceId: "benchmark" } : {}),
+      });
+      if (args.payloadBudgetMib !== null) {
+        await page.addInitScript((bytes) => {
+          window.__CHRONICLE_BENCHMARK_PAYLOAD_BUDGET_BYTES__ = bytes;
+        }, args.payloadBudgetMib * 1024 * 1024);
+      }
       await page.goto("http://127.0.0.1:4173/");
       await page.waitForLoadState("networkidle");
+      // The injected runtime is honoured only by a test build (npm run build:test);
+      // against a deploy build this would silently measure the default runtime.
+      if ((await page.locator('meta[name="chronicle-test-hooks"]').count()) !== 1) {
+        throw new Error("the served build ignores the injected test runtime: build it with `npm run build:test`");
+      }
       await page.waitForFunction(async () => {
         if (!("serviceWorker" in navigator)) {
           return false;
@@ -178,14 +296,8 @@ async function main() {
         return typeof memory?.usedJSHeapSize === "number" ? memory.usedJSHeapSize : null;
       });
 
-      const rawFiles = await Promise.all(
-        args.raw.map(async (filePath) => ({
-          name: filePath.split("/").pop() ?? "raw.csv",
-          mimeType: "text/csv",
-          buffer: await readFile(filePath),
-        })),
-      );
-      await page.getByTestId("raw-file-input").setInputFiles(rawFiles);
+      // Paths, not buffers: Playwright refuses buffers over 50 MB.
+      await page.getByTestId("raw-file-input").setInputFiles(args.raw);
       const processScreenUsage = page.getByTestId("toggle-processScreenUsage");
       if (args.mode === "app_usage") {
         await processScreenUsage.uncheck();
@@ -220,6 +332,7 @@ async function main() {
           document.querySelector('[data-testid="process-files-button"]')?.textContent?.trim() !==
             "Processing...",
         args.raw.length,
+        { timeout: 600_000 },
       );
       const completedResults = await page.getByTestId("result-row").count();
       if (completedResults < args.raw.length) {
@@ -252,8 +365,15 @@ async function main() {
         screenRowCounts.push(countCsvRows(screenCsv));
       }
 
+      const settingsSwitch = args.settingsSwitch
+        ? await measureSettingsSwitch(page, phaseMs)
+        : undefined;
+
       const result = {
+        engine: args.engine,
         elapsedMs,
+        ...(settingsSwitch ? { settingsSwitch } : {}),
+        ...(args.trace ? { phaseMs } : {}),
         fileCount: args.raw.length,
         resultCount: await page.getByTestId("result-row").count(),
         appRowCount: countCsvRows(appCsv),

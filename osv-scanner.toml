@@ -1,7 +1,12 @@
-# Advisory exceptions for the CI osv-scan. Keep this in lockstep with
-# .semantic-federation/quality/deny.toml, which is the cargo-deny half of the
-# same decision — an ID may only appear here if it is justified there too.
+# Advisory exceptions for the CI osv-scan. A Rust ID must also be justified in
+# .semantic-federation/quality/deny.toml, the cargo-deny half of the same
+# decision. An npm ID needs its reason here: no fixed version exists and the
+# vulnerable call is unreachable.
 
 [[IgnoredVulns]]
 id = "RUSTSEC-2024-0436"
 reason = "paste 1.0.15 is an unmaintained (not vulnerable) build-time transitive dependency of parquet 59.1.0. No patched parquet release exists, the crate expands macros at build time so there is no runtime exposure, and cargo-audit remains a separate no-vulnerability gate. Same exception as .semantic-federation/quality/deny.toml."
+
+[[IgnoredVulns]]
+id = "GHSA-hp3w-g68c-fv3c"
+reason = "sprintf-js has no fixed release (every version through 1.1.3 is affected). It reaches the tree only as dev tooling: @lhci/cli -> @lhci/utils -> js-yaml 3 -> argparse 1, and argparse calls sprintf with fixed format strings, so no caller controls the precision specifier the advisory needs. js-yaml 4 drops argparse 1 but removes safeLoad, which @lhci/utils calls, so it cannot be overridden. Nothing ships in the app."

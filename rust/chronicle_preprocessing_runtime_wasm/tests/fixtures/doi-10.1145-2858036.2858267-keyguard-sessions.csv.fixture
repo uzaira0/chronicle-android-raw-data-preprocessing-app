@@ -1,0 +1,20 @@
+participant_id,event_timestamp,interaction_type,lock_type,code_length,pattern_stealth_mode,screen_off_reason,prior_attempt_count
+P1,2026-06-07 00:00:00,Screen Interactive,pin,,,,0
+P1,2026-06-07 00:00:01,Key Entry Begin,pin,4,,,0
+P1,2026-06-07 00:00:02,Code Incorrect,pin,4,,,0
+P1,2026-06-07 00:00:03,Key Entry Begin,pin,4,,,1
+P1,2026-06-07 00:00:04,Code Correct,pin,4,,,1
+P1,2026-06-07 00:00:05,Keyguard Hidden,pin,,,,1
+P1,2026-06-07 00:00:20,Screen Non-Interactive,pin,,,idle_timeout,1
+P2,2026-06-07 01:00:00,Screen Interactive,pattern,,true,,0
+P2,2026-06-07 01:00:01,Key Entry Begin,pattern,4,true,,0
+P2,2026-06-07 01:00:02,Code Too Short,pattern,3,true,,0
+P2,2026-06-07 01:00:03,Screen Non-Interactive,pattern,,true,manual_hardware_button,0
+P3,2026-06-07 02:00:00,Screen Interactive,slide_to_unlock,,,,0
+P3,2026-06-07 02:00:01,Key Entry Begin,slide_to_unlock,,,,0
+P3,2026-06-07 02:00:02,Keyguard Hidden,slide_to_unlock,,,,0
+P3,2026-06-07 02:00:05,Screen Non-Interactive,slide_to_unlock,,,manual_hardware_button,0
+P4,2026-06-07 03:00:00,Screen Interactive,pin,,,,0
+P4,2026-06-07 03:00:30,Screen Non-Interactive,pin,,,idle_timeout,0
+P5,2026-06-07 04:00:00,Screen Interactive,pin,,,,0
+P5,2026-06-07 04:00:04,Screen Non-Interactive,pin,,,manual_hardware_button,0

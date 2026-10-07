@@ -1,0 +1,34 @@
+study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone
+B02-SYNTHETIC,P01,Target Child,System,Screen Interactive,android,2026-03-07 09:59:00,America/Chicago
+B02-SYNTHETIC,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago
+B02-SYNTHETIC,P01,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 10:01:00,America/Chicago
+B02-SYNTHETIC,P01,Target Child,Mail,Activity Resumed,com.example.mail,2026-03-07 10:05:00,America/Chicago
+B02-SYNTHETIC,P01,Target Child,Mail,Activity Paused,com.example.mail,2026-03-07 10:06:00,America/Chicago
+B02-SYNTHETIC,P01,Target Child,System,Screen Non-Interactive,android,2026-03-07 10:07:00,America/Chicago
+B02-SYNTHETIC,P02,Target Child,Sync,Foreground Service Start,com.example.sync,2026-03-07 11:00:00,America/Chicago
+B02-SYNTHETIC,P02,Target Child,Mail,Activity Resumed,com.example.mail,2026-03-07 11:01:00,America/Chicago
+B02-SYNTHETIC,P02,Target Child,Mail,Activity Paused,com.example.mail,2026-03-07 11:02:00,America/Chicago
+B02-SYNTHETIC,P03,Target Child,Sync,Foreground Service Start,com.example.sync,2026-03-07 12:00:00,America/Chicago
+B02-SYNTHETIC,P03,Target Child,Sync,Activity Paused,com.example.sync,2026-03-07 12:01:00,America/Chicago
+B02-SYNTHETIC,P03,Target Child,Maps,Activity Resumed,com.example.maps,2026-03-07 12:02:00,America/Chicago
+B02-SYNTHETIC,P03,Target Child,Maps,Activity Paused,com.example.maps,2026-03-07 12:03:00,America/Chicago
+B02-SYNTHETIC,P04,Target Child,Sync,Foreground Service Start,com.example.sync,2026-03-07 13:00:00,America/Chicago
+B02-SYNTHETIC,P04,Target Child,Sync,Foreground Service Stop,com.example.sync,2026-03-07 13:01:00,America/Chicago
+B02-SYNTHETIC,P04,Target Child,Maps,Activity Resumed,com.example.maps,2026-03-07 13:02:00,America/Chicago
+B02-SYNTHETIC,P04,Target Child,Maps,Activity Paused,com.example.maps,2026-03-07 13:03:00,America/Chicago
+B02-SYNTHETIC,P05,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 14:00:00,America/Chicago
+B02-SYNTHETIC,P05,Target Child,System,Screen Interactive,android,2026-03-07 14:00:10,America/Chicago
+B02-SYNTHETIC,P05,Target Child,System,Keyguard Hidden,android,2026-03-07 14:00:20,America/Chicago
+B02-SYNTHETIC,P05,Target Child,System,Device Startup,android,2026-03-07 14:00:30,America/Chicago
+B02-SYNTHETIC,P05,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 14:01:00,America/Chicago
+B02-SYNTHETIC,P05,Target Child,Mail,Activity Resumed,com.example.mail,2026-03-07 14:02:00,America/Chicago
+B02-SYNTHETIC,P05,Target Child,Mail,Activity Paused,com.example.mail,2026-03-07 14:03:00,America/Chicago
+B02-SYNTHETIC,P06,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 15:00:00,America/Chicago
+B02-SYNTHETIC,P06,Target Child,System,Screen Interactive,com.vendor.bad.screen,2026-03-07 15:00:10,America/Chicago
+B02-SYNTHETIC,P06,Target Child,System,Keyguard Hidden,com.vendor.bad.keyguard,2026-03-07 15:00:20,America/Chicago
+B02-SYNTHETIC,P06,Target Child,System,Device Startup,com.vendor.bad.startup,2026-03-07 15:00:30,America/Chicago
+B02-SYNTHETIC,P06,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 15:01:00,America/Chicago
+B02-SYNTHETIC,P06,Target Child,Mail,Activity Resumed,com.example.mail,2026-03-07 15:02:00,America/Chicago
+B02-SYNTHETIC,P06,Target Child,Mail,Activity Paused,com.example.mail,2026-03-07 15:03:00,America/Chicago
+B02-SYNTHETIC,P07,Target Child,System,Screen Interactive,android,2026-03-07 16:00:00,America/Chicago
+B02-SYNTHETIC,P07,Target Child,System,Screen Non-Interactive,android,2026-03-07 16:01:00,America/Chicago

@@ -1,0 +1,43 @@
+{
+  "schemaVersion": "chronicle-fixed-grid-categorical-dwell-fixture/v1",
+  "sourceWorkId": "doi:10.1016/j.jbi.2019.103151",
+  "sourceLocators": [
+    ".tmp-literature-review-private/strict-screen-native-ranks37-73-20260831T0415Z/text/66-fukazawa-2019-anxiety-passive-sensing.txt:139-220",
+    ".tmp-literature-review-private/strict-screen-native-ranks37-73-20260831T0415Z/text/66-fukazawa-2019-anxiety-passive-sensing.txt:296-333",
+    ".tmp-literature-review-private/strict-screen-native-ranks37-73-20260831T0415Z/text/66-fukazawa-2019-anxiety-passive-sensing.txt:350-352"
+  ],
+  "samplingCadenceSeconds": 0.5,
+  "windowMinutes": [30, 60, 120],
+  "completeWindowCount": 2,
+  "sourcePolicyStatus": {
+    "progression": "non_overlapping",
+    "gridAnchor": "calendar-day grid shown; exact timestamp, timezone, and day-boundary realization undisclosed",
+    "incompleteWindow": "undisclosed"
+  },
+  "boundedFixturePolicy": {
+    "anchorTimestampNs": 0,
+    "incompleteWindow": "reject"
+  },
+  "thresholdConfigurations": [
+    {
+      "configurationId": "illuminance",
+      "thresholds": [300.0, 1000.0],
+      "categories": ["dark", "medium", "bright"],
+      "repeatingObservations": [299.999, 300.0, 999.999, 1000.0]
+    },
+    {
+      "configurationId": "acceleration_magnitude",
+      "thresholds": [2.0, 5.0],
+      "categories": ["still_or_constant_speed", "gentle", "intense"],
+      "repeatingObservations": [1.999, 2.0, 4.999, 5.0]
+    },
+    {
+      "configurationId": "rotation_x",
+      "thresholds": [30.0, 60.0],
+      "categories": ["parallel", "diagonal", "perpendicular"],
+      "repeatingObservations": [29.999, 30.0, 59.999, 60.0]
+    }
+  ],
+  "expectedCategoryShares": [0.25, 0.5, 0.25],
+  "rejectedProgression": "sliding"
+}

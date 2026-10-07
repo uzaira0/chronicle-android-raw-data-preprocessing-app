@@ -1,0 +1,12 @@
+# Pin the toolchain so cargo resolves through rustup rather than whichever rustc
+# happens to come first on PATH.
+#
+# Homebrew installs a rustc at /opt/homebrew/bin/rustc that shadows the rustup
+# shim in a clean shell. It is the same version, but its sysroot carries no
+# wasm32-unknown-unknown target, so every native `cargo test` passes while
+# `make dependency-evidence` dies with
+#   "wasm32-unknown-unknown target not found in sysroot"
+# only when it reaches the WASM build. This file makes that unreachable.
+[toolchain]
+channel = "stable"
+targets = ["wasm32-unknown-unknown"]

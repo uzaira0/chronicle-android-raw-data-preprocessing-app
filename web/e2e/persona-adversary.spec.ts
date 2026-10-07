@@ -7,6 +7,7 @@ import {
   installDeterministicRuntime,
   setInputFile,
   trackExternalRequests,
+  RESULT_PANEL_TIMEOUT_MS,
 } from "./helpers";
 
 /**
@@ -51,7 +52,7 @@ test("the app exposes no mutating or cross-origin network surface", async ({ pag
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
   await page.getByRole("tab", { name: /Process/i }).click();
   await page.getByTestId("process-files-button").click();
-  await expect(page.getByTestId("result-panel").first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("result-panel").first()).toBeVisible({ timeout: RESULT_PANEL_TIMEOUT_MS });
 
   const origin = new URL(page.url()).origin;
   const offending = requests.filter(
@@ -83,7 +84,7 @@ test("double-submitting the process form does not create duplicate results", asy
   // Two fast clicks; the button disables on the first, so the second is a no-op.
   await button.click();
   await button.click({ force: true }).catch(() => {});
-  await expect(page.getByTestId("result-panel").first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("result-panel").first()).toBeVisible({ timeout: RESULT_PANEL_TIMEOUT_MS });
   await expect(page.getByTestId("result-panel")).toHaveCount(1);
   await expect(page.getByTestId("result-row")).toHaveCount(1);
   assertNoExternalRequests(requestTracker);
@@ -123,6 +124,7 @@ test("unsupported binary content in the raw input is rejected, not crashed on", 
   await setInputFile(page, "raw-file-input", "evil.png", bogus, "image/png");
   await page.getByRole("tab", { name: /Files/i }).click();
   const filesPanel = page.getByRole("tabpanel", { name: /Files/i });
-  await expect(filesPanel.getByText(/Warning: Review/i)).toBeVisible();
+  // No required column survives, so the file is refused outright.
+  await expect(filesPanel.getByText("Error: Missing columns")).toBeVisible();
   assertNoExternalRequests(requestTracker);
 });

@@ -1,0 +1,78 @@
+{
+  "screen_text_captures": [
+    {
+      "text_capture_id": "example-capture-a",
+      "method_profile_id": "method-profile:doi:10.1145/3613904.3642347",
+      "source_work_id": "doi:10.1145/3613904.3642347",
+      "participant_id": "example-participant", "device_id": "example-device",
+      "record_origin": "analyst_constructed_example",
+      "method_setting_reference": "method-setting-9fa81d55ad3f21e0633a8f3e",
+      "capture_instant": "opaque-equal-time", "app_package_name": "org.example.synthetic",
+      "screen_text": " Inbox || independent flat token\n",
+      "screen_phrases": [
+        {"phrase_id": "example-phrase-a", "phrase_text": "Inbox", "phrase_left_px": 0, "phrase_top_px": -20, "phrase_right_px": 80, "phrase_bottom_px": 0, "source_locators": ["doi:10.1145/3613904.3642347 physical p4 Section3.2/Figure2"]},
+        {"phrase_id": "example-phrase-b", "phrase_text": "Inbox", "phrase_left_px": 90, "phrase_top_px": -20, "phrase_right_px": 170, "phrase_bottom_px": 0, "source_locators": ["doi:10.1145/3613904.3642347 physical p4 Section3.2/Figure2"]},
+        {"phrase_id": "example-partial-phrase", "phrase_text": "", "phrase_left_px": null, "phrase_top_px": 0, "source_locators": ["Constructed partial normalized member; physical p17 Section6.6 distinguishes bounds from glyph/visibility"]}
+      ],
+      "source_locators": ["Constructed normalized example, not recovered participant rows; doi:10.1145/3613904.3642347 physical pp3–4 Sections3.1–3.2"]
+    },
+    {
+      "text_capture_id": "example-capture-b",
+      "method_profile_id": "method-profile:doi:10.1145/3613904.3642347", "source_work_id": "doi:10.1145/3613904.3642347",
+      "participant_id": "example-participant", "device_id": "example-device", "record_origin": "analyst_constructed_example",
+      "method_setting_reference": "method-setting-9fa81d55ad3f21e0633a8f3e",
+      "capture_instant": "opaque-equal-time", "screen_text": "", "screen_phrases": [],
+      "source_locators": ["Constructed supplied-empty normalized capture, not source collector behavior"]
+    },
+    {
+      "text_capture_id": "example-capture-null",
+      "method_profile_id": "method-profile:doi:10.1145/3613904.3642347", "source_work_id": "doi:10.1145/3613904.3642347",
+      "participant_id": "example-participant", "device_id": null, "record_origin": "analyst_constructed_example",
+      "method_setting_reference": "method-setting-9fa81d55ad3f21e0633a8f3e",
+      "capture_instant": null, "app_package_name": null, "screen_text": null, "screen_phrases": null,
+      "source_locators": ["Constructed supplied-unknown normalized capture, not source rows"]
+    },
+    {
+      "text_capture_id": "example-capture-omitted",
+      "method_profile_id": "method-profile:doi:10.1145/3613904.3642347", "source_work_id": "doi:10.1145/3613904.3642347",
+      "participant_id": "example-participant", "record_origin": "analyst_constructed_example",
+      "method_setting_reference": "method-setting-9fa81d55ad3f21e0633a8f3e",
+      "capture_instant": "",
+      "source_locators": ["Constructed omitted-fields normalized example; not an assertion that raw fields were absent"]
+    }
+  ],
+  "sensor_control_occurrences": [
+    {
+      "sensor_control_id": "example-disable",
+      "method_profile_id": "method-profile:doi:10.1145/3613904.3642347", "source_work_id": "doi:10.1145/3613904.3642347",
+      "participant_id": "example-participant", "device_id": "example-device", "record_origin": "analyst_constructed_example",
+      "method_setting_reference": "method-setting-0c243ce866e821b0675fb16e",
+      "sensor_label": "example-screen-text-sensor", "sensor_control_action": "disable", "occurrence_instant": "opaque-equal-time",
+      "source_locators": ["doi:10.1145/3613904.3642347 physical p17 Section6.6; constructed normalized instance"]
+    },
+    {
+      "sensor_control_id": "example-enable",
+      "method_profile_id": "method-profile:doi:10.1145/3613904.3642347", "source_work_id": "doi:10.1145/3613904.3642347",
+      "participant_id": "example-participant", "device_id": "example-device", "record_origin": "analyst_constructed_example",
+      "method_setting_reference": "method-setting-0c243ce866e821b0675fb16e",
+      "sensor_label": "example-screen-text-sensor", "sensor_control_action": "enable", "occurrence_instant": "opaque-equal-time",
+      "source_locators": ["doi:10.1145/3613904.3642347 physical p17 Section6.6; independently supplied enable instance"]
+    },
+    {
+      "sensor_control_id": "example-control-null",
+      "method_profile_id": "method-profile:doi:10.1145/3613904.3642347", "source_work_id": "doi:10.1145/3613904.3642347",
+      "participant_id": "example-participant", "device_id": null, "record_origin": "analyst_constructed_example",
+      "method_setting_reference": "method-setting-0c243ce866e821b0675fb16e",
+      "sensor_label": "example-screen-text-sensor", "sensor_control_action": "disable", "occurrence_instant": null,
+      "source_locators": ["Constructed supplied-unknown normalized control, not source rows"]
+    },
+    {
+      "sensor_control_id": "example-control-omitted",
+      "method_profile_id": "method-profile:doi:10.1145/3613904.3642347", "source_work_id": "doi:10.1145/3613904.3642347",
+      "participant_id": "example-participant", "record_origin": "analyst_constructed_example",
+      "method_setting_reference": "method-setting-0c243ce866e821b0675fb16e",
+      "sensor_label": "example-screen-text-sensor", "sensor_control_action": "enable",
+      "source_locators": ["Constructed omitted-fields normalized control; not an assertion that raw fields were absent"]
+    }
+  ]
+}

@@ -1,0 +1,370 @@
+{
+  "schema_version": "chronicle-literature-native-conformance/v1",
+  "fixtures": [
+    {
+      "fixture_id": "reconstruction.screen-on-next-screen-off.v1",
+      "method_setting_ids": [
+        "atomic-14c2051597e2e5c4607c5ec6",
+        "atomic-2bfe5924d85362777118960e",
+        "atomic-34f94d85c3ffdc2e55127b26",
+        "atomic-543bff367320f94ffbfa5022",
+        "atomic-73a5b7e9de0d583fb9c9c35b",
+        "atomic-bf7633fcec8db6484a18d501",
+        "atomic-c4a7ae7447f93aa8f2d7bd88",
+        "atomic-c729b8a49f9fbfc0056123ac",
+        "atomic-f8dd8871bbbb8351252c21b3",
+        "method-setting-24c6a2ba4cef5bda88b7dd71",
+        "method-setting-2eb3e888e7d8cf28b9d200d3",
+        "method-setting-339f9d275dc298537ad01b71",
+        "method-setting-754cc26cea93f3ad912798ac",
+        "method-setting-ae367bcfa8a615ce33dc5781",
+        "method-setting-d6be8fd78580dccc2b2e2920",
+        "method-setting-e96f1820c86f22fe7bfd8490"
+      ],
+      "browser_contract_bindings": {
+        "process_screen_usage": true,
+        "screen_session_construction_strategy": "chronicle_screen_interactive_v1"
+      },
+      "result_digest": "sha256:898912712a7fe57a486afabc0d5e5b18cc2f5dc5fc6cd529848eeffae897b3b6"
+    },
+    {
+      "fixture_id": "reconstruction.session-gap-strict-45s.v1",
+      "method_setting_ids": [
+        "method-setting-4500cc560d2a8d74f13f0ee6",
+        "method-setting-659d1906f97c87cb8d5885e6",
+        "method-setting-f935a2e4498539358e02eafd"
+      ],
+      "browser_contract_bindings": {
+        "session_grouping_policy": "van_berkel_45s",
+        "session_gap_basis": "previous_episode_stop_v1",
+        "session_boundary_scope": "participant_v1"
+      },
+      "result_digest": "sha256:e27b5d0aa84aa3b3702db8a62dd654e00c842e1071ceaf2f7b9da902aee1ace8"
+    },
+    {
+      "fixture_id": "extension.session-gap-strict-lt5s.v1",
+      "method_setting_ids": ["method-setting-21088bd2743bd3054e5fbb5b"],
+      "browser_contract_bindings": {
+        "session_grouping_policy": "smartphone_wellbeing_strict_lt_5s",
+        "session_gap_basis": "previous_episode_stop_v1",
+        "session_boundary_scope": "participant_v1"
+      },
+      "result_digest": "sha256:c985ccf4ff25a962275b58295a94fdb5bf2b5384745c7c8053a169b0a2701261"
+    },
+    {
+      "fixture_id": "reconstruction.minimum-foreground-strict-gt5s.v1",
+      "method_setting_ids": ["method-setting-5b16e47b354adfd836637c21"],
+      "browser_contract_bindings": {
+        "minimum_usage_duration": 5,
+        "minimum_duration_comparator": "inclusive_le",
+        "minimum_duration_disposition": "drop_row"
+      },
+      "result_digest": "sha256:7552b4e6311fc39312dce3a81a0c6be034ed12c0fee700b2d12e68eb310fd3e0"
+    },
+    {
+      "fixture_id": "reconstruction.foreground-background-pair.v1",
+      "method_setting_ids": [
+        "method-setting-f2cc892dc37386bdc1359ef8",
+        "method-setting-fd648b88ec7bfcbbdfeaed7a"
+      ],
+      "browser_contract_bindings": {
+        "process_app_usage": true,
+        "event_retention_set": "foreground_background_only",
+        "opener_set": "activity_resumed_only",
+        "episode_reconstruction_strategy": "foreground_background_pairing"
+      },
+      "result_digest": "sha256:414c193cf4cb0fa678d3c4d802baaf9dacbcd18c8d2890d94cc4ddd654876e90"
+    },
+    {
+      "fixture_id": "reconstruction.each-app-opening-event.v1",
+      "method_setting_ids": ["method-setting-2e39007febbabdfad6a6b2a4"],
+      "browser_contract_bindings": {
+        "process_app_usage": true,
+        "opener_set": "activity_resumed_only"
+      },
+      "result_digest": "sha256:bce5271de059a515e705b1522901115a4070b04974e62c5136d8803a07a608ac"
+    },
+    {
+      "fixture_id": "quality.stop-arrays-exclude-standby.v1",
+      "method_setting_ids": ["atomic-58cc913a14f7d95693174781"],
+      "browser_contract_bindings": {
+        "same_app_interaction_types_to_stop_usage_at": ["Activity Paused", "Activity Resumed"],
+        "other_interaction_types_to_stop_usage_at": ["Activity Resumed", "Screen Non-Interactive"]
+      },
+      "result_digest": "sha256:309960e92beb74e7ff8ac609ebc8b1e7ef0eead5f8552267cfd2aa4214e4f74d"
+    },
+    {
+      "fixture_id": "quality.minimum-duration-strict-lt-1s.v1",
+      "method_setting_ids": [
+        "method-setting-049dd0939adfb6d6fea7b4ff",
+        "method-setting-atomic-4061aa43b446210dc47f",
+        "method-setting-atomic-53df36ebb6253d80bd05",
+        "method-setting-atomic-ae386c9fbb41f96e8660"
+      ],
+      "browser_contract_bindings": {
+        "minimum_usage_duration": 1,
+        "minimum_duration_comparator": "strict_lt",
+        "minimum_duration_disposition": "drop_row"
+      },
+      "result_digest": "sha256:994e704a3dacb2afd5018d0b584c036df8264b6bdce0a0520d282284bd5cf312"
+    },
+    {
+      "fixture_id": "quality.maximum-duration-strict-gt-6h.v1",
+      "method_setting_ids": ["method-setting-5d2a014bddf9c67c56a15231"],
+      "browser_contract_bindings": {
+        "maximum_duration_policy": "post_reconstruction_strict_max_v1",
+        "maximum_duration_disposition": "drop_row",
+        "maximum_duration_threshold_source": "fixed_parameter",
+        "maximum_duration_threshold_ns": "21600000000000"
+      },
+      "result_digest": "sha256:b9786c77ae0b767c1ea0d594ad045a05174137aa17d7afc037a33fb26560fdbf"
+    },
+    {
+      "fixture_id": "quality.zero-duration-exact-cleanup.v1",
+      "method_setting_ids": [
+        "method-setting-atomic-aa4373a352b7b19662af",
+        "method-setting-atomic-e6a18c971fa9d67c7091",
+        "method-setting-babb6e75bd145e48c3384c7e"
+      ],
+      "browser_contract_bindings": {"filter_zero_duration_sessions": true},
+      "result_digest": "sha256:5b9a7978a734f7adf697c3bb2602b0149ae89763af4d5ee5fb206f150b2acfbd"
+    },
+    {
+      "fixture_id": "quality.background-apps-disabled.v1",
+      "method_setting_ids": ["method-setting-atomic-1eac0aafb2a95354559a"],
+      "browser_contract_bindings": {"use_background_apps_file": false},
+      "result_digest": "sha256:73a5befeee0f24e433280687c6fe448a7e6ea1ed5c9ad15add4900b54248e1a9"
+    },
+    {
+      "fixture_id": "aggregate.daily-event-count-and-window.v1",
+      "method_setting_ids": [
+        "method-setting-atomic-b6473e2fbf27ce98db5b",
+        "method-setting-bbc442dee45edfe015ff5c95"
+      ],
+      "browser_contract_bindings": {
+        "enable_aggregates": true
+      },
+      "result_digest": "sha256:4dfc6eb5417f502f55d62f3e26fda83f1a2a7f3abee31e2f66cf61126785498b"
+    },
+    {
+      "fixture_id": "aggregate.daily-screen-time-sum.v1",
+      "method_setting_ids": [
+        "method-setting-49617f4dad052c564155c91e"
+      ],
+      "browser_contract_bindings": {
+        "enable_aggregates": true
+      },
+      "result_digest": "sha256:f02cf37c2124988be0d263b57b1bb00d242c269569485a171537900ea05960c1"
+    },
+    {
+      "fixture_id": "extension.behapp-half-open-1s.v1",
+      "method_setting_ids": ["method-setting-66b78a5d5b22a7c6e3d3668c"],
+      "browser_contract_bindings": {
+        "interval_expansion_method": "behapp_start_anchored_half_open_1s_v1"
+      },
+      "result_digest": "sha256:ef15464bb9b4d80de6607cc9389ae79bc5d0ba18860972d7187271536043a235"
+    },
+    {
+      "fixture_id": "extension.application-label-exclusion.v1",
+      "method_setting_ids": [
+        "method-setting-3f07e9131d5492926afe8c63",
+        "method-setting-6945d62974714b285e78cca0"
+      ],
+      "browser_contract_bindings": {
+        "filter_match_field": "application_label",
+        "application_label_exclusions": [
+          "YouTube Vanced",
+          "Basic Daydreams"
+        ]
+      },
+      "result_digest": "sha256:003dbfa335b8b68fbece41d1f85fd8b7f481158c0417d5c7e3b43a71eb660345"
+    },
+    {
+      "fixture_id": "extension.daily-top-apps-top5.v1",
+      "method_setting_ids": ["method-setting-0695f60364ef7d52ffff3e48"],
+      "browser_contract_bindings": {
+        "enable_aggregates": true,
+        "aggregate_top_apps_limit": 5
+      },
+      "result_digest": "sha256:dcad17530dc12a2d663cfe3144c067c5a26afdb1b146e73f720001affc849487"
+    },
+    {
+      "fixture_id": "extension.strict-visual-screen-gate.v1",
+      "method_setting_ids": [
+        "method-setting-20c6291c40273f06e2bc5c67",
+        "method-setting-atomic-71ae27a346e4251d6303",
+        "method-setting-d495a09693a4d1de867e6e64"
+      ],
+      "browser_contract_bindings": {
+        "enable_screen_gated_crediting": true,
+        "screen_gating_rule": "strict_visual_only",
+        "auto_lock_bridge_seconds": 0
+      },
+      "result_digest": "sha256:17677071177a65f792f5833a054fe1a887c1a2c06030dcd9253556ca4102d077"
+    },
+    {
+      "fixture_id": "extension.unlock-to-lock-boundaries.v1",
+      "method_setting_ids": [
+        "atomic-8710eccc4e07fdf1386e9324",
+        "atomic-db0681e06cde303f9c4c9e5b",
+        "method-setting-0768c878b31dc2690db34a59",
+        "method-setting-2f457f8218476da4aa9027ec",
+        "method-setting-745bfd1fc5633f1590def35e",
+        "method-setting-c99b21724499990e7caba683"
+      ],
+      "browser_contract_bindings": {
+        "process_screen_usage": true,
+        "screen_session_construction_strategy": "unlock_to_lock_v1"
+      },
+      "result_digest": "sha256:f17268691dc7feb4ab09d06f8d54f1695d3fce2f691346c2968e933c41512ba3"
+    },
+    {
+      "fixture_id": "extension.unlock-to-off-or-lock-boundaries.v1",
+      "method_setting_ids": [
+        "atomic-174054a7d269c1868178e6fe",
+        "atomic-4ad0b4b71c91b8049ddc3eb7",
+        "atomic-5f6458eb3a4bb03c200ccf7c",
+        "atomic-7234b32e1edf5a820d71acdf",
+        "atomic-a396832ff2b10659ba2d3fb3",
+        "atomic-faba94ec219a5a7bfe5ddead"
+      ],
+      "browser_contract_bindings": {
+        "process_screen_usage": true,
+        "screen_session_construction_strategy": "unlock_to_off_or_lock_v1"
+      },
+      "result_digest": "sha256:01826e75d754ea29e590f3297c01dbf061c6921f6a767ae036c893c0728baa0c"
+    },
+    {
+      "fixture_id": "extension.drop-out-of-source-order-events.v1",
+      "method_setting_ids": ["method-setting-6022389c76d7682397a38dd7"],
+      "browser_contract_bindings": {
+        "drop_out_of_source_order_events": true
+      },
+      "result_digest": "sha256:67ca7a5d9a3944cf62c6a8b04db0879c27fa93a65817247a7fc4a308ca896a42"
+    },
+    {
+      "fixture_id": "extension.screen-session-phone-check-15s.v1",
+      "method_setting_ids": ["method-setting-d9241c9a236a0303afeef109"],
+      "browser_contract_bindings": {
+        "screen_session_classification_policy": "phone_check_inclusive_15s"
+      },
+      "result_digest": "sha256:443937fc1378896d4b1b9092f985415ea9f907fb5fafb4d27da8054ac1b880a0"
+    },
+    {
+      "fixture_id": "extension.screen-session-null-app-15s.v1",
+      "method_setting_ids": [
+        "method-setting-09a66035185861f4fb308bab",
+        "method-setting-7780ec932ecfd0b5f8af2a95",
+        "method-setting-b743a1b03254c30ec082fc96"
+      ],
+      "browser_contract_bindings": {
+        "screen_session_classification_policy": "null_no_app_strict_gt15s_vs_app"
+      },
+      "result_digest": "sha256:f22d9b928da421ee76ed3cf067d9f1002dad7e4577d1649b9b28b1633a6a64af"
+    },
+    {
+      "fixture_id": "extension.screen-session-cap-60m.v1",
+      "method_setting_ids": ["method-setting-7ce61f09839d039da32ba96a"],
+      "browser_contract_bindings": {
+        "screen_session_maximum_duration_minutes": 60,
+        "screen_session_maximum_duration_disposition": "truncate"
+      },
+      "result_digest": "sha256:f34dce65e4758102716da9dc14bb3f48856295371c692dab50c792e84c301e15"
+    },
+    {
+      "fixture_id": "extension.locked-screen-audio-exclusion.v1",
+      "method_setting_ids": ["method-setting-d5341c56652a40d5b30af0e5"],
+      "browser_contract_bindings": {
+        "locked_screen_audio_disposition": "exclude_from_phone_and_app_sessions"
+      },
+      "result_digest": "sha256:7457b09466d0a0928b6adca1c40e42a78f2ffdda1de07868cfa5dd7b140ead07"
+    },
+    {
+      "fixture_id": "extension.exclude-participant-screen-interval-strict-gt-10h.v1",
+      "method_setting_ids": ["method-setting-0e3cf5dcc381e5aba25dc213"],
+      "browser_contract_bindings": {
+        "screen_session_maximum_duration_minutes": 600,
+        "screen_session_maximum_duration_disposition": "exclude_participant"
+      },
+      "result_digest": "sha256:deb0765faa4ff7182e0eeb6b8591f95519f4eb5286256a9659087dedb8a49598"
+    },
+    {
+      "fixture_id": "output-schema.phone-app-session-tuple.v1",
+      "method_setting_ids": [
+        "method-setting-0838bf4b5c0246ccf5371d08",
+        "method-setting-6a3d2320f781538a15821616",
+        "method-setting-db0216ebf7b3be75c6ca51d0",
+        "method-setting-dd59db0aa39192129c3881eb"
+      ],
+      "browser_contract_bindings": {
+        "process_app_usage": true
+      },
+      "output_bindings": [
+        {
+          "method_setting_id": "method-setting-6a3d2320f781538a15821616",
+          "source_output_field": "user-ID",
+          "chronicle_output_kind": "app-csv",
+          "chronicle_output_column": "participant_id",
+          "source_output_position": 0
+        },
+        {
+          "method_setting_id": "method-setting-db0216ebf7b3be75c6ca51d0",
+          "source_output_field": "app-name",
+          "chronicle_output_kind": "app-csv",
+          "chronicle_output_column": "application_label",
+          "source_output_position": 1
+        },
+        {
+          "method_setting_id": "method-setting-dd59db0aa39192129c3881eb",
+          "source_output_field": "start-time",
+          "chronicle_output_kind": "app-csv",
+          "chronicle_output_column": "start_timestamp",
+          "source_output_position": 2
+        },
+        {
+          "method_setting_id": "method-setting-0838bf4b5c0246ccf5371d08",
+          "source_output_field": "end-time",
+          "chronicle_output_kind": "app-csv",
+          "chronicle_output_column": "stop_timestamp",
+          "source_output_position": 3
+        }
+      ],
+      "result_digest": "sha256:3803f20b10ea9e2f6a7b45d13d2fa579ab8f1324023bfc16788ac1b61222f94e"
+    },
+    {
+      "fixture_id": "output-schema.phone-session-tuple.v1",
+      "method_setting_ids": [
+        "method-setting-67287c58efdab036798b5e17",
+        "method-setting-c3673c2db80ff230a7368f0f",
+        "method-setting-fb1c5e5a511cefee50e4e5b6"
+      ],
+      "browser_contract_bindings": {
+        "process_screen_usage": true
+      },
+      "output_bindings": [
+        {
+          "method_setting_id": "method-setting-67287c58efdab036798b5e17",
+          "source_output_field": "User-ID",
+          "chronicle_output_kind": "screen-csv",
+          "chronicle_output_column": "participant_id",
+          "source_output_position": 0
+        },
+        {
+          "method_setting_id": "method-setting-fb1c5e5a511cefee50e4e5b6",
+          "source_output_field": "start-time",
+          "chronicle_output_kind": "screen-csv",
+          "chronicle_output_column": "start_timestamp",
+          "source_output_position": 1
+        },
+        {
+          "method_setting_id": "method-setting-c3673c2db80ff230a7368f0f",
+          "source_output_field": "stop-time",
+          "chronicle_output_kind": "screen-csv",
+          "chronicle_output_column": "stop_timestamp",
+          "source_output_position": 2
+        }
+      ],
+      "result_digest": "sha256:b5c42281e7dfefc1ce2bd96e16477a856de576403b9e14443d372cbdea64dca6"
+    }
+  ]
+}

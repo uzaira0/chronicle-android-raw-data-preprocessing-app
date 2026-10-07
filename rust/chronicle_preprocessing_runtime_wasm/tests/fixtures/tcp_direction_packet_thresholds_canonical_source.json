@@ -1,0 +1,112 @@
+{
+  "schemaVersion": "chronicle-tcp-direction-packet-thresholds-canonical-source-fixture/v1",
+  "reusedOwner": {
+    "component": "OrderedThresholdBucketizer",
+    "sourcePath": "rust/chronicle_preprocessing_runtime_wasm/src/categorical_threshold_bucketizer.rs",
+    "sourceSha256": "8d1346fcdea163de16585d45c6661c2634c3203bc7b1a8a5370615450e464c7d",
+    "semanticBoundary": "A caller-supplied finite scalar is assigned to lower-inclusive ordered buckets; this fixture narrows the scalar to a nonnegative JSON integer data-packet count for one already-constructed TCP transfer and direction."
+  },
+  "sourceWorkId": "doi:10.1145/1879141.1879176",
+  "sourceArtifacts": [
+    {
+      "role": "primary paper text",
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/work/traffic-smartphones-1879176.txt:471-474,521-530",
+      "sha256": "8d31c97cec39fdd3acabfcae62334b124c2f74a40ecc5fcbb08b1b6b213de74a"
+    },
+    {
+      "role": "primary paper PDF",
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/work/traffic-smartphones-1879176.pdf",
+      "sha256": "46ed9e4eadf3bb3a27d09e0bd940c7c8a4f36d63aca91f502b8c4fd097a9ade4"
+    },
+    {
+      "role": "canonical source-completeness audit",
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/source-completeness-audits/doi-10.1145-1879141.1879176.json",
+      "sha256": "2d1536f509929928c7fc0f9791c54ad04cb50fd469fd734c892ec9c8675c1712"
+    }
+  ],
+  "inputMeasure": "caller-derived count of data packets in one direction of one already-constructed TCP transfer",
+  "inputBoundary": "One caller-supplied nonnegative integer data-packet count. TCP transfer construction, uplink/downlink direction assignment, and classification of a packet as data rather than control traffic are established upstream.",
+  "settings": [
+    {
+      "canonicalSetting": {
+        "settingId": "method-setting-79cc8647490f5d49f2004336",
+        "parameterKey": "performance.retransmission_threshold",
+        "sourceObservedSetting": "performance.retransmission_threshold: direction has more than 10 data packets",
+        "sourceValueSha256": "ef048484d10e331fc254dbf5243952ac42b9a34a7ce2290345402c2a02bee659"
+      },
+      "supersededAliases": [],
+      "minimumInclusivePacketCount": 11,
+      "outputBoundary": "Report only whether the supplied directional data-packet count belongs in the paper's retransmission-rate population. More than 10 is exactly at least 11 only at this integer boundary.",
+      "cases": [
+        {
+          "caseId": "below",
+          "dataPacketCountInDirection": 9,
+          "expectedDisposition": "outside_source_analysis_population"
+        },
+        {
+          "caseId": "strict_equality_excluded",
+          "dataPacketCountInDirection": 10,
+          "expectedDisposition": "outside_source_analysis_population"
+        },
+        {
+          "caseId": "first_included_integer",
+          "dataPacketCountInDirection": 11,
+          "expectedDisposition": "inside_source_analysis_population"
+        }
+      ]
+    },
+    {
+      "canonicalSetting": {
+        "settingId": "method-setting-96c80bf36817f109385d2e48",
+        "parameterKey": "performance.throughput",
+        "sourceObservedSetting": "performance.throughput: TCP transfer throughput by direction for transfers with at least 10 data packets",
+        "sourceValueSha256": "271ad87ebc4aba1f3ef09cbfdfd3d88adc7745296c9076d7c13d6fc855341c3e"
+      },
+      "supersededAliases": [],
+      "minimumInclusivePacketCount": 10,
+      "outputBoundary": "Report only whether the supplied directional data-packet count belongs in the paper's throughput population. At least 10 includes equality.",
+      "cases": [
+        {
+          "caseId": "below",
+          "dataPacketCountInDirection": 9,
+          "expectedDisposition": "outside_source_analysis_population"
+        },
+        {
+          "caseId": "inclusive_equality",
+          "dataPacketCountInDirection": 10,
+          "expectedDisposition": "inside_source_analysis_population"
+        },
+        {
+          "caseId": "above",
+          "dataPacketCountInDirection": 11,
+          "expectedDisposition": "inside_source_analysis_population"
+        }
+      ]
+    }
+  ],
+  "invalidPacketCounts": [
+    {
+      "caseId": "negative",
+      "dataPacketCountInDirection": -1
+    },
+    {
+      "caseId": "fractional",
+      "dataPacketCountInDirection": 10.5
+    },
+    {
+      "caseId": "numeric_string",
+      "dataPacketCountInDirection": "10"
+    },
+    {
+      "caseId": "missing",
+      "dataPacketCountInDirection": null
+    }
+  ],
+  "invalidCountError": "nonnegative_integer_directional_data_packet_count_required",
+  "limitations": [
+    "The fixture does not construct TCP transfers, infer direction, or classify packets as data packets.",
+    "The output is population-boundary satisfaction; retransmission rate and throughput values are not computed.",
+    "No flow timeout, retransmission-identification rule, throughput unit, duration denominator, or missing-transfer policy is inferred.",
+    "The source has no released trace rows or analysis code, so this binding proves only the two disclosed packet-count predicates."
+  ]
+}

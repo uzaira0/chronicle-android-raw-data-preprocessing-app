@@ -9,7 +9,14 @@ const webDir = path.resolve(scriptDir, "..");
 const repositoryRoot = path.resolve(webDir, "..");
 const artifactMode = process.argv[2] ?? "cloudflare";
 
-const sharedRequiredFiles = ["index.html", "manifest.webmanifest", "sw.js", ".vite/manifest.json"];
+const sharedRequiredFiles = [
+  "index.html",
+  "manifest.webmanifest",
+  "sw.js",
+  ".vite/manifest.json",
+  "THIRD-PARTY-NOTICES.txt",
+  "sbom.cdx.json",
+];
 
 const cloudflareRequiredFiles = ["_headers", ...sharedRequiredFiles];
 const cloudflareRequiredHeaderSnippets = [
@@ -270,6 +277,65 @@ async function checkBundleBudget(artifactDir: string): Promise<Record<string, nu
   return { totalBytes: total, ...byExtension };
 }
 
+type SbomComponent = { name?: unknown; version?: unknown; purl?: unknown };
+
+/**
+ * sbom.cdx.json (scripts/generate-sbom.sh) must be a CycloneDX document whose
+ * components cover everything THIRD-PARTY-NOTICES.txt says the artifact
+ * ships: every bundled npm package and every Rust crate linked into the WASM,
+ * at the same version. The two files come from different producers (syft over
+ * the lockfiles; rollup-plugin-license and rust_wasm_notices.mjs), so
+ * agreement is a real cross-check, not a restatement.
+ */
+function checkSbom(artifactName: string, sbomText: string, notices: string): void {
+  const fail = (message: string): never => {
+    throw new Error(`${artifactName}/sbom.cdx.json ${message}`);
+  };
+  let sbom: { bomFormat?: unknown; specVersion?: unknown; metadata?: { component?: { name?: unknown } }; components?: unknown };
+  try {
+    sbom = JSON.parse(sbomText) as typeof sbom;
+  } catch (error) {
+    return fail(`is not JSON: ${String(error)}`);
+  }
+  if (sbom.bomFormat !== "CycloneDX" || typeof sbom.specVersion !== "string") {
+    fail("is not a CycloneDX document");
+  }
+  if (sbom.metadata?.component?.name !== "chronicle-android-raw-data-preprocessing-app") {
+    fail("does not name the application as its subject (metadata.component)");
+  }
+  if (!Array.isArray(sbom.components) || sbom.components.length === 0) {
+    fail("lists no components");
+  }
+  const shipped = new Set<string>();
+  for (const component of sbom.components as SbomComponent[]) {
+    if (typeof component.purl !== "string" || typeof component.name !== "string" || typeof component.version !== "string") {
+      fail(`has a component without name, version and purl: ${JSON.stringify(component)}`);
+    }
+    const ecosystem = (component.purl as string).startsWith("pkg:npm/") ? "npm" : (component.purl as string).startsWith("pkg:cargo/") ? "cargo" : null;
+    if (ecosystem === null) fail(`has a component outside npm/cargo: ${String(component.purl)}`);
+    shipped.add(`${ecosystem}:${String(component.name)}@${String(component.version)}`);
+  }
+  // Section headings start a line; the table of contents indents them.
+  const rustStart = notices.indexOf("\n2. Rust crates linked into the WebAssembly packages\n");
+  const portedStart = notices.indexOf("\n3. Code and material ported from other projects\n");
+  if (rustStart < 0 || portedStart < rustStart) {
+    throw new Error(`${artifactName}/THIRD-PARTY-NOTICES.txt has no npm / Rust / ported-code section headings`);
+  }
+  const npmSection = notices.slice(0, rustStart);
+  const rustSection = notices.slice(rustStart, portedStart);
+  const expected = [
+    ...[...npmSection.matchAll(/^--- (\S+) (\S+)  \[/gm)].map(([, name, version]) => `npm:${name}@${version}`),
+    ...[...rustSection.matchAll(/^ {2}(\S+) (\S+) {2}\[/gm)].map(([, name, version]) => `cargo:${name}@${version}`),
+  ];
+  if (!expected.some((entry) => entry.startsWith("npm:")) || !expected.some((entry) => entry.startsWith("cargo:"))) {
+    throw new Error(`${artifactName}/THIRD-PARTY-NOTICES.txt lists no npm packages or no Rust crates to cross-check the SBOM against`);
+  }
+  const missing = expected.filter((entry) => !shipped.has(entry));
+  if (missing.length > 0) {
+    fail(`omits ${missing.length} package(s) THIRD-PARTY-NOTICES.txt says ship: ${missing.join(", ")}`);
+  }
+}
+
 async function main(): Promise<void> {
   const artifactDir = getArtifactDir(artifactMode);
   const requiredFiles = artifactMode === "github-pages" ? [".nojekyll", ...sharedRequiredFiles] : cloudflareRequiredFiles;
@@ -313,6 +379,34 @@ async function main(): Promise<void> {
   );
   if (!metaCspMatch) {
     throw new Error(`${path.basename(artifactDir)}/index.html is missing the CSP meta tag fallback`);
+  }
+  // License notices for every bundled npm package, every Rust crate linked
+  // into the WASM (with the Apache NOTICE files Arrow/Parquet require), and the
+  // ported MIT code (web/scripts/third_party_notices.mts).
+  const notices = await readFile(path.join(artifactDir, "THIRD-PARTY-NOTICES.txt"), "utf-8");
+  for (const required of [
+    "1. npm packages bundled into the JavaScript",
+    "--- react ",
+    "--- comlink ",
+    "2. Rust crates linked into the WebAssembly packages",
+    "--- arrow-ipc 59.1.0: NOTICE",
+    "--- parquet 59.1.0: NOTICE",
+    "3. Code and material ported from other projects",
+    "Copyright (c) 2025 patrickzerrer",
+  ]) {
+    if (!notices.includes(required)) {
+      throw new Error(`${path.basename(artifactDir)}/THIRD-PARTY-NOTICES.txt is missing: ${required}`);
+    }
+  }
+  checkSbom(
+    path.basename(artifactDir),
+    await readFile(path.join(artifactDir, "sbom.cdx.json"), "utf-8"),
+    notices,
+  );
+  // GitHub Pages applies no Referrer-Policy header, so the document carries the
+  // same policy _headers declares for hosts that do apply it.
+  if (!/<meta\s+name="referrer"\s+content="no-referrer"\s*\/?>/.test(indexHtml)) {
+    throw new Error(`${path.basename(artifactDir)}/index.html is missing <meta name="referrer" content="no-referrer">`);
   }
 
   if (artifactMode === "github-pages") {

@@ -105,9 +105,10 @@ chron:UsageEpisodeProvenanceShape
         sh:message "A usage episode assertion must be reconstructed_by an execution." ;
     ] .
 
-# A6. Every effective-usage figure must cite the ParameterSet AND the operation
-#     execution that produced it — a headline number with no provenance is
-#     exactly what this ontology forbids.
+# A6. Every effective-usage measure — one screen-gated credited app episode,
+#     per the class's current shape — must cite the ParameterSet AND the
+#     operation execution that produced it. A credited row with no provenance
+#     is exactly what this ontology forbids.
 chron:EffectiveUsageProvenanceShape
     a sh:NodeShape ;
     sh:targetClass chron:EffectiveUsageMeasure ;

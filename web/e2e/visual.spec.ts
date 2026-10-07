@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { APP_ONLY_RAW_CSV } from "./fixtures";
+import { APP_AND_SCREEN_RAW_CSV, APP_ONLY_RAW_CSV } from "./fixtures";
 import {
   gotoApp,
   installDeterministicRuntime,
@@ -37,9 +37,19 @@ test.describe("Visual regression", { tag: "@visual" }, () => {
     "visual baselines are chromium-only",
   );
 
+  // macOS draws overlay or classic scrollbars depending on whether a mouse is
+  // connected ("Show scroll bars: automatically"), and a classic scrollbar
+  // narrows the page by about 15 px, shifting every element. Hiding scrollbars
+  // keeps the baselines independent of the attached pointing device. The
+  // app's CSP forbids injected styles, so these screenshot tests bypass it.
+  test.use({ bypassCSP: true });
+
   test.beforeEach(async ({ page }) => {
     await installDeterministicRuntime(page);
     await gotoApp(page);
+    await page.addStyleTag({
+      content: "* { scrollbar-width: none !important; }",
+    });
   });
 
   test("app shell on load — Settings tab", async ({ page }) => {
@@ -63,7 +73,9 @@ test.describe("Visual regression", { tag: "@visual" }, () => {
 
   test("Files tab — file uploaded", async ({ page }) => {
     await page.getByRole("tab", { name: /Files/i }).click();
-    await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
+    // Screen events included, so the default screen-usage output has input
+    // and the pill reads Ready rather than the no-screen-events Review.
+    await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_AND_SCREEN_RAW_CSV, "text/csv");
     // Wait for async file inspection to settle so the status pill and row
     // counts are stable before capturing.
     await expect(page.getByTestId("raw-file-row")).toHaveCount(1);
@@ -81,6 +93,9 @@ test.describe("Visual regression", { tag: "@visual" }, () => {
     const toast = page.locator(".toast");
     await toast.getByRole("button", { name: "Dismiss" }).click();
     await expect(toast).toHaveCount(0);
+    // The toast sits bottom-centre, so the pointer that dismissed it rests on
+    // a download link; move it off so the baseline has no hover underline.
+    await page.mouse.move(0, 0);
     await expect(page).toHaveScreenshot(screenshotOptions(page));
   });
 });

@@ -1,11 +1,12 @@
 use _rust_app_usage_matcher::{
     match_app_usage_core, match_app_usage_update_indices_core, MatchOptions,
 };
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use std::hint::black_box;
 
-fn make_input(
-    n: usize,
-) -> (
+/// Matcher input columns: app codes, timestamps (ns), then the resumed,
+/// same-app stop, other-app stop, stopped and background event flags.
+type MatcherInput = (
     Vec<i32>,
     Vec<i64>,
     Vec<bool>,
@@ -13,7 +14,9 @@ fn make_input(
     Vec<bool>,
     Vec<bool>,
     Vec<bool>,
-) {
+);
+
+fn make_input(n: usize) -> MatcherInput {
     let mut app_codes = Vec::with_capacity(n);
     let mut timestamps = Vec::with_capacity(n);
     let mut resumed = Vec::with_capacity(n);

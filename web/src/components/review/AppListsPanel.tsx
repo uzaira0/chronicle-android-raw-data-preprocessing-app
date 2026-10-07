@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import Papa from "papaparse";
 
@@ -76,6 +76,7 @@ function SmallList({
 
 function CodebookList(): ReactElement {
   const [query, setQuery] = useState("");
+  const searchInputId = useId();
   const [rows, setRows] = useState<Row[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -115,7 +116,11 @@ function CodebookList(): ReactElement {
         app_codebook <small>9k+ packages</small>
       </h3>
       <p className="review-alist__note">{NOTES.app_codebook}</p>
+      <label className="settings-field__label" htmlFor={searchInputId}>
+        Search the codebook
+      </label>
       <input
+        id={searchInputId}
         type="search"
         className="input review-alist__search"
         placeholder="search codebook (package or label, 2+ chars)…"

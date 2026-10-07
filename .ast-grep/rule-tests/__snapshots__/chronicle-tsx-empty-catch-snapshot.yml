@@ -1,0 +1,38 @@
+id: chronicle-tsx-empty-catch
+snapshots:
+  const view = <div onClick={() => save().catch(() => {})} />;:
+    labels:
+    - source: '{}'
+      style: primary
+      start: 52
+      end: 54
+    - source: catch
+      style: secondary
+      start: 40
+      end: 45
+    - source: save().catch
+      style: secondary
+      start: 33
+      end: 45
+    - source: save().catch(() => {})
+      style: secondary
+      start: 33
+      end: 55
+    - source: (() => {})
+      style: secondary
+      start: 45
+      end: 55
+    - source: () => {}
+      style: secondary
+      start: 46
+      end: 54
+  try { load(); } catch {}:
+    labels:
+    - source: '{}'
+      style: primary
+      start: 22
+      end: 24
+    - source: catch {}
+      style: secondary
+      start: 16
+      end: 24

@@ -10,15 +10,16 @@ import {
   trackExternalRequests,
   waitForServiceWorkerControl,
 } from "./helpers";
+import { startInterruptibleOrigin } from "./interruptibleOrigin";
 
 /**
  * Persona 9 — Service worker update tester.
  *
  * The app's SW precaches the shell (skipWaiting + clients.claim) so it works
  * offline. The update flow must keep the page usable, never destroy in-memory
- * work, prune stale caches, and keep serving offline after an update. (Only the
- * chromium project is configured; iOS/webkit SW quirks are a known coverage gap
- * reported separately.)
+ * work, prune stale caches, and keep serving offline after an update. Runs on
+ * chromium, firefox and webkit-durable (whose default context here is
+ * Playwright's ephemeral WebKit context, where the worker installs).
  */
 test.describe.configure({ mode: "serial" });
 
@@ -58,11 +59,14 @@ test("the shell is precached and stale caches are pruned to the current version"
     const current = shellKeys[0];
     const cache = current ? await caches.open(current) : null;
     const requests = cache ? await cache.keys() : [];
-    return { shellKeys, entryCount: requests.length };
+    const scope = (await navigator.serviceWorker.getRegistration())?.scope ?? "";
+    return { shellKeys, entryCount: requests.length, scope };
   });
   // Exactly one shell cache version is live (older versions were pruned on activate).
   expect(cacheState.shellKeys).toHaveLength(1);
-  expect(cacheState.shellKeys[0]).toBe("chronicle-local-shell-v3");
+  // Named after the worker's scope, so co-origin apps never share a cache.
+  expect(cacheState.shellKeys[0]).toMatch(/^chronicle-local-shell-v3(-[0-9a-f]+|-dev)?@https?:\/\/.+\/$/);
+  expect(cacheState.shellKeys[0]?.endsWith(`@${cacheState.scope}`)).toBe(true);
   expect(cacheState.entryCount).toBeGreaterThan(0);
   assertNoExternalRequests(requestTracker);
 });
@@ -103,27 +107,49 @@ test("no update banner appears on a clean first load (no spurious prompt)", asyn
 });
 
 test("after an update, the app still cold-starts offline from the precache", async ({
-  page,
   context,
+  baseURL,
+  browserName,
 }) => {
-  await waitForServiceWorkerControl(page);
-  await page.evaluate(async () => {
-    const registration = await navigator.serviceWorker.ready;
-    await registration.update();
-  });
-  await waitForServiceWorkerControl(page);
+  // The app runs through a relay the test can switch off, so going offline is
+  // a network error on every engine (see interruptibleOrigin.ts for why
+  // context.setOffline alone cannot be used on WebKit).
+  const origin = await startInterruptibleOrigin(baseURL ?? "http://127.0.0.1:4173");
+  try {
+    const page = await context.newPage();
+    page.on("pageerror", (error) => pageErrors.push(String(error)));
+    const tracker = trackExternalRequests(page);
+    await installDeterministicRuntime(page);
+    await page.goto(origin.url);
+    await expect(
+      page.getByRole("heading", { name: "Chronicle Android Raw Data Preprocessor" }),
+    ).toBeVisible();
+    await waitForServiceWorkerControl(page);
+    await page.evaluate(async () => {
+      const registration = await navigator.serviceWorker.ready;
+      await registration.update();
+    });
+    await waitForServiceWorkerControl(page);
 
-  // Pull the network and reload — the shell must come from cache. Offline
-  // cold-start can be slow under parallel load, so allow generous headroom.
-  await context.setOffline(true);
-  await page.reload();
-  await expect(
-    page.getByRole("heading", { name: "Chronicle Android Raw Data Preprocessor" }),
-  ).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByText(/your data never leaves your device/i)).toBeVisible();
-  // The settings UI is interactive from the precache (no network).
-  await expect(page.getByTestId("settings-search-input")).toBeVisible();
-
-  await context.setOffline(false);
+    // Pull the network and reload — the shell must come from cache. Offline
+    // cold-start can be slow under parallel load, so allow generous headroom.
+    origin.goOffline();
+    // The relay really is down: a request that bypasses the worker fails.
+    await expect(fetch(origin.url)).rejects.toThrow();
+    // Where the engine's offline emulation reaches the worker, use it as well,
+    // so navigator.onLine reads false as it would for a real user.
+    if (browserName !== "webkit") await context.setOffline(true);
+    await page.reload();
+    await expect(
+      page.getByRole("heading", { name: "Chronicle Android Raw Data Preprocessor" }),
+    ).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(/your data never leaves your device/i)).toBeVisible();
+    // The settings UI is interactive from the precache (no network).
+    await expect(page.getByTestId("settings-search-input")).toBeVisible();
+    assertNoExternalRequests(tracker);
+  } finally {
+    await context.setOffline(false);
+    await origin.close();
+  }
   assertNoExternalRequests(requestTracker);
 });

@@ -1,0 +1,78 @@
+{
+  "schemaVersion": "chronicle-excessive-daily-epoch-frequency-source-fixture/v1",
+  "sourceWorkId": "doi:10.4088/jcp.15m10310",
+  "canonicalIdentity": {
+    "settingId": "method-setting-36820121d28fe36b6ae1ca5b",
+    "sourceCurrentSettingId": "method-setting-36820121d28fe36b6ae1ca5b",
+    "sourceExtractionId": "extraction-ed0490b2d5b9b4e60b69",
+    "sourceExecutionUnitId": "screen-epoch-frequency-15m10310:protocol.excessive_use_threshold",
+    "aliasResolution": "canonical_current_two_superseded_aliases",
+    "supersededAliasSettingIds": [
+      "method-setting-814e56a2dba8752a8ca3e7bf",
+      "method-setting-atomic-211caed123b1536e760c"
+    ],
+    "tombstoneRegistrySha256": "018221f6036218887355a0a2dcd9d6d54a9e90eb93f380b4e1b81cc75c0f76b5"
+  },
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-36820121d28fe36b6ae1ca5b",
+    "parameterKey": "protocol.excessive_use_threshold",
+    "sourceObservedSetting": "protocol.excessive_use_threshold: {\"criterion\":\"criterionapp A7\",\"feature\":\"frequency\",\"operator\":\"strictly greater than\",\"threshold\":68.4,\"unit\":\"epochs/day\",\"inherited_from_reference\":12}",
+    "sourceValueSha256": "d9b45a75384e82de0fdcb9be1e21de021a043c748931413a1fc004a7766a05f6"
+  },
+  "sourceArtifacts": [
+    {
+      "locator": ".tmp-literature-review-private/strict-reference-frontier-20260830T220550Z/text/lin-2017-app-measures.txt:140-156,281-283",
+      "sha256": "776fa598cac4d28b198263bd5ea5a984d11515e67564444b242df0d1e0723e6e"
+    },
+    {
+      "locator": ".tmp-literature-review-private/authenticated-cookie-recovery-wave-20260830/retrieved/app-measures-addiction-2017/primary.pdf",
+      "sha256": "1396f31fd2d4028a17fd643b534d820e0f5e48d69205787a43f096b41be9409e"
+    },
+    {
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/source-completeness-audits/doi-10.4088-jcp.15m10310.json#key=protocol.excessive_use_threshold",
+      "sha256": "769abdeaa949dfd90569c022865f30d8c5d9e9d5d5d5e922f0d382c9ed2792a8"
+    },
+    {
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/method-setting-alias-tombstones.json#lookup=protocol.excessive_use_threshold",
+      "sha256": "018221f6036218887355a0a2dcd9d6d54a9e90eb93f380b4e1b81cc75c0f76b5"
+    }
+  ],
+  "inputBoundary": "One caller-supplied finite frequency parameter in epochs per day. The study defines an epoch as screen-on through the successive screen-off and the frequency parameter as mean daily epoch count for one month; raw event pairing, day boundaries, exposure completeness, and mean derivation remain upstream.",
+  "outputBoundary": "Classify criterionapp A7 excessive use only when the frequency parameter is strictly greater than 68.4 epochs per day; equality and lower values are not excessive.",
+  "limitations": [
+    "This binding implements only the canonical criterionapp A7 frequency threshold and does not implement psychiatric diagnosis, interview adjudication, or other addiction criteria.",
+    "The threshold is reported as inherited from reference 12; this fixture preserves that provenance without claiming to execute the referenced study.",
+    "The table labels daily use frequency with '(F-trend)' while the methods prose calls the thresholded value the frequency parameter; this binding follows the canonical audited frequency atom and does not collapse that terminology into the separate trend computation.",
+    "A missing or nonfinite frequency fails closed; no rounding, tolerance, denominator repair, partial-month rule, or count coercion is invented."
+  ],
+  "pivotEpochsPerDay": 68.4,
+  "categories": {
+    "below": "not_excessive",
+    "equal": "not_excessive",
+    "above": "excessive"
+  },
+  "observations": [
+    {
+      "caseId": "immediately-below-threshold",
+      "epochsPerDay": 68.399,
+      "expectedClass": "not_excessive"
+    },
+    {
+      "caseId": "exact-threshold-is-not-strictly-greater",
+      "epochsPerDay": 68.4,
+      "expectedClass": "not_excessive"
+    },
+    {
+      "caseId": "immediately-above-threshold",
+      "epochsPerDay": 68.401,
+      "expectedClass": "excessive"
+    }
+  ],
+  "invalidObservations": [
+    {
+      "caseId": "missing-frequency",
+      "epochsPerDay": null,
+      "expectedError": "daily_epoch_frequency_required"
+    }
+  ]
+}

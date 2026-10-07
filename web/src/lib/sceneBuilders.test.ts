@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -7,6 +9,7 @@ import {
   buildTimelineScene,
   buildWaterfallScene,
   CATEGORY_COLORS,
+  heatmapLegendLabels,
 } from "@/lib/plotGenerator";
 import { renderSceneToSvg, type RectPrim, type SceneRegion } from "@/lib/plotScene";
 
@@ -401,5 +404,166 @@ describe("buildHeatmapScene", () => {
     expect(cellRects.length).toBeGreaterThanOrEqual(24);
     const texts = scene.primitives.filter((p) => p.type === "text").map((p) => (p as { text: string }).text);
     expect(texts).toContain("P01 — Hourly Activity Heatmap");
+  });
+});
+
+/**
+ * Every hour position in these scenes is computed through `Intl` in one
+ * timezone. A plot that does not name it cannot be read back correctly, and two
+ * exports of the same run could disagree about what "14:00" means. The heatmap
+ * always stamped it; the app-usage and screen-usage reports did not.
+ */
+describe("timezone stamp on report scenes", () => {
+  const stampOf = (scene: { primitives: { type: string }[] }): string | undefined =>
+    scene.primitives
+      .filter((p) => p.type === "text")
+      .map((p) => (p as unknown as { text: string }).text)
+      .find((text) => text.startsWith("Created on "));
+
+  it("names the timezone on the app-usage report scene", () => {
+    const scene = buildTimelineScene(
+      "P01",
+      [usage("Games", 10, 11)],
+      "America/Chicago",
+      { includeFilteredAppUsageInPlots: false },
+      "1.0.0",
+      "March 7, 2026",
+    );
+    expect(stampOf(scene)).toContain("America/Chicago");
+  });
+
+  it("names the timezone on the screen-usage report scene", () => {
+    const rows = [
+      {
+        date: "2026-03-07",
+        start_timestamp_ns: at(10),
+        stop_timestamp_ns: at(11),
+        event_timestamp_ns: at(10),
+      },
+    ] as unknown as Parameters<typeof buildScreenScene>[1];
+    const scene = buildScreenScene(
+      "P01",
+      rows,
+      "Asia/Tokyo",
+      "1.0.0",
+      "March 7, 2026",
+      [at(10), at(11)],
+    );
+    expect(stampOf(scene)).toContain("Asia/Tokyo");
+  });
+
+  it("carries the stamp through into the rendered SVG", () => {
+    const scene = buildTimelineScene(
+      "P01",
+      [usage("Games", 10, 11)],
+      "Europe/Berlin",
+      { includeFilteredAppUsageInPlots: false },
+      "1.0.0",
+      "March 7, 2026",
+    );
+    expect(renderSceneToSvg(scene)).toContain("Europe/Berlin");
+  });
+
+  /**
+   * G6: PNG and SVG cannot drift because both are rendered from ONE Scene, not
+   * because two renderers agree. Assert the structural fact directly — every
+   * app-usage and screen-usage export entry point goes through the same scene
+   * builder — rather than claiming it from a single-renderer check.
+   */
+  it("routes both export formats through the same scene builder", () => {
+    const source = readFileSync(
+      new URL("./plotGenerator.ts", import.meta.url),
+      "utf8",
+    );
+    for (const builder of ["buildTimelineScene", "buildScreenScene"]) {
+      // Both renderers consume a Scene from this builder — directly as an
+      // argument, or via a local bound one statement earlier.
+      const uses = (renderer: string): boolean =>
+        new RegExp(`${renderer}\\(\\s*\\n?\\s*${builder}\\(`).test(source) ||
+        new RegExp(
+          `const scene = ${builder}\\([\\s\\S]{0,400}?${renderer}\\(\\s*scene`,
+        ).test(source);
+      expect(uses("sceneToPngBlob"), `PNG uses ${builder}`).toBe(true);
+      expect(uses("sceneToSvgBlob"), `SVG uses ${builder}`).toBe(true);
+    }
+    // And the stamp is emitted once, by the shared title builder.
+    expect(source.match(/build \$\{BUILD_LABEL\} · \$\{timezone\}/g)).toHaveLength(
+      1,
+    );
+  });
+});
+
+/**
+ * `maxCell` is seconds and the colour ramp normalises by it, so saturation is
+ * independent of magnitude. Rounding the label to whole minutes printed
+ * "0 min" at BOTH ends for a sparse participant whose busiest hour held under
+ * 30 s — a solid blue column above a scale reading zero to zero.
+ */
+describe("heatmapLegendLabels", () => {
+  it("never prints the same label at both ends for a non-empty scale", () => {
+    // 0.01 and 0.04 are the G2 regression: one decimal rounded both of them to
+    // "0 s", reproducing the original zero-to-zero legend one unit down. 59/60
+    // and 3599/3600 pin the unit boundaries either side.
+    for (const seconds of [
+      0.01, 0.04, 0.05, 0.1, 1, 5, 20, 29, 59, 60, 61, 90, 300, 3599, 3600,
+    ]) {
+      const { max, min } = heatmapLegendLabels(seconds);
+      expect(max, `maxCell=${seconds}s`).not.toBe(min);
+    }
+  });
+
+  it("states the bound below what a decimal can show, instead of a rounded zero", () => {
+    expect(heatmapLegendLabels(0.01)).toEqual({ max: "<0.1 s", min: "0 s" });
+    expect(heatmapLegendLabels(0.04)).toEqual({ max: "<0.1 s", min: "0 s" });
+    expect(heatmapLegendLabels(0.05)).toEqual({ max: "0.1 s", min: "0 s" });
+  });
+
+  it("pins the seconds/minutes boundary", () => {
+    expect(heatmapLegendLabels(59)).toEqual({ max: "59 s", min: "0 s" });
+    expect(heatmapLegendLabels(60)).toEqual({ max: "1.0 min", min: "0 min" });
+    expect(heatmapLegendLabels(61)).toEqual({ max: "1.0 min", min: "0 min" });
+  });
+
+  it("switches to seconds below one minute so both ends share a unit", () => {
+    expect(heatmapLegendLabels(20)).toEqual({ max: "20 s", min: "0 s" });
+    expect(heatmapLegendLabels(2.5)).toEqual({ max: "2.5 s", min: "0 s" });
+    expect(heatmapLegendLabels(5)).toEqual({ max: "5 s", min: "0 s" });
+  });
+
+  it("keeps sub-minute resolution up to ten minutes and rounds above it", () => {
+    expect(heatmapLegendLabels(90)).toEqual({ max: "1.5 min", min: "0 min" });
+    expect(heatmapLegendLabels(3600)).toEqual({ max: "60 min", min: "0 min" });
+  });
+
+  it("reports a degenerate empty scale as zero at both ends", () => {
+    expect(heatmapLegendLabels(0)).toEqual({ max: "0 min", min: "0 min" });
+  });
+
+  it("puts the chosen labels into the heatmap scene itself", () => {
+    const sparse = [
+      {
+        date: "2026-03-07",
+        start_timestamp_ns: at(10),
+        stop_timestamp_ns: at(10) + 20_000_000_000n,
+        event_timestamp_ns: at(10),
+        interaction_type: "App Usage",
+        broad_app_category: "Games",
+        app_package_name: "com.example.app",
+      },
+    ] as unknown as Parameters<typeof buildHeatmapScene>[1];
+    const scene = buildHeatmapScene(
+      "P01",
+      sparse,
+      "UTC",
+      { includeFilteredAppUsageInPlots: false },
+      "1.0.0",
+      "March 7, 2026",
+    );
+    const texts = scene.primitives
+      .filter((p) => p.type === "text")
+      .map((p) => (p as { text: string }).text);
+    expect(texts).toContain("20 s");
+    expect(texts).toContain("0 s");
+    expect(texts).not.toContain("0 min");
   });
 });

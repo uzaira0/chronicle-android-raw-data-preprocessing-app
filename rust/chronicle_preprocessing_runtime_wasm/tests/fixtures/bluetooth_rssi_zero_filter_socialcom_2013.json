@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "chronicle-bluetooth-rssi-zero-filter-source-fixture/v1",
+  "sourceWorkId": "doi:10.1109/socialcom.2013.118",
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-0f1f138af4fffdf768a93802",
+    "parameterKey": "features.bluetooth_filter",
+    "sourceObservedSetting": "features.bluetooth_filter: {\"predicate\":\"RSSI = 0\",\"interpretation\":\"best proxy for close social proximity\"}",
+    "sourceValueSha256": "33cc128b43a73c36c41a969af9e5a0a3d7573e957d25434211a11db574c9ada8"
+  },
+  "sourceArtifacts": [
+    {
+      "locator": ".tmp-literature-review-private/corrective-queue-audit-b-20260831/packet-05-ranks-124-173/fulltext/rank147.txt:103-125",
+      "sha256": "299b50324299c85002330ac67bc02d33afa7b2865fd4c8f5379530c5c219b295"
+    },
+    {
+      "locator": ".tmp-literature-review-private/corrective-queue-audit-b-20260831/packet-05-ranks-124-173/fulltext/rank147.pdf#audit-locator=rank147.txt:103-125",
+      "sha256": "63dcaed448d25876d801e9eaef94df502a78036eec3a9012912b48b8bb2f19c9"
+    }
+  ],
+  "inputBoundary": "One caller-parsed finite integer-valued RSSI value from an already-selected Bluetooth-hit record; the source explicitly describes RSSI as an 8-bit integer.",
+  "outputBoundary": "Retain exactly RSSI-equals-zero records as the paper's close-social-proximity proxy; exclude both negative and positive values.",
+  "limitations": [
+    "The source describes RSSI as an 8-bit relative indicator but does not disclose the study database field schema or serialization, so this binding does not parse raw records or infer a signed storage range.",
+    "This binding does not coerce missing, textual, or non-finite RSSI values.",
+    "This binding does not calibrate physical distance, group Bluetooth hits into scans, identify devices or contacts, deduplicate records, or construct downstream proximity summaries.",
+    "Exact numeric equality to zero is used; no tolerance or neighboring range is inferred."
+  ],
+  "pivot": 0,
+  "categories": {"below": "exclude", "equal": "retain", "above": "exclude"},
+  "observations": [
+    {"caseId": "below-grpr", "rssi": -1, "expectedDisposition": "exclude"},
+    {"caseId": "ideal-grpr", "rssi": 0, "expectedDisposition": "retain"},
+    {"caseId": "above-grpr", "rssi": 1, "expectedDisposition": "exclude"}
+  ],
+  "rejectedObservations": [
+    {"caseId": "fractional-rssi", "rssi": 0.5, "reason": "source_requires_integer_rssi"}
+  ]
+}

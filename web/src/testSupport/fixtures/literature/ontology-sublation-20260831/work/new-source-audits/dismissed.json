@@ -1,0 +1,544 @@
+{
+  "schema_version": "chronicle-source-completeness-audit/v1-candidate",
+  "source_work_id": "doi:10.1145/3229434.3229445",
+  "title": "Dismissed! A Detailed Exploration of How Mobile Phone Users Handle Push Notifications",
+  "authors": ["Martin Pielot", "Amalia Vradi", "Souneil Park"],
+  "audited_at": "2026-09-25",
+  "audit_status": "isolated_new_source_candidate_not_canonical",
+  "completion_verdict": "source_method_specified_partially; exact_execution_and_result_replication_unproven",
+  "source_artifacts": [
+    {
+      "path": ".tmp-literature-review-private/authenticated-exact-target-discovery-wave2/artifacts/pdfs/10.1145_3229434.3229445.pdf",
+      "sha256": "f839a5caed8527105f98be9cb7875a02e987c5326d442b79b428e243ad3185ee",
+      "bytes": 507196,
+      "pages": 11,
+      "internal_identity": "PDF title, three authors, MobileHCI 2018, and printed DOI 10.1145/3229434.3229445 agree",
+      "inspection": "All 11 pages read in extracted text; PDF pages 4-8 visually checked for methods, Tables 1-5, and Figures 1-3. Figure 1 is explicitly an iOS illustration, not an Android input schema."
+    },
+    {
+      "path": ".tmp-literature-review-private/authenticated-exact-target-discovery-wave2/artifacts/fulltext/10.1145_3229434.3229445.txt",
+      "sha256": "03c90bfa21e68c0aec58585f81d5e54cebb9fe6d629083fa144f35d83b13acb7",
+      "bytes": 79060,
+      "inspection": "773-line layout extraction of the verified PDF; printed page numbers, not two-column line order, govern semantic locators"
+    }
+  ],
+  "quarantined_artifacts_not_evidence": [
+    {
+      "path": ".tmp-literature-review-private/authenticated-exact-target-discovery-wave2/artifacts/supplements/10.1145_3229434.3229445-arxiv-source.tar",
+      "reason": "Archive is internally titled Measuring, Understanding, and Classifying News Media Sympathy on Twitter after Crisis Events, not Dismissed!; it cannot supply code, data, or methods for this audit"
+    }
+  ],
+  "artifact_sweep": {
+    "published_primary": "acquired_and_verified",
+    "dataset_and_analysis_scripts": "Paper claims data and scripts were appended at pp. 3:1 and 3:5, but current source route records CLAIMED_BUT_NOT_EXPOSED; no verified Dismissed! code, dataset, README, exact title-translation list, or category mapping file is available to this audit",
+    "supplementary_statistics": "p. 3:7 says full attendance-time results are in an appendix, and p. 3:1 says data/code are appended; no correctly identified appendix is locally available",
+    "collector_build": "Dedicated study application is described but source, build identity, raw schema, and callback key mapping are not released in verified artifacts",
+    "bibliography": "31 numbered references inspected on pp. 3:9-3:11; method-relevant links listed below, citation-only is not full-text checking"
+  },
+  "inclusion_decision": {
+    "status": "retain_candidate",
+    "reason": "The authors analyze Android NotificationListenerService posted/removed callbacks, Accessibility app-launch/drawer events, and screen broadcasts, and explicitly transform callbacks into perceived alerts and attendance measures",
+    "locator": "PDF pp. 3:1, 3:3-3:7"
+  },
+  "real_execution_topology": {
+    "configuration_count": 1,
+    "relation": "one fixed source-described cleaning/classification/attendance pipeline with five category strata and several downstream analyses; categories, report tables, statistical comparisons, and four flow-snapshot times are not invented user-selectable method variants",
+    "ordered_stages": [
+      "acquire notification posted/removed, screen, app-launch, and drawer events",
+      "remove translated two-unread-messages summary titles",
+      "detect same-second posted-event bursts and retain only the last posted callback per burst",
+      "map app packages through Google Play category or manual package rule into five analysis categories; remove unmapped and expressly excluded alert categories",
+      "identify WhatsApp group messages by title patterns",
+      "infer seen/checked/consumed/removed attendance from pending alerts and event order",
+      "calculate per-user-per-day volumes, category conversion, immediate-attendance proportions, state-flow snapshots, and inferential comparisons"
+    ],
+    "source_variant_status": "No source-declared alternative cleaning specification or multiverse is reported"
+  },
+  "disclosed_atoms": [
+    {
+      "key": "cohort.android_4_3_minimum_and_ten_days",
+      "role": "quality_control",
+      "target": "participant_record",
+      "value": {"platform": "Android", "minimum_os_version": "4.3", "minimum_contributed_days": 10, "included_participants": 278},
+      "locator": "PDF p. 3:3 §Participants",
+      "evidence_status": "explicit",
+      "mapping": "Existing MethodSettingAssertion can preserve values; exact contributed-day definition and missing-data handling are unreported."
+    },
+    {
+      "key": "collection.period_and_locale",
+      "role": "acquisition",
+      "target": "study_window",
+      "value": {"period": "April-July 2016", "place": "Spain", "mean_participation_days": 26.59, "median_participation_days": 26.5},
+      "locator": "PDF pp. 3:1, 3:3 §Procedure/Participants",
+      "evidence_status": "explicit",
+      "mapping": "Existing study-window and provenance terms; participant-specific starts/ends not disclosed."
+    },
+    {
+      "key": "collector.permissions_and_pseudonymization",
+      "role": "acquisition",
+      "target": "collector",
+      "value": {"instrument": "dedicated installed study app", "special_permissions": ["accessibility events", "notification events"], "storage": "pseudonymized"},
+      "locator": "PDF p. 3:3 §Data Collection/Procedure",
+      "evidence_status": "explicit",
+      "mapping": "AcquisitionProtocol can record APIs and permissions but the actual app build/pseudonymization transformation is unavailable."
+    },
+    {
+      "key": "input.notification_posted_callbacks",
+      "role": "event_schema",
+      "target": "raw_record",
+      "value": {"api": "Android NotificationListenerService", "event": "notification-posted"},
+      "locator": "PDF p. 3:3 §Data Collection",
+      "evidence_status": "explicit",
+      "mapping": "UsageEventRecord is specifically an Android usage event, not a typed NotificationListener callback; callback-record type is an ontology gap candidate."
+    },
+    {
+      "key": "input.notification_removed_callbacks",
+      "role": "event_schema",
+      "target": "raw_record",
+      "value": {"api": "Android NotificationListenerService", "event": "notification-removed"},
+      "locator": "PDF pp. 3:3 §Data Collection and 3:6 §Definitions: Removed",
+      "evidence_status": "explicit",
+      "mapping": "Must remain a removal callback, not a user dismissal; cannot be represented losslessly by UsageStats Notification Seen/Interruption contact proxy."
+    },
+    {
+      "key": "input.accessibility_app_launches",
+      "role": "event_schema",
+      "target": "raw_record",
+      "value": {"api": "Android AccessibilityService", "observed_behavior": "app launches"},
+      "locator": "PDF p. 3:3 §Data Collection",
+      "evidence_status": "explicit",
+      "mapping": "AcquisitionProtocol can name collector; exact Accessibility event code and foreground reconstruction are not disclosed."
+    },
+    {
+      "key": "input.accessibility_notification_drawer",
+      "role": "event_schema",
+      "target": "raw_record",
+      "value": {"api": "Android AccessibilityService", "observed_behavior": "access/opening of notification drawer"},
+      "locator": "PDF pp. 3:3 §Data Collection and 3:6 §Definitions: Checked",
+      "evidence_status": "explicit",
+      "mapping": "Drawer-opening event is distinct from app launch and from notification click; exact raw event code/payload unavailable."
+    },
+    {
+      "key": "input.screen_broadcasts",
+      "role": "event_schema",
+      "target": "raw_record",
+      "value": {"source": "system-wide broadcasts", "events": ["screen off", "screen on", "unlock"]},
+      "locator": "PDF p. 3:3 §Data Collection",
+      "evidence_status": "explicit",
+      "mapping": "Existing AcquisitionProtocol and screen-state vocabulary can describe broad families; exact broadcast actions and state repair are not supplied."
+    },
+    {
+      "key": "input.notification_title_and_package",
+      "role": "event_schema",
+      "target": "raw_record",
+      "value": {"fields_used": ["notification title", "app Java package name", "posted time"]},
+      "locator": "PDF p. 3:4 §Filtering/Assignment and p. 3:5 §WhatsApp Group Notifications",
+      "evidence_status": "inferred_from_explicit_operations",
+      "mapping": "Fields are necessary for described filters, but literal storage keys, encodings, nullability, and post/remove identity are not disclosed."
+    },
+    {
+      "key": "cleaning.callback_to_perceived_alert_boundary",
+      "role": "reconstruction",
+      "target": "notification_alert",
+      "value": "One Android posted callback is not necessarily one perceptible alert; compound notifications may produce several callbacks for one perceived alert.",
+      "locator": "PDF pp. 3:3-3:4 §Filtering Notification-Posted Event Bursts",
+      "evidence_status": "explicit",
+      "mapping": "Distinct callback-versus-analytic-alert entities/cardinality are not typed in existing ontology; general OperationDefinition alone does not identify the resulting alert object."
+    },
+    {
+      "key": "cleaning.translated_two_unread_messages",
+      "role": "quality_control",
+      "target": "raw_record",
+      "value": {"action": "remove", "predicate": "title equals two unread messages or a translation found in dataset", "ordering": "before burst filtering"},
+      "locator": "PDF p. 3:4 §Filtering Notification-Posted Event Bursts",
+      "evidence_status": "explicit_partial",
+      "mapping": "This filters posted callback raw records before alert-proxy burst reduction. OperationDefinition expresses filter order; exact translated title list, case/whitespace normalization, and locale scope are not released."
+    },
+    {
+      "key": "cleaning.same_second_burst_group",
+      "role": "reconstruction",
+      "target": "raw_record",
+      "value": {"input": "notification-posted callbacks", "grouping_description": "events that occur within the same second", "concept": "burst"},
+      "locator": "PDF p. 3:4 §Filtering Notification-Posted Event Bursts",
+      "evidence_status": "explicit_partial",
+      "mapping": "TimestampPolicy can preserve resolution/tie uncertainty; exact second-bucket boundary, partition key, order/tie source, and callback identity are not supplied."
+    },
+    {
+      "key": "cleaning.burst_last_posted_retention",
+      "role": "reconstruction",
+      "target": "notification_alert",
+      "value": {"predicate": "same-second burst", "retain": "last posted callback", "discard": "all other posted callbacks in burst"},
+      "locator": "PDF p. 3:4 §Filtering Notification-Posted Event Bursts",
+      "evidence_status": "explicit_partial",
+      "mapping": "A keep-last ordered reduction differs from Annotif's keep-first content-hash dedupe; existing OperationDefinition can express operation but not an exact result without source tie/order semantics."
+    },
+    {
+      "key": "result.cleaned_notification_count",
+      "role": "reporting",
+      "target": "released_artifact",
+      "value": {"count": 794525, "stage": "after posted-event burst cleaning in article sequence"},
+      "locator": "PDF p. 3:4 §Filtering Notification-Posted Event Bursts",
+      "evidence_status": "explicit",
+      "mapping": "Result oracle only; article does not prove whether this count is also after later category exclusions."
+    },
+    {
+      "key": "classification.five_notification_categories",
+      "role": "analysis",
+      "target": "derived_feature",
+      "value": ["individual messaging", "group messaging", "email", "social", "non-social"],
+      "locator": "PDF pp. 3:4-3:5 §Notification Categories",
+      "evidence_status": "explicit",
+      "mapping": "Can be a categorical feature assertion; categories are analysis labels, not five method configurations."
+    },
+    {
+      "key": "classification.package_playstore_manual_mapping",
+      "role": "feature_engineering",
+      "target": "derived_feature",
+      "value": {"unique_app_key": "Java package name", "steps": ["enumerate observed apps", "look up Google Play category where available", "count each package's occurrences", "in descending frequency, map Play category to taxonomy if feasible, otherwise manually map package"]},
+      "locator": "PDF p. 3:4 §Assignment to Categories",
+      "evidence_status": "explicit_partial",
+      "mapping": "OperationDefinition can preserve ordered stages; exact historical Play-category snapshot and manual package mapping are unavailable."
+    },
+    {
+      "key": "classification.unmapped_app_exclusion",
+      "role": "quality_control",
+      "target": "analysis_record_set",
+      "value": {"coverage_claim": "99.7% of apps assigned a category", "denominator": "distinct apps, not notification rows", "action": "remove remaining apps from analysis"},
+      "locator": "PDF p. 3:4 §Assignment to Categories",
+      "evidence_status": "explicit",
+      "mapping": "Existing filter operation can express exclusion, but the exact unmapped package list is unavailable; do not turn 99.7% into a row-level retention rate."
+    },
+    {
+      "key": "classification.nonperceptible_and_alarm_reminder_exclusion",
+      "role": "quality_control",
+      "target": "analysis_record_set",
+      "value": {"exclude": ["apps whose notification event is not a perceptible alert, with Google's QuickSearch Box as example", "alarm clock notifications", "calendar reminders"], "reason": "latter two typically are not attended by opening the app"},
+      "locator": "PDF p. 3:5 §Excluded Notification Categories",
+      "evidence_status": "explicit_partial",
+      "mapping": "Perceptibility/semantic category rule is distinct from callback burst cleaning; full app/category denylist and exception logic are not supplied."
+    },
+    {
+      "key": "classification.whatsapp_group_title_patterns",
+      "role": "feature_engineering",
+      "target": "derived_feature",
+      "value": {"app_scope": "WhatsApp only", "group_title_patterns": ["Message @ Group", "Group: Message"], "non_group_default": "individual WhatsApp messaging"},
+      "locator": "PDF p. 3:5 §WhatsApp Group Notifications",
+      "evidence_status": "explicit_partial",
+      "mapping": "Pattern family is disclosed; exact regex, localization, escaping, case/spacing, and precedence are not. Do not classify other messenger group messages with this rule."
+    },
+    {
+      "key": "result.whatsapp_split_counts",
+      "role": "reporting",
+      "target": "released_artifact",
+      "value": {"all_whatsapp_notifications": 557080, "individual": 312239, "group": 244841},
+      "locator": "PDF p. 3:5 §WhatsApp Group Notifications/Table 1",
+      "evidence_status": "explicit",
+      "mapping": "Published aggregate oracle, not a threshold or configuration."
+    },
+    {
+      "key": "attendance.shown_excluded",
+      "role": "quality_control",
+      "target": "notification_attendance",
+      "value": {"candidate_signal": "screen turns on while notifications pending", "decision": "do not count Shown", "reason": "looking at screen is not known"},
+      "locator": "PDF p. 3:6 §Definitions: Shown",
+      "evidence_status": "explicit",
+      "mapping": "Observed screen-on and inferred visual attention must remain distinct; no Shown state in analyzed output."
+    },
+    {
+      "key": "attendance.seen_at_unlock",
+      "role": "feature_engineering",
+      "target": "notification_attendance",
+      "value": {"population": "pending notifications", "trigger": "device unlock", "inference": "seen", "epistemic_basis": "icons should be noticed, not directly observed gaze"},
+      "locator": "PDF p. 3:6 §Definitions: Seen",
+      "evidence_status": "explicit",
+      "mapping": "NotificationAttributionPolicy can express notification-to-unlock relation in prose, but alert identity/pending interval and inferred state transition lack typed representation."
+    },
+    {
+      "key": "attendance.seen_immediate_if_unlocked",
+      "role": "feature_engineering",
+      "target": "notification_attendance",
+      "value": {"condition": "screen already unlocked at notification arrival", "assigned_seen_time": "immediate at arrival", "latency": 0},
+      "locator": "PDF p. 3:6 §Definitions: Seen",
+      "evidence_status": "explicit",
+      "mapping": "Conditional branch, not an alternative configuration; must not be conflated with later unlock."
+    },
+    {
+      "key": "attendance.checked_on_drawer_open",
+      "role": "feature_engineering",
+      "target": "notification_attendance",
+      "value": {"trigger": "notification drawer opened", "inference": "notification checked"},
+      "locator": "PDF p. 3:6 §Definitions: Checked",
+      "evidence_status": "explicit",
+      "mapping": "Drawer access is distinct from a notification click; per-alert pending membership and whether all pending alerts become checked are not formalized."
+    },
+    {
+      "key": "attendance.consumed_on_corresponding_app_open",
+      "role": "feature_engineering",
+      "target": "notification_attendance",
+      "value": {"condition": "app corresponding to a pending notification opens before notification removal", "inference": "consumed", "relationship": "package-level matching is implied but exact matching key is not printed"},
+      "locator": "PDF pp. 3:6-3:7 §Definitions: Consumed/Notification Conversion Rates",
+      "evidence_status": "explicit_partial",
+      "mapping": "NotificationAttributionPolicy can capture broad app-opening relation, but not its full per-alert pending/removal precedence and simultaneous-event handling."
+    },
+    {
+      "key": "attendance.removed_before_app_open_disqualifies_consumed",
+      "role": "feature_engineering",
+      "target": "notification_attendance",
+      "value": {"sequence": "removed callback before corresponding app opens", "result": "not consumed", "later_app_open": "does not restore consumed state"},
+      "locator": "PDF p. 3:6 §Definitions: Consumed",
+      "evidence_status": "explicit",
+      "mapping": "Order-dependent competing event/disposition requires more than an unconstrained notification window."
+    },
+    {
+      "key": "attendance.already_foreground_excluded_from_consumption_inference",
+      "role": "quality_control",
+      "target": "analysis_record_set",
+      "value": {"condition": "corresponding app already in foreground when notification arrives", "decision": "exclude from consumed-observation inference", "reason": "consumption already in progress but not notification-triggered"},
+      "locator": "PDF p. 3:6 §Definitions: Consumed",
+      "evidence_status": "explicit",
+      "mapping": "Existing app-foreground state can be an input; effect on denominator and relation to Table 5 immediate ‘Consumed’ label is not fully reconciled by source."
+    },
+    {
+      "key": "attendance.removed_on_listener_callback",
+      "role": "feature_engineering",
+      "target": "notification_attendance",
+      "value": {"trigger": "NotificationListenerService notification-removed callback", "state": "removed", "possible_causes": ["manual discard", "timeout", "consumption on another device"]},
+      "locator": "PDF p. 3:6 §Definitions: Removed",
+      "evidence_status": "explicit",
+      "mapping": "Removed must not be named user-dismissed without a cause signal; cause is unobserved."
+    },
+    {
+      "key": "attendance.ignore_removed_after_consumption",
+      "role": "feature_engineering",
+      "target": "notification_attendance",
+      "value": {"sequence": "consumed before removed callback", "decision": "ignore later removed event for attendance analysis"},
+      "locator": "PDF p. 3:6 §Definitions: Removed",
+      "evidence_status": "explicit",
+      "mapping": "A precedence rule in one alert's event history; cannot be represented as an undifferentiated removal flag."
+    },
+    {
+      "key": "aggregation.daily_category_volume",
+      "role": "aggregation",
+      "target": "derived_feature",
+      "value": {"step_1": "for each user, mean number of notifications per day in each category", "step_2": "median across user means for each category", "overall_median_per_day": 56},
+      "locator": "PDF pp. 3:5-3:6 §Results: Notification Volume/Tables 2-3",
+      "evidence_status": "explicit",
+      "mapping": "Existing aggregation and participant-measure layer can represent two-stage statistic; exact day inclusion/zero-day denominator not stated."
+    },
+    {
+      "key": "aggregation.category_conversion_rate",
+      "role": "aggregation",
+      "target": "derived_feature",
+      "value": {"numerator": "notifications classified consumed when corresponding app opens before removal", "denominator": "notifications in category, subject to source exclusions", "reported_percentages": {"individual_messaging": 63.67, "group_messaging": 65.81, "email": 15.47, "social": 26.55, "non_social": 16.19}},
+      "locator": "PDF p. 3:7 §Notification Conversion Rates/Table 4",
+      "evidence_status": "explicit_partial",
+      "mapping": "Rates are result oracles; exact denominator after already-foreground exclusion is not printed."
+    },
+    {
+      "key": "aggregation.immediate_attendance",
+      "role": "aggregation",
+      "target": "derived_feature",
+      "value": {"conditions": ["arrival while unlocked → immediately Seen", "arrival while drawer foreground → immediately Checked", "arrival while corresponding app foreground → table labels immediately Consumed"], "table": "Table 5 category-specific percentages"},
+      "locator": "PDF p. 3:7 §Immediate Attendance/Table 5",
+      "evidence_status": "explicit_conflict_with_consumption_definition",
+      "mapping": "Keep the Table 5 immediate-foreground reporting branch separate from p. 3:6 exclusion from notification-triggered consumption. Do not use Table 5 Consumed percentages as Table 4 conversion numerator."
+    },
+    {
+      "key": "analysis.flow_population_excludes_immediate",
+      "role": "quality_control",
+      "target": "analysis_record_set",
+      "value": {"exclude": "notifications immediately seen, checked, or consumed", "analysis": "Sankey attendance flow"},
+      "locator": "PDF p. 3:7 §Notification Attendance Flow",
+      "evidence_status": "explicit",
+      "mapping": "Analysis-population filter, not collector suppression or general alert exclusion."
+    },
+    {
+      "key": "analysis.flow_snapshots",
+      "role": "analysis",
+      "target": "derived_feature",
+      "value": {"relative_to": "notification arrival", "elapsed_minutes": [2, 5, 10, 30], "output": "category-stratified Sankey state flows"},
+      "locator": "PDF pp. 3:7-3:8 §Notification Attendance Flow/Figure 3",
+      "evidence_status": "explicit",
+      "mapping": "Fixed analysis sampling points, not callback-burst window or session threshold; exact boundary-at-snapshot comparator unreported."
+    },
+    {
+      "key": "analysis.flow_state_vocabulary",
+      "role": "analysis",
+      "target": "notification_attendance",
+      "value": ["received", "unattended", "newly seen", "remain seen", "newly checked", "remain as checked", "consumed", "removed"],
+      "locator": "PDF p. 3:8 Figure 3 legend",
+      "evidence_status": "explicit",
+      "mapping": "Figure visibly distinguishes new versus persistent seen/checked states; existing notification proxy does not represent this time-indexed per-alert flow."
+    },
+    {
+      "key": "analysis.volume_statistical_comparisons",
+      "role": "analysis",
+      "target": "model",
+      "value": {"variance_test": "Levene", "category_effect": "Friedman", "pairwise": "Wilcoxon Signed-Rank", "multiplicity": "Bonferroni-corrected alpha p < 0.005"},
+      "locator": "PDF pp. 3:5-3:6 §Results: Notification Volume/Table 3",
+      "evidence_status": "explicit",
+      "mapping": "Downstream statistical analysis, not preprocessing or alert-state construction."
+    },
+    {
+      "key": "analysis.attendance_time_statistical_comparisons",
+      "role": "analysis",
+      "target": "model",
+      "value": {"omnibus": "Kruskal-Wallis", "pairwise": "Mann-Whitney U", "multiplicity": "Bonferroni correction", "effect_size": "Cliff's Delta", "reported_only_if": "significant and non-negligible effect size"},
+      "locator": "PDF p. 3:7 §Notification Attendance Flow",
+      "evidence_status": "explicit_partial",
+      "mapping": "Downstream analysis; exact comparison matrix and appendix numeric results not in verified artifact."
+    },
+    {
+      "key": "provenance.claimed_added_material",
+      "role": "provenance",
+      "target": "released_artifact",
+      "value": "Data and scripts appended/submitted alongside article according to authors; not verified or locally acquired",
+      "locator": "PDF pp. 3:1 contribution bullet and 3:5 §Results: Notification Volume",
+      "evidence_status": "explicit_claim_artifact_unavailable",
+      "mapping": "Preserve as a source claim and retrieval blocker, not an executable or source-verified code artifact."
+    }
+  ],
+  "reported_result_oracles": [
+    {"key": "cleaned_alert_count", "value": 794525, "locator": "PDF p. 3:4 §Filtering"},
+    {"key": "volume_medians_per_user_day", "value": {"overall": 56, "individual_messaging": 18, "group_messaging": 7, "email": 2, "social": 1, "non_social": 2}, "locator": "PDF pp. 3:5-3:6 Tables 2-3"},
+    {"key": "conversion_percent_by_category", "value": {"individual_messaging": 63.67, "group_messaging": 65.81, "email": 15.47, "social": 26.55, "non_social": 16.19}, "locator": "PDF p. 3:7 Table 4"},
+    {"key": "immediate_attendance_percent", "value": {"individual_messaging": {"seen": 32.7, "checked": 0.3, "consumed_label": 23}, "group_messaging": {"seen": 26.9, "checked": 0.2, "consumed_label": 21}, "email": {"seen": 20.7, "checked": 0.1, "consumed_label": 4.2}, "social": {"seen": 32.6, "checked": 0.1, "consumed_label": 10.5}, "non_social": {"seen": 35.6, "checked": 0.3, "consumed_label": 8.5}}, "locator": "PDF p. 3:7 Table 5", "caveat": "Consumed label denotes app already foreground on arrival here, while p. 3:6 excludes this condition from causal consumption observation"}
+  ],
+  "ontology_comparison": {
+    "existing_reuse": [
+      {"term": "AcquisitionProtocol", "location": "web/schema/chronicle-research-ontology.linkml.yaml:1371", "fit": "collector/API/permission source facts, not callback entity or full device study build"},
+      {"term": "OperationDefinition", "location": "web/schema/chronicle-research-ontology.linkml.yaml:1028", "fit": "ordered filtering, grouping, classification, state inference, and aggregation operations can be linked without inventing a second workflow model"},
+      {"term": "MethodSettingAssertion", "location": "web/schema/chronicle-research-ontology.linkml.yaml:1202", "fit": "can preserve a source clause/value/locator but no source-specific typed alert method profile exists yet"},
+      {"term": "TimestampPolicy", "location": "web/schema/chronicle-research-ontology.linkml.yaml:1444", "fit": "can record same-second statement and unknown tie/order details"},
+      {"term": "NotificationAttributionPolicy", "location": "web/schema/chronicle-research-ontology.linkml.yaml:1413", "fit": "broad notification-to-unlock/drawer/app relation, but not complete callback-to-alert and competing-state history"}
+    ],
+    "do_not_force": [
+      "UsageEventRecord is a UsageStats logged event, not a NotificationListenerService posted/removed callback (schema line 853).",
+      "NotificationProxyRuleId's Android type 10/12 contact events are UsageStats proxies and do not mean Dismissed!'s seen, checked, consumed, or removed alert states (schema lines 530-561).",
+      "MethodTargetLayerId now names analytic alert, inferred attendance, and analysis-only record-set targets, but no source-exact callback/item/history row contract follows from those method targets; notification_delivery is outbound intervention, not this measured signal.",
+      "Android callback removal is not necessarily a manual dismissal; app already foreground on arrival is not proven notification-induced conversion."
+    ],
+    "semantic_axes_and_current_status": [
+      {"axis": "notification_callback_and_alert_identity", "necessity_example": "p. 3:4 many posted callbacks may yield one perceived alert; posted and removed callbacks need a stable relation, but key is not reported", "status": "source-backed representability candidate; exact field schema blocked"},
+      {"axis": "per_alert_attendance_state_history", "necessity_example": "pp. 3:6-3:8 pending-at-unlock, drawer/app/removal precedence, immediate-vs-later branches, and new/remain flow states cannot be flattened to a single notification proxy", "status": "source-backed representability candidate; exact tie and multiplicity semantics blocked"},
+      {"axis": "analysis_record_set_vs_notification_event_filter", "necessity_example": "p. 3:7 excludes immediate arrivals only for flow while p. 3:4 filters callbacks globally", "status": "method target now represented by analysis_record_set; exact ordered operation, source-row import, and executed flow remain unproved"}
+    ]
+  },
+  "indispensable_unavailable_facts": [
+    {"fact": "actual study app source/build and literal raw posted/removed, screen, app, drawer record schema", "effect": "Cannot execute raw-to-alert pathway source-exactly"},
+    {"fact": "callback/alert identity key, post-to-remove matching, update/repost handling, and removal reason", "effect": "Cannot reconstruct exact pending set or cause-specific dismissal"},
+    {"fact": "same-second burst partition, seconds boundary convention, same-timestamp order/tie rule, and exact translated-summary title list", "effect": "Cannot reproduce the 794,525 cleaned-alert count from raw callbacks"},
+    {"fact": "2016 Google Play category snapshot, manual package assignments, excluded app list, and exact WhatsApp title parser", "effect": "Cannot reproduce all category labels, group split, or exclusion denominators"},
+    {"fact": "handling of event ties, multiple pending alerts for one app, notification already pending before observation start, and censoring at observation end", "effect": "Cannot derive all attendance states/latencies with source-exact semantics"},
+    {"fact": "whether already-foreground arrivals are included in Table 4 denominator or only Table 5 immediate-attendance reporting", "effect": "Cannot reconcile conversion denominator by assumption"},
+    {"fact": "complete source dataset, analysis scripts, figure transition matrix, and claimed statistical appendix", "effect": "No exact full-method execution or numeric-oracle replay"}
+  ],
+  "method_relevant_cited_references": [
+    {"number": 16, "work_id": "doi:10.1145/1879831.1879833", "role": "Iqbal and Bailey alert definition is attributed to [16] on p. 3:2; p. 3:3 instead prints [17], an internal citation mismatch", "audit_review_state": "citation_only_unchecked", "locator": "PDF pp. 3:2-3:3, 3:10"},
+    {"number": 17, "work_id": "doi:10.1145/1718918.1718926", "role": "body p. 3:3 cites [17] for an Iqbal-and-Bailey definition, but reference [17] is Iqbal and Horvitz; leave intended source unresolved", "audit_review_state": "citation_only_unchecked", "locator": "PDF pp. 3:3, 3:10"},
+    {"number": 22, "work_id": "doi:10.1145/2858036.2858566", "role": "prior seen/decision-time and click-rate comparison; not an implementation source for Dismissed!", "audit_review_state": "citation_only_unchecked", "locator": "PDF pp. 3:2, 3:8, 3:10"},
+    {"number": 25, "work_id": "doi:10.1145/2628363.2628364", "role": "prior notification study/category-speed comparison and long-tail claim", "audit_review_state": "citation_only_unchecked", "locator": "PDF pp. 3:2, 3:4, 3:7, 3:11"},
+    {"number": 29, "work_id": "doi:10.1145/2556288.2557189", "role": "prior callback/count comparison and long-tail claim", "audit_review_state": "citation_only_unchecked", "locator": "PDF pp. 3:2, 3:7, 3:11"},
+    {"number": 31, "work_id": "doi:10.1016/j.pmcj.2017.01.011", "role": "prior four-stage responsiveness framework; conceptual comparator only", "audit_review_state": "citation_only_unchecked", "locator": "PDF pp. 3:2, 3:11"}
+  ],
+  "reference_inventory": [
+    {"n": 1, "doi": "10.1145/985692.985727", "title": "If Not Now, when?: The Effects of Interruption at Different Moments Within Task Execution"},
+    {"n": 2, "doi": "10.1145/1851600.1851638", "title": "A Large Scale Study of Text-messaging Use"},
+    {"n": 3, "doi": "10.1145/2334184.2334193", "title": "Understanding unavailability in a world of constant connection"},
+    {"n": 4, "doi": "10.1145/2702123.2702156", "title": "What Makes Interruptions Disruptive?: A Process-Model Account of the Effects of the Problem State Bottleneck on Task Interruption and Resumption"},
+    {"n": 5, "doi": null, "title": "Ambient Notification Environments"},
+    {"n": 6, "doi": null, "title": "Using Language"},
+    {"n": 7, "doi": "10.1145/985692.985715", "title": "A Diary Study of Task Switching and Interruptions"},
+    {"n": 8, "doi": "10.1145/2785830.2785840", "title": "I'll Be There for You: Quantifying Attentiveness Towards Mobile Messaging"},
+    {"n": 9, "doi": "10.1145/2037373.2037402", "title": "Investigating Episodes of Mobile Phone Activity As Indicators of Opportune Moments to Deliver Notifications"},
+    {"n": 10, "doi": "10.1145/1851600.1851620", "title": "Effects of Content and Time of Delivery on Receptivity to Mobile Interruptions"},
+    {"n": 11, "doi": "10.1145/1057237.1057243", "title": "Predicting human interruptibility with sensors"},
+    {"n": 12, "doi": "10.1145/2786567.2793706", "title": "Smartphone Notifications: A Study on the Sound to Soundless Tendency"},
+    {"n": 13, "doi": null, "title": "Learning and Reasoning about Interruption"},
+    {"n": 14, "doi": "10.1007/11527886_59", "title": "Balancing awareness and interruption: investigation of notification deferral policies"},
+    {"n": 15, "doi": "10.1145/1357054.1357070", "title": "Effects of Intelligent Notification Management on Users and Their Tasks"},
+    {"n": 16, "doi": "10.1145/1879831.1879833", "title": "Oasis: A framework for linking notification delivery to the perceptual structure of goal-directed tasks"},
+    {"n": 17, "doi": "10.1145/1718918.1718926", "title": "Notifications and Awareness: A Field Study of Alert Usage and Preferences"},
+    {"n": 18, "doi": "10.1145/2858036.2858359", "title": "Silence Your Phones: Smartphone Notifications Increase Inattention and Hyperactivity Symptoms"},
+    {"n": 19, "doi": "10.1145/2556288.2557366", "title": "Hooked on Smartphones: An Exploratory Study on Smartphone Overuse Among College Students"},
+    {"n": 20, "doi": "10.1145/2207676.2207754", "title": "A Pace Not Dictated by Electrons: An Empirical Study of Work Without Email"},
+    {"n": 21, "doi": "10.1145/2750858.2807544", "title": "Designing Content-driven Intelligent Notification Mechanisms for Mobile Applications"},
+    {"n": 22, "doi": "10.1145/2858036.2858566", "title": "My Phone and Me: Understanding People's Receptivity to Mobile Notifications"},
+    {"n": 23, "doi": null, "title": "Attention and Engagement-Awareness in the Wild: A Large-Scale Study with Adaptive Notifications"},
+    {"n": 24, "doi": "10.1145/2632048.2632062", "title": "InterruptMe: Designing Intelligent Prompting Mechanisms for Pervasive Applications"},
+    {"n": 25, "doi": "10.1145/2628363.2628364", "title": "An In-situ Study of Mobile Phone Notifications"},
+    {"n": 26, "doi": "10.1145/2556288.2556973", "title": "Didn't You See My Message?: Predicting Attentiveness to Mobile Instant Messages"},
+    {"n": 27, "doi": "10.1145/3098279.3098526", "title": "Productive, Anxious, Lonely: 24 Hours Without Push Notifications"},
+    {"n": 28, "doi": "10.1016/j.infoandorg.2005.02.004", "title": "Delays and Interruptions: A Self-perpetuating Paradox of Communication Technology Use"},
+    {"n": 29, "doi": "10.1145/2556288.2557189", "title": "Large-scale Assessment of Mobile Notifications"},
+    {"n": 30, "doi": "10.1037/xhp0000100", "title": "The attentional cost of receiving a cell phone notification"},
+    {"n": 31, "doi": "10.1016/j.pmcj.2017.01.011", "title": "Reachable but not Receptive: Enhancing Smartphone Interruptibility Prediction by Modelling the Extent of User Engagement with Notifications"}
+  ],
+  "reference_inventory_status": "All 31 numbered references transcribed from PDF pp. 3:9-3:11, 27 with printed DOIs and four without. Each is citation-only/unchecked within this isolated audit; reconcile against the canonical citation ledger before changing global checked states. Body p. 3:3 cites the Iqbal-and-Bailey alert definition as [17], but [17] is Iqbal and Horvitz whereas [16] is Iqbal and Bailey.",
+  "minimum_typed_inputs": [
+    "participant-scoped NotificationListener posted callbacks with occurrence time, title, originating app/package, and an exact identity linking any later removal callback",
+    "participant-scoped NotificationListener removed callbacks with occurrence time and removal identity; removal reason remains unknown unless source actually recorded it",
+    "participant-scoped screen on/off/unlock broadcasts and Accessibility app-launch/drawer-access events with source-preserved timestamps and ordering",
+    "foreground-app state at notification arrival, plus original pending-set state at participant observation start or an explicit censoring rule",
+    "source-version translation list, 2016 package/category map, excluded-app list, and exact WhatsApp title-pattern implementation",
+    "participant-specific observation windows and day-denominator semantics"
+  ],
+  "configuration_verdicts": [
+    {
+      "configuration_id": "dismissed2018:fixed_method",
+      "configuration_unit_kind": "source_method_variant",
+      "verdict": "hard_no",
+      "reason": "The published PDF supports a detailed specification but the verified raw dataset, collector/build/schema, source scripts, exact burst and category artifacts, and full transition/statistical oracles are unavailable; method-target vocabulary exists, but a populated typed callback/perceived-alert/attendance instance and its actual import path have not yet been proven.",
+      "source_locator": "PDF pp. 3:3-3:8",
+      "atom_keys": [
+        "cohort.android_4_3_minimum_and_ten_days",
+        "collection.period_and_locale",
+        "collector.permissions_and_pseudonymization",
+        "input.notification_posted_callbacks",
+        "input.notification_removed_callbacks",
+        "input.accessibility_app_launches",
+        "input.accessibility_notification_drawer",
+        "input.screen_broadcasts",
+        "input.notification_title_and_package",
+        "cleaning.callback_to_perceived_alert_boundary",
+        "cleaning.translated_two_unread_messages",
+        "cleaning.same_second_burst_group",
+        "cleaning.burst_last_posted_retention",
+        "result.cleaned_notification_count",
+        "classification.five_notification_categories",
+        "classification.package_playstore_manual_mapping",
+        "classification.unmapped_app_exclusion",
+        "classification.nonperceptible_and_alarm_reminder_exclusion",
+        "classification.whatsapp_group_title_patterns",
+        "result.whatsapp_split_counts",
+        "attendance.shown_excluded",
+        "attendance.seen_at_unlock",
+        "attendance.seen_immediate_if_unlocked",
+        "attendance.checked_on_drawer_open",
+        "attendance.consumed_on_corresponding_app_open",
+        "attendance.removed_before_app_open_disqualifies_consumed",
+        "attendance.already_foreground_excluded_from_consumption_inference",
+        "attendance.removed_on_listener_callback",
+        "attendance.ignore_removed_after_consumption",
+        "aggregation.daily_category_volume",
+        "aggregation.category_conversion_rate",
+        "aggregation.immediate_attendance",
+        "analysis.flow_population_excludes_immediate",
+        "analysis.flow_snapshots",
+        "analysis.flow_state_vocabulary",
+        "analysis.volume_statistical_comparisons",
+        "analysis.attendance_time_statistical_comparisons",
+        "provenance.claimed_added_material"
+      ]
+    }
+  ],
+  "required_execution_proofs": [
+    "A source-shaped fixture must distinguish multiple posted callbacks representing one alert from separate alerts; title-translation removal precedes same-second keep-last reduction.",
+    "Boundary cases must establish exactly-equal timestamps, adjacent timestamps on opposite second boundaries, multiple apps/participants, update/repost matching, and missing removal callbacks; unresolved source choices remain blocked rather than guessed.",
+    "An alert state fixture must separately test pending-at-unlock, already-unlocked arrival, drawer open, app open before/after removal, app already foreground, and removal after consumption; removal must never imply user dismissal.",
+    "An analysis fixture must keep immediate-foreground Table 5 reporting apart from conversion classification and apply 2/5/10/30-minute flow snapshots only to the non-immediate population.",
+    "Any new ontology element needs a negative necessity test, import/persistence/export round-trip, and non-regression proof before profile promotion."
+  ],
+  "projection_integrity": {"canonical_merge": "not_performed", "current_profile": "absent_from_76_retained_profile_library", "round_trip": "38 normalized method definitions pass parser and IndexedDB save/reload; populated typed notification instances and GUI import are not tested", "implementation_status": "not_executable_from_verified_artifacts"},
+  "next_action": "Independent source-to-atom review, verify any genuine ACM supplementary dataset/scripts, then compare with Annotif and My Phone and Me before proposing a single typed notification callback/alert/attendance extension. Do not merge this candidate or mark a paper profile runnable until exact source identities, fixture semantics, and lossless round-trip are proven."
+}

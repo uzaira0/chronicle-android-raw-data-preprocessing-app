@@ -31,13 +31,23 @@ use serde_json::{json, Map, Value};
 use syn::{Attribute, Fields, Item, Type};
 
 /// Boundary model protocol. Bump when the emitted model's own shape changes.
-const MODEL_PROTOCOL_VERSION: &str = "chronicle-runtime-boundary-model/v1";
+const MODEL_PROTOCOL_VERSION: &str = "chronicle-runtime-boundary-model/v4";
 
 /// Serialization roots the browser decodes. The key is the exported model root
 /// name used by `rustPipelineRuntime.ts`.
-const ROOTS: [(&str, &str); 2] = [
+const ROOTS: [(&str, &str); 6] = [
     ("runtimeManifest", "RuntimeManifest"),
     ("reviewRuntimeManifest", "ReviewRuntimeManifest"),
+    ("openerSetPreflightDecision", "OpenerSetPreflightDecision"),
+    (
+        "maximumDurationPreflightDecision",
+        "MaximumDurationPreflightDecision",
+    ),
+    ("rawFileInspection", "RawFileInspection"),
+    (
+        "scientificPreflightReceipt",
+        "RuntimeScientificPreflightReceipt",
+    ),
 ];
 
 /// Rust type aliases that declare a boundary value domain. A reachable alias
@@ -82,9 +92,15 @@ struct FieldSource {
 #[derive(Clone)]
 struct EnumModel {
     rename_all: Option<String>,
-    variants: Vec<String>,
+    variants: Vec<VariantSource>,
     source: String,
     unsupported: Option<String>,
+}
+
+#[derive(Clone)]
+struct VariantSource {
+    rust_name: String,
+    rename: Option<String>,
 }
 
 #[derive(Default)]
@@ -177,8 +193,9 @@ fn field_serde(attrs: &[Attribute]) -> Result<(Option<String>, bool, bool), Stri
                 Ok(())
             } else if meta.path.is_ident("skip_serializing_if") {
                 let value: syn::LitStr = meta.value()?.parse()?;
-                if value.value() != "Option::is_none" {
-                    return Err(meta.error("only Option::is_none may make a field optional"));
+                if !matches!(value.value().as_str(), "Option::is_none" | "Vec::is_empty") {
+                    return Err(meta
+                        .error("only Option::is_none or Vec::is_empty may make a field optional"));
                 }
                 optional = true;
                 Ok(())
@@ -192,6 +209,26 @@ fn field_serde(attrs: &[Attribute]) -> Result<(Option<String>, bool, bool), Stri
         .map_err(|error| error.to_string())?;
     }
     Ok((rename, optional, skipped))
+}
+
+fn variant_serde(attrs: &[Attribute]) -> Result<Option<String>, String> {
+    let mut rename = None;
+    for attr in attrs {
+        if !attr.path().is_ident("serde") {
+            continue;
+        }
+        attr.parse_nested_meta(|meta| {
+            if meta.path.is_ident("rename") {
+                let value: syn::LitStr = meta.value()?.parse()?;
+                rename = Some(value.value());
+                Ok(())
+            } else {
+                Err(meta.error("unsupported serde enum-variant attribute"))
+            }
+        })
+        .map_err(|error| error.to_string())?;
+    }
+    Ok(rename)
 }
 
 fn collect_items(items: &[Item], source: &str, index: &mut Index) {
@@ -276,7 +313,14 @@ fn collect_items(items: &[Item], source: &str, index: &mut Index) {
                         );
                         break;
                     }
-                    variants.push(variant.ident.to_string());
+                    let rust_name = variant.ident.to_string();
+                    match variant_serde(&variant.attrs) {
+                        Ok(rename) => variants.push(VariantSource { rust_name, rename }),
+                        Err(error) => {
+                            unsupported = Some(format!("variant `{rust_name}`: {error}"));
+                            break;
+                        }
+                    }
                 }
                 let model = EnumModel {
                     rename_all,
@@ -405,6 +449,10 @@ fn value_model(ty: &Type, index: &Index, reachable: &mut Vec<String>, context: &
         }
         ("String", 0) => json!({ "kind": "string" }),
         ("bool", 0) => json!({ "kind": "boolean" }),
+        ("f32", 0) | ("f64", 0) => json!({ "kind": "number" }),
+        ("i8", 0) | ("i16", 0) | ("i32", 0) | ("i64", 0) | ("isize", 0) => {
+            json!({ "kind": "signedInteger" })
+        }
         ("u8", 0) | ("u16", 0) | ("u32", 0) | ("u64", 0) | ("usize", 0) => {
             json!({ "kind": "integer" })
         }
@@ -476,10 +524,13 @@ fn build_model(index: &Index) -> Map<String, Value> {
                 if field.optional {
                     entry.insert("optional".into(), Value::Bool(true));
                     let (outer, arguments) = type_name(&value_type);
-                    if outer != "Option" || arguments.len() != 1 {
-                        panic!("{field_context}: skip_serializing_if requires an Option field");
+                    if outer == "Option" && arguments.len() == 1 {
+                        value_type = arguments[0].clone();
+                    } else if outer != "Vec" || arguments.len() != 1 {
+                        panic!(
+                            "{field_context}: skip_serializing_if requires an Option or Vec field"
+                        );
                     }
-                    value_type = arguments[0].clone();
                 }
                 entry.insert(
                     "value".into(),
@@ -502,11 +553,9 @@ fn build_model(index: &Index) -> Map<String, Value> {
                 .variants
                 .iter()
                 .map(|variant| {
-                    Value::String(apply_rename_all(
-                        model.rename_all.as_ref(),
-                        variant,
-                        &context,
-                    ))
+                    Value::String(variant.rename.clone().unwrap_or_else(|| {
+                        apply_rename_all(model.rename_all.as_ref(), &variant.rust_name, &context)
+                    }))
                 })
                 .collect::<Vec<_>>();
             types.insert(
@@ -528,7 +577,7 @@ fn typescript_type(value: &Value) -> String {
     let kind = value["kind"].as_str().expect("value model kind");
     match kind {
         "string" | "looseString" | "sha256Digest" => "string".into(),
-        "integer" => "number".into(),
+        "integer" | "signedInteger" | "number" => "number".into(),
         "boolean" => "boolean".into(),
         "nullable" => format!("{} | null", typescript_type(&value["inner"])),
         "array" => {
@@ -638,4 +687,55 @@ fn main() {
          {declarations}\n\
          export const RUNTIME_BOUNDARY_MODEL: BoundaryModel = {rendered};\n"
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn enum_variant_rename_overrides_container_rename_all() {
+        let parsed: syn::ItemEnum = syn::parse_quote! {
+            #[serde(rename_all = "snake_case")]
+            enum Example {
+                DefaultVariant,
+                #[serde(rename = "source-authored-id")]
+                SourceAuthoredId,
+            }
+        };
+        let mut index = Index::default();
+        collect_items(&[Item::Enum(parsed)], "fixture.rs", &mut index);
+        let model = index.enums.get("Example").unwrap();
+        let variants = model
+            .variants
+            .iter()
+            .map(|variant| {
+                variant.rename.clone().unwrap_or_else(|| {
+                    apply_rename_all(
+                        model.rename_all.as_ref(),
+                        &variant.rust_name,
+                        "fixture enum",
+                    )
+                })
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(variants, ["default_variant", "source-authored-id"]);
+    }
+
+    #[test]
+    fn unsupported_variant_serde_attributes_fail_closed() {
+        let parsed: syn::ItemEnum = syn::parse_quote! {
+            enum Example {
+                #[serde(alias = "legacy")]
+                Value,
+            }
+        };
+        let mut index = Index::default();
+        collect_items(&[Item::Enum(parsed)], "fixture.rs", &mut index);
+        assert!(index.enums["Example"]
+            .unsupported
+            .as_deref()
+            .unwrap()
+            .contains("unsupported serde enum-variant attribute"));
+    }
 }

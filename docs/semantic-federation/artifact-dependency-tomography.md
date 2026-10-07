@@ -10,7 +10,7 @@ method intervention     artifact intervention
         \                 /
          exact workflow checkpoints
                    |
-     deterministic percolation cluster
+   justified execution + honest cache badge
                    |
         independent cold Rust oracle
 ```
@@ -54,16 +54,28 @@ then establish its result:
 
 The warm source and target must each equal their independent cold oracle at all
 every workflow checkpoints and for every researcher-visible output artifact. The
-changed input-key set must equal the predicted cluster derived from only:
+warm target must additionally satisfy the two drift properties defined in
+[the authority table](../architecture/authority-and-invalidation.md), both read
+from the runtime manifest the product already publishes:
 
-- the raw seed (`parse_events`) or support-role owners declared by
-  `chronicle.plan.json`; and
-- upstream workflow checkpoints that actually changed.
+- **justified execution** — every query observed to execute must have a reason:
+  it was bypassed in the source and applicable in the target; or a request field
+  it binds changed; or a source role it binds changed and that binding's
+  predicates hold under the target options — the raw seed (`parse_events`) or the
+  support-role owners declared by `chronicle.plan.json`; or at least one of its
+  declared inputs published a changed output digest. An execution with no
+  justification is an undeclared read and fails the campaign.
+- **no self-contradicting badge** — a query badged `cached` in the warm target
+  while its own published `output_digest` moved from the warm source fails, since
+  a Salsa body produces a new value only by running.
 
-This detects missing edges, stale cache reuse, and logical over-invalidation.
-The fused kernel remains the independent cold correctness backstop. Warm
-execution now uses the Salsa query engine, and regenerated evidence must record
-the exact query bodies that executed for each artifact intervention.
+This detects missing edges and stale cache reuse. It deliberately does not
+predict which queries will run on a given configuration arm:
+`WorkflowQueryDefinition::inputs` is a may-read set, and Salsa — which records
+each tracked body's actual reads per revision — is the sole invalidation
+authority. The fused kernel remains the independent cold correctness backstop.
+Warm execution now uses the Salsa query engine, and regenerated evidence must
+record the exact query bodies that executed for each artifact intervention.
 
 Every supplied root artifact also passes the product-local qualification
 solver. The runtime records one rule-by-rule trace proving candidate identity,
@@ -79,13 +91,14 @@ artifact changed. All rule outcomes remain accepted. This closes the
 source-to-binding correspondence without conflating new source identity with a
 new computational result.
 
-A substantive intervention need not activate on every corpus. That distinction
-is evidence, not a fixture failure: 117 cases have a semantic effect, three
-forcing-app cases converge because the named package is not in an effective
-screen-tail position, and all 72 representation/ignored-field controls
-converge. Every substantive intervention kind still has at least one
-branch-activating corpus witness. The ledger records active and converged
-corpora per intervention so context-dependent support edges remain explicit.
+A substantive intervention need not activate on every possible corpus. The
+checked 2026-09-29 replay has 120 substantive cases with a semantic effect and
+no substantive contextual convergence; all 72 representation/ignored-field
+controls leave researcher-visible output cells unchanged. Byte-identity
+provenance queries may still change for those controls. Every substantive
+intervention kind has a branch-activating corpus in this replay. Active and
+converged contexts remain recorded without generalizing these observations
+beyond the named replay.
 
 ## Typed checkpoint shape
 
@@ -164,9 +177,11 @@ The existing `row-lineage-arrow` remains the large row correspondence table
 from output rows back to one-based raw source rows. Precision is deliberately
 honest: qualification, checkpoint, execution, and publication edges are exact;
 plan dependencies are declared; raw row dependency sets remain conservative.
-`result-cell-correspondence-arrow` now gives every canonical CSV cell and JSON
-leaf an exact normalized address, exact value digest, terminal workflow query group,
-and (for row-addressed CSV cells) an exact join key into `row-lineage-arrow`.
+`result-cell-correspondence-arrow` now gives every canonical CSV cell an exact
+normalized address, exact value digest, terminal workflow query group,
+and (for row-addressed CSV cells) an exact join key into `row-lineage-arrow`;
+the JSON view outputs keep artifact-level content hashes rather than per-leaf
+addresses, because they are deterministic views of the same tabular values.
 `source-result-influence-arrow` normalizes the bridge rather than materializing
 the source-coordinate×result-cell Cartesian product: selectors join through a
 role or selector prefix, source rows join through row keys, and result cells
@@ -207,15 +222,15 @@ The digest-bound ledger is
 `web/src/lib/pipelineGraph/golden/family-expected/artifact-influence-ledger.json`.
 It records the exact implementation receipt, source digests, intervention
 components, qualification/requirement correspondence, changed typed checkpoint
-components, direct binders, changed semantic nodes, predicted and observed
-input-key clusters, warm execution statuses, output effects, and a canonical
-case-set digest.
+components, direct binders, changed semantic nodes, the observed executed-query
+set and its (always empty) unjustified subset, warm execution statuses, output
+effects, and a canonical case-set digest.
 
 The ledger also commits to the compressed
 `artifact-output-cell-correspondence.json.gz` sidecar. For every intervention,
 that sidecar maps the named changed raw/support component to every changed cell
-address in the canonical Rust-produced CSV and JSON outputs. It contains
-202,124 changed-cell addresses across the 192 cases. The ledger retains a
+address in the canonical Rust-produced CSV and JSON outputs. The checked
+2026-10-02 replay contains 221,523 changed-cell addresses across the 192 cases. The ledger retains a
 per-case address digest and a compact wildcarded column/path scope so it stays
 human-reviewable. Parquet, SPSS, and Arrow remain byte/digest-verified derived
 artifacts; they are not falsely decoded as independent semantic cell surfaces.
@@ -239,10 +254,10 @@ without first pretending its old empirical receipt is current.
 
 The independent boundary ledger is
 `web/src/lib/pipelineGraph/golden/family-expected/raw-boundary-influence-ledger.json`.
-It records 648 Rust/WASM executions, 162 exact warm/cold comparisons, 162 exact
-declared-versus-observed cluster comparisons, 162 typed-component comparisons,
-162 artifact-to-role qualification correspondence comparisons, and 651,823
-changed canonical output-cell addresses in the checked
+It records 648 Rust/WASM executions, 162 exact warm/cold comparisons, 162
+justified-execution and cache-badge comparisons, 162 typed-component
+comparisons, 162 artifact-to-role qualification correspondence comparisons,
+and 678,770 changed canonical output-cell addresses in the checked
 `raw-boundary-output-cell-correspondence.json.gz` sidecar.
 
 ```sh
@@ -297,9 +312,15 @@ reuse is allowed only when every cache-relevant path lies inside a current
 certified region. A novel context, an unresolved critical path, stale evidence,
 or a contradiction triggers conservative recomputation and emits a new coverage
 hole for the intervention campaign. Cold execution remains the independent
-oracle. A changed checkpoint outside the predicted cone is a soundness failure;
-an unnecessarily recomputed checkpoint is a separately reported minimality
-failure.
+oracle. A changed checkpoint that no certified region admits is a soundness
+failure; an unnecessarily recomputed checkpoint is a separately reported
+minimality failure. Note the standing constraint from
+[the authority table](../architecture/authority-and-invalidation.md): an atlas
+may bound where an effect is *admissible*, but it must never become a second
+model of Salsa's dependency graph. If a future consumer genuinely needs the
+arm-exact edge set, the supported route is exporting Salsa's observed edges from
+its own event stream as a kernel feature — never re-deriving them in TypeScript,
+which is the design this campaign already retired.
 
 The reusable scaffold should standardize only this experiment-and-certificate
 envelope. Chronicle continues to own its coordinate schemas, context predicates,

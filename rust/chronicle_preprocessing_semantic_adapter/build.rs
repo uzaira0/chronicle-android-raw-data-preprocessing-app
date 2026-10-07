@@ -70,6 +70,13 @@ fn main() {
     let product_contract_digest = bindings["product_contract_digest"]
         .as_str()
         .expect("product contract digest");
+    if digest_only_bootstrap {
+        // Loud in the cargo log: this build embeds digests without certifying
+        // them, and only the depev bootstrap phase may do that.
+        println!(
+            "cargo:warning=CHRONICLE_DIGEST_ONLY_BOOTSTRAP=1: semantic adapter built WITHOUT certifying the dependency contract (depev bootstrap only)"
+        );
+    }
     if !digest_only_bootstrap {
         assert!(
             !query_groups.is_empty(),

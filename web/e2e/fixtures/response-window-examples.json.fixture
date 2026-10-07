@@ -1,0 +1,88 @@
+{
+  "task_occurrences": [
+    {
+      "task_occurrence_id": "example:emotion-esm-a",
+      "method_profile_id": "method-profile:doi:10.1145/3313831.3376163",
+      "source_work_id": "doi:10.1145/3313831.3376163",
+      "participant_id": "example:participant",
+      "record_origin": "analyst_constructed_example",
+      "task_label": "Supplied ESM completion A, independent of unlock sessions",
+      "task_actions": [
+        {"task_action_id": "example:response-a", "action_label": "ESM response event", "source_locators": ["Sarsenbayeva2020 primary336–351; supplied event identity, no clock inferred"]},
+        {"task_action_id": "example:response-b", "action_label": "Separately supplied response event", "source_locators": ["Sarsenbayeva2020 primary336–351; equal or missing timestamps do not merge events"]}
+      ],
+      "task_questionnaire_responses": [
+        {"questionnaire_response_id": "example:valence", "questionnaire_setting_reference": "method-setting-d363072bb0c41a128ba4bcab", "observed_property": "valence", "questionnaire_item_label": "Miserable-Pleased", "response_value_json": " \"hypothetical supplied response\" ", "source_locators": ["Sarsenbayeva2020 primary302–311; no numeric range, coding or scoring inferred"]},
+        {"questionnaire_response_id": "example:arousal", "questionnaire_setting_reference": "method-setting-d363072bb0c41a128ba4bcab", "observed_property": "arousal", "questionnaire_item_label": "Sleepy-Aroused", "response_value_json": null, "source_locators": ["Sarsenbayeva2020 primary302–311; supplied unknown answer independent of valence"]}
+      ],
+      "task_observation_windows": [
+        {"observation_window_id": "example:one-minute", "window_setting_references": ["method-setting-074d4c0b00c275de9fc42ff3", "method-setting-fbe5edadc00d6e27310b7b34", "method-setting-16f0ba56742547a3b910a0ff"], "anchor_task_action_reference": "example:response-a", "questionnaire_response_references": ["example:valence"], "denotes_interval": {"duration_seconds": 60}, "quantities": [{"observed_property": "mean Affectiva valence", "evidence_value_json": "0.00"}], "source_locators": ["Sarsenbayeva2020 primary336–351; supplied preceding-minute mean, not a calculated aggregate or inferred endpoint"]},
+        {"observation_window_id": "example:five-minutes", "window_setting_references": ["method-setting-074d4c0b00c275de9fc42ff3", "method-setting-16f0ba56742547a3b910a0ff"], "anchor_task_action_reference": "example:response-a", "questionnaire_response_references": ["example:valence"], "denotes_interval": {"duration_seconds": 300}, "quantities": [{"observed_property": "mean Affectiva valence", "evidence_value_json": "null"}], "source_locators": ["Sarsenbayeva2020 primary336–351; five-minute comparison, sidedness/endpoints unspecified, not inherited from one-minute case"]},
+        {"observation_window_id": "example:sixty-minutes", "window_setting_references": ["method-setting-074d4c0b00c275de9fc42ff3", "method-setting-16f0ba56742547a3b910a0ff"], "anchor_task_action_reference": "example:response-a", "questionnaire_response_references": ["example:valence"], "denotes_interval": {"duration_seconds": 3600}, "quantities": [{"observed_property": "mean Affectiva valence", "evidence_value_json": null}], "source_locators": ["Sarsenbayeva2020 primary336–351; one-hour comparison, not a participant-hour CCM bin or inferred preceding-only interval"]}
+      ],
+      "source_locators": ["Sarsenbayeva2020 primary302–311,336–351; PDF SHA256:3ea795cea6f4d7eb3da108c90b7b0c67c4431b5795ea78b013e59d4438662947; constructed normalized records, not original observations"]
+    },
+    {
+      "task_occurrence_id": "example:emotion-esm-b",
+      "method_profile_id": "method-profile:doi:10.1145/3313831.3376163",
+      "source_work_id": "doi:10.1145/3313831.3376163",
+      "participant_id": "example:participant",
+      "record_origin": "analyst_constructed_example",
+      "task_label": "Independent supplied ESM completion B",
+      "task_actions": [{"task_action_id": "example:other-completion-response", "action_label": "ESM response event", "source_locators": ["Sarsenbayeva2020 primary336–351; separate supplied completion"]}],
+      "task_questionnaire_responses": [{"questionnaire_response_id": "example:other-completion-valence", "questionnaire_setting_reference": "method-setting-d363072bb0c41a128ba4bcab", "observed_property": "valence", "source_locators": ["Sarsenbayeva2020 primary302–311; omitted value does not imply skipped ESM"]}],
+      "source_locators": ["Sarsenbayeva2020 primary302–311; no auto-join between separate completions"]
+    },
+    {
+      "task_occurrence_id": "example:post-unlock-a",
+      "method_profile_id": "method-profile:doi:10.1145/3313831.3376163",
+      "source_work_id": "doi:10.1145/3313831.3376163",
+      "participant_id": "example:participant",
+      "record_origin": "analyst_constructed_example",
+      "task_label": "Supplied session following an unlock event",
+      "task_actions": [
+        {"task_action_id": "example:unlock-a", "action_label": "Unlock", "source_locators": ["Sarsenbayeva2020 primary178–199; supplied session member"]},
+        {"task_action_id": "example:foreground-a", "app_identifier": "example:app-A", "action_label": "Foreground application", "source_locators": ["Sarsenbayeva2020 primary178–199; no raw package serialization or time interpretation inferred"]},
+        {"task_action_id": "example:foreground-b", "app_identifier": "example:app-B", "action_label": "Foreground application", "denotes_interval": null, "source_locators": ["Sarsenbayeva2020 primary178–199; independently supplied foreground member"]},
+        {"task_action_id": "example:foreground-a-again", "app_identifier": "example:app-A", "action_label": "Foreground application", "source_locators": ["Sarsenbayeva2020 primary178–199; repeated app identity does not merge occurrences"]}
+      ],
+      "source_locators": ["Sarsenbayeva2020 primary178–199; supplied post-unlock membership, not reconstructed session end rules or a join to random ESM completion"]
+    },
+    {
+      "task_occurrence_id": "example:post-unlock-b",
+      "method_profile_id": "method-profile:doi:10.1145/3313831.3376163",
+      "source_work_id": "doi:10.1145/3313831.3376163",
+      "participant_id": "example:participant",
+      "record_origin": "analyst_constructed_example",
+      "task_label": "Separate supplied post-unlock session",
+      "task_actions": [{"task_action_id": "example:foreground-c", "app_identifier": "example:app-C", "action_label": "Foreground application", "source_locators": ["Sarsenbayeva2020 primary178–199; supplied session membership"]}],
+      "source_locators": ["Sarsenbayeva2020 primary178–199; no inferred opener, end, timestamp or ESM link"]
+    },
+    {
+      "task_occurrence_id": "example:pam-completion-a",
+      "method_profile_id": "method-profile:doi:10.1002/per.2309",
+      "source_work_id": "doi:10.1002/per.2309",
+      "participant_id": "example:participant",
+      "record_origin": "analyst_constructed_example",
+      "task_label": "Supplied assessment completion with first PAM response and later personality submission",
+      "task_actions": [
+        {"task_action_id": "example:first-pam", "action_label": "Response to first photographic affect meter element", "source_locators": ["Personality states2020 primary755–773/printed697; event identity only, no PAM answer scale inferred"]},
+        {"task_action_id": "example:personality-submission", "action_label": "Later personality state submission", "source_locators": ["Personality states2020 primary755–773; distinct from first PAM response, no exact latency inferred"]}
+      ],
+      "task_questionnaire_responses": [{"questionnaire_response_id": "example:personality-answer", "questionnaire_setting_reference": "method-setting-f3d0179454cefcfcf37badf3", "observed_property": "openness", "questionnaire_item_label": "close-minded–open-minded", "response_value_json": "0.00", "source_locators": ["Personality states2020 primary245–261; hypothetical personality slider answer, NOT photographic affect meter coding"]}],
+      "task_observation_windows": [{"observation_window_id": "example:preceding-thirty-minutes", "window_setting_references": ["method-setting-e36f8db35beae75e7dba31dd", "method-setting-7a8120fcc9e3fecfab462223"], "anchor_task_action_reference": "example:first-pam", "questionnaire_response_references": ["example:personality-answer"], "denotes_interval": {"duration_seconds": 1800}, "quantities": [{"observed_property": "Number of phone calls", "evidence_value_json": "0"}], "source_locators": ["Personality states2020 primary755–777/printed697; supplied preceding30-minute indicator, endpoint is first PAM response not later personality submission; no raw-stream join or count executed"]}],
+      "source_locators": ["doi:10.1002/per.2309 primary245–261,755–777; analyst-constructed normalized example, original streams and helper implementation unavailable"]
+    },
+    {
+      "task_occurrence_id": "example:pam-completion-b",
+      "method_profile_id": "method-profile:doi:10.1002/per.2309",
+      "source_work_id": "doi:10.1002/per.2309",
+      "participant_id": "example:participant",
+      "record_origin": "analyst_constructed_example",
+      "task_label": "Separate supplied assessment completion",
+      "task_actions": [{"task_action_id": "example:other-first-pam", "action_label": "First PAM response", "source_locators": ["Personality states2020 primary755–773; independent completion"]}],
+      "task_questionnaire_responses": [{"questionnaire_response_id": "example:other-personality-answer", "questionnaire_setting_reference": "method-setting-f3d0179454cefcfcf37badf3", "observed_property": "openness", "response_value_json": "null", "source_locators": ["Personality states2020 primary245–261; no imputation"]}],
+      "source_locators": ["Personality states2020 primary755–773; cannot borrow a neighboring completion's anchor or answers"]
+    }
+  ]
+}

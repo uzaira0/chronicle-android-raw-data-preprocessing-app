@@ -1,0 +1,137 @@
+{
+  "schemaVersion": "chronicle-phonelab-screen-broadcast-framing-canonical-source-fixture/v1",
+  "sourceWorkId": "doi:10.1145/2858036.2858267",
+  "canonicalSetting": {
+    "settingId": "method-setting-eb314ac09a0b1414bdc50cc8",
+    "parameterKey": "event_schema.screen_broadcasts",
+    "sourceObservedSetting": "event_schema.screen_broadcasts: SCREEN ON and SCREEN OFF broadcasts frame interaction; hardware button opens, and timeout or another button press closes",
+    "sourceValueSha256": "41e26543773ddd6bef1497f0b8aabbe3bf413972244fbe152b323a3f06da9367"
+  },
+  "supersededAliases": [
+    "atomic-b6b6b641b466282522d2a2e0",
+    "atomic-962f326078193ac4caeb70b6"
+  ],
+  "sourceArtifacts": [
+    {
+      "role": "primary paper",
+      "locator": ".tmp-literature-review-private/high-value-open-http-wave-20260830T212017Z/downloads/anatomy-unlocking/primary-google.pdf; pages 2-3",
+      "sha256": "06668bf48254975d18a5204e65366a1d28365cd8f6a2ecc45ab268cdebbb959c"
+    },
+    {
+      "role": "stable text extraction",
+      "locator": ".tmp-literature-review-private/corrective-queue-a-20260831/evidence/rank22.txt:206-220",
+      "sha256": "bca55fccaab4d7368190875715e7757dcfdbb21e59c275f4db055e502457c6b9"
+    },
+    {
+      "role": "canonical compilation matrix",
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/android-primitive-batch-01/daugherty/setting-matrix.json",
+      "sha256": "314e4fec725016e8b3c2046a8851bb4f21c3e48fdd7a5ee793f0ca17dc791c2e"
+    },
+    {
+      "role": "alias and tombstone ledger",
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/method-setting-alias-tombstones.json",
+      "sha256": "018221f6036218887355a0a2dcd9d6d54a9e90eb93f380b4e1b81cc75c0f76b5"
+    }
+  ],
+  "existingOwnerAtAudit": {
+    "adapterId": "chronicle.source-event-schema",
+    "adapterVersion": "v1",
+    "sourceField": "source_event_type",
+    "rules": [
+      {
+        "ownerAlias": "atomic-b6b6b641b466282522d2a2e0",
+        "sourceToken": "SCREEN ON",
+        "canonicalInteractionType": "Screen Interactive"
+      },
+      {
+        "ownerAlias": "atomic-962f326078193ac4caeb70b6",
+        "sourceToken": "SCREEN OFF",
+        "canonicalInteractionType": "Screen Non-Interactive"
+      }
+    ]
+  },
+  "inputBoundary": "Caller supplies participant identity, immutable source order, an ordered scalar timestamp coordinate, and one exact normalized source token: SCREEN ON or SCREEN OFF. No raw PhoneLab logger schema is inferred.",
+  "outputBoundary": "A well-formed SCREEN ON row opens one interaction frame and the following SCREEN OFF row closes it. Both source tokens and normalized Chronicle interaction types are retained. No per-row closing cause is emitted.",
+  "sharedIntegrationRequirement": "Permit one canonical source-event-schema setting to own both exact token rules, then guard the existing screen interval owner with strict well-formed framing input. Do not promote the two superseded aliases as independent settings.",
+  "validCases": [
+    {
+      "caseId": "two_participants_have_source_ordered_complete_frames",
+      "rows": [
+        {"participantId": "P1", "sourceOrder": 1, "timestampCoordinate": 100, "sourceEventType": "SCREEN ON"},
+        {"participantId": "P2", "sourceOrder": 2, "timestampCoordinate": 200, "sourceEventType": "SCREEN ON"},
+        {"participantId": "P1", "sourceOrder": 3, "timestampCoordinate": 130, "sourceEventType": "SCREEN OFF"},
+        {"participantId": "P2", "sourceOrder": 4, "timestampCoordinate": 240, "sourceEventType": "SCREEN OFF"}
+      ],
+      "expectedFrames": [
+        {
+          "participantId": "P1",
+          "startSourceOrder": 1,
+          "stopSourceOrder": 3,
+          "startTimestampCoordinate": 100,
+          "stopTimestampCoordinate": 130,
+          "startSourceEventType": "SCREEN ON",
+          "stopSourceEventType": "SCREEN OFF",
+          "startInteractionType": "Screen Interactive",
+          "stopInteractionType": "Screen Non-Interactive"
+        },
+        {
+          "participantId": "P2",
+          "startSourceOrder": 2,
+          "stopSourceOrder": 4,
+          "startTimestampCoordinate": 200,
+          "stopTimestampCoordinate": 240,
+          "startSourceEventType": "SCREEN ON",
+          "stopSourceEventType": "SCREEN OFF",
+          "startInteractionType": "Screen Interactive",
+          "stopInteractionType": "Screen Non-Interactive"
+        }
+      ]
+    }
+  ],
+  "invalidCases": [
+    {
+      "caseId": "foreign_source_token_fails_closed",
+      "rows": [
+        {"participantId": "P1", "sourceOrder": 1, "timestampCoordinate": 100, "sourceEventType": "screen on"}
+      ],
+      "expectedError": "source_event_type_outside_closed_set"
+    },
+    {
+      "caseId": "orphan_off_fails_closed",
+      "rows": [
+        {"participantId": "P1", "sourceOrder": 1, "timestampCoordinate": 100, "sourceEventType": "SCREEN OFF"}
+      ],
+      "expectedError": "screen_off_without_open_frame"
+    },
+    {
+      "caseId": "repeated_on_fails_closed",
+      "rows": [
+        {"participantId": "P1", "sourceOrder": 1, "timestampCoordinate": 100, "sourceEventType": "SCREEN ON"},
+        {"participantId": "P1", "sourceOrder": 2, "timestampCoordinate": 110, "sourceEventType": "SCREEN ON"}
+      ],
+      "expectedError": "screen_on_while_frame_open"
+    },
+    {
+      "caseId": "nonincreasing_frame_timestamp_fails_closed",
+      "rows": [
+        {"participantId": "P1", "sourceOrder": 1, "timestampCoordinate": 100, "sourceEventType": "SCREEN ON"},
+        {"participantId": "P1", "sourceOrder": 2, "timestampCoordinate": 100, "sourceEventType": "SCREEN OFF"}
+      ],
+      "expectedError": "nonincreasing_frame_timestamp"
+    },
+    {
+      "caseId": "unclosed_frame_fails_closed",
+      "rows": [
+        {"participantId": "P1", "sourceOrder": 1, "timestampCoordinate": 100, "sourceEventType": "SCREEN ON"}
+      ],
+      "expectedError": "unclosed_screen_frame"
+    }
+  ],
+  "limitations": [
+    "The fixture starts after source-specific PhoneLab collection and normalization; the unpublished raw logger schema and raw-to-token mapping remain unavailable.",
+    "The paper identifies hardware-button SCREEN ON and timeout-or-button SCREEN OFF causes in aggregate, but it does not disclose a per-row off-cause field; no cause is inferred or emitted.",
+    "The timestamp coordinate is caller-supplied and ordered. Its unit, epoch, precision, timezone, and raw parsing are outside this claim.",
+    "Orphan, repeated, equal-time, and unclosed boundaries fail closed because the source does not specify their repair policy.",
+    "This proves the two-token schema and complete well-formed framing boundary only, not the keyguard state machine or any study result."
+  ]
+}

@@ -1,3 +1,9 @@
+// The minicov profile runtime backs coverage-instrumented builds; the
+// explicit extern keeps its C runtime in this cdylib's link.
+#[cfg(feature = "coverage-runtime")]
+extern crate minicov;
+
+use std::collections::BTreeMap;
 use std::error::Error;
 use std::fmt;
 
@@ -50,6 +56,218 @@ pub struct MatchUpdateIndices {
     pub stop_start_indices: Vec<usize>,
     pub stop_event_indices: Vec<usize>,
     pub missing_indices: Vec<usize>,
+    /// Why each closed episode ended. Parallel to `stop_start_indices`.
+    pub stop_reasons: Vec<EpisodeCloseReason>,
+    /// Why each unclosed episode has no end. Parallel to `missing_indices`.
+    pub missing_reasons: Vec<EpisodeCloseReason>,
+    /// Explicit end instants for rules whose close does not land on an event.
+    /// Parallel to `stop_start_indices`; `None` means "use the timestamp of
+    /// `stop_event_indices[i]`", which is what every row-anchored rule reports.
+    ///
+    /// GESIS is the reason this exists: its timeout close is `start + 600 s`, a
+    /// synthetic instant no event carries. Snapping that to the nearest row
+    /// would silently report an end the rule never chose.
+    pub stop_timestamps_ns: Vec<Option<i64>>,
+}
+
+/// Why an app-usage episode ended.
+///
+/// Every reconstruction rule answers the same question — *what bounds an
+/// episode?* — and each answers it with a different vocabulary. Rather than
+/// flatten them into one lossy set, each rule's own answers are named here, so
+/// a per-episode trace says what that rule actually did. Cross-rule comparison
+/// groups them via [`EpisodeCloseReason::lineage_reason`].
+///
+/// The pipeline previously carried one bit of this information: an episode
+/// either got a stop or became `End of Usage Missing`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum EpisodeCloseReason {
+    // ---- fused matcher (this repository's production rule) ----
+    /// A stop event for the episode's own package.
+    SameAppStop,
+    /// A stop event belonging to a different package, under the
+    /// non-concurrent-usage model where any foreground change ends the episode.
+    ///
+    /// There is deliberately no separate "any app" reason. The sparse matcher
+    /// has an `AnyApp` *matching mode* that closes same- and other-package
+    /// starts in one sweep, but that is how the stop was searched, not why a
+    /// given episode ended; each episode it closes is still a same-app or an
+    /// other-app close. The randomized legacy-oracle test pins this.
+    OtherAppStop,
+    /// `Activity Stopped` accepted as a stand-in because no ordinary stop
+    /// arrived — `use_activity_stopped_as_fallback`.
+    ActivityStoppedFallback,
+    /// The event stream ended while the episode was still open, and the last
+    /// observed event was accepted as its end.
+    EndOfStream,
+    /// No end could be observed at all. Becomes `End of Usage Missing`.
+    Unobserved,
+
+    // ---- Parry & Toth forward pairing ----
+    /// The screen became non-interactive.
+    ScreenNonInteractive,
+    /// The episode's own package moved to the background.
+    SamePackageBackgrounded,
+    /// A different package took the foreground.
+    ForegroundHandover,
+
+    // ---- GESIS / Zerrer ----
+    /// A real same-app Stop within the event-distance threshold.
+    GesisOriginalStop,
+    /// No usable Stop, so the next global event closed it.
+    GesisNextGlobalEvent,
+    /// Neither was available, so the maximum-duration timeout closed it.
+    GesisTimeout,
+
+    // ---- EYES complement ----
+    /// The device-state timeline (SHUTDOWN / IDLE / GAP / GLANCE) bounded the
+    /// fragment.
+    EyesDeviceStateBoundary,
+    /// The resume/pause/stop triplet supplied the end directly.
+    EyesTripletClose,
+    /// No end was in the triplet, so the start of the next activity block was
+    /// taken as this episode's end. Kept separate from `EyesTripletClose`
+    /// because that one is an observed stop and this one is not: collapsing
+    /// them made the end-reason column report an inference as an observation,
+    /// which is the single distinction the column exists to carry.
+    EyesNextBlockAssumed,
+
+    // ---- Draxler et al. (2021) ----
+    /// Ten minutes passed with no event of any kind, so the episode was cut at
+    /// its last observed activity. Distinct from `Unobserved` and from the
+    /// GESIS timeout: this end is a declared inactivity rule, not a failure to
+    /// find a stop and not a maximum-duration cap.
+    DraxlerInactivityTimeout,
+
+    // ---- Morrison et al. (2018) ----
+    /// The screen went off and stayed off past the lock timeout, so the lock
+    /// counted as ending the use. The end itself is the screen-off event, which
+    /// was observed — the timeout only decides whether that event closed
+    /// anything, so this reason is not an `assumed_` one. Kept apart from
+    /// `ScreenNonInteractive` because that reason closes at the screen-off
+    /// unconditionally and this one had to look past it first.
+    ScreenLockedPastTimeout,
+}
+
+impl EpisodeCloseReason {
+    /// The value this reason takes inside a `LineageSearchEvidence.reason`.
+    ///
+    /// Deliberately `kebab-case`, not the `snake_case` that
+    /// `EpisodeReconstructionStrategy::canonical_id` and the other contract
+    /// option values use. Three casings coexist in this pipeline, each owned by
+    /// a layer: lineage/provenance strings are kebab (`selected-qualifying-stop`,
+    /// `pipeline-event-order`), contract option values are snake
+    /// (`parry_toth_forward_pairing`), and output CSV cell values are Title Case
+    /// (`End of Usage Missing`). These reasons sit beside the first group, so
+    /// they match it. The method is named `lineage_reason` rather than
+    /// `canonical_id` precisely so it is not mistaken for the snake-case layer.
+    pub const fn lineage_reason(self) -> &'static str {
+        match self {
+            Self::SameAppStop => "same-app-stop",
+            Self::OtherAppStop => "other-app-stop",
+            Self::ActivityStoppedFallback => "activity-stopped-fallback",
+            Self::EndOfStream => "end-of-stream",
+            Self::Unobserved => "unobserved",
+            Self::ScreenNonInteractive => "screen-non-interactive",
+            Self::SamePackageBackgrounded => "same-package-backgrounded",
+            Self::ForegroundHandover => "foreground-handover",
+            Self::GesisOriginalStop => "gesis-original",
+            Self::GesisNextGlobalEvent => "gesis-activity-based",
+            Self::GesisTimeout => "gesis-timeout",
+            Self::EyesDeviceStateBoundary => "eyes-device-state-boundary",
+            Self::EyesTripletClose => "eyes-triplet-close",
+            Self::EyesNextBlockAssumed => "eyes-next-block-assumed",
+            Self::DraxlerInactivityTimeout => "draxler-inactivity-timeout",
+            Self::ScreenLockedPastTimeout => "screen-locked-past-timeout",
+        }
+    }
+
+    /// The value written into an output CSV cell.
+    ///
+    /// snake_case, matching `screen_usage_end_reason` — this column's twin on
+    /// the screen table, which already ships values like `lock_screen_only`.
+    /// A researcher with both open should not meet two spellings of the same
+    /// idea. This is deliberately NOT `lineage_reason()`: those are kebab-case
+    /// provenance identifiers on their own protocol, and sharing one string
+    /// would let a rename of either silently rewrite the other.
+    ///
+    /// Two rules that observed the same thing return the same value. A reader
+    /// wants to know the app's own stop event closed the episode; which rule
+    /// noticed it is already recorded once, as the selected option, so the map
+    /// is deliberately not injective.
+    ///
+    /// `assumed_` prefixes every end the log did not contain. That prefix is
+    /// the whole point of the column: a repaired end and a real one are
+    /// indistinguishable in the duration column, and a reader should not need
+    /// a legend to tell them apart.
+    pub const fn output_label(self) -> &'static str {
+        match self {
+            Self::SameAppStop | Self::GesisOriginalStop | Self::EyesTripletClose => {
+                "same_app_stop_event"
+            }
+            Self::OtherAppStop => "other_app_stop_event",
+            Self::ActivityStoppedFallback => "activity_stopped_event",
+            Self::ForegroundHandover => "another_app_opened",
+            Self::SamePackageBackgrounded => "app_moved_to_background",
+            // Both ends ARE the screen-off event; they differ only in what the
+            // rule had to check before accepting it, and which rule ran is
+            // already recorded once as the selected option.
+            Self::ScreenNonInteractive | Self::ScreenLockedPastTimeout => "screen_turned_off",
+            Self::EyesDeviceStateBoundary => "device_powered_off_or_idle",
+            Self::GesisNextGlobalEvent => "assumed_end_at_next_event",
+            Self::EyesNextBlockAssumed => "assumed_end_at_next_activity",
+            Self::GesisTimeout => "assumed_end_at_timeout",
+            // Deliberately shares no label with `GesisTimeout`: that one caps a
+            // run-away episode at a maximum duration, this one ends an episode
+            // because nothing happened for ten minutes.
+            Self::DraxlerInactivityTimeout => "assumed_end_after_inactivity",
+            Self::EndOfStream => "recording_ended_while_open",
+            Self::Unobserved => "no_end_found",
+        }
+    }
+
+    /// Every reason, so a round-trip test can cover the set exhaustively rather
+    /// than a sample. Adding a variant without adding it here fails that test.
+    pub const ALL: &'static [Self] = &[
+        Self::SameAppStop,
+        Self::OtherAppStop,
+        Self::ActivityStoppedFallback,
+        Self::EndOfStream,
+        Self::Unobserved,
+        Self::ScreenNonInteractive,
+        Self::SamePackageBackgrounded,
+        Self::ForegroundHandover,
+        Self::GesisOriginalStop,
+        Self::GesisNextGlobalEvent,
+        Self::GesisTimeout,
+        Self::EyesDeviceStateBoundary,
+        Self::EyesTripletClose,
+        Self::EyesNextBlockAssumed,
+        Self::DraxlerInactivityTimeout,
+        Self::ScreenLockedPastTimeout,
+    ];
+
+    /// Inverse of [`Self::lineage_reason`].
+    ///
+    /// Unlike `IntervalQualityPolicy::from_canonical_id` and
+    /// `EpisodeReconstructionStrategy::from_canonical_id`, an unrecognised
+    /// value is an error rather than a silent fallback. Those two decode a
+    /// *user option*, where falling back to the production path is the safe
+    /// answer. This decodes a *record of what happened*, where inventing
+    /// `SameAppStop` for an unreadable value would fabricate provenance — the
+    /// one thing a lineage trace must never do.
+    pub fn from_lineage_reason(value: &str) -> Option<Self> {
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|reason| reason.lineage_reason() == value)
+    }
+
+    /// True when the episode has no observed end and must be reported as
+    /// `End of Usage Missing` rather than credited.
+    pub const fn is_unobserved(self) -> bool {
+        matches!(self, Self::Unobserved)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -380,6 +598,58 @@ enum SparseStopMode {
     OtherApp,
     AnyApp,
     FallbackSameApp,
+}
+
+/// Classify every close appended since `stop_reasons` was last filled.
+///
+/// One stop event can close several open starts, and under the sparse matcher's
+/// `AnyApp` mode those closes are not all the same kind. Classifying per start
+/// — rather than once per stop — is what keeps the sparse and legacy paths
+/// agreeing; the randomized oracle test fails otherwise.
+fn classify_new_closes(
+    stop_reasons: &mut Vec<EpisodeCloseReason>,
+    stop_start_indices: &[usize],
+    stop_index: usize,
+    app_codes: &[i32],
+    same_stop: &[bool],
+    other_stop: &[bool],
+    background: &[bool],
+) {
+    for &start_index in &stop_start_indices[stop_reasons.len()..] {
+        stop_reasons.push(legacy_close_reason(
+            stop_index,
+            start_index,
+            app_codes,
+            same_stop,
+            other_stop,
+            background,
+        ));
+    }
+}
+
+/// Which compatibility test let `stop_index` close `start_index`.
+///
+/// The legacy proximity path does not carry a `SparseStopMode`; it re-derives
+/// compatibility per candidate start. This mirrors that test in the same order,
+/// so the reported reason is the one that actually matched rather than a guess.
+/// `AnyAppStop` is unreachable here: that mode exists only in the sparse path's
+/// background-modelling branch.
+fn legacy_close_reason(
+    stop_index: usize,
+    start_index: usize,
+    app_codes: &[i32],
+    same_stop: &[bool],
+    other_stop: &[bool],
+    background: &[bool],
+) -> EpisodeCloseReason {
+    let same_app = app_codes[start_index] == app_codes[stop_index];
+    if same_stop[stop_index] && same_app {
+        EpisodeCloseReason::SameAppStop
+    } else if other_stop[stop_index] && !same_app && !background[start_index] {
+        EpisodeCloseReason::OtherAppStop
+    } else {
+        EpisodeCloseReason::ActivityStoppedFallback
+    }
 }
 
 fn sparse_stop_mode(
@@ -752,6 +1022,8 @@ pub fn match_app_usage_update_indices_core(
     let mut stop_start_indices = Vec::new();
     let mut stop_event_indices = Vec::new();
     let mut missing_indices = Vec::new();
+    let mut stop_reasons: Vec<EpisodeCloseReason> = Vec::new();
+    let mut missing_reasons: Vec<EpisodeCloseReason> = Vec::new();
     let mut open_starts = SparseOpenStarts::new(len, app_codes)?;
     let threshold_ns = options.long_duration_threshold_ns;
 
@@ -760,6 +1032,11 @@ pub fn match_app_usage_update_indices_core(
             let current_app = app_codes[index];
             let stop_timestamp_ns = timestamp_ns[index];
             let enforce_threshold = sparse_stop_enforces_threshold(stop_mode, options);
+            // One stop event can close several open starts (reuse mode), and
+            // every close it performs carries this stop's mode. Rather than
+            // thread a reason through each closure, backfill whatever this
+            // block appended — `resize` only ever extends, so entries recorded
+            // by earlier blocks keep their own reason.
 
             if options.allow_stop_event_reuse {
                 match stop_mode {
@@ -843,6 +1120,15 @@ pub fn match_app_usage_update_indices_core(
                     stop_event_indices.push(index);
                 }
             }
+            classify_new_closes(
+                &mut stop_reasons,
+                &stop_start_indices,
+                index,
+                app_codes,
+                same_stop,
+                other_stop,
+                background,
+            );
         }
 
         if resumed[index] {
@@ -863,13 +1149,24 @@ pub fn match_app_usage_update_indices_core(
             },
             |start_index| missing_indices.push(start_index),
         );
+        // Everything appended above came from the end-of-stream sweep: the
+        // stream ran out with these episodes still open.
+        stop_reasons.resize(stop_start_indices.len(), EpisodeCloseReason::EndOfStream);
+        missing_reasons.resize(missing_indices.len(), EpisodeCloseReason::Unobserved);
     }
 
+    // Every close these rules make lands on a real event, so no explicit end
+    // instants are needed. Bound before the literal: the struct moves
+    // `stop_start_indices` on the line above.
+    let row_anchored_stops = vec![None; stop_start_indices.len()];
     Ok(MatchUpdateIndices {
         start_indices,
         stop_start_indices,
         stop_event_indices,
         missing_indices,
+        stop_reasons,
+        missing_reasons,
+        stop_timestamps_ns: row_anchored_stops,
     })
 }
 
@@ -882,7 +1179,8 @@ pub fn match_app_usage_update_indices_core(
 fn match_sorted_app_usage_update_indices_with_proximity(
     app_codes: &[i32],
     timestamp_ns: &[i64],
-    resumed: &[bool],
+    eligible_opener: &[bool],
+    native_resumed: &[bool],
     same_stop: &[bool],
     other_stop: &[bool],
     stopped: &[bool],
@@ -901,6 +1199,8 @@ fn match_sorted_app_usage_update_indices_with_proximity(
     let mut stop_start_indices = Vec::new();
     let mut stop_event_indices = Vec::new();
     let mut missing_indices = Vec::new();
+    let mut stop_reasons: Vec<EpisodeCloseReason> = Vec::new();
+    let mut missing_reasons: Vec<EpisodeCloseReason> = Vec::new();
     let mut closed = Vec::new();
     let threshold_ns = options.long_duration_threshold_ns;
 
@@ -1004,14 +1304,25 @@ fn match_sorted_app_usage_update_indices_with_proximity(
                     stop_event_indices.push(index);
                 }
             }
+            classify_new_closes(
+                &mut stop_reasons,
+                &stop_start_indices,
+                index,
+                app_codes,
+                same_stop,
+                other_stop,
+                background,
+            );
         }
 
-        if resumed[index] {
+        if eligible_opener[index] {
             let slot = app_codes[index] as usize;
-            is_reresume[index] = last_event_ns[slot].is_some_and(|last| {
-                last_was_same_stop[slot]
-                    && i128::from(timestamp_ns[index]) - i128::from(last) < i128::from(proximity_ns)
-            });
+            is_reresume[index] = native_resumed[index]
+                && last_event_ns[slot].is_some_and(|last| {
+                    last_was_same_stop[slot]
+                        && i128::from(timestamp_ns[index]) - i128::from(last)
+                            < i128::from(proximity_ns)
+                });
             start_indices.push(index);
             open_starts.open(index, app_codes[index]);
         }
@@ -1037,13 +1348,22 @@ fn match_sorted_app_usage_update_indices_with_proximity(
             stop_event_indices.push(stop_index);
         }
         missing_indices.extend(final_missing.into_iter().rev());
+        stop_reasons.resize(stop_start_indices.len(), EpisodeCloseReason::EndOfStream);
+        missing_reasons.resize(missing_indices.len(), EpisodeCloseReason::Unobserved);
     }
 
+    // Every close these rules make lands on a real event, so no explicit end
+    // instants are needed. Bound before the literal: the struct moves
+    // `stop_start_indices` on the line above.
+    let row_anchored_stops = vec![None; stop_start_indices.len()];
     Ok(MatchUpdateIndices {
         start_indices,
         stop_start_indices,
         stop_event_indices,
         missing_indices,
+        stop_reasons,
+        missing_reasons,
+        stop_timestamps_ns: row_anchored_stops,
     })
 }
 
@@ -1051,7 +1371,8 @@ fn match_sorted_app_usage_update_indices_with_proximity(
 fn match_legacy_app_usage_update_indices_with_proximity(
     app_codes: &[i32],
     timestamp_ns: &[i64],
-    resumed: &[bool],
+    eligible_opener: &[bool],
+    native_resumed: &[bool],
     same_stop: &[bool],
     other_stop: &[bool],
     stopped: &[bool],
@@ -1075,6 +1396,8 @@ fn match_legacy_app_usage_update_indices_with_proximity(
     let mut stop_start_indices = Vec::new();
     let mut stop_event_indices = Vec::new();
     let mut missing_indices = Vec::new();
+    let mut stop_reasons: Vec<EpisodeCloseReason> = Vec::new();
+    let mut missing_reasons: Vec<EpisodeCloseReason> = Vec::new();
 
     for index in 0..len {
         let current_app = app_codes[index];
@@ -1095,6 +1418,14 @@ fn match_legacy_app_usage_update_indices_with_proximity(
                 |start_index| {
                     stop_start_indices.push(start_index);
                     stop_event_indices.push(index);
+                    stop_reasons.push(legacy_close_reason(
+                        index,
+                        start_index,
+                        app_codes,
+                        same_stop,
+                        other_stop,
+                        background,
+                    ));
                 },
             );
         } else if is_normal_stop || is_fallback_stop {
@@ -1134,15 +1465,25 @@ fn match_legacy_app_usage_update_indices_with_proximity(
                 let start_index = open_start_indices.remove(position);
                 stop_start_indices.push(start_index);
                 stop_event_indices.push(index);
+                stop_reasons.push(legacy_close_reason(
+                    index,
+                    start_index,
+                    app_codes,
+                    same_stop,
+                    other_stop,
+                    background,
+                ));
             }
         }
 
-        if resumed[index] {
+        if eligible_opener[index] {
             let slot = current_app as usize;
-            is_reresume[index] = last_event_ns[slot].is_some_and(|last| {
-                last_was_same_stop[slot]
-                    && i128::from(timestamp_ns[index]) - i128::from(last) < i128::from(proximity_ns)
-            });
+            is_reresume[index] = native_resumed[index]
+                && last_event_ns[slot].is_some_and(|last| {
+                    last_was_same_stop[slot]
+                        && i128::from(timestamp_ns[index]) - i128::from(last)
+                            < i128::from(proximity_ns)
+                });
             start_indices.push(index);
             open_start_indices.push(index);
         }
@@ -1165,17 +1506,26 @@ fn match_legacy_app_usage_update_indices_with_proximity(
             {
                 stop_start_indices.push(start_index);
                 stop_event_indices.push(last_index);
+                stop_reasons.push(EpisodeCloseReason::EndOfStream);
             } else {
                 missing_indices.push(start_index);
+                missing_reasons.push(EpisodeCloseReason::Unobserved);
             }
         }
     }
 
+    // Every close these rules make lands on a real event, so no explicit end
+    // instants are needed. Bound before the literal: the struct moves
+    // `stop_start_indices` on the line above.
+    let row_anchored_stops = vec![None; stop_start_indices.len()];
     Ok(MatchUpdateIndices {
         start_indices,
         stop_start_indices,
         stop_event_indices,
         missing_indices,
+        stop_reasons,
+        missing_reasons,
+        stop_timestamps_ns: row_anchored_stops,
     })
 }
 
@@ -1191,15 +1541,55 @@ pub fn match_app_usage_update_indices_with_proximity_core(
     options: MatchOptions,
     proximity_ns: i64,
 ) -> MatcherResult<MatchUpdateIndices> {
-    validate_lengths(
+    match_app_usage_update_indices_with_proximity_openers_core(
         app_codes,
         timestamp_ns,
+        resumed,
         resumed,
         same_stop,
         other_stop,
         stopped,
         background,
+        options,
+        proximity_ns,
+    )
+}
+
+/// Fused matcher with opener eligibility separated from Android's native
+/// `ACTIVITY_RESUMED` signal.
+///
+/// `eligible_opener` controls only which rows may enter the open-start set.
+/// `native_resumed` remains the lifecycle signal used by the proximity repair
+/// to recognize a real re-resume. Close and handover behavior continues to be
+/// supplied by `same_stop`/`other_stop`; callers must not derive those arrays
+/// from the selected opener set.
+#[allow(clippy::too_many_arguments)]
+pub fn match_app_usage_update_indices_with_proximity_openers_core(
+    app_codes: &[i32],
+    timestamp_ns: &[i64],
+    eligible_opener: &[bool],
+    native_resumed: &[bool],
+    same_stop: &[bool],
+    other_stop: &[bool],
+    stopped: &[bool],
+    background: &[bool],
+    options: MatchOptions,
+    proximity_ns: i64,
+) -> MatcherResult<MatchUpdateIndices> {
+    validate_lengths(
+        app_codes,
+        timestamp_ns,
+        native_resumed,
+        same_stop,
+        other_stop,
+        stopped,
+        background,
     )?;
+    if eligible_opener.len() != app_codes.len() {
+        return Err(MatcherError::new(
+            "all input arrays must have the same length",
+        ));
+    }
     if proximity_ns < 0 {
         return Err(MatcherError::new("proximity_ns must be non-negative"));
     }
@@ -1207,7 +1597,7 @@ pub fn match_app_usage_update_indices_with_proximity_core(
         return match_app_usage_update_indices_core(
             app_codes,
             timestamp_ns,
-            resumed,
+            eligible_opener,
             same_stop,
             other_stop,
             stopped,
@@ -1220,7 +1610,8 @@ pub fn match_app_usage_update_indices_with_proximity_core(
         return match_sorted_app_usage_update_indices_with_proximity(
             app_codes,
             timestamp_ns,
-            resumed,
+            eligible_opener,
+            native_resumed,
             same_stop,
             other_stop,
             stopped,
@@ -1233,7 +1624,8 @@ pub fn match_app_usage_update_indices_with_proximity_core(
     match_legacy_app_usage_update_indices_with_proximity(
         app_codes,
         timestamp_ns,
-        resumed,
+        eligible_opener,
+        native_resumed,
         same_stop,
         other_stop,
         stopped,
@@ -1241,6 +1633,360 @@ pub fn match_app_usage_update_indices_with_proximity_core(
         options,
         proximity_ns,
     )
+}
+
+/// GESIS episode reconstruction (Zerrer, Wieland & de Alwis).
+///
+/// Ported from the tutorial's `red_start_stop` pipeline at
+/// github.com/patrickzerrer/How-to-work-with-Android-App-Logging-Data
+/// (MIT, `readme.qmd`), doi:10.71627/How-to-work-with-Android-App-Logging-Data.1.
+///
+/// An episode opens on every `Start` row whose package is not the Android
+/// system pseudo-package. Its end is chosen in three tiers:
+///
+/// 1. **`original`** — the nearest same-app `Stop` strictly after the start,
+///    accepted when at most `event_threshold` events sit between them.
+/// 2. **`activity_based`** — otherwise (too many intervening events, or no
+///    same-app stop at all) the *next global event* of any package, accepted
+///    only if it falls within `max_timeout` of the start.
+/// 3. **`timeout`** — otherwise the episode is cut at `start + max_timeout`, an
+///    instant no event carries. This is why `stop_timestamps_ns` exists.
+///
+/// Defaults are the tutorial's: `max_timeout = 600 s`, `event_threshold = 10`.
+///
+/// Three details are reproduced deliberately because they are load-bearing and
+/// each would look like a bug to someone porting from the prose:
+///
+/// - **The threshold comparison is inclusive on both sides.** The R writes
+///   `events_between <= threshold` for tier 1 and `>= threshold` for tier 2,
+///   which overlap at exactly `threshold`; `case_when` takes the first match,
+///   so exactly-`threshold` resolves to `original`. Reproduced here.
+/// - **A later same-app `Start` can serve as a `Stop`.** Their stop table is
+///   built from rows classified `Start` *or* `Stop`, keeping any whose next
+///   same-app event is not a `Stop` — which admits `Start` rows. An episode can
+///   therefore be closed by the same app opening again. This looks accidental,
+///   but it is what their published code does and what their results reflect.
+/// - **No episode ever ends unobserved.** Tier 3 always produces an end, so
+///   `missing_indices` is empty for this rule. Unlike every other rule here,
+///   GESIS cannot report "no end was observable" — it always answers.
+///
+/// `same_app_stop` marks rows this rule classifies as a stop; `is_start` marks
+/// rows it classifies as a start. Their event-type vocabulary is far wider than
+/// this repository's — `Standby bucket changed` is a start, `Flush to disk` a
+/// stop — so the classification is supplied by the caller rather than derived
+/// from this matcher's own `resumed`/`same_stop` flags, which encode a
+/// different theory of what an episode is.
+#[allow(clippy::too_many_arguments)]
+pub fn match_app_usage_gesis_indices_core(
+    app_codes: &[i32],
+    timestamp_ns: &[i64],
+    is_start: &[bool],
+    is_stop: &[bool],
+    stop_matchable: &[bool],
+    android_pseudo_package: &[bool],
+    max_timeout_ns: i64,
+    event_threshold: usize,
+) -> MatcherResult<MatchUpdateIndices> {
+    match_app_usage_gesis_with_openers_indices_core(
+        app_codes,
+        timestamp_ns,
+        is_start,
+        is_start,
+        is_stop,
+        stop_matchable,
+        android_pseudo_package,
+        max_timeout_ns,
+        event_threshold,
+    )
+}
+
+/// GESIS reconstruction with the selected opener set separated from the
+/// source-compatible Start/Stop repair pool.
+///
+/// `eligible_opener` controls which rows may open an episode. The published R
+/// rule's stop-candidate table still uses `baseline_classified_start` together
+/// with `is_stop`; changing that pool would also change B03 closer semantics.
+#[allow(clippy::too_many_arguments)]
+pub fn match_app_usage_gesis_with_openers_indices_core(
+    app_codes: &[i32],
+    timestamp_ns: &[i64],
+    eligible_opener: &[bool],
+    baseline_classified_start: &[bool],
+    is_stop: &[bool],
+    stop_matchable: &[bool],
+    android_pseudo_package: &[bool],
+    max_timeout_ns: i64,
+    event_threshold: usize,
+) -> MatcherResult<MatchUpdateIndices> {
+    let len = app_codes.len();
+    if timestamp_ns.len() != len
+        || eligible_opener.len() != len
+        || baseline_classified_start.len() != len
+        || is_stop.len() != len
+        || stop_matchable.len() != len
+        || android_pseudo_package.len() != len
+    {
+        return Err(MatcherError::new(
+            "all input arrays must have the same length",
+        ));
+    }
+
+    // Their `app_stops` table, built exactly as the reference does it.
+    //
+    // The pool is Start AND Stop rows (`event %in% c("Start","Stop")`), and a
+    // row is dropped only when the NEXT row of the same app is a Stop. Two
+    // consequences, both load-bearing and both easy to lose by "simplifying"
+    // this to "the next stop":
+    //
+    //  1. A run of consecutive same-app stops collapses to its LAST stop, so a
+    //     start binds to the end of the run, not its first member. Taking the
+    //     first changes the end timestamp AND `events_between`, which can flip
+    //     the episode into a different tier entirely.
+    //  2. A Start survives into the table whenever the next same-app event is
+    //     not a Stop. So an app with no stop event closes at its own next
+    //     Start, as tier `original`. This looks like an oversight in the
+    //     published R, but it is the behaviour their reported numbers come
+    //     from, and it fires on exactly the missing-stop case the rule exists
+    //     to repair. Ported deliberately, not reproduced by accident.
+    let mut is_stop_candidate = vec![false; len];
+    {
+        let mut next_pool_row: BTreeMap<i32, usize> = BTreeMap::new();
+        for index in (0..len).rev() {
+            if !stop_matchable[index] || (!baseline_classified_start[index] && !is_stop[index]) {
+                continue;
+            }
+            let followed_by_stop = next_pool_row
+                .get(&app_codes[index])
+                .is_some_and(|&next| is_stop[next]);
+            is_stop_candidate[index] = !followed_by_stop;
+            next_pool_row.insert(app_codes[index], index);
+        }
+    }
+
+    let mut start_indices = Vec::new();
+    let mut stop_start_indices = Vec::new();
+    let mut stop_event_indices = Vec::new();
+    let mut stop_reasons = Vec::new();
+    let mut stop_timestamps_ns = Vec::new();
+
+    for index in 0..len {
+        if !eligible_opener[index] || android_pseudo_package[index] {
+            continue;
+        }
+        start_indices.push(index);
+        let package = app_codes[index];
+        let start_ns = timestamp_ns[index];
+
+        // Tier 1 candidate: nearest same-app stop strictly after the start.
+        // `stop_matchable` excludes the event types their stop table drops
+        // (notification-seen, type 10) while leaving them able to act as the
+        // next global event in tier 2.
+        let candidate =
+            (index + 1..len).find(|&probe| is_stop_candidate[probe] && app_codes[probe] == package);
+        let events_between = candidate.map(|stop| stop - index - 1);
+
+        // Tier 2 candidate: the next event of any package, regardless of kind.
+        let next_global = index + 1;
+        let next_global_within_timeout = next_global < len
+            && timestamp_ns[next_global].saturating_sub(start_ns) <= max_timeout_ns;
+
+        let (stop_index, stop_ns, reason) = match (candidate, events_between) {
+            (Some(stop), Some(between)) if between <= event_threshold => {
+                (Some(stop), None, EpisodeCloseReason::GesisOriginalStop)
+            }
+            _ if next_global_within_timeout => (
+                Some(next_global),
+                None,
+                EpisodeCloseReason::GesisNextGlobalEvent,
+            ),
+            _ => (
+                None,
+                Some(start_ns.saturating_add(max_timeout_ns)),
+                EpisodeCloseReason::GesisTimeout,
+            ),
+        };
+
+        stop_start_indices.push(index);
+        // A timeout close has no event to point at. The start row is recorded
+        // as the anchor so the parallel arrays stay index-addressable, and the
+        // authoritative end travels in `stop_timestamps_ns`.
+        stop_event_indices.push(stop_index.unwrap_or(index));
+        stop_timestamps_ns.push(stop_ns);
+        stop_reasons.push(reason);
+    }
+
+    Ok(MatchUpdateIndices {
+        start_indices,
+        stop_start_indices,
+        stop_event_indices,
+        // Tier 3 always yields an end, so this rule never reports one missing.
+        missing_indices: Vec::new(),
+        stop_reasons,
+        missing_reasons: Vec::new(),
+        stop_timestamps_ns,
+    })
+}
+
+/// Parry & Toth (2025) forward pairing, at the app-episode level.
+///
+/// Source: *Extracting Meaningful Measures of Smartphone Usage from Android
+/// Event Log Data: A Methodological Primer*, doi:10.5117/CCR2025.1.8.PARR.
+///
+/// This implements the rule as their **reference implementation** performs it,
+/// not as the prose of Steps 6–7 reads in isolation. The distinction is
+/// load-bearing and was measured, so it is recorded here rather than left to be
+/// rediscovered:
+///
+/// An episode opens on every type-1 (`ACTIVITY_RESUMED`) row whose package is
+/// not the `"android"` system pseudo-package, and closes at the **first**
+/// following row that is any of:
+///
+///   1. `screen_off` — the screen becomes non-interactive (event type 16);
+///   2. `paused` carrying the *same* package — that app moves to the background
+///      (event type 2);
+///   3. `resumed` carrying a *different* package — another app takes the
+///      foreground (event type 1).
+///
+/// A start with no such successor anywhere in the stream has no observable end
+/// and lands in `missing_indices`; it is never extended to a later row.
+///
+/// Why all three, when Steps 6–7 name only the third: Step 7 alone ("the
+/// timestamp from the subsequent row can be used to indicate the stop of the
+/// current episode") gives one closer. The other two come from Steps 3, 8 and 9,
+/// which bracket episodes against the screen stream and discard those falling
+/// outside a session or glance. Implementing 6–7 without 3/8/9 leaves an
+/// overnight episode with nothing to close it before the next morning's first
+/// foreground event — which is what this function did until 2026-08-08.
+///
+/// Their R reference (`build_app_usage`, in the Chronicle adaptation at
+/// github.com/joshculverhouse/chronicle-android-preprocessing, which labels its
+/// output `source_dataset = "ParryToth-adapted"`) encodes exactly the three
+/// closers above and then drops unclosed rows outright.
+///
+/// Two deliberate departures from the prose, both matching that reference:
+/// - **No Step-6 same-package collapse.** Consecutive same-package resumes each
+///   open an episode. The reference defers collapsing to its downstream
+///   cleaning pass, which merges adjacent same-package segments within 1 s.
+/// - **No cap, threshold, or gap tolerance.** The paper states none, so
+///   `MatchOptions` is not consulted; closer 1 is what bounds an overnight
+///   episode, and passing an option must not silently change the result.
+pub fn match_app_usage_forward_pairing_indices_core(
+    app_codes: &[i32],
+    timestamp_ns: &[i64],
+    resumed: &[bool],
+    paused: &[bool],
+    screen_off: &[bool],
+    android_pseudo_package: &[bool],
+) -> MatcherResult<MatchUpdateIndices> {
+    match_app_usage_forward_pairing_with_openers_indices_core(
+        app_codes,
+        timestamp_ns,
+        resumed,
+        resumed,
+        paused,
+        screen_off,
+        android_pseudo_package,
+    )
+}
+
+/// Parry & Toth forward pairing with opener eligibility separated from native
+/// Android lifecycle events.
+///
+/// `eligible_opener` controls only which rows open episodes. A different-app
+/// handover is still recognized exclusively from `native_resumed`, so adding a
+/// type-19 opener cannot silently turn type 19 into a B03 close signal.
+#[allow(clippy::too_many_arguments)]
+pub fn match_app_usage_forward_pairing_with_openers_indices_core(
+    app_codes: &[i32],
+    timestamp_ns: &[i64],
+    eligible_opener: &[bool],
+    native_resumed: &[bool],
+    paused: &[bool],
+    screen_off: &[bool],
+    android_pseudo_package: &[bool],
+) -> MatcherResult<MatchUpdateIndices> {
+    // Not `validate_lengths`: that helper is shaped for the fused matcher's
+    // seven arrays, and padding this call with a repeated slice to fit would
+    // assert a relationship that does not exist here.
+    let len = app_codes.len();
+    if timestamp_ns.len() != len
+        || eligible_opener.len() != len
+        || native_resumed.len() != len
+        || paused.len() != len
+        || screen_off.len() != len
+        || android_pseudo_package.len() != len
+    {
+        return Err(MatcherError::new(
+            "all input arrays must have the same length",
+        ));
+    }
+
+    let mut start_indices = Vec::new();
+    let mut stop_start_indices = Vec::new();
+    let mut stop_event_indices = Vec::new();
+    let mut missing_indices = Vec::new();
+    let mut stop_reasons = Vec::new();
+    let mut missing_reasons = Vec::new();
+
+    for index in 0..len {
+        if !eligible_opener[index] || android_pseudo_package[index] {
+            continue;
+        }
+        let package = app_codes[index];
+        start_indices.push(index);
+
+        // First matching successor wins. Scanning forward per start is O(n·k)
+        // in the worst case, but k is the distance to the next screen or
+        // foreground transition, which is small on real streams; the previous
+        // pairwise formulation was cheaper only because it ignored two of the
+        // three closers.
+        let closer = (index + 1..len).find(|&probe| {
+            screen_off[probe]
+                || (paused[probe] && app_codes[probe] == package)
+                || (native_resumed[probe] && app_codes[probe] != package)
+        });
+
+        match closer {
+            Some(stop) => {
+                stop_start_indices.push(index);
+                stop_event_indices.push(stop);
+                // Which of the three closers fired. Tested in the order the
+                // reference checks them, so a row that is both (a screen-off
+                // and a handover cannot coincide, but a same-package pause and
+                // a screen-off can) resolves the same way it did above.
+                stop_reasons.push(if screen_off[stop] {
+                    EpisodeCloseReason::ScreenNonInteractive
+                } else if paused[stop] {
+                    EpisodeCloseReason::SamePackageBackgrounded
+                } else {
+                    EpisodeCloseReason::ForegroundHandover
+                });
+            }
+            // The reference drops these rows. Reporting them as missing is the
+            // equivalent here: this pipeline maps `missing_indices` to
+            // End of Usage Missing, which carries null start/stop and credits
+            // zero duration. Dropping them silently would instead hide how
+            // often the rule fails to observe an end.
+            None => {
+                missing_indices.push(index);
+                missing_reasons.push(EpisodeCloseReason::Unobserved);
+            }
+        }
+    }
+
+    // Every close these rules make lands on a real event, so no explicit end
+    // instants are needed. Bound before the literal: the struct moves
+    // `stop_start_indices` on the line above.
+    let row_anchored_stops = vec![None; stop_start_indices.len()];
+    Ok(MatchUpdateIndices {
+        start_indices,
+        stop_start_indices,
+        stop_event_indices,
+        missing_indices,
+        stop_reasons,
+        missing_reasons,
+        stop_timestamps_ns: row_anchored_stops,
+    })
 }
 
 #[cfg(feature = "python")]
@@ -1447,6 +2193,614 @@ fn _rust_app_usage_matcher(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult
 }
 
 #[cfg(test)]
+mod forward_pairing_tests {
+    use super::*;
+
+    #[test]
+    fn selected_nonresume_openers_do_not_become_parry_toth_handover_closers() {
+        let output = match_app_usage_forward_pairing_with_openers_indices_core(
+            &[1, 2, 3],
+            &[0, 10, 20],
+            &[true, true, true],
+            &[false, false, true],
+            &[false; 3],
+            &[false; 3],
+            &[false; 3],
+        )
+        .expect("separated opener signals should match");
+        assert_eq!(output.start_indices, vec![0, 1, 2]);
+        assert_eq!(output.stop_start_indices, vec![0, 1]);
+        assert_eq!(output.stop_event_indices, vec![2, 2]);
+        assert_eq!(output.missing_indices, vec![2]);
+    }
+
+    #[test]
+    fn gesis_selected_openers_do_not_expand_the_legacy_repair_pool() {
+        let output = match_app_usage_gesis_with_openers_indices_core(
+            &[1, 1, 1],
+            &[0, 10, 20],
+            &[true, true, false],
+            &[false, false, true],
+            &[false; 3],
+            &[true; 3],
+            &[false; 3],
+            1_000,
+            10,
+        )
+        .expect("separated GESIS signals should match");
+        assert_eq!(output.start_indices, vec![0, 1]);
+        assert_eq!(output.stop_event_indices, vec![2, 2]);
+        assert_eq!(
+            output.stop_reasons,
+            vec![
+                EpisodeCloseReason::GesisOriginalStop,
+                EpisodeCloseReason::GesisOriginalStop,
+            ]
+        );
+    }
+
+    const GESIS_TIMEOUT_NS: i64 = 600 * 1_000_000_000;
+
+    /// Rows are `(app_code, timestamp_ns, is_start, is_stop, stop_matchable, is_android)`.
+    fn run_gesis(rows: &[(i32, i64, bool, bool, bool, bool)]) -> MatchUpdateIndices {
+        let app_codes: Vec<i32> = rows.iter().map(|row| row.0).collect();
+        let timestamp_ns: Vec<i64> = rows.iter().map(|row| row.1).collect();
+        let is_start: Vec<bool> = rows.iter().map(|row| row.2).collect();
+        let is_stop: Vec<bool> = rows.iter().map(|row| row.3).collect();
+        let stop_matchable: Vec<bool> = rows.iter().map(|row| row.4).collect();
+        let android: Vec<bool> = rows.iter().map(|row| row.5).collect();
+        match_app_usage_gesis_indices_core(
+            &app_codes,
+            &timestamp_ns,
+            &is_start,
+            &is_stop,
+            &stop_matchable,
+            &android,
+            GESIS_TIMEOUT_NS,
+            10,
+        )
+        .expect("gesis should succeed")
+    }
+
+    const S: i64 = 1_000_000_000;
+
+    #[test]
+    fn gesis_binds_a_run_of_same_app_stops_to_its_last_stop() {
+        // Their `app_stops` drops a stop that is immediately followed by
+        // another stop of the same app, so the start binds to the END of the
+        // run. Taking the nearest stop instead moves the episode end AND
+        // changes `events_between`, which can flip the tier.
+        let result = run_gesis(&[
+            (1, 0, true, false, true, false),
+            (1, 10 * S, false, true, true, false),
+            (1, 40 * S, false, true, true, false),
+        ]);
+        assert_eq!(
+            result.stop_event_indices,
+            vec![2],
+            "bound to the first stop of the run instead of its last"
+        );
+        assert_eq!(
+            result.stop_reasons,
+            vec![EpisodeCloseReason::GesisOriginalStop]
+        );
+    }
+
+    #[test]
+    fn gesis_closes_a_stopless_app_at_its_own_next_start() {
+        // The published stop table is built from Start AND Stop rows and only
+        // drops a row when the next same-app row is a Stop, so a Start stays in
+        // it. An app that never stops therefore closes at its own next Start,
+        // as an original stop — not at the next global event and not at the
+        // timeout. This is the missing-stop case the rule exists to repair, so
+        // getting it wrong would misreport exactly what the rule is for.
+        let result = run_gesis(&[
+            (1, 0, true, false, true, false),
+            (2, 5 * S, true, false, true, false),
+            (1, 20 * S, true, false, true, false),
+        ]);
+        assert_eq!(result.start_indices, vec![0, 1, 2]);
+        assert_eq!(result.stop_event_indices[0], 2);
+        assert_eq!(
+            result.stop_reasons[0],
+            EpisodeCloseReason::GesisOriginalStop
+        );
+    }
+
+    #[test]
+    fn gesis_tier_one_takes_the_nearest_same_app_stop() {
+        let result = run_gesis(&[
+            (1, 0, true, false, true, false),
+            (1, 30 * S, false, true, true, false),
+        ]);
+        assert_eq!(result.stop_event_indices, vec![1]);
+        assert_eq!(
+            result.stop_reasons,
+            vec![EpisodeCloseReason::GesisOriginalStop]
+        );
+        assert_eq!(result.stop_timestamps_ns, vec![None]);
+    }
+
+    #[test]
+    fn gesis_falls_back_to_the_next_global_event_when_too_many_events_intervene() {
+        // 11 filler events sit between the start and its same-app stop, which
+        // exceeds the threshold of 10, so tier 1 is refused.
+        let mut rows = vec![(1, 0, true, false, true, false)];
+        for step in 1..=11 {
+            rows.push((9, step * S, false, false, true, false));
+        }
+        rows.push((1, 12 * S, false, true, true, false));
+        let result = run_gesis(&rows);
+        assert_eq!(
+            result.stop_reasons,
+            vec![EpisodeCloseReason::GesisNextGlobalEvent]
+        );
+        assert_eq!(result.stop_event_indices, vec![1], "the next global event");
+    }
+
+    #[test]
+    fn gesis_accepts_exactly_the_threshold_as_an_original_stop() {
+        // The R's two branches overlap at exactly `event_threshold`, and
+        // `case_when` resolves the tie to `original`. Pin that boundary.
+        let mut rows = vec![(1, 0, true, false, true, false)];
+        for step in 1..=10 {
+            rows.push((9, step * S, false, false, true, false));
+        }
+        rows.push((1, 11 * S, false, true, true, false));
+        let result = run_gesis(&rows);
+        assert_eq!(
+            result.stop_reasons,
+            vec![EpisodeCloseReason::GesisOriginalStop],
+            "exactly 10 intervening events must still count as original"
+        );
+    }
+
+    #[test]
+    fn gesis_cuts_at_the_timeout_when_nothing_else_is_close_enough() {
+        // A lone start, then silence past the timeout.
+        let result = run_gesis(&[
+            (1, 0, true, false, true, false),
+            (9, 900 * S, false, false, true, false),
+        ]);
+        assert_eq!(result.stop_reasons, vec![EpisodeCloseReason::GesisTimeout]);
+        assert_eq!(
+            result.stop_timestamps_ns,
+            vec![Some(GESIS_TIMEOUT_NS)],
+            "the end is start + 600s, an instant no row carries"
+        );
+    }
+
+    /// `delivery:B06` (`b06_gesis_600_equality`): the GESIS timeout is the
+    /// strategy's own maximum and stays independent of any B06 selection. A
+    /// next global event at exactly 600 s closes as an observed next-global
+    /// event (`<=`); one nanosecond later the adapter synthesizes the timeout
+    /// instant `start + 600 s`. Equal 600 s durations keep distinct reasons.
+    #[test]
+    fn gesis_next_global_equality_at_the_timeout_keeps_distinct_endpoint_provenance() {
+        for (delta_ns, expect_reason, expect_stop) in [
+            (
+                GESIS_TIMEOUT_NS - 1,
+                EpisodeCloseReason::GesisNextGlobalEvent,
+                None,
+            ),
+            (
+                GESIS_TIMEOUT_NS,
+                EpisodeCloseReason::GesisNextGlobalEvent,
+                None,
+            ),
+            (
+                GESIS_TIMEOUT_NS + 1,
+                EpisodeCloseReason::GesisTimeout,
+                Some(GESIS_TIMEOUT_NS),
+            ),
+        ] {
+            let result = run_gesis(&[
+                (1, 0, true, false, true, false),
+                (9, delta_ns, false, false, true, false),
+            ]);
+            assert_eq!(result.stop_start_indices, vec![0], "delta {delta_ns}");
+            assert_eq!(result.stop_reasons, vec![expect_reason], "delta {delta_ns}");
+            assert_eq!(
+                result.stop_timestamps_ns,
+                vec![expect_stop],
+                "delta {delta_ns}"
+            );
+            // Observed closes point at the next-global row; the synthesized
+            // timeout anchors on the start row and carries its own instant.
+            assert_eq!(
+                result.stop_event_indices,
+                vec![if expect_stop.is_none() { 1 } else { 0 }],
+                "delta {delta_ns}"
+            );
+        }
+    }
+
+    /// `delivery:B06` (`b06_gesis_i64_saturation_boundaries`): the adapter's
+    /// `start + 600 s` and `next − start` are saturating, so a start within
+    /// 600 s of `i64::MAX` yields a deterministic endpoint of `i64::MAX`
+    /// (never a wrap), and a `MIN → MAX` next-global delta stays outside the
+    /// next-global branch and closes at the exact timeout `MIN + 600 s`.
+    #[test]
+    fn gesis_saturates_deterministically_at_the_i64_endpoints() {
+        for (start_ns, expect_stop) in [
+            (i64::MIN, i64::MIN + GESIS_TIMEOUT_NS),
+            (i64::MAX - GESIS_TIMEOUT_NS, i64::MAX),
+            (i64::MAX - GESIS_TIMEOUT_NS + 1, i64::MAX),
+            (i64::MAX, i64::MAX),
+        ] {
+            let result = run_gesis(&[(1, start_ns, true, false, true, false)]);
+            assert_eq!(
+                result.stop_reasons,
+                vec![EpisodeCloseReason::GesisTimeout],
+                "start {start_ns}"
+            );
+            assert_eq!(
+                result.stop_timestamps_ns,
+                vec![Some(expect_stop)],
+                "start {start_ns}"
+            );
+        }
+        let result = run_gesis(&[
+            (1, i64::MIN, true, false, true, false),
+            (9, i64::MAX, false, false, true, false),
+        ]);
+        assert_eq!(result.stop_reasons, vec![EpisodeCloseReason::GesisTimeout]);
+        assert_eq!(
+            result.stop_timestamps_ns,
+            vec![Some(i64::MIN + GESIS_TIMEOUT_NS)]
+        );
+    }
+
+    #[test]
+    fn gesis_never_reports_an_episode_as_missing() {
+        // Unlike every other rule here, the timeout tier always supplies an
+        // end, so this rule cannot say "no end was observable".
+        let result = run_gesis(&[(1, 0, true, false, true, false)]);
+        assert!(result.missing_indices.is_empty());
+        assert_eq!(result.stop_reasons, vec![EpisodeCloseReason::GesisTimeout]);
+    }
+
+    #[test]
+    fn gesis_lets_a_later_same_app_start_close_an_episode() {
+        // Their stop table is built from Start-or-Stop rows, so a same-app
+        // Start can act as the stop. This looks accidental and is reproduced
+        // because it is what their published code does.
+        let result = run_gesis(&[
+            (1, 0, true, false, true, false),
+            (1, 30 * S, true, true, true, false),
+        ]);
+        assert_eq!(result.stop_event_indices, vec![1, 1]);
+        assert_eq!(
+            result.stop_reasons[0],
+            EpisodeCloseReason::GesisOriginalStop
+        );
+    }
+
+    #[test]
+    fn gesis_will_not_open_an_episode_on_the_android_pseudo_package() {
+        let result = run_gesis(&[
+            (9, 0, true, false, true, true),
+            (1, 30 * S, true, false, true, false),
+        ]);
+        assert_eq!(result.start_indices, vec![1]);
+    }
+
+    #[test]
+    fn gesis_skips_unmatchable_stops_when_choosing_an_original_stop() {
+        // Type 10 (notification seen) is classified a stop but excluded from
+        // their stop table, while remaining eligible as the next global event.
+        let result = run_gesis(&[
+            (1, 0, true, false, true, false),
+            (1, 10 * S, false, true, false, false),
+            (1, 20 * S, false, true, true, false),
+        ]);
+        assert_eq!(
+            result.stop_event_indices,
+            vec![2],
+            "the unmatchable stop at index 1 must not be chosen"
+        );
+    }
+
+    #[test]
+    fn an_assumed_label_marks_exactly_the_ends_the_log_did_not_contain() {
+        // The prefix is load-bearing, not decoration: it is the only thing in
+        // the cell separating a repaired end from a real one. If a reason is
+        // ever added on the wrong side of this list the column starts
+        // reporting inferences as observations, silently.
+        for reason in EpisodeCloseReason::ALL {
+            let inferred = matches!(
+                reason,
+                EpisodeCloseReason::GesisNextGlobalEvent
+                    | EpisodeCloseReason::GesisTimeout
+                    | EpisodeCloseReason::EyesNextBlockAssumed
+                    // The log contains nothing at this instant — that absence
+                    // IS the rule. `ScreenLockedPastTimeout` deliberately sits
+                    // on the other side: its end is a real screen-off row, and
+                    // only the decision to honour it was inferred.
+                    | EpisodeCloseReason::DraxlerInactivityTimeout
+            );
+            assert_eq!(
+                reason.output_label().starts_with("assumed_"),
+                inferred,
+                "{:?} carries {:?}, which disagrees with whether the log actually ended it",
+                reason,
+                reason.output_label()
+            );
+        }
+    }
+
+    #[test]
+    fn reasons_sharing_an_output_label_describe_the_same_observation() {
+        // Three rules can each find the app's own stop event. The reader wants
+        // the fact, not the finder, so the labels collapse — but lineage must
+        // still tell them apart, or provenance loses which rule ran.
+        let shared = [
+            EpisodeCloseReason::SameAppStop,
+            EpisodeCloseReason::GesisOriginalStop,
+            EpisodeCloseReason::EyesTripletClose,
+        ];
+        for reason in shared {
+            assert_eq!(reason.output_label(), "same_app_stop_event");
+        }
+        let mut lineage: Vec<&str> = shared.iter().map(|r| r.lineage_reason()).collect();
+        lineage.sort_unstable();
+        lineage.dedup();
+        assert_eq!(
+            lineage.len(),
+            shared.len(),
+            "collapsing the output label must not collapse provenance"
+        );
+    }
+
+    #[test]
+    fn no_output_label_names_the_rule_that_produced_it() {
+        // A data cell is not a citation. The reader is looking at their own
+        // study's numbers; making them decode a tool or paper name to find out
+        // whether an episode really ended is a cost the column exists to
+        // remove. The rule is already recorded once, as the selected option.
+        const BRANDS: &[&str] = &[
+            "gesis",
+            "eyes",
+            "zerrer",
+            "parry",
+            "toth",
+            "culverhouse",
+            "chronicle",
+        ];
+        for reason in EpisodeCloseReason::ALL {
+            let label = reason.output_label().to_ascii_lowercase();
+            for brand in BRANDS {
+                assert!(
+                    !label.contains(brand),
+                    "output label {:?} names {brand}, so the cell cites a rule instead of \
+                     describing what happened to the device",
+                    reason.output_label()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn an_output_label_is_never_a_lineage_string() {
+        // Both layers are lowercase now, so the separation rests on the
+        // separator: lineage is kebab-case, output cells are snake_case. A
+        // label that grew a hyphen would read as a provenance identifier in a
+        // researcher's spreadsheet and a later rename would couple the two.
+        for reason in EpisodeCloseReason::ALL {
+            let label = reason.output_label();
+            assert_ne!(label, reason.lineage_reason());
+            assert!(!label.contains('-'), "{label} reads like a lineage string");
+            assert!(
+                label.chars().all(|c| c.is_ascii_lowercase() || c == '_'),
+                "{label} is not snake_case, so it does not match screen_usage_end_reason"
+            );
+        }
+    }
+
+    #[test]
+    fn every_close_reason_round_trips_through_its_lineage_string() {
+        for &reason in EpisodeCloseReason::ALL {
+            assert_eq!(
+                EpisodeCloseReason::from_lineage_reason(reason.lineage_reason()),
+                Some(reason),
+                "{reason:?} does not survive a round trip"
+            );
+        }
+    }
+
+    #[test]
+    fn lineage_strings_are_distinct_and_kebab_case() {
+        // Two reasons sharing a string would silently merge in a trace, and the
+        // values sit beside `selected-qualifying-stop` in
+        // `LineageSearchEvidence.reason`, which is kebab. Snake here would be
+        // the contract-option layer's convention, not this one.
+        let mut seen = Vec::new();
+        for &reason in EpisodeCloseReason::ALL {
+            let text = reason.lineage_reason();
+            assert!(
+                !text.is_empty()
+                    && text
+                        .chars()
+                        .all(|character| character.is_ascii_lowercase() || character == '-'),
+                "{text} is not kebab-case"
+            );
+            assert!(!seen.contains(&text), "{text} is used by two reasons");
+            seen.push(text);
+        }
+    }
+
+    #[test]
+    fn an_unknown_lineage_string_is_rejected_rather_than_guessed() {
+        // Deliberately unlike the option decoders, which fall back to the
+        // production path. Guessing here would fabricate provenance.
+        assert_eq!(
+            EpisodeCloseReason::from_lineage_reason("same_app_stop"),
+            None
+        );
+        assert_eq!(EpisodeCloseReason::from_lineage_reason(""), None);
+    }
+
+    /// Rows are `(app_code, timestamp_ns, resumed, paused, screen_off, is_android)`.
+    fn run_forward_pairing(rows: &[(i32, i64, bool, bool, bool, bool)]) -> MatchUpdateIndices {
+        let app_codes: Vec<i32> = rows.iter().map(|row| row.0).collect();
+        let timestamp_ns: Vec<i64> = rows.iter().map(|row| row.1).collect();
+        let resumed: Vec<bool> = rows.iter().map(|row| row.2).collect();
+        let paused: Vec<bool> = rows.iter().map(|row| row.3).collect();
+        let screen_off: Vec<bool> = rows.iter().map(|row| row.4).collect();
+        let android: Vec<bool> = rows.iter().map(|row| row.5).collect();
+        match_app_usage_forward_pairing_indices_core(
+            &app_codes,
+            &timestamp_ns,
+            &resumed,
+            &paused,
+            &screen_off,
+            &android,
+        )
+        .expect("forward pairing should succeed")
+    }
+
+    /// Closer 3. Also the only closer the pre-2026-08-08 implementation had.
+    #[test]
+    fn a_different_package_taking_the_foreground_ends_the_episode() {
+        let result = run_forward_pairing(&[
+            (1, 0, true, false, false, false),
+            (2, 100, true, false, false, false),
+        ]);
+        assert_eq!(result.start_indices, vec![0, 1]);
+        assert_eq!(result.stop_start_indices, vec![0]);
+        assert_eq!(result.stop_event_indices, vec![1]);
+        assert_eq!(result.missing_indices, vec![1]);
+    }
+
+    /// Closer 1, and the reason the arm exists in this shape. Without it an
+    /// overnight episode runs to the next morning's first foreground event.
+    #[test]
+    fn the_screen_going_off_ends_the_episode() {
+        let result = run_forward_pairing(&[
+            (1, 0, true, false, false, false),
+            (0, 50, false, false, true, false),
+            // Nine hours later, the next morning. Under the one-closer reading
+            // this row — not the screen-off — would have ended the episode.
+            (2, 32_400, true, false, false, false),
+        ]);
+        assert_eq!(result.stop_start_indices, vec![0]);
+        assert_eq!(
+            result.stop_event_indices,
+            vec![1],
+            "the episode must end at the screen-off, not at the next resume"
+        );
+    }
+
+    /// Closer 2.
+    #[test]
+    fn the_same_package_moving_to_the_background_ends_the_episode() {
+        let result = run_forward_pairing(&[
+            (1, 0, true, false, false, false),
+            (1, 50, false, true, false, false),
+            (2, 100, true, false, false, false),
+        ]);
+        assert_eq!(result.stop_start_indices, vec![0]);
+        assert_eq!(result.stop_event_indices, vec![1]);
+    }
+
+    #[test]
+    fn a_different_package_pausing_does_not_end_the_episode() {
+        // Closer 2 is package-scoped: only the episode's own app pausing counts.
+        let result = run_forward_pairing(&[
+            (1, 0, true, false, false, false),
+            (2, 50, false, true, false, false),
+            (3, 100, true, false, false, false),
+        ]);
+        assert_eq!(result.stop_start_indices, vec![0]);
+        assert_eq!(result.stop_event_indices, vec![2]);
+    }
+
+    #[test]
+    fn activity_stopped_never_ends_an_episode_on_its_own() {
+        // Type 23 is not among the three closers. With nothing else following,
+        // the episode has no observable end at all.
+        let result = run_forward_pairing(&[(1, 0, true, false, false, false)]);
+        assert_eq!(result.start_indices, vec![0]);
+        assert!(result.stop_start_indices.is_empty());
+        assert_eq!(result.missing_indices, vec![0]);
+    }
+
+    #[test]
+    fn consecutive_same_package_resumes_each_open_an_episode() {
+        // No Step-6 collapse: the reference implementation defers merging to its
+        // downstream cleaning pass. Each resume opens, and the next same-package
+        // resume does NOT close (closer 3 requires a *different* package), so
+        // all three run to the type-2 row.
+        let result = run_forward_pairing(&[
+            (1, 0, true, false, false, false),
+            (1, 10, true, false, false, false),
+            (1, 20, true, false, false, false),
+            (2, 30, true, false, false, false),
+        ]);
+        assert_eq!(result.start_indices, vec![0, 1, 2, 3]);
+        assert_eq!(result.stop_event_indices, vec![3, 3, 3]);
+        assert_eq!(result.missing_indices, vec![3]);
+    }
+
+    #[test]
+    fn the_android_pseudo_package_can_close_an_episode_but_never_open_one() {
+        let result = run_forward_pairing(&[
+            (1, 0, true, false, false, false),
+            (9, 50, true, false, false, true),
+        ]);
+        assert_eq!(
+            result.start_indices,
+            vec![0],
+            "the android row must not open an episode"
+        );
+        assert_eq!(
+            result.stop_event_indices,
+            vec![1],
+            "but it must still close the one that was open"
+        );
+    }
+
+    #[test]
+    fn an_unclosed_episode_is_reported_missing_rather_than_extended() {
+        let result = run_forward_pairing(&[
+            (1, 0, true, false, false, false),
+            (2, 10, true, false, false, false),
+        ]);
+        assert_eq!(result.missing_indices, vec![1]);
+    }
+
+    #[test]
+    fn no_events_yields_no_episodes() {
+        let result = run_forward_pairing(&[]);
+        assert!(result.start_indices.is_empty());
+        assert!(result.missing_indices.is_empty());
+    }
+
+    #[test]
+    fn rows_that_are_not_resumes_are_ignored_entirely() {
+        let result = run_forward_pairing(&[
+            (1, 0, false, false, false, false),
+            (1, 10, false, true, false, false),
+            (2, 20, false, false, true, false),
+        ]);
+        assert!(result.start_indices.is_empty());
+    }
+
+    #[test]
+    fn mismatched_input_lengths_are_rejected() {
+        let error = match_app_usage_forward_pairing_indices_core(
+            &[1, 2],
+            &[0],
+            &[true, true],
+            &[false, false],
+            &[false, false],
+            &[false, false],
+        );
+        assert!(error.is_err());
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -1533,11 +2887,6 @@ mod tests {
             vec![false; len],
             vec![false; len],
         )
-    }
-
-    fn next_u64(seed: &mut u64) -> u64 {
-        *seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
-        *seed
     }
 
     #[test]
@@ -1861,6 +3210,7 @@ mod tests {
                 &app_codes,
                 &timestamp_ns,
                 &resumed,
+                &resumed,
                 &same_stop,
                 &other_stop,
                 &stopped,
@@ -1872,6 +3222,7 @@ mod tests {
             let actual = match_sorted_app_usage_update_indices_with_proximity(
                 &app_codes,
                 &timestamp_ns,
+                &resumed,
                 &resumed,
                 &same_stop,
                 &other_stop,
@@ -1968,6 +3319,166 @@ mod tests {
         assert_eq!(output.start_ns, vec![0, -1]);
         assert_eq!(output.stop_ns, vec![-1, -1]);
         assert_eq!(output.missing, vec![true, false]);
+    }
+
+    /// `delivery:B06` legacy arm (`chronicle_observed_close_rejection_v1`):
+    /// an observed same-app close is admissible only when the implied
+    /// duration is at most the legacy maximum — strictly greater rejects the
+    /// candidate and the episode surfaces as End of Usage Missing. Equality
+    /// is retained. Pinned so the explicit B06 arm names exactly this rule.
+    #[test]
+    fn chronicle_candidate_admissibility_is_strictly_above_the_legacy_maximum() {
+        let threshold_ns = 60 * 1_000_000_000;
+        for (label, delta_ns, expect_closed) in [
+            ("T-1", threshold_ns - 1, true),
+            ("T", threshold_ns, true),
+            ("T+1", threshold_ns + 1, false),
+        ] {
+            let app_codes = [7, 7];
+            let timestamps = [0, delta_ns];
+            let resumed = [true, false];
+            let mut flags = base_flags(2);
+            flags.0[1] = true; // same-app stop (Activity Paused)
+            let output = run(
+                &app_codes,
+                &timestamps,
+                &resumed,
+                &flags.0,
+                &flags.1,
+                &flags.3,
+                MatchOptions {
+                    allow_stop_event_reuse: false,
+                    use_activity_stopped_as_fallback: true,
+                    apply_threshold_to_fallback: true,
+                    long_duration_threshold_ns: threshold_ns,
+                },
+            );
+            assert_eq!(output.start_ns, vec![0, -1], "{label}");
+            if expect_closed {
+                assert_eq!(output.stop_ns, vec![delta_ns, -1], "{label}: retained");
+                assert_eq!(output.missing, vec![false, false], "{label}");
+            } else {
+                assert_eq!(output.stop_ns, vec![-1, -1], "{label}: candidate rejected");
+                assert_eq!(
+                    output.missing,
+                    vec![true, false],
+                    "{label}: End of Usage Missing"
+                );
+            }
+        }
+    }
+
+    /// The nonnegative-duration requirement is an ordering rule, not a
+    /// maximum: a same-app stop that precedes its start never closes it,
+    /// whatever the legacy maximum is.
+    #[test]
+    fn negative_candidate_durations_remain_an_ordering_failure_not_a_maximum() {
+        // Stop event listed before the start it would otherwise close.
+        let app_codes = [7, 7, 7];
+        let timestamps = [0, 5, 10];
+        let resumed = [false, true, false];
+        let mut flags = base_flags(3);
+        flags.0[0] = true;
+        flags.0[2] = true;
+        let output = run(
+            &app_codes,
+            &timestamps,
+            &resumed,
+            &flags.0,
+            &flags.1,
+            &flags.3,
+            MatchOptions {
+                allow_stop_event_reuse: false,
+                use_activity_stopped_as_fallback: true,
+                apply_threshold_to_fallback: true,
+                long_duration_threshold_ns: i64::MAX,
+            },
+        );
+        // The earlier stop closes nothing; the later one closes the start at 5.
+        assert_eq!(output.start_ns, vec![-1, 5, -1]);
+        assert_eq!(output.stop_ns, vec![-1, 10, -1]);
+        assert_eq!(output.missing, vec![false, false, false]);
+    }
+
+    /// The end-of-stream closure is bounded by the same rule as an observed
+    /// candidate: a last event exactly T after the opener closes it, one
+    /// nanosecond later leaves it missing — no query-end is invented.
+    #[test]
+    fn the_end_of_stream_candidate_uses_the_exact_legacy_rule() {
+        let threshold_ns = 60 * 1_000_000_000;
+        for (label, delta_ns, expect_closed) in
+            [("T", threshold_ns, true), ("T+1", threshold_ns + 1, false)]
+        {
+            let app_codes = [3, 9];
+            let timestamps = [0, delta_ns];
+            let resumed = [true, false];
+            let flags = base_flags(2);
+            let output = run(
+                &app_codes,
+                &timestamps,
+                &resumed,
+                &flags.0,
+                &flags.1,
+                &flags.2,
+                MatchOptions {
+                    allow_stop_event_reuse: false,
+                    use_activity_stopped_as_fallback: true,
+                    apply_threshold_to_fallback: true,
+                    long_duration_threshold_ns: threshold_ns,
+                },
+            );
+            assert_eq!(output.start_ns, vec![0, -1], "{label}");
+            if expect_closed {
+                assert_eq!(output.stop_ns, vec![delta_ns, -1], "{label}");
+                assert_eq!(output.missing, vec![false, false], "{label}");
+            } else {
+                assert_eq!(output.stop_ns, vec![-1, -1], "{label}");
+                assert_eq!(output.missing, vec![true, false], "{label}");
+            }
+        }
+    }
+
+    /// Fallback enablement (`use_activity_stopped_as_fallback`) and threshold
+    /// application (`apply_threshold_to_fallback`) are independent controls.
+    #[test]
+    fn fallback_enablement_and_threshold_application_are_independent_controls() {
+        let threshold_ns = 60 * 1_000_000_000;
+        let over = threshold_ns + 1;
+        for (use_fallback, apply_threshold, expect_stop, expect_missing) in [
+            // Fallback disabled: the Activity Stopped never closes; the
+            // episode stays open until the file end, which is also over T.
+            (false, false, -1, true),
+            (false, true, -1, true),
+            // Fallback enabled without the threshold: over-long close accepted.
+            (true, false, over, false),
+            // Fallback enabled with the threshold: over-long close rejected.
+            (true, true, -1, true),
+        ] {
+            let app_codes = [7, 7];
+            let timestamps = [0, over];
+            let resumed = [true, false];
+            let mut flags = base_flags(2);
+            flags.3[1] = true; // Activity Stopped
+            let output = run(
+                &app_codes,
+                &timestamps,
+                &resumed,
+                &flags.0,
+                &flags.1,
+                &flags.3,
+                MatchOptions {
+                    allow_stop_event_reuse: false,
+                    use_activity_stopped_as_fallback: use_fallback,
+                    apply_threshold_to_fallback: apply_threshold,
+                    long_duration_threshold_ns: threshold_ns,
+                },
+            );
+            assert_eq!(
+                (output.stop_ns[0], output.missing[0]),
+                (expect_stop, expect_missing),
+                "use_fallback={use_fallback} apply_threshold={apply_threshold}"
+            );
+        }
     }
 
     #[test]
@@ -2158,6 +3669,7 @@ mod tests {
 
     // ── background-app tests ────────────────────────────────────────────────
 
+    #[allow(clippy::too_many_arguments)]
     fn run_bg(
         app_codes: &[i32],
         timestamp_ns: &[i64],
@@ -2181,6 +3693,7 @@ mod tests {
         .expect("core matcher should succeed")
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn run_update_indices_bg(
         app_codes: &[i32],
         timestamp_ns: &[i64],

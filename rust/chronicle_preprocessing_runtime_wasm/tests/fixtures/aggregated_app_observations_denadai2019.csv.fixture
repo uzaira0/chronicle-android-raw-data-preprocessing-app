@@ -1,0 +1,4 @@
+user_id,date,application_name,screen_time,launch_count
+hashed-user-a,2018-06-01,Communication App A,01.250,0007
+hashed-user-a,2018-06-01,Social App B,0,0
+hashed-user-b,2018-06-02,Reading App C,975.5,3

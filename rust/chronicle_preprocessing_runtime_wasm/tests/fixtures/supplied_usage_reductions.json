@@ -1,0 +1,141 @@
+{
+  "oracle_status": "source_read_independent_hand_cases_not_author_execution",
+  "source_artifacts": [
+    {
+      "source_work_id": "doi:10.1145/3410530.3414441",
+      "path": ".tmp-literature-review-private/corrective-packet-09-ranks330-381-20260831/text/359.txt",
+      "sha256": "c72d2c5dcf2513ab3e8dcf1309fcb636e13396dc7f55c476c353b0827570fe86",
+      "locator": "lines146–175, Table1 seven-day aggregate; Table2 duration unit minutes",
+      "boundary": "already-selected app contributions in caller-supplied participant/device/window partitions; no raw sessionization, window constructor, category or launcher selection"
+    },
+    {
+      "source_work_id": "doi:10.1016/j.psychres.2023.115298",
+      "path": ".tmp-literature-review-private/corrective-packet-06-ranks174-223-20260831/text/199-1-608fcbf141ac.txt",
+      "sha256": "0a30c6e015958c7317b34d5a09676787bbbe571e85f9672bb3e6b62228bf39da",
+      "locator": "lines207–220,246–264",
+      "boundary": "unique caller-admitted unlock occurrences and explicit retained observed-day inventory; no Android callback classifier, lock/unlock pairing, deduplication or day-admission policy"
+    }
+  ],
+  "usage_cases": [
+    {
+      "id": "lexical_whitespace_app_and_owner_identities_are_not_normalized",
+      "input_csv": "source_row_id,participant_id,device_id,source_window_id,app_identity,duration_minutes,launch_count\na,P,A,w,x,2,1\nb,P,A,w, x ,4,2\nc, P ,A,w,x,3,1\nd,P, A ,w,x,5,1\ne,P,A, w ,x,6,1\n",
+      "expected_csv": "participant_id,device_id,source_window_id,duration_minutes,launch_count,distinct_app_count,duration_minutes_per_app,launches_per_app,duration_minutes_per_launch\nP,A,w,6,3,2,3,1.5,2\n P ,A,w,3,1,1,3,1,3\nP, A ,w,5,1,1,5,1,5\nP,A, w ,6,1,1,6,1,6\n",
+      "source_rows": 5,
+      "emitted_rows": 4
+    },
+    {
+      "id": "sum_counts_and_distinct_apps_keep_device_and_window_owners",
+      "input_csv": "source_row_id,participant_id,device_id,source_window_id,app_identity,duration_minutes,launch_count\na,P1,A,d1,x,2,1\nb,P1,A,d1,y,4,2\nc,P1,A,d1,x,1,2\nd,P1,B,d1,x,60,2\ne,P1,A,d2,x,0.25,1\nf,P2,A,d1,x,3,1\n",
+      "expected_csv": "participant_id,device_id,source_window_id,duration_minutes,launch_count,distinct_app_count,duration_minutes_per_app,launches_per_app,duration_minutes_per_launch\nP1,A,d1,7,5,2,3.5,2.5,1.4\nP1,B,d1,60,2,1,60,2,30\nP1,A,d2,0.25,1,1,0.25,1,0.25\nP2,A,d1,3,1,1,3,1,3\n",
+      "source_rows": 6,
+      "emitted_rows": 4
+    },
+    {
+      "id": "reordered_columns_and_repeated_source_ids_are_not_deduplication",
+      "input_csv": "launch_count,app_identity,source_window_id,duration_minutes,device_id,participant_id,source_row_id\n1,x,w,2,A,P1,same\n2,y,w,4,A,P1,same\n",
+      "expected_csv": "participant_id,device_id,source_window_id,duration_minutes,launch_count,distinct_app_count,duration_minutes_per_app,launches_per_app,duration_minutes_per_launch\nP1,A,w,6,3,2,3,1.5,2\n",
+      "source_rows": 2,
+      "emitted_rows": 1
+    },
+    {
+      "id": "zero_duration_with_positive_launches_is_not_rejected",
+      "input_csv": "source_row_id,participant_id,device_id,source_window_id,app_identity,duration_minutes,launch_count\na,P1,A,w,x,0,2\n",
+      "expected_csv": "participant_id,device_id,source_window_id,duration_minutes,launch_count,distinct_app_count,duration_minutes_per_app,launches_per_app,duration_minutes_per_launch\nP1,A,w,0,2,1,0,2,0\n",
+      "source_rows": 1,
+      "emitted_rows": 1
+    },
+    {
+      "id": "no_supplied_app_group_is_not_an_invented_zero_day",
+      "input_csv": "source_row_id,participant_id,device_id,source_window_id,app_identity,duration_minutes,launch_count\n",
+      "expected_csv": "participant_id,device_id,source_window_id,duration_minutes,launch_count,distinct_app_count,duration_minutes_per_app,launches_per_app,duration_minutes_per_launch\n",
+      "source_rows": 0,
+      "emitted_rows": 0
+    },
+    {
+      "id": "zero_launch_denominator_has_no_invented_source_policy",
+      "input_csv": "source_row_id,participant_id,device_id,source_window_id,app_identity,duration_minutes,launch_count\na,P1,A,w,x,1,0\n",
+      "expected_error_contains": "source zero-denominator policy is undisclosed"
+    },
+    {
+      "id": "missing_duration_is_not_zero_filled",
+      "input_csv": "source_row_id,participant_id,device_id,source_window_id,app_identity,duration_minutes,launch_count\na,P1,A,w,x,,1\n",
+      "expected_error_contains": "finite nonnegative duration_minutes"
+    },
+    {
+      "id": "negative_duration_is_not_a_typed_duration",
+      "input_csv": "source_row_id,participant_id,device_id,source_window_id,app_identity,duration_minutes,launch_count\na,P1,A,w,x,-1,1\n",
+      "expected_error_contains": "finite nonnegative duration_minutes"
+    },
+    {
+      "id": "nan_duration_is_not_dropped",
+      "input_csv": "source_row_id,participant_id,device_id,source_window_id,app_identity,duration_minutes,launch_count\na,P1,A,w,x,NaN,1\n",
+      "expected_error_contains": "finite nonnegative duration_minutes"
+    },
+    {
+      "id": "finite_duration_sum_overflow_is_visible",
+      "input_csv": "source_row_id,participant_id,device_id,source_window_id,app_identity,duration_minutes,launch_count\na,P1,A,w,x,1e308,1\nb,P1,A,w,y,1e308,1\n",
+      "expected_error_contains": "duration_minutes sum is not finite"
+    },
+    {
+      "id": "launch_sum_cannot_wrap",
+      "input_csv": "source_row_id,participant_id,device_id,source_window_id,app_identity,duration_minutes,launch_count\na,P1,A,w,x,1,18446744073709551615\nb,P1,A,w,y,1,1\n",
+      "expected_error_contains": "launch_count sum overflow"
+    },
+    {
+      "id": "missing_device_cannot_join_other_devices",
+      "input_csv": "source_row_id,participant_id,device_id,source_window_id,app_identity,duration_minutes,launch_count\na,P1,,w,x,1,1\n",
+      "expected_error_contains": "requires device_id"
+    }
+  ],
+  "unlock_cases": [
+    {
+      "id": "lexical_day_and_occurrence_identities_are_not_normalized",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,occurrence_id\nd1,observed_day,P,A,w,d,\nd2,observed_day,P,A,w, d ,\nu1,unlock,P,A,w,d,x\nu2,unlock,P,A,w,d, x \nu3,unlock,P,A,w, d ,y\n",
+      "expected_csv": "record_type,participant_id,device_id,source_window_id,source_day_id,unlock_count,observed_day_count,mean_daily_unlocks\ndaily_count,P,A,w, d ,1,,\ndaily_count,P,A,w,d,2,,\nparticipant_mean,P,A,w,,3,2,1.5\n",
+      "source_rows": 5,
+      "emitted_rows": 3
+    },
+    {
+      "id": "explicit_zero_day_counts_and_mean_preserve_all_owners",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,occurrence_id\nu1,unlock,P1,A,w,d1,a\nu2,unlock,P1,A,w,d1,b\nu3,unlock,P1,A,w,d2,c\nd1,observed_day,P1,A,w,d1,\nd2,observed_day,P1,A,w,d2,\nd3,observed_day,P1,A,w,d3,\nb1,observed_day,P1,B,w,d1,\nb2,unlock,P1,B,w,d1,a\nc1,observed_day,P1,A,w2,d1,\nc2,unlock,P1,A,w2,d1,a\np2,observed_day,P2,A,w,d1,\n",
+      "expected_csv": "record_type,participant_id,device_id,source_window_id,source_day_id,unlock_count,observed_day_count,mean_daily_unlocks\ndaily_count,P1,A,w,d1,2,,\ndaily_count,P1,A,w,d2,1,,\ndaily_count,P1,A,w,d3,0,,\ndaily_count,P1,A,w2,d1,1,,\ndaily_count,P1,B,w,d1,1,,\ndaily_count,P2,A,w,d1,0,,\nparticipant_mean,P1,A,w,,3,3,1\nparticipant_mean,P1,A,w2,,1,1,1\nparticipant_mean,P1,B,w,,1,1,1\nparticipant_mean,P2,A,w,,0,1,0\n",
+      "source_rows": 11,
+      "emitted_rows": 10
+    },
+    {
+      "id": "fractional_mean_keeps_exact_total_and_retained_day_denominator",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,occurrence_id\nd1,observed_day,P1,A,w,d1,\nd2,observed_day,P1,A,w,d2,\nu1,unlock,P1,A,w,d1,a\nu2,unlock,P1,A,w,d1,b\nu3,unlock,P1,A,w,d2,c\n",
+      "expected_csv": "record_type,participant_id,device_id,source_window_id,source_day_id,unlock_count,observed_day_count,mean_daily_unlocks\ndaily_count,P1,A,w,d1,2,,\ndaily_count,P1,A,w,d2,1,,\nparticipant_mean,P1,A,w,,3,2,1.5\n",
+      "source_rows": 5,
+      "emitted_rows": 3
+    },
+    {
+      "id": "empty_inventory_does_not_create_participant_or_day",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,occurrence_id\n",
+      "expected_csv": "record_type,participant_id,device_id,source_window_id,source_day_id,unlock_count,observed_day_count,mean_daily_unlocks\n",
+      "source_rows": 0,
+      "emitted_rows": 0
+    },
+    {
+      "id": "unlock_without_explicit_retained_day_cannot_choose_denominator",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,occurrence_id\nu1,unlock,P1,A,w,d1,a\n",
+      "expected_error_contains": "no supplied retained observed day"
+    },
+    {
+      "id": "duplicate_inventory_cannot_inflate_mean_denominator",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,occurrence_id\nd1,observed_day,P1,A,w,d1,\nd2,observed_day,P1,A,w,d1,\n",
+      "expected_error_contains": "unique observed_day row"
+    },
+    {
+      "id": "same_occurrence_cannot_be_assigned_to_two_days",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,occurrence_id\nd1,observed_day,P1,A,w,d1,\nd2,observed_day,P1,A,w,d2,\nu1,unlock,P1,A,w,d1,a\nu2,unlock,P1,A,w,d2,a\n",
+      "expected_error_contains": "occurrence_id is not unique"
+    },
+    {
+      "id": "raw_callback_does_not_become_an_unlock_by_guessing",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,occurrence_id\nu1,screen_on,P1,A,w,d1,a\n",
+      "expected_error_contains": "record_type observed_day or unlock"
+    }
+  ]
+}

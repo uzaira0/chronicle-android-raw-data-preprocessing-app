@@ -1,0 +1,165 @@
+{
+  "schemaVersion": "chronicle-loneliness-motion-step-pivots-canonical-source-fixture/v1",
+  "reusedOwner": {
+    "component": "FiniteScalarPivotClassifier",
+    "sourcePath": "rust/chronicle_preprocessing_runtime_wasm/src/finite_scalar_pivot_classifier.rs",
+    "sourceSha256": "66036694c5eb34ecaa9c812f6a109772ba2abd6a975112efdd981d9cdcff050d",
+    "semanticBoundary": "A caller-supplied finite scalar is classified as below, equal to, or above a caller-supplied pivot without a tolerance; source-specific input validation occurs before invocation."
+  },
+  "sourceWorkId": "doi:10.2196/13209",
+  "sourceArtifacts": [
+    {
+      "role": "primary paper text",
+      "locator": ".tmp-literature-review-private/strict-screen-native-ranks37-73-20260831T0415Z/text/59-loneliness.txt:335-353",
+      "sha256": "4a7cb9208c6a732dba9581c2e8cf6967606a11e879882eff9522ecf8ba87874d"
+    },
+    {
+      "role": "primary paper full-text HTML",
+      "locator": ".tmp-literature-review-private/strict-screen-native-ranks37-73-20260831T0415Z/artifacts/59-loneliness.fulltext.html",
+      "sha256": "6af819e534d6dd9c3012cabd2c12765c7f85910a640ecd2829d997b5dbb813e8"
+    },
+    {
+      "role": "canonical source-completeness audit",
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/source-completeness-audits/doi-10.2196-13209.json",
+      "sha256": "174e6192af25e54716967f9988590a133dfb3e10ff558e1c1d7dd3f53c547a96"
+    },
+    {
+      "role": "canonical method-setting assertions",
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/adjudicated-method-setting-assertions.jsonl",
+      "sha256": "a3d676d9282b28f1f71687b1366ebf073796ae0e4c5c8bc0757096e173a1fcf5"
+    },
+    {
+      "role": "alias and tombstone ledger",
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/method-setting-alias-tombstones.json",
+      "sha256": "018221f6036218887355a0a2dcd9d6d54a9e90eb93f380b4e1b81cc75c0f76b5"
+    }
+  ],
+  "settings": [
+    {
+      "canonicalSetting": {
+        "settingId": "method-setting-b2c40553a9f91ffa6183a1e9",
+        "parameterKey": "location.motion_threshold",
+        "sourceObservedSetting": "location.motion_threshold: {\"moving\":\"speed > 1 km/h\",\"static\":\"speed <= 1 km/h\"}",
+        "sourceValueSha256": "44aab881b05740366f227d80766e265998568249c124879702de7c47491ceebd"
+      },
+      "supersededAliases": [],
+      "inputMeasure": "caller-supplied finite nonnegative movement speed in kilometers per hour",
+      "inputBoundary": "One finite nonnegative JSON number already derived as movement speed in kilometers per hour for a source sample. Distance, elapsed time, sample pairing, clock handling, and division are upstream.",
+      "pivot": 1.0,
+      "belowDisposition": "static",
+      "equalDisposition": "static",
+      "aboveDisposition": "moving",
+      "cases": [
+        {
+          "caseId": "zero_is_static",
+          "value": 0,
+          "expectedDisposition": "static"
+        },
+        {
+          "caseId": "below_is_static",
+          "value": 0.999,
+          "expectedDisposition": "static"
+        },
+        {
+          "caseId": "equality_is_static",
+          "value": 1.0,
+          "expectedDisposition": "static"
+        },
+        {
+          "caseId": "above_is_moving",
+          "value": 1.001,
+          "expectedDisposition": "moving"
+        }
+      ],
+      "limitations": [
+        "The binding does not derive speed from distance and elapsed time, pair samples, or establish timestamp order.",
+        "The binding emits only the source moving/static label for one supplied sample and performs no clustering or downstream mobility-feature aggregation.",
+        "Negative, nonnumeric, boolean, or missing speed inputs fail closed instead of being silently labeled static."
+      ]
+    },
+    {
+      "canonicalSetting": {
+        "settingId": "method-setting-1a0c647be1910bebaf0ceabf",
+        "parameterKey": "steps.bout_state_rule",
+        "sourceObservedSetting": "steps.bout_state_rule: sedentary while each five-minute count is <10; active starts when a count is >10; the ==10 state is not disclosed",
+        "sourceValueSha256": "79cd1c960ed13249f4d7c3b50ac33aa6f33b8932228996b1cf5818541da8e5d7"
+      },
+      "supersededAliases": [],
+      "inputMeasure": "caller-supplied nonnegative integer step count for one already-established five-minute interval",
+      "inputBoundary": "One caller-supplied nonnegative JSON integer step count for a source-aligned five-minute interval. Window construction, coverage, device sampling, and count derivation are upstream.",
+      "pivot": 10.0,
+      "belowDisposition": "sedentary",
+      "equalDisposition": "source_unclassified",
+      "aboveDisposition": "active",
+      "cases": [
+        {
+          "caseId": "zero_is_sedentary",
+          "value": 0,
+          "expectedDisposition": "sedentary"
+        },
+        {
+          "caseId": "below_is_sedentary",
+          "value": 9,
+          "expectedDisposition": "sedentary"
+        },
+        {
+          "caseId": "equality_is_unclassified",
+          "value": 10,
+          "expectedDisposition": "source_unclassified"
+        },
+        {
+          "caseId": "above_is_active",
+          "value": 11,
+          "expectedDisposition": "active"
+        }
+      ],
+      "limitations": [
+        "The binding does not construct five-minute intervals, derive step counts, or decide interval completeness or missingness.",
+        "Exactly 10 steps is source-unclassified and is not silently assigned to either sedentary or active.",
+        "The binding classifies one interval only; it does not build, start, end, merge, or summarize multi-interval bouts."
+      ]
+    }
+  ],
+  "invalidSpeedInputs": [
+    {
+      "caseId": "negative",
+      "value": -0.1
+    },
+    {
+      "caseId": "numeric_string",
+      "value": "1.0"
+    },
+    {
+      "caseId": "boolean",
+      "value": true
+    },
+    {
+      "caseId": "missing",
+      "value": null
+    }
+  ],
+  "invalidSpeedError": "finite_nonnegative_speed_kmh_required",
+  "invalidStepCountInputs": [
+    {
+      "caseId": "negative",
+      "value": -1
+    },
+    {
+      "caseId": "fractional",
+      "value": 9.5
+    },
+    {
+      "caseId": "numeric_string",
+      "value": "10"
+    },
+    {
+      "caseId": "boolean",
+      "value": false
+    },
+    {
+      "caseId": "missing",
+      "value": null
+    }
+  ],
+  "invalidStepCountError": "nonnegative_integer_step_count_required"
+}

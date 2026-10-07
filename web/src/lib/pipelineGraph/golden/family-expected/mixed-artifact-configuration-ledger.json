@@ -1,34 +1,96 @@
 {
   "protocolVersion": "chronicle-mixed-artifact-configuration-aggregate/v1",
-  "claimBoundary": "Aggregate of nine independently recycled exhaustive role/value shards. Each shard selects one empirically branch-activating intervention for its source role, crosses it with every valid alternate value of all 46 computational axes, executes both transition orders, and compares every final workflow checkpoint, output artifact, and canonical output cell with an independent cold Rust/WASM target. Field/record interactions beyond the selected representative remain outside this claim.",
+  "claimBoundary": "Aggregate of nine independently recycled generic role/value shards. Each shard selects one empirically branch-activating intervention for its source role, crosses it with every valid non-compound alternate value of all 83 computational axes, executes both transition orders, and compares every final workflow checkpoint, output artifact, and canonical output cell with an independent cold Rust/WASM target. Raw-role alternates that activate the digest-bound capability sidecar are explicitly listed and unestimated as source-sensitive compound variants; the configuration-space sourceSensitiveScientificCells campaign proves only the generic LF-sidecar to CRLF-raw Parry rebind mechanism. The conditionally active input_capability_evidence_file role is separately covered there. Field/record interactions beyond the selected representative remain outside this claim.",
   "implementationReceipt": {
     "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
-    "implementationDigest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb",
-    "planDigest": "sha256:f32b34442d2aad2bb027d53039f112f49bd375b7210a616fbda99aa5d11858d3",
-    "profileDigest": "sha256:444af27d8331523780e0480cda96b5af6d27f5ad6b8781bf137a1646b05e9c1c",
-    "profileLockDigest": "sha256:ae08bf61c3bde50b58deb445bc1f198d441a37f4bc9fe4fcad5f186cac30dd79",
-    "runtimeAuthorityDigest": "sha256:643041e4330b4aca4b2cdf9a8e0dc285fdfb50b24338be312bdbff98c3d3ddbd",
-    "productContractDigest": "sha256:ce4f7d309cea44fd24fcb85fb81f3cd0639ec9c6c77eb8041b6ca071659a7562"
+    "implementationDigest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43",
+    "planDigest": "sha256:be0258af6aafbc9a1855ae4223adcc642a8d22b5fa8bb87eb09f6b62dc3abbd0",
+    "profileDigest": "sha256:637623272b4ab1bfd901a4d45103bc95984cc2e272dfa400745541b96a5aaefb",
+    "profileLockDigest": "sha256:424844ecf7fceb750d1f409453abf2f0ab76754f36861bd86cec1464a4fc6655",
+    "runtimeAuthorityDigest": "sha256:7807fe99a35b4ede2c85d8e8868ec3dcb2accb22e8265c4643966eb9840ce4e4",
+    "productContractDigest": "sha256:81e857feb3c24afaf0b3bbbef63081e884a498cfaa8398a76fabfe23c8c5c61b"
   },
   "coverage": {
     "sourceRoles": 9,
-    "computationalAxes": 46,
-    "declaredAlternateValues": 51,
-    "validConfigurationVariants": 50,
+    "computationalAxes": 83,
+    "declaredAlternateValues": 124,
+    "directlyCrossedAlternateValues": [
+      {
+        "roleId": "raw_chronicle_csv",
+        "count": 119
+      },
+      {
+        "roleId": "filter_file",
+        "count": 124
+      },
+      {
+        "roleId": "apps_forcing_screen_open_file",
+        "count": 124
+      },
+      {
+        "roleId": "background_apps_file",
+        "count": 124
+      },
+      {
+        "roleId": "app_codebook_file",
+        "count": 124
+      },
+      {
+        "roleId": "study_dates_file",
+        "count": 124
+      },
+      {
+        "roleId": "device_sharing_file",
+        "count": 124
+      },
+      {
+        "roleId": "survey_attribution_file",
+        "count": 124
+      },
+      {
+        "roleId": "enrolled_devices_file",
+        "count": 124
+      }
+    ],
+    "sourceSensitiveCompoundVariants": [
+      {
+        "roleId": "raw_chronicle_csv",
+        "variantId": "episodeReconstructionStrategy=schoedelprose"
+      },
+      {
+        "roleId": "raw_chronicle_csv",
+        "variantId": "screenSessionConstructionStrategy=parrytothscreen"
+      },
+      {
+        "roleId": "raw_chronicle_csv",
+        "variantId": "screenSessionConstructionStrategy=zhuscreen"
+      },
+      {
+        "roleId": "raw_chronicle_csv",
+        "variantId": "screenSessionConstructionStrategy=unlocklock"
+      },
+      {
+        "roleId": "raw_chronicle_csv",
+        "variantId": "screenSessionConstructionStrategy=unlockofflock"
+      }
+    ],
+    "validConfigurationVariants": 118,
     "invalidConfigurationVariants": 1,
-    "validRoleValuePairs": 450,
-    "coldExecutions": 920,
-    "incrementalExecutions": 2700,
-    "totalRustExecutions": 3620,
-    "warmColdComparisons": 2700,
-    "exactClusterComparisons": 900,
-    "nonAdditiveOrMaskedPairs": 150
+    "validRoleValuePairs": 1101,
+    "coldExecutions": 2233,
+    "incrementalExecutions": 6606,
+    "totalRustExecutions": 8839,
+    "warmColdComparisons": 6606,
+    "nonAdditiveOrMaskedPairs": 298,
+    "separatelyCoveredSourceSensitiveRoles": [
+      "input_capability_evidence_file"
+    ]
   },
   "roleShards": [
     {
       "roleId": "raw_chronicle_csv",
       "path": "mixed-artifact-configuration-raw_chronicle_csv.json",
-      "contentDigest": "sha256:2a1c9bd4cd69333de586950d9685d328647fb577b4a92354512861672d448578",
+      "contentDigest": "sha256:139034beb6feab1db7532850b06ba86845ebb55ee85264ea25ba814b2224d868",
       "representative": {
         "corpusId": "catalog-random",
         "seed": 12648430,
@@ -40,20 +102,21 @@
           "removable-interaction-types",
           "screen-and-keyguard-events"
         ],
-        "interventionId": "raw-field:study_id",
-        "mutationClass": "field-edit",
+        "interventionId": "raw-row:reorder",
+        "mutationClass": "row-reorder",
         "changedComponents": [
-          "raw.row[application-event].study_id"
+          "raw.row_order",
+          "raw.source_row_correspondence"
         ]
       },
-      "validRoleValuePairs": 50,
-      "nonAdditiveOrMaskedPairs": 19,
-      "caseSetDigest": "sha256:3f6409aab89ec6cd0c9bb7394501d3d701a8401f1a1c08a62e7bd3bd7ef84554"
+      "validRoleValuePairs": 117,
+      "nonAdditiveOrMaskedPairs": 8,
+      "caseSetDigest": "sha256:4d630bf31821edb51cc82526a07d35a15056097c3273058443a7a8b5b39df4b2"
     },
     {
       "roleId": "filter_file",
       "path": "mixed-artifact-configuration-filter_file.json",
-      "contentDigest": "sha256:aaff370aedd29aa855bca40d9973949a85d8928c7262c0fa4d53219f12b7911e",
+      "contentDigest": "sha256:9254a112db5829960d7fc3d7ad60ccd39fa7df9c73318202bfba72af84766da0",
       "representative": {
         "corpusId": "catalog-random",
         "seed": 12648430,
@@ -71,23 +134,21 @@
           "filter_file.package[com.samsung.android.scpm]"
         ]
       },
-      "validRoleValuePairs": 50,
-      "nonAdditiveOrMaskedPairs": 21,
-      "caseSetDigest": "sha256:3ed01902ae35285c527402c0e219647b98e8bff5f15a121cacbeaef899be4e46"
+      "validRoleValuePairs": 123,
+      "nonAdditiveOrMaskedPairs": 42,
+      "caseSetDigest": "sha256:24af5baeb2e25dd52fb3be13113c610dcce489417e64266f4ed3ada2297e7f58"
     },
     {
       "roleId": "apps_forcing_screen_open_file",
       "path": "mixed-artifact-configuration-apps_forcing_screen_open_file.json",
-      "contentDigest": "sha256:15af10f7f3744ca5b7232e6707a13ded5f443d253c17c2bac662cfdde190a35d",
+      "contentDigest": "sha256:280f5f140b21e3be3069c6fdc35312d3877ba4cf46324e64331677b9e49e70c6",
       "representative": {
-        "corpusId": "support-intersections",
-        "seed": 1369957802,
-        "rowCount": 193,
+        "corpusId": "catalog-random",
+        "seed": 12648430,
+        "rowCount": 186,
         "injectedFeatures": [
           "catalog-derived-apps",
-          "exact-duplicate-rows",
           "mixed-timezone-rows",
-          "overlapping-sessions",
           "remappable-interaction-types",
           "removable-interaction-types",
           "screen-and-keyguard-events"
@@ -95,17 +156,17 @@
         "interventionId": "support:forcing-activate-screen-tail-package",
         "mutationClass": "row-add",
         "changedComponents": [
-          "apps_forcing_screen_open_file.package[com.sec.android.app.clockpackage]"
+          "apps_forcing_screen_open_file.package[com.samsung.android.scpm]"
         ]
       },
-      "validRoleValuePairs": 50,
-      "nonAdditiveOrMaskedPairs": 4,
-      "caseSetDigest": "sha256:384e00be79007950a55b28aa0d14dca069f12b8a0874ef5eb9befcb1d9166841"
+      "validRoleValuePairs": 123,
+      "nonAdditiveOrMaskedPairs": 9,
+      "caseSetDigest": "sha256:78b6a5d78e7f9189a414c627fc9ea57403c9f6eeca209df9aae4e438a00710fa"
     },
     {
       "roleId": "background_apps_file",
       "path": "mixed-artifact-configuration-background_apps_file.json",
-      "contentDigest": "sha256:d54b39e14dca4df7f20d4418ffa04d26f1ad065db82eca279e38e376f1bbea7c",
+      "contentDigest": "sha256:5cb7f25c09bda71ca99aaab4801e2b3239cfe335c5bb2e73efb5be5ab6b96632",
       "representative": {
         "corpusId": "catalog-random",
         "seed": 12648430,
@@ -123,14 +184,14 @@
           "background_apps_file.package[com.audible.application.kindle]"
         ]
       },
-      "validRoleValuePairs": 50,
-      "nonAdditiveOrMaskedPairs": 27,
-      "caseSetDigest": "sha256:3fb36297b4bc37645c72e8782ca086b972cfd0f24a2651d70d9c50bd1b05a372"
+      "validRoleValuePairs": 123,
+      "nonAdditiveOrMaskedPairs": 63,
+      "caseSetDigest": "sha256:e59d175e779156d9d33aae4bec9eba53d2d3f23f44a3d1423915c7aabf16aba9"
     },
     {
       "roleId": "app_codebook_file",
       "path": "mixed-artifact-configuration-app_codebook_file.json",
-      "contentDigest": "sha256:b6dfb21dcb3bfd363aa1b32b64953975749379c792e892362a1d2c935d6c6922",
+      "contentDigest": "sha256:5bcdcf42726f43e99697756cb0abc7d1d2be50dd7262b4084aca7d6a326fda53",
       "representative": {
         "corpusId": "catalog-random",
         "seed": 12648430,
@@ -148,14 +209,14 @@
           "app_codebook_file.package[android].bcm_play_store_genreId"
         ]
       },
-      "validRoleValuePairs": 50,
-      "nonAdditiveOrMaskedPairs": 20,
-      "caseSetDigest": "sha256:d04ba794b7533588cba66b131dda379a320936f841742b5479982cdef7c4e26b"
+      "validRoleValuePairs": 123,
+      "nonAdditiveOrMaskedPairs": 36,
+      "caseSetDigest": "sha256:b9fb351d6c49b9c469b4911c35192813331434cadd3b51b5c98c176060cbe234"
     },
     {
       "roleId": "study_dates_file",
       "path": "mixed-artifact-configuration-study_dates_file.json",
-      "contentDigest": "sha256:9510b1e7630aed5875c92d1ae2f8a1c311112dfcc3c7cc5aec8c228bff4a064a",
+      "contentDigest": "sha256:2818d4025d3ef4d3775bd6b78d47b471336679dceaff9edbe25218f4f25e4bed",
       "representative": {
         "corpusId": "catalog-random",
         "seed": 12648430,
@@ -174,14 +235,14 @@
           "study_dates_file.participant[P-SYN-00c0ffee].end_date"
         ]
       },
-      "validRoleValuePairs": 50,
-      "nonAdditiveOrMaskedPairs": 23,
-      "caseSetDigest": "sha256:00cf79930ec814062443e6cf47d15df1bbf6308c20ee3e982ccd6a8894c55d11"
+      "validRoleValuePairs": 123,
+      "nonAdditiveOrMaskedPairs": 71,
+      "caseSetDigest": "sha256:2f1605166b30ebb167c79fb053eb73ab201425b3f1881dab7bfc3b97893d4506"
     },
     {
       "roleId": "device_sharing_file",
       "path": "mixed-artifact-configuration-device_sharing_file.json",
-      "contentDigest": "sha256:fad97ad36cd23bfe927d87d117aa6c24968469373c96b60879ecbca677f2f56e",
+      "contentDigest": "sha256:285c2c7f7a0813eff87cb21aee04005ba511de1e99a24d7c47cc87905f712bab",
       "representative": {
         "corpusId": "catalog-random",
         "seed": 12648430,
@@ -199,14 +260,14 @@
           "device_sharing_file.participant[P-SYN-00c0ffee].sharing_status"
         ]
       },
-      "validRoleValuePairs": 50,
-      "nonAdditiveOrMaskedPairs": 15,
-      "caseSetDigest": "sha256:1db9eba84ea0512e28cfaa7d63a49a2c26921d95b2176b557192e740892d7f90"
+      "validRoleValuePairs": 123,
+      "nonAdditiveOrMaskedPairs": 30,
+      "caseSetDigest": "sha256:2b468f4c7016634c6adcee5b1145f9efc4298b25f37136f47d2fe6151d0d3ae3"
     },
     {
       "roleId": "survey_attribution_file",
       "path": "mixed-artifact-configuration-survey_attribution_file.json",
-      "contentDigest": "sha256:de8b933a5c6974995f65da5e17c65fe054acd349c6f81565f1e516c811042c68",
+      "contentDigest": "sha256:62037a834b98e21830144b9f49d4c41f1a5eb7baef3cc3c59739a79e613c88ba",
       "representative": {
         "corpusId": "catalog-random",
         "seed": 12648430,
@@ -224,14 +285,14 @@
           "survey_attribution_file.participant[P-SYN-00c0ffee].users[*]"
         ]
       },
-      "validRoleValuePairs": 50,
-      "nonAdditiveOrMaskedPairs": 18,
-      "caseSetDigest": "sha256:fdd2fd9aef8baad4e9617d9fed6f954fc04a6c58282aeadb59836e2bfc4f72d0"
+      "validRoleValuePairs": 123,
+      "nonAdditiveOrMaskedPairs": 35,
+      "caseSetDigest": "sha256:9b171810b7fa35eb5621357932b7540abb0f578b38f10a30c229a24b2fb572c7"
     },
     {
       "roleId": "enrolled_devices_file",
       "path": "mixed-artifact-configuration-enrolled_devices_file.json",
-      "contentDigest": "sha256:d71e37431d6c0645627b4bf711b117eb5ad27eecfa1a39abbe6f3df630a81698",
+      "contentDigest": "sha256:0e08236cdea2d0a01d7ed07926431912fb1690e9bdaa942ba37de945c1ec355b",
       "representative": {
         "corpusId": "catalog-random",
         "seed": 12648430,
@@ -249,9 +310,9 @@
           "enrolled_devices_file.participant[P-SYN-00c0ffee].device_count"
         ]
       },
-      "validRoleValuePairs": 50,
-      "nonAdditiveOrMaskedPairs": 3,
-      "caseSetDigest": "sha256:3146145c9b074d5dc2ec592c8de67324458470c2fc8dcca4bc22348730bc1ad6"
+      "validRoleValuePairs": 123,
+      "nonAdditiveOrMaskedPairs": 4,
+      "caseSetDigest": "sha256:1a83d78c849ac1c190c6f6d1066c8e8d044d0300cb5046da0ba9eeb236ccb78c"
     }
   ]
 }

@@ -4,12 +4,16 @@ import type { ReactElement } from "react";
 import { SectionCard } from "@/components/SectionCard";
 import { CheckboxGroup } from "@/components/CheckboxGroup";
 import { InteractionRemapEditor } from "@/components/InteractionRemapEditor";
+import { SettingsField } from "@/components/SettingsField";
 import {
   INTERACTION_TYPES_TO_REMOVE_OPTIONS,
   OTHER_INTERACTION_TYPE_OPTIONS,
   SAME_APP_INTERACTION_TYPE_OPTIONS,
 } from "@/lib/processingUiContract";
-import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
+import {
+  DEFAULT_BROWSER_OPTIONS,
+  INTERACTION_TYPE_REMOVAL_MODE_VALUES,
+} from "@/lib/generatedContract";
 import { TOOLTIPS } from "@/lib/tooltipText";
 import { anyOptionModified, isOptionDefault, type OptionKey } from "@/lib/optionDefaults";
 import type { BrowserProcessingOptions } from "@/lib/types";
@@ -18,6 +22,7 @@ const KEYS: readonly OptionKey[] = [
   "sameAppInteractionTypesToStopUsageAt",
   "otherInteractionTypesToStopUsageAt",
   "interactionTypesToRemove",
+  "interactionTypeRemovalMode",
   "interactionTypeRemap",
 ];
 
@@ -75,6 +80,28 @@ export function InteractionSemanticsCard({ options, setOptions }: Props): ReactE
         onReset={() => reset("interactionTypesToRemove")}
         searchable
       />
+      <SettingsField
+        label="Interaction-type removal mode"
+        htmlFor="interaction-type-removal-mode"
+        tooltip={TOOLTIPS.interactionTypeRemovalMode}
+        modified={isMod("interactionTypeRemovalMode")}
+        onReset={() => reset("interactionTypeRemovalMode")}
+      >
+        <select
+          id="interaction-type-removal-mode"
+          value={options.interactionTypeRemovalMode}
+          onChange={(event) => update(
+            "interactionTypeRemovalMode",
+            event.target.value as BrowserProcessingOptions["interactionTypeRemovalMode"],
+          )}
+        >
+          {INTERACTION_TYPE_REMOVAL_MODE_VALUES.map((value) => (
+            <option key={value} value={value}>
+              {value === "gap_preserving" ? "Preserve long-gap evidence (default)" : "Remove unconditionally"}
+            </option>
+          ))}
+        </select>
+      </SettingsField>
       <InteractionRemapEditor
         value={options.interactionTypeRemap}
         onChange={(next) => update("interactionTypeRemap", next)}

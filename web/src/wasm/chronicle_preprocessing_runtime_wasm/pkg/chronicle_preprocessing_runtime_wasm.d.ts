@@ -1,9 +1,16 @@
 /* tslint:disable */
 /* eslint-disable */
+
+export type PayloadSpillBridge = {
+    put(id: number, bytes: Uint8Array): void;
+    get(id: number): Uint8Array;
+    remove(id: number): void;
+};
+
+
 /**
- * Small, control-plane identity DTO exposed as a typed JS object. Bulk runtime
- * requests, manifests, and artifacts deliberately stay on the existing
- * string/byte boundary so they do not pay per-field JS allocation costs.
+ * Protocol, implementation, build-environment, and embedded-authority digests
+ * of the loaded runtime; the same value `runtime_identity_json` serializes.
  */
 export interface RuntimeIdentity {
     protocolVersion: string;
@@ -23,7 +30,30 @@ export class PreparedReviewWorkspace {
     free(): void;
     [Symbol.dispose](): void;
     execute_selected_base(selected_base: Uint8Array): RuntimeHandle;
+    /**
+     * A reconstruction resume needs both complete envelopes: the
+     * reconstruction base owns the validated reconstruction and foundational
+     * receipts while the independently keyed review base owns the annotation
+     * substrate, and the kernel fails closed on a header-only review base.
+     */
+    execute_selected_base_pair(review_base: Uint8Array, reconstruction_base: Uint8Array): RuntimeHandle;
     required_base_kind(): string;
+}
+
+/**
+ * The per-study parts of a picked raw file that mixes studies, taken out one
+ * at a time so the browser never holds two copies of every part. Study IDs
+ * are already published in every output row.
+ */
+export class RawStudySplit {
+    private constructor();
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * Sorted study IDs; empty for a single-study file.
+     */
+    study_ids(): string[];
+    take_part(index: number): Uint8Array;
 }
 
 export class RuntimeHandle {
@@ -48,13 +78,23 @@ export class RuntimeSupportFiles {
     put_with_name(role: string, name: string, bytes: Uint8Array): void;
 }
 
+export function begin_raw_inspection_batch(secret_bytes: Uint8Array): string;
+
 export function build_environment_digest(): string;
+
+/**
+ * Byte-only compatibility fallback for browsers without DecompressionStream.
+ * It does not construct or execute a workspace or initialize Salsa state.
+ */
+export function decompress_bundled_gzip(packed: Uint8Array, expected_bytes: number): Uint8Array;
 
 /**
  * Discover normalized IANA timezones through the same Rust boundary used by
  * production preprocessing.
  */
 export function discover_timezones_v2(csv_bytes: Uint8Array): string[];
+
+export function dispose_raw_inspection_batch(batch_id: string): boolean;
 
 /**
  * Resolve product-owned role requirements without executing computation.
@@ -63,6 +103,8 @@ export function discover_timezones_v2(csv_bytes: Uint8Array): string[];
  * ready, so UI validation can never become the only safety boundary.
  */
 export function evaluate_workspace_requirements(request_json: string, csv_bytes: Uint8Array, support_files: RuntimeSupportFiles): string;
+
+export function execute_literature_component(component_id: string, request_json: string, csv_bytes: Uint8Array, support_files: RuntimeSupportFiles): RuntimeHandle;
 
 export function execute_workspace(request_json: string, csv_bytes: Uint8Array, support_files: RuntimeSupportFiles): RuntimeHandle;
 
@@ -92,6 +134,19 @@ export function implementation_build_digest(): string;
  */
 export function inspect_raw_file_v1(csv_bytes: Uint8Array, file_name: string, size_bytes: number): string;
 
+export function inspect_raw_file_v2(csv_bytes: Uint8Array, file_name: string, size_bytes: number, participant_partition_batch_id: string): string;
+
+/**
+ * Routes payload spills through `bridge` and caps resident payload bytes at
+ * `budget_bytes`. Call once, before the first execution; handles published
+ * earlier keep the store they were published into.
+ */
+export function install_payload_spill(bridge: PayloadSpillBridge, budget_bytes: bigint): void;
+
+export function maximum_duration_applicability_json(request_json: string): string;
+
+export function opener_set_applicability_json(request_json: string): string;
+
 export function plan_workflow_explorer_view_json(request_json: string): string;
 
 /**
@@ -105,6 +160,14 @@ export function prepare_persisted_workspace_review(request_json: string, input_s
 
 export function prepare_workspace_review(request_json: string, csv_bytes: Uint8Array, review_probe: Uint8Array, reconstruction_probe: Uint8Array, support_files: RuntimeSupportFiles): PreparedReviewWorkspace;
 
+/**
+ * Register the exact execution-decoder participant set for one raw artifact
+ * in an already configured ephemeral batch. This pool-worker setup API never
+ * serializes participant identifiers or the batch secret and is deliberately
+ * separate from RuntimeRequest/options/provenance.
+ */
+export function register_raw_participant_partition_artifact(csv_bytes: Uint8Array, participant_partition_batch_id: string): void;
+
 export function review_base_probe_spec_json(): string;
 
 export function runtime_identity(): RuntimeIdentity;
@@ -113,7 +176,18 @@ export function runtime_identity_json(): string;
 
 export function runtime_version(): string;
 
+/**
+ * Run all input-dependent scientific applicability checks on the exact
+ * workspace engine that execution will reuse. Typed refusals remain inside
+ * the returned receipt; malformed identity or input still fails closed.
+ */
+export function scientific_preflight_json(request_json: string, csv_bytes: Uint8Array, support_files: RuntimeSupportFiles): string;
+
 export function set_comparison_cache_capacity(capacity: number): void;
+
+export function set_payload_budget_bytes(bytes: bigint): void;
+
+export function split_raw_by_study_v1(csv_bytes: Uint8Array): RawStudySplit;
 
 export function verify_evidence_journal_cbor(bytes: Uint8Array): number;
 
@@ -124,23 +198,37 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_preparedreviewworkspace_free: (a: number, b: number) => void;
+    readonly __wbg_rawstudysplit_free: (a: number, b: number) => void;
     readonly __wbg_runtimehandle_free: (a: number, b: number) => void;
     readonly __wbg_runtimesupportfiles_free: (a: number, b: number) => void;
+    readonly begin_raw_inspection_batch: (a: number, b: number, c: number) => void;
     readonly build_environment_digest: (a: number) => void;
+    readonly decompress_bundled_gzip: (a: number, b: number, c: number, d: number) => void;
     readonly discover_timezones_v2: (a: number, b: number, c: number) => void;
+    readonly dispose_raw_inspection_batch: (a: number, b: number) => number;
     readonly evaluate_workspace_requirements: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
+    readonly execute_literature_component: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
     readonly execute_workspace: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly execute_workspace_with_review_base: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
     readonly execute_workspace_with_review_bases: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => void;
+    readonly get_comparison_cache_retained: () => number;
     readonly implementation_build_digest: (a: number) => void;
     readonly inspect_raw_file_v1: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
+    readonly inspect_raw_file_v2: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
+    readonly install_payload_spill: (a: number, b: bigint) => void;
+    readonly maximum_duration_applicability_json: (a: number, b: number, c: number) => void;
+    readonly opener_set_applicability_json: (a: number, b: number, c: number) => void;
     readonly plan_workflow_explorer_view_json: (a: number, b: number, c: number) => void;
     readonly prepare_persisted_workspace_review: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => void;
     readonly prepare_workspace_review: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => void;
     readonly preparedreviewworkspace_execute_selected_base: (a: number, b: number, c: number, d: number) => void;
+    readonly preparedreviewworkspace_execute_selected_base_pair: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly preparedreviewworkspace_required_base_kind: (a: number, b: number) => void;
+    readonly rawstudysplit_study_ids: (a: number, b: number) => void;
+    readonly rawstudysplit_take_part: (a: number, b: number, c: number) => void;
+    readonly register_raw_participant_partition_artifact: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly review_base_probe_spec_json: (a: number) => void;
-    readonly runtime_identity: () => number;
+    readonly runtime_identity: (a: number) => void;
     readonly runtime_identity_json: (a: number) => void;
     readonly runtime_version: (a: number) => void;
     readonly runtimehandle_artifact_count: (a: number) => number;
@@ -150,14 +238,17 @@ export interface InitOutput {
     readonly runtimesupportfiles_new: () => number;
     readonly runtimesupportfiles_put: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly runtimesupportfiles_put_with_name: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
+    readonly scientific_preflight_json: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly set_comparison_cache_capacity: (a: number) => void;
+    readonly set_payload_budget_bytes: (a: number, b: bigint) => void;
+    readonly split_raw_by_study_v1: (a: number, b: number) => number;
     readonly verify_evidence_journal_cbor: (a: number, b: number, c: number) => void;
     readonly workflow_contract_json: (a: number) => void;
-    readonly get_comparison_cache_retained: () => number;
     readonly __wbindgen_export: (a: number, b: number) => number;
     readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
+    readonly __wbindgen_export3: (a: number) => void;
     readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
-    readonly __wbindgen_export3: (a: number, b: number, c: number) => void;
+    readonly __wbindgen_export4: (a: number, b: number, c: number) => void;
 }
 
 export type SyncInitInput = BufferSource | WebAssembly.Module;

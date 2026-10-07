@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "chronicle-participant-minimum-count-source-fixture/v1",
+  "sourceWorkId": "doi:10.1080/15213269.2020.1768122",
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-5ee37808c3aec49494279731",
+    "parameterKey": "cohort.minimum_answered_surveys",
+    "sourceObservedSetting": "cohort.minimum_answered_surveys: {\"comparator\":\"at_least\",\"value\":8,\"basis\":\"20% of 40 scheduled surveys\"}",
+    "sourceValueSha256": "efaf7163f9fef061ec2a84719482a4bd5517cd1b05dddc605a10223a6ec21799"
+  },
+  "sourceArtifact": {
+    "locator": ".tmp-literature-review-private/screened-include-oa-recovery-wave/texts/208-WYR8XW2N-the-relationship-between-online-vigilance-and-affective-well-being-in-ev.txt:402-412",
+    "sha256": "555f350be5655fb6daf9f3ceb23448010a3e956f87336c11742e860d7b0187dc"
+  },
+  "inputBoundary": "One already-derived nonnegative integer count of answered scheduled surveys per participant.",
+  "outputBoundary": "Exclude a participant who answered fewer than eight surveys and retain a participant who answered at least eight; equality is retained.",
+  "limitations": [
+    "This binding does not identify, validate, or deduplicate answered surveys or derive the participant-level count.",
+    "The 40 scheduled surveys and the stated 20% basis are source context; this binding executes the disclosed integer boundary of eight and does not reconstruct the schedule.",
+    "Complete logging and survey data are a separate upstream eligibility condition.",
+    "The separately excluded participant who received 69 non-duplicate surveys is not represented by this count gate.",
+    "Android recruitment eligibility is separate from this answered-survey count.",
+    "A missing participant count fails closed rather than being interpreted as zero."
+  ],
+  "minimumRetainedCount": 8,
+  "dispositions": ["exclude", "retain"],
+  "participants": [
+    {
+      "participantId": "immediately-below",
+      "answeredSurveyCount": 7,
+      "expectedDisposition": "exclude"
+    },
+    {
+      "participantId": "at-boundary",
+      "answeredSurveyCount": 8,
+      "expectedDisposition": "retain"
+    },
+    {
+      "participantId": "above-boundary",
+      "answeredSurveyCount": 9,
+      "expectedDisposition": "retain"
+    }
+  ],
+  "missingCountCase": {
+    "participantId": "missing-count",
+    "answeredSurveyCount": null,
+    "expectedError": "participant_answered_survey_count_required"
+  }
+}

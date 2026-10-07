@@ -1,0 +1,346 @@
+schema_version: "1.0.0"
+crosswalk_version: "0.1.0"
+crosswalk_id: "chronicle:component-crosswalk"
+title: "Scientific component <-> ontology <-> delivery-axis <-> contract crosswalk"
+as_of: "2026-08-31"
+status: "DRAFT_FOR_FREEZE"
+
+purpose: >-
+  GATE-H01-FREEZE requires freezing a versioned component model and its mappings to
+  ontology terms and delivery axes. Rubric 0.2.0 froze the component model's IDs and
+  definitions; this artifact is the mapping half. It records, for every scientific
+  component, the ontology vocabulary that expresses it, the delivery axes that
+  implement choices inside it, and the exact browser-contract slots that carry those
+  choices — with every unmapped or partially mapped cell explicit. It also records
+  the reverse direction: implemented delivery axes that no rubric component fully
+  absorbs, which are the first candidates for the GATE-H01-COUNTEREXAMPLES audit.
+
+authority:
+  canonical_for:
+    - "The component-to-ontology, component-to-delivery-axis, and component-to-contract-slot mappings at this version."
+    - "The explicit list of crosswalk gaps (unabsorbed axes and unimplemented components)."
+  not_authority_for:
+    - "Component IDs and definitions (measurement-component-rubric.yaml 0.2.0)."
+    - "Delivery-axis status (delivery-axis-ledger.yaml)."
+    - "Ontology term semantics (web/schema/chronicle-research-ontology.linkml.yaml)."
+    - "Option keys, defaults, and tooltips (web/schema/chronicle-local-contract.linkml.yaml)."
+  interpretation_rule: >-
+    A mapping row asserts vocabulary correspondence only. It is not evidence that the
+    component is scientifically validated, that the axis conforms to any published
+    method, or that the hypothesis claim:H01_VECTOR_STRUCTURE is true.
+
+mapping_status_values:
+  - "MAPPED"        # component fully expressed by the named terms/axes/slots
+  - "PARTIAL"       # some decisions inside the component have no dedicated axis or slot
+  - "GAP"           # no implemented axis or slot carries this component today
+
+components:
+  - id: "component:C01"
+    label: "Event selection"
+    mapping_status: "MAPPED"
+    ontology_terms: ["EventRetentionSetId", "EventTypeCode", "UsageEventRecord"]
+    delivery_axes: ["delivery:B01"]
+    contract_slots: ["event_retention_set", "interaction_types_to_remove", "interaction_type_remap"]
+    notes: "Retention sets choose the read vocabulary; remap/remove slots are user-level refinements of the same decision."
+
+  - id: "component:C02"
+    label: "Opener set"
+    mapping_status: "MAPPED"
+    ontology_terms: ["OpenerSetId"]
+    delivery_axes: ["delivery:B02"]
+    contract_slots: ["opener_set"]
+
+  - id: "component:C03"
+    label: "Closer set"
+    mapping_status: "PARTIAL"
+    ontology_terms: ["ReconstructionStrategyId", "EndpointStatus"]
+    delivery_axes: []
+    contract_slots:
+      - "episode_reconstruction_strategy"
+      - "same_app_interaction_types_to_stop_usage_at"
+      - "other_interaction_types_to_stop_usage_at"
+      - "use_activity_stopped_as_fallback"
+    notes: >-
+      No dedicated closer axis exists; the closer vocabulary is carried partly by the
+      reconstruction strategy and partly by the two stop-type list slots plus the
+      activity-stopped fallback toggle.
+
+  - id: "component:C04"
+    label: "Pairing discipline"
+    mapping_status: "MAPPED"
+    ontology_terms: ["ReconstructionStrategyId", "UsageEpisodeAssertion", "ReconstructionExecution"]
+    delivery_axes: []
+    contract_slots: ["episode_reconstruction_strategy"]
+    notes: "Pairing is the strategy's core; strategies are enumerated, not decomposed into a separate axis."
+
+  - id: "component:C05"
+    label: "Unmatched open"
+    mapping_status: "PARTIAL"
+    ontology_terms: ["EndpointStatus"]
+    delivery_axes: ["delivery:B06"]
+    contract_slots: ["long_duration_threshold_hours", "use_activity_stopped_as_fallback", "include_app_usage_end_reason"]
+    notes: >-
+      The missing-end path is implemented (end-of-usage-missing under the long-duration
+      cap; fallback stop supplies an observed end) but is bundled into strategy and cap
+      behavior rather than exposed as one dedicated unmatched-open policy slot.
+
+  - id: "component:C06"
+    label: "Unmatched close"
+    mapping_status: "PARTIAL"
+    ontology_terms: ["ReconstructionStrategyId"]
+    delivery_axes: []
+    contract_slots: ["allow_stop_event_reuse"]
+    notes: "Orphan-stop behavior is strategy-internal; stop-event reuse is the one exposed knob."
+
+  - id: "component:C07"
+    label: "Duplicate opens"
+    mapping_status: "PARTIAL"
+    ontology_terms: ["ReconstructionStrategyId"]
+    delivery_axes: []
+    contract_slots: ["correct_duplicate_event_timestamps", "deduplicate_exact_rows"]
+    notes: "Same-package repeated-resume handling is strategy-internal; only record-level dedup is a slot."
+
+  - id: "component:C08"
+    label: "Duplicate closes"
+    mapping_status: "PARTIAL"
+    ontology_terms: ["ReconstructionStrategyId"]
+    delivery_axes: []
+    contract_slots: ["allow_stop_event_reuse"]
+
+  - id: "component:C09"
+    label: "Same-package runs"
+    mapping_status: "PARTIAL"
+    ontology_terms: ["ReconstructionStrategyId"]
+    delivery_axes: []
+    contract_slots: ["proximity_interval_seconds", "custom_app_engagement_duration"]
+    notes: "Teardown-churn bridging (proximity) is the exposed same-package-run decision."
+
+  - id: "component:C10"
+    label: "Collision policy"
+    mapping_status: "MAPPED"
+    ontology_terms: ["UsageEpisodeAssertion"]
+    delivery_axes: []
+    contract_slots: ["model_concurrent_usage", "apply_minimum_usage_duration_to_concurrent_subintervals"]
+    notes: "Overlap handling is the concurrent-usage model plus the overlap splitter."
+
+  - id: "component:C11"
+    label: "Device-state coupling"
+    mapping_status: "MAPPED"
+    ontology_terms: ["ScreenGatingRuleId", "ScreenSessionConstructionStrategyId"]
+    delivery_axes: ["delivery:B05", "delivery:B07"]
+    contract_slots:
+      - "enable_screen_gated_crediting"
+      - "screen_gating_rule"
+      - "credited_session_cap_minutes"
+      - "device_liveness_gap_tolerance_minutes"
+      - "auto_lock_bridge_seconds"
+      - "no_witness_min_day_apps"
+      - "screen_session_construction_strategy"
+    notes: >-
+      Screen-gated crediting is the credited-duration constraint; screen-session
+      construction supplies the device-state blocks it credits against.
+
+  - id: "component:C12"
+    label: "Shutdown and startup"
+    mapping_status: "PARTIAL"
+    ontology_terms: ["ScreenSessionConstructionStrategyId"]
+    delivery_axes: ["delivery:B05", "delivery:B07"]
+    contract_slots: ["device_liveness_gap_tolerance_minutes"]
+    notes: >-
+      Device Shutdown/Startup signals participate in screen-session construction and
+      break the liveness chain in screen gating; no dedicated cross-reboot episode
+      policy slot exists.
+
+  - id: "component:C13"
+    label: "Window censoring"
+    mapping_status: "PARTIAL"
+    ontology_terms: ["UsageInterval", "DayCoverageAssessment"]
+    delivery_axes: ["delivery:B05"]
+    contract_slots: ["enable_study_window_filter"]
+    notes: >-
+      Screen-interval left/right censoring is explicit in B05 evidence; app-episode
+      query-window censoring remains strategy-internal. CoverageAssessment was
+      listed here previously, but it is design-time vocabulary for a cause
+      attribution no kernel path makes (same correction as C20); the shipped
+      window-scoped coverage judgement is DayCoverageAssessment over the study
+      window spine.
+
+  - id: "component:C14"
+    label: "Timezone and day assignment"
+    mapping_status: "MAPPED"
+    ontology_terms: ["DayBoundaryAttributionId", "TimezoneNormalizationPolicyId"]
+    delivery_axes: ["delivery:B14"]
+    contract_slots: ["selected_timezone", "timezone_handling", "day_boundary_attribution"]
+
+  - id: "component:C15"
+    label: "Maximum-duration policy"
+    mapping_status: "MAPPED"
+    ontology_terms: ["MaximumDurationPolicyId", "MaximumDurationConfiguredDispositionId", "MaximumDurationThresholdSourceId"]
+    delivery_axes: ["delivery:B06", "delivery:B12"]
+    contract_slots:
+      - "maximum_duration_policy"
+      - "maximum_duration_disposition"
+      - "maximum_duration_threshold_source"
+      - "maximum_duration_threshold_ns"
+      - "long_duration_threshold_hours"
+      - "long_duration_threshold_hours_explicit"
+    notes: >-
+      delivery:B12's cap-scope adaptive source is a standing typed refusal; the
+      individualized threshold lives at the sessionization step (component:C17) instead.
+
+  - id: "component:C16"
+    label: "Minimum-duration exclusion"
+    mapping_status: "MAPPED"
+    ontology_terms: ["MinimumDurationComparatorId", "MinimumDurationDispositionId", "MicroUseClassificationPolicyId"]
+    delivery_axes: ["delivery:B03", "delivery:B04"]
+    contract_slots:
+      - "minimum_usage_duration"
+      - "minimum_duration_comparator"
+      - "minimum_duration_disposition"
+      - "micro_use_classification_policy"
+      - "filter_zero_duration_sessions"
+    notes: "Micro-use classification is one disposition family for below-threshold episodes."
+
+  - id: "component:C17"
+    label: "Inactivity gap and session grouping"
+    mapping_status: "MAPPED"
+    ontology_terms: ["SessionGroupingPolicyId", "SessionGapBasisId", "SessionBoundaryScopeId", "UsageSessionAssertion"]
+    delivery_axes: ["delivery:B11"]
+    contract_slots:
+      - "session_grouping_policy"
+      - "session_gap_basis"
+      - "session_boundary_scope"
+      - "emit_session_break_lineage"
+    notes: >-
+      Includes the corpus's only individualized threshold
+      (peng_zhu_2020_participant_median), implemented per participant at this step.
+
+  - id: "component:C18"
+    label: "Package policy"
+    mapping_status: "MAPPED"
+    ontology_terms: ["PackageExclusionPresetId"]
+    delivery_axes: ["delivery:B10"]
+    contract_slots:
+      - "use_filter_file"
+      - "package_exclusion_preset"
+      - "use_app_codebook"
+      - "include_category_column"
+      - "use_apps_forcing_screen_open_file"
+
+  - id: "component:C19"
+    label: "Background attribution"
+    mapping_status: "PARTIAL"
+    ontology_terms: ["NotificationProxyRuleId"]
+    delivery_axes: ["delivery:B08", "delivery:B13"]
+    contract_slots: ["use_background_apps_file", "notification_proxy_rule"]
+    notes: >-
+      delivery:B13 (media continuation) is a conditional refusal by design: the signal
+      needed to attribute continued media playback is absent from the stream, so the
+      component's media half is deliberately unimplemented rather than silently zero.
+
+  - id: "component:C20"
+    label: "Data-gap policy"
+    mapping_status: "PARTIAL"
+    ontology_terms: ["DayCoverageAssessment", "DayCoverageStatus", "LoggingObservation"]
+    delivery_axes: []
+    contract_slots: ["add_no_activity_placeholder_days", "long_data_time_gap_thresholds", "enable_day_coverage"]
+    notes: >-
+      Gap flagging and placeholder days exist; no imputation policy exists by design.
+      The shipped terms are DayCoverageAssessment / DayCoverageStatus (usage /
+      no_activity / no_data, from build_coverage). CoverageAssessment and
+      CoverageCause were listed here previously but are design-time vocabulary for a
+      cause attribution no kernel path makes — see their descriptions in the research
+      ontology — so citing them as this component's mapping overstated it.
+
+  - id: "component:C21"
+    label: "Parameter provenance"
+    mapping_status: "MAPPED"
+    ontology_terms: ["ParameterSet", "ParameterBinding"]
+    delivery_axes: []
+    contract_slots: []
+    applies_to: "every numeric slot above"
+    notes: >-
+      Vocabulary owned by rubric 0.2.0 census_scoring_contract.parameter_provenance;
+      execution receipts bind values via ParameterSet/ParameterBinding.
+
+# Reverse audit: implemented axes that no component fully absorbs. These are the
+# first candidates for GATE-H01-COUNTEREXAMPLES adjudication: either the rubric
+# gains a component (versioned bump) or the axis is documented as a refinement of
+# an existing component.
+crosswalk_gaps:
+  - axis: "delivery:B09"
+    key: "polled_method_emulation"
+    contract_slots: ["polled_emulation_method", "polled_emulation_interval_seconds", "polled_emulation_gap_seconds"]
+    ontology_terms: ["PolledEmulationMethodId"]
+    nearest_component: "component:C01"
+    adjudication_needed: >-
+      Polled emulation is an instrument/acquisition-semantics transform (it coarsens
+      the observed stream before selection), which the H01 canonical vector names as a
+      family but the 21-component rubric does not carry as a dedicated component.
+      Candidate resolutions: add an acquisition-semantics component (rubric bump), or
+      score it under C01 with an explicit acquisition qualifier.
+  - axis: "delivery:B05"
+    key: "screen_session_construction"
+    contract_slots:
+      - "screen_session_construction_strategy"
+      - "screen_usage_auto_lock_timeout_seconds"
+      - "screen_usage_auto_lock_tolerance_seconds"
+      - "screen_usage_manual_lock_max_tail_gap_seconds"
+      - "screen_usage_keyguard_near_stop_seconds"
+    ontology_terms: ["ScreenSessionConstructionStrategyId"]
+    nearest_component: "component:C11"
+    adjudication_needed: >-
+      Device-use-session construction (screen sessions, glances, pickups) is a session
+      family distinct from grouped app sessions (C17) and from device-state coupling
+      of app episodes (C11). Candidate resolutions: add a device-session-construction
+      component (rubric bump), or extend C11's definition to own construction as well
+      as coupling.
+
+# C01-C21 remains the event-to-usage measurement subvector. These source-confirmed
+# structures extend the broader method-profile ontology without pretending they
+# are all new event-reconstruction components.
+confirmed_structural_gap_mappings:
+  - gap_id: "OG01"
+    label: "actual-acquisition-and-observation-semantics"
+    ontology_terms: ["AcquisitionProtocol"]
+    execution_status: "UNRESOLVED"
+  - gap_id: "OG02"
+    label: "device-and-screen-session-construction"
+    ontology_terms: ["SessionConstructionPolicy", "ScreenSessionConstructionStrategyId"]
+    execution_status: "UNRESOLVED"
+  - gap_id: "OG03"
+    label: "notification-to-behavior-attribution-and-artifact-disposition"
+    ontology_terms: ["NotificationAttributionPolicy"]
+    execution_status: "UNRESOLVED"
+  - gap_id: "OG04"
+    label: "duration-policy-target-layer"
+    ontology_terms: ["DurationPolicy", "MethodTargetLayerId"]
+    execution_status: "UNRESOLVED"
+  - gap_id: "OG05"
+    label: "timestamp-fidelity-tie-ordering-and-multiplicity"
+    ontology_terms: ["TimestampPolicy"]
+    execution_status: "UNRESOLVED"
+  - gap_id: "OG06"
+    label: "C21-parameter-provenance-serialization"
+    ontology_terms: ["ParameterProvenanceAssertion"]
+    execution_status: "UNRESOLVED"
+  - gap_id: "OG07"
+    label: "measurement-provenance-target-and-release-layer"
+    ontology_terms: ["MeasurementReleaseProfile"]
+    execution_status: "UNRESOLVED"
+
+broader_method_profile_terms:
+  profile: "StudyMethodProfile"
+  setting: "MethodSettingAssertion"
+  diary_protocol: "DiaryProtocol"
+  diary_item: "DiaryItem"
+  diary_schedule: "DiaryScheduleRule"
+  interpretation: >-
+    These terms preserve and type settings outside the C01-C21 event-reconstruction
+    subvector. They do not make a profile runnable until each applicable setting has
+    a native or named external executor binding and a conformance fixture.
+
+verification:
+  - "Every contract_slots entry above appears verbatim in web/schema/chronicle-local-contract.linkml.yaml BrowserProcessingOptions.slots."
+  - "Every delivery_axes entry appears in docs/paper/delivery-axis-ledger.yaml."
+  - "Every ontology_terms entry appears in web/schema/chronicle-research-ontology.linkml.yaml."

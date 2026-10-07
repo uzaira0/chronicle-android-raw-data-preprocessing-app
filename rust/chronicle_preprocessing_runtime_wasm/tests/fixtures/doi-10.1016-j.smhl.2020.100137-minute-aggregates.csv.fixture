@@ -1,0 +1,4 @@
+phone_key,external_address,bin_start_timestamp_ns,payload_bytes
+phone-a,203.0.113.5,0,42
+phone-a,203.0.113.5,60000000000,5
+phone-b,203.0.113.5,0,7

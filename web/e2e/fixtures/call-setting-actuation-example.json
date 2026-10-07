@@ -1,0 +1,62 @@
+{
+  "profiles": [{
+    "method_profile_id": "example:call-ringer-actuation-definition",
+    "source_work_id": "doi:10.1145/2632048.2632060",
+    "source_method_variant_id": "example:definition-only-not-deployed-build",
+    "method_configuration_structure": "fixed",
+    "method_profile_version": "1",
+    "profile_implementation_status": "specification_only",
+    "method_settings": [
+      {
+        "method_setting_id": "intervention.shake_calibration_window",
+        "source_extraction_id": "intervention.shake_calibration_window",
+        "source_work_id": "doi:10.1145/2632048.2632060",
+        "method_setting_role": "intervention",
+        "method_target_layer": "device_setting_actuation",
+        "method_parameter_key": "intervention.shake_calibration_window",
+        "method_value_kind": "object",
+        "method_value_json": "{\"scope\":\"each incoming call\",\"calibration_duration_seconds\":2,\"calibration_action\":\"observe acceleration level\",\"ringer_mute_eligible_during_calibration\":false,\"equality_boundary\":null,\"exported_calibration_maximum\":null}",
+        "method_applicability_status": "applicable",
+        "method_disclosure_status": "declared_partial",
+        "method_implementation_status": "specification_only",
+        "contract_bindings": [],
+        "source_locators": ["doi:10.1145/2632048.2632060; author PDF p2, The Silencer Application; sha256:ded6d7e6a5911f7fcf1c5c855aef2def3b4939ccb0e77f194e97f28b18905429"]
+      },
+      {
+        "method_setting_id": "intervention.shake_threshold_and_mute",
+        "source_extraction_id": "intervention.shake_threshold_and_mute",
+        "source_work_id": "doi:10.1145/2632048.2632060",
+        "method_setting_role": "intervention",
+        "method_target_layer": "device_setting_actuation",
+        "method_parameter_key": "intervention.shake_threshold_and_mute",
+        "method_value_kind": "object",
+        "method_value_json": "{\"eligible_after\":\"calibration period\",\"trigger_quantity\":\"acceleration\",\"comparator\":\">\",\"threshold\":{\"factor\":1.5,\"reference\":\"maximum acceleration during this call's calibration\"},\"conditional_action\":\"temporarily mute phone ringer\",\"restoration_rule\":null,\"depends_on_availability_predictor\":false,\"is_observed_setting_occupancy\":false}",
+        "method_applicability_status": "applicable",
+        "method_disclosure_status": "declared_partial",
+        "method_implementation_status": "specification_only",
+        "contract_bindings": [],
+        "source_locators": ["doi:10.1145/2632048.2632060; author PDF p2, The Silencer Application; sha256:ded6d7e6a5911f7fcf1c5c855aef2def3b4939ccb0e77f194e97f28b18905429"]
+      }
+    ],
+    "method_operations": [
+      {
+        "operation_id": "call.calibrate_mute_eligibility",
+        "verb": "observe_acceleration_with_mute_disabled",
+        "consumes": ["incoming_call_and_acceleration"],
+        "produces": ["per_call_calibration_reference"],
+        "data_effects": ["prospective source definition only; no action executed"],
+        "depends_on": [],
+        "configuration_dependencies": ["intervention.shake_calibration_window"]
+      },
+      {
+        "operation_id": "call.conditionally_mute_ringer",
+        "verb": "mute_if_acceleration_strictly_exceeds_calibrated_threshold",
+        "consumes": ["post_calibration_acceleration", "per_call_calibration_reference"],
+        "produces": ["conditional_temporary_ringer_mute"],
+        "data_effects": ["prospective source definition only; no action executed"],
+        "depends_on": ["call.calibrate_mute_eligibility"],
+        "configuration_dependencies": ["intervention.shake_threshold_and_mute"]
+      }
+    ]
+  }]
+}

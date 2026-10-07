@@ -1,0 +1,832 @@
+{
+  "schema": "source-android-followon-boundary-cases/v1",
+  "cases": [
+    {
+      "name": "PrefTerm rejects unqualified stage",
+      "stage_index": 0,
+      "component": "chronicle.prefminer-supplied-term-frequency/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,term_id,participation_days,selected_N,notifications_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,not-source-qualified,app,word,2,2,\"[{\"\"item_id\"\":\"\"n1\"\",\"\"source_order\"\":0,\"\"value\"\":true},{\"\"item_id\"\":\"\"n2\"\",\"\"source_order\"\":1,\"\"value\"\":false}]\""
+      ],
+      "expected_refusal": true,
+      "expected_values": []
+    },
+    {
+      "name": "PrefReminder rejects unqualified stage",
+      "stage_index": 1,
+      "component": "chronicle.prefminer-supplied-app-click-rate/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,notifications_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,not-source-qualified,app,\"[{\"\"item_id\"\":\"\"n1\"\",\"\"source_order\"\":0,\"\"value\"\":false},{\"\"item_id\"\":\"\"n2\"\",\"\"source_order\"\":1,\"\"value\"\":false}]\""
+      ],
+      "expected_refusal": true,
+      "expected_values": []
+    },
+    {
+      "name": "DinglerAttendance rejects unqualified stage",
+      "stage_index": 2,
+      "component": "chronicle.dingler-supplied-attendance-delay/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,coordinate_unit,timestamp_precision,notification_id,start_anchor_json,end_anchor_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,not-source-qualified,s,1,n1,\"{\"\"source_event_id\"\":\"\"arrival\"\",\"\"event_role\"\":\"\"notification_arrival\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":2}\",\"{\"\"source_event_id\"\":\"\"attendance\"\",\"\"event_role\"\":\"\"first_inferred_attendance\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":5}\""
+      ],
+      "expected_refusal": true,
+      "expected_values": []
+    },
+    {
+      "name": "MultiActive rejects unqualified stage",
+      "stage_index": 3,
+      "component": "chronicle.multidevice-supplied-android-active-time/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,device_type,day_id,coordinate_unit,timestamp_precision,intervals_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,not-source-qualified,phone,qualifiedDay,s,1,\"[{\"\"interval_id\"\":\"\"on1\"\",\"\"source_order\"\":0,\"\"start\"\":{\"\"source_event_id\"\":\"\"s1\"\",\"\"event_role\"\":\"\"screen_on\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":0},\"\"end\"\":{\"\"source_event_id\"\":\"\"e1\"\",\"\"event_role\"\":\"\"screen_off\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":3}},{\"\"interval_id\"\":\"\"on2\"\",\"\"source_order\"\":1,\"\"start\"\":{\"\"source_event_id\"\":\"\"s2\"\",\"\"event_role\"\":\"\"screen_on\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":4},\"\"end\"\":{\"\"source_event_id\"\":\"\"e2\"\",\"\"event_role\"\":\"\"screen_off\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":9}}]\""
+      ],
+      "expected_refusal": true,
+      "expected_values": []
+    },
+    {
+      "name": "MathurGap rejects unqualified stage",
+      "stage_index": 4,
+      "component": "chronicle.mathur-supplied-signed-app-gap/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,coordinate_unit,timestamp_precision,context_id,start_anchor_json,end_anchor_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,not-source-qualified,s,1,context,\"{\"\"source_event_id\"\":\"\"close\"\",\"\"event_role\"\":\"\"previous_app_close\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":10}\",\"{\"\"source_event_id\"\":\"\"open\"\",\"\"event_role\"\":\"\"current_app_open\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":5}\""
+      ],
+      "expected_refusal": true,
+      "expected_values": []
+    },
+    {
+      "name": "MathurRatio rejects unqualified stage",
+      "stage_index": 5,
+      "component": "chronicle.mathur-supplied-active-time-ratio/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,last_hour_id,active_time_unit,last_hour_app_count,last_hour_active_time",
+        "row1,participantA,deviceA,streamA,Android,scope1,not-source-qualified,qualifiedHour,caller-minute,6,1.5"
+      ],
+      "expected_refusal": true,
+      "expected_values": []
+    },
+    {
+      "name": "DismissedDaily rejects unqualified stage",
+      "stage_index": 6,
+      "component": "chronicle.dismissed-supplied-daily-category-median/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,category_id,users_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,not-source-qualified,social,\"[{\"\"user_id\"\":\"\"u1\"\",\"\"days\"\":[{\"\"day_id\"\":\"\"d1\"\",\"\"count\"\":2},{\"\"day_id\"\":\"\"d2\"\",\"\"count\"\":4}]},{\"\"user_id\"\":\"\"u2\"\",\"\"days\"\":[{\"\"day_id\"\":\"\"d1\"\",\"\"count\"\":1}]}]\""
+      ],
+      "expected_refusal": true,
+      "expected_values": []
+    },
+    {
+      "name": "DismissedConversion rejects unqualified stage",
+      "stage_index": 7,
+      "component": "chronicle.dismissed-supplied-category-conversion/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,category_id,notifications_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,not-source-qualified,social,\"[{\"\"item_id\"\":\"\"n1\"\",\"\"source_order\"\":0,\"\"value\"\":true},{\"\"item_id\"\":\"\"n2\"\",\"\"source_order\"\":1,\"\"value\"\":true},{\"\"item_id\"\":\"\"n3\"\",\"\"source_order\"\":2,\"\"value\"\":false}]\""
+      ],
+      "expected_refusal": true,
+      "expected_values": []
+    },
+    {
+      "name": "SarsenCount rejects unqualified stage",
+      "stage_index": 8,
+      "component": "chronicle.sarsen-supplied-hour-launch-count/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,hour_id,launches_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,not-source-qualified,qualifiedHour,\"[{\"\"item_id\"\":\"\"l1\"\",\"\"source_order\"\":0},{\"\"item_id\"\":\"\"l2\"\",\"\"source_order\"\":1},{\"\"item_id\"\":\"\"l3\"\",\"\"source_order\"\":2}]\""
+      ],
+      "expected_refusal": true,
+      "expected_values": []
+    },
+    {
+      "name": "SarsenDuration rejects unqualified stage",
+      "stage_index": 9,
+      "component": "chronicle.sarsen-supplied-hour-duration-total/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,hour_id,duration_unit,contributions_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,not-source-qualified,qualifiedHour,caller-seconds,\"[{\"\"item_id\"\":\"\"c1\"\",\"\"source_order\"\":0,\"\"value\"\":1.5},{\"\"item_id\"\":\"\"c2\"\",\"\"source_order\"\":1,\"\"value\"\":2.5}]\""
+      ],
+      "expected_refusal": true,
+      "expected_values": []
+    },
+    {
+      "name": "FinessePresence rejects unqualified stage",
+      "stage_index": 10,
+      "component": "chronicle.finesse-supplied-session-feature-fraction/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,feature_id,sessions_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,not-source-qualified,app,feature,\"[{\"\"item_id\"\":\"\"s1\"\",\"\"source_order\"\":0,\"\"value\"\":true},{\"\"item_id\"\":\"\"s2\"\",\"\"source_order\"\":1,\"\"value\"\":true},{\"\"item_id\"\":\"\"s3\"\",\"\"source_order\"\":2,\"\"value\"\":false},{\"\"item_id\"\":\"\"s4\"\",\"\"source_order\"\":3,\"\"value\"\":true}]\""
+      ],
+      "expected_refusal": true,
+      "expected_values": []
+    },
+    {
+      "name": "TouchStroke rejects unqualified stage",
+      "stage_index": 11,
+      "component": "chronicle.touchposter-supplied-stroke-time/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,coordinate_unit,timestamp_precision,stroke_id,start_anchor_json,end_anchor_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,not-source-qualified,ms,1,stroke,\"{\"\"source_event_id\"\":\"\"touchDown\"\",\"\"event_role\"\":\"\"stroke_start\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":2}\",\"{\"\"source_event_id\"\":\"\"touchUp\"\",\"\"event_role\"\":\"\"stroke_end\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":5}\""
+      ],
+      "expected_refusal": true,
+      "expected_values": []
+    },
+    {
+      "name": "HushBeta rejects unqualified stage",
+      "stage_index": 12,
+      "component": "chronicle.hush-supplied-beta-sensitivity/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,sequence_origin,observations_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,not-source-qualified,app,caller-qualified-source-sequence-from-initial-0.5,\"[{\"\"background_interval_id\"\":\"\"b1\"\",\"\"following_screen_on_interval_id\"\":\"\"on1\"\",\"\"source_order\"\":0,\"\"x_foreground\"\":false,\"\"was_suppressed\"\":false},{\"\"background_interval_id\"\":\"\"b2\"\",\"\"following_screen_on_interval_id\"\":\"\"on2\"\",\"\"source_order\"\":1,\"\"x_foreground\"\":false,\"\"was_suppressed\"\":true}]\""
+      ],
+      "expected_refusal": true,
+      "expected_values": []
+    },
+    {
+      "name": "HushAlpha rejects unqualified stage",
+      "stage_index": 13,
+      "component": "chronicle.hush-supplied-alpha-sensitivity/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,beta,sequence_origin,observations_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,not-source-qualified,app,0.5,caller-qualified-source-sequence-from-initial-0.5,\"[{\"\"background_interval_id\"\":\"\"b1\"\",\"\"following_screen_on_interval_id\"\":\"\"on1\"\",\"\"source_order\"\":0,\"\"x_foreground\"\":false,\"\"was_suppressed\"\":false},{\"\"background_interval_id\"\":\"\"b2\"\",\"\"following_screen_on_interval_id\"\":\"\"on2\"\",\"\"source_order\"\":1,\"\"x_foreground\"\":false,\"\"was_suppressed\"\":true}]\""
+      ],
+      "expected_refusal": true,
+      "expected_values": []
+    },
+    {
+      "name": "term notification presence, not occurrences, threshold equality",
+      "stage_index": 0,
+      "component": "chronicle.prefminer-supplied-term-frequency/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,term_id,participation_days,selected_N,notifications_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-complete-paper-notification-term-presence,app,word,2,2,\"[{\"\"item_id\"\":\"\"n1\"\",\"\"source_order\"\":0,\"\"value\"\":true},{\"\"item_id\"\":\"\"n2\"\",\"\"source_order\"\":1,\"\"value\"\":false}]\""
+      ],
+      "expected_refusal": false,
+      "expected_values": [
+        {
+          "row": 0,
+          "pointer": "/alternatives/1/remove_strict_lower",
+          "value": false
+        }
+      ]
+    },
+    {
+      "name": "term selected N must explicitly be2",
+      "stage_index": 0,
+      "component": "chronicle.prefminer-supplied-term-frequency/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,term_id,participation_days,selected_N,notifications_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-complete-paper-notification-term-presence,app,word,2,3,\"[{\"\"item_id\"\":\"\"n1\"\",\"\"source_order\"\":0,\"\"value\"\":true},{\"\"item_id\"\":\"\"n2\"\",\"\"source_order\"\":1,\"\"value\"\":false}]\""
+      ],
+      "expected_refusal": true,
+      "expected_values": []
+    },
+    {
+      "name": "term duplicate notification identity",
+      "stage_index": 0,
+      "component": "chronicle.prefminer-supplied-term-frequency/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,term_id,participation_days,selected_N,notifications_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-complete-paper-notification-term-presence,app,word,2,2,\"[{\"\"item_id\"\":\"\"n1\"\",\"\"source_order\"\":0,\"\"value\"\":true},{\"\"item_id\"\":\"\"n1\"\",\"\"source_order\"\":1,\"\"value\"\":false}]\""
+      ],
+      "expected_refusal": true,
+      "expected_values": []
+    },
+    {
+      "name": "term unknown presence is unavailable not zero",
+      "stage_index": 0,
+      "component": "chronicle.prefminer-supplied-term-frequency/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,term_id,participation_days,selected_N,notifications_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-complete-paper-notification-term-presence,app,word,2,2,\"[{\"\"item_id\"\":\"\"n1\"\",\"\"source_order\"\":0,\"\"value\"\":null}]\""
+      ],
+      "expected_refusal": false,
+      "expected_values": [
+        {
+          "row": 0,
+          "pointer": "/term_frequency",
+          "value": null
+        },
+        {
+          "row": 0,
+          "pointer": "/notifications_containing_term",
+          "value": null
+        }
+      ]
+    },
+    {
+      "name": "reminder empty denominator not reminder0",
+      "stage_index": 1,
+      "component": "chronicle.prefminer-supplied-app-click-rate/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,notifications_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-complete-paper-app-accepted-notifications,app,[]"
+      ],
+      "expected_refusal": false,
+      "expected_values": [
+        {
+          "row": 0,
+          "pointer": "/value",
+          "value": null
+        },
+        {
+          "row": 0,
+          "pointer": "/zero_click_reminder",
+          "value": null
+        }
+      ]
+    },
+    {
+      "name": "active fractional divisor not integer truncation",
+      "stage_index": 5,
+      "component": "chronicle.mathur-supplied-active-time-ratio/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,last_hour_id,active_time_unit,last_hour_app_count,last_hour_active_time",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-lasthour-count-and-active-time,qualifiedHour,caller-minute,6,2.5"
+      ],
+      "expected_refusal": false,
+      "expected_values": [
+        {
+          "row": 0,
+          "pointer": "/apps_per_declared_active_time_unit",
+          "value": 2.4
+        }
+      ]
+    },
+    {
+      "name": "active zero quotient unavailable",
+      "stage_index": 5,
+      "component": "chronicle.mathur-supplied-active-time-ratio/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,last_hour_id,active_time_unit,last_hour_app_count,last_hour_active_time",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-lasthour-count-and-active-time,qualifiedHour,caller-minute,6,0"
+      ],
+      "expected_refusal": false,
+      "expected_values": [
+        {
+          "row": 0,
+          "pointer": "/apps_per_declared_active_time_unit",
+          "value": null
+        }
+      ]
+    },
+    {
+      "name": "active missing count unavailable",
+      "stage_index": 5,
+      "component": "chronicle.mathur-supplied-active-time-ratio/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,last_hour_id,active_time_unit,last_hour_app_count,last_hour_active_time",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-lasthour-count-and-active-time,qualifiedHour,caller-minute,,1.5"
+      ],
+      "expected_refusal": false,
+      "expected_values": [
+        {
+          "row": 0,
+          "pointer": "/apps_per_declared_active_time_unit",
+          "value": null
+        }
+      ]
+    },
+    {
+      "name": "active lexical negative nonzero underflow refusal",
+      "stage_index": 5,
+      "component": "chronicle.mathur-supplied-active-time-ratio/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,last_hour_id,active_time_unit,last_hour_app_count,last_hour_active_time",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-lasthour-count-and-active-time,qualifiedHour,caller-minute,6,-1e-400"
+      ],
+      "expected_refusal": true,
+      "expected_values": []
+    },
+    {
+      "name": "active count no implicit binary64 rounding",
+      "stage_index": 5,
+      "component": "chronicle.mathur-supplied-active-time-ratio/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,last_hour_id,active_time_unit,last_hour_app_count,last_hour_active_time",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-lasthour-count-and-active-time,qualifiedHour,caller-minute,18446744073709551615,1.5"
+      ],
+      "expected_refusal": true,
+      "expected_values": []
+    },
+    {
+      "name": "daily missing day not dropped",
+      "stage_index": 6,
+      "component": "chronicle.dismissed-supplied-daily-category-median/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,category_id,users_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-complete-category-user-day-count-inventories,social,\"[{\"\"user_id\"\":\"\"u1\"\",\"\"days\"\":[{\"\"day_id\"\":\"\"d1\"\",\"\"count\"\":2},{\"\"day_id\"\":\"\"d2\"\",\"\"count\"\":null}]},{\"\"user_id\"\":\"\"u2\"\",\"\"days\"\":[{\"\"day_id\"\":\"\"d1\"\",\"\"count\"\":4}]}]\""
+      ],
+      "expected_refusal": false,
+      "expected_values": [
+        {
+          "row": 0,
+          "pointer": "/median_user_daily_mean",
+          "value": null
+        },
+        {
+          "row": 0,
+          "pointer": "/user_means/0/mean_notifications_per_day",
+          "value": null
+        }
+      ]
+    },
+    {
+      "name": "daily missing user days not dropped",
+      "stage_index": 6,
+      "component": "chronicle.dismissed-supplied-daily-category-median/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,category_id,users_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-complete-category-user-day-count-inventories,social,\"[{\"\"user_id\"\":\"\"u1\"\",\"\"days\"\":null},{\"\"user_id\"\":\"\"u2\"\",\"\"days\"\":[{\"\"day_id\"\":\"\"d1\"\",\"\"count\"\":0}]}]\""
+      ],
+      "expected_refusal": false,
+      "expected_values": [
+        {
+          "row": 0,
+          "pointer": "/median_user_daily_mean",
+          "value": null
+        }
+      ]
+    },
+    {
+      "name": "daily duplicate critical count refused",
+      "stage_index": 6,
+      "component": "chronicle.dismissed-supplied-daily-category-median/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,category_id,users_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-complete-category-user-day-count-inventories,social,\"[{\"\"user_id\"\":\"\"u1\"\",\"\"days\"\":[{\"\"day_id\"\":\"\"d1\"\",\"\"count\"\":20,\"\"count\"\":0}]}]\""
+      ],
+      "expected_refusal": true,
+      "expected_values": []
+    },
+    {
+      "name": "source eligible conversion unknown flag unavailable",
+      "stage_index": 7,
+      "component": "chronicle.dismissed-supplied-category-conversion/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,category_id,notifications_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-complete-source-eligible-category-consumed-notifications,social,\"[{\"\"item_id\"\":\"\"n1\"\",\"\"source_order\"\":0,\"\"value\"\":null}]\""
+      ],
+      "expected_refusal": false,
+      "expected_values": [
+        {
+          "row": 0,
+          "pointer": "/value",
+          "value": null
+        }
+      ]
+    },
+    {
+      "name": "hour count empty complete zero",
+      "stage_index": 8,
+      "component": "chronicle.sarsen-supplied-hour-launch-count/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,hour_id,launches_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-complete-phone-participant-hour-launches,qualifiedHour,[]"
+      ],
+      "expected_refusal": false,
+      "expected_values": [
+        {
+          "row": 0,
+          "pointer": "/launch_count",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "name": "hour count source order not reconstructed",
+      "stage_index": 8,
+      "component": "chronicle.sarsen-supplied-hour-launch-count/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,hour_id,launches_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-complete-phone-participant-hour-launches,qualifiedHour,\"[{\"\"item_id\"\":\"\"l1\"\",\"\"source_order\"\":1}]\""
+      ],
+      "expected_refusal": true,
+      "expected_values": []
+    },
+    {
+      "name": "hour duration missing contribution not dropped",
+      "stage_index": 9,
+      "component": "chronicle.sarsen-supplied-hour-duration-total/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,hour_id,duration_unit,contributions_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-complete-phone-participant-hour-durations,qualifiedHour,caller-seconds,\"[{\"\"item_id\"\":\"\"c1\"\",\"\"source_order\"\":0,\"\"value\"\":2},{\"\"item_id\"\":\"\"c2\"\",\"\"source_order\"\":1,\"\"value\"\":null}]\""
+      ],
+      "expected_refusal": false,
+      "expected_values": [
+        {
+          "row": 0,
+          "pointer": "/duration_total",
+          "value": null
+        }
+      ]
+    },
+    {
+      "name": "hour duration negative nonzero JSON underflow refused",
+      "stage_index": 9,
+      "component": "chronicle.sarsen-supplied-hour-duration-total/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,hour_id,duration_unit,contributions_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-complete-phone-participant-hour-durations,qualifiedHour,caller-seconds,\"[{\"\"item_id\"\":\"\"c1\"\",\"\"source_order\"\":0,\"\"value\"\":-1e-400}]\""
+      ],
+      "expected_refusal": true,
+      "expected_values": []
+    },
+    {
+      "name": "hour duration genuine negative zero remains zero",
+      "stage_index": 9,
+      "component": "chronicle.sarsen-supplied-hour-duration-total/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,hour_id,duration_unit,contributions_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-complete-phone-participant-hour-durations,qualifiedHour,caller-seconds,\"[{\"\"item_id\"\":\"\"c1\"\",\"\"source_order\"\":0,\"\"value\"\":\"\"-0e-400\"\"}]\""
+      ],
+      "expected_refusal": false,
+      "expected_values": [
+        {
+          "row": 0,
+          "pointer": "/duration_total",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "name": "finesse absence unknown not drop",
+      "stage_index": 10,
+      "component": "chronicle.finesse-supplied-session-feature-fraction/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,feature_id,sessions_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-complete-nonempty-app-session-feature-presence,app,feature,\"[{\"\"item_id\"\":\"\"s1\"\",\"\"source_order\"\":0,\"\"value\"\":true},{\"\"item_id\"\":\"\"s2\"\",\"\"source_order\"\":1,\"\"value\"\":null}]\""
+      ],
+      "expected_refusal": false,
+      "expected_values": [
+        {
+          "row": 0,
+          "pointer": "/value",
+          "value": null
+        }
+      ]
+    },
+    {
+      "name": "DinglerAttendance wrong endpoint role",
+      "stage_index": 2,
+      "component": "chronicle.dingler-supplied-attendance-delay/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,coordinate_unit,timestamp_precision,notification_id,start_anchor_json,end_anchor_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-notification-arrival-first-inferred-attendance,s,1,n1,\"{\"\"source_event_id\"\":\"\"arrival\"\",\"\"event_role\"\":\"\"notification_arrival\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":2}\",\"{\"\"source_event_id\"\":\"\"attendance\"\",\"\"event_role\"\":\"\"invented_role\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":5}\""
+      ],
+      "expected_refusal": true,
+      "expected_values": []
+    },
+    {
+      "name": "DinglerAttendance mixed clocks",
+      "stage_index": 2,
+      "component": "chronicle.dingler-supplied-attendance-delay/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,coordinate_unit,timestamp_precision,notification_id,start_anchor_json,end_anchor_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-notification-arrival-first-inferred-attendance,s,1,n1,\"{\"\"source_event_id\"\":\"\"arrival\"\",\"\"event_role\"\":\"\"notification_arrival\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":2}\",\"{\"\"source_event_id\"\":\"\"attendance\"\",\"\"event_role\"\":\"\"first_inferred_attendance\"\",\"\"clock_id\"\":\"\"other\"\",\"\"coordinate\"\":5}\""
+      ],
+      "expected_refusal": true,
+      "expected_values": []
+    },
+    {
+      "name": "DinglerAttendance missing endpoint never filled",
+      "stage_index": 2,
+      "component": "chronicle.dingler-supplied-attendance-delay/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,coordinate_unit,timestamp_precision,notification_id,start_anchor_json,end_anchor_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-notification-arrival-first-inferred-attendance,s,1,n1,\"{\"\"source_event_id\"\":\"\"arrival\"\",\"\"event_role\"\":\"\"notification_arrival\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":2}\",\"{\"\"source_event_id\"\":\"\"attendance\"\",\"\"event_role\"\":\"\"first_inferred_attendance\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":null}\""
+      ],
+      "expected_refusal": false,
+      "expected_values": [
+        {
+          "row": 0,
+          "pointer": "/elapsed_coordinate_units",
+          "value": null
+        }
+      ]
+    },
+    {
+      "name": "MathurGap wrong endpoint role",
+      "stage_index": 4,
+      "component": "chronicle.mathur-supplied-signed-app-gap/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,coordinate_unit,timestamp_precision,context_id,start_anchor_json,end_anchor_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-previous-app-close-current-app-open,s,1,context,\"{\"\"source_event_id\"\":\"\"close\"\",\"\"event_role\"\":\"\"previous_app_close\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":10}\",\"{\"\"source_event_id\"\":\"\"open\"\",\"\"event_role\"\":\"\"invented_role\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":5}\""
+      ],
+      "expected_refusal": true,
+      "expected_values": []
+    },
+    {
+      "name": "MathurGap mixed clocks",
+      "stage_index": 4,
+      "component": "chronicle.mathur-supplied-signed-app-gap/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,coordinate_unit,timestamp_precision,context_id,start_anchor_json,end_anchor_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-previous-app-close-current-app-open,s,1,context,\"{\"\"source_event_id\"\":\"\"close\"\",\"\"event_role\"\":\"\"previous_app_close\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":10}\",\"{\"\"source_event_id\"\":\"\"open\"\",\"\"event_role\"\":\"\"current_app_open\"\",\"\"clock_id\"\":\"\"other\"\",\"\"coordinate\"\":5}\""
+      ],
+      "expected_refusal": true,
+      "expected_values": []
+    },
+    {
+      "name": "MathurGap missing endpoint never filled",
+      "stage_index": 4,
+      "component": "chronicle.mathur-supplied-signed-app-gap/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,coordinate_unit,timestamp_precision,context_id,start_anchor_json,end_anchor_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-previous-app-close-current-app-open,s,1,context,\"{\"\"source_event_id\"\":\"\"close\"\",\"\"event_role\"\":\"\"previous_app_close\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":10}\",\"{\"\"source_event_id\"\":\"\"open\"\",\"\"event_role\"\":\"\"current_app_open\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":null}\""
+      ],
+      "expected_refusal": false,
+      "expected_values": [
+        {
+          "row": 0,
+          "pointer": "/elapsed_coordinate_units",
+          "value": null
+        }
+      ]
+    },
+    {
+      "name": "TouchStroke wrong endpoint role",
+      "stage_index": 11,
+      "component": "chronicle.touchposter-supplied-stroke-time/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,coordinate_unit,timestamp_precision,stroke_id,start_anchor_json,end_anchor_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-closed-touch-scanning-stroke,ms,1,stroke,\"{\"\"source_event_id\"\":\"\"touchDown\"\",\"\"event_role\"\":\"\"stroke_start\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":2}\",\"{\"\"source_event_id\"\":\"\"touchUp\"\",\"\"event_role\"\":\"\"invented_role\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":5}\""
+      ],
+      "expected_refusal": true,
+      "expected_values": []
+    },
+    {
+      "name": "TouchStroke mixed clocks",
+      "stage_index": 11,
+      "component": "chronicle.touchposter-supplied-stroke-time/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,coordinate_unit,timestamp_precision,stroke_id,start_anchor_json,end_anchor_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-closed-touch-scanning-stroke,ms,1,stroke,\"{\"\"source_event_id\"\":\"\"touchDown\"\",\"\"event_role\"\":\"\"stroke_start\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":2}\",\"{\"\"source_event_id\"\":\"\"touchUp\"\",\"\"event_role\"\":\"\"stroke_end\"\",\"\"clock_id\"\":\"\"other\"\",\"\"coordinate\"\":5}\""
+      ],
+      "expected_refusal": true,
+      "expected_values": []
+    },
+    {
+      "name": "TouchStroke missing endpoint never filled",
+      "stage_index": 11,
+      "component": "chronicle.touchposter-supplied-stroke-time/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,coordinate_unit,timestamp_precision,stroke_id,start_anchor_json,end_anchor_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-closed-touch-scanning-stroke,ms,1,stroke,\"{\"\"source_event_id\"\":\"\"touchDown\"\",\"\"event_role\"\":\"\"stroke_start\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":2}\",\"{\"\"source_event_id\"\":\"\"touchUp\"\",\"\"event_role\"\":\"\"stroke_end\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":null}\""
+      ],
+      "expected_refusal": false,
+      "expected_values": [
+        {
+          "row": 0,
+          "pointer": "/elapsed_coordinate_units",
+          "value": null
+        }
+      ]
+    },
+    {
+      "name": "multi known overlap refused, no union",
+      "stage_index": 3,
+      "component": "chronicle.multidevice-supplied-android-active-time/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,device_type,day_id,coordinate_unit,timestamp_precision,intervals_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-complete-disjoint-closed-screen-on-device-day,phone,qualifiedDay,s,1,\"[{\"\"interval_id\"\":\"\"i1\"\",\"\"source_order\"\":0,\"\"start\"\":{\"\"source_event_id\"\":\"\"s1\"\",\"\"event_role\"\":\"\"screen_on\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":0},\"\"end\"\":{\"\"source_event_id\"\":\"\"e1\"\",\"\"event_role\"\":\"\"screen_off\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":5}},{\"\"interval_id\"\":\"\"i2\"\",\"\"source_order\"\":1,\"\"start\"\":{\"\"source_event_id\"\":\"\"s2\"\",\"\"event_role\"\":\"\"screen_on\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":4},\"\"end\"\":{\"\"source_event_id\"\":\"\"e2\"\",\"\"event_role\"\":\"\"screen_off\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":6}}]\""
+      ],
+      "expected_refusal": true,
+      "expected_values": []
+    },
+    {
+      "name": "multi half-open touching endpoints is not inferred overlap",
+      "stage_index": 3,
+      "component": "chronicle.multidevice-supplied-android-active-time/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,device_type,day_id,coordinate_unit,timestamp_precision,intervals_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-complete-disjoint-closed-screen-on-device-day,phone,qualifiedDay,s,1,\"[{\"\"interval_id\"\":\"\"i1\"\",\"\"source_order\"\":0,\"\"start\"\":{\"\"source_event_id\"\":\"\"s1\"\",\"\"event_role\"\":\"\"screen_on\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":0},\"\"end\"\":{\"\"source_event_id\"\":\"\"e1\"\",\"\"event_role\"\":\"\"screen_off\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":3}},{\"\"interval_id\"\":\"\"i2\"\",\"\"source_order\"\":1,\"\"start\"\":{\"\"source_event_id\"\":\"\"s2\"\",\"\"event_role\"\":\"\"screen_on\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":3},\"\"end\"\":{\"\"source_event_id\"\":\"\"e2\"\",\"\"event_role\"\":\"\"screen_off\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":6}}]\""
+      ],
+      "expected_refusal": false,
+      "expected_values": [
+        {
+          "row": 0,
+          "pointer": "/active_time_coordinate_units",
+          "value": "6"
+        }
+      ]
+    },
+    {
+      "name": "touch full-range i64 exact i128 subtraction",
+      "stage_index": 11,
+      "component": "chronicle.touchposter-supplied-stroke-time/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,coordinate_unit,timestamp_precision,stroke_id,start_anchor_json,end_anchor_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-closed-touch-scanning-stroke,ms,1,stroke,\"{\"\"source_event_id\"\":\"\"a\"\",\"\"event_role\"\":\"\"stroke_start\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":-9223372036854775808}\",\"{\"\"source_event_id\"\":\"\"b\"\",\"\"event_role\"\":\"\"stroke_end\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":9223372036854775807}\""
+      ],
+      "expected_refusal": false,
+      "expected_values": [
+        {
+          "row": 0,
+          "pointer": "/elapsed_coordinate_units",
+          "value": "18446744073709551615"
+        }
+      ]
+    },
+    {
+      "name": "DinglerAttendance complementary reverse endpoints",
+      "stage_index": 2,
+      "component": "chronicle.dingler-supplied-attendance-delay/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,coordinate_unit,timestamp_precision,notification_id,start_anchor_json,end_anchor_json",
+        "r1,participantA,deviceA,streamA,Android,scope1,caller-qualified-notification-arrival-first-inferred-attendance,s,1,n1,\"{\"\"source_event_id\"\":\"\"arrival\"\",\"\"event_role\"\":\"\"notification_arrival\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":10}\",\"{\"\"source_event_id\"\":\"\"attendance\"\",\"\"event_role\"\":\"\"first_inferred_attendance\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":null}\"",
+        "r2,participantA,deviceA,streamA,Android,scope1,caller-qualified-notification-arrival-first-inferred-attendance,s,1,n1,\"{\"\"source_event_id\"\":\"\"arrival\"\",\"\"event_role\"\":\"\"notification_arrival\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":null}\",\"{\"\"source_event_id\"\":\"\"attendance\"\",\"\"event_role\"\":\"\"first_inferred_attendance\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":5}\""
+      ],
+      "expected_refusal": true,
+      "expected_values": []
+    },
+    {
+      "name": "DinglerAttendance reverse declaration order",
+      "stage_index": 2,
+      "component": "chronicle.dingler-supplied-attendance-delay/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,coordinate_unit,timestamp_precision,notification_id,start_anchor_json,end_anchor_json",
+        "r2,participantA,deviceA,streamA,Android,scope1,caller-qualified-notification-arrival-first-inferred-attendance,s,1,n1,\"{\"\"source_event_id\"\":\"\"arrival\"\",\"\"event_role\"\":\"\"notification_arrival\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":null}\",\"{\"\"source_event_id\"\":\"\"attendance\"\",\"\"event_role\"\":\"\"first_inferred_attendance\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":5}\"",
+        "r1,participantA,deviceA,streamA,Android,scope1,caller-qualified-notification-arrival-first-inferred-attendance,s,1,n1,\"{\"\"source_event_id\"\":\"\"arrival\"\",\"\"event_role\"\":\"\"notification_arrival\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":10}\",\"{\"\"source_event_id\"\":\"\"attendance\"\",\"\"event_role\"\":\"\"first_inferred_attendance\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":null}\""
+      ],
+      "expected_refusal": true,
+      "expected_values": []
+    },
+    {
+      "name": "DinglerAttendance complementary positive no result imputation",
+      "stage_index": 2,
+      "component": "chronicle.dingler-supplied-attendance-delay/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,coordinate_unit,timestamp_precision,notification_id,start_anchor_json,end_anchor_json",
+        "r1,participantA,deviceA,streamA,Android,scope1,caller-qualified-notification-arrival-first-inferred-attendance,s,1,n1,\"{\"\"source_event_id\"\":\"\"arrival\"\",\"\"event_role\"\":\"\"notification_arrival\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":10}\",\"{\"\"source_event_id\"\":\"\"attendance\"\",\"\"event_role\"\":\"\"first_inferred_attendance\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":null}\"",
+        "r2,participantA,deviceA,streamA,Android,scope1,caller-qualified-notification-arrival-first-inferred-attendance,s,1,n1,\"{\"\"source_event_id\"\":\"\"arrival\"\",\"\"event_role\"\":\"\"notification_arrival\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":null}\",\"{\"\"source_event_id\"\":\"\"attendance\"\",\"\"event_role\"\":\"\"first_inferred_attendance\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":15}\""
+      ],
+      "expected_refusal": false,
+      "expected_values": [
+        {
+          "row": 0,
+          "pointer": "/elapsed_coordinate_units",
+          "value": null
+        },
+        {
+          "row": 1,
+          "pointer": "/elapsed_coordinate_units",
+          "value": null
+        }
+      ]
+    },
+    {
+      "name": "TouchStroke complementary reverse endpoints",
+      "stage_index": 11,
+      "component": "chronicle.touchposter-supplied-stroke-time/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,coordinate_unit,timestamp_precision,stroke_id,start_anchor_json,end_anchor_json",
+        "r1,participantA,deviceA,streamA,Android,scope1,caller-qualified-closed-touch-scanning-stroke,ms,1,stroke,\"{\"\"source_event_id\"\":\"\"touchDown\"\",\"\"event_role\"\":\"\"stroke_start\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":10}\",\"{\"\"source_event_id\"\":\"\"touchUp\"\",\"\"event_role\"\":\"\"stroke_end\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":null}\"",
+        "r2,participantA,deviceA,streamA,Android,scope1,caller-qualified-closed-touch-scanning-stroke,ms,1,stroke,\"{\"\"source_event_id\"\":\"\"touchDown\"\",\"\"event_role\"\":\"\"stroke_start\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":null}\",\"{\"\"source_event_id\"\":\"\"touchUp\"\",\"\"event_role\"\":\"\"stroke_end\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":5}\""
+      ],
+      "expected_refusal": true,
+      "expected_values": []
+    },
+    {
+      "name": "TouchStroke reverse declaration order",
+      "stage_index": 11,
+      "component": "chronicle.touchposter-supplied-stroke-time/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,coordinate_unit,timestamp_precision,stroke_id,start_anchor_json,end_anchor_json",
+        "r2,participantA,deviceA,streamA,Android,scope1,caller-qualified-closed-touch-scanning-stroke,ms,1,stroke,\"{\"\"source_event_id\"\":\"\"touchDown\"\",\"\"event_role\"\":\"\"stroke_start\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":null}\",\"{\"\"source_event_id\"\":\"\"touchUp\"\",\"\"event_role\"\":\"\"stroke_end\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":5}\"",
+        "r1,participantA,deviceA,streamA,Android,scope1,caller-qualified-closed-touch-scanning-stroke,ms,1,stroke,\"{\"\"source_event_id\"\":\"\"touchDown\"\",\"\"event_role\"\":\"\"stroke_start\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":10}\",\"{\"\"source_event_id\"\":\"\"touchUp\"\",\"\"event_role\"\":\"\"stroke_end\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":null}\""
+      ],
+      "expected_refusal": true,
+      "expected_values": []
+    },
+    {
+      "name": "TouchStroke complementary positive no result imputation",
+      "stage_index": 11,
+      "component": "chronicle.touchposter-supplied-stroke-time/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,coordinate_unit,timestamp_precision,stroke_id,start_anchor_json,end_anchor_json",
+        "r1,participantA,deviceA,streamA,Android,scope1,caller-qualified-closed-touch-scanning-stroke,ms,1,stroke,\"{\"\"source_event_id\"\":\"\"touchDown\"\",\"\"event_role\"\":\"\"stroke_start\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":10}\",\"{\"\"source_event_id\"\":\"\"touchUp\"\",\"\"event_role\"\":\"\"stroke_end\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":null}\"",
+        "r2,participantA,deviceA,streamA,Android,scope1,caller-qualified-closed-touch-scanning-stroke,ms,1,stroke,\"{\"\"source_event_id\"\":\"\"touchDown\"\",\"\"event_role\"\":\"\"stroke_start\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":null}\",\"{\"\"source_event_id\"\":\"\"touchUp\"\",\"\"event_role\"\":\"\"stroke_end\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":15}\""
+      ],
+      "expected_refusal": false,
+      "expected_values": [
+        {
+          "row": 0,
+          "pointer": "/elapsed_coordinate_units",
+          "value": null
+        },
+        {
+          "row": 1,
+          "pointer": "/elapsed_coordinate_units",
+          "value": null
+        }
+      ]
+    },
+    {
+      "name": "HUSH beta unknown X poisons each subsequent state",
+      "stage_index": 12,
+      "component": "chronicle.hush-supplied-beta-sensitivity/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,sequence_origin,observations_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-complete-ordered-app-active-background-following-screen-on,app,caller-qualified-source-sequence-from-initial-0.5,\"[{\"\"background_interval_id\"\":\"\"b1\"\",\"\"following_screen_on_interval_id\"\":\"\"on1\"\",\"\"source_order\"\":0,\"\"x_foreground\"\":null,\"\"was_suppressed\"\":false},{\"\"background_interval_id\"\":\"\"b2\"\",\"\"following_screen_on_interval_id\"\":\"\"on2\"\",\"\"source_order\"\":1,\"\"x_foreground\"\":false,\"\"was_suppressed\"\":true}]\""
+      ],
+      "expected_refusal": false,
+      "expected_values": [
+        {
+          "row": 0,
+          "pointer": "/results/0/updates/1/bfc",
+          "value": null
+        },
+        {
+          "row": 0,
+          "pointer": "/results/2/updates/1/bfc",
+          "value": null
+        }
+      ]
+    },
+    {
+      "name": "HUSH alpha must be at beta.5, no Cartesian sweep",
+      "stage_index": 13,
+      "component": "chronicle.hush-supplied-alpha-sensitivity/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,beta,sequence_origin,observations_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-complete-ordered-app-active-background-following-screen-on,app,0.9,caller-qualified-source-sequence-from-initial-0.5,\"[{\"\"background_interval_id\"\":\"\"b1\"\",\"\"following_screen_on_interval_id\"\":\"\"on1\"\",\"\"source_order\"\":0,\"\"x_foreground\"\":false,\"\"was_suppressed\"\":false},{\"\"background_interval_id\"\":\"\"b2\"\",\"\"following_screen_on_interval_id\"\":\"\"on2\"\",\"\"source_order\"\":1,\"\"x_foreground\"\":false,\"\"was_suppressed\"\":true}]\""
+      ],
+      "expected_refusal": true,
+      "expected_values": []
+    },
+    {
+      "name": "HUSH alpha equality current .5 <= .8 true",
+      "stage_index": 13,
+      "component": "chronicle.hush-supplied-alpha-sensitivity/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,beta,sequence_origin,observations_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-complete-ordered-app-active-background-following-screen-on,app,0.5,caller-qualified-source-sequence-from-initial-0.5,\"[{\"\"background_interval_id\"\":\"\"b1\"\",\"\"following_screen_on_interval_id\"\":\"\"on1\"\",\"\"source_order\"\":0,\"\"x_foreground\"\":false,\"\"was_suppressed\"\":false},{\"\"background_interval_id\"\":\"\"b2\"\",\"\"following_screen_on_interval_id\"\":\"\"on2\"\",\"\"source_order\"\":1,\"\"x_foreground\"\":false,\"\"was_suppressed\"\":true}]\""
+      ],
+      "expected_refusal": false,
+      "expected_values": [
+        {
+          "row": 0,
+          "pointer": "/results/3/updates/0/suppress_using_previous_bfc",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "screen positive-duration intersection preserves zero span span then point",
+      "stage_index": 3,
+      "component": "chronicle.multidevice-supplied-android-active-time/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,device_type,day_id,coordinate_unit,timestamp_precision,intervals_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-complete-disjoint-closed-screen-on-device-day,phone,qualifiedDay,s,1,\"[{\"\"interval_id\"\":\"\"span\"\",\"\"source_order\"\":0,\"\"start\"\":{\"\"source_event_id\"\":\"\"start-span\"\",\"\"event_role\"\":\"\"screen_on\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":0},\"\"end\"\":{\"\"source_event_id\"\":\"\"end-span\"\",\"\"event_role\"\":\"\"screen_off\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":10}},{\"\"interval_id\"\":\"\"point\"\",\"\"source_order\"\":1,\"\"start\"\":{\"\"source_event_id\"\":\"\"start-point\"\",\"\"event_role\"\":\"\"screen_on\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":5},\"\"end\"\":{\"\"source_event_id\"\":\"\"end-point\"\",\"\"event_role\"\":\"\"screen_off\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":5}}]\""
+      ],
+      "expected_refusal": false,
+      "expected_values": [
+        {
+          "row": 0,
+          "pointer": "/active_time_coordinate_units",
+          "value": "10"
+        },
+        {
+          "row": 0,
+          "pointer": "/active_time_binary64",
+          "value": 10
+        },
+        {
+          "row": 0,
+          "pointer": "/closed_interval_count",
+          "value": 2
+        }
+      ]
+    },
+    {
+      "name": "screen positive-duration intersection preserves zero span point then span",
+      "stage_index": 3,
+      "component": "chronicle.multidevice-supplied-android-active-time/v1",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,device_type,day_id,coordinate_unit,timestamp_precision,intervals_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-complete-disjoint-closed-screen-on-device-day,phone,qualifiedDay,s,1,\"[{\"\"interval_id\"\":\"\"point\"\",\"\"source_order\"\":0,\"\"start\"\":{\"\"source_event_id\"\":\"\"start-point\"\",\"\"event_role\"\":\"\"screen_on\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":5},\"\"end\"\":{\"\"source_event_id\"\":\"\"end-point\"\",\"\"event_role\"\":\"\"screen_off\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":5}},{\"\"interval_id\"\":\"\"span\"\",\"\"source_order\"\":1,\"\"start\"\":{\"\"source_event_id\"\":\"\"start-span\"\",\"\"event_role\"\":\"\"screen_on\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":0},\"\"end\"\":{\"\"source_event_id\"\":\"\"end-span\"\",\"\"event_role\"\":\"\"screen_off\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":10}}]\""
+      ],
+      "expected_refusal": false,
+      "expected_values": [
+        {
+          "row": 0,
+          "pointer": "/active_time_coordinate_units",
+          "value": "10"
+        },
+        {
+          "row": 0,
+          "pointer": "/active_time_binary64",
+          "value": 10
+        },
+        {
+          "row": 0,
+          "pointer": "/closed_interval_count",
+          "value": 2
+        }
+      ]
+    }
+  ]
+}

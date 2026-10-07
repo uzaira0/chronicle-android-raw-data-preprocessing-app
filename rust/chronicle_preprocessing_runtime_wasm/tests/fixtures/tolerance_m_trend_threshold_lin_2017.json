@@ -1,0 +1,78 @@
+{
+  "schemaVersion": "chronicle-tolerance-m-trend-threshold-source-fixture/v1",
+  "sourceWorkId": "doi:10.4088/jcp.15m10310",
+  "canonicalIdentity": {
+    "settingId": "method-setting-5b1144a46bc1ce3713e5c905",
+    "sourceCurrentSettingId": "method-setting-5b1144a46bc1ce3713e5c905",
+    "sourceExtractionId": "extraction-ed0490b2d5b9b4e60b69",
+    "sourceExecutionUnitId": "screen-epoch-trend-15m10310:protocol.tolerance_threshold",
+    "aliasResolution": "canonical_current_two_superseded_aliases",
+    "supersededAliasSettingIds": [
+      "method-setting-6afac1ef44f8ec2c67cc045b",
+      "method-setting-atomic-b416205a29c2ca345e74"
+    ],
+    "tombstoneRegistrySha256": "018221f6036218887355a0a2dcd9d6d54a9e90eb93f380b4e1b81cc75c0f76b5"
+  },
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-5b1144a46bc1ce3713e5c905",
+    "parameterKey": "protocol.tolerance_threshold",
+    "sourceObservedSetting": "protocol.tolerance_threshold: {\"criterion\":\"criterionapp A3\",\"feature\":\"M-trend\",\"operator\":\"strictly greater than\",\"threshold\":0,\"inherited_from_reference\":12}",
+    "sourceValueSha256": "c1d4c56b5813cdc0798c687b1d52c7f6974b45403255b928d6777291c589f9aa"
+  },
+  "sourceArtifacts": [
+    {
+      "locator": ".tmp-literature-review-private/strict-reference-frontier-20260830T220550Z/text/lin-2017-app-measures.txt:140-156,264-272",
+      "sha256": "776fa598cac4d28b198263bd5ea5a984d11515e67564444b242df0d1e0723e6e"
+    },
+    {
+      "locator": ".tmp-literature-review-private/authenticated-cookie-recovery-wave-20260830/retrieved/app-measures-addiction-2017/primary.pdf",
+      "sha256": "1396f31fd2d4028a17fd643b534d820e0f5e48d69205787a43f096b41be9409e"
+    },
+    {
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/source-completeness-audits/doi-10.4088-jcp.15m10310.json#key=protocol.tolerance_threshold",
+      "sha256": "769abdeaa949dfd90569c022865f30d8c5d9e9d5d5d5e922f0d382c9ed2792a8"
+    },
+    {
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/method-setting-alias-tombstones.json#lookup=protocol.tolerance_threshold",
+      "sha256": "018221f6036218887355a0a2dcd9d6d54a9e90eb93f380b4e1b81cc75c0f76b5"
+    }
+  ],
+  "inputBoundary": "One caller-supplied finite M-trend value for the participant's median daily screen-on-to-screen-off epoch duration over the past month. Epoch reconstruction, daily median calculation, empirical mode decomposition, and trend selection remain upstream.",
+  "outputBoundary": "Classify criterionapp A3 tolerance only when M-trend is strictly greater than zero; zero and negative values are not tolerance.",
+  "limitations": [
+    "This binding implements only the canonical criterionapp A3 M-trend threshold and does not implement psychiatric diagnosis, interview adjudication, or other addiction criteria.",
+    "The threshold is reported as inherited from reference 12; this fixture preserves that provenance without claiming to execute the referenced study.",
+    "The article identifies empirical mode decomposition as the trend method but does not release the exact signal, endpoint, IMF/residue selection, source revision, or runtime needed to derive M-trend; callers must supply the already-derived value.",
+    "A missing or nonfinite M-trend fails closed; no rounding, tolerance, or sign coercion is invented."
+  ],
+  "pivotMTrend": 0.0,
+  "categories": {
+    "below": "not_tolerance",
+    "equal": "not_tolerance",
+    "above": "tolerance"
+  },
+  "observations": [
+    {
+      "caseId": "negative-trend",
+      "mTrend": -0.001,
+      "expectedClass": "not_tolerance"
+    },
+    {
+      "caseId": "zero-is-not-strictly-greater",
+      "mTrend": 0.0,
+      "expectedClass": "not_tolerance"
+    },
+    {
+      "caseId": "positive-trend",
+      "mTrend": 0.001,
+      "expectedClass": "tolerance"
+    }
+  ],
+  "invalidObservations": [
+    {
+      "caseId": "missing-m-trend",
+      "mTrend": null,
+      "expectedError": "m_trend_required"
+    }
+  ]
+}

@@ -1,0 +1,211 @@
+{
+  "schema_version": "chronicle-test-source-binding/v1",
+  "source_work_id": "doi:10.1037/emo0001485",
+  "method_profile_id": "method-profile:doi:10.1037/emo0001485",
+  "source_method_variant_id": "source-audit-configuration-space-f9f67b7a0a36f3d5a59c9e0e",
+  "method_profile_version": "literature-sublation-v3-atomic+source-complete-v1+external-execution-v1",
+  "execution_boundary": {
+    "claim": "Six named Sample-I lme4 calls execute from the released dat1 object and match fixed-effect and REML values rendered by the released analysis HTML.",
+    "does_not_claim": "The complete R Markdown session, the reported R 4.3.1 environment, any raw Android/Ethica/Behapp preprocessing, or any of the other 124 source execution units.",
+    "configuration_unit_kind": "campaign_internal_job_model_cell",
+    "binding_kind": "model"
+  },
+  "executor": {
+    "executor_id": "external.r.lme4.sample1-model-oracle",
+    "executor_version": "1.0.0+R-4.1.2-lme4-1.1-28-lmerTest-3.1-3",
+    "runtime": "R 4.1.2; lme4 1.1-28; lmerTest 3.1-3; rocker/r-ver:4.1.2; container network disabled",
+    "container_image_digest": "sha256:98e5b783d0751e688ed12fb26886d7381c9c60cde898c64e9bf534abac94cff4",
+    "container_repo_digest": "rocker/r-ver@sha256:6ae57bef96a03da4ce94c16d30458166213ec8423dd2eb820de7c818f9f825b1",
+    "fixture_id": "source.fixture.doi-10.1037-emo0001485.sample1-anonymized.sha256-7d47406056c0",
+    "semantic_digest_sha256": "sha256:0941a52a1468f4642c8ee076d2ae513e8e3b63f017e1d17cf3d35961c663df55",
+    "execution_receipt_sha256": "sha256:8afa61cb0f4f919c671953c1fd2b86e319c8ab646236e8534bfbdc4fd4f3e1b0"
+  },
+  "source_evidence": {
+    "source_audit": {
+      "path": ".tmp-literature-review-private/ontology-sublation-20260831/source-completeness-audits/doi-10.1037-emo0001485.json",
+      "sha256": "sha256:91e969dfff76ffd8c60eb89e0a3ab4214887e372cd03f1a4f3df5334ac8e5153"
+    },
+    "analysis_source": {
+      "path": ".tmp-literature-review-private/authenticated-cookie-recovery-wave-20260830/retrieved/bidirectional-use-wellbeing-2025/artifacts/Analyses.Rmd",
+      "sha256": "sha256:a38c49c043416a7e945bd25b643b1a0f6d6bb013828799177dcfd35e1c7f0435"
+    },
+    "published_numeric_oracle": {
+      "path": ".tmp-literature-review-private/authenticated-cookie-recovery-wave-20260830/retrieved/bidirectional-use-wellbeing-2025/artifacts/Analyses.html",
+      "sha256": "sha256:db42cf3f43ebc524750597b2eb76194c44e1314081a4a6dedb1f62f025e1cac7"
+    },
+    "released_sample_i_input": {
+      "path": ".tmp-literature-review-private/authenticated-cookie-recovery-wave-20260830/retrieved/bidirectional-use-wellbeing-2025/artifacts/data_Sample1_anonymized.RData",
+      "sha256": "sha256:7d47406056c0db939b56409796bf8f564971942c6c13004cfcbfedb3366fd1a0",
+      "object": "dat1",
+      "rows": 7874,
+      "columns": 25
+    },
+    "execution_evidence": {
+      "path": ".tmp-literature-review-private/profile-runs/emo0001485-runtime/receipts/evidence.json",
+      "sha256": "sha256:ef359ce2b4f015c30225fd0befd892f1d6c93d5b176747b04a5804256765c3e4"
+    },
+    "external_execution_receipt": {
+      "path": ".tmp-literature-review-private/profile-runs/emo0001485-runtime/receipts/external-execution.json",
+      "sha256": "sha256:8afa61cb0f4f919c671953c1fd2b86e319c8ab646236e8534bfbdc4fd4f3e1b0"
+    }
+  },
+  "counts": {
+    "source_execution_units": 130,
+    "executed_with_published_numeric_oracle": 6,
+    "hard_no": 124,
+    "hard_no_campaign_model_cells": 105,
+    "hard_no_fixed_pipeline_stages": 18,
+    "hard_no_evidence_only_units": 1,
+    "unique_executable_settings": 16
+  },
+  "configuration_bindings": [
+    {
+      "configuration_id": "elmer2025:rmd-model:L280:m2-a",
+      "source_line": 280,
+      "receipt_id": "emo0001485-external-r-lme4-L280-m2-a-v1",
+      "model_name": "m2.a",
+      "formula": "affect ~ woman + com.pre.pm + com.pre.pmc + sm.pre.pm + sm.pre.pmc + oth.pre.pm + oth.pre.pmc + (I(sm.pre.pmc/60) | ID)",
+      "observations": 7874,
+      "result_sha256": "sha256:cf67966cdd2e3354390568f4b1d5eb98acae2bfa7dc9c10d7cff00724c60f9d3",
+      "setting_ids": [
+        "method-setting-18d404a39c4f4b374086fa96",
+        "method-setting-235f10f1b85cf92d35196de9",
+        "method-setting-58c16cb6a3466c9d3f5e5add",
+        "method-setting-5c342a8d515f4526a3fff1d2",
+        "method-setting-69b07d0a3218ca4b3de91e22",
+        "method-setting-749853855751ead154572e24",
+        "method-setting-830b8faf1574e549bc8edf35",
+        "method-setting-9fe1b8f7c591ad8cd618f1f4",
+        "method-setting-a3fdc04b28b7317d6da7b43c",
+        "method-setting-d4996cdf5bc99f4b540c37b0",
+        "method-setting-e966ab9d8fd4c0412a3bd749"
+      ]
+    },
+    {
+      "configuration_id": "elmer2025:rmd-model:L329:m2-l",
+      "source_line": 329,
+      "receipt_id": "emo0001485-external-r-lme4-L329-m2-l-v1",
+      "model_name": "m2.l",
+      "formula": "loneliness ~ woman + com.pre.pm + com.pre.pmc + sm.pre.pm + sm.pre.pmc + oth.pre.pm + oth.pre.pmc + (I(sm.pre.pmc/60) | ID)",
+      "observations": 7874,
+      "result_sha256": "sha256:da4ffaef832d92ff0e7b9f66a50b5a15e34ae6c6a2883989fb20d399aeb0c667",
+      "setting_ids": [
+        "method-setting-235f10f1b85cf92d35196de9",
+        "method-setting-3a34a5feab31005303bcfd74",
+        "method-setting-58c16cb6a3466c9d3f5e5add",
+        "method-setting-5c342a8d515f4526a3fff1d2",
+        "method-setting-69b07d0a3218ca4b3de91e22",
+        "method-setting-749853855751ead154572e24",
+        "method-setting-830b8faf1574e549bc8edf35",
+        "method-setting-9fe1b8f7c591ad8cd618f1f4",
+        "method-setting-a3fdc04b28b7317d6da7b43c",
+        "method-setting-d4996cdf5bc99f4b540c37b0",
+        "method-setting-e966ab9d8fd4c0412a3bd749"
+      ]
+    },
+    {
+      "configuration_id": "elmer2025:rmd-model:L456:m1-d1",
+      "source_line": 456,
+      "receipt_id": "emo0001485-external-r-lme4-L456-m1-d1-v1",
+      "model_name": "m1.d1",
+      "formula": "all.post ~ woman + affect.pm + affect.pmc + loneliness.pm + loneliness.pmc + (affect.pmc + loneliness.pmc | ID)",
+      "observations": 7874,
+      "result_sha256": "sha256:13aba6ea131d76e1d7beca1b158f10878b12255babdcdfeb3759ded426d95438",
+      "setting_ids": [
+        "method-setting-58c16cb6a3466c9d3f5e5add",
+        "method-setting-5c342a8d515f4526a3fff1d2",
+        "method-setting-830b8faf1574e549bc8edf35",
+        "method-setting-9fe1b8f7c591ad8cd618f1f4",
+        "method-setting-ad31315bd613b33a6f2a4fe8",
+        "method-setting-d4996cdf5bc99f4b540c37b0",
+        "method-setting-e966ab9d8fd4c0412a3bd749"
+      ]
+    },
+    {
+      "configuration_id": "elmer2025:rmd-model:L472:m1-d1-com",
+      "source_line": 472,
+      "receipt_id": "emo0001485-external-r-lme4-L472-m1-d1-com-v1",
+      "model_name": "m1.d1.com",
+      "formula": "com.post ~ woman + affect.pm + affect.pmc + loneliness.pm + loneliness.pmc + (I(loneliness.pmc/6) | ID)",
+      "observations": 7874,
+      "result_sha256": "sha256:c2ce6cbd23cde77f0b7e469887e519bb5b9c1aa258478aec8542d249adde86eb",
+      "setting_ids": [
+        "method-setting-58c16cb6a3466c9d3f5e5add",
+        "method-setting-5c342a8d515f4526a3fff1d2",
+        "method-setting-830b8faf1574e549bc8edf35",
+        "method-setting-9fe1b8f7c591ad8cd618f1f4",
+        "method-setting-a4af5f813e4924ff5ea10380",
+        "method-setting-d4996cdf5bc99f4b540c37b0",
+        "method-setting-e966ab9d8fd4c0412a3bd749"
+      ]
+    },
+    {
+      "configuration_id": "elmer2025:rmd-model:L479:m1-d1-sm",
+      "source_line": 479,
+      "receipt_id": "emo0001485-external-r-lme4-L479-m1-d1-sm-v1",
+      "model_name": "m1.d1.sm",
+      "formula": "sm.post ~ woman + affect.pm + affect.pmc + loneliness.pm + loneliness.pmc + (I(loneliness.pmc/6) | ID)",
+      "observations": 7874,
+      "result_sha256": "sha256:31a2c74931b8cb67995239f35763875a84746f57e7928ae24e9938c77bf9728c",
+      "setting_ids": [
+        "method-setting-58c16cb6a3466c9d3f5e5add",
+        "method-setting-5bd9b769cbf9d72ce0293ef2",
+        "method-setting-5c342a8d515f4526a3fff1d2",
+        "method-setting-830b8faf1574e549bc8edf35",
+        "method-setting-9fe1b8f7c591ad8cd618f1f4",
+        "method-setting-d4996cdf5bc99f4b540c37b0",
+        "method-setting-e966ab9d8fd4c0412a3bd749"
+      ]
+    },
+    {
+      "configuration_id": "elmer2025:rmd-model:L488:m1-d1-oth",
+      "source_line": 488,
+      "receipt_id": "emo0001485-external-r-lme4-L488-m1-d1-oth-v1",
+      "model_name": "m1.d1.oth",
+      "formula": "oth.post ~ woman + affect.pm + affect.pmc + loneliness.pm + loneliness.pmc + (I(loneliness.pmc/6) | ID)",
+      "observations": 7874,
+      "result_sha256": "sha256:b084bcce493a31759ad3ea26ebe97537a4e43c1360390e79047e0d16082967c5",
+      "setting_ids": [
+        "method-setting-480677b5002c575da9b7e3d1",
+        "method-setting-58c16cb6a3466c9d3f5e5add",
+        "method-setting-5c342a8d515f4526a3fff1d2",
+        "method-setting-830b8faf1574e549bc8edf35",
+        "method-setting-9fe1b8f7c591ad8cd618f1f4",
+        "method-setting-d4996cdf5bc99f4b540c37b0",
+        "method-setting-e966ab9d8fd4c0412a3bd749"
+      ]
+    }
+  ],
+  "executable_setting_ids": [
+    "method-setting-18d404a39c4f4b374086fa96",
+    "method-setting-235f10f1b85cf92d35196de9",
+    "method-setting-3a34a5feab31005303bcfd74",
+    "method-setting-480677b5002c575da9b7e3d1",
+    "method-setting-58c16cb6a3466c9d3f5e5add",
+    "method-setting-5bd9b769cbf9d72ce0293ef2",
+    "method-setting-5c342a8d515f4526a3fff1d2",
+    "method-setting-69b07d0a3218ca4b3de91e22",
+    "method-setting-749853855751ead154572e24",
+    "method-setting-830b8faf1574e549bc8edf35",
+    "method-setting-9fe1b8f7c591ad8cd618f1f4",
+    "method-setting-a3fdc04b28b7317d6da7b43c",
+    "method-setting-a4af5f813e4924ff5ea10380",
+    "method-setting-ad31315bd613b33a6f2a4fe8",
+    "method-setting-d4996cdf5bc99f4b540c37b0",
+    "method-setting-e966ab9d8fd4c0412a3bd749"
+  ],
+  "hard_no_boundary": {
+    "configuration_ids_sha256": "sha256:51162faaca7b5f47aa6c1adb2123a14ca732e6973a16a2ad2ef75de08049ee72",
+    "classes": {
+      "campaign_internal_job_model_cell": 105,
+      "fixed_pipeline_stage_component": 18,
+      "evidence_only_unavailable": 1
+    },
+    "raw_preprocessing_examples": [
+      "elmer2025:acquisition:sample-i-ethica",
+      "elmer2025:acquisition:sample-ii-behapp-mpath",
+      "elmer2025:acquisition:sample-iii-behapp-mpath",
+      "elmer2025:preprocessing:sample-i-ethica-60m"
+    ]
+  }
+}

@@ -1,0 +1,423 @@
+{
+  "oracle_status": "source_read_independent_hand_cases_not_author_execution",
+  "source_artifacts": [
+    {
+      "source_work_id": "doi:10.1109/bsn.2012.3",
+      "path": ".tmp-literature-review-private/corrective-packet-04-ranks-074-123-20260831/text/105.txt",
+      "sha256": "300774fc8e3276f2f5c68d32807d9d501b1523237ad8914243942a10b75a6699",
+      "locator": "189–215,332–344"
+    },
+    {
+      "source_work_id": "doi:10.7717/peerj.2197",
+      "path": ".tmp-literature-review-private/corrective-queue-audit-b-20260831/packet-05-ranks-124-173/fulltext/rank136.txt",
+      "sha256": "fcda7dba42becd1feab6664dd0be5da9b22b008da872063ba1b5cfd5afc7f483",
+      "locator": "183–265, primary pp4–6"
+    },
+    {
+      "source_work_id": "doi:10.4000/questionsdecommunication.9851",
+      "path": ".tmp-literature-review-private/corrective-packet-07-ranks224-276-20260831/text/260.txt",
+      "sha256": "b22a4d32dac1289876354409ee3d83213f61e791d697882c186919d9ef234d75",
+      "locator": "243–250,616–652"
+    },
+    {
+      "source_work_id": "doi:10.1145/2493432.2493443",
+      "path": ".tmp-literature-review-private/wave3-reference-frontier-followup-wave7/artifacts/extracted/10.1145_2493432.2493443.txt",
+      "sha256": "71b83a0d4a0fc7015c9400574fde0423b0f3988e65ed38bb97942444214262b9",
+      "locator": "295–320, primary pp338–339"
+    },
+    {
+      "source_work_id": "doi:10.2196/13209",
+      "path": ".tmp-literature-review-private/strict-screen-native-ranks37-73-20260831T0415Z/text/59-loneliness.txt",
+      "sha256": "4a7cb9208c6a732dba9581c2e8cf6967606a11e879882eff9522ecf8ba87874d",
+      "locator": "354–363"
+    }
+  ],
+  "case_count": 58,
+  "output_order": "lexically scoped group output except supplied-row-order ratios and first-seen means; source original ordering not asserted",
+  "cases": [
+    {
+      "id": "moodminer_combined_daily_frequency_and_explicit_known_zero",
+      "adapter_id": "chronicle.moodminer-communication-frequency/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,occurrence_id,communication_kind\nc1,communication,P,A,w,d1,c1,call\nd2,admitted_day,P,A,w,d2,,\ns1,communication,P,A,w,d1,s1,text_message\nc2,communication,P,A,w,d1,c2,call\nd1,admitted_day,P,A,w,d1,,\n",
+      "expected_csv": "participant_id,device_id,source_window_id,source_day_id,call_count,text_message_count,communication_count\nP,A,w,d1,2,1,3\nP,A,w,d2,0,0,0\n",
+      "source_rows": 5,
+      "emitted_rows": 2
+    },
+    {
+      "id": "moodminer_lexical_owner_day_and_occurrence_identities",
+      "adapter_id": "chronicle.moodminer-communication-frequency/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,occurrence_id,communication_kind\nd1,admitted_day,P,A,w,d,,\nd2,admitted_day,P,A,w, d ,,\nd3,admitted_day, P ,A,w,d,,\nd4,admitted_day,P, A ,w,d,,\nd5,admitted_day,P,A, w ,d,,\nu1,communication,P,A,w,d,x,call\nu2,communication,P,A,w,d, x ,call\nu3,communication,P,A,w, d ,x2,text_message\nu4,communication, P ,A,w,d,x,text_message\nu5,communication,P, A ,w,d,x,text_message\nu6,communication,P,A, w ,d,x,text_message\n",
+      "expected_csv": "participant_id,device_id,source_window_id,source_day_id,call_count,text_message_count,communication_count\n P ,A,w,d,0,1,1\nP, A ,w,d,0,1,1\nP,A, w ,d,0,1,1\nP,A,w, d ,0,1,1\nP,A,w,d,2,0,2\n",
+      "source_rows": 11,
+      "emitted_rows": 5
+    },
+    {
+      "id": "moodminer_reordered_columns_do_not_reconstruct_days",
+      "adapter_id": "chronicle.moodminer-communication-frequency/v1",
+      "input_csv": "communication_kind,occurrence_id,source_day_id,source_window_id,device_id,participant_id,record_type,source_row_id\n,,day,w,A,P,admitted_day,d\ncall,c,day,w,A,P,communication,c\n",
+      "expected_csv": "participant_id,device_id,source_window_id,source_day_id,call_count,text_message_count,communication_count\nP,A,w,day,1,0,1\n",
+      "source_rows": 2,
+      "emitted_rows": 1
+    },
+    {
+      "id": "moodminer_absent_day_not_inferred_from_occurrence",
+      "adapter_id": "chronicle.moodminer-communication-frequency/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,occurrence_id,communication_kind\nc,communication,P,A,w,d,c,call\n",
+      "expected_error_contains": "explicit admitted-day inventory"
+    },
+    {
+      "id": "moodminer_occurrence_not_assigned_to_multiple_days",
+      "adapter_id": "chronicle.moodminer-communication-frequency/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,occurrence_id,communication_kind\nd1,admitted_day,P,A,w,d1,,\nd2,admitted_day,P,A,w,d2,,\nc1,communication,P,A,w,d1,c,call\nc2,communication,P,A,w,d2,c,call\n",
+      "expected_error_contains": "occurrence_id must be unique"
+    },
+    {
+      "id": "moodminer_raw_callback_not_qualified_communication",
+      "adapter_id": "chronicle.moodminer-communication-frequency/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,occurrence_id,communication_kind\nd,admitted_day,P,A,w,d,,\nc,communication,P,A,w,d,c,screen_on\n",
+      "expected_error_contains": "qualified call or text_message"
+    },
+    {
+      "id": "moodminer_duplicate_day_cannot_inflate_spine",
+      "adapter_id": "chronicle.moodminer-communication-frequency/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,occurrence_id,communication_kind\nd1,admitted_day,P,A,w,d,,\nd2,admitted_day,P,A,w,d,,\n",
+      "expected_error_contains": "duplicate admitted day"
+    },
+    {
+      "id": "moodminer_empty_inventory_not_zero_day",
+      "adapter_id": "chronicle.moodminer-communication-frequency/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,occurrence_id,communication_kind\n",
+      "expected_error_contains": "explicit admitted-day inventory"
+    },
+    {
+      "id": "moodminer_blank_device_not_merged",
+      "adapter_id": "chronicle.moodminer-communication-frequency/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,occurrence_id,communication_kind\nd,admitted_day,P, ,w,d,,\n",
+      "expected_error_contains": "nonblank device_id"
+    },
+    {
+      "id": "mobilesens_three_ratios_preserve_percent_vs_unscaled_sms_call",
+      "adapter_id": "chronicle.mobilesens-communication-ratios/v1",
+      "input_csv": "source_row_id,participant_id,device_id,source_window_id,source_day_id,sms_sent_count,sms_received_count,call_outgoing_count,call_incoming_count\nr,P,A,w,d,3,1,1,1\n",
+      "expected_csv": "participant_id,device_id,source_window_id,source_day_id,ratio_id,numerator,denominator,ratio,percent\nP,A,w,d,sent_sms_proportion,3,4,0.75,75\nP,A,w,d,outgoing_call_proportion,1,2,0.5,50\nP,A,w,d,sms_to_call_ratio,4,2,2,\n",
+      "source_rows": 1,
+      "emitted_rows": 3
+    },
+    {
+      "id": "mobilesens_zero_numerators_known_positive_denominators",
+      "adapter_id": "chronicle.mobilesens-communication-ratios/v1",
+      "input_csv": "source_row_id,participant_id,device_id,source_window_id,source_day_id,sms_sent_count,sms_received_count,call_outgoing_count,call_incoming_count\nr,P,A,w,d,0,4,0,2\n",
+      "expected_csv": "participant_id,device_id,source_window_id,source_day_id,ratio_id,numerator,denominator,ratio,percent\nP,A,w,d,sent_sms_proportion,0,4,0,0\nP,A,w,d,outgoing_call_proportion,0,2,0,0\nP,A,w,d,sms_to_call_ratio,4,2,2,\n",
+      "source_rows": 1,
+      "emitted_rows": 3
+    },
+    {
+      "id": "mobilesens_count_metadata_and_lexical_scopes_preserve_input_order",
+      "adapter_id": "chronicle.mobilesens-communication-ratios/v1",
+      "input_csv": "source_row_id,participant_id,device_id,source_window_id,source_day_id,sms_sent_count,sms_received_count,call_outgoing_count,call_incoming_count\nsame,P,A,w,d,2,2,4,0\nsame, P , A , w , d ,1,3,0,2\n",
+      "expected_csv": "participant_id,device_id,source_window_id,source_day_id,ratio_id,numerator,denominator,ratio,percent\nP,A,w,d,sent_sms_proportion,2,4,0.5,50\nP,A,w,d,outgoing_call_proportion,4,4,1,100\nP,A,w,d,sms_to_call_ratio,4,4,1,\n P , A , w , d ,sent_sms_proportion,1,4,0.25,25\n P , A , w , d ,outgoing_call_proportion,0,2,0,0\n P , A , w , d ,sms_to_call_ratio,4,2,2,\n",
+      "source_rows": 2,
+      "emitted_rows": 6
+    },
+    {
+      "id": "mobilesens_uint64_counts_above_2pow53_are_not_float_parsed",
+      "adapter_id": "chronicle.mobilesens-communication-ratios/v1",
+      "input_csv": "source_row_id,participant_id,device_id,source_window_id,source_day_id,sms_sent_count,sms_received_count,call_outgoing_count,call_incoming_count\nr,P,A,w,d,9007199254740993,1,2,2\n",
+      "expected_csv": "participant_id,device_id,source_window_id,source_day_id,ratio_id,numerator,denominator,ratio,percent\nP,A,w,d,sent_sms_proportion,9007199254740993,9007199254740994,0.9999999999999998,99.99999999999997\nP,A,w,d,outgoing_call_proportion,2,4,0.5,50\nP,A,w,d,sms_to_call_ratio,9007199254740994,4,2251799813685248.5,\n",
+      "source_rows": 1,
+      "emitted_rows": 3
+    },
+    {
+      "id": "mobilesens_zero_sms_denominator_unreported",
+      "adapter_id": "chronicle.mobilesens-communication-ratios/v1",
+      "input_csv": "source_row_id,participant_id,device_id,source_window_id,source_day_id,sms_sent_count,sms_received_count,call_outgoing_count,call_incoming_count\nr,P,A,w,d,0,0,1,1\n",
+      "expected_error_contains": "denominator is zero"
+    },
+    {
+      "id": "mobilesens_zero_call_denominator_unreported",
+      "adapter_id": "chronicle.mobilesens-communication-ratios/v1",
+      "input_csv": "source_row_id,participant_id,device_id,source_window_id,source_day_id,sms_sent_count,sms_received_count,call_outgoing_count,call_incoming_count\nr,P,A,w,d,1,1,0,0\n",
+      "expected_error_contains": "denominator is zero"
+    },
+    {
+      "id": "mobilesens_sms_sum_does_not_wrap",
+      "adapter_id": "chronicle.mobilesens-communication-ratios/v1",
+      "input_csv": "source_row_id,participant_id,device_id,source_window_id,source_day_id,sms_sent_count,sms_received_count,call_outgoing_count,call_incoming_count\nr,P,A,w,d,18446744073709551615,1,1,1\n",
+      "expected_error_contains": "denominator overflowed"
+    },
+    {
+      "id": "mobilesens_call_sum_does_not_wrap",
+      "adapter_id": "chronicle.mobilesens-communication-ratios/v1",
+      "input_csv": "source_row_id,participant_id,device_id,source_window_id,source_day_id,sms_sent_count,sms_received_count,call_outgoing_count,call_incoming_count\nr,P,A,w,d,1,1,18446744073709551615,1\n",
+      "expected_error_contains": "denominator overflowed"
+    },
+    {
+      "id": "mobilesens_fractional_count_not_coerced",
+      "adapter_id": "chronicle.mobilesens-communication-ratios/v1",
+      "input_csv": "source_row_id,participant_id,device_id,source_window_id,source_day_id,sms_sent_count,sms_received_count,call_outgoing_count,call_incoming_count\nr,P,A,w,d,1.5,1,1,1\n",
+      "expected_error_contains": "uint64 sms_sent_count"
+    },
+    {
+      "id": "mobilesens_duplicate_daily_counts_not_reduced_twice",
+      "adapter_id": "chronicle.mobilesens-communication-ratios/v1",
+      "input_csv": "source_row_id,participant_id,device_id,source_window_id,source_day_id,sms_sent_count,sms_received_count,call_outgoing_count,call_incoming_count\nr1,P,A,w,d,1,1,1,1\nr2,P,A,w,d,1,1,1,1\n",
+      "expected_error_contains": "duplicate supplied day counts"
+    },
+    {
+      "id": "mobilesens_no_daily_counts_not_invented_zero",
+      "adapter_id": "chronicle.mobilesens-communication-ratios/v1",
+      "input_csv": "source_row_id,participant_id,device_id,source_window_id,source_day_id,sms_sent_count,sms_received_count,call_outgoing_count,call_incoming_count\n",
+      "expected_error_contains": "requires supplied daily counts"
+    },
+    {
+      "id": "mobilesens_mean_over_exact_retained_days_includes_explicit_zero",
+      "adapter_id": "chronicle.mobilesens-explicit-day-mean/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,feature_id,daily_value,value_unit\nd1,admitted_day,P,A,w,d1,,,\nd2,admitted_day,P,A,w,d2,,,\nd3,admitted_day,P,A,w,d3,,,\nv1,daily_value,P,A,w,d1,calls,0,count/day\nv2,daily_value,P,A,w,d2,calls,2,count/day\nv3,daily_value,P,A,w,d3,calls,4,count/day\ns1,daily_value,P,A,w,d1,sent_proportion,1,fraction\ns2,daily_value,P,A,w,d2,sent_proportion,0.5,fraction\ns3,daily_value,P,A,w,d3,sent_proportion,0,fraction\n",
+      "expected_csv": "participant_id,device_id,source_window_id,feature_id,observed_day_count,mean_daily_value,value_unit\nP,A,w,calls,3,2,count/day\nP,A,w,sent_proportion,3,0.5,fraction\n",
+      "source_rows": 9,
+      "emitted_rows": 2
+    },
+    {
+      "id": "mobilesens_mean_not_ratio_of_pooled_daily_counts",
+      "adapter_id": "chronicle.mobilesens-explicit-day-mean/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,feature_id,daily_value,value_unit\nd1,admitted_day,P,A,w,d1,,,\nd2,admitted_day,P,A,w,d2,,,\nv1,daily_value,P,A,w,d1,sent_proportion,0.5,fraction\nv2,daily_value,P,A,w,d2,sent_proportion,1,fraction\n",
+      "expected_csv": "participant_id,device_id,source_window_id,feature_id,observed_day_count,mean_daily_value,value_unit\nP,A,w,sent_proportion,2,0.75,fraction\n",
+      "source_rows": 4,
+      "emitted_rows": 1
+    },
+    {
+      "id": "mobilesens_mean_lexical_days_units_and_owners",
+      "adapter_id": "chronicle.mobilesens-explicit-day-mean/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,feature_id,daily_value,value_unit\nd1,admitted_day,P,A,w,d,,,\nd2,admitted_day,P,A,w, d ,,,\nd3,admitted_day, P , A , w ,d,,,\nv1,daily_value,P,A,w,d, f ,2, count/day \nv2,daily_value,P,A,w, d , f ,4, count/day \nv3,daily_value, P , A , w ,d, f ,8,units\n",
+      "expected_csv": "participant_id,device_id,source_window_id,feature_id,observed_day_count,mean_daily_value,value_unit\nP,A,w, f ,2,3, count/day \n P , A , w , f ,1,8,units\n",
+      "source_rows": 6,
+      "emitted_rows": 2
+    },
+    {
+      "id": "mobilesens_mean_missing_retained_daily_value_not_zero",
+      "adapter_id": "chronicle.mobilesens-explicit-day-mean/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,feature_id,daily_value,value_unit\nd1,admitted_day,P,A,w,d1,,,\nd2,admitted_day,P,A,w,d2,,,\nv,daily_value,P,A,w,d1,calls,1,count/day\n",
+      "expected_error_contains": "every supplied feature requires exactly one"
+    },
+    {
+      "id": "mobilesens_mean_outside_day_not_silently_dropped",
+      "adapter_id": "chronicle.mobilesens-explicit-day-mean/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,feature_id,daily_value,value_unit\nd1,admitted_day,P,A,w,d1,,,\nv,daily_value,P,A,w,d2,calls,1,count/day\n",
+      "expected_error_contains": "every supplied feature requires exactly one"
+    },
+    {
+      "id": "mobilesens_mean_duplicate_day_value_refused",
+      "adapter_id": "chronicle.mobilesens-explicit-day-mean/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,feature_id,daily_value,value_unit\nd,admitted_day,P,A,w,d,,,\nv1,daily_value,P,A,w,d,calls,1,count/day\nv2,daily_value,P,A,w,d,calls,1,count/day\n",
+      "expected_error_contains": "duplicate daily value"
+    },
+    {
+      "id": "mobilesens_mean_nonfinite_not_removed",
+      "adapter_id": "chronicle.mobilesens-explicit-day-mean/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,feature_id,daily_value,value_unit\nd,admitted_day,P,A,w,d,,,\nv,daily_value,P,A,w,d,calls,NaN,count/day\n",
+      "expected_error_contains": "finite nonnegative daily_value"
+    },
+    {
+      "id": "mobilesens_mean_negative_not_accepted",
+      "adapter_id": "chronicle.mobilesens-explicit-day-mean/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,feature_id,daily_value,value_unit\nd,admitted_day,P,A,w,d,,,\nv,daily_value,P,A,w,d,calls,-1,count/day\n",
+      "expected_error_contains": "finite nonnegative daily_value"
+    },
+    {
+      "id": "mobilesens_mean_units_not_mixed",
+      "adapter_id": "chronicle.mobilesens-explicit-day-mean/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,feature_id,daily_value,value_unit\nd1,admitted_day,P,A,w,d1,,,\nd2,admitted_day,P,A,w,d2,,,\nv1,daily_value,P,A,w,d1,f,1,count/day\nv2,daily_value,P,A,w,d2,f,1,percent\n",
+      "expected_error_contains": "value_unit must be consistent"
+    },
+    {
+      "id": "mobilesens_mean_float_overflow_visible",
+      "adapter_id": "chronicle.mobilesens-explicit-day-mean/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,feature_id,daily_value,value_unit\nd1,admitted_day,P,A,w,d1,,,\nd2,admitted_day,P,A,w,d2,,,\nv1,daily_value,P,A,w,d1,f,1e308,units\nv2,daily_value,P,A,w,d2,f,1e308,units\n",
+      "expected_error_contains": "daily mean arithmetic is nonfinite"
+    },
+    {
+      "id": "mobilesens_mean_empty_inventory_not_enrollment",
+      "adapter_id": "chronicle.mobilesens-explicit-day-mean/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,feature_id,daily_value,value_unit\n",
+      "expected_error_contains": "every supplied feature requires exactly one"
+    },
+    {
+      "id": "apisense_supplied_inventory_origin_proportions_not_cohort_84_54",
+      "adapter_id": "chronicle.apisense-package-inventory/v1",
+      "input_csv": "source_row_id,participant_id,device_id,inventory_id,package_identity,origin\na,P,A,i,p1,native\nb,P,A,i,p2,user\nc,P,A,i,p3,user\nd,P,A,i,p4,user\n",
+      "expected_csv": "participant_id,device_id,inventory_id,total_package_count,native_package_count,user_package_count,native_proportion,user_proportion,native_percent,user_percent\nP,A,i,4,1,3,0.25,0.75,25,75\n",
+      "source_rows": 4,
+      "emitted_rows": 1
+    },
+    {
+      "id": "apisense_all_native_is_known_zero_user_count",
+      "adapter_id": "chronicle.apisense-package-inventory/v1",
+      "input_csv": "source_row_id,participant_id,device_id,inventory_id,package_identity,origin\na,P,A,i,p1,native\nb,P,A,i,p2,native\n",
+      "expected_csv": "participant_id,device_id,inventory_id,total_package_count,native_package_count,user_package_count,native_proportion,user_proportion,native_percent,user_percent\nP,A,i,2,2,0,1,0,100,0\n",
+      "source_rows": 2,
+      "emitted_rows": 1
+    },
+    {
+      "id": "apisense_lexical_package_and_inventory_device_scopes",
+      "adapter_id": "chronicle.apisense-package-inventory/v1",
+      "input_csv": "source_row_id,participant_id,device_id,inventory_id,package_identity,origin\na,P,A,i,x,native\nb,P,A,i, x ,user\nc,P, A ,i,x,user\nd,P,A, i ,x,native\n",
+      "expected_csv": "participant_id,device_id,inventory_id,total_package_count,native_package_count,user_package_count,native_proportion,user_proportion,native_percent,user_percent\nP, A ,i,1,0,1,0,1,0,100\nP,A, i ,1,1,0,1,0,100,0\nP,A,i,2,1,1,0.5,0.5,50,50\n",
+      "source_rows": 4,
+      "emitted_rows": 3
+    },
+    {
+      "id": "apisense_duplicate_package_not_origin_classifier",
+      "adapter_id": "chronicle.apisense-package-inventory/v1",
+      "input_csv": "source_row_id,participant_id,device_id,inventory_id,package_identity,origin\na,P,A,i,p,native\nb,P,A,i,p,user\n",
+      "expected_error_contains": "unique supplied package inventory"
+    },
+    {
+      "id": "apisense_unknown_origin_not_native_by_default",
+      "adapter_id": "chronicle.apisense-package-inventory/v1",
+      "input_csv": "source_row_id,participant_id,device_id,inventory_id,package_identity,origin\na,P,A,i,p,unknown\n",
+      "expected_error_contains": "supplied native or user origin"
+    },
+    {
+      "id": "apisense_empty_inventory_proportion_not_zero",
+      "adapter_id": "chronicle.apisense-package-inventory/v1",
+      "input_csv": "source_row_id,participant_id,device_id,inventory_id,package_identity,origin\n",
+      "expected_error_contains": "empty inventory proportions are source-unavailable"
+    },
+    {
+      "id": "shin_within_session_distinct_then_day_sum_not_global_distinct",
+      "adapter_id": "chronicle.shin-session-app-uses/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,session_id,app_identity\nd1,admitted_day,P,A,w,d1,,\nd2,admitted_day,P,A,w,d2,,\ns1,session,P,A,w,d1,s1,\ns2,session,P,A,w,d1,s2,\ns3,session,P,A,w,d1,s3,\na1,app,P,A,w,d1,s1,x\na2,app,P,A,w,d1,s1,y\na3,app,P,A,w,d1,s1,x\na4,app,P,A,w,d1,s2,x\n",
+      "expected_csv": "record_type,participant_id,device_id,source_window_id,source_day_id,session_id,app_use_count\nsession_count,P,A,w,d1,s1,2\nsession_count,P,A,w,d1,s2,1\nsession_count,P,A,w,d1,s3,0\ndaily_sum,P,A,w,d1,,3\ndaily_sum,P,A,w,d2,,0\n",
+      "source_rows": 9,
+      "emitted_rows": 5
+    },
+    {
+      "id": "shin_lexical_sessions_apps_and_devices_do_not_merge",
+      "adapter_id": "chronicle.shin-session-app-uses/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,session_id,app_identity\nd,admitted_day,P,A,w,d,,\ndb,admitted_day,P, A ,w,d,,\ns,session,P,A,w,d,s,\nsp,session,P,A,w,d, s ,\nsb,session,P, A ,w,d,s,\na,app,P,A,w,d,s,x\nb,app,P,A,w,d,s, x \nc,app,P,A,w,d, s ,x\nab,app,P, A ,w,d,s,x\n",
+      "expected_csv": "record_type,participant_id,device_id,source_window_id,source_day_id,session_id,app_use_count\nsession_count,P, A ,w,d,s,1\nsession_count,P,A,w,d, s ,1\nsession_count,P,A,w,d,s,2\ndaily_sum,P, A ,w,d,,1\ndaily_sum,P,A,w,d,,3\n",
+      "source_rows": 9,
+      "emitted_rows": 5
+    },
+    {
+      "id": "shin_app_without_supplied_session_not_sessionized",
+      "adapter_id": "chronicle.shin-session-app-uses/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,session_id,app_identity\nd,admitted_day,P,A,w,d,,\na,app,P,A,w,d,s,x\n",
+      "expected_error_contains": "explicitly supplied session/day inventory"
+    },
+    {
+      "id": "shin_one_session_not_assigned_to_two_days",
+      "adapter_id": "chronicle.shin-session-app-uses/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,session_id,app_identity\nd1,admitted_day,P,A,w,d1,,\nd2,admitted_day,P,A,w,d2,,\ns1,session,P,A,w,d1,s,\ns2,session,P,A,w,d2,s,\n",
+      "expected_error_contains": "exactly one supplied day"
+    },
+    {
+      "id": "shin_session_without_admitted_day_not_calendar_inferred",
+      "adapter_id": "chronicle.shin-session-app-uses/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,session_id,app_identity\ns,session,P,A,w,d,s,\n",
+      "expected_error_contains": "explicitly supplied session/day inventory"
+    },
+    {
+      "id": "shin_session_marker_cannot_hide_app_observation",
+      "adapter_id": "chronicle.shin-session-app-uses/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,session_id,app_identity\nd,admitted_day,P,A,w,d,,\ns,session,P,A,w,d,s,x\n",
+      "expected_error_contains": "inventory marker requires empty app_identity"
+    },
+    {
+      "id": "shin_empty_inventory_not_zero_day",
+      "adapter_id": "chronicle.shin-session-app-uses/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,session_id,app_identity\n",
+      "expected_error_contains": "explicitly supplied session/day inventory"
+    },
+    {
+      "id": "shin_missing_app_identity_not_counted",
+      "adapter_id": "chronicle.shin-session-app-uses/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,session_id,app_identity\nd,admitted_day,P,A,w,d,,\ns,session,P,A,w,d,s,\na,app,P,A,w,d,s,\n",
+      "expected_error_contains": "nonblank app_identity"
+    },
+    {
+      "id": "bluetooth_distinct_seen_days_and_all_scan_frequency",
+      "adapter_id": "chronicle.bluetooth-address-day-frequency/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,address_identity,scan_id\nd1,address_seen_day,P,A,w,d1,a,\nd2,address_seen_day,P,A,w,d2,a,\ndb,address_seen_day,P,A,w,d1,b,\ns1,scan,P,A,w,d1,a,s1\ns2,scan,P,A,w,d1,a,s2\ns3,scan,P,A,w,d2,a,s3\nsb,scan,P,A,w,d1,b,s1\n",
+      "expected_csv": "participant_id,device_id,source_window_id,address_identity,number_of_days_seen,total_scan_count,average_scans_per_seen_day\nP,A,w,a,2,3,1.5\nP,A,w,b,1,1,1\n",
+      "source_rows": 7,
+      "emitted_rows": 2
+    },
+    {
+      "id": "bluetooth_lexical_address_day_and_device_ids",
+      "adapter_id": "chronicle.bluetooth-address-day-frequency/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,address_identity,scan_id\nd1,address_seen_day,P,A,w,d,a,\nd2,address_seen_day,P,A,w, d ,a,\nd3,address_seen_day,P,A,w,d, a ,\nd4,address_seen_day,P, A ,w,d,a,\ns1,scan,P,A,w,d,a,s\ns2,scan,P,A,w, d ,a, s \ns3,scan,P,A,w,d, a ,s\ns4,scan,P, A ,w,d,a,s\n",
+      "expected_csv": "participant_id,device_id,source_window_id,address_identity,number_of_days_seen,total_scan_count,average_scans_per_seen_day\nP, A ,w,a,1,1,1\nP,A,w, a ,1,1,1\nP,A,w,a,2,2,1\n",
+      "source_rows": 8,
+      "emitted_rows": 3
+    },
+    {
+      "id": "bluetooth_available_but_unseen_day_not_denominator",
+      "adapter_id": "chronicle.bluetooth-address-day-frequency/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,address_identity,scan_id\nd1,address_seen_day,P,A,w,d1,a,\nd2,address_seen_day,P,A,w,d2,a,\ns1,scan,P,A,w,d1,a,s\n",
+      "expected_error_contains": "explicit address-seen days must exactly match"
+    },
+    {
+      "id": "bluetooth_scan_missing_seen_day_inventory_not_inferred",
+      "adapter_id": "chronicle.bluetooth-address-day-frequency/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,address_identity,scan_id\ns1,scan,P,A,w,d,a,s\n",
+      "expected_error_contains": "explicit address-seen days must exactly match"
+    },
+    {
+      "id": "bluetooth_duplicate_scan_not_deduplicated_by_guess",
+      "adapter_id": "chronicle.bluetooth-address-day-frequency/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,address_identity,scan_id\nd,address_seen_day,P,A,w,d,a,\ns1,scan,P,A,w,d,a,s\ns2,scan,P,A,w,d,a,s\n",
+      "expected_error_contains": "scan_id must be unique"
+    },
+    {
+      "id": "bluetooth_duplicate_seen_day_not_double_denominator",
+      "adapter_id": "chronicle.bluetooth-address-day-frequency/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,address_identity,scan_id\nd1,address_seen_day,P,A,w,d,a,\nd2,address_seen_day,P,A,w,d,a,\n",
+      "expected_error_contains": "duplicate address_seen_day"
+    },
+    {
+      "id": "bluetooth_raw_tracking_day_not_address_seen_day",
+      "adapter_id": "chronicle.bluetooth-address-day-frequency/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,address_identity,scan_id\nd,tracking_day,P,A,w,d,a,\n",
+      "expected_error_contains": "requires address_seen_day or scan"
+    },
+    {
+      "id": "bluetooth_blank_address_not_missing_device_count",
+      "adapter_id": "chronicle.bluetooth-address-day-frequency/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,address_identity,scan_id\nd,address_seen_day,P,A,w,d, ,\n",
+      "expected_error_contains": "nonblank address_identity"
+    },
+    {
+      "id": "bluetooth_empty_inventory_not_zero_frequency",
+      "adapter_id": "chronicle.bluetooth-address-day-frequency/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,address_identity,scan_id\n",
+      "expected_error_contains": "explicit address-seen days must exactly match"
+    },
+    {
+      "id": "mobilesens_positive_daily_mean_underflow_not_zero",
+      "adapter_id": "chronicle.mobilesens-explicit-day-mean/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,feature_id,daily_value,value_unit\nd1,admitted_day,P,A,w,d1,,,\nd2,admitted_day,P,A,w,d2,,,\nv1,daily_value,P,A,w,d1,f,5e-324,units\nv2,daily_value,P,A,w,d2,f,0,units\n",
+      "expected_error_contains": "daily mean arithmetic underflow is unavailable"
+    },
+    {
+      "id": "mobilesens_positive_lexical_parse_underflow_not_known_zero",
+      "adapter_id": "chronicle.mobilesens-explicit-day-mean/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,feature_id,daily_value,value_unit\nd,admitted_day,P,A,w,day,,,\nv,daily_value,P,A,w,day,count,  1e-400  ,occurrences\n",
+      "expected_error_contains": "daily_value parse underflow is unavailable"
+    },
+    {
+      "id": "mobilesens_negative_lexical_parse_underflow_not_known_zero",
+      "adapter_id": "chronicle.mobilesens-explicit-day-mean/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,feature_id,daily_value,value_unit\nd,admitted_day,P,A,w,day,,,\nv,daily_value,P,A,w,day,count,-1e-400,occurrences\n",
+      "expected_error_contains": "daily_value parse underflow is unavailable"
+    },
+    {
+      "id": "mobilesens_explicit_decimal_and_exponent_zero_remain_known_zero",
+      "adapter_id": "chronicle.mobilesens-explicit-day-mean/v1",
+      "input_csv": "source_row_id,record_type,participant_id,device_id,source_window_id,source_day_id,feature_id,daily_value,value_unit\nd,admitted_day,P,A,w,day,,,\nz1,daily_value,P,A,w,day,plain_zero,0,occurrences\nz2,daily_value,P,A,w,day,decimal_zero,0.0,occurrences\nz3,daily_value,P,A,w,day,exponent_zero,0e-400,occurrences\nz4,daily_value,P,A,w,day,signed_exponent_zero,-0e-400,occurrences\nz5,daily_value,P,A,w,day,uppercase_exponent_zero,0E-400,occurrences\nz6,daily_value,P,A,w,day,padded_signed_decimal_zero,  +000.000e-400  ,occurrences\n",
+      "expected_csv": "participant_id,device_id,source_window_id,feature_id,observed_day_count,mean_daily_value,value_unit\nP,A,w,plain_zero,1,0,occurrences\nP,A,w,decimal_zero,1,0,occurrences\nP,A,w,exponent_zero,1,0,occurrences\nP,A,w,signed_exponent_zero,1,-0,occurrences\nP,A,w,uppercase_exponent_zero,1,0,occurrences\nP,A,w,padded_signed_decimal_zero,1,0,occurrences\n",
+      "source_rows": 7,
+      "emitted_rows": 6
+    }
+  ]
+}

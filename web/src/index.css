@@ -393,7 +393,10 @@ a:hover {
   }
 }
 
-.hero h1 {
+/* index.html paints this inside #root until React's first render replaces it.
+   The title is not a heading so nothing waiting for the app's h1 matches it. */
+.hero h1,
+.boot-skeleton__title {
   margin: 0;
   font-size: clamp(1.75rem, 3vw, var(--font-size-3xl));
   font-weight: var(--font-weight-bold);
@@ -408,6 +411,60 @@ a:hover {
   color: var(--color-text-muted);
   font-size: var(--font-size-md);
   line-height: var(--line-height-normal);
+}
+
+.boot-skeleton__status {
+  margin: var(--space-4) 0 0;
+  color: var(--color-text-muted);
+}
+
+/* The method-profile cards load after the first screen, above Saved projects
+   and the rest of the settings. Each placeholder reserves the height its card
+   takes in its default state (measured in Chromium, Firefox and WebKit at
+   1280/1024/768/375/320 px), never more, so the content below does not jump
+   under the pointer when the card arrives. */
+.settings-card-loading--research-method-profile {
+  min-height: 221px;
+}
+
+.settings-card-loading--sleep-diary-replication {
+  min-height: 463px;
+}
+
+@media (max-width: 1100px) {
+  .settings-card-loading--research-method-profile {
+    min-height: 240px;
+  }
+
+  .settings-card-loading--sleep-diary-replication {
+    min-height: 483px;
+  }
+}
+
+@media (max-width: 720px) {
+  .settings-card-loading--sleep-diary-replication {
+    min-height: 505px;
+  }
+}
+
+@media (max-width: 640px) {
+  .settings-card-loading--research-method-profile {
+    min-height: 302px;
+  }
+
+  .settings-card-loading--sleep-diary-replication {
+    min-height: 634px;
+  }
+}
+
+@media (max-width: 320px) {
+  .settings-card-loading--research-method-profile {
+    min-height: 321px;
+  }
+
+  .settings-card-loading--sleep-diary-replication {
+    min-height: 699px;
+  }
 }
 
 .workflow-nav {
@@ -425,10 +482,13 @@ a:hover {
   box-shadow: var(--shadow-md);
 }
 
+/* Equal-width tabs that never shrink below their label: at 320px four tabs
+   with min-width: 0 clipped "Settings" (52px of text in a 45px tab); with
+   max-content the row wraps instead (the nav already sets flex-wrap). */
 .workflow-nav__item {
   appearance: none;
   flex: 1 1 0;
-  min-width: 0;
+  min-width: max-content;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -522,7 +582,9 @@ a:hover {
 .settings-overview {
   padding: var(--space-4);
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-3);
+  overflow-wrap: anywhere;
 }
 
 .settings-management__group {
@@ -870,10 +932,22 @@ a:hover {
   background: color-mix(in srgb, var(--color-warning) 6%, transparent);
 }
 
+.raw-file-row.has-error td {
+  background: color-mix(in srgb, var(--color-danger) 8%, transparent);
+}
+
 .raw-file-row__warning {
   margin: var(--space-1) 0 0;
   color: var(--color-warning);
   font-size: var(--font-size-xs);
+}
+
+/* A missing required column blocks the run; it must not read as a warning. */
+.raw-file-row__error {
+  margin: var(--space-1) 0 0;
+  color: var(--color-danger);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
 }
 
 .raw-file-row__timezones {
@@ -916,6 +990,11 @@ a:hover {
 .status-pill.is-warning {
   background: var(--color-warning-soft);
   color: var(--color-warning);
+}
+
+.status-pill.is-error {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
 }
 
 .process-controls {
@@ -1696,6 +1775,13 @@ a:hover {
   line-height: var(--line-height-tight);
   transition: border-color var(--duration-fast) var(--ease-standard),
     box-shadow var(--duration-fast) var(--ease-standard);
+}
+
+/* WebKit lays out a long selected option past an appearance:none select's
+   box and lets it widen the page's scroll area (a 320 px viewport scrolled to
+   365 px on the Settings tab); the text is already clipped visually. */
+.select {
+  overflow: hidden;
 }
 
 .input:hover,
@@ -2495,9 +2581,15 @@ a:hover {
    ========================================================================== */
 
 .toast {
+  /* Bottom-centre, not bottom-right: the per-output download buttons sit at
+     the right edge of the results table and the toast used to cover them.
+     Centred with margins because toast-in animates transform. */
   position: fixed;
   bottom: var(--space-5);
-  right: var(--space-5);
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  width: fit-content;
   z-index: 200;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -2510,7 +2602,7 @@ a:hover {
   gap: var(--space-3);
   font-size: var(--font-size-sm);
   color: var(--color-text);
-  max-width: 380px;
+  max-width: min(380px, calc(100vw - 2 * var(--space-5)));
   animation: toast-in var(--duration-base) var(--ease-out);
 }
 
@@ -2671,6 +2763,50 @@ a:hover {
 
 .app-footer__cache-reset:hover {
   color: var(--color-text-muted);
+}
+
+.diagnostic-report__text {
+  width: 100%;
+  min-height: 12rem;
+  font-family: var(--font-family-mono);
+  font-size: 12px;
+  white-space: pre;
+  resize: vertical;
+}
+
+.app-footer__notices {
+  flex-basis: 100%;
+}
+
+.app-footer__notices p {
+  margin: 0 0 var(--space-2);
+}
+
+/* Links sit inside running text here, so colour alone does not mark them
+   (axe link-in-text-block: #6fa6ff on #8b93a9 text is 1.25:1 in dark mode). */
+.app-footer__notices a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+details > summary {
+  min-height: 24px;
+  padding-block: 2px;
+}
+
+.review-day-table__day {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  min-height: 24px;
+}
+
+.review-day-table__day:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
 .text-muted {
@@ -3011,6 +3147,7 @@ a:hover {
 
 .u-inline-cluster {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
 }
@@ -3023,7 +3160,7 @@ a:hover {
 
 .support-file-row {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--space-3);
   align-items: center;
   padding: var(--space-2);
@@ -3032,11 +3169,16 @@ a:hover {
   background: var(--color-surface-sunken);
 }
 
+/* Column hints list snake_case headers such as
+   year_equivalent_exposure_denominator with no break opportunity; without
+   overflow-wrap: anywhere their min-content width pushes the page past a
+   320px viewport. */
 .support-file-row__main {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
   min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .settings-stack {
@@ -3130,6 +3272,8 @@ a:hover {
   }
 
   .status-pill.is-warning,
+  .status-pill.is-error,
+  .raw-file-row__error,
   .warning-text,
   .result-warnings,
   .error-text {
@@ -3592,6 +3736,8 @@ a:hover {
   background: none;
   padding: 0;
   margin: 0;
+  /* WCAG 2.2 AA target size (2.5.8): at least 24 CSS px. */
+  min-height: 24px;
   color: var(--color-accent-ink);
   font-size: var(--font-size-xs);
   cursor: pointer;

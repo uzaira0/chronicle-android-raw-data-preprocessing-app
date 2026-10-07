@@ -1,12 +1,26 @@
+import { useEffect, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { ReactElement } from "react";
 
 import { SectionCard } from "@/components/SectionCard";
+import { SettingsField } from "@/components/SettingsField";
 import { ToggleField } from "@/components/ToggleField";
 import { Tooltip } from "@/components/Tooltip";
 import { TOOLTIPS } from "@/lib/tooltipText";
 import { anyOptionModified, isOptionDefault, type OptionKey } from "@/lib/optionDefaults";
-import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
+import {
+  DEFAULT_BROWSER_OPTIONS,
+  FILTER_MATCH_FIELD_VALUES,
+  PACKAGE_EXCLUSION_PRESET_VALUES,
+  type FilterMatchField,
+  type PackageExclusionPreset,
+} from "@/lib/generatedContract";
+import { SUPPORT_FILE_ACCEPT } from "@/lib/validation";
+import { createSupportFilePickHandler } from "@/components/supportFilePick";
+import {
+  createDemoDisplayMasker,
+  type DemoDisplayMasker,
+} from "@/lib/demoDisplay";
 import type { BrowserProcessingOptions } from "@/lib/types";
 import defaultAppCodebookUrl from "@/assets/defaults/unified_app_codebook.csv?url";
 import defaultAppsToFilterUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv?url";
@@ -15,11 +29,30 @@ import defaultBackgroundAppsUrl from "@/assets/defaults/Chronicle_Android_raw_da
 
 const KEYS: readonly OptionKey[] = [
   "useFilterFile",
+  "filterMatchField",
+  "applicationLabelExclusions",
+  "packageExclusionPreset",
   "useAppsForcingScreenOpenFile",
   "useBackgroundAppsFile",
   "useAppCodebook",
   "includeCategoryColumn",
 ];
+
+const PACKAGE_EXCLUSION_PRESET_LABELS = {
+  all_supplied_rows: "Every row in the file (default)",
+  honor_filter_flag: "Only rows whose filter flag is on",
+  system_scope_only: "Only system and system-defensive rows",
+} satisfies Record<PackageExclusionPreset, string>;
+
+const PACKAGE_EXCLUSION_PRESETS = PACKAGE_EXCLUSION_PRESET_VALUES.map((value) => ({
+  value,
+  label: PACKAGE_EXCLUSION_PRESET_LABELS[value],
+}));
+
+const FILTER_MATCH_FIELD_LABELS = {
+  app_package_name: "Package name (default)",
+  application_label: "Application label (exact case-sensitive match)",
+} satisfies Record<FilterMatchField, string>;
 
 type Props = {
   options: BrowserProcessingOptions;
@@ -32,7 +65,11 @@ type Props = {
   setBackgroundAppsFile: (file: File | null) => void;
   appCodebookFile: File | null;
   setAppCodebookFile: (file: File | null) => void;
+  displayMasker?: DemoDisplayMasker;
 };
+
+/** Demo mode off is the honest default for a card rendered without one. */
+const IDENTITY_MASKER = createDemoDisplayMasker(false);
 
 export function FilesAndInputsCard(props: Props): ReactElement {
   const {
@@ -46,6 +83,7 @@ export function FilesAndInputsCard(props: Props): ReactElement {
     setBackgroundAppsFile,
     appCodebookFile,
     setAppCodebookFile,
+    displayMasker = IDENTITY_MASKER,
   } = props;
 
   const update = <K extends OptionKey>(key: K, value: BrowserProcessingOptions[K]) => {
@@ -68,8 +106,9 @@ export function FilesAndInputsCard(props: Props): ReactElement {
       </p>
 
       <SupportFileRow
+        displayMasker={displayMasker}
         title="Filter file"
-        accept=".csv,.xlsx,.xls"
+        accept={SUPPORT_FILE_ACCEPT}
         file={filterFile}
         onFileChange={setFilterFile}
         toggleLabel="Use filter file"
@@ -81,9 +120,89 @@ export function FilesAndInputsCard(props: Props): ReactElement {
         testId="filter-file-input"
         defaultUrl={defaultAppsToFilterUrl}
       />
+      <SettingsField
+        label="Filter rows by"
+        htmlFor="filter-match-field-select"
+        tooltip={TOOLTIPS.filterMatchField}
+        modified={!isOptionDefault("filterMatchField", options.filterMatchField)}
+        onReset={() => reset("filterMatchField")}
+      >
+        <select
+          id="filter-match-field-select"
+          data-testid="filter-match-field-select"
+          className="select"
+          value={options.filterMatchField}
+          onChange={(event) =>
+            update(
+              "filterMatchField",
+              event.target.value as BrowserProcessingOptions["filterMatchField"],
+            )
+          }
+        >
+          {FILTER_MATCH_FIELD_VALUES.map((value) => (
+            <option key={value} value={value}>{FILTER_MATCH_FIELD_LABELS[value]}</option>
+          ))}
+        </select>
+      </SettingsField>
+      <SettingsField
+        label="Exact application labels to exclude"
+        htmlFor="application-label-exclusions-input"
+        tooltip={TOOLTIPS.applicationLabelExclusions}
+        modified={!isOptionDefault(
+          "applicationLabelExclusions",
+          options.applicationLabelExclusions,
+        )}
+        onReset={() => reset("applicationLabelExclusions")}
+      >
+        <textarea
+          id="application-label-exclusions-input"
+          data-testid="application-label-exclusions-input"
+          className="input"
+          rows={4}
+          value={options.applicationLabelExclusions.join("\n")}
+          placeholder="One exact, case-sensitive application label per line"
+          onChange={(event) =>
+            update(
+              "applicationLabelExclusions",
+              event.target.value
+                .split("\n")
+                .map((label) => label.trim())
+                .filter(Boolean),
+            )
+          }
+        />
+      </SettingsField>
+      <SettingsField
+        label="Which rows exclude a package"
+        htmlFor="package-exclusion-preset-select"
+        tooltip={TOOLTIPS.packageExclusionPreset}
+        modified={!isOptionDefault("packageExclusionPreset", options.packageExclusionPreset)}
+        onReset={() => reset("packageExclusionPreset")}
+      >
+        <select
+          id="package-exclusion-preset-select"
+          data-testid="package-exclusion-preset-select"
+          className="select"
+          value={options.packageExclusionPreset}
+          disabled={!options.useFilterFile}
+          onChange={(event) =>
+            update(
+              "packageExclusionPreset",
+              event.target.value as BrowserProcessingOptions["packageExclusionPreset"],
+            )
+          }
+        >
+          {PACKAGE_EXCLUSION_PRESETS.map((preset) => (
+            <option key={preset.value} value={preset.value}>
+              {preset.label}
+            </option>
+          ))}
+        </select>
+      </SettingsField>
       <SupportFileRow
+        displayMasker={displayMasker}
         title="Apps forcing the screen open"
-        accept=".csv,.xlsx,.xls"
+        accept={SUPPORT_FILE_ACCEPT}
         file={appsForcingScreenOpenFile}
         onFileChange={setAppsForcingScreenOpenFile}
         toggleLabel="Use apps forcing screen open file"
@@ -96,8 +215,9 @@ export function FilesAndInputsCard(props: Props): ReactElement {
         defaultUrl={defaultAppsForcingScreenOpenUrl}
       />
       <SupportFileRow
+        displayMasker={displayMasker}
         title="Background apps"
-        accept=".csv,.xlsx,.xls"
+        accept={SUPPORT_FILE_ACCEPT}
         file={backgroundAppsFile}
         onFileChange={setBackgroundAppsFile}
         toggleLabel="Use background apps file"
@@ -110,8 +230,9 @@ export function FilesAndInputsCard(props: Props): ReactElement {
         defaultUrl={defaultBackgroundAppsUrl}
       />
       <SupportFileRow
+        displayMasker={displayMasker}
         title="App codebook file"
-        accept=".csv,.xlsx,.xls"
+        accept={SUPPORT_FILE_ACCEPT}
         file={appCodebookFile}
         onFileChange={setAppCodebookFile}
         toggleLabel="Use app codebook"
@@ -153,9 +274,15 @@ type SupportFileRowProps = {
   onResetToggle: () => void;
   testId: string;
   defaultUrl: string;
+  displayMasker: DemoDisplayMasker;
 };
 
 function SupportFileRow(props: SupportFileRowProps): ReactElement {
+  // A format the runtime refuses must be refused here, while the user is still
+  // looking at the picker. `accept` is only a dialog hint: drag-and-drop and
+  // the "All files" filter walk straight past it, and the run would then fail
+  // for the whole batch after the green "Enabled with uploaded file" state.
+  const [formatError, setFormatError] = useState<string | null>(null);
   const {
     title,
     accept,
@@ -168,7 +295,15 @@ function SupportFileRow(props: SupportFileRowProps): ReactElement {
     onResetToggle,
     testId,
     defaultUrl,
+    displayMasker,
   } = props;
+  // Clear a standing rejection whenever the slot changes for any reason other
+  // than this picker: a successful pick, a project load, a toggle-off. Without
+  // it the red error outlived the state it described. A rejected pick changes
+  // neither `file` nor `checked`, so its error survives on purpose.
+  useEffect(() => {
+    setFormatError(null);
+  }, [file, checked]);
   const tooltip = TOOLTIPS[toggleKey];
   return (
     <div className="support-file-row">
@@ -183,18 +318,34 @@ function SupportFileRow(props: SupportFileRowProps): ReactElement {
           accept={accept}
           data-testid={testId}
           aria-label={`Upload ${title}`}
-          onChange={(event) => {
-            onFileChange(event.target.files?.[0] ?? null);
-            event.currentTarget.value = "";
-          }}
+          onChange={createSupportFilePickHandler({
+            accept,
+            displayMasker,
+            onFileChange,
+            onFormatError: setFormatError,
+          })}
         />
-        <span className={`support-file-state${checked ? " is-enabled" : ""}`}>
-          {checked
-            ? file
-              ? `Success: Enabled with uploaded file: ${file.name}`
-              : "Success: Enabled with bundled default"
-            : "Disabled: Not used"}
-        </span>
+        {formatError ? (
+          <span
+            className="error-text"
+            role="alert"
+            data-testid={`${testId}-format-error`}
+          >
+            {formatError}
+          </span>
+        ) : null}
+        {/* Never render the green line beside the red one: a rejected pick
+            must not sit next to "Success: Enabled with …", which is exactly
+            the contradictory pair the format check exists to prevent. */}
+        {formatError ? null : (
+          <span className={`support-file-state${checked ? " is-enabled" : ""}`}>
+            {checked
+              ? file
+                ? `Success: Enabled with uploaded file: ${displayMasker.fileName(file.name)}`
+                : "Success: Enabled with bundled default"
+              : "Disabled: Not used"}
+          </span>
+        )}
         <a className="u-meta-xs" href={defaultUrl} download>
           Download bundled default
         </a>

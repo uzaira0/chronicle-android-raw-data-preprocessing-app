@@ -4,4 +4,5 @@
 node ../web/scripts/generate_sample_raw_csv.mjs --csv-output /tmp/chronicle-production-readiness.csv
 npm --prefix ../web run build
 npm --prefix ../web run benchmark:browser -- --raw /tmp/chronicle-production-readiness.csv --max-elapsed-ms 10000 --max-heap-delta-bytes 268435456
+../scripts/generate-sbom.sh
 npm --prefix ../web run check:deploy-artifact

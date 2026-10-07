@@ -46,6 +46,7 @@ import {
   REQUIRED_RAW_COLUMNS,
   STRING_ARRAY_BROWSER_OPTION_KEYS,
   STRING_BROWSER_OPTION_KEYS,
+  RESEARCH_AXIS_VALUES_BY_OPTION,
   TIMEZONE_HANDLING_VALUES,
 } from "../src/lib/generatedContract";
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
@@ -158,6 +159,15 @@ async function buildCurrentSnapshot(contractVersion: number): Promise<Snapshot> 
       TimezoneHandlingMode: [...TIMEZONE_HANDLING_VALUES],
       OutputKind: [...OUTPUT_KIND_VALUES],
       AggregateShape: [...AGGREGATE_SHAPE_VALUES],
+      // Every research-axis value set, keyed by its option: a value removed
+      // from any of them is a breaking change for a persisted setting, and
+      // only these three were snapshotted before.
+      ...Object.fromEntries(
+        Object.entries(RESEARCH_AXIS_VALUES_BY_OPTION).map(([option, values]) => [
+          option,
+          [...values],
+        ]),
+      ),
     },
     queryGroupIds,
     queryIds,

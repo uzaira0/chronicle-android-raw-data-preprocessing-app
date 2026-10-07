@@ -34,6 +34,9 @@ scan:
     # non-deterministically — once on a directory removed mid-walk, once on a
     # scan timeout.
     - .claude
+    # cargo-mutants scratch copies (check-rust-quality.sh builds them under rust/
+    # so the deps/ symlinks resolve); gitignored, created and deleted mid-run.
+    - rust/cargo-mutants-*
     - .venv
     # Dependency trees, not our source. Turning `misconfig` on for the first
     # time surfaced two findings in web/node_modules/comlink/Dockerfile — a
@@ -47,6 +50,21 @@ scan:
     # repository root and leaves `web/node_modules` scanned. Checked by watching
     # the comlink Dockerfile stay in the report until the glob was added.
     - "**/node_modules"
+    # Read-only clones of the reference implementations the reconstruction
+    # rules cite — the R and Python tools this repo ports from. Gitignored
+    # (.gitignore:313), never built, never shipped; their Dockerfiles are the
+    # upstream authors'. Skip this here rather than with a `--skip-dirs` flag
+    # on the command line: the flag REPLACES this whole list rather than adding
+    # to it, which silently brought web/node_modules back into the scan.
+    - .refs
+    # Retrieved third-party literature artifacts: upstream clones (beiwe-android,
+    # sensus, R/Python runtimes) pulled down to read the published methods.
+    # Gitignored, never built, never shipped. Every finding this scan reported
+    # from here was upstream's: six bundler/nuget/pip CVEs in their lockfiles and
+    # two example PEM keys in a vendored `openssl` vignette. Same rationale as
+    # `.refs` above — this repository's own dependencies are still covered from
+    # its own lockfiles.
+    - .tmp-literature-review-private
     - .tmp_benchmarks
     - .tmp_pathological_one
     - .tmp_pathological_rich_raw

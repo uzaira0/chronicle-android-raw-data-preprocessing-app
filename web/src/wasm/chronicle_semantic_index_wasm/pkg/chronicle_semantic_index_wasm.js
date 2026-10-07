@@ -1,6 +1,32 @@
 /* @ts-self-types="./chronicle_semantic_index_wasm.d.ts" */
 
 /**
+ * @param {Uint8Array} packed
+ * @param {number} expected_bytes
+ * @returns {Uint8Array}
+ */
+export function decompress_bundled_gzip(packed, expected_bytes) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArray8ToWasm0(packed, wasm.__wbindgen_export3);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.decompress_bundled_gzip(retptr, ptr0, len0, expected_bytes);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        var r3 = getDataViewMemory0().getInt32(retptr + 4 * 3, true);
+        if (r3) {
+            throw takeObject(r2);
+        }
+        var v2 = getArrayU8FromWasm0(r0, r1).slice();
+        wasm.__wbindgen_export(r0, r1 * 1, 1);
+        return v2;
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
+}
+
+/**
  * @param {Uint8Array} index
  * @param {string} query_id
  * @returns {string}
@@ -35,15 +61,56 @@ export function query_registered(index, query_id) {
 }
 
 /**
+ * @param {Uint8Array} index
+ * @param {string} query_id
+ * @param {string} workspace_root_digest
+ * @param {bigint} revision
+ * @returns {string}
+ */
+export function query_registered_view(index, query_id, workspace_root_digest, revision) {
+    let deferred5_0;
+    let deferred5_1;
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArray8ToWasm0(index, wasm.__wbindgen_export3);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(query_id, wasm.__wbindgen_export3, wasm.__wbindgen_export4);
+        const len1 = WASM_VECTOR_LEN;
+        const ptr2 = passStringToWasm0(workspace_root_digest, wasm.__wbindgen_export3, wasm.__wbindgen_export4);
+        const len2 = WASM_VECTOR_LEN;
+        wasm.query_registered_view(retptr, ptr0, len0, ptr1, len1, ptr2, len2, revision);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        var r3 = getDataViewMemory0().getInt32(retptr + 4 * 3, true);
+        var ptr4 = r0;
+        var len4 = r1;
+        if (r3) {
+            ptr4 = 0; len4 = 0;
+            throw takeObject(r2);
+        }
+        deferred5_0 = ptr4;
+        deferred5_1 = len4;
+        return getStringFromWasm0(ptr4, len4);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        wasm.__wbindgen_export(deferred5_0, deferred5_1, 1);
+    }
+}
+
+/**
  * @param {Uint8Array} source_json
+ * @param {Uint8Array} scientific_artifact_bundle
  * @returns {Uint8Array}
  */
-export function rebuild_semantic_index(source_json) {
+export function rebuild_semantic_index(source_json, scientific_artifact_bundle) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
         const ptr0 = passArray8ToWasm0(source_json, wasm.__wbindgen_export3);
         const len0 = WASM_VECTOR_LEN;
-        wasm.rebuild_semantic_index(retptr, ptr0, len0);
+        const ptr1 = passArray8ToWasm0(scientific_artifact_bundle, wasm.__wbindgen_export3);
+        const len1 = WASM_VECTOR_LEN;
+        wasm.rebuild_semantic_index(retptr, ptr0, len0, ptr1, len1);
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
         var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
         var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
@@ -51,9 +118,9 @@ export function rebuild_semantic_index(source_json) {
         if (r3) {
             throw takeObject(r2);
         }
-        var v2 = getArrayU8FromWasm0(r0, r1).slice();
+        var v3 = getArrayU8FromWasm0(r0, r1).slice();
         wasm.__wbindgen_export(r0, r1 * 1, 1);
-        return v2;
+        return v3;
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
     }

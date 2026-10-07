@@ -107,9 +107,37 @@ sublation guarantee, now stated at the right level.
 ## 5. Required changes (all 12 ADOPTED)
 
 1. Factored state + overlays + the 8-state projection replace the flat six-state alphabet.
-2. Reconstruction strategies as first-class versioned algorithms:
+2. Reconstruction strategies as first-class versioned algorithms (closer-vocabulary knobs cannot
+   express forward pairing or complement segmentation, so each must be a named strategy).
+
+   **The names below are superseded.** This document originally proposed
    `chronicle_lifecycle_matcher`, `eyes_triplet_v1`, `parry_toth_forward_pair_2025`,
-   `native_screen_end_reason_v1` (closer-vocabulary knobs cannot express the latter two).
+   `native_screen_end_reason_v1`. The **authoritative vocabulary is the one in
+   `web/schema/chronicle-research-ontology.linkml.yaml`** (`ReconstructionStrategyId`).
+
+   **Status corrected 2026-08-05 by direct search of the tree and of all history.** An earlier
+   revision of this table asserted that the strategies were implemented as an
+   `EpisodeReconstructionStrategy` enum in `pipeline_v2.rs` and exposed as an
+   `episode_reconstruction_strategy` option key. **Neither exists.** `git log --all -S` finds no
+   Rust file that has ever contained either identifier, `chronicle-local-contract.linkml.yaml`
+   carries no such option key, and no `forward_pair` / `start_only` / `bracket_first` code exists
+   anywhere under `rust/`. The vocabulary is declared in the ontology and, apart from EYES, is not
+   yet built.
+
+   | Superseded name here | Authoritative id | Actual status |
+   |---|---|---|
+   | `chronicle_lifecycle_matcher` | `fused_matcher` | The production matcher exists (`chronicle_app_usage_matcher`), but it is not registered under this id and there is no enum to select it. |
+   | `parry_toth_forward_pair_2025` | `parry_toth_forward_pairing` | **Not implemented.** Declared in the ontology only. |
+   | `eyes_triplet_v1` | `eyes_complement` | Module landed 2026-08-05 as `rust/chronicle_chrono_kernel_wasm/src/eyes_complement.rs`. **Dead code — nothing calls it**, and no seam exists to select it. |
+   | `native_screen_end_reason_v1` | **no counterpart** | Not declared in the ontology; unresolved. |
+
+   Use the authoritative ids everywhere. Two genuinely open items:
+   1. **Build the seam.** Something has to turn `ReconstructionStrategyId` into a runtime choice —
+      a Rust enum, a contract option key, and a dispatch point. Until it exists, "strategies as
+      first-class versioned algorithms" is a schema declaration, not a capability.
+   2. `native_screen_end_reason_v1` has never been declared in the ontology schema — decide
+      whether it is a fifth strategy or was folded into `fused_matcher`, and record the decision
+      here.
 3. Interval algebra + censoring contracts (partial/left/right-censored blocks, glue,
    precedence, reconciliation, subtraction, clipping, complement).
 4. App policy = ordered rule schema (match, stage, interaction-type scope, predicate,

@@ -401,7 +401,14 @@ export function generateSyntheticChronicleCorpus(
     features.add("influence-probe:no-screen-witness-day");
   }
 
-  emit(system, "Screen Interactive", primaryTimezone);
+  // Opened one second ahead of the loop cursor. The index-0 iteration emits
+  // "Keyguard Hidden" at `cursor - 500` (unlock precedes the app launch), so
+  // emitting this at `cursor` would place a row 500 ms in the past *after* it in
+  // physical source order. The B05 source strategies (Parry-Toth, Zhu) require a
+  // per-participant stream whose timestamps are non-decreasing in source order
+  // and refuse with `non_monotonic_source_timestamps` otherwise. Screen-on,
+  // then unlock, then app resume is also the realistic ordering.
+  emit(system, "Screen Interactive", primaryTimezone, cursor - 1_000);
   for (let index = 0; index < profile.sessionCount; index += 1) {
     const appClass = cycleAt(appClassCycle, index);
     const app = pickClass(appClass);

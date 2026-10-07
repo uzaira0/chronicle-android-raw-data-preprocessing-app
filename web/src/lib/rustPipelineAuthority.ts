@@ -29,15 +29,16 @@ import type {
   ProgressStepKind,
   ReviewSummary,
   RustWorkflowExplorerView,
+  SkippedOutput,
   TimelineViewData,
 } from "@/lib/types";
+import type { ParticipantPartitionTransport } from "@/lib/fileInspection";
 import type { RustExecutionLedger } from "@/lib/rustExecutionRecords";
 
 const CSV_MIME = "text/csv;charset=utf-8";
 const PARQUET_MIME = "application/vnd.apache.parquet";
 const SAV_MIME = "application/x-spss-sav";
 const ARROW_MIME = "application/vnd.apache.arrow.file";
-const VISUALIZATION_DATA_PROTOCOL = "chronicle-visualization-data/v2";
 const VISUALIZATION_DATA_COLUMNS = [
   "participantId",
   "date",
@@ -51,6 +52,18 @@ const VISUALIZATION_DATA_COLUMNS = [
   "username",
   "screenUsageEndReason",
 ] as const;
+
+/**
+ * Every visualization protocol the kernel emits (pipeline/output.rs
+ * build_visualization_data). v3 adds a foundationalProvenance object for the
+ * foundational reconstruction strategies; v4 appends microUseClassification to
+ * every row. The views read only the first eleven columns of each.
+ */
+const VISUALIZATION_DATA_COLUMNS_BY_PROTOCOL: Record<string, readonly string[]> = {
+  "chronicle-visualization-data/v2": VISUALIZATION_DATA_COLUMNS,
+  "chronicle-visualization-data/v3": VISUALIZATION_DATA_COLUMNS,
+  "chronicle-visualization-data/v4": [...VISUALIZATION_DATA_COLUMNS, "microUseClassification"],
+};
 
 type SerializedVisualizationRow = [
   participantId: string,
@@ -67,8 +80,8 @@ type SerializedVisualizationRow = [
 ];
 
 type VisualizationData = {
-  protocolVersion: typeof VISUALIZATION_DATA_PROTOCOL;
-  columns: typeof VISUALIZATION_DATA_COLUMNS;
+  protocolVersion: string;
+  columns: readonly string[];
   appRows: SerializedVisualizationRow[];
   screenRows: SerializedVisualizationRow[];
   eventTimestampsByParticipant: Record<string, string[]>;
@@ -101,52 +114,6 @@ type RenderedViewOptions = Pick<
 
 function deriveOutputFileName(inputFileName: string, suffix: string): string {
   return inputFileName.replace(/\.csv$/i, "") + suffix;
-}
-
-/**
- * Reuse a durable result for another immutable File with the same verified
- * content digest. File names are display/download labels; Rust computation,
- * the workspace root, and every persisted artifact remain byte-identical.
- */
-export function relabelDuplicateContentResult(
-  source: ProcessedFileResult,
-  inputFileName: string,
-): ProcessedFileResult {
-  const sourceStem = source.inputFileName.replace(/\.csv$/i, "");
-  const targetStem = inputFileName.replace(/\.csv$/i, "");
-  const outputs = source.outputs.map((output) => {
-    if (!output.outputFileName.startsWith(sourceStem)) {
-      throw new Error(
-        `Rust output name is not derived from its input label: ${output.outputFileName}`,
-      );
-    }
-    return {
-      ...output,
-      outputFileName:
-        targetStem + output.outputFileName.slice(sourceStem.length),
-    };
-  });
-  return {
-    ...source,
-    inputFileName,
-    outputs,
-    ...(source.persistedPlotRequest
-      ? {
-          persistedPlotRequest: {
-            ...source.persistedPlotRequest,
-            inputFileName,
-          },
-        }
-      : {}),
-    ...(source.persistedTimelineRequest
-      ? {
-          persistedTimelineRequest: {
-            ...source.persistedTimelineRequest,
-            inputFileName,
-          },
-        }
-      : {}),
-  };
 }
 
 function requiredArtifact(
@@ -300,15 +267,16 @@ function decodeVisualizationData(bytes: Uint8Array): VisualizationData {
   if (
     !value ||
     typeof value !== "object" ||
-    candidate.protocolVersion !== VISUALIZATION_DATA_PROTOCOL ||
+    typeof candidate.protocolVersion !== "string" ||
+    !Object.hasOwn(VISUALIZATION_DATA_COLUMNS_BY_PROTOCOL, candidate.protocolVersion) ||
     JSON.stringify(candidate.columns) !==
-      JSON.stringify(VISUALIZATION_DATA_COLUMNS) ||
+      JSON.stringify(VISUALIZATION_DATA_COLUMNS_BY_PROTOCOL[candidate.protocolVersion]) ||
     !Array.isArray(candidate.appRows) ||
     !Array.isArray(candidate.screenRows) ||
     !candidate.eventTimestampsByParticipant ||
     typeof candidate.eventTimestampsByParticipant !== "object"
   ) {
-    throw new Error("Rust visualization data does not match the v2 row schema");
+    throw new Error("Rust visualization data does not match a known row schema");
   }
   return candidate as VisualizationData;
 }
@@ -322,6 +290,7 @@ async function addRenderedViews(
   visualization: VisualizationData,
   renderStaticPlots = true,
   renderTimelineOutput = true,
+  skipped: SkippedOutput[] = [],
 ): Promise<TimelineViewData | undefined> {
   const appRows = visualization.appRows.map(hydrateVisualizationRow);
   const screenRows = visualization.screenRows.map(hydrateVisualizationRow);
@@ -337,16 +306,28 @@ async function addRenderedViews(
   const screenPlotRows = screenRows as Parameters<
     typeof buildScreenTimelineViews
   >[0];
-  const pushPlots = (
-    blobs: Map<string, Blob>,
-    suffix: (participantId: string) => string,
-  ): void => {
+  // A plot kind that cannot be drawn (a multi-year file exceeds the browser's
+  // canvas limits) is left out and reported; it never costs the other outputs.
+  const pushPlots = async (
+    label: string,
+    generate: () => Map<string, Blob> | Promise<Map<string, Blob>>,
+  ): Promise<void> => {
+    let blobs: Map<string, Blob>;
+    try {
+      blobs = await generate();
+    } catch (failure) {
+      skipped.push({
+        outputFileName: deriveOutputFileName(inputFileName, ` ${label}`),
+        reason: failure instanceof Error ? failure.message : String(failure),
+      });
+      return;
+    }
     for (const [participantId, blob] of blobs) {
       outputs.push({
         kind: "plot",
         outputFileName: deriveOutputFileName(
           inputFileName,
-          suffix(participantId),
+          ` ${participantId} ${label}`,
         ),
         blob,
         rowCount: 0,
@@ -355,47 +336,38 @@ async function addRenderedViews(
     }
   };
   if (renderStaticPlots && options.enablePlotting && options.processAppUsage) {
-    pushPlots(
-      await generateAllPlots(
+    await pushPlots("App Usage Plot.png", () =>
+      generateAllPlots(
         appPlotRows,
         timezone,
         options,
         preprocessorVersion,
         eventTimestamps,
       ),
-      (participantId) => ` ${participantId} App Usage Plot.png`,
     );
     if (options.exportPlotsAsSvg) {
-      pushPlots(
-        await generateAllPlotSvgs(
+      await pushPlots("App Usage Plot.svg", () =>
+        generateAllPlotSvgs(
           appPlotRows,
           timezone,
           options,
           preprocessorVersion,
           eventTimestamps,
         ),
-        (participantId) => ` ${participantId} App Usage Plot.svg`,
       );
     }
     if (options.enableActivityHeatmap) {
-      pushPlots(
-        await generateAllHeatmaps(
-          appPlotRows,
-          timezone,
-          options,
-          preprocessorVersion,
-        ),
-        (participantId) => ` ${participantId} App Usage Heatmap.png`,
+      await pushPlots("App Usage Heatmap.png", () =>
+        generateAllHeatmaps(appPlotRows, timezone, options, preprocessorVersion),
       );
       if (options.exportPlotsAsSvg) {
-        pushPlots(
-          await generateAllHeatmapSvgs(
+        await pushPlots("App Usage Heatmap.svg", () =>
+          generateAllHeatmapSvgs(
             appPlotRows,
             timezone,
             options,
             preprocessorVersion,
           ),
-          (participantId) => ` ${participantId} App Usage Heatmap.svg`,
         );
       }
     }
@@ -405,24 +377,22 @@ async function addRenderedViews(
     options.enablePlotting &&
     options.processScreenUsage
   ) {
-    pushPlots(
-      await generateAllScreenPlots(
+    await pushPlots("Screen Usage Plot.png", () =>
+      generateAllScreenPlots(
         screenPlotRows,
         timezone,
         preprocessorVersion,
         eventTimestamps,
       ),
-      (participantId) => ` ${participantId} Screen Usage Plot.png`,
     );
     if (options.exportPlotsAsSvg) {
-      pushPlots(
-        await generateAllScreenPlotSvgs(
+      await pushPlots("Screen Usage Plot.svg", () =>
+        generateAllScreenPlotSvgs(
           screenPlotRows,
           timezone,
           preprocessorVersion,
           eventTimestamps,
         ),
-        (participantId) => ` ${participantId} Screen Usage Plot.svg`,
       );
     }
   }
@@ -519,6 +489,7 @@ async function readPersistedVisualization(
  */
 export async function materializePersistedPlots(
   request: PersistedPlotRequest,
+  skipped: SkippedOutput[] = [],
 ): Promise<ProcessedOutputFileResult[]> {
   const visualization = await readPersistedVisualization(request);
   const outputs: ProcessedOutputFileResult[] = [];
@@ -530,6 +501,8 @@ export async function materializePersistedPlots(
     request.preprocessorVersion,
     visualization,
     true,
+    true,
+    skipped,
   );
   return outputs.filter(
     (output) =>
@@ -599,6 +572,7 @@ export async function processRawCsvWithRustAuthority(
   runtime: BrowserProcessingRuntime,
   onProgress?: (event: ProgressEvent) => void,
   verifiedInputSha256?: string,
+  participantPartition?: ParticipantPartitionTransport,
 ): Promise<ProcessedFileResult> {
   const emit = (stepKind: ProgressStepKind, percent: number) => {
     onProgress?.({
@@ -616,9 +590,14 @@ export async function processRawCsvWithRustAuthority(
     supportFiles,
     { ...runtime, persistRustWorkspace: runtime.persistRustWorkspace ?? true },
     verifiedInputSha256,
+    participantPartition,
   );
   const { manifest } = execution;
   const outputs: ProcessedOutputFileResult[] = [];
+  if (manifest.artifacts.some(({ kind }) => kind === "literature-input-adapted-csv")) {
+    addEvidenceOutput(outputs, execution, "literature-input-adapted-csv", inputFileName,
+      " Preserved Source Fields.csv", CSV_MIME);
+  }
   if (options.processAppUsage) {
     addCsvOutput(
       outputs,
@@ -693,7 +672,8 @@ export async function processRawCsvWithRustAuthority(
       );
     }
   }
-  if (options.enableScreenGatedCrediting) {
+  // These are app-usage outputs: a screen-only run never produces them.
+  if (options.processAppUsage && options.enableScreenGatedCrediting) {
     addCsvOutput(
       outputs,
       execution,
@@ -703,7 +683,37 @@ export async function processRawCsvWithRustAuthority(
       " Credited App Usage.csv",
     );
   }
-  if (options.enableComplianceScoring) {
+  if (options.processAppUsage && options.notificationProxyRule !== "none") {
+    addCsvOutput(
+      outputs,
+      execution,
+      "app",
+      "notification-contact-csv",
+      inputFileName,
+      " Notification Contact.csv",
+    );
+  }
+  if (options.processAppUsage && options.polledEmulationMethod !== "none") {
+    addCsvOutput(
+      outputs,
+      execution,
+      "app",
+      "polled-emulation-csv",
+      inputFileName,
+      " Polled Emulation.csv",
+    );
+  }
+  if (options.processAppUsage && options.intervalExpansionMethod !== "none") {
+    addCsvOutput(
+      outputs,
+      execution,
+      "app",
+      "interval-expansion-csv",
+      inputFileName,
+      " Interval Expansion.csv",
+    );
+  }
+  if (options.processAppUsage && options.enableComplianceScoring) {
     addCsvOutput(
       outputs,
       execution,
@@ -713,7 +723,7 @@ export async function processRawCsvWithRustAuthority(
       " Compliance Report.csv",
     );
   }
-  if (options.enableDayCoverage) {
+  if (options.processAppUsage && options.enableDayCoverage) {
     addCsvOutput(
       outputs,
       execution,
@@ -749,6 +759,22 @@ export async function processRawCsvWithRustAuthority(
       );
     }
   }
+  // Mirrors the kernel applicability: the summary folds app-usage rows, so
+  // without app usage the Rust side omits the artifact entirely.
+  if (options.enableParticipantAmountSummary && options.processAppUsage) {
+    const metadata = manifest.artifacts.find(
+      (artifact) => artifact.kind === "aggregate-participant-amount-summary-csv",
+    );
+    addCsvOutput(
+      outputs,
+      execution,
+      "aggregate",
+      "aggregate-participant-amount-summary-csv",
+      inputFileName,
+      " Participant Amount Summary.csv",
+      metadata?.rowCount,
+    );
+  }
   const lineageMetadata = manifest.artifacts.find(
     (artifact) => artifact.kind === "row-lineage-arrow",
   );
@@ -765,42 +791,48 @@ export async function processRawCsvWithRustAuthority(
   const sourceCoordinateMetadata = manifest.artifacts.find(
     (artifact) => artifact.kind === "source-coordinate-index-arrow",
   );
-  addBinaryOutput(
-    outputs,
-    execution,
-    "lineage",
-    "source-coordinate-index-arrow",
-    inputFileName,
-    " Source Coordinate Index.arrow",
-    ARROW_MIME,
-    sourceCoordinateMetadata?.rowCount ?? 0,
-  );
+  if (sourceCoordinateMetadata) {
+    addBinaryOutput(
+      outputs,
+      execution,
+      "lineage",
+      "source-coordinate-index-arrow",
+      inputFileName,
+      " Source Coordinate Index.arrow",
+      ARROW_MIME,
+      sourceCoordinateMetadata.rowCount ?? 0,
+    );
+  }
   const cellCorrespondenceMetadata = manifest.artifacts.find(
     (artifact) => artifact.kind === "result-cell-correspondence-arrow",
   );
-  addBinaryOutput(
-    outputs,
-    execution,
-    "lineage",
-    "result-cell-correspondence-arrow",
-    inputFileName,
-    " Result Cell Correspondence.arrow",
-    ARROW_MIME,
-    cellCorrespondenceMetadata?.rowCount ?? 0,
-  );
+  if (cellCorrespondenceMetadata) {
+    addBinaryOutput(
+      outputs,
+      execution,
+      "lineage",
+      "result-cell-correspondence-arrow",
+      inputFileName,
+      " Result Cell Correspondence.arrow",
+      ARROW_MIME,
+      cellCorrespondenceMetadata.rowCount ?? 0,
+    );
+  }
   const influenceWitnessMetadata = manifest.artifacts.find(
     (artifact) => artifact.kind === "source-result-influence-arrow",
   );
-  addBinaryOutput(
-    outputs,
-    execution,
-    "lineage",
-    "source-result-influence-arrow",
-    inputFileName,
-    " Source-Result Influence Witness.arrow",
-    ARROW_MIME,
-    influenceWitnessMetadata?.rowCount ?? 0,
-  );
+  if (influenceWitnessMetadata) {
+    addBinaryOutput(
+      outputs,
+      execution,
+      "lineage",
+      "source-result-influence-arrow",
+      inputFileName,
+      " Source-Result Influence Witness.arrow",
+      ARROW_MIME,
+      influenceWitnessMetadata.rowCount ?? 0,
+    );
+  }
   for (const [kind, suffix, mediaType] of [
     ["evidence-journal", " Evidence Journal.cbor", "application/cbor"],
     ["artifact-closure-json", " Artifact Closure.json", "application/json"],
@@ -820,7 +852,11 @@ export async function processRawCsvWithRustAuthority(
       " Workflow Provenance.jsonld",
       "application/ld+json",
     ],
-    ["workflow-explorer-view-json", " Workflow Explorer.json", "application/json"],
+    [
+      "workflow-explorer-view-json",
+      " Workflow Explorer.json",
+      "application/json",
+    ],
     [
       "semantic-index-source-json",
       " Semantic Index Source.json",
@@ -848,6 +884,7 @@ export async function processRawCsvWithRustAuthority(
   });
   const renderStaticPlotsNow =
     options.enablePlotting && !execution.persistedWorkspace;
+  const skippedOutputs: SkippedOutput[] = [];
   const renderBrowserViewsNow =
     !execution.persistedWorkspace &&
     (options.enablePlotting || options.enableInteractiveTimeline);
@@ -862,6 +899,8 @@ export async function processRawCsvWithRustAuthority(
           requiredArtifact(execution, "visualization-data-json"),
         ),
         renderStaticPlotsNow,
+        true,
+        skippedOutputs,
       )
     : undefined;
   const persistedPlotRequest: PersistedPlotRequest | undefined =
@@ -935,6 +974,7 @@ export async function processRawCsvWithRustAuthority(
       manifest.processingSummary.duplicateTimestampsCorrected,
     exactDuplicateRowsRemoved:
       manifest.processingSummary.exactDuplicateRowsRemoved,
+    ...(skippedOutputs.length ? { skippedOutputs } : {}),
     timelineView,
     persistedPlotRequest,
     persistedTimelineRequest,
@@ -942,7 +982,7 @@ export async function processRawCsvWithRustAuthority(
     executionLedger,
     workflowExplorerView,
     rustRuntimeReceipt: {
-      protocolVersion: "chronicle-preprocessing-runtime/v1",
+      protocolVersion: "chronicle-preprocessing-runtime/v2",
       workspaceId: execution.workspaceId,
       workspaceRootDigest: manifest.workspaceRootDigest,
       previousWorkspaceRootDigest: manifest.previousWorkspaceRootDigest,
@@ -974,6 +1014,7 @@ export async function processRawCsvReviewWithRustAuthority(
   verifiedInputSha256?: string,
   verifiedSupportCacheKey?: string,
   knownReviewSummaryDigests?: string[],
+  participantPartition?: ParticipantPartitionTransport,
 ): Promise<ProcessedFileResult> {
   const execution: RustReviewExecution = await queryRustReview(
     csvBytes,
@@ -984,6 +1025,7 @@ export async function processRawCsvReviewWithRustAuthority(
     verifiedInputSha256,
     verifiedSupportCacheKey,
     knownReviewSummaryDigests,
+    participantPartition,
   );
   return reviewExecutionResult(inputFileName, execution);
 }
@@ -1036,7 +1078,7 @@ function reviewExecutionResult(
     ...(execution.reviewSummaryReused ? { reviewSummaryReused: true } : {}),
     reviewOnly: true,
     rustReviewReceipt: {
-      protocolVersion: "chronicle-preprocessing-runtime/v1",
+      protocolVersion: "chronicle-preprocessing-runtime/v2",
       workspaceId: execution.workspaceId,
       previousWorkspaceRootDigest: execution.previousWorkspaceRootDigest,
       inputDigest: execution.inputDigest,

@@ -33,7 +33,7 @@
  * with no measured safety need, so that dispatch stays ungoverned.
  */
 const PEAK_AMPLIFICATION = 128;
-const WORKER_BASELINE_BYTES = 48 * 1024 * 1024;
+export const WORKER_BASELINE_BYTES = 48 * 1024 * 1024;
 const IN_FLIGHT_BUDGET_BYTES = 600 * 1024 * 1024;
 /** `navigator.deviceMemory` is reported in GiB; treat 8 as the full-budget baseline. */
 const BASELINE_DEVICE_MEMORY_GB = 8;
@@ -117,6 +117,34 @@ export function readDeviceMemory(): number | undefined {
  * more RAM are still treated as 8-GiB — the platform hides real capacity.
  */
 const ADAPTIVE_WORKER_BUDGET_BYTES = 4 * 1024 * 1024 * 1024;
+export const MIN_PAYLOAD_BUDGET_BYTES = 512 * 1024 * 1024;
+export const MAX_PAYLOAD_BUDGET_BYTES = 1536 * 1024 * 1024;
+/** Heap left beside resident payloads: rows under construction, exports, WASM bookkeeping. */
+const NON_PAYLOAD_RESERVE_BYTES = 2560 * 1024 * 1024;
+
+export function adaptiveWorkerBudgetBytes(deviceMemory: number | undefined): number {
+  return ADAPTIVE_WORKER_BUDGET_BYTES * deviceMemoryBudgetScale(deviceMemory);
+}
+
+/**
+ * A worker's payload spill threshold, fixed before its WASM module starts.
+ * Only a lone worker rises above the 512 MiB floor, so multi-lane admission
+ * is unchanged; the ceiling plus the reserve stays under the 4 GiB WASM32
+ * address space (the 580,793-row export peaks 1.5 GiB above its budget).
+ */
+export function payloadBudgetBytesForWorkers(
+  deviceMemory: number | undefined,
+  simultaneousWorkers: number,
+): number {
+  if (simultaneousWorkers > 1) return MIN_PAYLOAD_BUDGET_BYTES;
+  return Math.max(
+    MIN_PAYLOAD_BUDGET_BYTES,
+    Math.min(
+      MAX_PAYLOAD_BUDGET_BYTES,
+      adaptiveWorkerBudgetBytes(deviceMemory) - NON_PAYLOAD_RESERVE_BYTES,
+    ),
+  );
+}
 
 /**
  * Measured admission control for the full-processing batch. The static
@@ -147,8 +175,7 @@ export function computeAdaptiveLaneTarget(input: {
   ) {
     return Math.max(1, Math.min(cap, Math.floor(fallbackLanes)));
   }
-  const budget =
-    ADAPTIVE_WORKER_BUDGET_BYTES * deviceMemoryBudgetScale(deviceMemory);
+  const budget = adaptiveWorkerBudgetBytes(deviceMemory);
   const perLane = observedWorkerHighWaterBytes + WORKER_BASELINE_BYTES;
   return Math.max(1, Math.min(cap, Math.floor(budget / perLane)));
 }

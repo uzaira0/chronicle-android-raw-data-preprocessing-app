@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "chronicle-party-location-dwell-threshold-source-fixture/v1",
+  "sourceWorkId": "doi:10.1007/978-3-319-51394-2_2",
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-2bf931232c4bd435f1403c59",
+    "parameterKey": "gpa.party_minimum_minutes",
+    "sourceObservedSetting": "gpa.party_minimum_minutes: 30",
+    "sourceValueSha256": "e324fce02542dcf8fda49ca1dade8878025bff6692a8ef0e7646bde984d0682f"
+  },
+  "sourceArtifact": {
+    "locator": ".tmp-literature-review-private/corrective-packet-08-ranks277-329-20260831/fulltext/rank280-primary.txt:854-859",
+    "sha256": "377f08b265cbf3da8b6200fc478ae3f0c335a3924f7aa52900510ad196d85276"
+  },
+  "inputBoundary": "One already-derived finite dwell duration in minutes at an already-identified source-defined partying location.",
+  "outputBoundary": "Discard the partying-location dwell below 30 minutes and retain it at or above 30 minutes; equality is retained.",
+  "limitations": [
+    "This binding does not identify Greek houses, dorms, or other behavioral spaces as partying locations.",
+    "This binding does not reconstruct visits or derive their dwell durations.",
+    "This binding does not apply the source day-of-week condition.",
+    "This binding does not partition a retained dwell into 10-minute windows.",
+    "This binding does not derive audio or activity attributes or perform the source k-means partying classification.",
+    "A missing or non-finite partying-location dwell duration fails closed rather than being interpreted as zero."
+  ],
+  "minimumRetainedMinutes": 30.0,
+  "dispositions": ["discarded_dwell", "retained_dwell"],
+  "partyLocationDwells": [
+    {
+      "observationId": "immediately-below",
+      "dwellMinutes": 29.999,
+      "expectedDisposition": "discarded_dwell"
+    },
+    {
+      "observationId": "at-boundary",
+      "dwellMinutes": 30.0,
+      "expectedDisposition": "retained_dwell"
+    },
+    {
+      "observationId": "above-boundary",
+      "dwellMinutes": 30.001,
+      "expectedDisposition": "retained_dwell"
+    }
+  ],
+  "missingDwellCase": {
+    "observationId": "missing-dwell-duration",
+    "dwellMinutes": null,
+    "expectedError": "party_location_dwell_minutes_required"
+  }
+}

@@ -1,0 +1,106 @@
+{
+  "schemaVersion": "chronicle-pilot-item-selection-thresholds-canonical-source-fixture/v1",
+  "reusedOwner": {
+    "component": "FiniteScalarPivotClassifier",
+    "sourcePath": "rust/chronicle_preprocessing_runtime_wasm/src/finite_scalar_pivot_classifier.rs",
+    "sourceSha256": "66036694c5eb34ecaa9c812f6a109772ba2abd6a975112efdd981d9cdcff050d",
+    "semanticBoundary": "A caller-supplied finite scalar is classified as below, equal to, or above a caller-supplied pivot without a tolerance."
+  },
+  "sourceWorkId": "doi:10.1177/2050157921993896",
+  "sourceArtifacts": [
+    {
+      "role": "released R item-selection source",
+      "locator": ".tmp-literature-review-private/source-completeness-artifacts/doi-10.1177-2050157921993896/qvj8g/itemSelection.R:59-73",
+      "sha256": "7401af2a1413a073c1a4e5f30adf1f30e67d5d05048301eb95e3b617633487cf"
+    },
+    {
+      "role": "canonical source-completeness audit",
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/source-completeness-audits/doi-10.1177-2050157921993896.json",
+      "sha256": "ed09b6efd17647da3e613dbfdaac1a6bae58d05f3b4cf5a7e59a0b6fadbe9c86"
+    }
+  ],
+  "inputBoundary": "One caller-supplied finite statistic already derived for one candidate item: either its source-selected within-person standardized factor loading or its ICC. Statistic estimation, item identity, complete-case filtering, and sequential item-selection orchestration are established upstream.",
+  "settings": [
+    {
+      "canonicalSetting": {
+        "settingId": "method-setting-7bc9bf701e7cf62359ec8660",
+        "parameterKey": "pilot.selection.factor_loading_threshold",
+        "sourceObservedSetting": "pilot.selection.factor_loading_threshold: exclude within loading <= 0.4",
+        "sourceValueSha256": "9ec11d375298d2b6ddff24208f05698c8d75ec1ba82ee744f413c766897a8536"
+      },
+      "supersededAliases": [],
+      "inputMeasure": "source-selected within-person standardized factor loading for one candidate item",
+      "pivot": 0.4,
+      "exclusionRelation": "below_or_equal",
+      "outputBoundary": "Report only whether the supplied within-person loading satisfies the released exclusion predicate. Values below or equal to 0.4 are excluded; equality is excluded.",
+      "cases": [
+        {
+          "caseId": "below_excluded",
+          "statistic": 0.399,
+          "expectedDisposition": "exclude"
+        },
+        {
+          "caseId": "equality_excluded",
+          "statistic": 0.4,
+          "expectedDisposition": "exclude"
+        },
+        {
+          "caseId": "above_retained_by_this_predicate",
+          "statistic": 0.401,
+          "expectedDisposition": "retain_by_this_predicate"
+        }
+      ]
+    },
+    {
+      "canonicalSetting": {
+        "settingId": "method-setting-f532c6dee5fccdb9a802ede1",
+        "parameterKey": "pilot.selection.icc_threshold",
+        "sourceObservedSetting": "pilot.selection.icc_threshold: exclude ICC >= 0.5",
+        "sourceValueSha256": "eb86f85ebdf72dcb68fd7aff5ab9b1e584a8c834a4683bc120918ef3a5e01656"
+      },
+      "supersededAliases": [],
+      "inputMeasure": "ICC for one candidate item",
+      "pivot": 0.5,
+      "exclusionRelation": "equal_or_above",
+      "outputBoundary": "Report only whether the supplied ICC satisfies the released exclusion predicate. Values equal to or above 0.5 are excluded; equality is excluded.",
+      "cases": [
+        {
+          "caseId": "below_retained_by_this_predicate",
+          "statistic": 0.499,
+          "expectedDisposition": "retain_by_this_predicate"
+        },
+        {
+          "caseId": "equality_excluded",
+          "statistic": 0.5,
+          "expectedDisposition": "exclude"
+        },
+        {
+          "caseId": "above_excluded",
+          "statistic": 0.501,
+          "expectedDisposition": "exclude"
+        }
+      ]
+    }
+  ],
+  "invalidStatisticInputs": [
+    {
+      "caseId": "numeric_string",
+      "statistic": "0.5"
+    },
+    {
+      "caseId": "missing",
+      "statistic": null
+    },
+    {
+      "caseId": "boolean",
+      "statistic": false
+    }
+  ],
+  "invalidStatisticError": "finite_numeric_item_statistic_required",
+  "limitations": [
+    "The fixture does not compute ICCs or standardized within-person factor loadings from survey or Mplus outputs.",
+    "The fixture does not reproduce the released complete-case filter, source column selection, sequential filtering, no-variance rule, content-based removals, or item renaming.",
+    "A retain_by_this_predicate result does not mean the item survives the full source item-selection pipeline.",
+    "The two canonical identities remain distinct predicates despite sharing one generic scalar classifier."
+  ]
+}

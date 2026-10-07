@@ -25,6 +25,12 @@ repository_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)
 export CHRONICLE_REPOSITORY_ROOT="$repository_root"
 export CHRONICLE_SEMANTIC_ROOT="$repository_root/.semantic-federation/semantic"
 export CHRONICLE_DEPENDENCY_CERTIFICATE="$repository_root/.semantic-federation/proofs/dependency-certificate.json"
+# Sibling crates are reached through each crate's deps/ symlinks
+# (`deps/X -> ../../X`), and cargo-mutants copies symlinks as symlinks into
+# `$TMPDIR/cargo-mutants-*/` without rewriting a path that does not ascend.
+# Building the copy directly under rust/ keeps `../../X` resolving to the real
+# sibling crate. Only the runs that build a copy set it; `--list` copies nothing.
+mutants_scratch_parent="$repository_root/rust"
 
 case "$mode" in
   coverage|mutation|supply-chain) ;;
@@ -167,7 +173,7 @@ audit_mutation_exclusions() {
   mkdir -p "$out"
   # Every audited mutant is expected to survive, so cargo-mutants exits non-zero
   # on a clean audit. The verdict comes from its outcome files, not its status.
-  cargo mutants "${mutation_base[@]}" "${audit_args[@]}" \
+  TMPDIR="$mutants_scratch_parent" cargo mutants "${mutation_base[@]}" "${audit_args[@]}" \
     --jobs "$mutation_jobs" --timeout "$mutation_timeout" -o "$out" < /dev/null || true
 
   # The unfilterable mutants above ride along in every `-F` run too, so they are
@@ -215,6 +221,10 @@ audit_mutation_exclusions() {
 }
 
 count=0
+# SC2094 is a false positive: the loop reads $manifest_list once, and the only
+# other use of it inside the loop is `dirname "$manifest_list"`, a string
+# operation on the path that never opens the file.
+# shellcheck disable=SC2094
 while IFS= read -r entry || [[ -n "$entry" ]]; do
   entry=${entry%%#*}
   entry=${entry#"${entry%%[![:space:]]*}"}
@@ -305,15 +315,16 @@ while IFS= read -r entry || [[ -n "$entry" ]]; do
           args+=(-E "$pattern")
         done
       fi
-      cargo "${args[@]}"
+      TMPDIR="$mutants_scratch_parent" cargo "${args[@]}"
       ;;
     supply-chain)
       if [[ ! -f "$deny_config" ]]; then
         echo "cargo-deny policy is missing: $deny_config" >&2
         exit 2
       fi
-      cargo deny --manifest-path "$manifest" check \
-        --config "$deny_config" \
+      # --manifest-path selects the graph; --config belongs to the check
+      # subcommand, as shown by cargo-deny check --help.
+      cargo deny --manifest-path "$manifest" check --config "$deny_config" \
         --allow unmatched-source \
         --allow license-not-encountered \
         --allow advisory-not-detected \

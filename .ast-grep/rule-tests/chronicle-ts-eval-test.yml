@@ -1,0 +1,9 @@
+id: chronicle-ts-eval
+valid:
+  - "const value = JSON.parse(text);"
+  - "const run = (code: string) => interpreter.evaluate(code);"
+  - "type Callback = Function;"
+invalid:
+  - "const value = eval(text);"
+  - "const fn = new Function('a', 'return a');"
+  - "const fn = Function('return this')();"

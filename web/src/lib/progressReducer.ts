@@ -19,15 +19,34 @@ export function applyProgressEvent(
 ): Record<string, FileProgress> {
   const patch: Partial<FileProgress> =
     event.type === "file-start"
-      ? { status: "running", stepKind: "parse", percent: 0 }
+      ? {
+          status: "running",
+          stepKind: "parse",
+          percent: 0,
+          error: undefined,
+          scientificPreflightRefusal: undefined,
+        }
       : event.type === "step"
-        ? { status: "running", stepKind: event.stepKind, percent: event.percent }
-        : { status: event.error ? "error" : "complete", percent: 1, error: event.error };
+        ? {
+            status: "running",
+            stepKind: event.stepKind,
+            percent: event.percent,
+          }
+        : {
+            status: event.error ? "error" : "complete",
+            percent: 1,
+            error: event.error,
+            scientificPreflightRefusal: event.scientificPreflightRefusal,
+          };
 
-  const existing =
-    current[event.fileName] ?? { fileName: event.fileName, status: "pending" as const };
+  const existing = current[event.fileName] ?? {
+    fileName: event.fileName,
+    status: "pending" as const,
+  };
   const existingTerminal =
-    existing.status === "complete" || existing.status === "error" || existing.status === "cancelled";
+    existing.status === "complete" ||
+    existing.status === "error" ||
+    existing.status === "cancelled";
   const patchTerminal = patch.status === "complete" || patch.status === "error";
   if (existingTerminal && !patchTerminal) {
     return current;

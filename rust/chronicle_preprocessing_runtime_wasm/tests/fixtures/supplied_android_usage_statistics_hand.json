@@ -1,0 +1,62 @@
+{
+  "schemaVersion": "chronicle-supplied-android-usage-hand-fixtures/v1",
+  "evidenceBoundary": "Constructed correctly typed memberships and independent hand arithmetic, not original cohort rows, recovered author code, deployment or full-profile replication.",
+  "caught": {
+    "sourceWorkId": "doi:10.1177/2050157921993896",
+    "primaryLocator": "corrective-packet-07-ranks224-276-20260831/text/231.txt:342-368",
+    "retainedTextSha256": "2da3806649896434a8dfbef862d0ef6ec6c36d55723184531dcd9591881e0e09",
+    "durationMembers": [{"occurrence_id":"a","duration":0},{"occurrence_id":"b","duration":12},{"occurrence_id":"c","duration":6}],
+    "notificationMembers": [{"occurrence_id":"n1"},{"occurrence_id":"n2"},{"occurrence_id":"n3"}],
+    "exposureHours": 2,
+    "expectedDurationSum": 18,
+    "expectedDurationPerHour": 9,
+    "expectedNotificationCount": 3,
+    "expectedNotificationsPerHour": 1.5,
+    "fragmentationBoundary": "Median close-to-open different-app lag and its reciprocal are disclosed, but no fragmentation normalization or zero-lag policy is implemented here. Completed response endpoints are supplied; missed-prompt, raw event matching and clocks are not inferred."
+  },
+  "regret": {
+    "sourceWorkId": "doi:10.1145/3706598.3713724",
+    "primaryLocator": "corrective-packet-07-ranks224-276-20260831/text/225.txt:399-410,696-718",
+    "retainedTextSha256": "5c1852eb8a69571d0804dc990333ab4d1a2a603e0b105a0e0233f0e6b393fe94",
+    "screenshots": [{"screenshot_id":"s1","activity":"Other"},{"screenshot_id":"s2","activity":"Search"},{"screenshot_id":"s3","activity":"Search"},{"screenshot_id":"s4","activity":"Other"},{"screenshot_id":"s5","activity":"Search"}],
+    "expectedActivity": "Search",
+    "expectedFrequency": 3,
+    "expectedScreenshotCount": 5,
+    "tieBoundary": "Tied maxima and empty label membership are source_undefined; no label/model/coder inference or regret-score operation."
+  },
+  "s3": {
+    "sourceWorkId": "doi:10.3390/s21113765",
+    "primaryLocator": "ontology-sublation-20260831/work/sensors-21-03765-layout.txt:692-697",
+    "retainedTextSha256": "b513c934abafa66dc63c21b17bd8138553bb79d3d0afb2eb11b954e379711fd5",
+    "minute": [{"occurrence_id":"a1","app_id":"A"},{"occurrence_id":"a2","app_id":"A"},{"occurrence_id":"b1","app_id":"B"}],
+    "day": [{"occurrence_id":"b1","app_id":"B"},{"occurrence_id":"c1","app_id":"C"},{"occurrence_id":"b2","app_id":"B"},{"occurrence_id":"d1","app_id":"D"}],
+    "expectedMinute": {"total":3,"distinct":2,"mode":"A","frequency":2},
+    "expectedDay": {"total":4,"distinct":3,"mode":"B","frequency":2},
+    "windowBoundary": "Caller owns exact last-minute/last-day membership. No cadence, calendar, current/previous app selection, interface deltas, sensor/speaker alignment or authentication."
+  },
+  "mapontap": {
+    "sourceWorkId": "doi:10.2139/ssrn.4768783",
+    "primaryLocator": "new-strict-methods-discovery-batch-c-20260830/extracted/zingaro-2024-ssrn.txt:2524-2537",
+    "retainedTextSha256": "489f19427d55bab8e2bfb970d2a62469a01480162ca502ebc3d7fc682576392f",
+    "timestamps": [{"sample_id":"t0","timestamp":1700000000},{"sample_id":"t1","timestamp":1700000004},{"sample_id":"t2","timestamp":1700000001}],
+    "expectedNormalized": [0,1,0.25],
+    "formula": "(timestamp - within-series minimum)/(within-series maximum - within-series minimum)",
+    "boundary": "Preserve supplied sample order and identities; no conversion to sensor memberships, one-second bins, 20-percent length-band resampling, DTW or clustering. Constant range remains source_undefined."
+  },
+  "bjerre": {
+    "sourceWorkId": "doi:10.1177/0956797620956613",
+    "primaryLocator": "official rendered SAGE supplement zero-based pp0-1 lines20-30",
+    "retainedLocatorReceipt": "ontology-sublation-20260831/work/bjerre-sage-supplement-web-text-20260925.md",
+    "locatorReceiptSha256": "05f6c1f61c34fc30a20389fafa4b51179ac38b18c903cc45576607782fd6756a",
+    "provenanceBoundary": "The pinned receipt is a paraphrased official rendered-supplement locator index, not publisher PDF bytes or a local PDF digest. Raw geolocation, attendance/schedule, screen pairing, class overlap construction and scientific models remain outside this operation.",
+    "courses": [
+      {"course_id":"short-exposure","class_exposure_seconds":100,"overlaps":[{"session_id":"under35","overlap_id":"o1","original_duration_seconds":34,"overlap_seconds":20},{"session_id":"equal35","overlap_id":"o2","original_duration_seconds":35,"overlap_seconds":10},{"session_id":"long","overlap_id":"o3","original_duration_seconds":100,"overlap_seconds":30}]},
+      {"course_id":"long-exposure","class_exposure_seconds":1000,"overlaps":[{"session_id":"other-long","overlap_id":"o4","original_duration_seconds":100,"overlap_seconds":100}]}
+    ],
+    "expectedEligibility": [false,true,true,true],
+    "expectedCourseNumerators": [40,100],
+    "expectedCoursePercents": [40,10],
+    "expectedMeanCoursePercent": 25,
+    "formula": "Select original session duration >=35s, sum qualified disjoint class overlap separately per course, divide by that course's positive class-time exposure, multiply100, then unweighted mean over supplied courses."
+  }
+}

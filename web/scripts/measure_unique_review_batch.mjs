@@ -1,59 +1,65 @@
+/**
+ * Distinct-input View-tab comparison benchmark.
+ *
+ * For every CSV in the input directory (each a different seeded file from
+ * `generate_benchmark_fixture.mts --realistic`), one child process does what
+ * the app does for that file — a Process run with the A options into a
+ * persisted workspace, then the A/B comparison with the B options through the
+ * app's persisted-then-raw review path — and a second, independent child
+ * computes the B review cold from the raw bytes with no persisted state. The
+ * two review-summary digests, counts and runtime identities must match, every
+ * input must have a distinct SHA-256, and every manifest must report the
+ * complete query registry. See `benchmark_runtime_wasm.mts` for the exact
+ * entry points.
+ *
+ * Usage: node scripts/measure_unique_review_batch.mjs <dir> [workers] [case]
+ */
 import { spawn } from "node:child_process";
-import { readFile, readdir } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
-import { parse as parseYaml } from "yaml";
+import process from "node:process";
+import {
+  loadRuntimeWorkflowQueries,
+  verifyQueryStatuses,
+} from "./runtime_workflow_queries.mjs";
 
 const inputDirectory = path.resolve(
   process.argv[2] ?? "../.tmp-benchmark/unique-100",
 );
 const workerCount = Number(process.argv[3] ?? "8");
-const benchmarkCase =
-  process.argv[4] ?? "middle_minimum_usage_duration";
+const benchmarkCase = process.argv[4] ?? "middle_minimum_usage_duration";
 if (!Number.isSafeInteger(workerCount) || workerCount < 1) {
   throw new Error("worker count must be a positive integer");
 }
 if (
-  !new Set(["middle_concurrent_usage", "middle_minimum_usage_duration"]).has(
-    benchmarkCase,
-  )
+  !new Set([
+    "upstream_timezone_policy",
+    "middle_concurrent_usage",
+    "middle_minimum_usage_duration",
+    "downstream_day_coverage",
+    "output_study_name",
+  ]).has(benchmarkCase)
 ) {
-  throw new Error("benchmark case must be a supported middle-pipeline change");
+  throw new Error(`unsupported benchmark case: ${benchmarkCase}`);
 }
 
-/** @type {{queries: Array<{id: string, inputs: string[], requestFields: string[]}>}} */
-const workflow = parseYaml(
-  await readFile(path.resolve("schema/chronicle-workflow.yaml"), "utf8"),
-);
-const queryIds = workflow.queries.map((query) => query.id);
+const runtimePackage = process.env.CHRONICLE_BENCHMARK_RUNTIME_DIR
+  ? path.resolve(process.env.CHRONICLE_BENCHMARK_RUNTIME_DIR)
+  : null;
+const queryIds = (await loadRuntimeWorkflowQueries(runtimePackage ?? undefined))
+  .map((query) => query.id);
 if (queryIds.length === 0 || new Set(queryIds).size !== queryIds.length) {
-  throw new Error("generated workflow query registry must be non-empty and unique");
+  throw new Error("runtime workflow query registry must be non-empty and unique");
 }
-const changedOption =
-  benchmarkCase === "middle_concurrent_usage"
-    ? "model_concurrent_usage"
-    : "minimum_usage_duration";
-const affectedQueryIds = new Set(
-  workflow.queries
-    .filter((query) => query.requestFields.includes(changedOption))
-    .map((query) => query.id),
-);
-let addedAffectedQuery = true;
-while (addedAffectedQuery) {
-  addedAffectedQuery = false;
-  for (const query of workflow.queries) {
-    if (
-      !affectedQueryIds.has(query.id) &&
-      query.inputs.some((input) => affectedQueryIds.has(input))
-    ) {
-      affectedQueryIds.add(query.id);
-      addedAffectedQuery = true;
-    }
-  }
-}
-if (affectedQueryIds.size === 0) {
-  throw new Error(`${changedOption} has no declared query impact`);
-}
+const runtimeArgs = runtimePackage
+  ? [
+      "--runtime-js",
+      path.join(runtimePackage, "chronicle_preprocessing_runtime_wasm.js"),
+      "--wasm",
+      path.join(runtimePackage, "chronicle_preprocessing_runtime_wasm_bg.wasm"),
+    ]
+  : [];
 
 const rawFiles = (await readdir(inputDirectory))
   .filter((name) => name.endsWith(".csv"))
@@ -64,24 +70,31 @@ if (rawFiles.length === 0) {
 }
 
 const executable = path.resolve("node_modules/.bin/vite-node");
+// The app's pool gives each of its N simultaneous workers the N-worker budget.
+const simultaneousWorkers = Math.min(workerCount, rawFiles.length);
 const benchmark = path.resolve("scripts/benchmark_runtime_wasm.mts");
 
-/** @param {string} raw @param {boolean} persisted */
-function runOne(raw, persisted) {
+/**
+ * @param {string} raw
+ * @param {"app" | "oracle"} arm
+ * @returns {Promise<Record<string, any>>}
+ */
+function runOne(raw, arm) {
   const args = [
     benchmark,
+    ...runtimeArgs,
     "--raw",
     raw,
-    "--iterations",
-    "1",
     "--case",
     benchmarkCase,
     "--materialization",
     "review",
     "--full-options",
-    "--changed-only",
-    "--compact",
-    ...(persisted ? ["--review-base", "--warm-runtime"] : []),
+    "--simultaneous-workers",
+    String(simultaneousWorkers),
+    ...(arm === "app"
+      ? ["--mode", "warm", "--iterations", "2"]
+      : ["--mode", "cold", "--iterations", "1", "--changed-only"]),
   ];
   return new Promise((resolve, reject) => {
     const child = spawn(executable, args, {
@@ -100,18 +113,22 @@ function runOne(raw, persisted) {
       if (code !== 0 || signal) {
         reject(
           new Error(
-            `benchmark helper failed for ${raw}: code=${code} signal=${signal}\n${stderr}`,
+            `benchmark helper (${arm}) failed for ${raw}: code=${code} signal=${signal}\n${stderr}`,
           ),
         );
         return;
       }
-      const lines = stdout.trim().split("\n");
+      const jsonLine = stdout
+        .trim()
+        .split("\n")
+        .reverse()
+        .find((line) => line.startsWith("{"));
       try {
-        resolve(JSON.parse(lines.at(-1) ?? ""));
+        resolve(JSON.parse(jsonLine ?? ""));
       } catch (error) {
         reject(
           new Error(
-            `benchmark helper returned invalid JSON for ${raw}: ${error}\n${stdout}\n${stderr}`,
+            `benchmark helper (${arm}) returned invalid JSON for ${raw}: ${error}\n${stdout}\n${stderr}`,
           ),
         );
       }
@@ -119,136 +136,96 @@ function runOne(raw, persisted) {
   });
 }
 
-const expectedSelectedBaseKind =
-  benchmarkCase === "middle_concurrent_usage"
-    ? "review-base"
-    : "reconstruction-base";
-const expectedCacheSources =
-  benchmarkCase === "middle_concurrent_usage"
-    ? ["verified-review-base"]
-    : ["verified-reconstruction-base"];
-/** @param {unknown} value @param {string} label */
-function only(value, label) {
-  if (!Array.isArray(value) || value.length !== 1) {
-    throw new Error(`${label} must contain exactly one result`);
+/**
+ * @param {Record<string, any>} app
+ * @param {Record<string, any>} oracle
+ */
+function verifyPair(app, oracle) {
+  const label = path.basename(app.input.path);
+  if (app.input.sha256 !== oracle.input.sha256) {
+    throw new Error(`${label}: app and oracle runs used different inputs`);
   }
-  return value[0];
-}
-
-/** @param {Record<string, any>} cached @param {Record<string, any>} cold */
-function verifyPair(cached, cold) {
-  if (cached.input.sha256 !== cold.input.sha256) {
-    throw new Error("cached and cold runs used different inputs");
+  if (JSON.stringify(app.wasm) !== JSON.stringify(oracle.wasm)) {
+    throw new Error(`${label}: app and oracle runs used different WASM builds`);
   }
+  const [processRun, review, ...extra] = app.results;
+  const [cold, ...extraCold] = oracle.results;
   if (
-    cached.wasm.sha256 !== cold.wasm.sha256 ||
-    cached.wasm.bytes !== cold.wasm.bytes
+    extra.length ||
+    extraCold.length ||
+    processRun?.kind !== "process" ||
+    processRun.arm !== "A" ||
+    review?.kind !== "review" ||
+    review.arm !== "B" ||
+    cold?.kind !== "review" ||
+    cold.arm !== "B" ||
+    cold.persistedReviewHit !== null
   ) {
-    throw new Error("cached and cold runs used different WASM builds");
+    throw new Error(`${label}: helper did not run Process A, review B, oracle B`);
   }
-  const cachedMeasurements = cached.measurements;
-  const coldMeasurements = cold.measurements;
-  const cachedDigest = only(
-    cachedMeasurements.coldReviewSummaryDigests,
-    "cached review digest",
-  );
-  const coldDigest = only(
-    coldMeasurements.coldReviewSummaryDigests,
-    "cold review digest",
-  );
-  if (!cachedDigest || cachedDigest !== coldDigest) {
+  // The comparison must have consulted the workspace the Process run wrote.
+  if (review.previousWorkspaceRootDigest !== processRun.workspaceRootDigest) {
+    throw new Error(`${label}: review did not run against the persisted workspace`);
+  }
+  if (!review.reviewSummaryDigest || review.reviewSummaryDigest !== cold.reviewSummaryDigest) {
     throw new Error(
-      `persisted result differs from cold oracle: ${cachedDigest} != ${coldDigest}`,
+      `${label}: app review differs from cold oracle: ${review.reviewSummaryDigest} != ${cold.reviewSummaryDigest}`,
     );
   }
-  const cachedCounts = only(cachedMeasurements.coldCounts, "cached counts");
-  const coldCounts = only(coldMeasurements.coldCounts, "cold counts");
-  if (JSON.stringify(cachedCounts) !== JSON.stringify(coldCounts)) {
-    throw new Error("persisted counts differ from the cold oracle");
+  // The comparison digest commits to the options digest and the active support
+  // inputs as well as the summary, so it binds which B options both arms ran.
+  if (!review.comparisonDigest || review.comparisonDigest !== cold.comparisonDigest) {
+    throw new Error(`${label}: app and oracle comparison digests differ`);
   }
-  const cachedIdentity = only(
-    cachedMeasurements.coldIdentities,
-    "cached runtime identity",
+  if (JSON.stringify(review.counts) !== JSON.stringify(cold.counts)) {
+    throw new Error(`${label}: app review counts differ from the cold oracle`);
+  }
+  if (
+    JSON.stringify(review.identity) !== JSON.stringify(cold.identity) ||
+    JSON.stringify(processRun.identity) !== JSON.stringify(cold.identity)
+  ) {
+    throw new Error(`${label}: app and oracle runtime identities differ`);
+  }
+  verifyQueryStatuses(processRun.queryStatuses, queryIds, processRun.cacheSources, `${label} process`);
+  verifyQueryStatuses(cold.queryStatuses, queryIds, cold.cacheSources, `${label} oracle`);
+  const reviewStatusCounts = verifyQueryStatuses(
+    review.queryStatuses,
+    queryIds,
+    review.cacheSources,
+    `${label} review`,
   );
-  const coldIdentity = only(
-    coldMeasurements.coldIdentities,
-    "cold runtime identity",
-  );
-  if (JSON.stringify(cachedIdentity) !== JSON.stringify(coldIdentity)) {
-    throw new Error("persisted and cold runtime identities differ");
-  }
-  if (
-    only(cachedMeasurements.coldSelectedBaseKinds, "selected base") !==
-    expectedSelectedBaseKind
-  ) {
-    throw new Error(
-      `middle change did not select the ${expectedSelectedBaseKind}`,
-    );
-  }
-  if (
-    JSON.stringify(
-      only(cachedMeasurements.coldCacheSources, "cached sources"),
-    ) !== JSON.stringify(expectedCacheSources)
-  ) {
-    throw new Error("middle change did not report its verified cache source");
-  }
-  const statuses = only(
-    cachedMeasurements.coldQueryStatuses,
-    "cached query statuses",
-  );
-  if (
-    !Array.isArray(statuses) ||
-    statuses.length !== queryIds.length ||
-    new Set(statuses.map(([query]) => query)).size !== queryIds.length
-  ) {
-    throw new Error("cached result does not contain the complete unique query registry");
-  }
-  if (statuses.map(([query]) => query).join("\n") !== queryIds.join("\n")) {
-    throw new Error(`${benchmarkCase} query order drifted from the workflow contract`);
-  }
-  const validStatuses = new Set(["cached", "recomputed", "bypassed", "skipped"]);
-  for (const [query, status] of statuses) {
-    if (!validStatuses.has(status)) {
-      throw new Error(`${query}: invalid status ${status}`);
-    }
-    if (status === "recomputed" && !affectedQueryIds.has(query)) {
-      throw new Error(`${query}: unrelated query recomputed for ${changedOption}`);
-    }
-  }
-  if (
-    !statuses.some(
-      ([query, status]) => status === "recomputed" && affectedQueryIds.has(query),
-    )
-  ) {
-    throw new Error(`${changedOption} did not recompute any declared affected query`);
-  }
   return {
-    inputSha256: cached.input.sha256,
-    inputBytes: cached.input.bytes,
-    cachedExecuteMs: only(
-      cachedMeasurements.coldExecuteMs,
-      "cached execution time",
+    inputSha256: app.input.sha256,
+    inputBytes: app.input.bytes,
+    inputRows: review.counts.original,
+    processMs: processRun.elapsedMs,
+    processKernelMs: processRun.phasesMs.kernel ?? 0,
+    reviewMs: review.elapsedMs,
+    persistedProbeMs: review.persistedProbeMs,
+    rawReviewMs: review.rawReviewMs ?? 0,
+    reviewKernelMs: review.phasesMs.kernel ?? 0,
+    reviewPreflightMs: review.phasesMs["scientific-preflight"] ?? 0,
+    oracleMs: cold.elapsedMs,
+    persistedReviewHit: review.persistedReviewHit,
+    reviewSummaryReused: review.reviewSummaryReused,
+    persistedResumeBases: processRun.resumeBaseArtifacts.length,
+    cacheSources: review.cacheSources,
+    reviewStatusCounts,
+    reviewSummaryDigest: review.reviewSummaryDigest,
+    peakRssBytes: Math.max(app.environment.peakRssBytes, oracle.environment.peakRssBytes),
+    wasmLinearMemoryBytes: Math.max(
+      app.environment.wasmLinearMemoryBytes ?? 0,
+      oracle.environment.wasmLinearMemoryBytes ?? 0,
     ),
-    coldOracleExecuteMs: only(
-      coldMeasurements.coldExecuteMs,
-      "cold execution time",
-    ),
-    basePreparationMs: cached.reviewBasePreparationElapsedMs,
-    wasmBoundaryBytes: only(
-      cachedMeasurements.coldWasmBoundaryBytes,
-      "WASM boundary bytes",
-    ),
-    reviewSummaryDigest: cachedDigest,
-    peakRssBytes: Math.max(
-      cached.environment.peakProcessMemoryBytes.rss,
-      cold.environment.peakProcessMemoryBytes.rss,
-    ),
-    wasm: cached.wasm,
-    runtimeIdentity: cachedIdentity,
+    wasm: app.wasm,
+    environment: app.environment,
+    runtime: app.runtime,
+    runtimeIdentity: review.identity,
   };
 }
 
 const started = performance.now();
+/** @type {Array<ReturnType<typeof verifyPair>>} */
 const results = new Array(rawFiles.length);
 let nextIndex = 0;
 async function runWorker() {
@@ -257,9 +234,9 @@ async function runWorker() {
     nextIndex += 1;
     const raw = rawFiles[index];
     if (!raw) return;
-    const cached = await runOne(raw, true);
-    const cold = await runOne(raw, false);
-    results[index] = verifyPair(cached, cold);
+    const app = await runOne(raw, "app");
+    const oracle = await runOne(raw, "oracle");
+    results[index] = verifyPair(app, oracle);
   }
 }
 await Promise.all(
@@ -272,12 +249,15 @@ if (uniqueInputs.size !== rawFiles.length) {
     `expected ${rawFiles.length} distinct inputs, received ${uniqueInputs.size}`,
   );
 }
+const uniqueResults = new Set(results.map((result) => result.reviewSummaryDigest));
+const first = results[0];
+if (!first) throw new Error("no file produced a result");
 if (
   results.some(
     (result) =>
-      JSON.stringify(result.wasm) !== JSON.stringify(results[0].wasm) ||
+      JSON.stringify(result.wasm) !== JSON.stringify(first.wasm) ||
       JSON.stringify(result.runtimeIdentity) !==
-        JSON.stringify(results[0].runtimeIdentity),
+        JSON.stringify(first.runtimeIdentity),
   )
 ) {
   throw new Error("unique-file workers did not use one exact runtime build");
@@ -286,8 +266,7 @@ if (
 function distribution(values) {
   const sorted = [...values].sort((left, right) => left - right);
   const percentile = (/** @type {number} */ fraction) =>
-    sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * fraction))] ??
-    0;
+    sorted[Math.max(0, Math.ceil(fraction * sorted.length) - 1)] ?? 0;
   return {
     count: sorted.length,
     minimum: sorted[0] ?? 0,
@@ -295,39 +274,64 @@ function distribution(values) {
     p90: percentile(0.9),
     p95: percentile(0.95),
     maximum: sorted.at(-1) ?? 0,
-    mean:
-      sorted.reduce((total, value) => total + value, 0) / sorted.length,
+    mean: sorted.reduce((total, value) => total + value, 0) / sorted.length,
   };
 }
+/** @type {Record<string, number>} */
+const reviewStatusTotals = {};
+for (const result of results) {
+  for (const [status, count] of Object.entries(result.reviewStatusCounts)) {
+    reviewStatusTotals[status] = (reviewStatusTotals[status] ?? 0) + count;
+  }
+}
+/** @param {(result: (typeof results)[number]) => number} pick */
+const over = (pick) => distribution(results.map(pick));
 
 process.stdout.write(
   `${JSON.stringify({
-    receiptVersion: "chronicle-unique-review-batch/v1",
+    receiptVersion: "chronicle-unique-review-batch/v2",
+    workload:
+      "per distinct file: Process run (A options, persisted workspace), then the View-tab comparison (B options) through queryPersistedRustReview -> queryRustReview, checked against a cold non-persisted B review in a separate process",
     inputDirectory,
     inputCount: rawFiles.length,
     uniqueInputDigests: uniqueInputs.size,
+    uniqueReviewSummaryDigests: uniqueResults.size,
     workerCount: Math.min(workerCount, rawFiles.length),
     benchmarkCase,
-    wasm: results[0].wasm,
-    runtimeIdentity: results[0].runtimeIdentity,
-    exactQueryStatusResults: results.length,
+    runtime: first.runtime,
+    wasm: first.wasm,
+    runtimeIdentity: first.runtimeIdentity,
+    environment: {
+      node: first.environment.node,
+      platform: first.environment.platform,
+      architecture: first.environment.architecture,
+      logicalCpus: first.environment.logicalCpus,
+      totalMemoryBytes: first.environment.totalMemoryBytes,
+    },
+    exactQueryRegistryResults: results.length * 3,
     exactColdOracleMatches: results.length,
+    persistedReviewHits: results.filter((result) => result.persistedReviewHit).length,
+    reviewSummaryReuses: results.filter((result) => result.reviewSummaryReused).length,
+    persistedResumeBasesWritten: results.reduce(
+      (total, result) => total + result.persistedResumeBases,
+      0,
+    ),
+    reviewCacheSources: [...new Set(results.flatMap((result) => result.cacheSources))],
+    reviewQueryStatusTotals: reviewStatusTotals,
     wallElapsedMs: performance.now() - started,
-    inputBytes: distribution(results.map((result) => result.inputBytes)),
-    basePreparationMs: distribution(
-      results.map((result) => result.basePreparationMs),
-    ),
-    cachedExecuteMs: distribution(
-      results.map((result) => result.cachedExecuteMs),
-    ),
-    coldOracleExecuteMs: distribution(
-      results.map((result) => result.coldOracleExecuteMs),
-    ),
-    wasmBoundaryBytes: distribution(
-      results.map((result) => result.wasmBoundaryBytes),
-    ),
-    maximumChildRssBytes: Math.max(
-      ...results.map((result) => result.peakRssBytes),
+    inputBytes: over((result) => result.inputBytes),
+    inputRows: over((result) => result.inputRows),
+    processMs: over((result) => result.processMs),
+    processKernelMs: over((result) => result.processKernelMs),
+    reviewMs: over((result) => result.reviewMs),
+    persistedProbeMs: over((result) => result.persistedProbeMs),
+    rawReviewMs: over((result) => result.rawReviewMs),
+    reviewKernelMs: over((result) => result.reviewKernelMs),
+    reviewPreflightMs: over((result) => result.reviewPreflightMs),
+    coldOracleReviewMs: over((result) => result.oracleMs),
+    maximumChildPeakRssBytes: Math.max(...results.map((result) => result.peakRssBytes)),
+    maximumWasmLinearMemoryBytes: Math.max(
+      ...results.map((result) => result.wasmLinearMemoryBytes),
     ),
   })}\n`,
 );

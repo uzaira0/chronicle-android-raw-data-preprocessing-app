@@ -333,10 +333,7 @@ pub fn build_workflow_provenance_jsonld(
                 "chron:produces".into(),
                 string_values(operation.output_artifacts.iter().cloned()),
             ),
-            (
-                "chron:depends_on".into(),
-                string_values(depends_on),
-            ),
+            ("chron:depends_on".into(), string_values(depends_on)),
             (
                 "chron:configuration_dependencies".into(),
                 string_values(
@@ -706,9 +703,43 @@ mod tests {
         )
         .unwrap();
 
+        // Change-detector over the contract-derived JSON-LD projection.
+        // Re-recorded 2026-08-13 for the B03-B05 contract expansion (fe3ec9b)
+        // plus the review-summary non-row cell bindings (49b0dd2), and again
+        // 2026-08-17 for the B06 maximum-duration contract expansion, and again
+        // 2026-08-19 for the B07 screen_gating_rule contract expansion, and
+        // again 2026-08-20 for the B14 day-boundary contract expansion, and
+        // again 2026-08-22 for the assign_usage_session_ids query that makes
+        // session_grouping_policy reach the published table (issue #4), and
+        // again 2026-08-22 for the two derive_engagement_basis reads of
+        // raw_episode_start_timestamp_ns / raw_episode_stop_timestamp_ns that
+        // the filtered-row engagement fix added, again 2026-08-22 for the
+        // B10 package_exclusion_preset contract expansion, again
+        // 2026-08-22 for the B08 notification-proxy contract expansion, and
+        // again 2026-08-22 for the B09 polled-emulation contract expansion,
+        // and again 2026-08-24 for the participant-amount-summary contract
+        // expansion and the Peng & Zhu session-grouping arm; this module's
+        // builder is unchanged since the opener-set axis (e02ab1e). Refreshed
+        // 2026-09-04 for the reviewed application-label, screen-policy,
+        // source-order and output-binding contract additions. Refreshed
+        // 2026-09-28 for the actual classify_screen_session read of
+        // screen_interval_id in the embedded execution contract digest.
+        // Refreshed 2026-09-30 for the merged output-only timestamp,
+        // background-app and study-window dependency mirrors, including
+        // combined-mode screen selection's study-date reads.
+        // Refreshed 2026-10-02 for interval-wide screen_usage_app_observed
+        // replacing latest-package reads in the classification contract.
+        // Main re-recorded it 2026-09-29 when bind_processing_timestamp moved to
+        // the outputs group and 2026-10-01 for the Culverhouse reads of
+        // suppress_excluded_timing; refreshed 2026-10-02 again for the merge of
+        // main #50-#53 with the interval-wide app evidence.
+        // Refreshed 2026-10-03 for the opt-in neutralize_spreadsheet_formulas
+        // option: its outputs-group tunes edge, its assemble_result_manifest and
+        // publish.commit_workspace_bundle request field, and the contract digests
+        // that move with them.
         assert_eq!(
             sha256(&bytes),
-            "sha256:bb6915c42428c65d5cd67ea4e746c73677af93db4461c8030b23a0fc7a4566a5"
+            "sha256:1975aeb8a8e59bee5c53974e94b2c1bf15da1a8fd5ec6270ddda6d293616326e"
         );
     }
 }

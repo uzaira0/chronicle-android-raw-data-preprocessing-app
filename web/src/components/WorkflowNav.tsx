@@ -1,4 +1,7 @@
 import type { KeyboardEvent, ReactElement } from "react";
+import { requireDefined } from "@/lib/invariant";
+
+const TAB_INDEX_INVARIANT = "the tab list is a fixed non-empty list and every index is taken within its bounds";
 
 export type WorkflowTab = "guide" | "settings" | "files" | "process" | "view" | "graph";
 
@@ -27,13 +30,13 @@ export function WorkflowNav({ active, onSelect }: Props): ReactElement {
     // would only mask a future arm that forgets to assign.
     let next: WorkflowTab;
     if (event.key === "ArrowRight" || event.key === "ArrowDown") {
-      next = tabs[(currentIndex + 1) % tabs.length]!;
+      next = requireDefined(tabs[(currentIndex + 1) % tabs.length], TAB_INDEX_INVARIANT);
     } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
-      next = tabs[(currentIndex + tabs.length - 1) % tabs.length]!;
+      next = requireDefined(tabs[(currentIndex + tabs.length - 1) % tabs.length], TAB_INDEX_INVARIANT);
     } else if (event.key === "Home") {
-      next = tabs[0]!;
+      next = requireDefined(tabs[0], TAB_INDEX_INVARIANT);
     } else if (event.key === "End") {
-      next = tabs[tabs.length - 1]!;
+      next = requireDefined(tabs[tabs.length - 1], TAB_INDEX_INVARIANT);
     } else {
       return;
     }

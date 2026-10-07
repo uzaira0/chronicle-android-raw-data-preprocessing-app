@@ -1,0 +1,83 @@
+{
+  "schemaVersion": "chronicle-scan-signal-proximity-summary-source-fixture/v1",
+  "sourceWorkId": "doi:10.1002/per.2309",
+  "sourceCodeSha256": "74de549e3b9c068339d4a68d94dae623b63e2a8120f06886427ce491a1175532",
+  "sourceLocator": ".tmp-literature-review-private/corrective-packet-06-ranks174-223-20260831/artifacts/rank183-osf-j93bs/osfstorage/processing/feature_extraction/state.py:224-293",
+  "releasedTestCoverage": "The captured release contains no dedicated BluetoothStateAggregator test; this fixture exercises the literal released predicates and expressions.",
+  "sourceRuntime": {
+    "containerImage": "chronicle/rueegger-per2309:python3.7.1",
+    "containerImageId": "sha256:1ef375425fbba3b0f47c7c07838c12c78d94bea31e06307ed3cfa7834b80f58d",
+    "python": "3.7.1",
+    "numpy": "1.16.2",
+    "pandas": "1.0.5"
+  },
+  "exactCanonicalSettings": [
+    {
+      "settingId": "method-setting-7e3f8a2bea952e5643083e97",
+      "parameterKey": "feature.13_bt_devices_in_the_environment",
+      "sourceValue": {"feature":"13_bt_devices_in_the_environment","source_sensor":"bluetooth","source_sensor_short":"bt","expected_associations":"A","level":"state","submission_id":"12","revision2_id":12,"status":"included"}
+    },
+    {
+      "settingId": "method-setting-6f388e47ce29e465d8760b64",
+      "parameterKey": "feature.23_peopleclosedist",
+      "sourceValue": {"feature":"23_PeopleCloseDist","source_sensor":"bluetooth","source_sensor_short":"bt","expected_associations":"OEAN","level":"state","submission_id":"22","revision2_id":41,"status":"included"}
+    },
+    {
+      "settingId": "method-setting-a757d043298bc2ecdb4767f1",
+      "parameterKey": "feature.24_peopleinterdist",
+      "sourceValue": {"feature":"24_PeopleInterDist","source_sensor":"bluetooth","source_sensor_short":"bt","expected_associations":"OC","level":"state","submission_id":"23","revision2_id":42,"status":"included"}
+    },
+    {
+      "settingId": "method-setting-9de0ec641dcc228c19b43819",
+      "parameterKey": "feature.25_meandistance",
+      "sourceValue": {"feature":"25_MeanDistance","source_sensor":"bluetooth","source_sensor_short":"bt","expected_associations":"CE","level":"state","submission_id":"24","revision2_id":43,"status":"included"}
+    }
+  ],
+  "configuration": {
+    "aboveExclusiveLower": "-70",
+    "inclusiveLower": "-90",
+    "inclusiveUpper": "-70",
+    "aboveWeight": "1",
+    "withinWeight": "3"
+  },
+  "cases": [
+    {
+      "caseId": "finite-boundaries-and-nonfinite-comparisons",
+      "scans": [
+        ["-69.999", "-70", "-90", "-90.001", "NaN", "inf", "-inf"],
+        []
+      ],
+      "expected": {
+        "observationsPerScan": "3.5",
+        "abovePerScan": "1",
+        "withinPerScan": "1",
+        "weightedProximityMean": "2"
+      }
+    },
+    {
+      "caseId": "observed-empty-scan",
+      "scans": [[]],
+      "expected": {
+        "observationsPerScan": "0",
+        "abovePerScan": "0",
+        "withinPerScan": "0",
+        "weightedProximityMean": "NaN"
+      }
+    },
+    {
+      "caseId": "empty-scan-slice",
+      "scans": [],
+      "expected": {
+        "observationsPerScan": "NaN",
+        "abovePerScan": "NaN",
+        "withinPerScan": "NaN",
+        "weightedProximityMean": "NaN"
+      }
+    }
+  ],
+  "limitations": [
+    "The primitive starts from an explicitly present nested scan/device signal column; a missing scan container or missing signal field remains a fail-closed input-schema error rather than an empty scan.",
+    "Daytime/evening classification, badge thresholds, device-address identity, and device-frequency enrichment are outside this four-output boundary.",
+    "The fixture binds the exact released thresholds, inclusivity, weights, and scan denominator; no physical distance calibration is inferred from the feature names."
+  ]
+}

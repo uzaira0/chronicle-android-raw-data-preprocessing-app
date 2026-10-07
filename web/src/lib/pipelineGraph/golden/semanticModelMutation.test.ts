@@ -3,6 +3,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
+import { CAMPAIGN_TEST_TIMEOUT_MS } from "@/testSupport/campaignTimeout";
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CONFIGURATION_LEDGER = join(
   HERE,
@@ -548,9 +550,9 @@ describe("semantic model mutation gate", () => {
       },
       structuralProofs: {
         rustSource:
-          "rust/chronicle_chrono_kernel_wasm/src/workflow_contract.rs::tests::declared_step_edges_equal_direct_salsa_query_calls",
+          "rust/chronicle_chrono_kernel_wasm/src/workflow_contract.rs::tests::declared_query_edges_equal_direct_salsa_query_calls",
         statement:
-          "The Rust test parses pipeline_v2_incremental.rs with syn and compares each tracked query's direct calls and transitive option helper reads with the exported contract.",
+          "The Rust test parses pipeline_v2_incremental.rs with syn and compares each tracked query's direct salsa query calls against the contract's declared query edges.",
       },
       mutants,
     };
@@ -565,5 +567,12 @@ describe("semantic model mutation gate", () => {
       "missing semantic-model mutation ledger",
     ).toBe(true);
     expect(serialized).toBe(readFileSync(EXPECTED_FILE, "utf8"));
-  });
+    // Explicit budget, matching every other campaign reconciliation in this
+    // directory. This was the last golden gate still on vitest's 5 s default:
+    // it replays every viable plan-edge and binding deletion against the
+    // empirical tomography ledgers synchronously, measured 6.9 s on a busy
+    // host, which failed a full `make all` run. The work is bounded and
+    // deterministic; how long it takes depends on what else is running, which
+    // must not decide whether it passes.
+  }, CAMPAIGN_TEST_TIMEOUT_MS);
 });

@@ -1,0 +1,66 @@
+{
+  "schema_version": "chronicle-source-completeness-audit/v1-candidate",
+  "audit_status": "isolated_bounded_source_candidate_not_canonical",
+  "audited_at": "2026-09-25",
+  "source_work_id": "doi:10.1145/2785830.2785852",
+  "title": "Investigating Mobile Users' Ringer Mode Usage and Attentiveness and Responsiveness to Communication",
+  "authors": "Yung-Ju Chang, John C. Tang",
+  "publication": "MobileHCI 2015, pp. 6–15",
+  "scope_decision": {
+    "android_event_stream_eligible": true,
+    "qualification": "The Android logger uses Accessibility events, ringer-mode changes, communication/notification actions, and event-triggered context snapshots to derive attentiveness, SMS conversation, and ringer-state interval measures. This is not merely a survey about phone preferences.",
+    "locator": "PDF pp. 7–9, 11–14"
+  },
+  "source_artifacts": [
+    {
+      "path": ".tmp-literature-review-private/ontology-sublation-20260831/work/new-source-audits/sources/chang-tang-ringer-2015.pdf",
+      "sha256": "260111cdcce42dac583e9edc6f78507ea3ceb92776559c1f2447588a3c62b9cd",
+      "pages": 10,
+      "source_url": "https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/p6-chang.pdf",
+      "identity_verification": "Author-hosted proceedings-layout PDF prints the title, authors, MobileHCI 2015 venue and DOI 10.1145/2785830.2785852 on p. 6; printed pp. 6–15 inspected. Byte equivalence to publisher VOR is unverified."
+    }
+  ],
+  "disclosed_atoms": [
+    {"key":"population.android_version_and_duration","role":"participant_schema","target":"participant_record","value":{"completed":28,"study_days":14,"android_version":"4.0 or above, below 5.0"},"locator":"PDF p. 8 Participants","evidence_status":"explicit","mapping":"Study cohort and version boundary; not a universal Android collector rule."},
+    {"key":"collector.accessibility_action_stream","role":"acquisition","target":"raw_record","value":"Android Accessibility Service observes clicking, typing, swiping, notification viewing, and other user events in app context.","locator":"PDF pp. 7–8 The Android Logger App","evidence_status":"explicit_partial","mapping":"UI action records, not UsageStats foreground events; exact callback constants and export columns are not published."},
+    {"key":"collector.communication_and_ringer_events","role":"acquisition","target":"raw_record","value":["incoming/outgoing SMS and MMA","phone/VOIP/video call initiation, receipt and ending","ringer-mode changes","wake/unlock","notification actions"],"locator":"PDF pp. 7–8 The Android Logger App","evidence_status":"explicit_partial","mapping":"Different source event families; no one-to-one notification/reading inference."},
+    {"key":"collector.communication_app_scope","role":"acquisition","target":"collector","value":"Top Android Market communication apps were surveyed and participants named the communication apps they used; these informed the monitored app list.","locator":"PDF p. 7 The Android Logger App","evidence_status":"explicit_partial","mapping":"The complete app list and versioned matching algorithm are not reported."},
+    {"key":"acquisition.target_event_snapshot","role":"acquisition","target":"acquired_snapshot","value":"A context snapshot is captured only on a targeted event, rather than by continuous tracking, to limit power use.","locator":"PDF p. 8 The Android Logger App","evidence_status":"explicit","mapping":"Event-triggered snapshot acquisition is distinct from periodic sampling or post-hoc event filtering."},
+    {"key":"snapshot.context_channels","role":"event_schema","target":"acquired_snapshot","value":["location","Google activity recognition","sensors","network","calendar","ringer mode","screen on/off","currently running application"],"locator":"PDF p. 8 The Android Logger App","evidence_status":"explicit_partial","mapping":"Snapshot components have distinct provenance; exact capture latency, schema and missingness are not given."},
+    {"key":"snapshot.activity_states","role":"event_schema","target":"acquired_snapshot","value":["still","tilting","in vehicle","biking","on foot"],"locator":"PDF p. 8 The Android Logger App","evidence_status":"explicit","mapping":"Google activity-recognition categories are context values, not ringer modes."},
+    {"key":"diary.retrospective_event_index","role":"diary_schema","target":"diary_item","value":"End-of-day questions refer to logged events in the previous 24 hours, including ringer changes, missed calls, and unread-notification intervals over one hour.","locator":"PDF p. 8 The Android Logger App / Fig. 1","evidence_status":"explicit_partial","mapping":"Retrospective event-indexed diary, not immediate event-contingent ESM; exact event selection/random seed unknown."},
+    {"key":"diary.event_cap_and_order","role":"diary_schema","target":"diary_item","value":{"maximum_random_events_per_question":3,"presentation_order":"reverse chronological"},"locator":"PDF p. 8 The Android Logger App","evidence_status":"explicit_partial","mapping":"Sampling cap and display order are separate from acquisition or analysis inclusion."},
+    {"key":"diary.delivery_schedule","role":"diary_schema","target":"notification_delivery","value":{"default_local_time":"21:30","participant_configurable":true,"manual_open_allowed":true},"locator":"PDF p. 8 The Android Logger App","evidence_status":"explicit","mapping":"Prompt schedule, not event-log cadence."},
+    {"key":"analysis.sms_only_selection","role":"quality_control","target":"analysis_record_set","value":"Attentiveness and responsiveness analyses used SMS rather than MMA; cross-device MMA replies could be missing from the phone log.","locator":"PDF p. 9 Data Analysis","evidence_status":"explicit","mapping":"Analysis selection due to observability limit; do not delete collected MMA records or claim SMS has no cross-device issues."},
+    {"key":"reconstruction.sms_same_contact_conversation","role":"reconstruction","target":"analysis_record_set","value":"Group SMS with the same contact within six minutes into a conversation; distinguish new incoming messages from chat messages by whether an exchange preceded them within six minutes.","locator":"PDF p. 9 Data Analysis","evidence_status":"explicit_partial","mapping":"Keyed communication-thread construction, not app-session inactivity; exact equality, tie, participant and orphan rules are unreported."},
+    {"key":"feature.attending_action_set","role":"feature_engineering","target":"notification_attendance","value":["waking/unlocking phone","opening notification bar or selecting a notification","composing outgoing in the same communication app"],"locator":"PDF p. 9 Data Analysis","evidence_status":"explicit_partial","mapping":"These are proxies for attention, not direct observation of reading individual message content."},
+    {"key":"feature.general_attentiveness_gap","role":"feature_engineering","target":"derived_feature","value":"Intervals between user-initiated attending actions estimate general attentiveness.","locator":"PDF p. 9 Data Analysis","evidence_status":"explicit_partial","mapping":"Inter-action measure; timestamp ties, coverage boundaries and censoring unreported."},
+    {"key":"feature.sms_notification_first_action","role":"feature_engineering","target":"notification_attendance","value":"Interval from incoming-SMS notification to the first later attending action measures SMS-specific attentiveness.","locator":"PDF p. 9 Data Analysis","evidence_status":"explicit_partial","mapping":"Attribution of a subsequent action to an alert is a proxy, not proof that this SMS was read."},
+    {"key":"feature.attendance_bins","role":"aggregation","target":"derived_feature","value":["<1 minute","1–6 minutes",">6 minutes"],"locator":"PDF p. 9 Data Analysis","evidence_status":"explicit_partial","mapping":"Ordinal analysis bins, distinct from the six-minute conversation grouping; boundary inclusion for the middle bin is not fully specified."},
+    {"key":"outcome.same_contact_sms_response","role":"feature_engineering","target":"outcome","value":"An incoming SMS is marked responded to if an outgoing SMS to the same contact is observed.","locator":"PDF p. 9 Data Analysis","evidence_status":"explicit_partial","mapping":"Response is separate from inferred attention; exact matching horizon and multiple-message allocation are not fully specified."},
+    {"key":"reconstruction.ringer_mode_interval","role":"reconstruction","target":"device_setting_state_interval","value":"A ringer-mode session spans time using one mode until switching to another; observed states are Normal, Vibrate and Silent.","locator":"PDF pp. 9, 11–12 Data Analysis / Fig. 5","evidence_status":"explicit_partial","mapping":"Candidate target is setting-state occupancy, not app/session use. Initial, terminal and power-off boundaries are unreported."},
+    {"key":"feature.within_ringer_interval_attendance","role":"feature_engineering","target":"device_setting_state_interval","value":"For each ringer-mode session, calculate the average interval between attending actions within the session.","locator":"PDF pp. 11–12 Fig. 5 discussion","evidence_status":"explicit_partial","mapping":"Ringer-state interval is the aggregation scope; method for intervals crossing boundaries or sessions with fewer than two actions is unknown."},
+    {"key":"limitation.power_off_duration_unknown","role":"reporting","target":"participant_measure","value":"Per-participant duration in each mode could not be reliably estimated because the duration of phone-off periods was unknown.","locator":"PDF pp. 14–15 Study Limitations","evidence_status":"explicit_reported_limitation","mapping":"Reported inability to estimate per-participant time-in-mode reliably; not a disclosed no-bridge algorithm, event filter or interval-construction rule."},
+    {"key":"analysis.mixed_effects","role":"analysis","target":"model","value":"Attentiveness bins used mixed-effect ordinal logistic regression; SMS responsiveness used mixed-effect logistic regression, with ringer mode and locale as independent variables and between-subject random effect.","locator":"PDF p. 9 Data Analysis","evidence_status":"explicit_partial","mapping":"Downstream statistical models, not alternative Android event constructors."}
+  ],
+  "source_operation_partial_order": [
+    "Observe Accessibility/communication/ringer/wake/notification events and take target-event context snapshots; deliver a separately scheduled prior-day diary.",
+    "Restrict attentiveness/response analysis to SMS because the phone-only MMA reply stream is incomplete.",
+    "Construct same-contact SMS conversations, attention proxies and first-subsequent-action latencies; keep response as a separate same-contact outcome.",
+    "Construct ringer-mode occupancy intervals on observed switches and aggregate attending-action gaps inside them. The separately reported inability to estimate per-participant time-in-mode does not disclose a power-off processing rule."
+  ],
+  "indispensable_unavailable_facts": [
+    "No source-shaped logger export, callback constants, app-selection list or executable study collector was identified for this bounded audit.",
+    "The paper does not resolve six-minute equality, tie and multi-message matching, snapshot capture latency, ringer initial/terminal and power-off boundaries, or intervals with fewer than two attending actions."
+  ],
+  "semantic_residues_vs_current_linkml": [
+    {
+      "status": "method_target_layer_promoted_data_row_unproved",
+      "source_case": "Ringer-mode state occupancy until a switch, with action-gap aggregation scoped inside each interval and unobservable powered-off time.",
+      "existing_terms": "MethodSettingAssertion and SessionConstructionPolicy can preserve prose. The new device_setting_state_interval target distinguishes ringer-setting occupancy from app, screen and device-use sessions in method assertions.",
+      "residue": "A source-located parser and save–reload test failed before this target was added and now passes with literal values and locators. That proves the method target distinction only; no source-shaped ringer row, interval constructor, power-off rule or native execution has been demonstrated. Do not recast this as UsageSessionAssertion (unlock-to-lock).",
+      "locator": "PDF pp. 11–12, 14–15"
+    }
+  ],
+  "completion_verdict": "Bounded exact-source candidate extraction, not canonical admission or whole-paper replication. The ringer-state interval method target now passes a source-located parser and save–reload round-trip; a source-row import, interval constructor and full-paper semantic round-trip remain unproved."
+}

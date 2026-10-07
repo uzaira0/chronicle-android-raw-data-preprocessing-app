@@ -1,8 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { gzipSync } from "node:zlib";
-import { beforeAll, describe, expect, it } from "vitest";
+import { gunzipSync, gzipSync } from "node:zlib";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import filterCsv from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv?raw";
 import forcingCsv from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv?raw";
 import backgroundCsv from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_background_apps.csv?raw";
@@ -12,6 +12,8 @@ import { buildRustV2Options } from "@/lib/rustPipelineRuntime";
 import {
   buildArtifactFixtureState,
   buildArtifactInterventions,
+  prepareArtifactFixtureForScientificExecution,
+  isCapabilityEvidenceIntervention,
   SUPPORT_ROLE_IDS,
   type ArtifactFixtureState,
   type InterventionRoleId,
@@ -28,10 +30,44 @@ import {
 } from "@/testSupport/syntheticChronicleCorpus";
 import {
   sourceRoleIsActive,
+  unjustifiedExecutions,
   type RustWorkflowContract,
 } from "@/testSupport/workflowContract";
-import { dependencyCampaignRuntimeBytes } from "@/testSupport/dependencyCampaignRuntime";
+import {
+  authorityReceipt,
+  cachedWithChangedOutput,
+  changedCheckpointComponents,
+  changedFields,
+  changedQueryCheckpointComponents,
+  CONDITIONALLY_ACTIVE_ROOT_ROLE_IDS,
+  executedQueryIds,
+  nodeOutputDigests,
+  outputArtifactDigests,
+  queryStatuses,
+  unconditionalRootRoleIds,
+  type CampaignRuntimeManifest,
+  type ObservedRuntimeManifest,
+} from "@/testSupport/campaignManifest";
+import {
+  CAMPAIGN_RUNTIME_INIT_TIMEOUT_MS,
+  dependencyCampaignRuntimeBytes,
+  captureCampaignFootprint,
+  CAMPAIGN_FOOTPRINT_CAPTURE_TIMEOUT_MS,
+} from "@/testSupport/dependencyCampaignRuntime";
+import {
+  executeScientificCampaignWorkspace,
+  putScientificCampaignSupportArtifact,
+  requireExecutedScientificCampaign,
+} from "@/testSupport/scientificCampaignExecution";
 import * as runtime from "@/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm.js";
+
+// Footprint selection: record which production source files this campaign
+// actually executed (no-op unless the evidence refresh sets the profraw dir).
+afterAll(
+  () => captureCampaignFootprint(runtime),
+  CAMPAIGN_FOOTPRINT_CAPTURE_TIMEOUT_MS,
+);
+import { CAMPAIGN_TEST_TIMEOUT_MS } from "@/testSupport/campaignTimeout";
 
 const EXPECTED_FILE = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -67,78 +103,38 @@ type ProductPlan = {
   query_groups: PlanNode[];
 };
 
-type RuntimeManifest = {
-  protocolVersion: string;
-  implementation: string;
-  implementationDigest: string;
-  planDigest: string;
-  profileDigest: string;
-  profileLockDigest: string;
-  runtimeAuthorityDigest: string;
-  productContractDigest: string;
-  workspaceRootDigest: string;
-  qualificationTraces: Array<{
-    trace_id: string;
-    candidate_id: string;
-    artifact_digest: string;
-    selected_role_id: string | null;
-    decision: "accepted" | "rejected" | "ambiguous";
-    rule_evaluations: Array<{ rule_id: string; passed: boolean }>;
-  }>;
-  requirementTraces: Array<{
-    trace_id: string;
-    role_id: string;
-    required: boolean;
-    condition_result: boolean | null;
-    accepted_assignment_ids: string[];
-    state:
-      "open" | "ready" | "satisfied" | "blocked" | "invalid" | "not_applicable";
-  }>;
-  openObligations: Array<{ role_id?: string; roleId?: string }>;
-  counts: Record<string, number>;
-  processingSummary: {
-    workflowQueryGroupDigests: Record<string, string>;
-    workflowQueryGroupCheckpoints: Record<
-      string,
-      {
-        protocolVersion: "chronicle-workflow-checkpoint/v1";
-        subjectId: string;
-        rowMembershipDigest: string;
-        rowOrderDigest: string;
-        temporalStateDigest: string;
-        classificationDigest: string;
-        payloadDigest: string;
-        schemaDigest: string;
-        terminalDigest: string;
-      }
-    >;
-    workflowQueryDigests: Record<string, string>;
-    workflowQueryCheckpoints: Record<string, Record<string, unknown>>;
-    publishedOutputsDigest: string;
-    provenanceDigest: string;
-    [key: string]: unknown;
-  };
-  queryGroupExecutions: Array<{
-    query_group_id: string;
-    input_key: string;
-    output: { digest: string } | null;
-    status: "cached" | "recomputed" | "error" | "skipped" | "bypassed";
-  }>;
-  queryExecutions: Array<{
-    query_id: string;
-    query_group_id: string;
-    input_key: string;
-    output_digest: string;
-    status: "cached" | "recomputed" | "error" | "skipped" | "bypassed";
-  }>;
-  artifacts: Array<{ kind: string; digest: string; size: number }>;
-};
-
-type ObservedRuntimeManifest = RuntimeManifest & {
-  outputCells: Record<string, string>;
-};
-
 const plan = JSON.parse(readFileSync(PLAN_FILE, "utf8")) as ProductPlan;
+
+/// Queries whose published output deliberately contains the raw artifact's byte
+/// digest, so a representation-only edit moves them by design.
+///
+/// `construct_screen_intervals` publishes `applicability.input_digest` (from
+/// `B05ApplicabilityInput::raw_input_sha256`), which
+/// `validate_screen_construction_output` compares against the current input when
+/// resuming a persisted screen construction - a fail-closed tamper check that a
+/// saved result is not paired with a different data file.
+/// `assemble_result_manifest` binds the raw artifact for the EYES
+/// input-partition preflight on the same principle.
+///
+/// A CRLF rewrite, or an edit to a field the pipeline ignores, produces byte-
+/// identical PARSED ROWS but genuinely different BYTES. Treating such an edit as
+/// "no change" for a value whose entire purpose is byte identity asserts
+/// something that was never true: it would only hold if the tamper check did not
+/// exist. So these queries are exempted from the digest-convergence check, and
+/// the scientific claim is asserted directly instead - no researcher-visible
+/// output cell may move. That is the property the control actually cares about,
+/// and it was previously recorded in the ledger but never asserted.
+const RAW_BYTE_IDENTITY_PROVENANCE_QUERIES = [
+  "construct_screen_intervals",
+  "assemble_result_manifest",
+];
+/// This campaign filters capability-evidence interventions out
+/// (`isCapabilityEvidenceIntervention`) and asserts below that the role stays
+/// uncovered; the ledger's `separatelyCoveredSourceSensitiveRoles` records that
+/// the configuration-space campaign's `sourceSensitiveScientificCells` domain
+/// owns it instead. See `CONDITIONALLY_ACTIVE_ROOT_ROLE_IDS` in
+/// `campaignManifest.ts` for why the role has no qualification trace here.
+const unconditionalRoleIds = unconditionalRootRoleIds(plan.root_roles);
 const catalog = buildSyntheticCatalog({
   codebookCsv,
   filterCsv,
@@ -155,8 +151,20 @@ beforeAll(() => {
   expect(workflowContract.protocolVersion).toBe(
     "chronicle-workflow-contract/v1",
   );
-  expect(workflowContract.execution.queries).toHaveLength(workflowContract.execution.queries.length);
-});
+  // Count-neutral by design: a literal size here would have to be edited every
+  // time a query is registered, and the previous form compared the length to
+  // itself, so it could never fail. Assert the properties the campaign relies
+  // on instead — a non-empty registry with unique, non-blank query ids.
+  const queryIds = workflowContract.execution.queries.map(({ id }) => id);
+  expect(queryIds.length, "empty workflow query registry").toBeGreaterThan(0);
+  expect(new Set(queryIds).size, "duplicate workflow query ids").toBe(
+    queryIds.length,
+  );
+  expect(
+    queryIds.filter((id) => id.trim().length === 0),
+    "blank workflow query id",
+  ).toEqual([]);
+}, CAMPAIGN_RUNTIME_INIT_TIMEOUT_MS);
 
 async function sha256Uri(value: Uint8Array | string): Promise<string> {
   const bytes = typeof value === "string" ? encoder.encode(value) : value;
@@ -191,29 +199,50 @@ async function execute(
   requestId: string,
   previousRoot: string | null,
 ): Promise<ObservedRuntimeManifest> {
-  const csvBytes = encoder.encode(state.rawCsv);
+  const executionState = prepareArtifactFixtureForScientificExecution(
+    state,
+    ALL_ON,
+  );
+  const csvBytes = encoder.encode(executionState.rawCsv);
   const supports = new runtime.RuntimeSupportFiles();
+  const supportArtifacts = new Map<string, Uint8Array>();
   let handle: ReturnType<typeof runtime.execute_workspace> | undefined;
   try {
     for (const roleId of SUPPORT_ROLE_IDS) {
-      const support = state.supports[roleId];
-      supports.put_with_name(roleId, support.name, encoder.encode(support.csv));
+      const support = executionState.supports[roleId];
+      const bytes = encoder.encode(support.csv);
+      putScientificCampaignSupportArtifact({
+        roleId,
+        fileName: support.name,
+        bytes,
+        options: ALL_ON,
+        supports,
+        supportArtifacts,
+      });
     }
-    handle = runtime.execute_workspace(
-      JSON.stringify({
-        protocolVersion: "chronicle-preprocessing-runtime/v1",
-        requestId,
-        command: "ExecuteWorkspace",
-        workspaceRootDigest: previousRoot,
-        workspaceId: await sha256Uri(workspaceIdentity),
-        inputFileName,
-        inputSha256: await sha256Uri(csvBytes),
-        options: buildRustV2Options(ALL_ON, GOLDEN_RUNTIME),
+    const requestJson = JSON.stringify({
+      protocolVersion: "chronicle-preprocessing-runtime/v2",
+      executionEngine: "incremental",
+      provenanceEvidence: true,
+      requestId,
+      command: "ExecuteWorkspace",
+      workspaceRootDigest: previousRoot,
+      workspaceId: await sha256Uri(workspaceIdentity),
+      inputFileName,
+      inputSha256: await sha256Uri(csvBytes),
+      options: buildRustV2Options(ALL_ON, GOLDEN_RUNTIME),
+    });
+    handle = requireExecutedScientificCampaign(
+      executeScientificCampaignWorkspace({
+        runtime,
+        options: ALL_ON,
+        requestJson,
+        rawBytes: csvBytes,
+        supports,
+        supportArtifacts,
       }),
-      csvBytes,
-      supports,
-    );
-    const manifest = JSON.parse(handle.manifest_json()) as RuntimeManifest;
+    ).handle;
+    const manifest = JSON.parse(handle.manifest_json()) as CampaignRuntimeManifest;
     return Object.assign(manifest, {
       outputCells: captureCanonicalOutputCells(handle),
     });
@@ -223,44 +252,8 @@ async function execute(
   }
 }
 
-function changedFields(
-  left: Record<string, unknown>,
-  right: Record<string, unknown>,
-): string[] {
-  return [...new Set([...Object.keys(left), ...Object.keys(right)])]
-    .filter((key) => JSON.stringify(left[key]) !== JSON.stringify(right[key]))
-    .sort();
-}
-
-function nodeOutputDigests(
-  manifest: RuntimeManifest,
-): Record<string, string | null> {
-  return Object.fromEntries(
-    manifest.queryGroupExecutions.map((execution) => [
-      execution.query_group_id,
-      execution.output?.digest ?? null,
-    ]),
-  );
-}
-
-function queryStatuses(manifest: RuntimeManifest): Record<string, string> {
-  return Object.fromEntries(
-    manifest.queryExecutions.map((execution) => [
-      execution.query_id,
-      execution.status,
-    ]),
-  );
-}
-
-function executedQueryIds(manifest: RuntimeManifest): string[] {
-  return manifest.queryExecutions
-    .filter(({ status }) => status === "recomputed")
-    .map(({ query_id }) => query_id)
-    .sort();
-}
-
 function qualificationByRole(
-  manifest: RuntimeManifest,
+  manifest: CampaignRuntimeManifest,
 ): Record<string, unknown> {
   return Object.fromEntries(
     manifest.qualificationTraces
@@ -280,7 +273,7 @@ function qualificationByRole(
   );
 }
 
-function requirementByRole(manifest: RuntimeManifest): Record<string, unknown> {
+function requirementByRole(manifest: CampaignRuntimeManifest): Record<string, unknown> {
   return Object.fromEntries(
     manifest.requirementTraces
       .slice()
@@ -298,125 +291,11 @@ function requirementByRole(manifest: RuntimeManifest): Record<string, unknown> {
   );
 }
 
-function predictedExecutedQueries(
-  roleId: InterventionRoleId,
-  changedQueries: ReadonlySet<string>,
-  targetOptions: Record<string, unknown>,
-  source: RuntimeManifest,
-  target: RuntimeManifest,
-): string[] {
-  const sourceStatuses = queryStatuses(source);
-  const targetStatuses = queryStatuses(target);
-  return workflowContract.execution.queries
-    .filter((query) => {
-      const sourceApplicable = sourceStatuses[query.id] !== "bypassed";
-      const targetApplicable = targetStatuses[query.id] !== "bypassed";
-      return (
-        targetApplicable &&
-        (!sourceApplicable ||
-          sourceRoleIsActive(query, roleId, targetOptions) ||
-          query.inputs.some((input) => changedQueries.has(input)))
-      );
-    })
-    .map(({ id }) => id)
-    .sort();
-}
-
-const OUTPUT_ARTIFACT_KINDS = new Set([
-  "app-csv",
-  "screen-csv",
-  "day-coverage-csv",
-  "compliance-csv",
-  "credited-app-csv",
-  "review-summary-json",
-  "visualization-data-json",
-  "app-parquet",
-  "screen-parquet",
-  "app-spss",
-  "screen-spss",
-  "row-lineage-arrow",
-  "source-coordinate-index-arrow",
-  "result-cell-correspondence-arrow",
-  "source-result-influence-arrow",
-]);
-
-function outputArtifactDigests(
-  manifest: RuntimeManifest,
-): Record<string, string> {
-  return Object.fromEntries(
-    manifest.artifacts
-      .filter(
-        ({ kind }) =>
-          OUTPUT_ARTIFACT_KINDS.has(kind) || kind.startsWith("aggregate-"),
-      )
-      .sort((left, right) => left.kind.localeCompare(right.kind))
-      .map(({ kind, digest }) => [kind, digest]),
-  );
-}
-
-function semanticOutcome(manifest: RuntimeManifest): Record<string, unknown> {
+function semanticOutcome(manifest: CampaignRuntimeManifest): Record<string, unknown> {
   return {
     counts: manifest.counts,
     processingSummary: manifest.processingSummary,
     outputArtifacts: outputArtifactDigests(manifest),
-  };
-}
-
-function changedCheckpointComponents(
-  source: RuntimeManifest,
-  target: RuntimeManifest,
-): Record<string, string[]> {
-  return Object.fromEntries(
-    Object.keys(source.processingSummary.workflowQueryGroupCheckpoints)
-      .sort()
-      .map(
-        (nodeId) =>
-          [
-            nodeId,
-            changedFields(
-              source.processingSummary.workflowQueryGroupCheckpoints[
-                nodeId
-              ] as unknown as Record<string, unknown>,
-              target.processingSummary.workflowQueryGroupCheckpoints[
-                nodeId
-              ] as unknown as Record<string, unknown>,
-            ).filter((field) => field !== "terminalDigest"),
-          ] as const,
-      )
-      .filter(([, components]) => components.length > 0),
-  );
-}
-
-function changedQueryCheckpointComponents(
-  source: RuntimeManifest,
-  target: RuntimeManifest,
-): Record<string, string[]> {
-  return Object.fromEntries(
-    Object.keys(source.processingSummary.workflowQueryCheckpoints)
-      .sort()
-      .map(
-        (queryId) =>
-          [
-            queryId,
-            changedFields(
-              source.processingSummary.workflowQueryCheckpoints[queryId] ?? {},
-              target.processingSummary.workflowQueryCheckpoints[queryId] ?? {},
-            ).filter((field) => field !== "terminalDigest"),
-          ] as const,
-      )
-      .filter(([, components]) => components.length > 0),
-  );
-}
-
-function authorityReceipt(manifest: RuntimeManifest): Record<string, string> {
-  return {
-    implementation: manifest.implementation,
-    implementationDigest: manifest.implementationDigest,
-    planDigest: manifest.planDigest,
-    profileDigest: manifest.profileDigest,
-    profileLockDigest: manifest.profileLockDigest,
-    runtimeAuthorityDigest: manifest.runtimeAuthorityDigest,
-    productContractDigest: manifest.productContractDigest,
   };
 }
 
@@ -425,19 +304,22 @@ describe("artifact dependency tomography", () => {
     if (
       !Number.isSafeInteger(SHARD_COUNT) ||
       SHARD_COUNT < 1 ||
+      SHARD_COUNT > SYNTHETIC_CORPUS_PROFILES.length ||
       !Number.isSafeInteger(SHARD_INDEX) ||
       SHARD_INDEX < 0 ||
       SHARD_INDEX >= SHARD_COUNT
     ) {
       throw new Error(`invalid artifact shard ${SHARD_INDEX}/${SHARD_COUNT}`);
     }
-    expect([...plan.query_groups.map(({ query_group_id }) => query_group_id)].sort()).toEqual(
-      [...order].sort(),
-    );
+    expect(
+      [...plan.query_groups.map(({ query_group_id }) => query_group_id)].sort(),
+    ).toEqual([...order].sort());
     expect(
       SUPPORT_ROLE_IDS.filter(
         (roleId) =>
-          !workflowContract.execution.queries.some((query) => query.sourceRoles.includes(roleId)),
+          !workflowContract.execution.queries.some((query) =>
+            query.sourceRoles.includes(roleId),
+          ),
       ),
       "every support role needs an owning Rust query",
     ).toEqual([]);
@@ -457,6 +339,9 @@ describe("artifact dependency tomography", () => {
     let contextualConvergences = 0;
     const requiredInterventionIds = new Set<string>();
     const semanticWitnessesByIntervention = new Map<string, number>();
+    const coveredSourceRoles = new Set<InterventionRoleId>();
+    const coveredSubstantiveSupportRoles = new Set<InterventionRoleId>();
+    const coveredRepresentationRoles = new Set<InterventionRoleId>();
     const activationContexts = new Map<
       string,
       { active: Set<string>; converged: Set<string> }
@@ -475,7 +360,11 @@ describe("artifact dependency tomography", () => {
       const interventions = buildArtifactInterventions({
         corpus,
         catalog,
-      }).filter(({ id }) => !FILTER || id === FILTER);
+      }).filter(
+        (intervention) =>
+          !isCapabilityEvidenceIntervention(intervention) &&
+          (!FILTER || intervention.id === FILTER),
+      );
       expect(
         interventions.length,
         `${corpus.id}: artifact intervention filter matched nothing`,
@@ -534,13 +423,29 @@ describe("artifact dependency tomography", () => {
           warmSource,
           warmTarget,
         ]) {
+          // Precondition for every execution-status observation below. Under
+          // `conservative_full` the runtime replaces `state.incremental_engine`
+          // with a fresh `IncrementalPipelineV2Engine` on EVERY request
+          // (chronicle_preprocessing_runtime_wasm/src/lib.rs, the resets in
+          // `scientific_preflight_native` and `execute_workspace`), so the
+          // "warm" run reuses nothing and its status vector is identical to the
+          // cold run's regardless of the intervention. Scored in that mode this
+          // campaign reports a declared-vs-observed diff that is an artifact of
+          // the stale certificate, not of the contract. This is an
+          // unconditional expectation on purpose: silently emptying the
+          // predicted set instead would leave the axis non-observing with no
+          // signal that it had stopped measuring.
+          expect(
+            manifest.dependencyCacheDecision.mode,
+            `${caseId}: warm reuse cannot be scored under ${manifest.dependencyCacheDecision.mode} (${manifest.dependencyCacheDecision.reasons.join(", ")}); run make dependency-evidence`,
+          ).toBe("certified_narrow");
           expect(manifest.openObligations, `${caseId}: binding holes`).toEqual(
             [],
           );
           expect(
             manifest.qualificationTraces,
             `${caseId}: one qualification proof per supplied root role`,
-          ).toHaveLength(plan.root_roles.length);
+          ).toHaveLength(unconditionalRoleIds.length);
           expect(
             manifest.qualificationTraces.every(
               (trace) =>
@@ -553,17 +458,36 @@ describe("artifact dependency tomography", () => {
           expect(
             Object.keys(qualificationByRole(manifest)).sort(),
             `${caseId}: qualification did not cover the exact root-role vocabulary`,
-          ).toEqual(plan.root_roles.map(({ role_id }) => role_id).sort());
+          ).toEqual([...unconditionalRoleIds].sort());
           expect(
             manifest.requirementTraces,
             `${caseId}: one requirement proof per root role`,
           ).toHaveLength(plan.root_roles.length);
+          // Requirement traces cover every plan root role, including the
+          // conditionally active one the qualification pass skips. The runtime
+          // reports that role `not_applicable` rather than omitting it, so the
+          // check is stated per role: the ten unconditional roles must be
+          // satisfied by the supplied fixture, and the conditional role must be
+          // reported inactive rather than silently satisfied.
           expect(
-            manifest.requirementTraces.every(
-              ({ state }) => state === "satisfied",
+            Object.fromEntries(
+              manifest.requirementTraces.map(({ role_id, state }) => [
+                role_id,
+                state,
+              ]),
             ),
             `${caseId}: supplied fixture left a role unsatisfied`,
-          ).toBe(true);
+          ).toEqual({
+            ...Object.fromEntries(
+              unconditionalRoleIds.map((roleId) => [roleId, "satisfied"]),
+            ),
+            ...Object.fromEntries(
+              CONDITIONALLY_ACTIVE_ROOT_ROLE_IDS.map((roleId) => [
+                roleId,
+                "not_applicable",
+              ]),
+            ),
+          });
           expect(
             manifest.queryGroupExecutions,
             `${caseId}: query groups`,
@@ -574,7 +498,9 @@ describe("artifact dependency tomography", () => {
           ).toHaveLength(workflowContract.execution.queries.length);
           expect(
             manifest.queryExecutions.map(({ query_id }) => query_id).sort(),
-          ).toEqual(workflowContract.execution.queries.map(({ id }) => id).sort());
+          ).toEqual(
+            workflowContract.execution.queries.map(({ id }) => id).sort(),
+          );
           expect(
             manifest.queryExecutions.every(
               ({ status }) => status !== "error" && status !== "skipped",
@@ -586,7 +512,11 @@ describe("artifact dependency tomography", () => {
               manifest.processingSummary.workflowQueryGroupCheckpoints,
             ).sort(),
             `${caseId}: typed checkpoint coverage`,
-          ).toEqual(plan.query_groups.map(({ query_group_id }) => query_group_id).sort());
+          ).toEqual(
+            plan.query_groups
+              .map(({ query_group_id }) => query_group_id)
+              .sort(),
+          );
           for (const [queryGroupId, checkpoint] of Object.entries(
             manifest.processingSummary.workflowQueryGroupCheckpoints,
           )) {
@@ -595,7 +525,9 @@ describe("artifact dependency tomography", () => {
             );
             expect(checkpoint.subjectId).toBe(queryGroupId);
             expect(checkpoint.terminalDigest).toBe(
-              manifest.processingSummary.workflowQueryGroupDigests[queryGroupId],
+              manifest.processingSummary.workflowQueryGroupDigests[
+                queryGroupId
+              ],
             );
           }
           expect(
@@ -603,7 +535,9 @@ describe("artifact dependency tomography", () => {
               manifest.processingSummary.workflowQueryCheckpoints,
             ).sort(),
             `${caseId}: complete query-registry checkpoint coverage`,
-          ).toEqual(workflowContract.execution.queries.map(({ id }) => id).sort());
+          ).toEqual(
+            workflowContract.execution.queries.map(({ id }) => id).sort(),
+          );
           for (const [queryId, checkpoint] of Object.entries(
             manifest.processingSummary.workflowQueryCheckpoints,
           )) {
@@ -686,14 +620,16 @@ describe("artifact dependency tomography", () => {
           coldSource.processingSummary.workflowQueryDigests,
           coldTarget.processingSummary.workflowQueryDigests,
         );
-        const queryCheckpointComponentChanges = changedQueryCheckpointComponents(
-          coldSource,
-          coldTarget,
-        );
+        const queryCheckpointComponentChanges =
+          changedQueryCheckpointComponents(coldSource, coldTarget);
         expect(
           Object.keys(queryCheckpointComponentChanges).sort(),
           `${caseId}: query components and terminal commitments disagree`,
         ).toEqual(changedQueries);
+        const changedOutputCellAddresses = changedCellAddresses(
+          coldSource.outputCells,
+          coldTarget.outputCells,
+        );
         if (intervention.expectedSemanticEffect === "required") {
           requiredInterventionIds.add(intervention.id);
           const contexts = activationContexts.get(intervention.id) ?? {
@@ -713,8 +649,22 @@ describe("artifact dependency tomography", () => {
           }
           activationContexts.set(intervention.id, contexts);
         } else {
+          // THE SCIENTIFIC CLAIM, asserted directly for the first time: a
+          // representation-only or ignored-field edit must not move a single
+          // researcher-visible output value.
           expect(
-            changedQueries,
+            changedOutputCellAddresses,
+            `${caseId}: representation/ignored-field control changed researcher-visible output`,
+          ).toEqual([]);
+          // Every query must converge EXCEPT those whose published output is
+          // the raw byte digest itself - see
+          // RAW_BYTE_IDENTITY_PROVENANCE_QUERIES. This stays an exact equality
+          // against the remainder, so a new non-converging query still fails.
+          expect(
+            changedQueries.filter(
+              (queryId) =>
+                !RAW_BYTE_IDENTITY_PROVENANCE_QUERIES.includes(queryId),
+            ),
             `${caseId}: representation/ignored-field control must converge`,
           ).toEqual([]);
           exactEquivalences += 1;
@@ -725,19 +675,43 @@ describe("artifact dependency tomography", () => {
         const supportRepresentationOnly =
           intervention.roleId !== "raw_chronicle_csv" &&
           intervention.expectedSemanticEffect === "equivalent";
-        const expectedExecutedQueries = supportRepresentationOnly
-          ? []
-          : predictedExecutedQueries(
-              intervention.roleId,
-              new Set(changedQueries),
-              exactTargetOptions,
-              coldSource,
-              coldTarget,
-            );
+        // Salsa owns invalidation, so there is no per-arm prediction of which
+        // queries run; `inputs` is a may-read set. What must hold is that
+        // nothing ran WITHOUT a reason to — an execution with no changed
+        // request field, no changed source role it binds, and no changed
+        // upstream output is an undeclared read.
+        const unjustifiedExecutedQueries = unjustifiedExecutions({
+          contract: workflowContract,
+          targetOptions: exactTargetOptions,
+          sourceStatuses: queryStatuses(coldSource),
+          targetStatuses: queryStatuses(coldTarget),
+          changedSourceRoles: new Set([intervention.roleId]),
+          changedQueryOutputs: new Set(changedQueries),
+          executed: actualExecutedQueries,
+        });
         expect(
-          actualExecutedQueries,
-          `${caseId}: declared inputs and actual Salsa query bodies must agree exactly`,
-        ).toEqual(expectedExecutedQueries);
+          unjustifiedExecutedQueries,
+          `${caseId}: query executed with no changed request field, source role, or upstream output`,
+        ).toEqual([]);
+        expect(
+          cachedWithChangedOutput(warmSource, warmTarget),
+          `${caseId}: query badged cached while publishing a changed output digest`,
+        ).toEqual([]);
+        if (supportRepresentationOnly) {
+          // A DIRECT OBSERVATION, not a prediction. Support memo keys are
+          // content-normalized, so a representation-only support edit — a CRLF
+          // rewrite of the filter file, say — produces the identical memo key
+          // for every query that binds that support. Nothing downstream can
+          // therefore observe any change, and the warm target must execute
+          // EXACTLY ZERO queries. `unjustifiedExecutions` above cannot see this
+          // property, because the case passes the edited role in
+          // `changedSourceRoles` unconditionally, which would justify any
+          // execution. This assertion is what pins the normalization.
+          expect(
+            actualExecutedQueries, // === executedQueryIds(warmTarget)
+            `${caseId}: representation-only support edit must execute no query`,
+          ).toEqual([]);
+        }
         const sourceStatuses = queryStatuses(coldSource);
         const targetStatuses = queryStatuses(coldTarget);
         const deactivatedQueries = workflowContract.execution.queries
@@ -755,8 +729,12 @@ describe("artifact dependency tomography", () => {
         const directBindingQueries = workflowContract.execution.queries
           .filter(
             (query) =>
-            targetStatuses[query.id] !== "bypassed" &&
-            sourceRoleIsActive(query, intervention.roleId, exactTargetOptions),
+              targetStatuses[query.id] !== "bypassed" &&
+              sourceRoleIsActive(
+                query,
+                intervention.roleId,
+                exactTargetOptions,
+              ),
           )
           .map(({ id }) => id)
           .sort();
@@ -772,10 +750,6 @@ describe("artifact dependency tomography", () => {
         const changedOutputArtifactKinds = changedFields(
           outputArtifactDigests(coldSource),
           outputArtifactDigests(coldTarget),
-        );
-        const changedOutputCellAddresses = changedCellAddresses(
-          coldSource.outputCells,
-          coldTarget.outputCells,
         );
         cellEvidenceCases.push({
           caseId,
@@ -799,7 +773,9 @@ describe("artifact dependency tomography", () => {
           checkpointComponentChanges,
           changedQueries,
           queryCheckpointComponentChanges,
-          expectedExecutedQueries,
+          // `unjustifiedExecutedQueries` is asserted empty above, so recording
+          // it would write a constant `[]` into every case. The per-case
+          // execution evidence is `actualExecutedQueries` — the OBSERVED set.
           actualExecutedQueries,
           deactivatedQueries,
           changedOutputArtifactKinds,
@@ -838,7 +814,8 @@ describe("artifact dependency tomography", () => {
           .filter(
             ({ nodeId }) =>
               !workflowContract.execution.queries.some(
-                (query) => query.group === nodeId && executedQuerySet.has(query.id),
+                (query) =>
+                  query.group === nodeId && executedQuerySet.has(query.id),
               ),
           )
           .map(({ nodeId }) => nodeId);
@@ -847,6 +824,16 @@ describe("artifact dependency tomography", () => {
           `${caseId}: stage badged recomputed with no member query in the executed set`,
         ).toEqual([]);
         reports.push(report);
+        coveredSourceRoles.add(intervention.roleId);
+        if (
+          intervention.roleId !== "raw_chronicle_csv" &&
+          intervention.expectedSemanticEffect === "required"
+        ) {
+          coveredSubstantiveSupportRoles.add(intervention.roleId);
+        }
+        if (intervention.mutationClass === "representation-only") {
+          coveredRepresentationRoles.add(intervention.roleId);
+        }
         caseIdentities.push(JSON.stringify(report));
       }
     }
@@ -859,6 +846,22 @@ describe("artifact dependency tomography", () => {
         missingRequiredWitnesses,
         "every substantive intervention needs at least one branch-activating corpus witness",
       ).toEqual([]);
+      expect(
+        coveredSourceRoles.has("input_capability_evidence_file"),
+        "capability evidence belongs to the separate source-sensitive scientific campaign",
+      ).toBe(false);
+    }
+
+    const exactCoveredRoles = [...coveredSourceRoles].sort();
+    const exactSubstantiveSupportRoles = [
+      ...coveredSubstantiveSupportRoles,
+    ].sort();
+    const exactRepresentationRoles = [...coveredRepresentationRoles].sort();
+    for (const roleId of exactCoveredRoles) {
+      expect(
+        reports.some((report) => report.roleId === roleId),
+        `coverage role ${roleId} needs an executed intervention report`,
+      ).toBe(true);
     }
 
     const cellEvidenceSerialized = `${JSON.stringify(
@@ -866,7 +869,7 @@ describe("artifact dependency tomography", () => {
         protocolVersion: "chronicle-output-cell-correspondence/v2",
         implementationReceipt: receipt,
         claimBoundary:
-          "Exact changed canonical CSV/JSON output cell addresses for each named raw/support intervention. Each case also names the exact supplied source columns that intervention rewrote (sourceFields), in the Rust query contract's field namespace, using source.raw_row_set / source.raw_row_order for structural raw changes and an empty list for representation-only controls. Binary exports and the Arrow lineage sidecar are digest-bound separately and are not interpreted as cells.",
+          "Exact changed canonical CSV/JSON output cell addresses for each named raw/support intervention. Each case also names the exact supplied source columns that intervention rewrote (sourceFields), in the Rust workflow contract's field namespace, using source.raw_row_set / source.raw_row_order for structural raw changes and an empty list for representation-only controls. Binary exports and the Arrow lineage sidecar are digest-bound separately and are not interpreted as cells.",
         cases: cellEvidenceCases.sort((left, right) =>
           left.caseId.localeCompare(right.caseId),
         ),
@@ -883,7 +886,7 @@ describe("artifact dependency tomography", () => {
       protocolVersion: "chronicle-artifact-influence-ledger/v1",
       workflowCheckpointProtocol: "chronicle-workflow-checkpoint/v1",
       claimBoundary:
-        "Exact raw/support artifact percolation for the recorded product plan, implementation, deterministic synthetic corpora, and intervention catalog. Each intervention changes exactly one source artifact; every warm query and query-group checkpoint plus every researcher-visible output is compared with an independent cold Rust/WASM target. Absence of an effect is not generalized beyond the named mutation and corpus.",
+        "Exact raw/support artifact percolation for the recorded product plan, implementation, deterministic synthetic corpora, and intervention catalog. Each listed coverage role has an executed report in this ledger. The conditionally active input_capability_evidence_file role is intentionally excluded here and covered by the sourceSensitiveScientificCells domain of the configuration-space campaign. Each intervention changes exactly one source artifact; every warm query and query-group checkpoint plus every researcher-visible output is compared with an independent cold Rust/WASM target. Absence of an effect is not generalized beyond the named mutation and corpus.",
       plan: { id: plan.plan_id, revision: plan.revision },
       implementationReceipt: receipt,
       cellEvidence: {
@@ -899,7 +902,7 @@ describe("artifact dependency tomography", () => {
       fixtures: fixtureReceipts,
       coverage: {
         corpora: SYNTHETIC_CORPUS_PROFILES.map(({ id }) => id),
-        sourceRoles: ["raw_chronicle_csv", ...SUPPORT_ROLE_IDS],
+        sourceRoles: exactCoveredRoles,
         rawColumns: [
           "study_id",
           "participant_id",
@@ -914,8 +917,11 @@ describe("artifact dependency tomography", () => {
           "timezone",
         ],
         rawRowMutations: ["add", "remove", "duplicate", "reorder"],
-        supportSubstantiveMutations: SUPPORT_ROLE_IDS,
-        representationControls: ["raw_chronicle_csv", ...SUPPORT_ROLE_IDS],
+        supportSubstantiveMutations: exactSubstantiveSupportRoles,
+        representationControls: exactRepresentationRoles,
+        separatelyCoveredSourceSensitiveRoles: [
+          "input_capability_evidence_file",
+        ],
       },
       activationContexts: Object.fromEntries(
         [...activationContexts]
@@ -937,9 +943,9 @@ describe("artifact dependency tomography", () => {
         contextualConvergences,
         exactEquivalences,
         workflowCheckpointComparisons: reports.length,
-        workflowQueryCheckpointComparisons: reports.length * workflowContract.execution.queries.length,
+        workflowQueryCheckpointComparisons:
+          reports.length * workflowContract.execution.queries.length,
         typedCheckpointDecompositionComparisons: reports.length,
-        exactClusterComparisons: reports.length,
         exactQualificationCorrespondenceComparisons: reports.length,
         exactRequirementCorrespondenceComparisons: reports.length,
         exactOutputCellComparisons: reports.length * 2,
@@ -959,7 +965,15 @@ describe("artifact dependency tomography", () => {
     }
     if (UPDATE) {
       mkdirSync(dirname(EXPECTED_FILE), { recursive: true });
-      writeFileSync(CELL_EVIDENCE_FILE, cellEvidenceCompressed);
+      // Only rewrite the sidecar when its CONTENT changed. `gzipSync` output
+      // varies with the linked zlib version, so an unconditional write dirties
+      // the checked bytes on a Node upgrade even when nothing was recomputed.
+      const previousCellEvidence = existsSync(CELL_EVIDENCE_FILE)
+        ? gunzipSync(readFileSync(CELL_EVIDENCE_FILE)).toString("utf8")
+        : null;
+      if (previousCellEvidence !== cellEvidenceSerialized) {
+        writeFileSync(CELL_EVIDENCE_FILE, cellEvidenceCompressed);
+      }
       writeFileSync(EXPECTED_FILE, serialized, "utf8");
       return;
     }
@@ -967,10 +981,19 @@ describe("artifact dependency tomography", () => {
       existsSync(CELL_EVIDENCE_FILE),
       "missing output-cell evidence sidecar",
     ).toBe(true);
-    expect(cellEvidenceCompressed).toEqual(readFileSync(CELL_EVIDENCE_FILE));
+    // Compare the sidecar's CONTENT, not its gzip bytes. `gzipSync` output
+    // depends on the linked zlib version, so a Node upgrade alone rewrote the
+    // compressed stream while the decompressed evidence stayed byte-identical.
+    // The digest keeps the failure message small: this payload is ~11 MB.
+    expect(
+      await sha256Uri(
+        gunzipSync(readFileSync(CELL_EVIDENCE_FILE)).toString("utf8"),
+      ),
+      "checked output-cell evidence sidecar differs; re-record with UPDATE_ARTIFACT_INFLUENCE=1",
+    ).toEqual(cellEvidenceDigest);
     expect(existsSync(EXPECTED_FILE), "missing artifact-influence ledger").toBe(
       true,
     );
     expect(serialized).toBe(readFileSync(EXPECTED_FILE, "utf8"));
-  }, 600_000);
+  }, CAMPAIGN_TEST_TIMEOUT_MS);
 });

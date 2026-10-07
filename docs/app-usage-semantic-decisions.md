@@ -74,3 +74,22 @@ comparison only; production behavior should be defined by this matrix.
 - The screen auto-lock default is 120 seconds.
 - The manual-lock and auto-lock tolerance windows are heuristic defaults.
 - The keep-awake app list is intentionally data/config driven, not hardcoded.
+
+## Default Changes That Move Output
+
+- **2026-08-27, contract v4, settings schema v13 — `timezone_handling` default is now
+  `selected-convert`, was `selected-filter`.** A file whose rows carry more than one
+  timezone previously had the non-matching rows dropped by default; they are now
+  converted to the selected zone and kept, so day attribution is on one clock and no
+  row is lost for carrying a different timezone. This is what the studies' locked
+  preprocessing configuration has always run, and it is what the kernel has always
+  used for an absent key — the old contract default disagreed with both.
+  Effect on an existing user: a v12+ persisted setting or a share link that names
+  `selected-filter` was a deliberate choice and is preserved verbatim; a save that
+  never named the key (schema v12 stores only the diff from defaults) adopts the new
+  behaviour on next load. A pre-v12 save stored the full option set, so its
+  `selected-filter` is the default of the day, not a choice: on its first read it
+  adopts `selected-convert` like the other superseded defaults. (A pre-v12 save that
+  a v13–v15 build already rewrote keeps `selected-filter`; that rewrite left it
+  indistinguishable from a choice.) A study that must reproduce pre-v4 output has to select
+  `selected-filter` explicitly. Single-timezone data is unaffected either way.

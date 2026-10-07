@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import productPlan from "../../../../.semantic-federation/semantic/resources/chronicle.plan.json";
+import productPlan from "../../../../.semantic-federation/semantic/resources/chronicle.plan.json" with { type: "json" };
 import type { ViewGraph } from "@/components/GraphPanel/viewGraph";
 import { layoutGraph, NODE_HEIGHT, NODE_WIDTH } from "@/components/GraphPanel/graphLayout";
 

@@ -1,8 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { gzipSync } from "node:zlib";
-import { beforeAll, describe, expect, it } from "vitest";
+import { gunzipSync, gzipSync } from "node:zlib";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import backgroundCsv from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_background_apps.csv?raw";
 import filterCsv from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv?raw";
 import forcingCsv from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv?raw";
@@ -12,6 +12,7 @@ import { buildRustV2Options } from "@/lib/rustPipelineRuntime";
 import {
   buildArtifactFixtureState,
   buildRawBoundaryInterventions,
+  prepareArtifactFixtureForScientificExecution,
   SUPPORT_ROLE_IDS,
   type ArtifactFixtureState,
   type InterventionRoleId,
@@ -22,16 +23,49 @@ import {
   SYNTHETIC_CORPUS_PROFILES,
 } from "@/testSupport/syntheticChronicleCorpus";
 import {
-  sourceRoleIsActive,
+  unjustifiedExecutions,
   type RustWorkflowContract,
 } from "@/testSupport/workflowContract";
+import {
+  authorityReceipt,
+  cachedWithChangedOutput,
+  changedCheckpointComponents,
+  changedFields,
+  changedQueryCheckpointComponents,
+  CONDITIONALLY_ACTIVE_ROOT_ROLE_IDS,
+  executedQueryIds,
+  nodeOutputDigests,
+  outputArtifactDigests,
+  queryStatuses,
+  unconditionalRootRoleIds,
+  type CampaignRuntimeManifest,
+  type ObservedRuntimeManifest,
+} from "@/testSupport/campaignManifest";
 import {
   captureCanonicalOutputCells,
   changedCellAddresses,
   changedCellScopesByArtifact,
 } from "@/testSupport/outputCellTomography";
-import { dependencyCampaignRuntimeBytes } from "@/testSupport/dependencyCampaignRuntime";
+import {
+  CAMPAIGN_RUNTIME_INIT_TIMEOUT_MS,
+  dependencyCampaignRuntimeBytes,
+  captureCampaignFootprint,
+  CAMPAIGN_FOOTPRINT_CAPTURE_TIMEOUT_MS,
+} from "@/testSupport/dependencyCampaignRuntime";
+import {
+  executeScientificCampaignWorkspace,
+  putScientificCampaignSupportArtifact,
+  requireExecutedScientificCampaign,
+} from "@/testSupport/scientificCampaignExecution";
 import * as runtime from "@/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm.js";
+
+// Footprint selection: record which production source files this campaign
+// actually executed (no-op unless the evidence refresh sets the profraw dir).
+afterAll(
+  () => captureCampaignFootprint(runtime),
+  CAMPAIGN_FOOTPRINT_CAPTURE_TIMEOUT_MS,
+);
+import { CAMPAIGN_TEST_TIMEOUT_MS } from "@/testSupport/campaignTimeout";
 
 const EXPECTED_FILE = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -54,66 +88,6 @@ const SHARD_COUNT = Number(process.env.RAW_BOUNDARY_SHARD_COUNT ?? "1");
 const SHARD_INDEX = Number(process.env.RAW_BOUNDARY_SHARD_INDEX ?? "0");
 const encoder = new TextEncoder();
 
-type TypedCheckpoint = {
-  protocolVersion: "chronicle-workflow-checkpoint/v1";
-  subjectId: string;
-  rowMembershipDigest: string;
-  rowOrderDigest: string;
-  temporalStateDigest: string;
-  classificationDigest: string;
-  payloadDigest: string;
-  schemaDigest: string;
-  terminalDigest: string;
-};
-
-type RuntimeManifest = {
-  implementation: string;
-  implementationDigest: string;
-  planDigest: string;
-  profileDigest: string;
-  profileLockDigest: string;
-  runtimeAuthorityDigest: string;
-  productContractDigest: string;
-  workspaceRootDigest: string;
-  counts: Record<string, number>;
-  openObligations: unknown[];
-  qualificationTraces: Array<{
-    selected_role_id: string | null;
-    decision: "accepted" | "rejected" | "ambiguous";
-    artifact_digest: string;
-    rule_evaluations: Array<{ passed: boolean }>;
-  }>;
-  requirementTraces: Array<{
-    role_id: string;
-    state: string;
-  }>;
-  processingSummary: {
-    workflowQueryGroupDigests: Record<string, string>;
-    workflowQueryGroupCheckpoints: Record<string, TypedCheckpoint>;
-    workflowQueryDigests: Record<string, string>;
-    workflowQueryCheckpoints: Record<string, TypedCheckpoint>;
-    [key: string]: unknown;
-  };
-  queryGroupExecutions: Array<{
-    query_group_id: string;
-    input_key: string;
-    status: "cached" | "recomputed" | "error" | "skipped" | "bypassed";
-    output: { digest: string } | null;
-  }>;
-  queryExecutions: Array<{
-    query_id: string;
-    query_group_id: string;
-    input_key: string;
-    output_digest: string;
-    status: "cached" | "recomputed" | "error" | "skipped" | "bypassed";
-  }>;
-  artifacts: Array<{ kind: string; digest: string }>;
-};
-
-type ObservedRuntimeManifest = RuntimeManifest & {
-  outputCells: Record<string, string>;
-};
-
 type PlanNode = {
   query_group_id: string;
   input_query_groups: string[];
@@ -127,6 +101,12 @@ type ProductPlan = {
 };
 
 const plan = JSON.parse(readFileSync(PLAN_FILE, "utf8")) as ProductPlan;
+/// This campaign executes exclusively under `ALL_ON`, which keeps the default
+/// non-source-sensitive strategies, so `input_capability_evidence_file` is
+/// never a candidate here. See `CONDITIONALLY_ACTIVE_ROOT_ROLE_IDS` in
+/// `campaignManifest.ts` for why the runtime still reports it — by
+/// construction, as a `NotApplicable` requirement trace, not by omission.
+const unconditionalRoleIds = unconditionalRootRoleIds(plan.root_roles);
 const catalog = buildSyntheticCatalog({
   codebookCsv,
   filterCsv,
@@ -139,7 +119,7 @@ const interventions = buildRawBoundaryInterventions().filter(
 
 beforeAll(() => {
   runtime.initSync({ module: dependencyCampaignRuntimeBytes() });
-});
+}, CAMPAIGN_RUNTIME_INIT_TIMEOUT_MS);
 
 async function sha256Uri(value: Uint8Array | string): Promise<string> {
   const bytes = typeof value === "string" ? encoder.encode(value) : value;
@@ -174,29 +154,50 @@ async function execute(
   requestId: string,
   previousRoot: string | null,
 ): Promise<ObservedRuntimeManifest> {
-  const csvBytes = encoder.encode(state.rawCsv);
+  const executionState = prepareArtifactFixtureForScientificExecution(
+    state,
+    ALL_ON,
+  );
+  const csvBytes = encoder.encode(executionState.rawCsv);
   const supports = new runtime.RuntimeSupportFiles();
+  const supportArtifacts = new Map<string, Uint8Array>();
   let handle: ReturnType<typeof runtime.execute_workspace> | undefined;
   try {
     for (const roleId of SUPPORT_ROLE_IDS) {
-      const support = state.supports[roleId];
-      supports.put_with_name(roleId, support.name, encoder.encode(support.csv));
+      const support = executionState.supports[roleId];
+      const bytes = encoder.encode(support.csv);
+      putScientificCampaignSupportArtifact({
+        roleId,
+        fileName: support.name,
+        bytes,
+        options: ALL_ON,
+        supports,
+        supportArtifacts,
+      });
     }
-    handle = runtime.execute_workspace(
-      JSON.stringify({
-        protocolVersion: "chronicle-preprocessing-runtime/v1",
-        requestId,
-        command: "ExecuteWorkspace",
-        workspaceRootDigest: previousRoot,
-        workspaceId: await sha256Uri(workspaceIdentity),
-        inputFileName,
-        inputSha256: await sha256Uri(csvBytes),
-        options: buildRustV2Options(ALL_ON, GOLDEN_RUNTIME),
+    const requestJson = JSON.stringify({
+      protocolVersion: "chronicle-preprocessing-runtime/v2",
+      executionEngine: "incremental",
+      provenanceEvidence: true,
+      requestId,
+      command: "ExecuteWorkspace",
+      workspaceRootDigest: previousRoot,
+      workspaceId: await sha256Uri(workspaceIdentity),
+      inputFileName,
+      inputSha256: await sha256Uri(csvBytes),
+      options: buildRustV2Options(ALL_ON, GOLDEN_RUNTIME),
+    });
+    handle = requireExecutedScientificCampaign(
+      executeScientificCampaignWorkspace({
+        runtime,
+        options: ALL_ON,
+        requestJson,
+        rawBytes: csvBytes,
+        supports,
+        supportArtifacts,
       }),
-      csvBytes,
-      supports,
-    );
-    const manifest = JSON.parse(handle.manifest_json()) as RuntimeManifest;
+    ).handle;
+    const manifest = JSON.parse(handle.manifest_json()) as CampaignRuntimeManifest;
     return Object.assign(manifest, {
       outputCells: captureCanonicalOutputCells(handle),
     });
@@ -204,15 +205,6 @@ async function execute(
     handle?.free();
     supports.free();
   }
-}
-
-function changedFields(
-  left: Record<string, unknown>,
-  right: Record<string, unknown>,
-): string[] {
-  return [...new Set([...Object.keys(left), ...Object.keys(right)])]
-    .filter((key) => JSON.stringify(left[key]) !== JSON.stringify(right[key]))
-    .sort();
 }
 
 function firstLineDifference(left: string, right: string): string {
@@ -226,114 +218,9 @@ function firstLineDifference(left: string, right: string): string {
     : `line ${index + 1}: ${JSON.stringify(leftLines[index])} -> ${JSON.stringify(rightLines[index])}`;
 }
 
-function checkpointComponentChanges(
-  source: RuntimeManifest,
-  target: RuntimeManifest,
-): Record<string, string[]> {
-  return Object.fromEntries(
-    order
-      .map(
-        (nodeId) =>
-          [
-            nodeId,
-            changedFields(
-              source.processingSummary.workflowQueryGroupCheckpoints[
-                nodeId
-              ] as unknown as Record<string, unknown>,
-              target.processingSummary.workflowQueryGroupCheckpoints[
-                nodeId
-              ] as unknown as Record<string, unknown>,
-            ).filter((field) => field !== "terminalDigest"),
-          ] as const,
-      )
-      .filter(([, fields]) => fields.length > 0),
-  );
-}
-
-function queryCheckpointComponentChanges(
-  source: RuntimeManifest,
-  target: RuntimeManifest,
-): Record<string, string[]> {
-  return Object.fromEntries(
-    Object.keys(source.processingSummary.workflowQueryCheckpoints)
-      .sort()
-      .map(
-        (queryId) =>
-          [
-            queryId,
-            changedFields(
-              source.processingSummary.workflowQueryCheckpoints[
-                queryId
-              ] as unknown as Record<string, unknown>,
-              target.processingSummary.workflowQueryCheckpoints[
-                queryId
-              ] as unknown as Record<string, unknown>,
-            ).filter((field) => field !== "terminalDigest"),
-          ] as const,
-      )
-      .filter(([, fields]) => fields.length > 0),
-  );
-}
-
-function queryStatuses(manifest: RuntimeManifest): Record<string, string> {
-  return Object.fromEntries(
-    manifest.queryExecutions.map(({ query_id, status }) => [query_id, status]),
-  );
-}
-
-function executedQueryIds(manifest: RuntimeManifest): string[] {
-  return manifest.queryExecutions
-    .filter(({ status }) => status === "recomputed")
-    .map(({ query_id }) => query_id)
-    .sort();
-}
-
-function nodeOutputDigests(
-  manifest: RuntimeManifest,
-): Record<string, string | null> {
-  return Object.fromEntries(
-    manifest.queryGroupExecutions.map(({ query_group_id, output }) => [
-      query_group_id,
-      output?.digest ?? null,
-    ]),
-  );
-}
-
-const OUTPUT_ARTIFACT_KINDS = new Set([
-  "app-csv",
-  "screen-csv",
-  "day-coverage-csv",
-  "compliance-csv",
-  "credited-app-csv",
-  "review-summary-json",
-  "visualization-data-json",
-  "app-parquet",
-  "screen-parquet",
-  "app-spss",
-  "screen-spss",
-  "row-lineage-arrow",
-  "source-coordinate-index-arrow",
-  "result-cell-correspondence-arrow",
-  "source-result-influence-arrow",
-]);
-
-function outputArtifactDigests(
-  manifest: RuntimeManifest,
-): Record<string, string> {
-  return Object.fromEntries(
-    manifest.artifacts
-      .filter(
-        ({ kind }) =>
-          OUTPUT_ARTIFACT_KINDS.has(kind) || kind.startsWith("aggregate-"),
-      )
-      .sort((left, right) => left.kind.localeCompare(right.kind))
-      .map(({ kind, digest }) => [kind, digest]),
-  );
-}
-
 function assertSameSemanticOutcome(
-  actual: RuntimeManifest,
-  expected: RuntimeManifest,
+  actual: CampaignRuntimeManifest,
+  expected: CampaignRuntimeManifest,
   caseId: string,
 ): void {
   expect(
@@ -353,51 +240,15 @@ function assertSameSemanticOutcome(
   ).toEqual([]);
 }
 
-function predictedRawExecutedQueries(
-  workflowContract: RustWorkflowContract,
-  changedQueries: ReadonlySet<string>,
-  targetOptions: Record<string, unknown>,
-  source: RuntimeManifest,
-  target: RuntimeManifest,
-): string[] {
-  const sourceStatuses = queryStatuses(source);
-  const targetStatuses = queryStatuses(target);
-  return workflowContract.execution.queries
-    .filter((query) => {
-      const sourceApplicable = sourceStatuses[query.id] !== "bypassed";
-      const targetApplicable = targetStatuses[query.id] !== "bypassed";
-      return (
-        targetApplicable &&
-        (!sourceApplicable ||
-          sourceRoleIsActive(query, "raw_chronicle_csv", targetOptions) ||
-          query.inputs.some((input) => changedQueries.has(input)))
-      );
-    })
-    .map(({ id }) => id)
-    .sort();
-}
-
-function authorityReceipt(manifest: RuntimeManifest): Record<string, string> {
-  return {
-    implementation: manifest.implementation,
-    implementationDigest: manifest.implementationDigest,
-    planDigest: manifest.planDigest,
-    profileDigest: manifest.profileDigest,
-    profileLockDigest: manifest.profileLockDigest,
-    runtimeAuthorityDigest: manifest.runtimeAuthorityDigest,
-    productContractDigest: manifest.productContractDigest,
-  };
-}
-
 function assertCompleteSuccessfulManifest(
-  manifest: RuntimeManifest,
+  manifest: CampaignRuntimeManifest,
   caseId: string,
 ): void {
   expect(manifest.openObligations, `${caseId}: binding holes`).toEqual([]);
   expect(
     manifest.qualificationTraces,
     `${caseId}: qualification coverage`,
-  ).toHaveLength(plan.root_roles.length);
+  ).toHaveLength(unconditionalRoleIds.length);
   expect(
     manifest.qualificationTraces.every(
       (trace) =>
@@ -408,9 +259,31 @@ function assertCompleteSuccessfulManifest(
     `${caseId}: qualification did not fail closed`,
   ).toBe(true);
   expect(
-    manifest.requirementTraces.every(({ state }) => state === "satisfied"),
+    manifest.qualificationTraces
+      .map(({ selected_role_id }) => selected_role_id)
+      .sort(),
+    `${caseId}: qualification did not cover the exact offered root-role vocabulary`,
+  ).toEqual([...unconditionalRoleIds].sort());
+  // Stated per role rather than as a blanket `every(satisfied)`: the ten
+  // offered roles must be satisfied by the fixture, and the conditionally
+  // active role must be reported inactive rather than silently satisfied or
+  // silently dropped.
+  expect(
+    Object.fromEntries(
+      manifest.requirementTraces.map(({ role_id, state }) => [role_id, state]),
+    ),
     `${caseId}: unsatisfied role requirement`,
-  ).toBe(true);
+  ).toEqual({
+    ...Object.fromEntries(
+      unconditionalRoleIds.map((roleId) => [roleId, "satisfied"]),
+    ),
+    ...Object.fromEntries(
+      CONDITIONALLY_ACTIVE_ROOT_ROLE_IDS.map((roleId) => [
+        roleId,
+        "not_applicable",
+      ]),
+    ),
+  });
   expect(
     manifest.queryGroupExecutions,
     `${caseId}: logical execution coverage`,
@@ -434,7 +307,9 @@ function assertCompleteSuccessfulManifest(
     `${caseId}: failed Rust query execution`,
   ).toBe(true);
   expect(
-    Object.keys(manifest.processingSummary.workflowQueryGroupCheckpoints).sort(),
+    Object.keys(
+      manifest.processingSummary.workflowQueryGroupCheckpoints,
+    ).sort(),
   ).toEqual([...order].sort());
   expect(
     Object.keys(manifest.processingSummary.workflowQueryCheckpoints),
@@ -444,15 +319,15 @@ function assertCompleteSuccessfulManifest(
   ).toEqual(
     Object.keys(manifest.processingSummary.workflowQueryCheckpoints).sort(),
   );
-  expect(manifest.queryExecutions.map(({ query_id }) => query_id).sort()).toEqual(
+  expect(
+    manifest.queryExecutions.map(({ query_id }) => query_id).sort(),
+  ).toEqual(
     Object.keys(manifest.processingSummary.workflowQueryCheckpoints).sort(),
   );
   for (const [queryGroupId, checkpoint] of Object.entries(
     manifest.processingSummary.workflowQueryGroupCheckpoints,
   )) {
-    expect(checkpoint.protocolVersion).toBe(
-      "chronicle-workflow-checkpoint/v1",
-    );
+    expect(checkpoint.protocolVersion).toBe("chronicle-workflow-checkpoint/v1");
     expect(checkpoint.subjectId).toBe(queryGroupId);
     expect(checkpoint.terminalDigest).toBe(
       manifest.processingSummary.workflowQueryGroupDigests[queryGroupId],
@@ -461,9 +336,7 @@ function assertCompleteSuccessfulManifest(
   for (const [queryId, checkpoint] of Object.entries(
     manifest.processingSummary.workflowQueryCheckpoints,
   )) {
-    expect(checkpoint.protocolVersion).toBe(
-      "chronicle-workflow-checkpoint/v1",
-    );
+    expect(checkpoint.protocolVersion).toBe("chronicle-workflow-checkpoint/v1");
     expect(checkpoint.subjectId).toBe(queryId);
     expect(checkpoint.terminalDigest).toBe(
       manifest.processingSummary.workflowQueryDigests[queryId],
@@ -489,16 +362,31 @@ describe("raw timestamp boundary tomography", () => {
       interventions.length,
       "raw boundary filter matched nothing",
     ).toBeGreaterThan(0);
-    expect(plan.query_groups.map(({ query_group_id }) => query_group_id).sort()).toEqual(
-      [...order].sort(),
-    );
+    expect(
+      plan.query_groups.map(({ query_group_id }) => query_group_id).sort(),
+    ).toEqual([...order].sort());
     const workflowContract = JSON.parse(
       runtime.workflow_contract_json(),
     ) as RustWorkflowContract;
     expect(workflowContract.protocolVersion).toBe(
       "chronicle-workflow-contract/v1",
     );
-    expect(workflowContract.execution.queries).toHaveLength(workflowContract.execution.queries.length);
+    // The previous form compared the registry length to itself and could
+    // never fail. Assert the properties the campaign relies on instead --
+    // a non-empty registry with unique, non-blank query ids.
+    {
+      const contractQueryIds = workflowContract.execution.queries.map(
+        ({ id }) => id,
+      );
+      expect(contractQueryIds.length, "empty workflow query registry").toBeGreaterThan(0);
+      expect(new Set(contractQueryIds).size, "duplicate workflow query ids").toBe(
+        contractQueryIds.length,
+      );
+      expect(
+        contractQueryIds.filter((id) => id.trim().length === 0),
+        "blank workflow query id",
+      ).toEqual([]);
+    }
 
     const reports: Array<Record<string, unknown>> = [];
     const caseIdentities: string[] = [];
@@ -645,7 +533,7 @@ describe("raw timestamp boundary tomography", () => {
             targetState.rawCsv,
           )}`,
         ).toBeGreaterThan(0);
-        const componentChanges = checkpointComponentChanges(
+        const componentChanges = changedCheckpointComponents(
           coldSource,
           coldTarget,
         );
@@ -657,7 +545,7 @@ describe("raw timestamp boundary tomography", () => {
           coldSource.processingSummary.workflowQueryDigests,
           coldTarget.processingSummary.workflowQueryDigests,
         );
-        const queryComponentChanges = queryCheckpointComponentChanges(
+        const queryComponentChanges = changedQueryCheckpointComponents(
           coldSource,
           coldTarget,
         );
@@ -667,9 +555,11 @@ describe("raw timestamp boundary tomography", () => {
         ).toEqual(changedQueries);
 
         const sourceParse =
-          coldSource.processingSummary.workflowQueryGroupCheckpoints.parse_events;
+          coldSource.processingSummary.workflowQueryGroupCheckpoints
+            .parse_events;
         const targetParse =
-          coldTarget.processingSummary.workflowQueryGroupCheckpoints.parse_events;
+          coldTarget.processingSummary.workflowQueryGroupCheckpoints
+            .parse_events;
         if (sourceParse === undefined || targetParse === undefined) {
           throw new Error(`${caseId}: missing parse_events checkpoint`);
         }
@@ -695,19 +585,31 @@ describe("raw timestamp boundary tomography", () => {
 
         const actualExecutedQueries = executedQueryIds(warmTarget);
         const exactTargetOptions = buildRustV2Options(ALL_ON, GOLDEN_RUNTIME);
-        const predictedExecutedQueries = predictedRawExecutedQueries(
-          workflowContract,
-          new Set(changedQueries),
-          exactTargetOptions,
-          coldSource,
-          coldTarget,
-        );
-        expect(
-          actualExecutedQueries,
-          `${caseId}: raw dependency prediction and actual Salsa query bodies disagree`,
-        ).toEqual(predictedExecutedQueries);
         const sourceStatuses = queryStatuses(coldSource);
         const targetStatuses = queryStatuses(coldTarget);
+        // Salsa owns invalidation; `inputs` is a may-read set, so no per-arm
+        // execution set is predicted. The dangerous direction is a query that
+        // ran with nothing upstream of it having changed.
+        const unjustifiedExecutedQueries = unjustifiedExecutions({
+          contract: workflowContract,
+          targetOptions: exactTargetOptions,
+          sourceStatuses,
+          targetStatuses,
+          changedSourceRoles: new Set(["raw_chronicle_csv"]),
+          changedQueryOutputs: new Set(changedQueries),
+          executed: actualExecutedQueries,
+        });
+        expect(
+          unjustifiedExecutedQueries,
+          `${caseId}: query executed with no changed request field, source role, or upstream output`,
+        ).toEqual([]);
+        // A Salsa body produces a new value only by running, so `cached` while
+        // the published output digest moved from the warm source is a
+        // self-contradicting badge. Reads only observed digests and statuses.
+        expect(
+          cachedWithChangedOutput(warmSource, warmTarget),
+          `${caseId}: query badged cached while publishing a changed output digest`,
+        ).toEqual([]);
         const deactivatedQueries = workflowContract.execution.queries
           .filter(
             ({ id }) =>
@@ -743,7 +645,9 @@ describe("raw timestamp boundary tomography", () => {
           checkpointComponentChanges: componentChanges,
           changedQueries: changedQueries,
           queryCheckpointComponentChanges: queryComponentChanges,
-          predictedExecutedQueries,
+          // `unjustifiedExecutedQueries` is asserted empty above, so recording
+          // it would write a constant `[]` into every case. The per-case
+          // execution evidence is `actualExecutedQueries` — the OBSERVED set.
           actualExecutedQueries,
           deactivatedQueries,
           changedOutputArtifactKinds: changedFields(
@@ -763,7 +667,10 @@ describe("raw timestamp boundary tomography", () => {
           ),
           warmExecution: warmTarget.queryGroupExecutions
             .filter(({ status }) => status !== "cached")
-            .map(({ query_group_id, status }) => ({ nodeId: query_group_id, status })),
+            .map(({ query_group_id, status }) => ({
+              nodeId: query_group_id,
+              status,
+            })),
         };
         reports.push(report);
         caseIdentities.push(JSON.stringify(report));
@@ -775,7 +682,7 @@ describe("raw timestamp boundary tomography", () => {
         protocolVersion: "chronicle-output-cell-correspondence/v2",
         implementationReceipt: authority,
         claimBoundary:
-          "Exact changed canonical CSV/JSON output cell addresses for each named raw timestamp boundary intervention. Each case also names the exact supplied source columns that intervention rewrote (sourceFields), in the Rust query contract's field namespace, using source.raw_row_set / source.raw_row_order for structural raw changes and an empty list for representation-only controls. Binary exports and the Arrow lineage sidecar are digest-bound separately and are not interpreted as cells.",
+          "Exact changed canonical CSV/JSON output cell addresses for each named raw timestamp boundary intervention. Each case also names the exact supplied source columns that intervention rewrote (sourceFields), in the Rust workflow contract's field namespace, using source.raw_row_set / source.raw_row_order for structural raw changes and an empty list for representation-only controls. Binary exports and the Arrow lineage sidecar are digest-bound separately and are not interpreted as cells.",
         cases: cellEvidenceCases.sort((left, right) =>
           left.caseId.localeCompare(right.caseId),
         ),
@@ -821,10 +728,9 @@ describe("raw timestamp boundary tomography", () => {
         incrementalExecutions: reports.length * 2,
         totalRustExecutions: reports.length * 4,
         exactWarmColdComparisons: reports.length,
-        exactClusterComparisons: reports.length,
         typedComponentComparisons: reports.length,
-        workflowQueryCheckpointComparisons: reports.length * workflowContract.execution.queries.length,
-        exactQueryClusterComparisons: reports.length,
+        workflowQueryCheckpointComparisons:
+          reports.length * workflowContract.execution.queries.length,
         exactQualificationCorrespondenceComparisons: reports.length,
         exactOutputCellComparisons: reports.length * 2,
       },
@@ -843,7 +749,15 @@ describe("raw timestamp boundary tomography", () => {
     }
     if (UPDATE) {
       mkdirSync(dirname(EXPECTED_FILE), { recursive: true });
-      writeFileSync(CELL_EVIDENCE_FILE, cellEvidenceCompressed);
+      // Only rewrite the sidecar when its CONTENT changed. `gzipSync` output
+      // varies with the linked zlib version, so an unconditional write dirties
+      // the checked bytes on a Node upgrade even when nothing was recomputed.
+      const previousCellEvidence = existsSync(CELL_EVIDENCE_FILE)
+        ? gunzipSync(readFileSync(CELL_EVIDENCE_FILE)).toString("utf8")
+        : null;
+      if (previousCellEvidence !== cellEvidenceSerialized) {
+        writeFileSync(CELL_EVIDENCE_FILE, cellEvidenceCompressed);
+      }
       writeFileSync(EXPECTED_FILE, serialized, "utf8");
       return;
     }
@@ -851,11 +765,20 @@ describe("raw timestamp boundary tomography", () => {
       existsSync(CELL_EVIDENCE_FILE),
       "missing output-cell evidence sidecar",
     ).toBe(true);
-    expect(cellEvidenceCompressed).toEqual(readFileSync(CELL_EVIDENCE_FILE));
+    // Compare the sidecar's CONTENT, not its gzip bytes. `gzipSync` output
+    // depends on the linked zlib version, so a Node upgrade alone rewrote the
+    // compressed stream while the decompressed evidence stayed byte-identical.
+    // The digest keeps the failure message small: this payload is ~35 MB.
+    expect(
+      await sha256Uri(
+        gunzipSync(readFileSync(CELL_EVIDENCE_FILE)).toString("utf8"),
+      ),
+      "checked output-cell evidence sidecar differs; re-record with UPDATE_RAW_BOUNDARY_INFLUENCE=1",
+    ).toEqual(cellEvidenceDigest);
     expect(
       existsSync(EXPECTED_FILE),
       "missing raw-boundary influence ledger",
     ).toBe(true);
     expect(serialized).toBe(readFileSync(EXPECTED_FILE, "utf8"));
-  }, 600_000);
+  }, CAMPAIGN_TEST_TIMEOUT_MS);
 });

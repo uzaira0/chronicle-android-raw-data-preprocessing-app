@@ -1,0 +1,203 @@
+{
+  "schemaVersion": "chronicle-loneliness-and-attendance-cutoffs-canonical-source-fixture/v1",
+  "reusedOwner": {
+    "component": "FiniteScalarPivotClassifier",
+    "sourcePath": "rust/chronicle_preprocessing_runtime_wasm/src/finite_scalar_pivot_classifier.rs",
+    "sourceSha256": "66036694c5eb34ecaa9c812f6a109772ba2abd6a975112efdd981d9cdcff050d",
+    "semanticBoundary": "A caller-supplied finite scalar is classified as below, equal to, or above a caller-supplied pivot without a tolerance; each source binding validates its narrower input type before invocation."
+  },
+  "settings": [
+    {
+      "sourceWorkId": "doi:10.2196/13209",
+      "canonicalSetting": {
+        "settingId": "method-setting-5b202c5e8f680f2ea695b403",
+        "parameterKey": "outcome.binary_loneliness",
+        "sourceObservedSetting": "outcome.binary_loneliness: {\"low\":\"score <= 40\",\"high\":\"score > 40\",\"justification\":\"conceptual midpoint chosen because no standard cutoff\"}",
+        "sourceValueSha256": "5b350db509a2ab2f1a4470ba538b513a79bec2b2585d321e43bd467b2351d108"
+      },
+      "supersededAliases": [],
+      "sourceArtifacts": [
+        {
+          "role": "primary paper text",
+          "locator": ".tmp-literature-review-private/strict-screen-native-ranks37-73-20260831T0415Z/text/59-loneliness.txt:275-305",
+          "sha256": "4a7cb9208c6a732dba9581c2e8cf6967606a11e879882eff9522ecf8ba87874d"
+        },
+        {
+          "role": "primary paper full-text HTML",
+          "locator": ".tmp-literature-review-private/strict-screen-native-ranks37-73-20260831T0415Z/artifacts/59-loneliness.fulltext.html",
+          "sha256": "6af819e534d6dd9c3012cabd2c12765c7f85910a640ecd2829d997b5dbb813e8"
+        },
+        {
+          "role": "canonical source-completeness audit",
+          "locator": ".tmp-literature-review-private/ontology-sublation-20260831/source-completeness-audits/doi-10.2196-13209.json",
+          "sha256": "174e6192af25e54716967f9988590a133dfb3e10ff558e1c1d7dd3f53c547a96"
+        },
+        {
+          "role": "canonical method-setting assertions",
+          "locator": ".tmp-literature-review-private/ontology-sublation-20260831/adjudicated-method-setting-assertions.jsonl",
+          "sha256": "a3d676d9282b28f1f71687b1366ebf073796ae0e4c5c8bc0757096e173a1fcf5"
+        },
+        {
+          "role": "alias and tombstone ledger",
+          "locator": ".tmp-literature-review-private/ontology-sublation-20260831/method-setting-alias-tombstones.json",
+          "sha256": "018221f6036218887355a0a2dcd9d6d54a9e90eb93f380b4e1b81cc75c0f76b5"
+        }
+      ],
+      "inputMeasure": "caller-supplied integer total revised UCLA Loneliness Scale score",
+      "inputBoundary": "One caller-supplied JSON integer in the disclosed 20 through 80 total-score range. Item validation, nine-item reverse scoring, and summation across all 20 items are upstream.",
+      "pivot": 40.0,
+      "belowDisposition": "low_loneliness",
+      "equalDisposition": "low_loneliness",
+      "aboveDisposition": "high_loneliness",
+      "cases": [
+        {
+          "caseId": "range_minimum_is_low",
+          "value": 20,
+          "expectedDisposition": "low_loneliness"
+        },
+        {
+          "caseId": "below_is_low",
+          "value": 39,
+          "expectedDisposition": "low_loneliness"
+        },
+        {
+          "caseId": "equality_is_low",
+          "value": 40,
+          "expectedDisposition": "low_loneliness"
+        },
+        {
+          "caseId": "first_integer_above_is_high",
+          "value": 41,
+          "expectedDisposition": "high_loneliness"
+        },
+        {
+          "caseId": "range_maximum_is_high",
+          "value": 80,
+          "expectedDisposition": "high_loneliness"
+        }
+      ],
+      "limitations": [
+        "The binding does not validate individual questionnaire responses, identify the nine reverse-scored items, reverse-score them, or sum the 20-item instrument.",
+        "The output is the source binary label only; it does not run the machine-learning pipeline or reconstruct reported class counts.",
+        "The source's conceptual-midpoint rationale is preserved as provenance and is not converted into an optimized or population-derived cutoff."
+      ]
+    },
+    {
+      "sourceWorkId": "doi:10.1177/0956797620956613",
+      "canonicalSetting": {
+        "settingId": "method-setting-c97a93da0da2fef6edb1aa85",
+        "parameterKey": "quality.exclusion_attendance_lt_10h",
+        "sourceObservedSetting": "quality.exclusion_attendance_lt_10h: {\"comparator\":\"less_than\",\"hours\":10}",
+        "sourceValueSha256": "e2fe7abc003d9e223fc3e87bccf229d639df1f93aebca0652f7ddab5c038b1e0"
+      },
+      "supersededAliases": [],
+      "sourceArtifacts": [
+        {
+          "role": "primary paper text",
+          "locator": ".tmp-literature-review-private/corrective-packet-09-ranks330-381-20260831/text/365.txt:183-191",
+          "sha256": "81c59576e9f9c54e3929c235a6acb7888afa9dc9d69a9e2e466e81c47b261ff1"
+        },
+        {
+          "role": "primary paper PDF",
+          "locator": ".tmp-literature-review-private/corrective-packet-09-ranks330-381-20260831/pdfs/365-primary.pdf",
+          "sha256": "3af3cac46de21d4b6dc6cfcda6fb34b4403fc5196c8cf38a9cb590d491c480d7"
+        },
+        {
+          "role": "canonical source-completeness audit",
+          "locator": ".tmp-literature-review-private/ontology-sublation-20260831/source-completeness-audits/doi-10.1177-0956797620956613.json",
+          "sha256": "6454d548944d7a3988cc31b70646f6af82c62cfb916dc47000ac3e1a1ba8c1d1"
+        },
+        {
+          "role": "canonical method-setting assertions",
+          "locator": ".tmp-literature-review-private/ontology-sublation-20260831/adjudicated-method-setting-assertions.jsonl",
+          "sha256": "a3d676d9282b28f1f71687b1366ebf073796ae0e4c5c8bc0757096e173a1fcf5"
+        },
+        {
+          "role": "alias and tombstone ledger",
+          "locator": ".tmp-literature-review-private/ontology-sublation-20260831/method-setting-alias-tombstones.json",
+          "sha256": "018221f6036218887355a0a2dcd9d6d54a9e90eb93f380b4e1b81cc75c0f76b5"
+        }
+      ],
+      "inputMeasure": "caller-supplied finite nonnegative total course-class attendance hours for one student",
+      "inputBoundary": "One caller-supplied finite nonnegative JSON number already aggregated as a student's total hours of course-class attendance for the source study window. Scheduled-class and device-location merging, attendance inference, interval union, grouping, and hour aggregation are upstream.",
+      "pivot": 10.0,
+      "belowDisposition": "exclude_by_attendance_criterion",
+      "equalDisposition": "not_excluded_by_attendance_criterion",
+      "aboveDisposition": "not_excluded_by_attendance_criterion",
+      "cases": [
+        {
+          "caseId": "zero_is_excluded",
+          "value": 0,
+          "expectedDisposition": "exclude_by_attendance_criterion"
+        },
+        {
+          "caseId": "fractional_below_is_excluded",
+          "value": 9.5,
+          "expectedDisposition": "exclude_by_attendance_criterion"
+        },
+        {
+          "caseId": "equality_is_not_excluded",
+          "value": 10.0,
+          "expectedDisposition": "not_excluded_by_attendance_criterion"
+        },
+        {
+          "caseId": "above_is_not_excluded",
+          "value": 10.5,
+          "expectedDisposition": "not_excluded_by_attendance_criterion"
+        }
+      ],
+      "limitations": [
+        "The binding does not infer attendance from scheduled-class locations and device geolocation, resolve overlapping intervals, or aggregate hours per student.",
+        "Not excluded by this one attendance criterion does not mean retained in the study cohort.",
+        "No-grade, missing-background, one-graded-course, and course-without-peer exclusions are separate source criteria and are not applied here.",
+        "The reported robustness analysis that reintroduced low-attendance students is a separate analysis branch and is not silently selected."
+      ]
+    }
+  ],
+  "invalidLonelinessScores": [
+    {
+      "caseId": "below_disclosed_range",
+      "value": 19
+    },
+    {
+      "caseId": "above_disclosed_range",
+      "value": 81
+    },
+    {
+      "caseId": "fractional",
+      "value": 40.5
+    },
+    {
+      "caseId": "numeric_string",
+      "value": "40"
+    },
+    {
+      "caseId": "boolean",
+      "value": true
+    },
+    {
+      "caseId": "missing",
+      "value": null
+    }
+  ],
+  "invalidLonelinessScoreError": "integer_loneliness_score_20_through_80_required",
+  "invalidAttendanceHours": [
+    {
+      "caseId": "negative",
+      "value": -0.5
+    },
+    {
+      "caseId": "numeric_string",
+      "value": "10"
+    },
+    {
+      "caseId": "boolean",
+      "value": false
+    },
+    {
+      "caseId": "missing",
+      "value": null
+    }
+  ],
+  "invalidAttendanceHoursError": "finite_nonnegative_attendance_hours_required"
+}

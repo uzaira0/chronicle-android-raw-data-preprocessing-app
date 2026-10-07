@@ -1,0 +1,49 @@
+{
+  "schemaVersion": "chronicle-daily-screen-session-participant-summary-r-oracle/v1",
+  "sourceWorkId": "doi:10.1016/j.chb.2023.107977",
+  "exactCanonicalSettingIds": ["method-setting-ca2f4e0c8e206a6b21dfb32e"],
+  "sourceSha256": {
+    "screenUsageMacrolevel": "8289ff398419d34ba94f5dcf767dd5bdd4d6d5ea3aa0c01ce34bfa674d63202f",
+    "aggregation": "219e057a39610002db1e5afd14b2a1364b0e0f8e9b065dcf6572f46e999196cb"
+  },
+  "sourceLocators": {
+    "usage": ".tmp-literature-review-private/corrective-packet-08-ranks277-329-20260831/work/rank287-archive/SmartphoneUsage_Wellbeing/scripts/featureExtraction/screen/Screen_usageSessions_Macrolevel.R:13-67",
+    "nonusage": ".tmp-literature-review-private/corrective-packet-08-ranks277-329-20260831/work/rank287-archive/SmartphoneUsage_Wellbeing/scripts/featureExtraction/screen/Screen_usageSessions_Macrolevel.R:70-166",
+    "final": ".tmp-literature-review-private/corrective-packet-08-ranks277-329-20260831/work/rank287-archive/SmartphoneUsage_Wellbeing/scripts/featureExtraction/screen/Screen_usageSessions_Macrolevel.R:169-175",
+    "quadratic": ".tmp-literature-review-private/corrective-packet-08-ranks277-329-20260831/work/rank287-archive/SmartphoneUsage_Wellbeing/scripts/featureExtraction/helper/aggregation.R:3-8"
+  },
+  "runtime": {
+    "containerImage": "rocker/tidyverse@sha256:879098acd5a8277f3c368a1e2c431019d00d952959a588da12cdaaee9d968b8b",
+    "rVersion": "R version 4.1.2 (2021-11-01)",
+    "dplyrVersion": "1.0.8",
+    "lubridateVersion": "1.8.0"
+  },
+  "executionBoundary": {
+    "inputStage": "post_screen_preprocessing_with_awake_day_labels",
+    "questionnaireSchema": "phonestudy_es_file",
+    "deliberatelyOutside": ["timestamp correction and timezone-mode selection", "screen event preprocessing and usage/nonusage ID construction", "wake-day label and sleep-boundary derivation", "application and screen activity vocabulary derivation", "questionnaire/date membership and participant scoping", "downstream model fitting"]
+  },
+  "configuration": {
+    "inputStage": "post_screen_preprocessing_with_awake_day_labels",
+    "screenActivityValue": "SCREEN",
+    "applicationActivityValue": "APPS",
+    "shortMaxSecondsInclusive": 300,
+    "mediumMaxSecondsInclusive": 1800
+  },
+  "cases": [
+    {
+      "caseId": "strict_day_exclusion_bins_missing_duration_and_participant_medians",
+      "sensingCsv": "\"user_id\",\"activityName\",\"date\",\"daytime_label\",\"usage\",\"nonusage\",\"timestamp.corrected\"\n\"participant-1\",\"OTHER\",2023-01-01,1,1,NA,\"2023-01-01T08:00:00Z\"\n\"participant-1\",\"OTHER\",2023-01-01,1,1,NA,\"2023-01-01T08:01:00Z\"\n\"participant-1\",\"OTHER\",2023-01-02,2,10,NA,\"2023-01-02T08:00:00Z\"\n\"participant-1\",\"OTHER\",2023-01-02,2,10,NA,\"2023-01-02T08:05:00Z\"\n\"participant-1\",\"OTHER\",2023-01-02,2,11,NA,\"2023-01-02T08:10:00Z\"\n\"participant-1\",\"OTHER\",2023-01-02,2,11,NA,\"2023-01-02T08:15:01Z\"\n\"participant-1\",\"OTHER\",2023-01-02,2,12,NA,\"2023-01-02T09:00:00Z\"\n\"participant-1\",\"OTHER\",2023-01-02,2,12,NA,\"2023-01-02T09:30:00Z\"\n\"participant-1\",\"OTHER\",2023-01-02,2,13,NA,\"2023-01-02T10:00:00Z\"\n\"participant-1\",\"OTHER\",2023-01-02,2,13,NA,\"2023-01-02T10:30:01Z\"\n\"participant-1\",\"OTHER\",2023-01-03,3,20,NA,\"2023-01-03T08:00:00Z\"\n\"participant-1\",\"OTHER\",2023-01-03,3,20,NA,\"2023-01-03T08:00:00Z\"\n\"participant-1\",\"OTHER\",2023-01-03,3,21,NA,\"2023-01-03T08:05:00Z\"\n\"participant-1\",\"OTHER\",2023-01-03,3,21,NA,\"2023-01-03T08:06:00Z\"\n\"participant-1\",\"OTHER\",2023-01-03,3,22,NA,\"2023-01-03T08:10:00Z\"\n\"participant-1\",\"OTHER\",2023-01-03,3,22,NA,\"2023-01-03T08:11:00Z\"\n\"participant-1\",\"SCREEN\",2023-01-01,1,NA,NA,\"2023-01-01T12:00:00Z\"\n\"participant-1\",\"APPS\",2023-01-01,1,NA,NA,\"2023-01-01T13:00:00Z\"\n\"participant-1\",\"APPS\",2023-01-01,1,NA,NA,\"2023-01-01T13:00:01Z\"\n\"participant-1\",\"APPS\",2023-01-01,1,NA,NA,\"2023-01-01T13:00:02Z\"\n\"participant-1\",\"APPS\",2023-01-01,1,NA,NA,\"2023-01-01T13:00:03Z\"\n\"participant-1\",\"APPS\",2023-01-01,1,NA,NA,\"2023-01-01T13:00:04Z\"\n\"participant-1\",\"APPS\",2023-01-01,1,NA,NA,\"2023-01-01T13:00:05Z\"\n\"participant-1\",\"APPS\",2023-01-01,1,NA,NA,\"2023-01-01T13:00:06Z\"\n\"participant-1\",\"APPS\",2023-01-01,1,NA,NA,\"2023-01-01T13:00:07Z\"\n\"participant-1\",\"APPS\",2023-01-01,1,NA,NA,\"2023-01-01T13:00:08Z\"\n\"participant-1\",\"APPS\",2023-01-01,1,NA,NA,\"2023-01-01T13:00:09Z\"\n\"participant-1\",\"SCREEN\",2023-01-02,2,NA,NA,\"2023-01-02T12:00:00Z\"\n\"participant-1\",\"SCREEN\",2023-01-02,2,NA,NA,\"2023-01-02T12:00:01Z\"\n\"participant-1\",\"SCREEN\",2023-01-02,2,NA,NA,\"2023-01-02T12:00:02Z\"\n\"participant-1\",\"SCREEN\",2023-01-02,2,NA,NA,\"2023-01-02T12:00:03Z\"\n\"participant-1\",\"SCREEN\",2023-01-02,2,NA,NA,\"2023-01-02T12:00:04Z\"\n\"participant-1\",\"SCREEN\",2023-01-02,2,NA,NA,\"2023-01-02T12:00:05Z\"\n\"participant-1\",\"SCREEN\",2023-01-02,2,NA,NA,\"2023-01-02T12:00:06Z\"\n\"participant-1\",\"SCREEN\",2023-01-02,2,NA,NA,\"2023-01-02T12:00:07Z\"\n\"participant-1\",\"SCREEN\",2023-01-02,2,NA,NA,\"2023-01-02T12:00:08Z\"\n\"participant-1\",\"SCREEN\",2023-01-02,2,NA,NA,\"2023-01-02T12:00:09Z\"\n\"participant-1\",\"APPS\",2023-01-02,2,NA,NA,\"2023-01-02T13:00:00Z\"\n\"participant-1\",\"SCREEN\",2023-01-03,3,NA,NA,\"2023-01-03T12:00:00Z\"\n\"participant-1\",\"SCREEN\",2023-01-03,3,NA,NA,\"2023-01-03T12:00:01Z\"\n\"participant-1\",\"SCREEN\",2023-01-03,3,NA,NA,\"2023-01-03T12:00:02Z\"\n\"participant-1\",\"SCREEN\",2023-01-03,3,NA,NA,\"2023-01-03T12:00:03Z\"\n\"participant-1\",\"SCREEN\",2023-01-03,3,NA,NA,\"2023-01-03T12:00:04Z\"\n\"participant-1\",\"SCREEN\",2023-01-03,3,NA,NA,\"2023-01-03T12:00:05Z\"\n\"participant-1\",\"SCREEN\",2023-01-03,3,NA,NA,\"2023-01-03T12:00:06Z\"\n\"participant-1\",\"SCREEN\",2023-01-03,3,NA,NA,\"2023-01-03T12:00:07Z\"\n\"participant-1\",\"SCREEN\",2023-01-03,3,NA,NA,\"2023-01-03T12:00:08Z\"\n\"participant-1\",\"SCREEN\",2023-01-03,3,NA,NA,\"2023-01-03T12:00:09Z\"\n\"participant-1\",\"APPS\",2023-01-03,3,NA,NA,\"2023-01-03T13:00:00Z\"\n",
+      "questionnaireCsv": "\"user_id\",\"date\",\"Sleep_onset.timestamp\",\"Sleep_offset.timestamp\",\"DailyTWT\"\n\"participant-1\",2023-01-01,\"2022-12-31T23:00:00Z\",\"2023-01-01T07:00:00Z\",16\n\"participant-1\",2023-01-02,\"2023-01-01T23:00:00Z\",\"2023-01-02T07:00:00Z\",16\n\"participant-1\",2023-01-03,\"2023-01-02T23:00:00Z\",\"2023-01-03T07:00:00Z\",16\n\"participant-1\",2023-01-04,\"2023-01-03T23:00:00Z\",\"2023-01-04T07:00:00Z\",NA\n",
+      "expectedOutputCsv": "TST,Usage_quadratic,Usage_num_int_all,Usage_mean_duration,Usage_sd_duration,Usage_median_duration,Usage_num_int_5,Usage_num_int_530,Usage_num_int_30,TWT,TNST,Nonusage_quadratic,Nonusage_num_int_all,Nonusage_mean_duration,Nonusage_sd_duration,Nonusage_median_duration,Nonusage_num_int_5,Nonusage_num_int_530,Nonusage_num_int_30,Num_ema_days,user_id\n2161,0.68871484329780186,3.5,545.25,450.3333061929423,555.25,2,1,0.5,16,28769,0.74159121470891498,4.5,6029.8000000000002,10573.296688621609,1499.5,1.5,0.5,2,4,participant-1\n",
+      "expectedStats": {
+        "sensingRowCount": 49,
+        "questionnaireRowCount": 4,
+        "usageSessionCount": 7,
+        "nonusageSessionCount": 9,
+        "excludedDayCount": 1,
+        "outputRowCount": 1
+      }
+    }
+  ]
+}

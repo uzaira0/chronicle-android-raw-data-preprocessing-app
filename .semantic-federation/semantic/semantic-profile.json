@@ -74,7 +74,7 @@
       "path": "capability-bindings.json",
       "media_type": "application/json",
       "role": "binding-source",
-      "digest": "sha256:cdad33b8cb0433fb78391361a5e184f7dadb82a4672b603f0a91af6edb7b13b7"
+      "digest": "sha256:9367a316ee51cebdb4f0d0f343f91625500e0e6e81fbe1b166a14568f550d637"
     },
     {
       "path": "families/incremental-dataflow/contract.json",
@@ -86,37 +86,37 @@
       "path": "resources/chronicle.plan.json",
       "media_type": "application/json",
       "role": "binding-source",
-      "digest": "sha256:f32b34442d2aad2bb027d53039f112f49bd375b7210a616fbda99aa5d11858d3"
+      "digest": "sha256:be0258af6aafbc9a1855ae4223adcc642a8d22b5fa8bb87eb09f6b62dc3abbd0"
     },
     {
       "path": "resources/runtime-authority.json",
       "media_type": "application/json",
       "role": "binding-source",
-      "digest": "sha256:643041e4330b4aca4b2cdf9a8e0dc285fdfb50b24338be312bdbff98c3d3ddbd"
+      "digest": "sha256:7807fe99a35b4ede2c85d8e8868ec3dcb2accb22e8265c4643966eb9840ce4e4"
     },
     {
       "path": "resources/chronicle-research-ontology.linkml.yaml",
       "media_type": "application/yaml",
       "role": "ontology",
-      "digest": "sha256:8f31e65b9c6e0a1c63df67415b22a7d2abaa613314024719d3e7244128026c71"
+      "digest": "sha256:b7e1e1e668c3bb236a901396a7d8678f7dd2fae37d86b89e8b1073a1044043c8"
     },
     {
       "path": "resources/chronicle-research-ontology.merged.shacl.ttl",
       "media_type": "text/turtle",
       "role": "shape",
-      "digest": "sha256:c74095bcca0c9cab205b0ff4a32df92cc16e2fb261f1b54c8d6bdc74484d6f38"
+      "digest": "sha256:c14103105a275132c374b9cc01c4bed36fd18f0682c07b82d83f105cef4b34b7"
     },
     {
       "path": "resources/registered-queries.json",
       "media_type": "application/json",
       "role": "query",
-      "digest": "sha256:e2e59edc0bc62ad710ff2b56d5189d079ebb2914088f6b0c0976bdee6fa022ec"
+      "digest": "sha256:d23a3d5ba6d88251f75b8e573c50a5b48644596e94a2eb7acf8e85b8ca25b70e"
     },
     {
       "path": "resources/chronicle-views.schema.json",
       "media_type": "application/schema+json",
       "role": "binding-source",
-      "digest": "sha256:dc90e501ebba55b4d206d8805f229ce87e38efc47534afb226e1cd8b4acdf03b"
+      "digest": "sha256:25f1e8de6ef5ece924a1540cfdae69f10685b4b41ca2b4127c5a3fb3c306be1d"
     },
     {
       "path": "resources/existing-ontology-sources.json",

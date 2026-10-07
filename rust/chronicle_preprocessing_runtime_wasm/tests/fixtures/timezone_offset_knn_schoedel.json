@@ -1,0 +1,54 @@
+{
+  "schemaVersion": "chronicle-schoedel-timezone-offset-knn-oracle/v1",
+  "sourceWorkId": "doi:10.1016/j.chb.2023.107977",
+  "sourceMethodVariantId": "source-audit-configuration-space-8b14e63d69954819163df993",
+  "exactCanonicalSettingIds": [
+    "method-setting-f023abce9be53100e2dd22a6"
+  ],
+  "sourceArtifacts": [
+    {
+      "path": ".tmp-literature-review-private/corrective-packet-08-ranks277-329-20260831/work/rank287-archive/SmartphoneUsage_Wellbeing/scripts/featureExtraction/helper/helper_variables.R",
+      "sha256": "61a921f5f8b8e2b0c6c60f24d3ae13de477a340f8967e21e74707daeebba873a",
+      "locator": "lines 13-38"
+    },
+    {
+      "path": ".tmp-literature-review-private/corrective-packet-08-ranks277-329-20260831/work/rank287-archive/SmartphoneUsage_Wellbeing/scripts/featureExtraction/helper/timestamp_correction.R",
+      "sha256": "80ef81e8d7e074598385155360562f01e8130a595e72392daa20d571a7b832bc",
+      "locator": "lines 17-25"
+    }
+  ],
+  "oracleRuntime": "R version 4.1.2 (2021-11-01)",
+  "k": 10,
+  "missingSentinelMs": 0,
+  "cases": [
+    {
+      "caseId": "first-missing-uses-prefix-mode",
+      "sourceOffsetsMs": [0, 3600000, 3600000, 7200000, 7200000, 7200000, 10800000],
+      "expectedOffsetsMs": [7200000, 3600000, 3600000, 7200000, 7200000, 7200000, 10800000]
+    },
+    {
+      "caseId": "mode-tie-keeps-first-encountered-value",
+      "sourceOffsetsMs": [7200000, 3600000, 0, 7200000, 3600000],
+      "expectedOffsetsMs": [7200000, 3600000, 7200000, 7200000, 3600000]
+    },
+    {
+      "caseId": "later-missing-values-use-mutated-centered-window",
+      "sourceOffsetsMs": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3600000, 7200000, 7200000, 7200000, 3600000, 0, 10800000, 10800000, 10800000, 10800000, 0, 14400000, 14400000],
+      "expectedOffsetsMs": [3600000, 3600000, 3600000, 3600000, 3600000, 3600000, 3600000, 3600000, 3600000, 3600000, 3600000, 7200000, 7200000, 7200000, 3600000, 3600000, 10800000, 10800000, 10800000, 10800000, 10800000, 14400000, 14400000]
+    },
+    {
+      "caseId": "all-missing-remains-missing",
+      "sourceOffsetsMs": [0, 0, 0],
+      "expectedOffsetsMs": [null, null, null]
+    },
+    {
+      "caseId": "preexisting-missing-is-imputed-with-zero-sentinel",
+      "sourceOffsetsMs": [3600000, null, 7200000],
+      "expectedOffsetsMs": [3600000, 3600000, 7200000]
+    }
+  ],
+  "limitations": [
+    "The primitive consumes one already chronologically ordered participant offset series.",
+    "Timestamp parsing, participant partitioning, offset-to-hour conversion, corrected timestamps, year filtering, and duplicate-ID removal are outside this single setting."
+  ]
+}

@@ -10,6 +10,7 @@ import {
   processFiles,
   setInputFile,
   trackExternalRequests,
+  RESULT_PANEL_TIMEOUT_MS,
 } from "./helpers";
 
 /**
@@ -78,8 +79,9 @@ test("processed counts survive a reload (lightweight restore keeps the numbers)"
   await processFiles(page);
   const before = await displayedAppCount(page);
 
-  await page.reload();
-  await installDeterministicRuntime(page);
+  // One navigation reboots the app (the init script from the first load still
+  // applies). A reload followed at once by a goto aborted the reload's boot
+  // fetches, which surfaced as an uncaught "Failed to fetch".
   await gotoApp(page);
   await expect(page.getByTestId("result-panel")).toContainText("1 file processed");
   await expect(page.getByTestId("restored-lightweight-note")).toBeVisible();
@@ -97,7 +99,7 @@ test("the export is byte-identical online and offline", async ({ page, context }
   await context.setOffline(true);
   await page.getByRole("tab", { name: /Process/i }).click();
   await page.getByTestId("process-files-button").click();
-  await expect(page.getByTestId("result-panel").first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("result-panel").first()).toBeVisible({ timeout: RESULT_PANEL_TIMEOUT_MS });
   const offline = await downloadCsv(page, "download-app-csv");
 
   expect(offline).toBe(online);

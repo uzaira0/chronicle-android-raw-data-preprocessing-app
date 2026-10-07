@@ -1,0 +1,219 @@
+{
+  "schema": "sleepminer-sparse-directed-edge-hand-oracle/v1",
+  "source_work_id": "doi:10.5555/2442691.2442720",
+  "source_text_sha256": "f03cbcb19ba5c899f7f681f3ea5f2147b072a2becbe75a6c727999f64cf64c6c",
+  "source_locator": "retained274.txt:183–227",
+  "method_setting_id": "method-setting-c0ea86b8bddbdc77419d499c",
+  "oracle_method": "Independently hand-listed scope/day/from/to groups in first-seen order; original channel record IDs and one-based original row indices. No execution/generator-derived expected values.",
+  "source_limit": "Caller resolves direction, endpoints, connected-subject admission, opaque day and graph scope. Null channel means no supplied record membership, NOT numeric zero or source missingness semantics. Repeated original records retain memberships. Self/external endpoints unchanged. Numeric e1/e2/fullGt/score/model excluded.",
+  "cases": [
+    {
+      "name": "first_seen_edges_call_message_order_and_original_extras",
+      "raw_csv_lines": [
+        "source_row_id,source_device_id,source_stream_id,source_owner_subject_id,source_platform,input_stage,graph_scope_id,source_day_id,from_subject_id,to_subject_id,communication_dimension,source_record_id,extra",
+        "r1,deviceA,streamA,A,Android,caller-qualified-directed-connected-subject-communication,scope,opaqueD,A,B,calling,c1,\" original, not-normalized \"",
+        "r2,deviceA,streamA,A,Android,caller-qualified-directed-connected-subject-communication,scope,opaqueD,A,B,messaging,m1,untouched",
+        "r3,deviceA,streamA,A,Android,caller-qualified-directed-connected-subject-communication,scope,opaqueD,B,A,messaging,m2,untouched",
+        "r4,deviceA,streamA,A,Android,caller-qualified-directed-connected-subject-communication,scope,opaqueE,A,B,calling,c2,untouched",
+        "r5,deviceA,streamA,A,Android,caller-qualified-directed-connected-subject-communication,scope,opaqueD,A,B,calling,c3,untouched"
+      ],
+      "source_rows": 5,
+      "expected": [
+        {
+          "scope": "scope",
+          "day": "opaqueD",
+          "from": "A",
+          "to": "B",
+          "calling": [
+            "c1",
+            "c3"
+          ],
+          "messaging": [
+            "m1"
+          ],
+          "rows": [
+            1,
+            2,
+            5
+          ]
+        },
+        {
+          "scope": "scope",
+          "day": "opaqueD",
+          "from": "B",
+          "to": "A",
+          "calling": null,
+          "messaging": [
+            "m2"
+          ],
+          "rows": [
+            3
+          ]
+        },
+        {
+          "scope": "scope",
+          "day": "opaqueE",
+          "from": "A",
+          "to": "B",
+          "calling": [
+            "c2"
+          ],
+          "messaging": null,
+          "rows": [
+            4
+          ]
+        }
+      ]
+    },
+    {
+      "name": "no_observed_rows_no_synthetic_edges_or_channel_zeros",
+      "raw_csv_lines": [
+        "source_row_id,source_device_id,source_stream_id,source_owner_subject_id,source_platform,input_stage,graph_scope_id,source_day_id,from_subject_id,to_subject_id,communication_dimension,source_record_id,extra"
+      ],
+      "source_rows": 0,
+      "expected": []
+    },
+    {
+      "name": "self_and_external_endpoints_not_excluded",
+      "raw_csv_lines": [
+        "source_row_id,source_device_id,source_stream_id,source_owner_subject_id,source_platform,input_stage,graph_scope_id,source_day_id,from_subject_id,to_subject_id,communication_dimension,source_record_id,extra",
+        "r1,deviceA,streamA,A,Android,caller-qualified-directed-connected-subject-communication,scope,D,A,A,messaging,m1,untouched",
+        "r2,deviceA,streamA,A,Android,caller-qualified-directed-connected-subject-communication,scope,D,A,externalX,calling,c1,untouched"
+      ],
+      "source_rows": 2,
+      "expected": [
+        {
+          "scope": "scope",
+          "day": "D",
+          "from": "A",
+          "to": "A",
+          "calling": null,
+          "messaging": [
+            "m1"
+          ],
+          "rows": [
+            1
+          ]
+        },
+        {
+          "scope": "scope",
+          "day": "D",
+          "from": "A",
+          "to": "externalX",
+          "calling": [
+            "c1"
+          ],
+          "messaging": null,
+          "rows": [
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "name": "slash_id_structural_tuple_never_collides",
+      "raw_csv_lines": [
+        "source_row_id,source_device_id,source_stream_id,source_owner_subject_id,source_platform,input_stage,graph_scope_id,source_day_id,from_subject_id,to_subject_id,communication_dimension,source_record_id,extra",
+        "r1,deviceA,streamA,A,Android,caller-qualified-directed-connected-subject-communication,scope,D,a/b,c,calling,c1,untouched",
+        "r2,deviceA,streamA,A,Android,caller-qualified-directed-connected-subject-communication,scope,D,a,b/c,calling,c2,untouched"
+      ],
+      "source_rows": 2,
+      "expected": [
+        {
+          "scope": "scope",
+          "day": "D",
+          "from": "a/b",
+          "to": "c",
+          "calling": [
+            "c1"
+          ],
+          "messaging": null,
+          "rows": [
+            1
+          ]
+        },
+        {
+          "scope": "scope",
+          "day": "D",
+          "from": "a",
+          "to": "b/c",
+          "calling": [
+            "c2"
+          ],
+          "messaging": null,
+          "rows": [
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "name": "identical_record_repeats_preserve_supplied_membership_not_numeric_dedup",
+      "raw_csv_lines": [
+        "source_row_id,source_device_id,source_stream_id,source_owner_subject_id,source_platform,input_stage,graph_scope_id,source_day_id,from_subject_id,to_subject_id,communication_dimension,source_record_id,extra",
+        "r1,deviceA,streamA,A,Android,caller-qualified-directed-connected-subject-communication,scope,D,A,B,calling,c1,untouched",
+        "r2,deviceA,streamA,A,Android,caller-qualified-directed-connected-subject-communication,scope,D,A,B,calling,c1,untouched"
+      ],
+      "source_rows": 2,
+      "expected": [
+        {
+          "scope": "scope",
+          "day": "D",
+          "from": "A",
+          "to": "B",
+          "calling": [
+            "c1",
+            "c1"
+          ],
+          "messaging": null,
+          "rows": [
+            1,
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "name": "missing_opaque_day_is_not_inferred",
+      "raw_csv_lines": [
+        "source_row_id,source_device_id,source_stream_id,source_owner_subject_id,source_platform,input_stage,graph_scope_id,source_day_id,from_subject_id,to_subject_id,communication_dimension,source_record_id,extra",
+        "r1,deviceA,streamA,A,Android,caller-qualified-directed-connected-subject-communication,scope,,A,B,calling,c1,untouched"
+      ],
+      "refuse": true
+    },
+    {
+      "name": "unknown_channel_is_not_normalized",
+      "raw_csv_lines": [
+        "source_row_id,source_device_id,source_stream_id,source_owner_subject_id,source_platform,input_stage,graph_scope_id,source_day_id,from_subject_id,to_subject_id,communication_dimension,source_record_id,extra",
+        "r1,deviceA,streamA,A,Android,caller-qualified-directed-connected-subject-communication,scope,D,A,B,SMS,c1,untouched"
+      ],
+      "refuse": true
+    },
+    {
+      "name": "same_original_record_contradictory_directed_endpoint_refused",
+      "raw_csv_lines": [
+        "source_row_id,source_device_id,source_stream_id,source_owner_subject_id,source_platform,input_stage,graph_scope_id,source_day_id,from_subject_id,to_subject_id,communication_dimension,source_record_id,extra",
+        "r1,deviceA,streamA,A,Android,caller-qualified-directed-connected-subject-communication,scope,D,A,B,calling,c1,untouched",
+        "r2,deviceA,streamA,A,Android,caller-qualified-directed-connected-subject-communication,scope,D,B,A,calling,c1,untouched"
+      ],
+      "refuse": true
+    },
+    {
+      "name": "wrong_qualification_refused",
+      "raw_csv_lines": [
+        "source_row_id,source_device_id,source_stream_id,source_owner_subject_id,source_platform,input_stage,graph_scope_id,source_day_id,from_subject_id,to_subject_id,communication_dimension,source_record_id,extra",
+        "r1,deviceA,streamA,A,Android,unqualified,scope,D,A,B,calling,c1,untouched"
+      ],
+      "refuse": true
+    },
+    {
+      "name": "same_source_stream_contradictory_owner_refused",
+      "raw_csv_lines": [
+        "source_row_id,source_device_id,source_stream_id,source_owner_subject_id,source_platform,input_stage,graph_scope_id,source_day_id,from_subject_id,to_subject_id,communication_dimension,source_record_id,extra",
+        "r1,deviceA,streamA,A,Android,caller-qualified-directed-connected-subject-communication,scope,D,A,B,calling,c1,untouched",
+        "r2,deviceA,streamA,B,Android,caller-qualified-directed-connected-subject-communication,scope,D,B,A,calling,c2,untouched"
+      ],
+      "refuse": true
+    }
+  ]
+}

@@ -58,11 +58,55 @@ async function measure(engineName, fixturePath, fixtureBytes) {
   if (!launcher) throw new Error(`unknown engine: ${engineName}`);
   await mkdir(PROFILE_ROOT, { recursive: true });
   const profile = await mkdtemp(path.join(PROFILE_ROOT, `${engineName}-`));
-  const context = await launcher.launchPersistentContext(profile, {});
+  // MEASURE_FIREFOX_PREFS='{"javascript.options.wasm_baselinejit":false}'
+  // applies Firefox about:config prefs for an A/B of the engine's WASM tiers;
+  // the record names the prefs so the numbers are never pooled with a
+  // default-configuration run unnoticed. Ignored by the other engines.
+  const firefoxUserPrefs =
+    engineName === "firefox" && process.env.MEASURE_FIREFOX_PREFS
+      ? JSON.parse(process.env.MEASURE_FIREFOX_PREFS)
+      : undefined;
+  // MEASURE_FIREFOX_CHANNEL=moz-firefox MEASURE_FIREFOX_EXECUTABLE=/usr/bin/firefox
+  // drives a stock Firefox over WebDriver BiDi instead of Playwright's own
+  // Firefox build. Measured 2026-09-15: Playwright's Firefox 148 build has no
+  // optimizing WASM tier (a hot i64 loop ran 11x slower than Chromium, the
+  // same standalone), while a stock Firefox ESR 140 ran it 2x faster than
+  // Chromium, so the shipped-build figure needs the stock engine.
+  /** @type {{ channel?: string, executablePath?: string }} */
+  const stockFirefox =
+    engineName === "firefox" && process.env.MEASURE_FIREFOX_CHANNEL
+      ? {
+          channel: process.env.MEASURE_FIREFOX_CHANNEL,
+          ...(process.env.MEASURE_FIREFOX_EXECUTABLE
+            ? { executablePath: process.env.MEASURE_FIREFOX_EXECUTABLE }
+            : {}),
+        }
+      : {};
+  // A stock Firefox over BiDi does not complete launchPersistentContext
+  // (measured 2026-09-15: 180 s timeout on Firefox 155); it runs in a fresh
+  // context of a plain launch instead, and the record's `ephemeralWorkspace`
+  // says which persistence mode produced the numbers.
+  /** @type {import('@playwright/test').Browser | null} */
+  let stockBrowser = null;
+  /** @type {import('@playwright/test').BrowserContext | null} */
+  let context = null;
   /** @type {string[]} */
   const consoleErrors = [];
   try {
+    stockBrowser = stockFirefox.channel
+      ? await launcher.launch({
+          ...stockFirefox,
+          ...(firefoxUserPrefs ? { firefoxUserPrefs } : {}),
+        })
+      : null;
+    context = stockBrowser
+      ? await stockBrowser.newContext()
+      : await launcher.launchPersistentContext(profile, {
+          ...(firefoxUserPrefs ? { firefoxUserPrefs } : {}),
+        });
     const page = context.pages()[0] ?? (await context.newPage());
+    // The app runs only the sequential engine (the incremental-engine toggle
+    // was removed 2026-09-29), so this measures what a researcher runs.
     page.on("console", (message) => {
       if (message.type() === "error") consoleErrors.push(message.text());
     });
@@ -101,6 +145,52 @@ async function measure(engineName, fixturePath, fixtureBytes) {
     await page.getByTestId("raw-file-input").setInputFiles(fixturePath);
     await page.getByRole("tab", { name: /Process/i }).click();
     const started = Date.now();
+
+    // `workspace-unavailable` is NOT a refusal on its own any more: since the
+    // 2026-08-27 durability change it also renders in the RUNNABLE ephemeral
+    // arm, where the batch completes on the Rust runtime's non-persisted
+    // branch. Racing against that banner would report "storage-refused" for a
+    // run that finishes — and would report it instantly, because the banner is
+    // painted by the boot probe before Process is ever clicked.
+    // `durable-workspace-block` renders only in the arm that actually refuses,
+    // and that arm also disables the button, so it is checked BEFORE the click
+    // rather than raced against it.
+    const refusalBlock = page.getByTestId("durable-workspace-block");
+    if (await refusalBlock.first().isVisible().catch(() => false)) {
+      const reason =
+        (await page
+          .getByTestId("workspace-unavailable")
+          .first()
+          .textContent()
+          .catch(() => null)) ??
+        (await refusalBlock.first().textContent().catch(() => null)) ??
+        "durable local storage is unavailable and the run was refused";
+      return {
+        engine: engineName,
+        userAgent: await page.evaluate(() => navigator.userAgent),
+        fixtureBytes,
+        elapsedMs: Date.now() - started,
+        outcome: "storage-refused",
+        reason: reason.trim().slice(0, 400),
+        wasmMemoryBytes: null,
+        payloadSpill: null,
+        rowsIn: null,
+        rowsOut: null,
+        jsHeapBytes: null,
+        hardwareConcurrency: await page.evaluate(
+          () => navigator.hardwareConcurrency ?? null,
+        ),
+      };
+    }
+    // An ephemeral run is a real measurement, but it is not the durable one:
+    // record which mode produced the numbers so a peak-memory figure is never
+    // compared across the two without noticing.
+    const ephemeralWorkspace = await page
+      .getByTestId("ephemeral-workspace-note")
+      .first()
+      .isVisible()
+      .catch(() => false);
+
     await page.getByTestId("process-files-button").click();
     // Race the success surface against the app's own failure surfaces. A bare
     // waitFor would report "timeout" for an engine that actually refused the
@@ -118,8 +208,7 @@ async function measure(engineName, fixturePath, fixtureBytes) {
         .first()
         .waitFor({ timeout: RUN_TIMEOUT_MS })
         .then(() => "app-error"),
-      page
-        .getByTestId("workspace-unavailable")
+      refusalBlock
         .first()
         .waitFor({ timeout: RUN_TIMEOUT_MS })
         .then(() => "storage-refused"),
@@ -143,6 +232,7 @@ async function measure(engineName, fixturePath, fixtureBytes) {
         outcome,
         reason: reason.trim().slice(0, 400),
         wasmMemoryBytes: null,
+        payloadSpill: null,
         rowsIn: null,
         rowsOut: null,
         jsHeapBytes: null,
@@ -169,6 +259,15 @@ async function measure(engineName, fixturePath, fixtureBytes) {
           reject(new Error(`cannot open ${lastRunDatabase.name}`));
         open.onsuccess = () => {
           const db = open.result;
+          // An ephemeral run writes no last-run record, so opening the database
+          // can CREATE it empty and the store need not exist. That is an
+          // expected state, not a measurement failure: resolve null and let the
+          // caller report the mode. Any other transaction error still rejects.
+          if (!db.objectStoreNames.contains(lastRunDatabase.storeName)) {
+            db.close();
+            resolve(null);
+            return;
+          }
           const request = db
             .transaction(lastRunDatabase.storeName, "readonly")
             .objectStore(lastRunDatabase.storeName)
@@ -191,6 +290,7 @@ async function measure(engineName, fixturePath, fixtureBytes) {
       );
       return {
         wasmMemoryBytes: result?.workerWasmMemoryBytes ?? null,
+        payloadSpill: result?.workerPayloadSpill ?? null,
         rowsIn: result?.originalRowCount ?? null,
         rowsOut: result?.processedRowCount ?? null,
         jsHeapBytes: typeof memory?.usedJSHeapSize === "number" ? memory.usedJSHeapSize : null,
@@ -201,15 +301,30 @@ async function measure(engineName, fixturePath, fixtureBytes) {
     return {
       engine: engineName,
       userAgent: await page.evaluate(() => navigator.userAgent),
+      firefoxUserPrefs: firefoxUserPrefs ?? null,
+      firefoxChannel: stockFirefox.channel ?? null,
       fixtureBytes,
       elapsedMs,
-      outcome: "complete",
-      reason: null,
+      // An ephemeral run completes, but it is not the durable configuration and
+      // its numbers must never be pooled with one silently.
+      outcome: ephemeralWorkspace ? "complete-ephemeral" : "complete",
+      ephemeralWorkspace,
+      // The measurement below is read back from the last-run IndexedDB record,
+      // and an ephemeral batch is deliberately NOT saved there (its outputs are
+      // in-tab blobs that would restore as dead downloads), so wasmMemoryBytes
+      // and the row counts come back null. Say why instead of publishing an
+      // unexplained null.
+      reason: ephemeralWorkspace
+        ? "ran on the non-persisted branch: durable local storage was unavailable, so no last-run record exists to read the worker's WASM high-water mark from"
+        : null,
       ...measurement,
       consoleErrors: consoleErrors.slice(0, 5),
     };
   } finally {
-    await context.close();
+    // Launch and context creation run inside the try, so a failure there
+    // still closes what was opened instead of leaving a browser running.
+    await context?.close();
+    await stockBrowser?.close();
     await rm(profile, { recursive: true, force: true });
   }
 }
@@ -252,6 +367,8 @@ process.stdout.write(
       mechanics: {
         wasmMemoryBytes:
           "ProcessedFileResult.workerWasmMemoryBytes, recorded by the processing worker from rustWasmMemoryBytes() (WebAssembly.Memory.buffer.byteLength) when the file finished, then read back from the app's current workflow-namespaced IndexedDB last-run record. WASM linear memory never shrinks, so this is the run's high-water mark, and it is equally exact on all three engines.",
+        payloadSpill:
+          "ProcessedFileResult.workerPayloadSpill: the worker's OPFS spill-bridge counters for the file (puts/gets, bytes, and performance.now() time inside the sync-access-handle write/read calls). null where no spill backend was installed.",
         jsHeapBytes:
           "performance.memory.usedJSHeapSize. Chromium-only, main thread only, says nothing about the worker's WASM heap. null on Firefox and WebKit, which expose no equivalent to page script.",
         processRss:

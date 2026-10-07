@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactElement } from "react";
 import type { ProgressStepKind } from "@/lib/types";
-
+import type { RuntimeScientificPreflightReceipt } from "@/lib/generatedRuntimeBoundary";
 
 export type FileProgress = {
   fileName: string;
@@ -8,6 +8,7 @@ export type FileProgress = {
   stepKind?: ProgressStepKind;
   percent?: number;
   error?: string;
+  scientificPreflightRefusal?: RuntimeScientificPreflightReceipt;
 };
 
 const STEP_LABELS: Record<ProgressStepKind, string> = {
@@ -40,13 +41,21 @@ export function ProgressList({
 }: Props): ReactElement | null {
   const fillRef = useRef<HTMLDivElement | null>(null);
   const clampedPercent = Math.max(0, Math.min(1, overallPercent));
-  const [expandedErrors, setExpandedErrors] = useState<Record<string, boolean>>({});
+  const [expandedErrors, setExpandedErrors] = useState<Record<string, boolean>>(
+    {},
+  );
 
   const totalFiles = rows.length;
   const completedFiles = rows.filter(
-    (row) => row.status === "complete" || row.status === "error" || row.status === "cancelled",
+    (row) =>
+      row.status === "complete" ||
+      row.status === "error" ||
+      row.status === "cancelled",
   ).length;
-  const processing = totalFiles > 0 && completedFiles < totalFiles && rows.some((row) => row.status === "running");
+  const processing =
+    totalFiles > 0 &&
+    completedFiles < totalFiles &&
+    rows.some((row) => row.status === "running");
 
   // A self-contained ticking clock so the overall row can show a rough
   // "~Ns left" without the parent threading timing state down. Starts on the
@@ -77,7 +86,12 @@ export function ProgressList({
   if (!rows.length) return null;
 
   let etaLabel = "";
-  if (processing && startRef.current !== null && now > 0 && clampedPercent > 0.02) {
+  if (
+    processing &&
+    startRef.current !== null &&
+    now > 0 &&
+    clampedPercent > 0.02
+  ) {
     const elapsed = now - startRef.current;
     const remaining = Math.max(0, elapsed / clampedPercent - elapsed);
     etaLabel = `~${Math.ceil(remaining / 1000)}s left`;
@@ -91,7 +105,9 @@ export function ProgressList({
             Processing {completedFiles}/{totalFiles}
           </span>
           <span className="text-muted">
-            {etaLabel ? <span className="progress-panel__eta">{etaLabel}</span> : null}
+            {etaLabel ? (
+              <span className="progress-panel__eta">{etaLabel}</span>
+            ) : null}
             {Math.round(clampedPercent * 100)}%
           </span>
         </div>
@@ -103,6 +119,20 @@ export function ProgressList({
         {rows.map((row, index) => {
           const isError = row.status === "error";
           const errorExpanded = isError && expandedErrors[row.fileName];
+          const scientificRefusal = row.scientificPreflightRefusal;
+          const refusedApplicability =
+            scientificRefusal?.b05Schoedel.screenApplicability?.executable ===
+            false
+              ? scientificRefusal.b05Schoedel.screenApplicability
+              : scientificRefusal?.b05Schoedel.schoedelApplicability
+                    ?.executable === false
+                ? scientificRefusal.b05Schoedel.schoedelApplicability
+                : undefined;
+          const refusalLabel = refusedApplicability
+            ? `${refusedApplicability.refusalReason ?? "refused"}/${refusedApplicability.refusalDetail ?? "unspecified"}`
+            : scientificRefusal?.eyesInputPartition.disposition === "refused"
+              ? `${scientificRefusal.eyesInputPartition.refusalReason ?? "refused"}/${scientificRefusal.eyesInputPartition.refusalDetail ?? "unspecified"}`
+              : undefined;
           return (
             <div
               key={row.fileName}
@@ -137,6 +167,7 @@ export function ProgressList({
                     >
                       {errorExpanded ? "▾ " : "▸ "}
                       {truncate(row.error ?? "Failed")}
+                      {refusalLabel ? ` · ${refusalLabel}` : ""}
                     </button>
                   ) : row.status === "cancelled" ? (
                     "Cancelled"
@@ -172,8 +203,15 @@ export function ProgressList({
                 ) : null}
               </div>
               {errorExpanded ? (
-                <pre className="progress-row__detail" data-testid="error-detail">
+                <pre
+                  className="progress-row__detail"
+                  data-testid="error-detail"
+                >
                   {row.error ?? "Failed"}
+                  {refusalLabel ? `\nScientific decision: ${refusalLabel}` : ""}
+                  {row.scientificPreflightRefusal
+                    ? `\n\nScientific preflight receipt:\n${JSON.stringify(row.scientificPreflightRefusal, null, 2)}`
+                    : ""}
                 </pre>
               ) : null}
             </div>

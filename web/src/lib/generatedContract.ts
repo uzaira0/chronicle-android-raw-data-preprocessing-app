@@ -23,37 +23,457 @@ export const AGGREGATE_SHAPE_VALUES = [
   "long",
 ] as const;
 
+// Keep research-profile vocabulary aligned with the canonical ontology.
+export const METHOD_SETTING_ROLE_VALUES = [
+  "acquisition",
+  "event_schema",
+  "diary_schema",
+  "participant_schema",
+  "reconstruction",
+  "quality_control",
+  "aggregation",
+  "feature_engineering",
+  "analysis",
+  "intervention",
+  "validation",
+  "reporting",
+  "provenance",
+] as const;
+export const METHOD_TARGET_LAYER_VALUES = [
+  "collector",
+  "raw_occurrence",
+  "raw_record",
+  "acquired_snapshot",
+  "app_episode",
+  "app_session",
+  "screen_bout",
+  "device_session",
+  "device_setting_state_interval",
+  "device_setting_actuation",
+  "pickup_activation",
+  "participant_day",
+  "participant_hour",
+  "participant_record",
+  "participant_measure",
+  "study_window",
+  "analysis_record_set",
+  "text_entry_trial",
+  "diary_item",
+  "diary_response",
+  "derived_feature",
+  "model",
+  "notification_item",
+  "notification_alert",
+  "notification_attendance",
+  "notification_delivery",
+  "intervention_content_state",
+  "call_handling",
+  "outcome",
+  "released_artifact",
+] as const;
+export const SEQUENCE_ENCODING_RULE_VALUES = [
+  "first_vs_previously_seen_in_partition",
+] as const;
+export const RINGER_MODE_VALUES = [
+  "Normal",
+  "Vibrate",
+  "Silent",
+] as const;
+export const SCREEN_STATE_VALUES = [
+  "ON",
+  "OFF",
+] as const;
+export const KEYGUARD_STATE_VALUES = [
+  "LOCKED",
+  "UNLOCKED",
+] as const;
+export const DEVICE_STATE_INTERVAL_KIND_VALUES = [
+  "screen_bout",
+  "unlock_cost_upper_bound",
+] as const;
+export const SENSOR_CONTROL_ACTION_VALUES = [
+  "enable",
+  "disable",
+] as const;
+export const NOTIFICATION_EVIDENCE_KIND_VALUES = [
+  "arrival",
+  "removal",
+  "phone_unlock",
+  "corresponding_app_launch",
+  "notification_bar_click",
+  "swipe_dismiss",
+  "assumed_seen",
+  "seen_latency",
+  "clicked",
+  "dismissed",
+  "context",
+  "category",
+  "response_stage",
+  "response_endpoint",
+  "response_objective_label",
+  "quantity",
+  "action_occurrence",
+  "posted_callback",
+] as const;
+export const NOTIFICATION_EVIDENCE_ROLE_VALUES = [
+  "recorded",
+  "inferred",
+] as const;
+export const NOTIFICATION_RESPONSE_OBSERVABILITY_VALUES = [
+  "observable",
+  "unobservable",
+] as const;
+export const NOTIFICATION_OPENING_KIND_VALUES = [
+  "app_opening",
+  "drawer_opening",
+] as const;
+export const PARTICIPANT_DAY_OBSERVATION_KIND_VALUES = [
+  "objective_aggregate",
+  "subjective_response",
+  "modality_availability",
+] as const;
+export const NOTIFICATION_CONTEXT_SAMPLING_BOUNDARY_VALUES = [
+  "arrival",
+  "removal",
+  "interruption",
+  "posting",
+  "source_unreported",
+] as const;
+export const INTERVAL_ENDPOINT_STATUS_VALUES = [
+  "observed",
+  "unobserved",
+  "right_censored",
+  "interval_censored",
+] as const;
+
+// EventRetentionSetId, declared in chronicle-research-ontology.linkml.yaml.
+export const EVENT_RETENTION_SET_VALUES = [
+  "none",
+  "parry_toth_7",
+  "usage_logger_5",
+  "toth_trifonova_app",
+  "foreground_background_only",
+] as const;
+export type EventRetentionSet = (typeof EVENT_RETENTION_SET_VALUES)[number];
+
+// OpenerSetId, declared in chronicle-research-ontology.linkml.yaml.
+export const OPENER_SET_VALUES = [
+  "strategy_defined",
+  "activity_resumed_only",
+  "gesis_app_scoped_starts",
+] as const;
+export type OpenerSet = (typeof OPENER_SET_VALUES)[number];
+
+// ReconstructionStrategyId, declared in chronicle-research-ontology.linkml.yaml.
+export const EPISODE_RECONSTRUCTION_STRATEGY_VALUES = [
+  "parry_toth_forward_pairing",
+  "fused_matcher",
+  "eyes_complement",
+  "gesis_start_stop_repair",
+  "foreground_background_pairing",
+  "draxler_interruption_aware",
+  "morrison_lock_tolerant",
+  "schoedel_2026_app_within_screen_prose_v1",
+] as const;
+export type EpisodeReconstructionStrategy = (typeof EPISODE_RECONSTRUCTION_STRATEGY_VALUES)[number];
+
+// MicroUseClassificationPolicyId, declared in chronicle-research-ontology.linkml.yaml.
+export const MICRO_USE_CLASSIFICATION_POLICY_VALUES = [
+  "none",
+  "okoshi_lt_5s",
+] as const;
+export type MicroUseClassificationPolicy = (typeof MICRO_USE_CLASSIFICATION_POLICY_VALUES)[number];
+
+// MaximumDurationPolicyId, declared in chronicle-research-ontology.linkml.yaml.
+export const MAXIMUM_DURATION_POLICY_VALUES = [
+  "strategy_native",
+  "chronicle_observed_close_rejection_v1",
+  "post_reconstruction_strict_max_v1",
+] as const;
+export type MaximumDurationPolicy = (typeof MAXIMUM_DURATION_POLICY_VALUES)[number];
+
+// MaximumDurationConfiguredDispositionId, declared in chronicle-research-ontology.linkml.yaml.
+export const MAXIMUM_DURATION_DISPOSITION_VALUES = [
+  "not_applicable",
+  "flag_and_retain",
+  "retain_but_exclude",
+  "truncate_to_threshold",
+  "drop_row",
+] as const;
+export type MaximumDurationDisposition = (typeof MAXIMUM_DURATION_DISPOSITION_VALUES)[number];
+
+// MaximumDurationThresholdSourceId, declared in chronicle-research-ontology.linkml.yaml.
+export const MAXIMUM_DURATION_THRESHOLD_SOURCE_VALUES = [
+  "strategy_native",
+  "chronicle_legacy_config",
+  "fixed_parameter",
+  "b12_adaptive_participant",
+] as const;
+export type MaximumDurationThresholdSource = (typeof MAXIMUM_DURATION_THRESHOLD_SOURCE_VALUES)[number];
+
+// DayBoundaryAttributionId, declared in chronicle-research-ontology.linkml.yaml.
+export const DAY_BOUNDARY_ATTRIBUTION_VALUES = [
+  "attribute_to_start_day",
+  "split_at_local_midnight",
+] as const;
+export type DayBoundaryAttribution = (typeof DAY_BOUNDARY_ATTRIBUTION_VALUES)[number];
+
+// FilterMatchFieldId, declared in chronicle-research-ontology.linkml.yaml.
+export const FILTER_MATCH_FIELD_VALUES = [
+  "app_package_name",
+  "application_label",
+] as const;
+export type FilterMatchField = (typeof FILTER_MATCH_FIELD_VALUES)[number];
+
+// PackageExclusionPresetId, declared in chronicle-research-ontology.linkml.yaml.
+export const PACKAGE_EXCLUSION_PRESET_VALUES = [
+  "all_supplied_rows",
+  "honor_filter_flag",
+  "system_scope_only",
+] as const;
+export type PackageExclusionPreset = (typeof PACKAGE_EXCLUSION_PRESET_VALUES)[number];
+
+// MinimumDurationComparatorId, declared in chronicle-research-ontology.linkml.yaml.
+export const MINIMUM_DURATION_COMPARATOR_VALUES = [
+  "strict_lt",
+  "inclusive_le",
+] as const;
+export type MinimumDurationComparator = (typeof MINIMUM_DURATION_COMPARATOR_VALUES)[number];
+
+// MinimumDurationDispositionId, declared in chronicle-research-ontology.linkml.yaml.
+export const MINIMUM_DURATION_DISPOSITION_VALUES = [
+  "chronicle_blank_keep_row",
+  "retain_and_credit",
+  "retain_but_exclude",
+  "drop_row",
+] as const;
+export type MinimumDurationDisposition = (typeof MINIMUM_DURATION_DISPOSITION_VALUES)[number];
+
+// IntervalQualityPolicyId, declared in chronicle-research-ontology.linkml.yaml.
+export const INTERVAL_QUALITY_POLICY_VALUES = [
+  "none",
+  "culverhouse_trim_and_log",
+] as const;
+export type IntervalQualityPolicy = (typeof INTERVAL_QUALITY_POLICY_VALUES)[number];
+
+// SessionGroupingPolicyId, declared in chronicle-research-ontology.linkml.yaml.
+export const SESSION_GROUPING_POLICY_VALUES = [
+  "none",
+  "church_5s",
+  "smartphone_wellbeing_strict_lt_5s",
+  "grosse_deters_10s",
+  "ross_15s",
+  "van_berkel_45s",
+  "zerrer_60s",
+  "peng_zhu_2020_participant_median",
+] as const;
+export type SessionGroupingPolicy = (typeof SESSION_GROUPING_POLICY_VALUES)[number];
+
+// SessionGapBasisId, declared in chronicle-research-ontology.linkml.yaml.
+export const SESSION_GAP_BASIS_VALUES = [
+  "previous_episode_stop_v1",
+  "session_running_maximum_stop_v1",
+] as const;
+export type SessionGapBasis = (typeof SESSION_GAP_BASIS_VALUES)[number];
+
+// SessionBoundaryScopeId, declared in chronicle-research-ontology.linkml.yaml.
+export const SESSION_BOUNDARY_SCOPE_VALUES = [
+  "participant_v1",
+  "participant_and_study_v1",
+  "participant_study_and_person_v1",
+] as const;
+export type SessionBoundaryScope = (typeof SESSION_BOUNDARY_SCOPE_VALUES)[number];
+
+// ScreenSessionConstructionStrategyId, declared in chronicle-research-ontology.linkml.yaml.
+export const SCREEN_SESSION_CONSTRUCTION_STRATEGY_VALUES = [
+  "chronicle_screen_interactive_v1",
+  "parry_toth_2025_session_glance_v1",
+  "zhu_2018_unlock_lock_v1",
+  "unlock_to_lock_v1",
+  "unlock_to_off_or_lock_v1",
+] as const;
+export type ScreenSessionConstructionStrategy = (typeof SCREEN_SESSION_CONSTRUCTION_STRATEGY_VALUES)[number];
+
+// ScreenSessionClassificationPolicyId, declared in chronicle-research-ontology.linkml.yaml.
+export const SCREEN_SESSION_CLASSIFICATION_POLICY_VALUES = [
+  "none",
+  "phone_check_inclusive_15s",
+  "null_no_app_strict_gt15s_vs_app",
+] as const;
+export type ScreenSessionClassificationPolicy = (typeof SCREEN_SESSION_CLASSIFICATION_POLICY_VALUES)[number];
+
+// ScreenSessionMaximumDurationDispositionId, declared in chronicle-research-ontology.linkml.yaml.
+export const SCREEN_SESSION_MAXIMUM_DURATION_DISPOSITION_VALUES = [
+  "none",
+  "truncate",
+  "exclude_participant",
+] as const;
+export type ScreenSessionMaximumDurationDisposition = (typeof SCREEN_SESSION_MAXIMUM_DURATION_DISPOSITION_VALUES)[number];
+
+// LockedScreenAudioDispositionId, declared in chronicle-research-ontology.linkml.yaml.
+export const LOCKED_SCREEN_AUDIO_DISPOSITION_VALUES = [
+  "include",
+  "exclude_from_phone_and_app_sessions",
+] as const;
+export type LockedScreenAudioDisposition = (typeof LOCKED_SCREEN_AUDIO_DISPOSITION_VALUES)[number];
+
+// InteractionTypeRemovalModeId, declared in chronicle-research-ontology.linkml.yaml.
+export const INTERACTION_TYPE_REMOVAL_MODE_VALUES = [
+  "gap_preserving",
+  "unconditional",
+] as const;
+export type InteractionTypeRemovalMode = (typeof INTERACTION_TYPE_REMOVAL_MODE_VALUES)[number];
+
+// ScreenGatingRuleId, declared in chronicle-research-ontology.linkml.yaml.
+export const SCREEN_GATING_RULE_VALUES = [
+  "screen_and_liveness_v1",
+  "screen_witness_only",
+  "strict_visual_only",
+  "device_liveness_only",
+] as const;
+export type ScreenGatingRule = (typeof SCREEN_GATING_RULE_VALUES)[number];
+
+// NotificationProxyRuleId, declared in chronicle-research-ontology.linkml.yaml.
+export const NOTIFICATION_PROXY_RULE_VALUES = [
+  "none",
+  "seen_contact_v1",
+  "interruption_contact_v1",
+  "any_notification_contact_v1",
+] as const;
+export type NotificationProxyRule = (typeof NOTIFICATION_PROXY_RULE_VALUES)[number];
+
+// PolledEmulationMethodId, declared in chronicle-research-ontology.linkml.yaml.
+export const POLLED_EMULATION_METHOD_VALUES = [
+  "none",
+  "ross_2025_sampled_gap_v1",
+  "cerit_2025_sample_count_v1",
+] as const;
+export type PolledEmulationMethod = (typeof POLLED_EMULATION_METHOD_VALUES)[number];
+
+// IntervalExpansionMethodId, declared in chronicle-research-ontology.linkml.yaml.
+export const INTERVAL_EXPANSION_METHOD_VALUES = [
+  "none",
+  "behapp_start_anchored_half_open_1s_v1",
+] as const;
+export type IntervalExpansionMethod = (typeof INTERVAL_EXPANSION_METHOD_VALUES)[number];
+
+export const RESEARCH_AXIS_VALUES_BY_OPTION = {
+  eventRetentionSet: EVENT_RETENTION_SET_VALUES,
+  openerSet: OPENER_SET_VALUES,
+  episodeReconstructionStrategy: EPISODE_RECONSTRUCTION_STRATEGY_VALUES,
+  microUseClassificationPolicy: MICRO_USE_CLASSIFICATION_POLICY_VALUES,
+  maximumDurationPolicy: MAXIMUM_DURATION_POLICY_VALUES,
+  maximumDurationDisposition: MAXIMUM_DURATION_DISPOSITION_VALUES,
+  maximumDurationThresholdSource: MAXIMUM_DURATION_THRESHOLD_SOURCE_VALUES,
+  dayBoundaryAttribution: DAY_BOUNDARY_ATTRIBUTION_VALUES,
+  filterMatchField: FILTER_MATCH_FIELD_VALUES,
+  packageExclusionPreset: PACKAGE_EXCLUSION_PRESET_VALUES,
+  minimumDurationComparator: MINIMUM_DURATION_COMPARATOR_VALUES,
+  minimumDurationDisposition: MINIMUM_DURATION_DISPOSITION_VALUES,
+  intervalQualityPolicy: INTERVAL_QUALITY_POLICY_VALUES,
+  sessionGroupingPolicy: SESSION_GROUPING_POLICY_VALUES,
+  sessionGapBasis: SESSION_GAP_BASIS_VALUES,
+  sessionBoundaryScope: SESSION_BOUNDARY_SCOPE_VALUES,
+  screenSessionConstructionStrategy: SCREEN_SESSION_CONSTRUCTION_STRATEGY_VALUES,
+  screenSessionClassificationPolicy: SCREEN_SESSION_CLASSIFICATION_POLICY_VALUES,
+  screenSessionMaximumDurationDisposition: SCREEN_SESSION_MAXIMUM_DURATION_DISPOSITION_VALUES,
+  lockedScreenAudioDisposition: LOCKED_SCREEN_AUDIO_DISPOSITION_VALUES,
+  interactionTypeRemovalMode: INTERACTION_TYPE_REMOVAL_MODE_VALUES,
+  screenGatingRule: SCREEN_GATING_RULE_VALUES,
+  notificationProxyRule: NOTIFICATION_PROXY_RULE_VALUES,
+  polledEmulationMethod: POLLED_EMULATION_METHOD_VALUES,
+  intervalExpansionMethod: INTERVAL_EXPANSION_METHOD_VALUES,
+} as const;
+
+export const RESEARCH_AXIS_BROWSER_OPTION_KEYS = [
+  "eventRetentionSet",
+  "openerSet",
+  "episodeReconstructionStrategy",
+  "microUseClassificationPolicy",
+  "maximumDurationPolicy",
+  "maximumDurationDisposition",
+  "maximumDurationThresholdSource",
+  "dayBoundaryAttribution",
+  "filterMatchField",
+  "packageExclusionPreset",
+  "minimumDurationComparator",
+  "minimumDurationDisposition",
+  "intervalQualityPolicy",
+  "sessionGroupingPolicy",
+  "sessionGapBasis",
+  "sessionBoundaryScope",
+  "screenSessionConstructionStrategy",
+  "screenSessionClassificationPolicy",
+  "screenSessionMaximumDurationDisposition",
+  "lockedScreenAudioDisposition",
+  "interactionTypeRemovalMode",
+  "screenGatingRule",
+  "notificationProxyRule",
+  "polledEmulationMethod",
+  "intervalExpansionMethod",
+] as const;
+
 export const BROWSER_PROCESSING_OPTION_KEYS = [
   "studyName",
   "processAppUsage",
   "processScreenUsage",
+  "eventRetentionSet",
+  "openerSet",
+  "episodeReconstructionStrategy",
+  "microUseClassificationPolicy",
   "allowStopEventReuse",
   "useActivityStoppedAsFallback",
   "applyThresholdToFallback",
   "longDurationThresholdHours",
+  "longDurationThresholdHoursExplicit",
+  "maximumDurationPolicy",
+  "maximumDurationDisposition",
+  "maximumDurationThresholdSource",
+  "maximumDurationThresholdNs",
   "correctDuplicateEventTimestamps",
   "deduplicateExactRows",
+  "dropOutOfSourceOrderEvents",
   "selectedTimezone",
   "timezoneHandling",
+  "dayBoundaryAttribution",
   "useFilterFile",
+  "filterMatchField",
+  "applicationLabelExclusions",
+  "packageExclusionPreset",
   "useAppsForcingScreenOpenFile",
   "useBackgroundAppsFile",
   "useAppCodebook",
   "includeCategoryColumn",
+  "includeAppUsageEndReason",
   "enablePlotting",
   "includeFilteredAppUsageInPlots",
   "enableActivityHeatmap",
   "exportPlotsAsSvg",
   "enableAggregates",
   "aggregateShape",
+  "aggregateTopAppsLimit",
+  "enableParticipantAmountSummary",
   "enableParquetExport",
   "enableSpssExport",
+  "neutralizeSpreadsheetFormulas",
   "enableInteractiveTimeline",
   "minimumUsageDuration",
+  "minimumDurationComparator",
+  "minimumDurationDisposition",
   "filterZeroDurationSessions",
+  "intervalQualityPolicy",
+  "sessionGroupingPolicy",
+  "sessionGapBasis",
+  "sessionBoundaryScope",
+  "emitSessionBreakLineage",
   "customAppEngagementDuration",
   "longUsageDurationThresholds",
   "longDataTimeGapThresholds",
+  "screenSessionConstructionStrategy",
+  "screenSessionClassificationPolicy",
+  "screenSessionMaximumDurationMinutes",
+  "screenSessionMaximumDurationDisposition",
+  "lockedScreenAudioDisposition",
   "screenUsageAutoLockTimeoutSeconds",
   "screenUsageAutoLockToleranceSeconds",
   "screenUsageManualLockMaxTailGapSeconds",
@@ -65,14 +485,21 @@ export const BROWSER_PROCESSING_OPTION_KEYS = [
   "modelConcurrentUsage",
   "applyMinimumUsageDurationToConcurrentSubintervals",
   "interactionTypesToRemove",
+  "interactionTypeRemovalMode",
   "interactionTypeRemap",
   "proximityIntervalSeconds",
   "addNoActivityPlaceholderDays",
   "enableScreenGatedCrediting",
+  "screenGatingRule",
   "creditedSessionCapMinutes",
   "deviceLivenessGapToleranceMinutes",
   "autoLockBridgeSeconds",
   "noWitnessMinDayApps",
+  "notificationProxyRule",
+  "polledEmulationMethod",
+  "polledEmulationIntervalSeconds",
+  "polledEmulationGapSeconds",
+  "intervalExpansionMethod",
   "enableStudyWindowFilter",
   "enablePersonAttribution",
   "enableComplianceScoring",
@@ -86,28 +513,58 @@ export const BROWSER_PROCESSING_OPTION_KEYS = [
 export const COMPUTATIONAL_BROWSER_OPTION_KEYS = [
   "processAppUsage",
   "processScreenUsage",
+  "eventRetentionSet",
+  "openerSet",
+  "episodeReconstructionStrategy",
+  "microUseClassificationPolicy",
   "allowStopEventReuse",
   "useActivityStoppedAsFallback",
   "applyThresholdToFallback",
   "longDurationThresholdHours",
+  "longDurationThresholdHoursExplicit",
+  "maximumDurationPolicy",
+  "maximumDurationDisposition",
+  "maximumDurationThresholdSource",
+  "maximumDurationThresholdNs",
   "correctDuplicateEventTimestamps",
   "deduplicateExactRows",
+  "dropOutOfSourceOrderEvents",
   "selectedTimezone",
   "timezoneHandling",
+  "dayBoundaryAttribution",
   "useFilterFile",
+  "filterMatchField",
+  "applicationLabelExclusions",
+  "packageExclusionPreset",
   "useAppsForcingScreenOpenFile",
   "useBackgroundAppsFile",
   "useAppCodebook",
   "includeCategoryColumn",
+  "includeAppUsageEndReason",
   "enableAggregates",
   "aggregateShape",
+  "aggregateTopAppsLimit",
+  "enableParticipantAmountSummary",
   "enableParquetExport",
   "enableSpssExport",
+  "neutralizeSpreadsheetFormulas",
   "minimumUsageDuration",
+  "minimumDurationComparator",
+  "minimumDurationDisposition",
   "filterZeroDurationSessions",
+  "intervalQualityPolicy",
+  "sessionGroupingPolicy",
+  "sessionGapBasis",
+  "sessionBoundaryScope",
+  "emitSessionBreakLineage",
   "customAppEngagementDuration",
   "longUsageDurationThresholds",
   "longDataTimeGapThresholds",
+  "screenSessionConstructionStrategy",
+  "screenSessionClassificationPolicy",
+  "screenSessionMaximumDurationMinutes",
+  "screenSessionMaximumDurationDisposition",
+  "lockedScreenAudioDisposition",
   "screenUsageAutoLockTimeoutSeconds",
   "screenUsageAutoLockToleranceSeconds",
   "screenUsageManualLockMaxTailGapSeconds",
@@ -117,14 +574,21 @@ export const COMPUTATIONAL_BROWSER_OPTION_KEYS = [
   "modelConcurrentUsage",
   "applyMinimumUsageDurationToConcurrentSubintervals",
   "interactionTypesToRemove",
+  "interactionTypeRemovalMode",
   "interactionTypeRemap",
   "proximityIntervalSeconds",
   "addNoActivityPlaceholderDays",
   "enableScreenGatedCrediting",
+  "screenGatingRule",
   "creditedSessionCapMinutes",
   "deviceLivenessGapToleranceMinutes",
   "autoLockBridgeSeconds",
   "noWitnessMinDayApps",
+  "notificationProxyRule",
+  "polledEmulationMethod",
+  "polledEmulationIntervalSeconds",
+  "polledEmulationGapSeconds",
+  "intervalExpansionMethod",
   "enableStudyWindowFilter",
   "enablePersonAttribution",
   "enableComplianceScoring",
@@ -150,32 +614,57 @@ export const BROWSER_REQUIRED_PROCESSING_OPTION_KEYS = [
   "studyName",
   "processAppUsage",
   "processScreenUsage",
+  "eventRetentionSet",
+  "openerSet",
+  "episodeReconstructionStrategy",
+  "microUseClassificationPolicy",
   "allowStopEventReuse",
   "useActivityStoppedAsFallback",
   "applyThresholdToFallback",
   "longDurationThresholdHours",
   "correctDuplicateEventTimestamps",
   "deduplicateExactRows",
+  "dropOutOfSourceOrderEvents",
   "timezoneHandling",
+  "dayBoundaryAttribution",
   "useFilterFile",
+  "filterMatchField",
+  "applicationLabelExclusions",
+  "packageExclusionPreset",
   "useAppsForcingScreenOpenFile",
   "useBackgroundAppsFile",
   "useAppCodebook",
   "includeCategoryColumn",
+  "includeAppUsageEndReason",
   "enablePlotting",
   "includeFilteredAppUsageInPlots",
   "enableActivityHeatmap",
   "exportPlotsAsSvg",
   "enableAggregates",
   "aggregateShape",
+  "aggregateTopAppsLimit",
+  "enableParticipantAmountSummary",
   "enableParquetExport",
   "enableSpssExport",
+  "neutralizeSpreadsheetFormulas",
   "enableInteractiveTimeline",
   "minimumUsageDuration",
+  "minimumDurationComparator",
+  "minimumDurationDisposition",
   "filterZeroDurationSessions",
+  "intervalQualityPolicy",
+  "sessionGroupingPolicy",
+  "sessionGapBasis",
+  "sessionBoundaryScope",
+  "emitSessionBreakLineage",
   "customAppEngagementDuration",
   "longUsageDurationThresholds",
   "longDataTimeGapThresholds",
+  "screenSessionConstructionStrategy",
+  "screenSessionClassificationPolicy",
+  "screenSessionMaximumDurationMinutes",
+  "screenSessionMaximumDurationDisposition",
+  "lockedScreenAudioDisposition",
   "screenUsageAutoLockTimeoutSeconds",
   "screenUsageAutoLockToleranceSeconds",
   "screenUsageManualLockMaxTailGapSeconds",
@@ -186,14 +675,21 @@ export const BROWSER_REQUIRED_PROCESSING_OPTION_KEYS = [
   "modelConcurrentUsage",
   "applyMinimumUsageDurationToConcurrentSubintervals",
   "interactionTypesToRemove",
+  "interactionTypeRemovalMode",
   "interactionTypeRemap",
   "proximityIntervalSeconds",
   "addNoActivityPlaceholderDays",
   "enableScreenGatedCrediting",
+  "screenGatingRule",
   "creditedSessionCapMinutes",
   "deviceLivenessGapToleranceMinutes",
   "autoLockBridgeSeconds",
   "noWitnessMinDayApps",
+  "notificationProxyRule",
+  "polledEmulationMethod",
+  "polledEmulationIntervalSeconds",
+  "polledEmulationGapSeconds",
+  "intervalExpansionMethod",
   "enableStudyWindowFilter",
   "enablePersonAttribution",
   "enableComplianceScoring",
@@ -210,6 +706,12 @@ export const BROWSER_SUPPORT_FILE_KEYS = [
   "deviceSharingFile",
   "surveyAttributionFile",
   "enrolledDevicesFile",
+  "inputCapabilityEvidenceFile",
+  "analysisFeatureMatrixFile",
+  "callSmsEligibilityFile",
+  "phoneStudyPsCommunicationFile",
+  "phoneStudyEsFile",
+  "anchorEventsFile",
 ] as const;
 
 export const BROWSER_RUNTIME_KEYS = [
@@ -228,6 +730,33 @@ export const RAW_CHRONICLE_COLUMNS = [
   "event_timestamp",
   "start_timestamp",
   "stop_timestamp",
+  "duration_seconds",
+  "interval_type",
+  "source_event_type",
+  "source_event_type_map",
+  "network_traffic_bytes",
+  "network_interactivity_class",
+  "network_interactivity_qualification",
+  "bytes_sent",
+  "bytes_received",
+  "battery_charging_no_data_percent",
+  "battery_discharging_no_data_percent",
+  "network_source_rows",
+  "network_call_sequence",
+  "network_call_send_bytes_numerator",
+  "network_call_send_bytes_denominator",
+  "network_call_receive_bytes",
+  "network_call_offset_nanoseconds",
+  "network_call_order",
+  "network_window_screen_state",
+  "communication_modality",
+  "communication_direction",
+  "communication_peer_id",
+  "communication_state",
+  "communication_conversation_id",
+  "sms_response_to_source_row",
+  "sms_response_latency_seconds",
+  "client_db_id",
   "timezone",
 ] as const;
 
@@ -251,33 +780,63 @@ export type BrowserProcessingOptions = {
   studyName: string;
   processAppUsage: boolean;
   processScreenUsage: boolean;
+  eventRetentionSet: EventRetentionSet;
+  openerSet: OpenerSet;
+  episodeReconstructionStrategy: EpisodeReconstructionStrategy;
+  microUseClassificationPolicy: MicroUseClassificationPolicy;
   allowStopEventReuse: boolean;
   useActivityStoppedAsFallback: boolean;
   applyThresholdToFallback: boolean;
   longDurationThresholdHours: number;
+  longDurationThresholdHoursExplicit?: boolean;
+  maximumDurationPolicy?: MaximumDurationPolicy;
+  maximumDurationDisposition?: MaximumDurationDisposition;
+  maximumDurationThresholdSource?: MaximumDurationThresholdSource;
+  maximumDurationThresholdNs?: string;
   correctDuplicateEventTimestamps: boolean;
   deduplicateExactRows: boolean;
+  dropOutOfSourceOrderEvents: boolean;
   selectedTimezone?: string;
   timezoneHandling: BrowserTimezoneHandling;
+  dayBoundaryAttribution: DayBoundaryAttribution;
   useFilterFile: boolean;
+  filterMatchField: FilterMatchField;
+  applicationLabelExclusions: string[];
+  packageExclusionPreset: PackageExclusionPreset;
   useAppsForcingScreenOpenFile: boolean;
   useBackgroundAppsFile: boolean;
   useAppCodebook: boolean;
   includeCategoryColumn: boolean;
+  includeAppUsageEndReason: boolean;
   enablePlotting: boolean;
   includeFilteredAppUsageInPlots: boolean;
   enableActivityHeatmap: boolean;
   exportPlotsAsSvg: boolean;
   enableAggregates: boolean;
   aggregateShape: AggregateShape;
+  aggregateTopAppsLimit: number;
+  enableParticipantAmountSummary: boolean;
   enableParquetExport: boolean;
   enableSpssExport: boolean;
+  neutralizeSpreadsheetFormulas: boolean;
   enableInteractiveTimeline: boolean;
   minimumUsageDuration: number;
+  minimumDurationComparator: MinimumDurationComparator;
+  minimumDurationDisposition: MinimumDurationDisposition;
   filterZeroDurationSessions: boolean;
+  intervalQualityPolicy: IntervalQualityPolicy;
+  sessionGroupingPolicy: SessionGroupingPolicy;
+  sessionGapBasis: SessionGapBasis;
+  sessionBoundaryScope: SessionBoundaryScope;
+  emitSessionBreakLineage: boolean;
   customAppEngagementDuration: number;
   longUsageDurationThresholds: number[];
   longDataTimeGapThresholds: number[];
+  screenSessionConstructionStrategy: ScreenSessionConstructionStrategy;
+  screenSessionClassificationPolicy: ScreenSessionClassificationPolicy;
+  screenSessionMaximumDurationMinutes: number;
+  screenSessionMaximumDurationDisposition: ScreenSessionMaximumDurationDisposition;
+  lockedScreenAudioDisposition: LockedScreenAudioDisposition;
   screenUsageAutoLockTimeoutSeconds: number;
   screenUsageAutoLockToleranceSeconds: number;
   screenUsageManualLockMaxTailGapSeconds: number;
@@ -289,14 +848,21 @@ export type BrowserProcessingOptions = {
   modelConcurrentUsage: boolean;
   applyMinimumUsageDurationToConcurrentSubintervals: boolean;
   interactionTypesToRemove: string[];
+  interactionTypeRemovalMode: InteractionTypeRemovalMode;
   interactionTypeRemap: string[];
   proximityIntervalSeconds: number;
   addNoActivityPlaceholderDays: boolean;
   enableScreenGatedCrediting: boolean;
+  screenGatingRule: ScreenGatingRule;
   creditedSessionCapMinutes: number;
   deviceLivenessGapToleranceMinutes: number;
   autoLockBridgeSeconds: number;
   noWitnessMinDayApps: number;
+  notificationProxyRule: NotificationProxyRule;
+  polledEmulationMethod: PolledEmulationMethod;
+  polledEmulationIntervalSeconds: number;
+  polledEmulationGapSeconds: number;
+  intervalExpansionMethod: IntervalExpansionMethod;
   enableStudyWindowFilter: boolean;
   enablePersonAttribution: boolean;
   enableComplianceScoring: boolean;
@@ -311,22 +877,28 @@ export const BOOLEAN_BROWSER_OPTION_KEYS = [
   "allowStopEventReuse",
   "useActivityStoppedAsFallback",
   "applyThresholdToFallback",
+  "longDurationThresholdHoursExplicit",
   "correctDuplicateEventTimestamps",
   "deduplicateExactRows",
+  "dropOutOfSourceOrderEvents",
   "useFilterFile",
   "useAppsForcingScreenOpenFile",
   "useBackgroundAppsFile",
   "useAppCodebook",
   "includeCategoryColumn",
+  "includeAppUsageEndReason",
   "enablePlotting",
   "includeFilteredAppUsageInPlots",
   "enableActivityHeatmap",
   "exportPlotsAsSvg",
   "enableAggregates",
+  "enableParticipantAmountSummary",
   "enableParquetExport",
   "enableSpssExport",
+  "neutralizeSpreadsheetFormulas",
   "enableInteractiveTimeline",
   "filterZeroDurationSessions",
+  "emitSessionBreakLineage",
   "parallelProcessing",
   "modelConcurrentUsage",
   "applyMinimumUsageDurationToConcurrentSubintervals",
@@ -339,8 +911,10 @@ export const BOOLEAN_BROWSER_OPTION_KEYS = [
 ] as const;
 export const NUMBER_BROWSER_OPTION_KEYS = [
   "longDurationThresholdHours",
+  "aggregateTopAppsLimit",
   "minimumUsageDuration",
   "customAppEngagementDuration",
+  "screenSessionMaximumDurationMinutes",
   "screenUsageAutoLockTimeoutSeconds",
   "screenUsageAutoLockToleranceSeconds",
   "screenUsageManualLockMaxTailGapSeconds",
@@ -350,6 +924,8 @@ export const NUMBER_BROWSER_OPTION_KEYS = [
   "deviceLivenessGapToleranceMinutes",
   "autoLockBridgeSeconds",
   "noWitnessMinDayApps",
+  "polledEmulationIntervalSeconds",
+  "polledEmulationGapSeconds",
   "complianceThresholdPercent",
 ] as const;
 export const NUMBER_ARRAY_BROWSER_OPTION_KEYS = [
@@ -358,11 +934,38 @@ export const NUMBER_ARRAY_BROWSER_OPTION_KEYS = [
 ] as const;
 export const STRING_BROWSER_OPTION_KEYS = [
   "studyName",
+  "eventRetentionSet",
+  "openerSet",
+  "episodeReconstructionStrategy",
+  "microUseClassificationPolicy",
+  "maximumDurationPolicy",
+  "maximumDurationDisposition",
+  "maximumDurationThresholdSource",
+  "maximumDurationThresholdNs",
   "selectedTimezone",
   "timezoneHandling",
+  "dayBoundaryAttribution",
+  "filterMatchField",
+  "packageExclusionPreset",
   "aggregateShape",
+  "minimumDurationComparator",
+  "minimumDurationDisposition",
+  "intervalQualityPolicy",
+  "sessionGroupingPolicy",
+  "sessionGapBasis",
+  "sessionBoundaryScope",
+  "screenSessionConstructionStrategy",
+  "screenSessionClassificationPolicy",
+  "screenSessionMaximumDurationDisposition",
+  "lockedScreenAudioDisposition",
+  "interactionTypeRemovalMode",
+  "screenGatingRule",
+  "notificationProxyRule",
+  "polledEmulationMethod",
+  "intervalExpansionMethod",
 ] as const;
 export const STRING_ARRAY_BROWSER_OPTION_KEYS = [
+  "applicationLabelExclusions",
   "sameAppInteractionTypesToStopUsageAt",
   "otherInteractionTypesToStopUsageAt",
   "interactionTypesToRemove",
@@ -373,33 +976,63 @@ export const DEFAULT_BROWSER_OPTIONS: BrowserProcessingOptions = {
   studyName: "",
   processAppUsage: true,
   processScreenUsage: true,
+  eventRetentionSet: "none",
+  openerSet: "strategy_defined",
+  episodeReconstructionStrategy: "fused_matcher",
+  microUseClassificationPolicy: "none",
   allowStopEventReuse: false,
   useActivityStoppedAsFallback: true,
   applyThresholdToFallback: true,
   longDurationThresholdHours: 12,
+  longDurationThresholdHoursExplicit: undefined,
+  maximumDurationPolicy: undefined,
+  maximumDurationDisposition: undefined,
+  maximumDurationThresholdSource: undefined,
+  maximumDurationThresholdNs: undefined,
   correctDuplicateEventTimestamps: true,
   deduplicateExactRows: true,
+  dropOutOfSourceOrderEvents: false,
   selectedTimezone: "",
-  timezoneHandling: "selected-filter",
+  timezoneHandling: "selected-convert",
+  dayBoundaryAttribution: "attribute_to_start_day",
   useFilterFile: false,
+  filterMatchField: "app_package_name",
+  applicationLabelExclusions: [],
+  packageExclusionPreset: "all_supplied_rows",
   useAppsForcingScreenOpenFile: false,
   useBackgroundAppsFile: false,
   useAppCodebook: true,
   includeCategoryColumn: false,
+  includeAppUsageEndReason: true,
   enablePlotting: true,
   includeFilteredAppUsageInPlots: false,
   enableActivityHeatmap: true,
   exportPlotsAsSvg: false,
   enableAggregates: false,
   aggregateShape: "wide",
+  aggregateTopAppsLimit: 0,
+  enableParticipantAmountSummary: false,
   enableParquetExport: false,
   enableSpssExport: false,
+  neutralizeSpreadsheetFormulas: false,
   enableInteractiveTimeline: false,
   minimumUsageDuration: 60,
+  minimumDurationComparator: "strict_lt",
+  minimumDurationDisposition: "chronicle_blank_keep_row",
   filterZeroDurationSessions: false,
+  intervalQualityPolicy: "none",
+  sessionGroupingPolicy: "none",
+  sessionGapBasis: "previous_episode_stop_v1",
+  sessionBoundaryScope: "participant_v1",
+  emitSessionBreakLineage: false,
   customAppEngagementDuration: 300,
   longUsageDurationThresholds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
   longDataTimeGapThresholds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+  screenSessionConstructionStrategy: "chronicle_screen_interactive_v1",
+  screenSessionClassificationPolicy: "none",
+  screenSessionMaximumDurationMinutes: 0,
+  screenSessionMaximumDurationDisposition: "none",
+  lockedScreenAudioDisposition: "include",
   screenUsageAutoLockTimeoutSeconds: 120,
   screenUsageAutoLockToleranceSeconds: 30,
   screenUsageManualLockMaxTailGapSeconds: 30,
@@ -411,14 +1044,21 @@ export const DEFAULT_BROWSER_OPTIONS: BrowserProcessingOptions = {
   modelConcurrentUsage: false,
   applyMinimumUsageDurationToConcurrentSubintervals: false,
   interactionTypesToRemove: [],
+  interactionTypeRemovalMode: "gap_preserving",
   interactionTypeRemap: [],
   proximityIntervalSeconds: 2,
   addNoActivityPlaceholderDays: false,
   enableScreenGatedCrediting: false,
+  screenGatingRule: "screen_and_liveness_v1",
   creditedSessionCapMinutes: 360,
   deviceLivenessGapToleranceMinutes: 120,
   autoLockBridgeSeconds: 120,
   noWitnessMinDayApps: 2,
+  notificationProxyRule: "none",
+  polledEmulationMethod: "none",
+  polledEmulationIntervalSeconds: 10,
+  polledEmulationGapSeconds: 15,
+  intervalExpansionMethod: "none",
   enableStudyWindowFilter: false,
   enablePersonAttribution: false,
   enableComplianceScoring: false,
@@ -437,7 +1077,23 @@ export const BROWSER_OPTION_TOOLTIPS = {
   },
   processScreenUsage: {
     title: "Screen usage output",
-    body: "Derive screen-usage sessions and include the screen-usage CSV in the output ZIP. Sessions are inferred from Screen Interactive / Screen Non-Interactive events.",
+    body: "Derive screen-usage sessions with the selected construction strategy and include the screen-usage CSV in the output ZIP. When this output is off, the selected screen strategy is still computed as a declared internal dependency if the Schoedel prose app reconstruction is active.",
+  },
+  eventRetentionSet: {
+    title: "Event retention set",
+    body: "Which published study's set of raw interaction types the app-usage reconstruction is allowed to see. This runs upstream of every other axis: it narrows the events before an episode is reconstructed, so one study's reconstruction rule can be replayed on the set of event types another study recorded. It does not narrow the screen-usage branch, which reads the full event stream. Every set except none is transcribed from a paper's description and is NOT checkable against anything in this repository — treat the retained-type lists as unverified. none is the default and retains every type, so output is byte-identical to before this option existed. parry_toth_7 keeps types 1, 15, 16, 17, 18, 26 and 27 — notably NOT Activity Paused (type 2), because that paper closes an episode on screen and device events rather than on the app going to background; this is a different thing from the parry_toth_forward_pairing reconstruction rule, which ports the adaptation that does close on type 2. usage_logger_5 keeps types 1, 2, 7, 26 and 27 and is the only set retaining User Interaction. toth_trifonova_app keeps types 1, 2, 17 and 26 — type 17 is Keyguard Shown, the screen locking, not screen-on. foreground_background_only keeps just types 1 and 2, so every episode close is an observed app transition and nothing else; it is a strict subset of usage_logger_5 and toth_trifonova_app but not of parry_toth_7, which drops type 2. An unrecognised value resolves to none, which widens rather than narrows, so a bad value can never silently delete events.",
+  },
+  openerSet: {
+    title: "App-episode opener set",
+    body: "Which retained, app-scoped event rows may begin an app episode. This is a separate axis between event retention and reconstruction: B01 decides which rows reach app reconstruction, while this option only marks those retained rows as opener-eligible. Non-opener rows remain available to close, bound, explain, or censor an episode. strategy_defined is the compatibility default and preserves each reconstruction strategy's native opener and materializer behavior. activity_resumed_only admits canonical Android type 1 (Activity Resumed / Move to Foreground), including Chronicle's filtered equivalent after normalization. gesis_app_scoped_starts is a GESIS-derived adapter, not a verbatim source method: it begins with source membership {1, 4, 11, 14, 15, 18, 19, 22, 27} and intersects it with app-scoped Android event semantics, yielding effective membership {1, 4, 11, 14, 19, 22}. Device-scoped types 15, 18, and 27 never open app credit. Closer selection, repair, and unmatched-open behavior remain with the selected reconstruction strategy; package handling remains with that strategy and the separate package-policy axis. Browser persistence and import sanitization resolve unknown strings, wrong JSON types, null, and missing values to strategy_defined. Direct runtime requests remain schema-typed: non-string values are rejected, while unknown strings resolve to strategy_defined.",
+  },
+  episodeReconstructionStrategy: {
+    title: "Episode reconstruction rule",
+    body: "Which published rule turns raw event rows into app episodes. fused_matcher is this engine's own open/close matcher and the default; output is byte-identical to before this option existed. parry_toth_forward_pairing is Parry & Toth (2025): only Activity Resumed is read, Activity Stopped is discarded, and an episode ends where the next one begins. eyes_complement segments the device-state timeline first — ACTIVE is what is left after shutdown, idle, gap and glance are removed — and reconstructs episodes against it, repairing an orphaned episode forward onto the next app's resume. gesis_start_stop_repair is the GESIS/Zerrer tutorial rule: it reads a much wider event vocabulary (screen, keyguard and device-power rows are starts and stops), and ends each episode at the nearest same-package stop, else the next event of any kind, else a fixed 600 s cut — so under this rule no episode is ever left without an end. foreground_background_pairing subtracts and repairs nothing: each Activity Resumed is closed by the next Activity Paused of the same package, and a resume that never pauses yields no episode at all. Ahmed et al. (2023) and Okoshi et al. (2025) both describe exactly this, and on Chronicle's event vocabulary they are the same rule, so one arm carries both; what differs between those papers is their session and micro-use handling, which are separate options. draxler_interruption_aware is Draxler et al. (2021): an episode ends at whichever comes first of its own package backgrounding, the screen going off, or ten minutes of inactivity — the only rule here under which a screen event ends an app episode, and the only one that cuts an episode at the last event actually observed before a silence rather than at the event that breaks it. morrison_lock_tolerant is Morrison et al. (2018): a use ends on a handover or on the screen locking, but only if the screen stays off for thirty seconds — a shorter lock is a pocket-check and the use runs through it. Returning to the same app after a lock that did count starts a new use rather than resuming the old one. The thirty seconds is inherited by name and value from Bohmer et al. (2011). schoedel_2026_app_within_screen_prose_v1 is a controlled derivative of Schoedel et al. (2026)'s simplified published prose: it consumes the selected screen-session intervals and closes app A at A's last logged row before a different-app type-1 row or an observed screen end. It is not the full deposited PhoneStudy pipeline, which remains structurally unavailable on ordinary Chronicle input.",
+  },
+  microUseClassificationPolicy: {
+    title: "Micro-use classification",
+    body: "Non-destructively classify an already reconstructed app episode. none is the compatibility default and emits no scientific CSV column. okoshi_lt_5s labels a positive, bounded raw reconstructed duration as micro_use only when it is strictly below five seconds; equality is not_micro_use, while a zero-length artifact or unbounded episode is not_classifiable. This option never changes duration, boundaries, inclusion, grouping, or aggregate credit; the separate minimum-duration controls own analytical disposition.",
   },
   allowStopEventReuse: {
     title: "Allow stop-event reuse",
@@ -456,6 +1112,27 @@ export const BROWSER_OPTION_TOOLTIPS = {
     body: "Sessions longer than this many hours are flagged as suspiciously long, which may indicate an instrumentation gap rather than real use.",
     example: "default 12 hours",
   },
+  longDurationThresholdHoursExplicit: {
+    title: "Max session duration threshold was set explicitly",
+    body: "Origin marker: true once the max session duration threshold has been typed in for this configuration, absent while it still carries the 12-hour default. It changes no computation on its own; the maximum-duration receipt records whether the legacy hours were an explicit choice or the inherited default.",
+  },
+  maximumDurationPolicy: {
+    title: "Maximum-duration policy",
+    body: "Optional. Absent means Chronicle's legacy behaviour runs exactly as before with no receipt. strategy_native adopts the selected reconstruction strategy's own maximum-duration behaviour explicitly; chronicle_observed_close_rejection_v1 names the fused matcher's candidate-rejection rule (fused_matcher only); post_reconstruction_strict_max_v1 qualifies episodes strictly longer than the threshold after reconstruction and applies the configured disposition. Selecting a policy also requires the disposition and threshold source.",
+  },
+  maximumDurationDisposition: {
+    title: "Maximum-duration disposition",
+    body: "Optional; only read by post_reconstruction_strict_max_v1 (the other policies require not_applicable). flag_and_retain keeps and credits the episode; retain_but_exclude keeps the row but excludes it from headline aggregates; truncate_to_threshold moves the effective stop to start + threshold and records the trimmed time; drop_row removes the row but preserves exact excluded lineage in the receipt.",
+  },
+  maximumDurationThresholdSource: {
+    title: "Maximum-duration threshold source",
+    body: "Optional; each policy accepts one pairing. strategy_native goes with the strategy_native policy; chronicle_legacy_config goes with chronicle_observed_close_rejection_v1 and reuses the max session duration threshold above, canonicalized exactly to nanoseconds; fixed_parameter (reads the nanosecond threshold below) and b12_adaptive_participant (refuses until the adaptive provider lands) go with post_reconstruction_strict_max_v1.",
+  },
+  maximumDurationThresholdNs: {
+    title: "Maximum-duration threshold (nanoseconds)",
+    body: "Optional; required by fixed_parameter and refused by every other source. Exact base-10 nanoseconds without sign, decimal point, exponent, or leading zeros, at most 9223372036854775807. Kept as text so the value is never rounded through a JavaScript number.",
+    example: "3600000000000 (1 hour)",
+  },
   correctDuplicateEventTimestamps: {
     title: "Correct duplicate timestamps",
     body: "When two events share the same timestamp, nudge the second one forward by microseconds so ordering is preserved deterministically.",
@@ -464,21 +1141,41 @@ export const BROWSER_OPTION_TOOLTIPS = {
     title: "Collapse exact-duplicate rows",
     body: "Drop fully-identical raw events (same participant, timestamp, app, and interaction type) before processing. Re-exported Chronicle data often repeats rows verbatim; the first occurrence is kept. Turn this off to keep every raw row as-is.",
   },
+  dropOutOfSourceOrderEvents: {
+    title: "Drop out-of-source-order events",
+    body: "Drop an event when its timestamp moves backward relative to an earlier event for the same participant in the original input row order. This is the post-processing rule reported by Harbach, De Luca, and Egelman; leave it off to preserve Chronicle's normal behavior of retaining and sorting every row.",
+  },
   selectedTimezone: {
     title: "Selected timezone",
     body: "Pick from the typical IANA names (e.g. America/Chicago). When discovery runs, found timezones from your file are added to the suggestions.",
   },
   timezoneHandling: {
     title: "Timezone handling",
-    body: "Decides what happens to rows with timezones that differ from the selected one — keep only the matching rows, convert mixed rows to a common zone, or anchor on the file's primary zone.",
+    body: "Decides what happens to rows with timezones that differ from the selected one — keep only the matching rows, convert mixed rows to a common zone, or anchor on the file's primary zone. The default converts every row to the selected zone, so no row is dropped for carrying a different timezone and all day attribution is on one clock; it is what the studies' locked configuration runs, and it matches the kernel's absent-key default.",
+  },
+  dayBoundaryAttribution: {
+    title: "Day-boundary attribution",
+    body: "How a session that runs past local midnight is attributed to calendar days. attribute_to_start_day (the default) keeps the session as one row dated by the day it started, so a 23:40-00:20 session puts all forty minutes on the first day. split_at_local_midnight divides it into one row per day, each with its own start, stop, duration and date and all carrying the same raw evidence, so daily totals sum the time that actually fell within each day. Midnight is resolved in the row's output timezone through that zone's own transitions, so a daylight-saving day is 23 or 25 hours.",
   },
   useFilterFile: {
     title: "Use filter file",
     body: "If on, the pipeline labels apps in your filter list as filtered (instead of dropping them). Without an uploaded file the app falls back to the bundled default. Off by default: this is an app-policy (cleaning) decision, not part of standard preprocessing — enable it only when your study's protocol says to.",
   },
+  filterMatchField: {
+    title: "Filter-file match field",
+    body: "Selects the identity column used by the filter file. app_package_name preserves the existing package rules. application_label matches the application_label cell by exact, case-sensitive, full-string equality; it never infers a package, folds case, or matches a substring. Label matches retain their source rows as filtered lineage while excluding only those matched rows from headline app-usage aggregates.",
+  },
+  applicationLabelExclusions: {
+    title: "Exact application-label exclusions",
+    body: "Application labels to retain as filtered lineage while excluding them from headline app-usage aggregates. Every entry uses exact, case-sensitive, full-string equality against application_label; package identity, case folding, and substring matching are never inferred.",
+  },
+  packageExclusionPreset: {
+    title: "Package-exclusion preset",
+    body: "Which rows of your filter file actually exclude a package. all_supplied_rows (the default) excludes every row, whatever its category or filter flag — this is what the app has always done. honor_filter_flag respects the filter_bool column, so a row you set to 0 stops excluding. system_scope_only excludes just the system and system-defensive rows (60 of the 80 in the bundled default list), leaving carrier, audio, navigation and the rest measured as ordinary app usage. Excluded apps are always relabelled rather than deleted, so this changes app-usage totals and never changes how sessions are reconstructed. Only applies when \"Use filter file\" is on.",
+  },
   useAppsForcingScreenOpenFile: {
     title: "Use apps-forcing-screen-open file",
-    body: "Apps in this list are treated as ones that force the screen to stay on during screen-usage derivation, which influences how locks/unlocks are interpreted.",
+    body: "Apps in this list are treated as ones that force the screen to stay on during screen-usage derivation, which influences how locks/unlocks are interpreted. The practice is a documented one in the literature: Dekker et al. (2024) removed screen-forcing apps (their cases were YouTube Vanced and Basic Daydreams) from screen-time estimates for exactly this reason.",
   },
   useBackgroundAppsFile: {
     title: "Use background-apps file",
@@ -491,6 +1188,10 @@ export const BROWSER_OPTION_TOOLTIPS = {
   includeCategoryColumn: {
     title: "Include app category column",
     body: "Add the normalized broad app category (the same value used to colour the plots — Games, Education, Social & Communication, …) as a `broad_app_category` column in the app-usage output. Derived by coalescing the codebook's per-source category columns and mapping them onto the standard palette. Requires the app codebook; off by default.",
+  },
+  includeAppUsageEndReason: {
+    title: "Include app-usage end reason column",
+    body: "Add an `app_usage_end_reason` column recording WHY each app episode ended — a stop event was recorded, another app opened, the screen turned off, an inactivity timeout cut it, or nothing observable ended it at all. This is how you tell a real observed end from a repaired or inferred one, which otherwise looks identical in the duration column. The cell always describes what happened to the device, never which reconstruction rule noticed it. On by default; turn it off only if a downstream consumer requires the narrower column set.",
   },
   enablePlotting: {
     title: "Generate app-usage plots",
@@ -516,6 +1217,14 @@ export const BROWSER_OPTION_TOOLTIPS = {
     title: "Aggregate layout",
     body: "Layout for the daily/weekly summaries — \"wide\" (one row per period, metrics as columns) or \"long\" (tidy: one row per period per metric). The per-app, category, and co-usage outputs are always long.",
   },
+  aggregateTopAppsLimit: {
+    title: "Daily top-app limit",
+    body: "Maximum number of ranked apps emitted per participant-day in the top-app aggregate. Zero preserves the complete ranking; a positive value keeps exactly that many rows after descending usage-time ranking and the package-name tie-break.",
+  },
+  enableParticipantAmountSummary: {
+    title: "Participant amount summary",
+    body: "Emit one extra CSV with one row per participant: days tracked (days with any raw data, used or not), total app-usage minutes, the daily average (total over days tracked — the amount-of-use measure of Wenz, Keusch & Bach 2024), that average winsorized at this export's own 1st/99th percentiles (their footnoted treatment; the realized cut values are published on every row), and a Huber M estimate of the same per-day series (the robust aggregation Stachl et al. 2020 describe, standard constants). The estimators are side-by-side columns, so choosing between them is an analysis decision made on the export, not a preprocessing fork. Off by default; when off the file is absent and output is byte-identical.",
+  },
   enableParquetExport: {
     title: "Also export Parquet",
     body: "In addition to the CSV outputs, write each app-usage and screen-usage table as an Apache Parquet file (typed columns, smaller and far faster to load in R/Python via arrow/polars/pandas). Same rows and columns as the CSV, with native dtypes preserved (timestamps stay as formatted strings). Off by default.",
@@ -524,18 +1233,50 @@ export const BROWSER_OPTION_TOOLTIPS = {
     title: "Also export SPSS (.sav)",
     body: "In addition to the CSV outputs, write each app-usage and screen-usage table as an SPSS/PSPP system file (.sav) with typed variables and the column names as variable labels — open it directly in SPSS or PSPP. Same rows and columns as the CSV. Off by default. (Stata .dta is not yet supported.)",
   },
+  neutralizeSpreadsheetFormulas: {
+    title: "Spreadsheet-safe CSV cells",
+    body: "Excel, LibreOffice and Google Sheets run a CSV cell that starts with =, +, -, @, a tab or a carriage return as a formula. App names, usernames and participant IDs are copied from your raw export, so a cell such as =HYPERLINK(...) can run when someone opens a downloaded file. When on, every such text cell in the preprocessing CSV tables (app usage, screen usage, credited usage, day coverage, compliance, notification contacts, polled emulation, interval expansion and the summary tables) gets a leading apostrophe ('), which spreadsheets read as \"this is text\". Cells that are plain numbers, such as -5, are never changed. The literature-method downloads (Preserved Source Fields and literature result tables) are not rewritten. This changes the data: an analysis script (R, Python, SPSS) will read the apostrophe as part of the value, and the Parquet and SPSS files built from these CSVs carry it too. Off by default, which leaves every value exactly as it was in the input.",
+  },
   enableInteractiveTimeline: {
     title: "Interactive timeline explorer",
     body: "Show an in-browser zoomable/pannable timeline of every session (app and screen), coloured by app category, with hover details — rendered live in the results panel from a compact per-session payload. This payload is only produced when the option is on, to avoid bloating results for large cohorts. Off by default.",
   },
   minimumUsageDuration: {
     title: "Minimum usage duration (seconds)",
-    body: "Sessions shorter than this threshold have their duration_seconds and duration_minutes set to null in the output. The session row is retained. Set to 0 to disable. The 60-second default nulls sub-minute foreground blips (UI transitions and glances), matching the studies' locked preprocessing configuration.",
+    body: "Numeric threshold used by the independently selected minimum-duration comparator and disposition. It is evaluated once on immutable raw reconstructed episode duration after materialization and before optional concurrency splitting or cleaning. Set to 0 to disable qualification for every disposition. The separate existing concurrent-subinterval option controls any later floor on generated sub-intervals.",
     example: "default 60 seconds",
+  },
+  minimumDurationComparator: {
+    title: "Minimum-duration comparator",
+    body: "Choose whether an episode qualifies only when its raw duration is strictly below the threshold (strict_lt, compatibility default) or when equality also qualifies (inclusive_le). Comparison uses integer nanoseconds at the post-materialization, pre-concurrency checkpoint.",
+  },
+  minimumDurationDisposition: {
+    title: "Minimum-duration disposition",
+    body: "Choose what happens to a threshold-qualified episode. chronicle_blank_keep_row preserves compatibility by retaining boundaries while blanking duration; retain_and_credit preserves and credits raw timing; retain_but_exclude preserves the audit row but excludes it from headline aggregates through explicit eligibility; drop_row removes the output row but preserves exact excluded lineage. No disposition fabricates a zero duration, and this axis is independent of micro-use classification.",
   },
   filterZeroDurationSessions: {
     title: "Filter zero-duration sessions",
     body: "Removes app-usage session rows whose computed duration is exactly zero or negative. These arise from duplicate events at the same millisecond, common on Fire tablets.",
+  },
+  intervalQualityPolicy: {
+    title: "Interval quality policy",
+    body: "Which published policy bounds the quality of already-reconstructed intervals. This is a different axis from the episode reconstruction rule: reconstruction decides where an episode starts and ends, this decides what to do about an episode that is already reconstructed and is implausible. none is this engine's own interval cleaning and the default; output is byte-identical to before this option existed. culverhouse_trim_and_log is the Culverhouse chronicle-preprocessed-cleaning program, which never redefines episodes: adjacent same-app rows within 1 s collapse into one usage, a bad-app row is capped at 10 minutes and credited rather than blanked, a row of 3 h or more is flagged long-3h, a row of 6 h or more is flagged long-6h instead and truncated to the same 10-minute cap, and each participant's first and last day plus the days around a gap of 12 h or more are flagged partial, as are days carrying a clock change. Every mutation is stamped into the row's flag column and nothing is deleted.",
+  },
+  sessionGroupingPolicy: {
+    title: "Session grouping policy",
+    body: "Which published rule groups already-reconstructed app episodes into usage sessions. A third axis, crossed with the reconstruction rule rather than part of it: Ahmed et al. (2023) and Okoshi et al. (2025) reconstruct episodes identically and differ only here. When set to anything other than none, a usage_session_id column is added to the app-usage CSV, numbered from 0 within each participant. none is the default and emits no column, so output is byte-identical to before this option existed. Every policy compares the gap from one episode's stop to the next episode's start against a published constant, and they differ in the constant, in the comparison, and in whether anything besides the gap ends a session. Apps are not distinguished unless a policy says otherwise. church_5s is 5 seconds, reported second-hand by van Berkel et al. and the weakest provenance in the set. grosse_deters_10s is 10 seconds, published as a merge of sessions within ten seconds. smartphone_wellbeing_strict_lt_5s is the deposited SmartphoneUsage_Wellbeing code's exact `diff.to.previous < 5` rule: a 4.999999999 second gap joins and a gap exactly equal to 5 seconds splits. ross_15s is 15 seconds, also splits on equality, and is the only one where a change of foreground app also ends a session regardless of the gap. van_berkel_45s retains a legacy identifier for Chronicle's app-episode grouping: gaps <=45 seconds join and gaps >45 seconds split. It is not van Berkel's source-exact Constant Classifier, which classifies supplied device-session gaps as continuous only when Gap<T, new otherwise, against participant objective-continuation labels. Their 45-second recommendation is sample/objective-specific and explicitly not generalizable. Citation of the constant does not establish identical inputs, pipeline stage or equality semantics in a later paper. zerrer_60s is 60 seconds; that source's prose says \"at least 60 seconds\" while its code says greater-than 60, and the code is what produced its published numbers. peng_zhu_2020_participant_median is the only individualized member: Peng & Zhu (2020) adopt \"the median score of a user's inter-app intervals ... for each user\", so the threshold is derived per participant from that participant's own stop-to-next-start intervals rather than quoted as a constant, a gap exactly equal to the median splits (their \"smaller than ... joins\"), and with session-break lineage on each participant's derived median and interval count are stamped into the first row of the partition so the threshold is reconstructible from the export.",
+  },
+  sessionGapBasis: {
+    title: "Session gap measured from",
+    body: "Which endpoint the session gap is measured from. Only read when a session grouping policy is selected. Every published rule measures from the immediately preceding episode's stop in start order, which is the default and keeps output byte-identical. That reading assumes episodes never overlap, and Chronicle's event stream does not guarantee that: modelling concurrent usage is off by default, so an episode nested inside a longer one reaches grouping intact and becomes the point the next gap is measured from. A 30 minute episode with a 1 minute episode nested at its start, followed by a third episode 20 seconds after the long one ends, is measured as a 28 minute 20 second gap and split under a 60 second rule even though the screen was covered continuously. Setting session_running_maximum_stop_v1 measures instead from the furthest stop already placed in the session, so a nested episode can no longer pull the measuring point backwards. That is a stated departure from all published rules rather than a correction of them, which is why it is opt-in.",
+  },
+  sessionBoundaryScope: {
+    title: "Session boundary scope",
+    body: "Which rows are numbered as one sequence of sessions. Only read when a session grouping policy is selected. The default, participant_v1, partitions by participant id alone, which is what the engine has always done. Both other dimensions of the published classification key vary within a participant: username is a raw per-row Chronicle column, and nothing constrains one export to a single study id. A foreign row landing inside a participant's silence therefore bridges it and the participant's session is never split. Person attribution already retypes a shared device's non-target rows so grouping skips them, but that runs only when a device-sharing file is configured. participant_and_study_v1 adds study id; participant_study_and_person_v1 also adds username. The scopes nest, so widening can only split a sequence further and can never merge two.",
+  },
+  emitSessionBreakLineage: {
+    title: "Record why each session broke",
+    body: "Stamp each numbered episode with the rule that placed it, in the existing any_app_usage_flags column: whether the session opened, joined or broke, the observed gap in seconds, and whether a change of foreground app was also responsible. Only read when a session grouping policy is selected. Off by default, and with it off no flag is written, so the app-usage CSV is byte-identical. The lineage rides in an existing column rather than a new one, so a run with it on stays schema-compatible with a run with it off.",
   },
   customAppEngagementDuration: {
     title: "Custom app engagement duration",
@@ -551,6 +1292,26 @@ export const BROWSER_OPTION_TOOLTIPS = {
     title: "Long data-gap thresholds (hours)",
     body: "Comma-separated hour values. For each value the pipeline emits a column flagging time gaps between events that exceed it.",
     example: "default 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12",
+  },
+  screenSessionConstructionStrategy: {
+    title: "Screen-session construction rule",
+    body: "Which device-level rule constructs screen intervals. chronicle_screen_interactive_v1 is the compatibility default and freezes Chronicle's participant-isolated interactive/non-interactive state machine. parry_toth_2025_session_glance_v1 preserves physical order in a screen-only projection of separate Android types 15-18 and 26-27 and distinguishes sessions from locked glances. zhu_2018_unlock_lock_v1 requires immediate screen-on to keyguard-hidden adjacency in the complete unfiltered participant log, starts at unlock, and stops at screen-off or shutdown. unlock_to_lock_v1 opens directly at keyguard-hidden and closes at keyguard-shown. unlock_to_off_or_lock_v1 closes that direct-unlock interval at the first keyguard-shown or screen-non-interactive event. The four source-sensitive arms require a digest-bound input capability evidence CSV and fail with a typed scientific refusal when signal, ordering, completeness, or device-scope evidence is unavailable; they never fall back to Chronicle.",
+  },
+  screenSessionClassificationPolicy: {
+    title: "Screen-session classification",
+    body: "Optional literature classification applied after screen-session construction. phone_check_inclusive_15s labels sessions lasting at most 15 seconds as phone checks. null_no_app_strict_gt15s_vs_app labels sessions with foreground-app evidence as app and no-app sessions longer than 15 seconds as null.",
+  },
+  screenSessionMaximumDurationMinutes: {
+    title: "Screen-session maximum duration (minutes)",
+    body: "Duration used when the screen-session maximum-duration disposition is truncate or exclude_participant. Zero disables the cap.",
+  },
+  screenSessionMaximumDurationDisposition: {
+    title: "Screen-session maximum-duration action",
+    body: "none preserves the constructed interval. truncate shortens only sessions strictly longer than the configured maximum and records the synthetic cap boundary. exclude_participant removes every analytical output for a participant with any completed interval strictly over the maximum.",
+  },
+  lockedScreenAudioDisposition: {
+    title: "Locked-screen audio",
+    body: "Whether app activity observed while the screen remains locked can create a phone or app session. The exclusion arm requires an interactive, unlocked screen witness.",
   },
   screenUsageAutoLockTimeoutSeconds: {
     title: "Auto-lock timeout (seconds)",
@@ -594,11 +1355,15 @@ export const BROWSER_OPTION_TOOLTIPS = {
   },
   applyMinimumUsageDurationToConcurrentSubintervals: {
     title: "Apply minimum usage duration to concurrent sub-intervals",
-    body: "Only relevant when model_concurrent_usage is on. When enabled, a split primary/secondary sub-interval shorter than minimum_usage_duration has its duration_seconds/duration_minutes nulled (the row is kept). Off by default, so sub-interval durations are always populated, matching every surface.",
+    body: "Only relevant when model_concurrent_usage is on. When enabled, a split primary/secondary sub-interval shorter than minimum_usage_duration has its duration_seconds/duration_minutes nulled (the row is kept). Off by default, so this second, sub-interval floor is not applied. The minimum-duration decision itself is made once on the whole raw episode, before splitting: under the chronicle_blank_keep_row disposition, every sub-interval of an episode below the floor inherits that blank, and sub-intervals of an episode above it are always populated.",
   },
   interactionTypesToRemove: {
     title: "Interaction types to remove",
     body: "Rows of these types are dropped from the final output. Useful for stripping noisy events you don't want surfaced in the CSV.",
+  },
+  interactionTypeRemovalMode: {
+    title: "Interaction-type removal mode",
+    body: "gap_preserving keeps a selected row when it carries long-data-gap evidence at or above the smallest configured threshold. unconditional drops every selected row and reproduces source filters such as SmartphoneUsage_Wellbeing's removal of STANDBY_BUCKET_CHANGED.",
   },
   interactionTypeRemap: {
     title: "Custom interaction-type mappings",
@@ -606,7 +1371,7 @@ export const BROWSER_OPTION_TOOLTIPS = {
   },
   proximityIntervalSeconds: {
     title: "Intra-app teardown grace (seconds)",
-    body: "When greater than 0, an Activity Stopped fallback close landing within this many seconds of a re-resumed session's start is treated as an intra-app teardown artifact (the app was torn down then immediately re-resumed) rather than a real close, so the session stays open for the next genuine stop event. Set to 0 to disable. When on, app-usage matching runs in a JavaScript matcher path (the shared WASM matcher has no proximity parameter); with it off the output is byte-identical to before. The 2-second default matches the studies' locked preprocessing configuration.",
+    body: "When greater than 0, an Activity Stopped fallback close landing within this many seconds of a re-resumed session's start is treated as an intra-app teardown artifact (the app was torn down then immediately re-resumed) rather than a real close, so the session stays open for the next genuine stop event. Set to 0 to disable, which reproduces the pre-proximity output byte for byte. The 2-second default matches the studies' locked preprocessing configuration.",
     example: "default 2 seconds",
   },
   addNoActivityPlaceholderDays: {
@@ -616,6 +1381,10 @@ export const BROWSER_OPTION_TOOLTIPS = {
   enableScreenGatedCrediting: {
     title: "Screen-gated usage credit",
     body: "Emit an additional, side-by-side \"Credited App Usage\" CSV in which each app session is reduced to the intervals where the screen was witnessed ON and the device was demonstrably alive (event cadence within the liveness tolerance), truncated at the credited-session cap. The headline app-usage output is never changed by this option. Long held-open sessions are credited only while the device was actually lit and alive. Off by default.",
+  },
+  screenGatingRule: {
+    title: "Screen-gating rule",
+    body: "Which observation the credited output rests on. screen_and_liveness_v1 (the default) credits only where a witnessed screen-ON interval overlaps a demonstrably-alive span. screen_witness_only drops the liveness requirement, so a lit screen inside a long event silence still earns credit. strict_visual_only also uses screen witness alone but excludes sessions with no witness instead of using the alive-span fallback. device_liveness_only drops the screen requirement and credits alive spans alone, which makes it an activity-based measurement and means the no-witness fallback never applies. Only the side-by-side credited output changes; the headline app-usage output is never affected.",
   },
   creditedSessionCapMinutes: {
     title: "Credited-session cap (minutes)",
@@ -636,6 +1405,28 @@ export const BROWSER_OPTION_TOOLTIPS = {
     title: "No-witness fallback: min distinct apps per day",
     body: "When a session has no screen witness at all, credit its alive time only if the participant-day switched across at least this many distinct apps (you cannot switch apps on a dark screen). Below the floor, the session earns no credit.",
     example: "default 2",
+  },
+  notificationProxyRule: {
+    title: "Notification proxy rule",
+    body: "Whether raw notification events become explicit proxy \"contact\" rows. Chronicle logs Notification Seen and Notification Interruption against a package, and the app-usage algorithm reads neither, so today those rows produce nothing at all. none (the default) keeps it that way. seen_contact_v1, interruption_contact_v1 and any_notification_contact_v1 emit the matching rows into a separate \"Notification Contact\" CSV. A notification is an instant, not a session, so those rows carry no start, stop, or duration — only the moment, the app, which rule emitted them, and whether the moment falls inside a usage session of the same app, so you can tell notification contact apart from time already counted as usage. Your headline app-usage output is never changed by this setting.",
+  },
+  polledEmulationMethod: {
+    title: "Polled-method emulation",
+    body: "Re-derive your sessions the way a POLLED study would have measured them, and emit that alongside your real output. Chronicle records every foreground transition with its own timestamp; much of the published screen-time literature instead samples \"what is on screen right now\" every few seconds and builds sessions from those samples. The two instruments do not see the same thing, so the totals are not directly comparable. none (the default) emits nothing. ross_2025_sampled_gap_v1 samples your timeline at the cadence below and closes a session when the next sample is at least the gap seconds later or a different app, forcing the last sample closed so it counts. cerit_2025_sample_count_v1 instead multiplies the number of retained samples by the cadence and never subtracts endpoints. Both write a separate \"Polled Emulation\" CSV; your headline app-usage output is never changed. Every emitted row is flagged EMULATED NOT OBSERVED, because resampling can only lose detail — it does not reproduce what a real polled collector would have missed differently.",
+  },
+  polledEmulationIntervalSeconds: {
+    title: "Polled sampling cadence (seconds)",
+    body: "How often the emulated collector looks at the screen. Used by both emulation methods: it is the sampling grid for the gap rule and the per-sample duration for the sample-count rule. The default of 10 seconds is the foreground polling cadence reported by the Ross et al. (2025) acquisition lineage. Ignored when polled-method emulation is off.",
+    example: "default 10",
+  },
+  polledEmulationGapSeconds: {
+    title: "Polled session-break gap (seconds)",
+    body: "How large a gap between consecutive retained samples closes an emulated session. The default of 15 seconds is the value in the Ross et al. (2025) released code; that source's own brief notes it is an engineering rule embedded in code, not a validated behavioral cutoff, which is why it is exposed here rather than fixed. Used only by ross_2025_sampled_gap_v1 — the sample-count rule never asks how far apart two samples were. Ignored when polled-method emulation is off.",
+    example: "default 15",
+  },
+  intervalExpansionMethod: {
+    title: "Interval expansion output",
+    body: "Emit a separate source-method representation of each bounded app interval. none (the default) emits nothing. The Behapp method is anchored at each interval's own start, truncates its duration to whole seconds, and emits one row per second under a half-open [start,end) boundary. It is not the epoch-aligned, stop-inclusive polled-emulation sampler and it never changes the headline app-usage output.",
   },
   enableStudyWindowFilter: {
     title: "Study-window filter",

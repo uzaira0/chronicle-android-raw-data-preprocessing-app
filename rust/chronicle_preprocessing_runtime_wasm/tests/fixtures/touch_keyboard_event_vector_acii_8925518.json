@@ -1,0 +1,73 @@
+{
+  "schemaVersion": "chronicle-touch-keyboard-event-vector-source-fixture/v1",
+  "sourceWorkId": "doi:10.1109/acii.2019.8925518",
+  "sourceSha256": "e7541b1d4d0c67e705b9b60fbb80e486931dda3240fc28c9ee53a6b3358560dd",
+  "sourceLocator": ".tmp-literature-review-private/corrective-packet-06-ranks174-223-20260831/source-pdfs/214-primary.txt:134-160",
+  "exactCanonicalSettingIds": [
+    "method-setting-293e63181b72ee0e0b7cc5bc",
+    "method-setting-54dfd51fa90147857f7f2522",
+    "method-setting-7d8c397698c8e6a833b3f65f",
+    "method-setting-a2b695eb8449919ee41d5b04",
+    "method-setting-d46f6478867dec906dac2b80",
+    "method-setting-e6ca0f6eda4ab9ca31f87d46",
+    "method-setting-ea0c43ce79fd78c9089ee6a7"
+  ],
+  "sourceSemantics": {
+    "rowCardinality": "one seven-dimensional vector per current touch interaction",
+    "fields": {
+      "inter_tap_duration": "time elapsed since last touch interaction",
+      "alphanumeric_flag": "one-hot current touch is alphanumeric or not",
+      "special_character_flag": "one-hot current touch is a special character or not",
+      "backspace_flag": "one-hot current touch is backspace or not",
+      "pressure": "pressure at current touch interaction",
+      "speed": "speed at current touch interaction",
+      "touch_time": "duration of current touch interaction"
+    },
+    "undisclosed": [
+      "numeric units and ranges",
+      "Android event callbacks and field derivation formulas",
+      "timestamp representation, clock, and timezone",
+      "participant, session, and source-row serialization"
+    ]
+  },
+  "validCsvLines": [
+    "participant_id,event_timestamp,source_row_id,inter_tap_duration,alphanumeric_flag,special_character_flag,backspace_flag,pressure,speed,touch_time,opaque_extra",
+    "participant-01,2019-03-04T05:06:07+05:30,row-a,0.125,1,0,0,0.42,3.5,0.08,preserve-no-claim",
+    "participant-02,opaque-clock-value,row-b,-1.5,0,1,1,-0.25,-2,-3,preserve-no-claim"
+  ],
+  "expectedRecords": [
+    {
+      "sourceRecordIndex": 1,
+      "participantId": "participant-01",
+      "eventTimestamp": "2019-03-04T05:06:07+05:30",
+      "sourceRowId": "row-a",
+      "interTapDuration": 0.125,
+      "alphanumeric": true,
+      "specialCharacter": false,
+      "backspace": false,
+      "pressure": 0.42,
+      "speed": 3.5,
+      "touchTime": 0.08
+    },
+    {
+      "sourceRecordIndex": 2,
+      "participantId": "participant-02",
+      "eventTimestamp": "opaque-clock-value",
+      "sourceRowId": "row-b",
+      "interTapDuration": -1.5,
+      "alphanumeric": false,
+      "specialCharacter": true,
+      "backspace": true,
+      "pressure": -0.25,
+      "speed": -2,
+      "touchTime": -3
+    }
+  ],
+  "invalidLexicalCases": [
+    {"caseId":"nan_numeric","field":"pressure","value":"NaN","expectedReason":"not a finite number"},
+    {"caseId":"positive_infinity_numeric","field":"speed","value":"inf","expectedReason":"not a finite number"},
+    {"caseId":"boolean_word_not_one_hot","field":"alphanumeric_flag","value":"true","expectedReason":"not exact one-hot 0 or 1"},
+    {"caseId":"out_of_domain_one_hot","field":"backspace_flag","value":"2","expectedReason":"not exact one-hot 0 or 1"},
+    {"caseId":"noncanonical_one_hot","field":"special_character_flag","value":"01","expectedReason":"not exact one-hot 0 or 1"}
+  ]
+}

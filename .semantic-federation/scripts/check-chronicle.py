@@ -4,6 +4,24 @@
 from pathlib import Path
 import hashlib
 import json
+import re
+
+
+def module_source(root: Path) -> str:
+    paths = [root]
+    sources = []
+    for source in paths:
+        text = source.read_text(encoding="utf-8")
+        sources.append(text)
+        for relative, delimiter in re.findall(
+            r'#\[path\s*=\s*"([^"]+)"\]\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+\w+\s*([;{])', text
+        ):
+            child = source.parent / relative
+            children = sorted(child.rglob("*.rs")) if delimiter == "{" else [child]
+            for child in children:
+                if child not in paths:
+                    paths.append(child)
+    return "\n".join(sources)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -27,6 +45,104 @@ def rendered_digest(value: dict) -> str:
 
 def file_digest(path: Path) -> str:
     return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def json_type_matches(value: object, expected: str) -> bool:
+    return {
+        "object": lambda: isinstance(value, dict),
+        "array": lambda: isinstance(value, list),
+        "string": lambda: isinstance(value, str),
+        "integer": lambda: isinstance(value, int) and not isinstance(value, bool),
+        "number": lambda: isinstance(value, (int, float)) and not isinstance(value, bool),
+        "boolean": lambda: isinstance(value, bool),
+        "null": lambda: value is None,
+    }.get(expected, lambda: False)()
+
+
+def validate_schema_instance(
+    value: object,
+    schema: dict,
+    root_schema: dict,
+    path: str = "$",
+) -> None:
+    """Validate the exact JSON-Schema subset used by the typed-view contract.
+
+    Keeping this small validator in-tree avoids making the semantic contract
+    gate depend on an undeclared host Python package. Unsupported schema
+    keywords fail closed so future schema expansion must update the gate.
+    """
+
+    supported = {
+        "$schema",
+        "$id",
+        "$defs",
+        "title",
+        "$ref",
+        "allOf",
+        "oneOf",
+        "type",
+        "required",
+        "properties",
+        "additionalProperties",
+        "items",
+        "const",
+        "enum",
+        "minimum",
+        "pattern",
+        "format",
+    }
+    unsupported = set(schema) - supported
+    if unsupported:
+        raise ValueError(f"{path}: unsupported JSON-Schema keywords {sorted(unsupported)}")
+    if "$ref" in schema:
+        reference = schema["$ref"]
+        if not isinstance(reference, str) or not reference.startswith("#/$defs/"):
+            raise ValueError(f"{path}: unsupported JSON-Schema reference")
+        definition = root_schema["$defs"].get(reference.removeprefix("#/$defs/"))
+        if not isinstance(definition, dict):
+            raise ValueError(f"{path}: unknown JSON-Schema reference")
+        validate_schema_instance(value, definition, root_schema, path)
+    for branch in schema.get("allOf", []):
+        validate_schema_instance(value, branch, root_schema, path)
+    if "oneOf" in schema:
+        matches = 0
+        for branch in schema["oneOf"]:
+            try:
+                validate_schema_instance(value, branch, root_schema, path)
+            except (KeyError, TypeError, ValueError):
+                continue
+            matches += 1
+        if matches != 1:
+            raise ValueError(f"{path}: expected exactly one matching JSON-Schema branch")
+    expected_types = schema.get("type")
+    if expected_types is not None:
+        if isinstance(expected_types, str):
+            expected_types = [expected_types]
+        if not any(json_type_matches(value, expected) for expected in expected_types):
+            raise ValueError(f"{path}: JSON value has the wrong type")
+    if "const" in schema and value != schema["const"]:
+        raise ValueError(f"{path}: JSON value violates const")
+    if "enum" in schema and value not in schema["enum"]:
+        raise ValueError(f"{path}: JSON value violates enum")
+    if "minimum" in schema and value < schema["minimum"]:
+        raise ValueError(f"{path}: JSON number is below minimum")
+    if "pattern" in schema and (
+        not isinstance(value, str) or re.fullmatch(schema["pattern"], value) is None
+    ):
+        raise ValueError(f"{path}: JSON string violates pattern")
+    if isinstance(value, dict):
+        required = set(schema.get("required", []))
+        if not required.issubset(value):
+            raise ValueError(f"{path}: JSON object omits required fields")
+        properties = schema.get("properties", {})
+        if schema.get("additionalProperties") is False and set(value) - set(properties):
+            raise ValueError(f"{path}: JSON object has undeclared fields")
+        for key, member in value.items():
+            if key in properties:
+                validate_schema_instance(member, properties[key], root_schema, f"{path}.{key}")
+    if isinstance(value, list) and "items" in schema:
+        for index, member in enumerate(value):
+            validate_schema_instance(member, schema["items"], root_schema, f"{path}[{index}]")
 
 
 implementation_receipt = dependency_certificate["evidence"]["implementation_receipt"]
@@ -185,7 +301,7 @@ for surface in runtime_authority["surfaces"]:
 
 worker = (REPOSITORY_ROOT / "web/src/workers/chronicle-worker.ts").read_text()
 authority_adapter = (REPOSITORY_ROOT / "web/src/lib/rustPipelineAuthority.ts").read_text()
-runtime = (REPOSITORY_ROOT / "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs").read_text()
+runtime = module_source(REPOSITORY_ROOT / "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs")
 for source, required_symbol in (
     (worker, "processRawCsvWithRustAuthority"),
     (authority_adapter, "executeRustRuntime"),
@@ -194,7 +310,7 @@ for source, required_symbol in (
     (runtime, ".execute_review_with_bases("),
     (runtime, "review_base_bytes,"),
     (runtime, "reconstruction_base_bytes,"),
-    (runtime, ".execute(csv_bytes, options, support_files)?"),
+    (runtime, ".execute_raw("),
     (runtime, "project_query_groups"),
 ):
     if required_symbol not in source:
@@ -217,7 +333,35 @@ allowed_views = {
     "chronicle.temporal-subject.v1",
     "chronicle.explanation.v1",
     "chronicle.assurance.v1",
+    "chronicle.scientific-evidence.v1",
+    "chronicle.scientific-source-bindings.v1",
 }
+schema_views = {
+    definition["allOf"][1]["properties"]["view_id"]["const"]
+    for name, definition in view_schema["$defs"].items()
+    if name.endswith("View")
+}
+if schema_views != allowed_views:
+    raise SystemExit("typed view allowlist and JSON schema definitions differ")
+view_registry = json.loads((ROOT / "views/view-registry.json").read_text())
+schema_envelope = view_schema["$defs"]["envelope"]
+if set(view_registry["envelope"]["fields"]) != set(schema_envelope["required"]):
+    raise SystemExit("view registry and JSON schema envelope fields differ")
+selected_view_ids = {
+    {
+        "stage": "chronicle.query-group.v1",
+        "artifact": "chronicle.artifact.v1",
+        "obligation": "chronicle.obligation.v1",
+        "temporal_subject": "chronicle.temporal-subject.v1",
+        "explanation": "chronicle.explanation.v1",
+        "assurance": "chronicle.assurance.v1",
+        "scientific_evidence": "chronicle.scientific-evidence.v1",
+        "scientific_source_bindings": "chronicle.scientific-source-bindings.v1",
+    }[selected]
+    for selected in view_registry["selected_views"]
+}
+if selected_view_ids != allowed_views:
+    raise SystemExit("selected typed views and JSON schema definitions differ")
 if {query["view_id"] for query in queries["queries"]} - allowed_views:
     raise SystemExit("registered query references an unknown typed view")
 if queries["arbitrary_production_sparql"]:
@@ -225,6 +369,26 @@ if queries["arbitrary_production_sparql"]:
 serialized_schema = json.dumps(view_schema)
 if '"properties": {"items":' in serialized_schema or '"properties": {"links":' in serialized_schema:
     raise SystemExit("generic items/links graph payload is forbidden")
+
+for fixture_name in (
+    "scientific-evidence-view-instance.json",
+    "scientific-source-bindings-view-instance.json",
+):
+    fixture = json.loads(
+        (REPOSITORY_ROOT / "rust/chronicle_semantic_index_wasm/fixtures" / fixture_name).read_text()
+    )
+    try:
+        validate_schema_instance(fixture, view_schema, view_schema)
+    except (KeyError, TypeError, ValueError) as error:
+        raise SystemExit(f"typed view fixture violates JSON schema: {fixture_name}: {error}") from error
+    forged = dict(fixture)
+    forged["workspaceRootDigest"] = fixture["root_digest"]
+    try:
+        validate_schema_instance(forged, view_schema, view_schema)
+    except (KeyError, TypeError, ValueError):
+        pass
+    else:
+        raise SystemExit(f"typed view schema accepts an undeclared transport field: {fixture_name}")
 
 print(
     "preprocessing semantic contract valid: "

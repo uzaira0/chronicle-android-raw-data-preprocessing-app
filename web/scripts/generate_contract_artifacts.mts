@@ -59,6 +59,13 @@ type OpenApiDocument = {
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const webDir = path.resolve(scriptDir, "..");
 const linkmlPath = path.join(webDir, "schema", "chronicle-local-contract.linkml.yaml");
+// The published-method axes take their permissible values from the research
+// ontology, not from the local contract, because the ontology is where the
+// scholarly vocabulary and its per-value provenance live. The local contract
+// slot names the ontology enum through a `research_axis_enum` annotation rather
+// than importing or restating it, so there is still exactly one place a value is
+// declared.
+const researchOntologyPath = path.join(webDir, "schema", "chronicle-research-ontology.linkml.yaml");
 const openApiPath = path.join(webDir, "openapi", "chronicle-local-api.yaml");
 const generatedTsPath = path.join(webDir, "src", "lib", "generatedContract.ts");
 
@@ -105,7 +112,11 @@ function buildTsInterface(document: LinkMlDocument, className: string): string {
     const slot = document.slots[slotName];
     if (!slot) throw new Error(`Missing slot definition for ${slotName}`);
     const propName = snakeToCamel(slotName);
-    const baseType = resolveTsBaseType(document, slot.range);
+    const researchAxisEnum = slot.annotations?.research_axis_enum;
+    const baseType =
+      typeof researchAxisEnum === "string"
+        ? pascalCase(propName)
+        : resolveTsBaseType(document, slot.range);
     const tsType = slot.multivalued ? `${baseType}[]` : baseType;
     const optional = slot.required ? "" : "?";
     return `  ${propName}${optional}: ${tsType};`;
@@ -236,6 +247,7 @@ function getEnumValues(document: LinkMlDocument, enumName: string): string[] {
 
 function buildOpenApiSchemaForClass(
   document: LinkMlDocument,
+  ontology: LinkMlDocument,
   className: string,
   classSlots: string[],
 ): OpenApiSchema {
@@ -248,7 +260,7 @@ function buildOpenApiSchemaForClass(
       throw new Error(`Missing LinkML slot definition for ${slotName}`);
     }
     const propertyName = snakeToCamel(slotName);
-    const baseSchema = buildOpenApiSchemaForSlot(document, slot);
+    const baseSchema = buildOpenApiSchemaForSlot(document, ontology, slot);
     properties[propertyName] = slot.description
       ? { ...baseSchema, description: slot.description.trim().replace(/\s+/g, " ") }
       : baseSchema;
@@ -266,9 +278,14 @@ function buildOpenApiSchemaForClass(
 
 function buildOpenApiSchemaForSlot(
   document: LinkMlDocument,
+  ontology: LinkMlDocument,
   slot: LinkMlSlot,
 ): Record<string, unknown> {
-  const schema = buildOpenApiValueSchema(document, slot.range);
+  const researchAxisEnum = slot.annotations?.research_axis_enum;
+  const schema =
+    typeof researchAxisEnum === "string"
+      ? { type: "string", enum: getEnumValues(ontology, researchAxisEnum) }
+      : buildOpenApiValueSchema(document, slot.range);
   if (!slot.multivalued) {
     return schema;
   }
@@ -305,7 +322,10 @@ function buildOpenApiValueSchema(
   }
 }
 
-function buildOpenApiDocument(document: LinkMlDocument): OpenApiDocument {
+function buildOpenApiDocument(
+  document: LinkMlDocument,
+  ontology: LinkMlDocument,
+): OpenApiDocument {
   const browserSupportFileSlots = assertClassSlots(document, "BrowserSupportFile");
   const browserSupportFilesSlots = assertClassSlots(document, "BrowserSupportFiles");
   const browserRuntimeSlots = assertClassSlots(document, "BrowserProcessingRuntime");
@@ -384,20 +404,32 @@ function buildOpenApiDocument(document: LinkMlDocument): OpenApiDocument {
       schemas: {
         BrowserSupportFile: buildOpenApiSchemaForClass(
           document,
+          ontology,
           "BrowserSupportFile",
           browserSupportFileSlots,
         ),
-        BrowserSupportFiles: buildOpenApiSchemaForClass(document, "BrowserSupportFiles", browserSupportFilesSlots),
+        BrowserSupportFiles: buildOpenApiSchemaForClass(
+          document,
+          ontology,
+          "BrowserSupportFiles",
+          browserSupportFilesSlots,
+        ),
         BrowserProcessingRuntime: {
           ...buildOpenApiSchemaForClass(
             document,
+            ontology,
             "BrowserProcessingRuntime",
             browserRuntimeSlots,
           ),
           description:
             "Internal/test-only runtime metadata that should not be surfaced as end-user options.",
         },
-        BrowserProcessingOptions: buildOpenApiSchemaForClass(document, "BrowserProcessingOptions", browserOptionsSlots),
+        BrowserProcessingOptions: buildOpenApiSchemaForClass(
+          document,
+          ontology,
+          "BrowserProcessingOptions",
+          browserOptionsSlots,
+        ),
         DiscoverTimezonesRequest: {
           type: "object",
           required: ["csvText"],
@@ -429,16 +461,58 @@ function buildOpenApiDocument(document: LinkMlDocument): OpenApiDocument {
         },
         ProcessedOutputFileResult: buildOpenApiSchemaForClass(
           document,
+          ontology,
           "ProcessedOutputFileResult",
           processedOutputSlots,
         ),
-        ProcessedFileResult: buildOpenApiSchemaForClass(document, "ProcessedFileResult", processedFileSlots),
+        ProcessedFileResult: buildOpenApiSchemaForClass(
+          document,
+          ontology,
+          "ProcessedFileResult",
+          processedFileSlots,
+        ),
       },
     },
   };
 }
 
-function buildGeneratedTypeScript(document: LinkMlDocument): string {
+/// `RESEARCH_AXIS` blocks: one value array plus one type per published-method
+/// axis, so the UI list, the equivalence-class map and the persistence
+/// sanitizer all read the same declaration instead of restating it.
+function buildResearchAxisConstants(
+  axes: { optionKey: string; enumName: string; values: string[] }[],
+): string {
+  return axes
+    .map(({ optionKey, enumName, values }) => {
+      const constName = `${camelToScreamingSnake(optionKey)}_VALUES`;
+      const typeName = pascalCase(optionKey);
+      return `// ${enumName}, declared in chronicle-research-ontology.linkml.yaml.
+export const ${constName} = ${toConstArray(values)};
+export type ${typeName} = (typeof ${constName})[number];`;
+    })
+    .join("\n\n");
+}
+
+function buildResearchAxisRegistry(
+  axes: { optionKey: string; enumName: string; values: string[] }[],
+): string {
+  const entries = axes.map(({ optionKey }) => {
+    const constName = `${camelToScreamingSnake(optionKey)}_VALUES`;
+    return `  ${optionKey}: ${constName}`;
+  });
+  return `export const RESEARCH_AXIS_VALUES_BY_OPTION = {\n${entries.join(",\n")},\n} as const;\n\nexport const RESEARCH_AXIS_BROWSER_OPTION_KEYS = ${toConstArray(axes.map(({ optionKey }) => optionKey))};`;
+}
+
+function camelToScreamingSnake(value: string): string {
+  return value.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toUpperCase();
+}
+
+function pascalCase(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function buildGeneratedTypeScript(document: LinkMlDocument, ontology: LinkMlDocument): string {
+  const researchAxes = researchAxisEnumValues(document, ontology);
   // Raw CSV column headers are emitted VERBATIM (never camelized): the slot
   // names of RawChronicleEventRecord are the literal Chronicle export headers.
   const rawColumnSlots = assertClassSlots(document, "RawChronicleEventRecord");
@@ -468,6 +542,27 @@ export const TIMEZONE_HANDLING_VALUES = ${toConstArray(timezoneHandlingValues)};
 export const OUTPUT_KIND_VALUES = ${toConstArray(outputKindValues)};
 
 export const AGGREGATE_SHAPE_VALUES = ${toConstArray(aggregateShapeValues)};
+
+// Keep research-profile vocabulary aligned with the canonical ontology.
+export const METHOD_SETTING_ROLE_VALUES = ${toConstArray(getEnumValues(ontology, "MethodSettingRoleId"))};
+export const METHOD_TARGET_LAYER_VALUES = ${toConstArray(getEnumValues(ontology, "MethodTargetLayerId"))};
+export const SEQUENCE_ENCODING_RULE_VALUES = ${toConstArray(getEnumValues(ontology, "SequenceEncodingRuleId"))};
+export const RINGER_MODE_VALUES = ${toConstArray(getEnumValues(ontology, "RingerModeId"))};
+export const SCREEN_STATE_VALUES = ${toConstArray(getEnumValues(ontology, "ScreenStateId"))};
+export const KEYGUARD_STATE_VALUES = ${toConstArray(getEnumValues(ontology, "KeyguardStateId"))};
+export const DEVICE_STATE_INTERVAL_KIND_VALUES = ${toConstArray(getEnumValues(ontology, "DeviceStateIntervalKindId"))};
+export const SENSOR_CONTROL_ACTION_VALUES = ${toConstArray(getEnumValues(ontology, "SensorControlActionId"))};
+export const NOTIFICATION_EVIDENCE_KIND_VALUES = ${toConstArray(getEnumValues(ontology, "NotificationEvidenceKindId"))};
+export const NOTIFICATION_EVIDENCE_ROLE_VALUES = ${toConstArray(getEnumValues(ontology, "NotificationEvidenceRoleId"))};
+export const NOTIFICATION_RESPONSE_OBSERVABILITY_VALUES = ${toConstArray(getEnumValues(ontology, "NotificationResponseObservabilityId"))};
+export const NOTIFICATION_OPENING_KIND_VALUES = ${toConstArray(getEnumValues(ontology, "NotificationOpeningKindId"))};
+export const PARTICIPANT_DAY_OBSERVATION_KIND_VALUES = ${toConstArray(getEnumValues(ontology, "ParticipantDayObservationKindId"))};
+export const NOTIFICATION_CONTEXT_SAMPLING_BOUNDARY_VALUES = ${toConstArray(getEnumValues(ontology, "NotificationContextSamplingBoundaryId"))};
+export const INTERVAL_ENDPOINT_STATUS_VALUES = ${toConstArray(getEnumValues(ontology, "EndpointStatus"))};
+
+${buildResearchAxisConstants(researchAxes)}
+
+${buildResearchAxisRegistry(researchAxes)}
 
 export const BROWSER_PROCESSING_OPTION_KEYS = ${toConstArray(browserOptionSlots)};
 
@@ -515,6 +610,34 @@ async function loadLinkMlDocument(): Promise<LinkMlDocument> {
   return parseYaml(await readFile(linkmlPath, "utf-8")) as LinkMlDocument;
 }
 
+async function loadResearchOntology(): Promise<LinkMlDocument> {
+  return parseYaml(await readFile(researchOntologyPath, "utf-8")) as LinkMlDocument;
+}
+
+/// Every option slot that names a research-ontology enum, paired with the values
+/// that enum declares.
+///
+/// Returned in slot order so the generated constants are stable, and keyed by
+/// the camel-cased option key so a caller never has to re-derive it.
+function researchAxisEnumValues(
+  document: LinkMlDocument,
+  ontology: LinkMlDocument,
+): { optionKey: string; enumName: string; values: string[] }[] {
+  return assertClassSlots(document, "BrowserProcessingOptions")
+    .map((slotName) => {
+      const enumName = document.slots[slotName]?.annotations?.research_axis_enum;
+      if (typeof enumName !== "string") return null;
+      return {
+        optionKey: snakeToCamel(slotName),
+        enumName,
+        values: getEnumValues(ontology, enumName),
+      };
+    })
+    .filter((entry): entry is { optionKey: string; enumName: string; values: string[] } =>
+      entry !== null,
+    );
+}
+
 async function writeIfChanged(
   filePath: string,
   nextContents: string,
@@ -535,8 +658,9 @@ async function main(): Promise<void> {
   const checkOnly = process.argv.includes("--check");
   const document = await loadLinkMlDocument();
 
-  const nextGeneratedTs = buildGeneratedTypeScript(document);
-  const nextOpenApi = `${stringifyYaml(buildOpenApiDocument(document))}`;
+  const ontology = await loadResearchOntology();
+  const nextGeneratedTs = buildGeneratedTypeScript(document, ontology);
+  const nextOpenApi = `${stringifyYaml(buildOpenApiDocument(document, ontology))}`;
 
   await writeIfChanged(generatedTsPath, nextGeneratedTs, checkOnly);
   await writeIfChanged(openApiPath, nextOpenApi, checkOnly);

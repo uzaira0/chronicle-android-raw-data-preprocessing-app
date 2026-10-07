@@ -6,7 +6,7 @@
 #      from the contract SSOT (web/scripts/generate_combinatorial_model.mts);
 #   2. generate t=2 / t=3 covering arrays with Microsoft PICT;
 #   3. decode them into full option objects (executed by
-#      web/src/lib/pipelineGraph/coveringArrayValidation.test.ts);
+#      web/src/lib/pipelineGraph/golden/configurationSpaceCampaign.test.ts);
 #   4. generate a replayable high-order sample from those same domains;
 #   5. verify exact t=2 / t=3 coverage with the in-repository checker;
 #   6. execute the arrays and seeded synthetic corpora through Rust/WASM;

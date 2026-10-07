@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "supplied-learning-session-net-duration-hand-oracle/v1",
+  "source": {
+    "work": "doi:10.1145/3473856.3473881",
+    "primary": "retained LMU author-hosted MuC2021 PDF",
+    "sha256": "1d6962efd1eddeddeeb7c1dc12799dc642ef5e921f42bff8e165eababa277e22",
+    "locator": "physical p8 §4.4.4; suspending distinction p7 §4.4.2",
+    "sourceLimits": "Seconds excluding suspending interruption time; raw LAIRA endpoints/overlap union and study numeric implementation are unknown."
+  },
+  "arithmetic": "Independent hand values:100-(10+15.5)=74.5;60-0=60;20-20=0;5.5-(.5+1.25)=3.75. Explicit[] is no interruptions, unlike missing inventory/term/gross.",
+  "carrierLimits": "Each row attests one complete gross learning session and a complete distinct disjoint admitted-suspending inventory contained in that gross session. These are caller-qualified durations, not reconstructed events. Numeric binary64/order is Chronicle's typed arithmetic boundary, not a claim about the study runtime.",
+  "cases": [
+    {
+      "component": "chronicle.supplied-learning-session-net-duration/v1",
+      "setting": "method-setting-8212b7717f3d8401939701eb",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,learning_session_id,learning_app_id,gross_duration_seconds,duration_unit,input_stage,interruption_inventory_stage,suspending_interruptions_json,note",
+        "r1,A,dA,lairaA,Android,s1,learn,100.00,s,caller-qualified-complete-gross-learning-session,caller-qualified-complete-disjoint-suspending-durations,\"[{\"\"interruption_id\"\":\"\"i1\"\",\"\"learning_session_id\"\":\"\"s1\"\",\"\"kind\"\":\"\"admitted_suspending\"\",\"\"duration_seconds\"\":\"\"10.00\"\"},{\"\"interruption_id\"\":\"\"i2\"\",\"\"learning_session_id\"\":\"\"s1\"\",\"\"kind\"\":\"\"admitted_suspending\"\",\"\"duration_seconds\"\":\"\"15.5\"\"}]\",100 minus (10 plus 15.5)",
+        "r2,B,dB,lairaB,Android,s1,learn,60,s,caller-qualified-complete-gross-learning-session,caller-qualified-complete-disjoint-suspending-durations,[],explicit empty inventory",
+        "r3,A,dA,lairaA,Android,s2,learn,20,s,caller-qualified-complete-gross-learning-session,caller-qualified-complete-disjoint-suspending-durations,\"[{\"\"interruption_id\"\":\"\"i3\"\",\"\"learning_session_id\"\":\"\"s2\"\",\"\"kind\"\":\"\"admitted_suspending\"\",\"\"duration_seconds\"\":20}]\",equality gives zero",
+        "r4,A,dA,lairaA,Android,s3,learn,5.5,s,caller-qualified-complete-gross-learning-session,caller-qualified-complete-disjoint-suspending-durations,\"[{\"\"interruption_id\"\":\"\"i4\"\",\"\"learning_session_id\"\":\"\"s3\"\",\"\"kind\"\":\"\"admitted_suspending\"\",\"\"duration_seconds\"\":0.5},{\"\"interruption_id\"\":\"\"i5\"\",\"\"learning_session_id\"\":\"\"s3\"\",\"\"kind\"\":\"\"admitted_suspending\"\",\"\"duration_seconds\"\":\"\"1.25\"\"}]\",fractional seconds",
+        "r5,A,dA,lairaA,Android,s4,learn,,s,caller-qualified-complete-gross-learning-session,caller-qualified-complete-disjoint-suspending-durations,[],gross missing not zero",
+        "r6,A,dA,lairaA,Android,s5,learn,30,s,caller-qualified-complete-gross-learning-session,caller-qualified-complete-disjoint-suspending-durations,\"[{\"\"interruption_id\"\":\"\"i6\"\",\"\"learning_session_id\"\":\"\"s5\"\",\"\"kind\"\":\"\"admitted_suspending\"\",\"\"duration_seconds\"\":null}]\",term missing not zero",
+        "r7,A,dA,lairaA,Android,s6,learn,30,s,caller-qualified-complete-gross-learning-session,caller-qualified-complete-disjoint-suspending-durations,,inventory missing not empty",
+        "r8,A,dA,lairaA,Android,s7,learn,0,s,caller-qualified-complete-gross-learning-session,caller-qualified-complete-disjoint-suspending-durations,[],zero gross explicit empty",
+        "r9,A,dA,lairaA,Android,s1,learn,100.00,s,caller-qualified-complete-gross-learning-session,caller-qualified-complete-disjoint-suspending-durations,\"[{\"\"interruption_id\"\":\"\"i1\"\",\"\"learning_session_id\"\":\"\"s1\"\",\"\"kind\"\":\"\"admitted_suspending\"\",\"\"duration_seconds\"\":\"\"10.00\"\"},{\"\"interruption_id\"\":\"\"i2\"\",\"\"learning_session_id\"\":\"\"s1\"\",\"\"kind\"\":\"\"admitted_suspending\"\",\"\"duration_seconds\"\":\"\"15.5\"\"}]\",repeat qualified facts"
+      ],
+      "expected_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,learning_session_id,learning_app_id,gross_duration_seconds,duration_unit,input_stage,interruption_inventory_stage,suspending_interruptions_json,note,total_suspending_duration_seconds,net_duration_seconds,net_duration_status",
+        "r1,A,dA,lairaA,Android,s1,learn,100.00,s,caller-qualified-complete-gross-learning-session,caller-qualified-complete-disjoint-suspending-durations,\"[{\"\"interruption_id\"\":\"\"i1\"\",\"\"learning_session_id\"\":\"\"s1\"\",\"\"kind\"\":\"\"admitted_suspending\"\",\"\"duration_seconds\"\":\"\"10.00\"\"},{\"\"interruption_id\"\":\"\"i2\"\",\"\"learning_session_id\"\":\"\"s1\"\",\"\"kind\"\":\"\"admitted_suspending\"\",\"\"duration_seconds\"\":\"\"15.5\"\"}]\",100 minus (10 plus 15.5),25.5,74.5,computed_binary64_gross_minus_disjoint_interruptions",
+        "r2,B,dB,lairaB,Android,s1,learn,60,s,caller-qualified-complete-gross-learning-session,caller-qualified-complete-disjoint-suspending-durations,[],explicit empty inventory,0,60,computed_binary64_gross_minus_disjoint_interruptions",
+        "r3,A,dA,lairaA,Android,s2,learn,20,s,caller-qualified-complete-gross-learning-session,caller-qualified-complete-disjoint-suspending-durations,\"[{\"\"interruption_id\"\":\"\"i3\"\",\"\"learning_session_id\"\":\"\"s2\"\",\"\"kind\"\":\"\"admitted_suspending\"\",\"\"duration_seconds\"\":20}]\",equality gives zero,20,0,computed_binary64_gross_minus_disjoint_interruptions",
+        "r4,A,dA,lairaA,Android,s3,learn,5.5,s,caller-qualified-complete-gross-learning-session,caller-qualified-complete-disjoint-suspending-durations,\"[{\"\"interruption_id\"\":\"\"i4\"\",\"\"learning_session_id\"\":\"\"s3\"\",\"\"kind\"\":\"\"admitted_suspending\"\",\"\"duration_seconds\"\":0.5},{\"\"interruption_id\"\":\"\"i5\"\",\"\"learning_session_id\"\":\"\"s3\"\",\"\"kind\"\":\"\"admitted_suspending\"\",\"\"duration_seconds\"\":\"\"1.25\"\"}]\",fractional seconds,1.75,3.75,computed_binary64_gross_minus_disjoint_interruptions",
+        "r5,A,dA,lairaA,Android,s4,learn,,s,caller-qualified-complete-gross-learning-session,caller-qualified-complete-disjoint-suspending-durations,[],gross missing not zero,0,,unavailable:missing_gross_duration",
+        "r6,A,dA,lairaA,Android,s5,learn,30,s,caller-qualified-complete-gross-learning-session,caller-qualified-complete-disjoint-suspending-durations,\"[{\"\"interruption_id\"\":\"\"i6\"\",\"\"learning_session_id\"\":\"\"s5\"\",\"\"kind\"\":\"\"admitted_suspending\"\",\"\"duration_seconds\"\":null}]\",term missing not zero,,,unavailable:missing_interruption_duration",
+        "r7,A,dA,lairaA,Android,s6,learn,30,s,caller-qualified-complete-gross-learning-session,caller-qualified-complete-disjoint-suspending-durations,,inventory missing not empty,,,unavailable:missing_interruption_inventory",
+        "r8,A,dA,lairaA,Android,s7,learn,0,s,caller-qualified-complete-gross-learning-session,caller-qualified-complete-disjoint-suspending-durations,[],zero gross explicit empty,0,0,computed_binary64_gross_minus_disjoint_interruptions",
+        "r9,A,dA,lairaA,Android,s1,learn,100.00,s,caller-qualified-complete-gross-learning-session,caller-qualified-complete-disjoint-suspending-durations,\"[{\"\"interruption_id\"\":\"\"i1\"\",\"\"learning_session_id\"\":\"\"s1\"\",\"\"kind\"\":\"\"admitted_suspending\"\",\"\"duration_seconds\"\":\"\"10.00\"\"},{\"\"interruption_id\"\":\"\"i2\"\",\"\"learning_session_id\"\":\"\"s1\"\",\"\"kind\"\":\"\"admitted_suspending\"\",\"\"duration_seconds\"\":\"\"15.5\"\"}]\",repeat qualified facts,25.5,74.5,computed_binary64_gross_minus_disjoint_interruptions"
+      ]
+    }
+  ]
+}

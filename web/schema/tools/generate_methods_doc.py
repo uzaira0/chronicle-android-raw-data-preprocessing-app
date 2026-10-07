@@ -271,6 +271,26 @@ def render_parameters(contract: dict[str, Any]) -> list[str]:
                 vdesc = clean_text(body.get("description"))
                 lines.append(f"- `{value}`" + (f" — {vdesc}" if vdesc else ""))
             lines.append("")
+
+    support_keys = contract["classes"]["BrowserSupportFiles"]["slots"]
+    lines.append("### 4.2 Support-file inputs")
+    lines.append("")
+    lines.append(
+        "Support files are typed inputs rather than processing options. They are"
+        " transported only when the selected binding consumes them; optional"
+        " evidence may therefore remain absent so the scientific applicability"
+        " resolver can issue a typed decision."
+    )
+    lines.append("")
+    lines.append("| Support role | Required | Description |")
+    lines.append("|--------------|----------|-------------|")
+    for key in support_keys:
+        slot = slots.get(key, {})
+        required = "yes" if slot.get("required") else "optional"
+        lines.append(
+            f"| `{key}` | {required} | {cell(slot.get('description'))} |"
+        )
+    lines.append("")
     return lines
 
 

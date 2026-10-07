@@ -267,6 +267,41 @@ pub struct WorkflowRootRoleDefinition {
 pub struct WorkflowQueryDefinition {
     pub id: &'static str,
     pub group: &'static str,
+    /// The MAY-READ set: every upstream query this query's body is allowed to
+    /// read on ANY configuration arm. It is a union over arms, not a prediction
+    /// of one arm. A query listed here may well go untouched on the arm you are
+    /// looking at -- that is not drift, it is what "may read" means. What is
+    /// forbidden is the other direction: a body reading an upstream query that
+    /// is absent from this list.
+    ///
+    /// SALSA NEVER READS THIS TABLE. The 84 `#[salsa::tracked]` functions in
+    /// `pipeline_v2_incremental.rs` record their own real reads per revision, so
+    /// invalidation is already dynamic and exact by construction. Nothing here
+    /// decides whether a query recomputes. This list exists for the humans and
+    /// the consumers: the published workflow contract, the product plan,
+    /// `workflow_provenance.rs`, the semantic index, and the Graph panel. It is
+    /// hand-maintained, so it can drift, and two properties are checked against
+    /// the runtime manifest by the web tomography campaigns to catch that drift:
+    ///
+    /// 1. JUSTIFIED EXECUTION (per case, and the dangerous direction). Every
+    ///    query that executed in the warm target must have at least one
+    ///    justification: it was bypassed in the source and is applicable in the
+    ///    target; or a request field it binds changed; or a source role it binds
+    ///    changed and that binding's predicates hold under the target options; or
+    ///    at least one of its declared inputs' output digests changed. A query
+    ///    that executes with no justification is reading something it never
+    ///    declared -- exactly the missing-invalidation class.
+    ///
+    /// 2. NO SELF-CONTRADICTING BADGE. A query badged `cached` in the warm target
+    ///    while its published `output_digest` moved from the warm source is
+    ///    impossible for a real memo, so it means the status or the digest is a
+    ///    fiction.
+    ///
+    /// Both are computed from data the runtime manifest already carries --
+    /// statuses and digests -- so neither needs new Salsa functionality, and
+    /// neither requires predicting which queries run on a given arm. Per-arm
+    /// edge prediction was tried and removed: under may-read semantics nothing
+    /// consumes it.
     pub inputs: &'static [&'static str],
 }
 
@@ -278,6 +313,12 @@ pub struct WorkflowContract {
     pub preprocessor_version: &'static str,
     pub canonical_interaction_types: &'static [&'static str],
     pub unbound_option_keys: &'static [&'static str],
+    /// Wire request fields consumed only while materializing derived
+    /// browser/export artifacts (`RUNTIME_ARTIFACT_REQUEST_FIELDS`). The
+    /// runtime excludes exactly these fields from the options digest it binds
+    /// into scientific receipts, so consumers verifying those digests need
+    /// this list from the same authority.
+    pub runtime_artifact_request_fields: &'static [&'static str],
     pub semantic: WorkflowSemanticContract,
     pub presentation: WorkflowPresentationContract,
     pub execution: WorkflowExecutionContract,
@@ -343,6 +384,8 @@ fn query_group_definition(id: &'static str) -> QueryGroupDefinition {
         "episode_annotations" => ("Episode annotation", "preprocess"),
         "interval_cleaning" => ("Interval cleaning", "clean"),
         "effective_usage" => ("Screen-gated usage credit", "clean"),
+        "notification_proxy" => ("Notification-derived proxy contacts", "analyze"),
+        "polled_emulation" => ("Polled-method emulation", "analyze"),
         "observation_window" => ("Observation-window assessment", "analyze"),
         "attribute_person" => ("Person attribution", "analyze"),
         "day_coverage" => ("Day coverage", "analyze"),
@@ -717,6 +760,17 @@ const OPERATION_SPECS: &[OperationSpec] = &[
         true
     ),
     operation!(
+        "construct_screen_intervals",
+        "reconstruct.construct_screen_intervals",
+        "Construct selected screen intervals",
+        "Resolve the selected B05 strategy and construct immutable participant-isolated screen intervals.",
+        "reconstruct_activity",
+        ReconstructInfer,
+        Inferred,
+        [Classifies],
+        true
+    ),
+    operation!(
         "classify_screen_sessions",
         "evidence.derive_screen_session_features",
         "Derive screen-session evidence",
@@ -768,7 +822,12 @@ const OPERATION_SPECS: &[OperationSpec] = &[
         "apply_measurement_rules",
         ApplyMeasurementPolicy,
         PolicyApplied,
-        [RewritesValues],
+        // `DropsRows` as well as `RewritesValues` since this step gained the
+        // event-retention set: under any set other than `none` it removes rows
+        // outright. The graph panel buckets steps by these effects, so leaving
+        // it value-only would render the one step that deleted rows as
+        // row-preserving.
+        [RewritesValues, DropsRows],
         true
     ),
     operation!(
@@ -830,7 +889,7 @@ const OPERATION_SPECS: &[OperationSpec] = &[
         "classify_episode_durations",
         "reconstruct.classify_app_episodes",
         "Classify reconstructed episodes",
-        "Finalize the reconstructed episode representation.",
+        "Capture immutable raw episode evidence and apply the selected descriptive micro-use class.",
         "reconstruct_activity",
         ReconstructInfer,
         Inferred,
@@ -840,8 +899,19 @@ const OPERATION_SPECS: &[OperationSpec] = &[
     operation!(
         "classify_episode_durations",
         "policy.suppress_short_durations",
-        "Suppress short durations",
-        "Blank durations below the configured minimum without deleting episodes.",
+        "Apply minimum-duration disposition",
+        "Qualify raw reconstructed duration once, then blank, retain, exclude, or mark the row for lineage-preserving removal.",
+        "apply_measurement_rules",
+        ApplyMeasurementPolicy,
+        PolicyApplied,
+        [RewritesValues],
+        true
+    ),
+    operation!(
+        "classify_episode_durations",
+        "policy.apply_maximum_duration",
+        "Apply maximum-duration policy",
+        "When a maximum-duration policy is selected explicitly, qualify raw reconstructed duration against the maximum once (strictly greater; equality retained), then flag, exclude, truncate, or mark the row for lineage-preserving removal. Absent keys leave Chronicle's legacy candidate-rejection behaviour untouched.",
         "apply_measurement_rules",
         ApplyMeasurementPolicy,
         PolicyApplied,
@@ -856,7 +926,7 @@ const OPERATION_SPECS: &[OperationSpec] = &[
         "apply_measurement_rules",
         ApplyMeasurementPolicy,
         PolicyApplied,
-        [Classifies],
+        [Classifies, DropsRows],
         true
     ),
     operation!(
@@ -973,11 +1043,11 @@ const OPERATION_SPECS: &[OperationSpec] = &[
         "suppress_excluded_timing",
         "policy.suppress_excluded_timing",
         "Suppress excluded timing",
-        "Blank timing values excluded from measurement.",
+        "Apply the selected interval-quality policy: blank timing values excluded from measurement, or trim, flag and log implausible intervals and collapse same-app rows that are one usage.",
         "apply_measurement_rules",
         ApplyMeasurementPolicy,
         PolicyApplied,
-        [RewritesValues],
+        [DropsRows, RewritesValues],
         true
     ),
     operation!(
@@ -1000,6 +1070,17 @@ const OPERATION_SPECS: &[OperationSpec] = &[
         StandardizeRepair,
         PolicyApplied,
         [DropsRows],
+        true
+    ),
+    operation!(
+        "assign_usage_session_ids",
+        "policy.assign_usage_session_ids",
+        "Number usage sessions",
+        "Number consecutive episodes into usage sessions under the selected published gap definition.",
+        "apply_measurement_rules",
+        ApplyMeasurementPolicy,
+        PolicyApplied,
+        [Classifies],
         true
     ),
     operation!(
@@ -1223,6 +1304,17 @@ const OPERATION_SPECS: &[OperationSpec] = &[
         true
     ),
     operation!(
+        "divide_sessions_at_day_boundary",
+        "assessment.divide_sessions_at_day_boundary",
+        "Divide sessions at the day boundary",
+        "Divide a session that spans local midnight so each calendar day carries the part that fell inside it.",
+        "assess_coverage",
+        AnalyzeAssess,
+        Derived,
+        [SplitsRows],
+        true
+    ),
+    operation!(
         "synthesize_placeholder_rows",
         "assessment.synthesize_placeholder_rows",
         "Add missing-day placeholders",
@@ -1356,6 +1448,17 @@ const OPERATION_SPECS: &[OperationSpec] = &[
     ),
     operation!(
         "assemble_result_manifest",
+        "publish.build_participant_amount_summary",
+        "Build the participant amount summary",
+        "One row per participant: tracked days, daily amount of use, its sample-winsorized variant, and a Huber M column.",
+        "create_deliverables",
+        PublishEncode,
+        Encoded,
+        [Aggregates, Encodes],
+        false
+    ),
+    operation!(
+        "assemble_result_manifest",
         "publish.encode_selected_formats",
         "Encode selected formats",
         "Encode only the requested CSV, Parquet, and SPSS deliverables.",
@@ -1434,8 +1537,8 @@ pub fn query_group_config_dependencies(group_id: &str) -> &'static [ConfigDepend
                 edge: "tunes",
             },
             ConfigDependencyDefinition {
-                option_key: "datetime_of_preprocessing",
-                edge: "tunes",
+                option_key: "drop_out_of_source_order_events",
+                edge: "gates",
             },
         ],
         "normalize_timezones" => &[
@@ -1466,14 +1569,61 @@ pub fn query_group_config_dependencies(group_id: &str) -> &'static [ConfigDepend
                 edge: "tunes",
             },
         ],
-        "app_policy" => &[ConfigDependencyDefinition {
-            option_key: "use_filter_file",
-            edge: "gates",
-        }],
+        "app_policy" => &[
+            ConfigDependencyDefinition {
+                option_key: "use_filter_file",
+                edge: "gates",
+            },
+            ConfigDependencyDefinition {
+                // Selects WHICH supplied rows exclude a package, not whether
+                // the group runs -- with the filter file on the group runs
+                // under every value, and with it off no value changes anything.
+                // That is `selects`, the same edge kind the other
+                // membership-naming axes carry, rather than `gates`.
+                option_key: "package_exclusion_preset",
+                edge: "selects",
+            },
+            ConfigDependencyDefinition {
+                option_key: "filter_match_field",
+                edge: "selects",
+            },
+            ConfigDependencyDefinition {
+                option_key: "application_label_exclusions",
+                edge: "selects",
+            },
+        ],
         "device_state_timeline" => &[
             ConfigDependencyDefinition {
                 option_key: "process_screen_usage",
                 edge: "gates",
+            },
+            ConfigDependencyDefinition {
+                option_key: "process_app_usage",
+                edge: "gates",
+            },
+            ConfigDependencyDefinition {
+                option_key: "episode_reconstruction_strategy",
+                edge: "gates",
+            },
+            ConfigDependencyDefinition {
+                option_key: "screen_session_construction_strategy",
+                edge: "selects",
+            },
+            ConfigDependencyDefinition {
+                option_key: "screen_session_classification_policy",
+                edge: "selects",
+            },
+            ConfigDependencyDefinition {
+                option_key: "screen_session_maximum_duration_minutes",
+                edge: "tunes",
+            },
+            ConfigDependencyDefinition {
+                option_key: "screen_session_maximum_duration_disposition",
+                edge: "selects",
+            },
+            ConfigDependencyDefinition {
+                option_key: "locked_screen_audio_disposition",
+                edge: "selects",
             },
             ConfigDependencyDefinition {
                 option_key: "use_apps_forcing_screen_open_file",
@@ -1506,6 +1656,40 @@ pub fn query_group_config_dependencies(group_id: &str) -> &'static [ConfigDepend
                 edge: "gates",
             },
             ConfigDependencyDefinition {
+                option_key: "locked_screen_audio_disposition",
+                edge: "selects",
+            },
+            ConfigDependencyDefinition {
+                option_key: "screen_session_maximum_duration_minutes",
+                edge: "tunes",
+            },
+            ConfigDependencyDefinition {
+                option_key: "screen_session_maximum_duration_disposition",
+                edge: "selects",
+            },
+            ConfigDependencyDefinition {
+                // `selects`, not `tunes`: this picks which published study's
+                // set of retained interaction types the reconstruction sees at
+                // all. It runs upstream of the strategy below, so the two cross:
+                // one published rule can be replayed on the set of event
+                // types another study recorded.
+                option_key: "event_retention_set",
+                edge: "selects",
+            },
+            ConfigDependencyDefinition {
+                // `selects`, not `tunes`: this picks which published algorithm
+                // runs, and the other four keys below are read by the fused
+                // matcher only.
+                option_key: "episode_reconstruction_strategy",
+                edge: "selects",
+            },
+            ConfigDependencyDefinition {
+                // `selects`, not `tunes`: this picks which interaction types may
+                // open an episode independently of the reconstruction strategy.
+                option_key: "opener_set",
+                edge: "selects",
+            },
+            ConfigDependencyDefinition {
                 option_key: "allow_stop_event_reuse",
                 edge: "tunes",
             },
@@ -1523,6 +1707,44 @@ pub fn query_group_config_dependencies(group_id: &str) -> &'static [ConfigDepend
             },
             ConfigDependencyDefinition {
                 option_key: "minimum_usage_duration",
+                edge: "tunes",
+            },
+            ConfigDependencyDefinition {
+                option_key: "micro_use_classification_policy",
+                edge: "selects",
+            },
+            ConfigDependencyDefinition {
+                option_key: "minimum_duration_comparator",
+                edge: "selects",
+            },
+            ConfigDependencyDefinition {
+                option_key: "minimum_duration_disposition",
+                edge: "selects",
+            },
+            ConfigDependencyDefinition {
+                // `selects`: which maximum-duration rule owns bounded episodes
+                // (the strategy's own, Chronicle's candidate rejection, or the
+                // generic post-reconstruction stage).
+                option_key: "maximum_duration_policy",
+                edge: "selects",
+            },
+            ConfigDependencyDefinition {
+                option_key: "maximum_duration_disposition",
+                edge: "selects",
+            },
+            ConfigDependencyDefinition {
+                option_key: "maximum_duration_threshold_source",
+                edge: "selects",
+            },
+            ConfigDependencyDefinition {
+                option_key: "maximum_duration_threshold_ns",
+                edge: "tunes",
+            },
+            ConfigDependencyDefinition {
+                // Presence marker: it changes the B06 receipt's legacy origin
+                // and its identity, never a row; declared with the group so
+                // the manifest binding is visible where the axis lives.
+                option_key: "long_duration_threshold_hours_explicit",
                 edge: "tunes",
             },
             ConfigDependencyDefinition {
@@ -1573,10 +1795,74 @@ pub fn query_group_config_dependencies(group_id: &str) -> &'static [ConfigDepend
                 option_key: "custom_app_engagement_duration",
                 edge: "tunes",
             },
+            ConfigDependencyDefinition {
+                // `selects`, not `tunes`: this picks which published grouping
+                // rule runs, and the rules differ in their comparison and in
+                // whether an app change ends a session, not only in a constant.
+                option_key: "session_grouping_policy",
+                edge: "selects",
+            },
+            ConfigDependencyDefinition {
+                // `selects`: this picks which ENDPOINT the gap is measured
+                // from. The published rules all measure from the immediately
+                // preceding episode's stop; the alternative measures from the
+                // session's running maximum stop, which is a different
+                // comparison rather than a different constant.
+                option_key: "session_gap_basis",
+                edge: "selects",
+            },
+            ConfigDependencyDefinition {
+                // `selects`: this picks which rows are numbered as ONE
+                // sequence. Widening it changes the partition, not a threshold.
+                option_key: "session_boundary_scope",
+                edge: "selects",
+            },
+            ConfigDependencyDefinition {
+                // `gates`: with it off no lineage flag is written at all, which
+                // is what keeps `any_app_usage_flags` byte-identical.
+                option_key: "emit_session_break_lineage",
+                edge: "gates",
+            },
         ],
         "interval_cleaning" => &[
             ConfigDependencyDefinition {
                 option_key: "process_app_usage",
+                edge: "gates",
+            },
+            ConfigDependencyDefinition {
+                // `selects`, not `tunes`: this picks which published cleaning
+                // policy runs over already-reconstructed intervals. It is a
+                // different axis from episode_reconstruction_strategy, which
+                // picks how intervals are built in the first place.
+                option_key: "interval_quality_policy",
+                edge: "selects",
+            },
+            ConfigDependencyDefinition {
+                // Selects which published gap definition turns adjacent
+                // episodes into one usage session. It names the session
+                // boundary rather than enabling or tuning the cleaning steps.
+                option_key: "session_grouping_policy",
+                edge: "selects",
+            },
+            ConfigDependencyDefinition {
+                // `selects`: this picks which ENDPOINT the gap is measured
+                // from. The published rules all measure from the immediately
+                // preceding episode's stop; the alternative measures from the
+                // session's running maximum stop, which is a different
+                // comparison rather than a different constant.
+                option_key: "session_gap_basis",
+                edge: "selects",
+            },
+            ConfigDependencyDefinition {
+                // `selects`: this picks which rows are numbered as ONE
+                // sequence. Widening it changes the partition, not a threshold.
+                option_key: "session_boundary_scope",
+                edge: "selects",
+            },
+            ConfigDependencyDefinition {
+                // `gates`: with it off no lineage flag is written at all, which
+                // is what keeps `any_app_usage_flags` byte-identical.
+                option_key: "emit_session_break_lineage",
                 edge: "gates",
             },
             ConfigDependencyDefinition {
@@ -1586,6 +1872,10 @@ pub fn query_group_config_dependencies(group_id: &str) -> &'static [ConfigDepend
             ConfigDependencyDefinition {
                 option_key: "interaction_types_to_remove",
                 edge: "tunes",
+            },
+            ConfigDependencyDefinition {
+                option_key: "interaction_type_removal_mode",
+                edge: "selects",
             },
             ConfigDependencyDefinition {
                 option_key: "long_data_time_gap_thresholds",
@@ -1621,10 +1911,69 @@ pub fn query_group_config_dependencies(group_id: &str) -> &'static [ConfigDepend
                 option_key: "no_witness_min_day_apps",
                 edge: "tunes",
             },
+            ConfigDependencyDefinition {
+                // Selects which witness rule the credited-interval derivation
+                // applies; it chooses the rule rather than tuning its bounds.
+                option_key: "screen_gating_rule",
+                edge: "selects",
+            },
+        ],
+        "notification_proxy" => &[
+            ConfigDependencyDefinition {
+                option_key: "process_app_usage",
+                edge: "gates",
+            },
+            ConfigDependencyDefinition {
+                // Selects WHICH raw notification types become proxy contacts.
+                // It chooses the source set rather than tuning a bound, and
+                // `none` selects the empty set rather than disabling a knob.
+                option_key: "notification_proxy_rule",
+                edge: "selects",
+            },
+            ConfigDependencyDefinition {
+                // The proxy channel receives the same codebook join every app
+                // row gets, so the codebook toggle reaches its output columns.
+                option_key: "use_app_codebook",
+                edge: "gates",
+            },
+        ],
+        "polled_emulation" => &[
+            ConfigDependencyDefinition {
+                option_key: "process_app_usage",
+                edge: "gates",
+            },
+            ConfigDependencyDefinition {
+                // Selects WHICH published method's rule rebuilds sessions from
+                // the samples. `none` selects no method rather than disabling
+                // a knob.
+                option_key: "polled_emulation_method",
+                edge: "selects",
+            },
+            ConfigDependencyDefinition {
+                // The cadence is the sampling grid itself: it decides which
+                // instants exist at all, so it tunes every emulated row.
+                option_key: "polled_emulation_interval_seconds",
+                edge: "tunes",
+            },
+            ConfigDependencyDefinition {
+                // Inert under `cerit_2025_sample_count_v1`, which consults no
+                // threshold; still declared, because the group as a whole can
+                // read it.
+                option_key: "polled_emulation_gap_seconds",
+                edge: "tunes",
+            },
+            ConfigDependencyDefinition {
+                option_key: "use_app_codebook",
+                edge: "gates",
+            },
         ],
         "observation_window" => &[
             ConfigDependencyDefinition {
                 option_key: "process_app_usage",
+                edge: "gates",
+            },
+            ConfigDependencyDefinition {
+                option_key: "process_screen_usage",
                 edge: "gates",
             },
             ConfigDependencyDefinition {
@@ -1646,6 +1995,13 @@ pub fn query_group_config_dependencies(group_id: &str) -> &'static [ConfigDepend
             ConfigDependencyDefinition {
                 option_key: "process_app_usage",
                 edge: "gates",
+            },
+            ConfigDependencyDefinition {
+                // Selects whether a session that spans local midnight is
+                // divided; it chooses the day-attribution rule rather than
+                // enabling or tuning the coverage tables themselves.
+                option_key: "day_boundary_attribution",
+                edge: "selects",
             },
             ConfigDependencyDefinition {
                 option_key: "add_no_activity_placeholder_days",
@@ -1672,6 +2028,10 @@ pub fn query_group_config_dependencies(group_id: &str) -> &'static [ConfigDepend
         ],
         "outputs" => &[
             ConfigDependencyDefinition {
+                option_key: "datetime_of_preprocessing",
+                edge: "tunes",
+            },
+            ConfigDependencyDefinition {
                 option_key: "study_name",
                 edge: "tunes",
             },
@@ -1684,8 +2044,30 @@ pub fn query_group_config_dependencies(group_id: &str) -> &'static [ConfigDepend
                 edge: "tunes",
             },
             ConfigDependencyDefinition {
+                option_key: "aggregate_top_apps_limit",
+                edge: "tunes",
+            },
+            ConfigDependencyDefinition {
+                option_key: "enable_participant_amount_summary",
+                edge: "gates",
+            },
+            ConfigDependencyDefinition {
                 option_key: "include_category_column",
                 edge: "gates",
+            },
+            ConfigDependencyDefinition {
+                option_key: "include_app_usage_end_reason",
+                edge: "gates",
+            },
+            ConfigDependencyDefinition {
+                // Rewrites the text of formula-like cells in every published
+                // CSV; it never gates or selects a table.
+                option_key: "neutralize_spreadsheet_formulas",
+                edge: "tunes",
+            },
+            ConfigDependencyDefinition {
+                option_key: "interval_expansion_method",
+                edge: "selects",
             },
             ConfigDependencyDefinition {
                 option_key: "enable_parquet_export",
@@ -1703,8 +2085,11 @@ pub fn query_group_config_dependencies(group_id: &str) -> &'static [ConfigDepend
 pub fn query_group_support_roles(group_id: &str) -> &'static [&'static str] {
     match group_id {
         "app_policy" => &["filter_file"],
-        "device_state_timeline" => &["apps_forcing_screen_open_file"],
-        "reconstruct_episodes" => &["background_apps_file"],
+        "device_state_timeline" => &[
+            "apps_forcing_screen_open_file",
+            "input_capability_evidence_file",
+        ],
+        "reconstruct_episodes" => &["background_apps_file", "input_capability_evidence_file"],
         "categorize_apps" => &["app_codebook_file"],
         "observation_window" | "day_coverage" => &["study_dates_file"],
         "attribute_person" => &["device_sharing_file", "survey_attribution_file"],
@@ -1725,31 +2110,82 @@ fn any(terms: Vec<ApplicabilityExpression>) -> ApplicabilityExpression {
     ApplicabilityExpression::Any { terms }
 }
 
+fn b05_screen_construction_applicability() -> ApplicabilityExpression {
+    any(vec![
+        option_true("process_screen_usage"),
+        all(vec![
+            option_true("process_app_usage"),
+            ApplicabilityExpression::OptionStringEquals {
+                option_key: "episode_reconstruction_strategy",
+                value: "schoedel_2026_app_within_screen_prose_v1",
+            },
+        ]),
+        ApplicabilityExpression::OptionStringEquals {
+            option_key: "screen_session_maximum_duration_disposition",
+            value: "exclude_participant",
+        },
+        ApplicabilityExpression::OptionStringEquals {
+            option_key: "locked_screen_audio_disposition",
+            value: "exclude_from_phone_and_app_sessions",
+        },
+    ])
+}
+
+fn screen_classification_applicability() -> ApplicabilityExpression {
+    any(vec![
+        option_true("process_screen_usage"),
+        ApplicabilityExpression::OptionStringEquals {
+            option_key: "locked_screen_audio_disposition",
+            value: "exclude_from_phone_and_app_sessions",
+        },
+    ])
+}
+
 pub fn query_group_applicability(group_id: &str) -> ApplicabilityExpression {
     match group_id {
         "app_policy" => option_true("use_filter_file"),
-        "device_state_timeline" => option_true("process_screen_usage"),
+        "device_state_timeline" => b05_screen_construction_applicability(),
         "reconstruct_episodes" | "episode_annotations" => option_true("process_app_usage"),
         "categorize_apps" => all(vec![
             option_true("process_app_usage"),
             option_true("use_app_codebook"),
         ]),
-        "interval_cleaning" => all(vec![
-            option_true("process_app_usage"),
-            any(vec![
-                option_true("use_filter_file"),
-                ApplicabilityExpression::ArrayNonempty {
-                    option_key: "interaction_types_to_remove",
-                },
-                option_true("filter_zero_duration_sessions"),
-            ]),
-        ]),
+        // The group always evaluates exact-zero candidate evidence for an app
+        // run, even when cleanup is not requested and no row is changed.
+        // Declaring it not-applicable would erase that descriptive receipt.
+        "interval_cleaning" => option_true("process_app_usage"),
         "effective_usage" => all(vec![
             option_true("process_app_usage"),
             option_true("enable_screen_gated_crediting"),
         ]),
-        "observation_window" => all(vec![
+        // B08 is not a boolean gate: the group runs for every value except the
+        // `none` default, so applicability is stated as "not the default"
+        // rather than as a flag being on.
+        "notification_proxy" => all(vec![
             option_true("process_app_usage"),
+            ApplicabilityExpression::Not {
+                term: Box::new(ApplicabilityExpression::OptionStringEquals {
+                    option_key: "notification_proxy_rule",
+                    value: "none",
+                }),
+            },
+        ]),
+        // B09, like B08, is not a boolean gate: the group runs for every value
+        // except the `none` default.
+        "polled_emulation" => all(vec![
+            option_true("process_app_usage"),
+            ApplicabilityExpression::Not {
+                term: Box::new(ApplicabilityExpression::OptionStringEquals {
+                    option_key: "polled_emulation_method",
+                    value: "none",
+                }),
+            },
+        ]),
+        "observation_window" => all(vec![
+            any(vec![
+                option_true("process_app_usage"),
+                option_true("process_screen_usage"),
+            ]),
             option_true("enable_study_window_filter"),
         ]),
         "attribute_person" => all(vec![
@@ -1773,9 +2209,29 @@ pub fn query_group_applicability(group_id: &str) -> ApplicabilityExpression {
 
 pub fn query_applicability(query_id: &str) -> ApplicabilityExpression {
     match query_id {
-        "index_keyguard_events" | "infer_screen_session_skeletons" | "classify_screen_sessions" => {
-            option_true("process_screen_usage")
-        }
+        "classify_screen_sessions" => screen_classification_applicability(),
+        // The baseline keyguard/skeleton walkers publish real checkpoints only
+        // under the default screen construction strategy; a source-sensitive
+        // strategy routes through `construct_screen_intervals` and the
+        // manifest records these two steps as not-applicable
+        // (`assemble_result_manifest`'s screen-rows branch). The declared
+        // applicability must match that publication rule, or a strategy flip
+        // moves their digests with no changed bound input.
+        "index_keyguard_events" => all(vec![
+            screen_classification_applicability(),
+            ApplicabilityExpression::OptionStringEquals {
+                option_key: "screen_session_construction_strategy",
+                value: "chronicle_screen_interactive_v1",
+            },
+        ]),
+        "infer_screen_session_skeletons" => all(vec![
+            ApplicabilityExpression::OptionStringEquals {
+                option_key: "screen_session_construction_strategy",
+                value: "chronicle_screen_interactive_v1",
+            },
+            b05_screen_construction_applicability(),
+        ]),
+        "construct_screen_intervals" => b05_screen_construction_applicability(),
         "resolve_excluded_packages"
         | "mask_excluded_app_events"
         | "build_app_event_index"
@@ -1793,13 +2249,17 @@ pub fn query_applicability(query_id: &str) -> ApplicabilityExpression {
         | "suppress_excluded_timing"
         | "remove_selected_interaction_types"
         | "remove_zero_duration_rows"
-        | "resolve_participant_windows"
-        | "apply_participant_windows"
+        | "assign_usage_session_ids"
         | "resolve_sharing_status"
         | "index_survey_responses"
         | "classify_person_attribution"
+        | "divide_sessions_at_day_boundary"
         | "synthesize_placeholder_rows"
         | "index_raw_dates" => option_true("process_app_usage"),
+        "resolve_participant_windows" | "apply_participant_windows" => any(vec![
+            option_true("process_app_usage"),
+            option_true("process_screen_usage"),
+        ]),
         "identify_credit_eligible_sessions"
         | "build_activity_witness_indexes"
         | "assess_screen_evidence_capability"
@@ -1809,6 +2269,36 @@ pub fn query_applicability(query_id: &str) -> ApplicabilityExpression {
         | "assemble_credit_outputs" => all(vec![
             option_true("process_app_usage"),
             option_true("enable_screen_gated_crediting"),
+        ]),
+        // The same expression as the `notification_proxy` group. Declaring it
+        // only on the group left each query `Always` applicable, so with no
+        // rule selected the runtime badged all four `cached` -- never bypassed
+        // -- while their published digests still moved against a run that had
+        // a rule. The campaign reported that as a self-contradicting badge,
+        // and it was right to.
+        "select_notification_events"
+        | "index_observed_usage_spans"
+        | "classify_notification_contacts"
+        | "assemble_notification_contact_outputs" => all(vec![
+            option_true("process_app_usage"),
+            ApplicabilityExpression::Not {
+                term: Box::new(ApplicabilityExpression::OptionStringEquals {
+                    option_key: "notification_proxy_rule",
+                    value: "none",
+                }),
+            },
+        ]),
+        "sample_polled_timeline"
+        | "group_polled_runs"
+        | "materialize_polled_rows"
+        | "assemble_polled_emulation_outputs" => all(vec![
+            option_true("process_app_usage"),
+            ApplicabilityExpression::Not {
+                term: Box::new(ApplicabilityExpression::OptionStringEquals {
+                    option_key: "polled_emulation_method",
+                    value: "none",
+                }),
+            },
         ]),
         "build_participant_day_coverage" => all(vec![
             option_true("process_app_usage"),
@@ -1865,6 +2355,15 @@ pub fn root_role_contract() -> Vec<WorkflowRootRoleDefinition> {
             required: false,
             required_when: Some(option_true("use_apps_forcing_screen_open_file")),
             qualification: None,
+        },
+        WorkflowRootRoleDefinition {
+            role_id: "input_capability_evidence_file",
+            minimum: 0,
+            maximum: 1,
+            media_types: &["text/csv"],
+            required: false,
+            required_when: None,
+            qualification: Some("scientific-capability-evidence"),
         },
         WorkflowRootRoleDefinition {
             role_id: "background_apps_file",
@@ -1945,11 +2444,6 @@ pub const WORKFLOW_QUERIES: &[WorkflowQueryDefinition] = &[
         inputs: &["remove_missing_timestamps"],
     },
     WorkflowQueryDefinition {
-        id: "bind_processing_timestamp",
-        group: "parse_events",
-        inputs: &[],
-    },
-    WorkflowQueryDefinition {
         id: "canonicalize_source_rows",
         group: "parse_events",
         inputs: &[
@@ -2024,12 +2518,23 @@ pub const WORKFLOW_QUERIES: &[WorkflowQueryDefinition] = &[
         inputs: &["derive_time_gap_evidence"],
     },
     WorkflowQueryDefinition {
+        id: "construct_screen_intervals",
+        group: "device_state_timeline",
+        inputs: &[
+            "decode_source_records",
+            "derive_time_gap_evidence",
+            "infer_screen_session_skeletons",
+        ],
+    },
+    WorkflowQueryDefinition {
         id: "classify_screen_sessions",
         group: "device_state_timeline",
         inputs: &[
             "derive_time_gap_evidence",
+            "decode_source_records",
             "infer_screen_session_skeletons",
             "index_keyguard_events",
+            "construct_screen_intervals",
         ],
     },
     WorkflowQueryDefinition {
@@ -2050,7 +2555,15 @@ pub const WORKFLOW_QUERIES: &[WorkflowQueryDefinition] = &[
     WorkflowQueryDefinition {
         id: "match_app_episodes",
         group: "reconstruct_episodes",
-        inputs: &["build_app_event_index"],
+        // The eyes_complement rule segments the whole device-state timeline, so
+        // the query reads the masked rows directly as well as the app-event
+        // index built from them.
+        inputs: &[
+            "decode_source_records",
+            "build_app_event_index",
+            "mask_excluded_app_events",
+            "construct_screen_intervals",
+        ],
     },
     WorkflowQueryDefinition {
         id: "materialize_candidate_episodes",
@@ -2065,6 +2578,7 @@ pub const WORKFLOW_QUERIES: &[WorkflowQueryDefinition] = &[
         id: "classify_episode_durations",
         group: "reconstruct_episodes",
         inputs: &[
+            "match_app_episodes",
             "materialize_candidate_episodes",
             "resolve_excluded_packages",
         ],
@@ -2072,7 +2586,12 @@ pub const WORKFLOW_QUERIES: &[WorkflowQueryDefinition] = &[
     WorkflowQueryDefinition {
         id: "apply_app_inclusion_policy",
         group: "reconstruct_episodes",
-        inputs: &["classify_episode_durations", "resolve_excluded_packages"],
+        inputs: &[
+            "classify_episode_durations",
+            "classify_screen_sessions",
+            "construct_screen_intervals",
+            "resolve_excluded_packages",
+        ],
     },
     WorkflowQueryDefinition {
         id: "order_app_episodes",
@@ -2125,14 +2644,19 @@ pub const WORKFLOW_QUERIES: &[WorkflowQueryDefinition] = &[
         inputs: &["remove_selected_interaction_types"],
     },
     WorkflowQueryDefinition {
+        id: "assign_usage_session_ids",
+        group: "interval_cleaning",
+        inputs: &["remove_zero_duration_rows"],
+    },
+    WorkflowQueryDefinition {
         id: "identify_credit_eligible_sessions",
         group: "effective_usage",
-        inputs: &["remove_zero_duration_rows"],
+        inputs: &["assign_usage_session_ids"],
     },
     WorkflowQueryDefinition {
         id: "build_activity_witness_indexes",
         group: "effective_usage",
-        inputs: &["mark_app_policy_matches"],
+        inputs: &["mark_app_policy_matches", "construct_screen_intervals"],
     },
     WorkflowQueryDefinition {
         id: "assess_screen_evidence_capability",
@@ -2175,14 +2699,58 @@ pub const WORKFLOW_QUERIES: &[WorkflowQueryDefinition] = &[
         ],
     },
     WorkflowQueryDefinition {
+        id: "select_notification_events",
+        group: "notification_proxy",
+        inputs: &["mark_app_policy_matches", "construct_screen_intervals"],
+    },
+    WorkflowQueryDefinition {
+        id: "index_observed_usage_spans",
+        group: "notification_proxy",
+        inputs: &["assign_usage_session_ids"],
+    },
+    WorkflowQueryDefinition {
+        id: "classify_notification_contacts",
+        group: "notification_proxy",
+        inputs: &["select_notification_events", "index_observed_usage_spans"],
+    },
+    WorkflowQueryDefinition {
+        id: "assemble_notification_contact_outputs",
+        group: "notification_proxy",
+        inputs: &["classify_notification_contacts"],
+    },
+    WorkflowQueryDefinition {
+        id: "sample_polled_timeline",
+        group: "polled_emulation",
+        inputs: &["assign_usage_session_ids"],
+    },
+    WorkflowQueryDefinition {
+        id: "group_polled_runs",
+        group: "polled_emulation",
+        inputs: &["assign_usage_session_ids", "sample_polled_timeline"],
+    },
+    WorkflowQueryDefinition {
+        id: "materialize_polled_rows",
+        group: "polled_emulation",
+        inputs: &["assign_usage_session_ids", "group_polled_runs"],
+    },
+    WorkflowQueryDefinition {
+        id: "assemble_polled_emulation_outputs",
+        group: "polled_emulation",
+        inputs: &["materialize_polled_rows"],
+    },
+    WorkflowQueryDefinition {
         id: "resolve_participant_windows",
         group: "observation_window",
-        inputs: &["remove_zero_duration_rows"],
+        inputs: &["assign_usage_session_ids", "classify_screen_sessions"],
     },
     WorkflowQueryDefinition {
         id: "apply_participant_windows",
         group: "observation_window",
-        inputs: &["remove_zero_duration_rows", "resolve_participant_windows"],
+        inputs: &[
+            "assign_usage_session_ids",
+            "classify_screen_sessions",
+            "resolve_participant_windows",
+        ],
     },
     WorkflowQueryDefinition {
         id: "resolve_sharing_status",
@@ -2204,14 +2772,25 @@ pub const WORKFLOW_QUERIES: &[WorkflowQueryDefinition] = &[
         ],
     },
     WorkflowQueryDefinition {
+        id: "divide_sessions_at_day_boundary",
+        group: "day_coverage",
+        inputs: &["classify_person_attribution"],
+    },
+    WorkflowQueryDefinition {
         id: "synthesize_placeholder_rows",
         group: "day_coverage",
-        inputs: &["classify_person_attribution", "mark_app_policy_matches"],
+        inputs: &[
+            "divide_sessions_at_day_boundary",
+            "mark_app_policy_matches",
+            "construct_screen_intervals",
+            // Only under the study-window filter: a filtered-out day gets no placeholder.
+            "resolve_participant_windows",
+        ],
     },
     WorkflowQueryDefinition {
         id: "index_raw_dates",
         group: "day_coverage",
-        inputs: &["mark_app_policy_matches"],
+        inputs: &["mark_app_policy_matches", "construct_screen_intervals"],
     },
     WorkflowQueryDefinition {
         id: "build_participant_day_coverage",
@@ -2237,6 +2816,11 @@ pub const WORKFLOW_QUERIES: &[WorkflowQueryDefinition] = &[
         inputs: &["compute_attribution_completeness"],
     },
     WorkflowQueryDefinition {
+        id: "bind_processing_timestamp",
+        group: "outputs",
+        inputs: &[],
+    },
+    WorkflowQueryDefinition {
         id: "assemble_result_manifest",
         group: "outputs",
         inputs: &[
@@ -2244,7 +2828,6 @@ pub const WORKFLOW_QUERIES: &[WorkflowQueryDefinition] = &[
             "decode_source_records",
             "remove_missing_timestamps",
             "attach_device_models",
-            "bind_processing_timestamp",
             "canonicalize_source_rows",
             "order_source_records",
             "collect_timezone_observations",
@@ -2259,6 +2842,7 @@ pub const WORKFLOW_QUERIES: &[WorkflowQueryDefinition] = &[
             "mark_app_policy_matches",
             "index_keyguard_events",
             "infer_screen_session_skeletons",
+            "construct_screen_intervals",
             "classify_screen_sessions",
             "resolve_excluded_packages",
             "mask_excluded_app_events",
@@ -2277,6 +2861,7 @@ pub const WORKFLOW_QUERIES: &[WorkflowQueryDefinition] = &[
             "suppress_excluded_timing",
             "remove_selected_interaction_types",
             "remove_zero_duration_rows",
+            "assign_usage_session_ids",
             "identify_credit_eligible_sessions",
             "build_activity_witness_indexes",
             "assess_screen_evidence_capability",
@@ -2284,17 +2869,27 @@ pub const WORKFLOW_QUERIES: &[WorkflowQueryDefinition] = &[
             "derive_credited_intervals",
             "materialize_credited_rows",
             "assemble_credit_outputs",
+            "select_notification_events",
+            "index_observed_usage_spans",
+            "classify_notification_contacts",
+            "assemble_notification_contact_outputs",
+            "sample_polled_timeline",
+            "group_polled_runs",
+            "materialize_polled_rows",
+            "assemble_polled_emulation_outputs",
             "resolve_participant_windows",
             "apply_participant_windows",
             "resolve_sharing_status",
             "index_survey_responses",
             "classify_person_attribution",
+            "divide_sessions_at_day_boundary",
             "synthesize_placeholder_rows",
             "index_raw_dates",
             "build_participant_day_coverage",
             "aggregate_attribution_minutes",
             "compute_attribution_completeness",
             "classify_compliance_days",
+            "bind_processing_timestamp",
         ],
     },
 ];
@@ -2306,6 +2901,7 @@ pub fn query_request_fields(query_id: &str) -> &'static [&'static str] {
         "validate_remap_rules" => &["interaction_type_remap"],
         "bind_processing_timestamp" => &["datetime_of_preprocessing"],
         "canonicalize_source_rows" => &["timezone"],
+        "order_source_records" => &["drop_out_of_source_order_events"],
         "resolve_timezone_strategy" => &["timezone", "timezone_handling"],
         "coalesce_duplicate_event_keys" => &["deduplicate_exact_rows"],
         "disambiguate_duplicate_timestamps" => &[
@@ -2313,13 +2909,35 @@ pub fn query_request_fields(query_id: &str) -> &'static [&'static str] {
             "same_app_stop_types",
             "other_stop_types",
         ],
-        "mark_app_policy_matches" => &["use_filter_file"],
+        "mark_app_policy_matches" => &[
+            "application_label_exclusions",
+            "filter_match_field",
+            "package_exclusion_preset",
+            "use_filter_file",
+        ],
+        // The event-retention set is read here rather than at
+        // `build_app_event_index` because it must narrow the row slice before
+        // that step builds `rows` and every `MatcherInput` array from it in one
+        // pass — the reconstruction arms rely on index `i` meaning the same
+        // event in both.
+        "mask_excluded_app_events" => &["event_retention_set"],
+        "construct_screen_intervals" => &["screen_session_construction_strategy"],
         "classify_screen_sessions" => &[
+            "screen_session_construction_strategy",
+            "screen_session_classification_policy",
+            "screen_session_maximum_duration_minutes",
+            "screen_session_maximum_duration_disposition",
+            "locked_screen_audio_disposition",
+            "timezone",
             "use_apps_forcing_screen_open",
             "screen_auto_lock_timeout_seconds",
             "screen_auto_lock_tolerance_seconds",
             "screen_manual_lock_max_tail_seconds",
             "screen_keyguard_near_stop_seconds",
+        ],
+        "build_activity_witness_indexes" | "index_raw_dates" => &[
+            "screen_session_maximum_duration_disposition",
+            "screen_session_maximum_duration_minutes",
         ],
         "build_app_event_index" => &[
             "same_app_stop_types",
@@ -2328,15 +2946,47 @@ pub fn query_request_fields(query_id: &str) -> &'static [&'static str] {
             "use_background_apps_file",
         ],
         "match_app_episodes" => &[
+            "episode_reconstruction_strategy",
+            "screen_session_construction_strategy",
+            "opener_set",
             "allow_stop_event_reuse",
             "use_activity_stopped_as_fallback",
             "apply_threshold_to_fallback",
             "long_duration_threshold_ns",
             "proximity_interval_ns",
         ],
-        "classify_episode_durations" => &["minimum_usage_duration"],
-        "apply_app_inclusion_policy" => &["use_background_apps_file"],
+        // Read to decide whether the persisted lineage digests may be reused:
+        // they chain the retained row stream, so they are only valid for the
+        // retention set they were recorded under.
+        "materialize_candidate_episodes" => &["event_retention_set"],
+        "classify_episode_durations" => &[
+            // B06 row stage: the four selection keys only. The presence
+            // marker and legacy companions are receipt identity, read by
+            // `assemble_result_manifest`, and never recompute rows.
+            "maximum_duration_disposition",
+            "maximum_duration_policy",
+            "maximum_duration_threshold_ns",
+            "maximum_duration_threshold_source",
+            "micro_use_classification_policy",
+            "minimum_usage_duration",
+            "minimum_duration_comparator",
+            "minimum_duration_disposition",
+            // A filtered background app keeps its timing through
+            // classification (`timing_blanked_packages`).
+            "use_background_apps_file",
+        ],
+        "apply_app_inclusion_policy" => &[
+            "application_label_exclusions",
+            "filter_match_field",
+            "use_background_apps_file",
+            "locked_screen_audio_disposition",
+            "package_exclusion_preset",
+            "screen_session_maximum_duration_disposition",
+            "screen_session_maximum_duration_minutes",
+            "use_filter_file",
+        ],
         "segment_concurrent_usage" => &[
+            "episode_reconstruction_strategy",
             "model_concurrent_usage",
             "minimum_usage_duration",
             "apply_minimum_usage_duration_to_concurrent_subintervals",
@@ -2350,48 +3000,189 @@ pub fn query_request_fields(query_id: &str) -> &'static [&'static str] {
             "long_data_time_gap_thresholds",
             "long_usage_duration_thresholds",
         ],
+        "suppress_excluded_timing" => &["interval_quality_policy"],
         "remove_selected_interaction_types" => &[
             "interaction_types_to_remove",
+            "interaction_type_removal_mode",
             "long_data_time_gap_thresholds",
         ],
         "remove_zero_duration_rows" => &["filter_zero_duration_sessions"],
+        "assign_usage_session_ids" => &[
+            "session_grouping_policy",
+            "session_gap_basis",
+            "session_boundary_scope",
+            "emit_session_break_lineage",
+        ],
         "derive_credited_intervals" => &[
             "credited_session_cap_minutes",
             "device_liveness_gap_tolerance_minutes",
             "auto_lock_bridge_seconds",
             "no_witness_min_day_apps",
+            "screen_gating_rule",
         ],
-        "apply_participant_windows" => &["enable_study_window_filter"],
+        "select_notification_events" => &[
+            "notification_proxy_rule",
+            "screen_session_maximum_duration_disposition",
+            "screen_session_maximum_duration_minutes",
+        ],
+        "index_observed_usage_spans" | "classify_notification_contacts" => {
+            &["notification_proxy_rule"]
+        }
+        // The assembly reads the rule as well as the codebook toggle, because
+        // it self-gates: with the rule off it emits nothing and never touches
+        // the codebook artifact. Declaring the rule is what lets the codebook
+        // source-role binding below carry the same condition, so the artifact
+        // campaign does not expect a codebook read on a run that asked for no
+        // proxy channel.
+        "assemble_notification_contact_outputs" => &["notification_proxy_rule", "use_app_codebook"],
+        // All three B09 numbers reach the sampling stages. The gap is inert
+        // under `cerit_2025_sample_count_v1`, but the QUERY still reads it to
+        // decide that, so it is declared rather than conditionally hidden.
+        "sample_polled_timeline" => &[
+            "polled_emulation_interval_seconds",
+            "polled_emulation_method",
+        ],
+        "group_polled_runs" | "materialize_polled_rows" => &[
+            "polled_emulation_gap_seconds",
+            "polled_emulation_interval_seconds",
+            "polled_emulation_method",
+        ],
+        // Self-gates on the method, which is what lets the codebook binding
+        // below carry the same condition.
+        "assemble_polled_emulation_outputs" => &["polled_emulation_method", "use_app_codebook"],
+        "resolve_participant_windows" => &["usage_session_mode"],
+        "apply_participant_windows" => &["enable_study_window_filter", "usage_session_mode"],
         "resolve_sharing_status" | "index_survey_responses" | "classify_person_attribution" => {
             &["enable_person_attribution"]
         }
-        "synthesize_placeholder_rows" => &["add_no_activity_placeholder_days"],
+        "divide_sessions_at_day_boundary" => &["day_boundary_attribution"],
+        "synthesize_placeholder_rows" => &[
+            "add_no_activity_placeholder_days",
+            "enable_study_window_filter",
+            "screen_session_maximum_duration_disposition",
+            "screen_session_maximum_duration_minutes",
+        ],
         "classify_compliance_days" => &["compliance_threshold_percent"],
         "assemble_result_manifest" => &[
+            "add_no_activity_placeholder_days",
+            "aggregate_shape",
+            "aggregate_top_apps_limit",
+            "allow_stop_event_reuse",
+            "apply_minimum_usage_duration_to_concurrent_subintervals",
+            "apply_threshold_to_fallback",
+            "auto_lock_bridge_seconds",
+            "b06_legacy_threshold_hours_canonical",
+            "b06_legacy_threshold_ns_canonical",
+            "compliance_threshold_percent",
+            "correct_duplicate_event_timestamps",
+            "credited_session_cap_minutes",
+            "custom_app_engagement_duration",
+            "datetime_of_preprocessing",
+            "day_boundary_attribution",
+            "deduplicate_exact_rows",
+            "drop_out_of_source_order_events",
+            "device_liveness_gap_tolerance_minutes",
+            "emit_session_break_lineage",
+            "enable_aggregates",
+            "enable_compliance_scoring",
+            "enable_day_coverage",
+            "enable_participant_amount_summary",
+            "enable_person_attribution",
+            "enable_screen_gated_crediting",
+            "enable_study_window_filter",
+            "episode_reconstruction_strategy",
+            "event_retention_set",
+            "filter_match_field",
+            "filter_zero_duration_sessions",
+            "include_app_output",
+            "include_app_usage_end_reason",
+            "include_category_column",
+            "include_screen_output",
+            "application_label_exclusions",
+            "interaction_type_remap",
+            "interaction_type_removal_mode",
+            "interaction_types_to_remove",
+            "interval_expansion_method",
+            "interval_quality_policy",
+            "long_data_time_gap_thresholds",
+            "long_duration_threshold_explicit",
+            "long_duration_threshold_ns",
+            "long_usage_duration_thresholds",
+            "materialize_visualization_data",
+            "maximum_duration_disposition",
+            "maximum_duration_policy",
+            "maximum_duration_threshold_ns",
+            "maximum_duration_threshold_source",
+            "micro_use_classification_policy",
+            "minimum_duration_comparator",
+            "minimum_duration_disposition",
+            "minimum_usage_duration",
+            "model_concurrent_usage",
+            "neutralize_spreadsheet_formulas",
+            "no_witness_min_day_apps",
+            "notification_proxy_rule",
+            "polled_emulation_gap_seconds",
+            "polled_emulation_interval_seconds",
+            "polled_emulation_method",
+            "opener_set",
+            "other_stop_types",
+            "proximity_interval_ns",
+            "same_app_stop_types",
+            "screen_auto_lock_timeout_seconds",
+            "screen_auto_lock_tolerance_seconds",
+            "screen_gating_rule",
+            "screen_keyguard_near_stop_seconds",
+            "screen_manual_lock_max_tail_seconds",
+            "screen_session_construction_strategy",
+            "screen_session_classification_policy",
+            "screen_session_maximum_duration_minutes",
+            "screen_session_maximum_duration_disposition",
+            "locked_screen_audio_disposition",
+            "session_boundary_scope",
+            "session_gap_basis",
+            "session_grouping_policy",
             "study_name",
             "timezone",
             "timezone_handling",
             "usage_session_mode",
-            "include_app_output",
-            "include_screen_output",
-            "use_background_apps_file",
+            "use_activity_stopped_as_fallback",
             "use_app_codebook",
-            "include_category_column",
-            "deduplicate_exact_rows",
-            "correct_duplicate_event_timestamps",
-            "datetime_of_preprocessing",
-            "custom_app_engagement_duration",
-            "model_concurrent_usage",
-            "enable_screen_gated_crediting",
-            "enable_day_coverage",
-            "enable_compliance_scoring",
-            "enable_aggregates",
-            "aggregate_shape",
-            "materialize_visualization_data",
+            "use_apps_forcing_screen_open",
+            "use_background_apps_file",
+            "package_exclusion_preset",
+            "use_filter_file",
         ],
         _ => &[],
     }
 }
+
+/// Request fields that are optional on the wire: present only when the caller
+/// supplied them (own-property presence is an omitted/explicit distinction),
+/// so the exact options object the
+/// runtime re-serializes stays byte-identical to the request. A query that
+/// binds one of these fields binds `null` when it is absent.
+pub const OPTIONAL_REQUEST_FIELDS: &[&str] = &[
+    "aggregate_top_apps_limit",
+    "drop_out_of_source_order_events",
+    "filter_match_field",
+    "application_label_exclusions",
+    "interaction_type_removal_mode",
+    "interval_expansion_method",
+    "screen_session_classification_policy",
+    "screen_session_maximum_duration_minutes",
+    "screen_session_maximum_duration_disposition",
+    "locked_screen_audio_disposition",
+    "maximum_duration_policy",
+    "maximum_duration_disposition",
+    "maximum_duration_threshold_source",
+    "maximum_duration_threshold_ns",
+    "long_duration_threshold_explicit",
+    "b06_legacy_threshold_hours_canonical",
+    "b06_legacy_threshold_ns_canonical",
+    // Sent only when on, so an off request is byte-identical to one built
+    // before the option existed.
+    "neutralize_spreadsheet_formulas",
+];
 
 /// Request fields consumed only while materializing derived browser/export
 /// artifacts. They do not invalidate the upstream preprocessing queries.
@@ -2403,9 +3194,27 @@ pub const RUNTIME_ARTIFACT_REQUEST_FIELDS: &[&str] = &[
     "enable_activity_heatmap",
     "export_plots_as_svg",
     "include_filtered_app_usage_in_plots",
+    // The browser derives this from `enable_plotting || enable_interactive_timeline`
+    // (`buildRustV2Options`), both artifact-only above. It selects whether the
+    // visualization JSON artifact is built, so `assemble_result_manifest` binds
+    // it as a request field, but it must not reach the computation projection
+    // scientific receipts bind: two runs that differ only in whether plots are
+    // drawn are the same measurement.
+    "materialize_visualization_data",
 ];
 
 const APP_USAGE_MODES: &[&str] = &["app_usage", "app_and_screen_usage"];
+/// Every `NotificationProxyRule` canonical id except `none`. Listing the
+/// active values rather than negating the inactive one keeps the predicate a
+/// plain membership test, which is all `QuerySourceRolePredicate` expresses.
+/// Every `PolledEmulationMethod` canonical id except `none`.
+const ACTIVE_POLLED_EMULATION_METHODS: &[&str] =
+    &["ross_2025_sampled_gap_v1", "cerit_2025_sample_count_v1"];
+const ACTIVE_NOTIFICATION_PROXY_RULES: &[&str] = &[
+    "seen_contact_v1",
+    "interruption_contact_v1",
+    "any_notification_contact_v1",
+];
 const USE_FILTER_FILE: &[QuerySourceRolePredicate] = &[QuerySourceRolePredicate::BooleanEquals {
     request_field: "use_filter_file",
     value: true,
@@ -2424,11 +3233,62 @@ const USE_APP_CODEBOOK: &[QuerySourceRolePredicate] = &[QuerySourceRolePredicate
     request_field: "use_app_codebook",
     value: true,
 }];
+/// The proxy channel's codebook read is conditional on BOTH the codebook
+/// toggle and an active rule. Gating on the toggle alone claimed a read that a
+/// default run never performs, and the artifact campaign correctly reported the
+/// bound query as never executing.
+/// The emulation channel's codebook read is conditional on BOTH the codebook
+/// toggle and an active method, for the same reason B08's is.
+const POLLED_EMULATION_CODEBOOK: &[QuerySourceRolePredicate] = &[
+    QuerySourceRolePredicate::BooleanEquals {
+        request_field: "use_app_codebook",
+        value: true,
+    },
+    QuerySourceRolePredicate::StringOneOf {
+        request_field: "polled_emulation_method",
+        values: ACTIVE_POLLED_EMULATION_METHODS,
+    },
+];
+const NOTIFICATION_CONTACT_CODEBOOK: &[QuerySourceRolePredicate] = &[
+    QuerySourceRolePredicate::BooleanEquals {
+        request_field: "use_app_codebook",
+        value: true,
+    },
+    QuerySourceRolePredicate::StringOneOf {
+        request_field: "notification_proxy_rule",
+        values: ACTIVE_NOTIFICATION_PROXY_RULES,
+    },
+];
+const SOURCE_B05_SCREEN_STRATEGIES: &[QuerySourceRolePredicate] =
+    &[QuerySourceRolePredicate::StringOneOf {
+        request_field: "screen_session_construction_strategy",
+        values: &[
+            "parry_toth_2025_session_glance_v1",
+            "zhu_2018_unlock_lock_v1",
+            "unlock_to_lock_v1",
+            "unlock_to_off_or_lock_v1",
+        ],
+    }];
+const SCHOEDEL_EPISODE_STRATEGY: &[QuerySourceRolePredicate] =
+    &[QuerySourceRolePredicate::StringOneOf {
+        request_field: "episode_reconstruction_strategy",
+        values: &["schoedel_2026_app_within_screen_prose_v1"],
+    }];
 const ENABLE_STUDY_WINDOW_FILTER: &[QuerySourceRolePredicate] =
     &[QuerySourceRolePredicate::BooleanEquals {
         request_field: "enable_study_window_filter",
         value: true,
     }];
+const COMBINED_MODE_WITH_STUDY_WINDOW_FILTER: &[QuerySourceRolePredicate] = &[
+    QuerySourceRolePredicate::StringOneOf {
+        request_field: "usage_session_mode",
+        values: &["app_and_screen_usage"],
+    },
+    QuerySourceRolePredicate::BooleanEquals {
+        request_field: "enable_study_window_filter",
+        value: true,
+    },
+];
 const ENABLE_PERSON_ATTRIBUTION: &[QuerySourceRolePredicate] =
     &[QuerySourceRolePredicate::BooleanEquals {
         request_field: "enable_person_attribution",
@@ -2444,6 +3304,19 @@ const APP_MODE_WITH_COMPLIANCE: &[QuerySourceRolePredicate] = &[
         value: true,
     },
 ];
+/// Mirrors `eyes_complement_is_active`: the EYES input-partition preflight in
+/// `assemble_result_manifest` reads the raw physical stream directly, so the
+/// raw source is a root artifact of that step under exactly these conditions.
+const APP_MODE_WITH_EYES_COMPLEMENT: &[QuerySourceRolePredicate] = &[
+    QuerySourceRolePredicate::StringOneOf {
+        request_field: "usage_session_mode",
+        values: APP_USAGE_MODES,
+    },
+    QuerySourceRolePredicate::StringOneOf {
+        request_field: "episode_reconstruction_strategy",
+        values: &["eyes_complement"],
+    },
+];
 
 /// Exact root artifacts read directly by a step in addition to upstream step
 /// outputs. A support file that has already been compiled into an upstream
@@ -2451,18 +3324,22 @@ const APP_MODE_WITH_COMPLIANCE: &[QuerySourceRolePredicate] = &[
 pub fn query_source_roles(query_id: &str) -> &'static [&'static str] {
     match query_id {
         "decode_source_records" => &["raw_chronicle_csv"],
+        "construct_screen_intervals" | "match_app_episodes" => {
+            &["raw_chronicle_csv", "input_capability_evidence_file"]
+        }
         "mark_app_policy_matches" => &["filter_file"],
         "classify_screen_sessions" => &["apps_forcing_screen_open_file"],
-        "build_app_event_index" | "apply_app_inclusion_policy" | "segment_concurrent_usage" => {
-            &["background_apps_file"]
-        }
-        "join_app_codebook" => &["app_codebook_file"],
+        "build_app_event_index" | "classify_episode_durations" | "segment_concurrent_usage" => &["background_apps_file"],
+        "apply_app_inclusion_policy" => &["background_apps_file", "filter_file"],
+        "join_app_codebook"
+        | "assemble_notification_contact_outputs"
+        | "assemble_polled_emulation_outputs" => &["app_codebook_file"],
         "resolve_participant_windows"
         | "apply_participant_windows"
         | "build_participant_day_coverage" => &["study_dates_file"],
         "resolve_sharing_status" => &["device_sharing_file"],
         "index_survey_responses" => &["survey_attribution_file"],
-        "assemble_result_manifest" => &["enrolled_devices_file"],
+        "assemble_result_manifest" => &["enrolled_devices_file", "raw_chronicle_csv", "study_dates_file"],
         _ => &[],
     }
 }
@@ -2473,15 +3350,54 @@ pub fn query_source_role_bindings(query_id: &str) -> Vec<QuerySourceRoleBinding>
     let binding = |role, when_all| QuerySourceRoleBinding { role, when_all };
     match query_id {
         "decode_source_records" => vec![binding("raw_chronicle_csv", &[])],
+        // The raw stream is read on BOTH screen-construction arms, so its
+        // binding is unconditional. The default Chronicle arm
+        // (`build_neutral_chronicle_screen_construction` in
+        // `pipeline_v2_incremental.rs`) reads `raw.input_sha256(db)` and
+        // publishes it as `B05ApplicabilityInput::raw_input_sha256`, which
+        // lands in the query's own output; the source-sensitive arm
+        // (`prepare_b05_screen_substrate_query`) reads `raw.bytes(db)` as well.
+        // Gating the role on the source-sensitive strategies left the query's
+        // published `input_key` fixed while its `output_digest` moved with the
+        // raw bytes -- the runtime's own `binding_gaps` guard reported
+        // "tracked query output changed without a changed bound input:
+        // construct_screen_intervals" for the possible_device_model,
+        // start_timestamp, stop_timestamp, and CRLF interventions.
+        // Capability evidence stays gated: the default arm passes
+        // `evidence: None` and `prepare_b05_screen_substrate_query` reads the
+        // sidecar only when `source_sensitive`.
+        "construct_screen_intervals" => vec![
+            binding("raw_chronicle_csv", &[]),
+            binding(
+                "input_capability_evidence_file",
+                SOURCE_B05_SCREEN_STRATEGIES,
+            ),
+        ],
+        "match_app_episodes" => vec![
+            binding("raw_chronicle_csv", SCHOEDEL_EPISODE_STRATEGY),
+            binding("input_capability_evidence_file", SCHOEDEL_EPISODE_STRATEGY),
+        ],
         "mark_app_policy_matches" => vec![binding("filter_file", USE_FILTER_FILE)],
         "classify_screen_sessions" => vec![binding(
             "apps_forcing_screen_open_file",
             USE_APPS_FORCING_SCREEN_OPEN,
         )],
-        "build_app_event_index" | "apply_app_inclusion_policy" | "segment_concurrent_usage" => {
+        "build_app_event_index"
+        | "classify_episode_durations"
+        | "segment_concurrent_usage" => {
             vec![binding("background_apps_file", USE_BACKGROUND_APPS_FILE)]
         }
+        "apply_app_inclusion_policy" => vec![
+            binding("background_apps_file", USE_BACKGROUND_APPS_FILE),
+            binding("filter_file", USE_FILTER_FILE),
+        ],
         "join_app_codebook" => vec![binding("app_codebook_file", USE_APP_CODEBOOK)],
+        "assemble_notification_contact_outputs" => {
+            vec![binding("app_codebook_file", NOTIFICATION_CONTACT_CODEBOOK)]
+        }
+        "assemble_polled_emulation_outputs" => {
+            vec![binding("app_codebook_file", POLLED_EMULATION_CODEBOOK)]
+        }
         "resolve_participant_windows" | "build_participant_day_coverage" => {
             vec![binding("study_dates_file", &[])]
         }
@@ -2493,9 +3409,11 @@ pub fn query_source_role_bindings(query_id: &str) -> Vec<QuerySourceRoleBinding>
             "survey_attribution_file",
             ENABLE_PERSON_ATTRIBUTION,
         )],
-        "assemble_result_manifest" => {
-            vec![binding("enrolled_devices_file", APP_MODE_WITH_COMPLIANCE)]
-        }
+        "assemble_result_manifest" => vec![
+            binding("enrolled_devices_file", APP_MODE_WITH_COMPLIANCE),
+            binding("raw_chronicle_csv", APP_MODE_WITH_EYES_COMPLEMENT),
+            binding("study_dates_file", COMBINED_MODE_WITH_STUDY_WINDOW_FILTER),
+        ],
         _ => Vec::new(),
     }
 }
@@ -2550,6 +3468,33 @@ pub fn is_pseudo_field(field: &str) -> bool {
     )
 }
 
+const CLASSIFY_SCREEN_SESSION_READS: &[&str] = &[
+    "app_package_name",
+    "application_label",
+    "date",
+    "event_timestamp",
+    "event_timestamp_ns",
+    "interaction_type",
+    "participant_id",
+    "screen_interval_id",
+    "screen_usage_last_activity_timestamp_ns",
+    "screen_usage_app_observed",
+    "screen_usage_lock_screen_only",
+    "start_timestamp_ns",
+    "stop_timestamp_ns",
+    "duration_seconds",
+    "study_id",
+    "timezone",
+    "username",
+    "apps_forcing_screen_open_file.package_name",
+    "apps_forcing_screen_open_file.app_package_name",
+    "apps_forcing_screen_open_file.label_or_note",
+    "apps_forcing_screen_open_file.application_label",
+    "derived.screen_state_timeline",
+    "derived.keyguard_timestamps",
+    "derived.b05_screen_intervals",
+];
+
 /// Exact data fields and supplied source columns each step consumes.
 pub fn query_field_reads(query_id: &str) -> &'static [&'static str] {
     match query_id {
@@ -2564,9 +3509,10 @@ pub fn query_field_reads(query_id: &str) -> &'static [&'static str] {
             "raw_chronicle_csv.app_package_name",
             "raw_chronicle_csv.event_timestamp",
             "raw_chronicle_csv.timezone",
+            "raw_chronicle_csv.literature_source_data_row",
         ],
         "remove_missing_timestamps" => &["event_timestamp"],
-        "attach_device_models" => &["app_package_name"],
+        "attach_device_models" => &["app_package_name", "participant_id"],
         "canonicalize_source_rows" => &[
             "study_id",
             "participant_id",
@@ -2580,7 +3526,14 @@ pub fn query_field_reads(query_id: &str) -> &'static [&'static str] {
             "date",
             "derived.possible_device_model",
         ],
-        "order_source_records" => &["event_timestamp_ns"],
+        "order_source_records" => &[
+            "participant_id",
+            "event_timestamp_ns",
+            // Rows sharing an instant are ordered foreground before background,
+            // so the arriving app is seen before the departing one rather than
+            // in whatever order the export happened to write them.
+            "interaction_type",
+        ],
         "collect_timezone_observations" => &["timezone"],
         "estimate_dominant_timezone" => &["timezone"],
         "resolve_timezone_strategy" => &["timezone", "derived.dominant_timezone"],
@@ -2596,9 +3549,15 @@ pub fn query_field_reads(query_id: &str) -> &'static [&'static str] {
             "interaction_type",
             "app_package_name",
         ],
-        "summarize_duplicate_groups" => &["event_timestamp_ns"],
-        "disambiguate_duplicate_timestamps" => &["event_timestamp_ns", "interaction_type"],
-        "derive_time_gap_evidence" => &["event_timestamp_ns", "data_time_gap_hours"],
+        "summarize_duplicate_groups" => &["event_timestamp_ns", "participant_id"],
+        "disambiguate_duplicate_timestamps" => {
+            &["event_timestamp_ns", "interaction_type", "participant_id"]
+        }
+        "derive_time_gap_evidence" => &[
+            "event_timestamp_ns",
+            "data_time_gap_hours",
+            "participant_id",
+        ],
         "mark_app_policy_matches" => &[
             "app_package_name",
             "application_label",
@@ -2608,27 +3567,48 @@ pub fn query_field_reads(query_id: &str) -> &'static [&'static str] {
             "filter_file.application_label",
             "filter_file.known_application_labels",
             "filter_file.label_or_note",
+            // Read only under a non-default `package_exclusion_preset`. Before
+            // B10 no kernel step read either column, so a run excluded every
+            // supplied row whatever its category and whatever its flag said.
+            "filter_file.app_filter_category",
+            "filter_file.filter_bool",
         ],
-        "index_keyguard_events" => &["event_timestamp_ns", "interaction_type"],
+        "index_keyguard_events" => &["event_timestamp_ns", "interaction_type", "participant_id"],
         "infer_screen_session_skeletons" => &[
             "event_timestamp_ns",
             "interaction_type",
             "app_package_name",
+            "participant_id",
+            "start_timestamp_ns",
             "timezone",
         ],
-        "classify_screen_sessions" => &[
-            "event_timestamp_ns",
+        "construct_screen_intervals" => &[
+            "app_package_name",
+            "event_timestamp",
+            "interaction_type",
+            "participant_id",
+            "screen_interval_id",
             "start_timestamp_ns",
             "stop_timestamp_ns",
-            "duration_seconds",
-            "timezone",
-            "apps_forcing_screen_open_file.package_name",
-            "apps_forcing_screen_open_file.app_package_name",
-            "apps_forcing_screen_open_file.label_or_note",
-            "apps_forcing_screen_open_file.application_label",
-            "derived.screen_state_timeline",
-            "derived.keyguard_timestamps",
+            "raw_chronicle_csv.study_id",
+            "raw_chronicle_csv.participant_id",
+            "raw_chronicle_csv.username",
+            "raw_chronicle_csv.application_label",
+            "raw_chronicle_csv.event_timestamp",
+            "raw_chronicle_csv.interaction_type",
+            "raw_chronicle_csv.app_package_name",
+            "raw_chronicle_csv.timezone",
+            "raw_chronicle_csv.literature_source_data_row",
+            "input_capability_evidence_file.schema_version",
+            "input_capability_evidence_file.raw_input_sha256",
+            "input_capability_evidence_file.participant_id",
+            "input_capability_evidence_file.capability_id",
+            "input_capability_evidence_file.state",
+            "input_capability_evidence_file.evidence_basis",
+            "input_capability_evidence_file.evidence_reference",
+            "input_capability_evidence_file.evidence_sha256",
         ],
+        "classify_screen_sessions" => CLASSIFY_SCREEN_SESSION_READS,
         "resolve_excluded_packages" => &["app_package_name"],
         "mask_excluded_app_events" => &["interaction_type"],
         "build_app_event_index" => &[
@@ -2638,12 +3618,44 @@ pub fn query_field_reads(query_id: &str) -> &'static [&'static str] {
             "background_apps_file.package_name",
             "background_apps_file.app_package_name",
         ],
-        "match_app_episodes" => &["derived.matcher_input"],
+        "match_app_episodes" => &[
+            "derived.matcher_input",
+            "derived.b05_screen_intervals",
+            "raw_chronicle_csv.study_id",
+            "raw_chronicle_csv.participant_id",
+            "raw_chronicle_csv.username",
+            "raw_chronicle_csv.application_label",
+            "raw_chronicle_csv.event_timestamp",
+            "raw_chronicle_csv.interaction_type",
+            "raw_chronicle_csv.app_package_name",
+            "raw_chronicle_csv.timezone",
+            "raw_chronicle_csv.literature_source_data_row",
+            "input_capability_evidence_file.schema_version",
+            "input_capability_evidence_file.raw_input_sha256",
+            "input_capability_evidence_file.participant_id",
+            "input_capability_evidence_file.capability_id",
+            "input_capability_evidence_file.state",
+            "input_capability_evidence_file.evidence_basis",
+            "input_capability_evidence_file.evidence_reference",
+            "input_capability_evidence_file.evidence_sha256",
+            // Read only by the eyes_complement rule, which needs the screen and
+            // power events the matcher index does not carry.
+            "app_package_name",
+            "event_timestamp",
+            "event_timestamp_ns",
+            "interaction_type",
+            // Every rule pairs a start with a later row; this is what keeps the
+            // later row from belonging to a different participant when one
+            // export carries several of them.
+            "participant_id",
+            "screen_interval_id",
+        ],
         "materialize_candidate_episodes" => &[
             "app_package_name",
             "participant_id",
             "interaction_type",
             "event_timestamp_ns",
+            "start_timestamp_ns",
             "derived.matcher_output",
             "derived.filtered_packages",
         ],
@@ -2652,22 +3664,45 @@ pub fn query_field_reads(query_id: &str) -> &'static [&'static str] {
             "interaction_type",
             "start_timestamp_ns",
             "stop_timestamp_ns",
+            "raw_episode_start_timestamp_ns",
+            // B06 reads the immutable raw bounds the B04 block just recorded
+            // and whether the B04 blank owns the published duration cells.
+            "raw_episode_stop_timestamp_ns",
+            "minimum_duration_blank_applied",
             "derived.junk_packages",
+            // A filtered background app keeps its timing (`timing_blanked_packages`).
+            "background_apps_file.package_name",
+            "background_apps_file.app_package_name",
         ],
         "apply_app_inclusion_policy" => &[
             "app_package_name",
+            "application_label",
+            "participant_id",
             "interaction_type",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "minimum_duration_drop_pending",
+            "maximum_duration_drop_pending",
             "derived.junk_packages",
             "background_apps_file.package_name",
             "background_apps_file.app_package_name",
+            "filter_file.app_package_name",
+            "filter_file.package_name",
+            "filter_file.filter_bool",
+            "filter_file.app_filter_category",
+            "filter_file.known_application_labels",
+            "filter_file.label_or_note",
+            "filter_file.application_label",
         ],
         "order_app_episodes" => &["event_timestamp_ns"],
         "segment_concurrent_usage" => &[
             "app_package_name",
             "interaction_type",
             "event_timestamp_ns",
+            "participant_id",
             "start_timestamp_ns",
             "stop_timestamp_ns",
+            "minimum_duration_blank_applied",
             "derived.junk_packages",
             "background_apps_file.package_name",
             "background_apps_file.app_package_name",
@@ -2682,6 +3717,14 @@ pub fn query_field_reads(query_id: &str) -> &'static [&'static str] {
         "derive_engagement_basis" => &[
             "app_package_name",
             "interaction_type",
+            "participant_id",
+            // An excluded package has its DISPLAY interval blanked back in
+            // `classify_episode_durations`, so the `any_app_*` chain falls back
+            // to the raw-episode evidence the same row still carries. Without
+            // these two edges a change to the real episode bounds of a filtered
+            // row would not invalidate the engagement columns it still moves.
+            "raw_episode_start_timestamp_ns",
+            "raw_episode_stop_timestamp_ns",
             "start_timestamp_ns",
             "stop_timestamp_ns",
             "usage_layer",
@@ -2706,10 +3749,71 @@ pub fn query_field_reads(query_id: &str) -> &'static [&'static str] {
             "duration_seconds",
             "duration_minutes",
             "derived.junk_packages",
+            // Read only by culverhouse_trim_and_log: same-app adjacency, the
+            // per-participant day span, the >=12 h partial-day rule, and the
+            // per-zone DST-day test.
+            "participant_id",
+            "app_package_name",
+            "date",
+            "timezone",
+            "data_time_gap_hours",
+            "any_app_usage_flags",
+            // Also part of the same-app adjacency test: concurrency
+            // sub-intervals tile one session with gap 0, which is inside the
+            // collapse threshold, so the layer is what keeps them apart.
+            "usage_layer",
+            // Foundational and post-split state are block identity: merging
+            // across any of these boundaries would re-credit or reclassify
+            // the absorbed interval.
+            "micro_use_classification",
+            "minimum_duration_qualified",
+            "minimum_duration_aggregate_eligible",
+            "minimum_duration_blank_applied",
+            "concurrent_subinterval_floor_blank_applied",
+            "raw_episode_duration_ns",
+            "maximum_duration_aggregate_eligible",
+            // A filtered row reconstruction blanked gets its interval back
+            // from the raw episode, less any maximum-duration trim.
+            "raw_episode_start_timestamp_ns",
+            "raw_episode_stop_timestamp_ns",
+            "maximum_duration_trimmed_ns",
         ],
         "remove_selected_interaction_types" => &["interaction_type", "data_time_gap_hours"],
-        "remove_zero_duration_rows" => &["interaction_type", "duration_seconds"],
-        "identify_credit_eligible_sessions" => &["interaction_type", "duration_minutes"],
+        "remove_zero_duration_rows" => &[
+            "row.membership",
+            "participant_id",
+            "interaction_type",
+            "app_package_name",
+            "event_timestamp_ns",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "duration_seconds",
+            "raw_episode_start_timestamp_ns",
+            "raw_episode_stop_timestamp_ns",
+            "raw_episode_duration_ns",
+            "usage_layer",
+        ],
+        "assign_usage_session_ids" => &[
+            // `study_id` and `username` are read only by the wider boundary
+            // scopes, but a field edge is a static declaration: the query CAN
+            // read them, so it declares them unconditionally rather than
+            // letting the graph go stale when the scope is widened.
+            "study_id",
+            "participant_id",
+            "username",
+            "interaction_type",
+            "app_package_name",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            // Read before the lineage flag is appended — `push_row_flag`
+            // rewrites the existing value rather than replacing it.
+            "any_app_usage_flags",
+        ],
+        "identify_credit_eligible_sessions" => &[
+            "interaction_type",
+            "duration_minutes",
+            "minimum_duration_aggregate_eligible",
+        ],
         "build_activity_witness_indexes" => {
             &["participant_id", "interaction_type", "event_timestamp_ns"]
         }
@@ -2733,6 +3837,33 @@ pub fn query_field_reads(query_id: &str) -> &'static [&'static str] {
             "derived.liveness_substrate",
             "derived.day_app_counts",
         ],
+        "select_notification_events" => &["participant_id", "interaction_type"],
+        // The instant, and the identity the span index is keyed by.
+        "index_observed_usage_spans" => &[
+            "participant_id",
+            "app_package_name",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+        ],
+        "classify_notification_contacts" => &[
+            "participant_id",
+            "app_package_name",
+            "event_timestamp_ns",
+            "any_app_usage_flags",
+            "derived.observed_usage_spans",
+        ],
+        "assemble_notification_contact_outputs" => NOTIFICATION_CONTACT_ASSEMBLY_FIELD_READS,
+        // The sampler needs only the interval endpoints and the identity the
+        // grouping keys by; it never looks at a duration, because a polled
+        // collector cannot see one.
+        "sample_polled_timeline" => &["start_timestamp_ns", "stop_timestamp_ns"],
+        "group_polled_runs" => &["app_package_name", "participant_id"],
+        // Materialization CLONES the source row and overwrites its endpoints
+        // from the recorded run, so the only field it reads is the flag column
+        // it appends the emulation provenance to. The endpoints and durations
+        // are writes, declared as such below.
+        "materialize_polled_rows" => &["any_app_usage_flags"],
+        "assemble_polled_emulation_outputs" => POLLED_EMULATION_ASSEMBLY_FIELD_READS,
         "materialize_credited_rows" => &[
             "participant_id",
             "event_timestamp_ns",
@@ -2751,6 +3882,9 @@ pub fn query_field_reads(query_id: &str) -> &'static [&'static str] {
             "study_dates_file.participant_id",
             "study_dates_file.start_date",
             "study_dates_file.end_date",
+            "study_dates_file.exclusion_label",
+            "study_dates_file.exclusion_start_date",
+            "study_dates_file.exclusion_end_date",
         ],
         "apply_participant_windows" => &[
             "participant_id",
@@ -2759,6 +3893,9 @@ pub fn query_field_reads(query_id: &str) -> &'static [&'static str] {
             "study_dates_file.participant_id",
             "study_dates_file.start_date",
             "study_dates_file.end_date",
+            "study_dates_file.exclusion_label",
+            "study_dates_file.exclusion_start_date",
+            "study_dates_file.exclusion_end_date",
         ],
         "resolve_sharing_status" => &[
             "participant_id",
@@ -2779,6 +3916,13 @@ pub fn query_field_reads(query_id: &str) -> &'static [&'static str] {
             "derived.sharing_status",
             "derived.survey_lookup",
         ],
+        "divide_sessions_at_day_boundary" => &[
+            "event_timestamp_ns",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "duration_seconds",
+            "timezone",
+        ],
         "synthesize_placeholder_rows" => &[
             "participant_id",
             "date",
@@ -2792,11 +3936,15 @@ pub fn query_field_reads(query_id: &str) -> &'static [&'static str] {
             "date",
             "interaction_type",
             "duration_minutes",
+            "minimum_duration_aggregate_eligible",
             "derived.raw_date_index",
             "derived.participant_windows",
             "study_dates_file.participant_id",
             "study_dates_file.start_date",
             "study_dates_file.end_date",
+            "study_dates_file.exclusion_label",
+            "study_dates_file.exclusion_start_date",
+            "study_dates_file.exclusion_end_date",
         ],
         "aggregate_attribution_minutes" => &[
             "participant_id",
@@ -2804,6 +3952,7 @@ pub fn query_field_reads(query_id: &str) -> &'static [&'static str] {
             "date",
             "interaction_type",
             "duration_minutes",
+            "minimum_duration_aggregate_eligible",
         ],
         "compute_attribution_completeness" => {
             &["derived.attribution_minutes", "derived.sharing_status"]
@@ -2861,41 +4010,74 @@ pub fn query_field_writes(query_id: &str) -> &'static [&'static str] {
         "mark_app_policy_matches" => &["interaction_type", "derived.filtered_packages"],
         "index_keyguard_events" => &["derived.keyguard_timestamps"],
         "infer_screen_session_skeletons" => &["derived.screen_state_timeline"],
-        "classify_screen_sessions" => &[
-            "row.membership",
-            "row.order",
-            "app_package_name",
-            "application_label",
+        // The tracked query returns typed B05 evidence, not row carriers.
+        // Source-screen row construction belongs to classify_screen_sessions.
+        "construct_screen_intervals" => &[
+            "derived.b05_applicability_receipt",
+            "derived.b05_screen_intervals",
+        ],
+        "classify_screen_sessions" => CLASSIFY_SCREEN_SESSION_WRITES,
+        "resolve_excluded_packages" => &["derived.junk_packages"],
+        "mask_excluded_app_events" => &["interaction_type"],
+        "build_app_event_index" => &["derived.matcher_input"],
+        // `minimum_duration_aggregate_eligible` is deliberately absent: only
+        // `retain_but_exclude` (stamped in `classify_episode_durations`) makes
+        // it false, and schoedel EoUM materialization no longer forces it.
+        "match_app_episodes" => &[
+            "derived.matcher_output",
+            "derived.schoedel_reconstruction",
             "interaction_type",
-            "event_timestamp_ns",
             "start_timestamp_ns",
             "stop_timestamp_ns",
             "duration_seconds",
             "duration_minutes",
-            "data_time_gap_hours",
-            "date",
-            "day",
-            "weekday_mf",
-            "weekday_mth",
-            "weekday_su_th",
-            "hour",
-            "quarter",
-            "screen_usage_end_reason",
-            "screen_usage_end_reason_confidence",
-            "screen_usage_stop_event_type",
-            "screen_usage_last_activity_timestamp_ns",
-            "screen_usage_tail_gap_seconds",
-            "screen_usage_foreground_app_package",
-            "screen_usage_apps_forcing_screen_open_label",
-            "screen_usage_lock_screen_only",
+            "raw_episode_start_timestamp_ns",
+            "raw_episode_stop_timestamp_ns",
+            "raw_episode_duration_ns",
+            "micro_use_classification",
+            "minimum_duration_qualified",
+            "app_usage_end_reason",
+            "screen_interval_id",
+            "schoedel_completion",
         ],
-        "resolve_excluded_packages" => &["derived.junk_packages"],
-        "mask_excluded_app_events" => &["interaction_type"],
-        "build_app_event_index" => &["derived.matcher_input"],
-        "match_app_episodes" => &["derived.matcher_output"],
-        "materialize_candidate_episodes"
-        | "classify_episode_durations"
-        | "apply_app_inclusion_policy" => &[
+        // Split out of the group below: this is the only one of the three that
+        // records WHY an episode ended. The other two reshape an episode that
+        // already has its reason.
+        "materialize_candidate_episodes" => &[
+            "interaction_type",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "duration_seconds",
+            "duration_minutes",
+            "raw_episode_start_timestamp_ns",
+            "raw_episode_stop_timestamp_ns",
+            "raw_episode_duration_ns",
+            "minimum_duration_qualified",
+            "app_usage_end_reason",
+        ],
+        "classify_episode_durations" => &[
+            "interaction_type",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "duration_seconds",
+            "duration_minutes",
+            "raw_episode_start_timestamp_ns",
+            "raw_episode_stop_timestamp_ns",
+            "raw_episode_duration_ns",
+            "micro_use_classification",
+            "minimum_duration_qualified",
+            "minimum_duration_aggregate_eligible",
+            "minimum_duration_blank_applied",
+            "concurrent_subinterval_floor_blank_applied",
+            "minimum_duration_drop_pending",
+            "maximum_duration_qualified",
+            "maximum_duration_aggregate_eligible",
+            "maximum_duration_drop_pending",
+            "maximum_duration_trimmed_ns",
+            "effective_endpoint_reason",
+        ],
+        "apply_app_inclusion_policy" => &[
+            "row.membership",
             "interaction_type",
             "start_timestamp_ns",
             "stop_timestamp_ns",
@@ -2911,6 +4093,7 @@ pub fn query_field_writes(query_id: &str) -> &'static [&'static str] {
             "duration_seconds",
             "duration_minutes",
             "usage_layer",
+            "concurrent_subinterval_floor_blank_applied",
         ],
         "join_app_codebook" => &["codebook_fields"],
         "derive_broad_category" => &["broad_app_category"],
@@ -2931,15 +4114,47 @@ pub fn query_field_writes(query_id: &str) -> &'static [&'static str] {
             "stop_timestamp_ns",
             "duration_seconds",
             "duration_minutes",
+            // Written only by culverhouse_trim_and_log: the in-row event_flags
+            // stamp, and the row count, which its same-app collapse merges.
+            "any_app_usage_flags",
+            "row.membership",
         ],
-        "remove_selected_interaction_types"
-        | "remove_zero_duration_rows"
-        | "apply_participant_windows" => &["row.membership"],
+        "remove_selected_interaction_types" | "apply_participant_windows" => &["row.membership"],
+        "remove_zero_duration_rows" => {
+            &["row.membership", "derived.zero_duration_cleanup_evidence"]
+        }
+        "assign_usage_session_ids" => &["usage_session_id", "any_app_usage_flags"],
         "identify_credit_eligible_sessions" => &["derived.credit_partition"],
         "build_activity_witness_indexes" => &["derived.liveness_substrate"],
         "assess_screen_evidence_capability" => &["derived.screen_incapable_participants"],
         "summarize_daily_apps" => &["derived.day_app_counts"],
         "derive_credited_intervals" => &["derived.credit_decisions"],
+        "select_notification_events" => &["row.membership", "row.order"],
+        "index_observed_usage_spans" => &["derived.observed_usage_spans"],
+        "classify_notification_contacts" => &["any_app_usage_flags"],
+        "assemble_notification_contact_outputs" => &[
+            "broad_app_category",
+            "codebook_fields",
+            "codebook_genre_fields_cleared",
+            "genre_id_scraped",
+        ],
+        "sample_polled_timeline" => &["derived.polled_samples"],
+        "group_polled_runs" => &["derived.polled_runs"],
+        "materialize_polled_rows" => &[
+            "row.membership",
+            "row.order",
+            "any_app_usage_flags",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "duration_seconds",
+            "duration_minutes",
+        ],
+        "assemble_polled_emulation_outputs" => &[
+            "broad_app_category",
+            "codebook_fields",
+            "codebook_genre_fields_cleared",
+            "genre_id_scraped",
+        ],
         "materialize_credited_rows" => &[
             "row.membership",
             "row.order",
@@ -2961,6 +4176,22 @@ pub fn query_field_writes(query_id: &str) -> &'static [&'static str] {
         "resolve_sharing_status" => &["derived.sharing_status"],
         "index_survey_responses" => &["derived.survey_lookup"],
         "classify_person_attribution" => &["username", "interaction_type"],
+        "divide_sessions_at_day_boundary" => &[
+            "row.membership",
+            "row.order",
+            "event_timestamp_ns",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "duration_seconds",
+            "duration_minutes",
+            "date",
+            "day",
+            "weekday_mf",
+            "weekday_mth",
+            "weekday_su_th",
+            "hour",
+            "quarter",
+        ],
         "synthesize_placeholder_rows" => &[
             "row.membership",
             "row.order",
@@ -2985,6 +4216,22 @@ pub fn query_field_writes(query_id: &str) -> &'static [&'static str] {
         "aggregate_attribution_minutes" => &["derived.attribution_minutes"],
         "compute_attribution_completeness" => &["derived.attribution_completeness"],
         "classify_compliance_days" => &["derived.compliance_scores"],
+        "assemble_result_manifest" => &[
+            "any_app_usage_flags",
+            "date",
+            "day",
+            "duration_minutes",
+            "duration_seconds",
+            "event_timestamp_ns",
+            "hour",
+            "quarter",
+            "screen_interval_id",
+            "start_timestamp_ns",
+            "stop_timestamp_ns",
+            "weekday_mf",
+            "weekday_mth",
+            "weekday_su_th",
+        ],
         // `assemble_result_manifest` renders rather than transforms: what it produces is
         // declared cell by cell in `PIPELINE_OUTPUT_CELL_BINDINGS`.
         _ => &[],
@@ -3014,12 +4261,100 @@ const CANONICAL_ROW_FIELDS: &[&str] = &[
     "stop_timestamp_ns",
     "duration_seconds",
     "duration_minutes",
+    "raw_episode_start_timestamp_ns",
+    "raw_episode_stop_timestamp_ns",
+    "raw_episode_duration_ns",
+    "micro_use_classification",
+    "minimum_duration_qualified",
+    "minimum_duration_aggregate_eligible",
+    "minimum_duration_blank_applied",
+    "concurrent_subinterval_floor_blank_applied",
+    "minimum_duration_drop_pending",
+    "maximum_duration_qualified",
+    "maximum_duration_aggregate_eligible",
+    "maximum_duration_drop_pending",
+    "maximum_duration_trimmed_ns",
+    "effective_endpoint_reason",
     "screen_usage_end_reason",
+    "app_usage_end_reason",
+    "screen_interval_id",
+    "schoedel_completion",
+    "usage_session_id",
     "screen_usage_end_reason_confidence",
     "screen_usage_stop_event_type",
     "screen_usage_last_activity_timestamp_ns",
     "screen_usage_tail_gap_seconds",
     "screen_usage_foreground_app_package",
+    "screen_usage_app_observed",
+    "screen_usage_session_classification",
+    "screen_usage_apps_forcing_screen_open_label",
+    "screen_usage_lock_screen_only",
+    "any_app_usage_flags",
+    "valid_app_new_engage_30s",
+    "valid_app_new_engage_custom",
+    "valid_app_switched_app",
+    "valid_app_usage_time_gap_hours",
+    "any_app_new_engage_30s",
+    "any_app_new_engage_custom",
+    "any_app_switched_app",
+    "any_app_usage_time_gap_hours",
+    "genre_id_scraped",
+    "broad_app_category",
+    "codebook_fields",
+    "codebook_genre_fields_cleared",
+    "usage_layer",
+];
+
+const CLASSIFY_SCREEN_SESSION_WRITES: &[&str] = &[
+    "row.membership",
+    "row.order",
+    "study_id",
+    "participant_id",
+    "possible_device_model",
+    "username",
+    "application_label",
+    "interaction_type",
+    "app_package_name",
+    "event_timestamp_ns",
+    "timezone",
+    "data_time_gap_hours",
+    "date",
+    "day",
+    "weekday_mf",
+    "weekday_mth",
+    "weekday_su_th",
+    "hour",
+    "quarter",
+    "start_timestamp_ns",
+    "stop_timestamp_ns",
+    "duration_seconds",
+    "duration_minutes",
+    "raw_episode_start_timestamp_ns",
+    "raw_episode_stop_timestamp_ns",
+    "raw_episode_duration_ns",
+    "micro_use_classification",
+    "minimum_duration_qualified",
+    "minimum_duration_aggregate_eligible",
+    "minimum_duration_blank_applied",
+    "concurrent_subinterval_floor_blank_applied",
+    "minimum_duration_drop_pending",
+    "maximum_duration_qualified",
+    "maximum_duration_aggregate_eligible",
+    "maximum_duration_drop_pending",
+    "maximum_duration_trimmed_ns",
+    "effective_endpoint_reason",
+    "screen_usage_end_reason",
+    "app_usage_end_reason",
+    "screen_interval_id",
+    "schoedel_completion",
+    "usage_session_id",
+    "screen_usage_end_reason_confidence",
+    "screen_usage_stop_event_type",
+    "screen_usage_last_activity_timestamp_ns",
+    "screen_usage_tail_gap_seconds",
+    "screen_usage_foreground_app_package",
+    "screen_usage_app_observed",
+    "screen_usage_session_classification",
     "screen_usage_apps_forcing_screen_open_label",
     "screen_usage_lock_screen_only",
     "any_app_usage_flags",
@@ -3041,6 +4376,48 @@ const CANONICAL_ROW_FIELDS: &[&str] = &[
 const CODEBOOK_JOIN_FIELD_READS: &[&str] = &[
     "app_package_name",
     "codebook_fields",
+    "app_codebook_file.app_package_name",
+    "app_codebook_file.application_label",
+    "app_codebook_file.bcm_play_store_genreId",
+    "app_codebook_file.bcm_play_store_genre",
+    "app_codebook_file.bcm_play_store_broad_app_category",
+    "app_codebook_file.bcm_play_store_developer",
+    "app_codebook_file.bcm_play_store_free",
+    "app_codebook_file.bcm_play_store_rating",
+    "app_codebook_file.bcm_play_store_downloads",
+    "app_codebook_file.usc_broad_app_category",
+    "app_codebook_file.usc_genreId",
+    "app_codebook_file.umich_child_app_category_code",
+    "app_codebook_file.umich_child_app_category",
+    "app_codebook_file.umich_adult_app_category_code",
+    "app_codebook_file.umich_adult_app_category",
+    "app_codebook_file.umich_free",
+    "app_codebook_file.umich_gambling_app",
+    "app_codebook_file.umich_inappropriate_app",
+    "app_codebook_file.babyemu_genreId_scraped",
+    "app_codebook_file.babyemu_genreId_manual",
+    "app_codebook_file.babyemu_broad_app_category",
+    "app_codebook_file.babyemu_medium_app_category",
+    "app_codebook_file.babyemu_fine_app_category",
+    "app_codebook_file.babyemu_alternate_fine_app_category",
+    "app_codebook_file.babyemu_kids",
+    "app_codebook_file.bcm_cnrc_heuristic_category",
+    "app_codebook_file.bcm_cnrc_categorization_source",
+    "app_codebook_file.dataset",
+];
+
+/// B08's and B09's assemblies run the SAME three enrichment functions the app path runs
+/// -- `join_codebook`, `derive_broad_category`, `collapse_app_genre` -- so its
+/// field use is exactly their union. Listed rather than composed because the
+/// scanner compares against a `&'static [&'static str]`, and kept adjacent to
+/// `CODEBOOK_JOIN_FIELD_READS` so the two move together.
+const POLLED_EMULATION_ASSEMBLY_FIELD_READS: &[&str] = NOTIFICATION_CONTACT_ASSEMBLY_FIELD_READS;
+const NOTIFICATION_CONTACT_ASSEMBLY_FIELD_READS: &[&str] = &[
+    "app_package_name",
+    "broad_app_category",
+    "codebook_fields",
+    "codebook_genre_fields_cleared",
+    "genre_id_scraped",
     "app_codebook_file.app_package_name",
     "app_codebook_file.application_label",
     "app_codebook_file.bcm_play_store_genreId",
@@ -3095,12 +4472,28 @@ const ASSEMBLE_RESULT_FIELD_READS: &[&str] = &[
     "stop_timestamp_ns",
     "duration_seconds",
     "duration_minutes",
+    "raw_episode_start_timestamp_ns",
+    "raw_episode_stop_timestamp_ns",
+    "raw_episode_duration_ns",
+    "micro_use_classification",
+    "minimum_duration_qualified",
+    "minimum_duration_aggregate_eligible",
+    "concurrent_subinterval_floor_blank_applied",
+    "maximum_duration_qualified",
+    "maximum_duration_aggregate_eligible",
+    "maximum_duration_trimmed_ns",
+    "effective_endpoint_reason",
     "screen_usage_end_reason",
+    "app_usage_end_reason",
+    "screen_interval_id",
+    "schoedel_completion",
+    "usage_session_id",
     "screen_usage_end_reason_confidence",
     "screen_usage_stop_event_type",
     "screen_usage_last_activity_timestamp_ns",
     "screen_usage_tail_gap_seconds",
     "screen_usage_foreground_app_package",
+    "screen_usage_session_classification",
     "screen_usage_apps_forcing_screen_open_label",
     "screen_usage_lock_screen_only",
     "any_app_usage_flags",
@@ -3125,8 +4518,15 @@ const ASSEMBLE_RESULT_FIELD_READS: &[&str] = &[
     "derived.compliance_scores",
     "derived.credit_result",
     "derived.sharing_status",
+    "derived.zero_duration_cleanup_evidence",
     "enrolled_devices_file.participant_id",
     "enrolled_devices_file.device_count",
+    "study_dates_file.participant_id",
+    "study_dates_file.start_date",
+    "study_dates_file.end_date",
+    "study_dates_file.exclusion_start_date",
+    "study_dates_file.exclusion_end_date",
+    "study_dates_file.exclusion_label",
 ];
 
 /// Steps whose produced fields are *not* each determined by every declared
@@ -3180,12 +4580,32 @@ fn query_field_edge_overrides(
             ("stop_timestamp_ns", &[]),
             ("duration_seconds", &[]),
             ("duration_minutes", &[]),
+            ("raw_episode_start_timestamp_ns", &[]),
+            ("raw_episode_stop_timestamp_ns", &[]),
+            ("raw_episode_duration_ns", &[]),
+            ("micro_use_classification", &[]),
+            ("minimum_duration_qualified", &[]),
+            ("minimum_duration_aggregate_eligible", &[]),
+            ("minimum_duration_blank_applied", &[]),
+            ("concurrent_subinterval_floor_blank_applied", &[]),
+            ("minimum_duration_drop_pending", &[]),
+            ("maximum_duration_qualified", &[]),
+            ("maximum_duration_aggregate_eligible", &[]),
+            ("maximum_duration_drop_pending", &[]),
+            ("maximum_duration_trimmed_ns", &[]),
+            ("effective_endpoint_reason", &[]),
             ("screen_usage_end_reason", &[]),
+            ("app_usage_end_reason", &[]),
+            ("screen_interval_id", &[]),
+            ("schoedel_completion", &[]),
+            ("usage_session_id", &[]),
             ("screen_usage_end_reason_confidence", &[]),
             ("screen_usage_stop_event_type", &[]),
             ("screen_usage_last_activity_timestamp_ns", &[]),
             ("screen_usage_tail_gap_seconds", &[]),
             ("screen_usage_foreground_app_package", &[]),
+            ("screen_usage_app_observed", &[]),
+            ("screen_usage_session_classification", &[]),
             ("screen_usage_apps_forcing_screen_open_label", &[]),
             ("screen_usage_lock_screen_only", &[]),
             ("any_app_usage_flags", &[]),
@@ -3202,6 +4622,137 @@ fn query_field_edge_overrides(
             ("codebook_fields", &[]),
             ("codebook_genre_fields_cleared", &[]),
             ("usage_layer", &[]),
+        ],
+        // The canonical Chronicle arm edits an existing row while source-B05
+        // materializes the same carrier shape from immutable interval
+        // evidence. Identity cells remain verbatim copies of their normalized
+        // input columns; all other fields conservatively depend on the full
+        // screen-classification input surface. Keeping the identity edges
+        // singular is what lets the contract prove exact cell copies without
+        // pretending the typed B05 constructor itself emits row carriers.
+        "classify_screen_sessions" => &[
+            ("row.membership", CLASSIFY_SCREEN_SESSION_READS),
+            ("row.order", CLASSIFY_SCREEN_SESSION_READS),
+            ("study_id", &["study_id"]),
+            ("participant_id", &["participant_id"]),
+            ("possible_device_model", CLASSIFY_SCREEN_SESSION_READS),
+            ("username", CLASSIFY_SCREEN_SESSION_READS),
+            ("application_label", CLASSIFY_SCREEN_SESSION_READS),
+            ("interaction_type", CLASSIFY_SCREEN_SESSION_READS),
+            ("app_package_name", CLASSIFY_SCREEN_SESSION_READS),
+            ("event_timestamp_ns", CLASSIFY_SCREEN_SESSION_READS),
+            ("timezone", CLASSIFY_SCREEN_SESSION_READS),
+            ("data_time_gap_hours", CLASSIFY_SCREEN_SESSION_READS),
+            ("date", CLASSIFY_SCREEN_SESSION_READS),
+            ("day", CLASSIFY_SCREEN_SESSION_READS),
+            ("weekday_mf", CLASSIFY_SCREEN_SESSION_READS),
+            ("weekday_mth", CLASSIFY_SCREEN_SESSION_READS),
+            ("weekday_su_th", CLASSIFY_SCREEN_SESSION_READS),
+            ("hour", CLASSIFY_SCREEN_SESSION_READS),
+            ("quarter", CLASSIFY_SCREEN_SESSION_READS),
+            ("start_timestamp_ns", CLASSIFY_SCREEN_SESSION_READS),
+            ("stop_timestamp_ns", CLASSIFY_SCREEN_SESSION_READS),
+            ("duration_seconds", CLASSIFY_SCREEN_SESSION_READS),
+            ("duration_minutes", CLASSIFY_SCREEN_SESSION_READS),
+            (
+                "raw_episode_start_timestamp_ns",
+                CLASSIFY_SCREEN_SESSION_READS,
+            ),
+            (
+                "raw_episode_stop_timestamp_ns",
+                CLASSIFY_SCREEN_SESSION_READS,
+            ),
+            ("raw_episode_duration_ns", CLASSIFY_SCREEN_SESSION_READS),
+            ("micro_use_classification", CLASSIFY_SCREEN_SESSION_READS),
+            ("minimum_duration_qualified", CLASSIFY_SCREEN_SESSION_READS),
+            (
+                "minimum_duration_aggregate_eligible",
+                CLASSIFY_SCREEN_SESSION_READS,
+            ),
+            (
+                "minimum_duration_blank_applied",
+                CLASSIFY_SCREEN_SESSION_READS,
+            ),
+            (
+                "concurrent_subinterval_floor_blank_applied",
+                CLASSIFY_SCREEN_SESSION_READS,
+            ),
+            (
+                "minimum_duration_drop_pending",
+                CLASSIFY_SCREEN_SESSION_READS,
+            ),
+            ("maximum_duration_qualified", CLASSIFY_SCREEN_SESSION_READS),
+            (
+                "maximum_duration_aggregate_eligible",
+                CLASSIFY_SCREEN_SESSION_READS,
+            ),
+            (
+                "maximum_duration_drop_pending",
+                CLASSIFY_SCREEN_SESSION_READS,
+            ),
+            ("maximum_duration_trimmed_ns", CLASSIFY_SCREEN_SESSION_READS),
+            ("effective_endpoint_reason", CLASSIFY_SCREEN_SESSION_READS),
+            ("screen_usage_end_reason", CLASSIFY_SCREEN_SESSION_READS),
+            ("app_usage_end_reason", CLASSIFY_SCREEN_SESSION_READS),
+            ("screen_interval_id", CLASSIFY_SCREEN_SESSION_READS),
+            ("schoedel_completion", CLASSIFY_SCREEN_SESSION_READS),
+            ("usage_session_id", CLASSIFY_SCREEN_SESSION_READS),
+            (
+                "screen_usage_end_reason_confidence",
+                CLASSIFY_SCREEN_SESSION_READS,
+            ),
+            (
+                "screen_usage_stop_event_type",
+                CLASSIFY_SCREEN_SESSION_READS,
+            ),
+            (
+                "screen_usage_last_activity_timestamp_ns",
+                CLASSIFY_SCREEN_SESSION_READS,
+            ),
+            (
+                "screen_usage_tail_gap_seconds",
+                CLASSIFY_SCREEN_SESSION_READS,
+            ),
+            (
+                "screen_usage_foreground_app_package",
+                CLASSIFY_SCREEN_SESSION_READS,
+            ),
+            ("screen_usage_app_observed", CLASSIFY_SCREEN_SESSION_READS),
+            (
+                "screen_usage_session_classification",
+                CLASSIFY_SCREEN_SESSION_READS,
+            ),
+            (
+                "screen_usage_apps_forcing_screen_open_label",
+                CLASSIFY_SCREEN_SESSION_READS,
+            ),
+            (
+                "screen_usage_lock_screen_only",
+                CLASSIFY_SCREEN_SESSION_READS,
+            ),
+            ("any_app_usage_flags", CLASSIFY_SCREEN_SESSION_READS),
+            ("valid_app_new_engage_30s", CLASSIFY_SCREEN_SESSION_READS),
+            ("valid_app_new_engage_custom", CLASSIFY_SCREEN_SESSION_READS),
+            ("valid_app_switched_app", CLASSIFY_SCREEN_SESSION_READS),
+            (
+                "valid_app_usage_time_gap_hours",
+                CLASSIFY_SCREEN_SESSION_READS,
+            ),
+            ("any_app_new_engage_30s", CLASSIFY_SCREEN_SESSION_READS),
+            ("any_app_new_engage_custom", CLASSIFY_SCREEN_SESSION_READS),
+            ("any_app_switched_app", CLASSIFY_SCREEN_SESSION_READS),
+            (
+                "any_app_usage_time_gap_hours",
+                CLASSIFY_SCREEN_SESSION_READS,
+            ),
+            ("genre_id_scraped", CLASSIFY_SCREEN_SESSION_READS),
+            ("broad_app_category", CLASSIFY_SCREEN_SESSION_READS),
+            ("codebook_fields", CLASSIFY_SCREEN_SESSION_READS),
+            (
+                "codebook_genre_fields_cleared",
+                CLASSIFY_SCREEN_SESSION_READS,
+            ),
+            ("usage_layer", CLASSIFY_SCREEN_SESSION_READS),
         ],
         // The engagement walk keeps the `valid_*` and `any_*` families apart:
         // each family is carried forward from its own previous value.
@@ -3255,6 +4806,8 @@ fn query_field_edge_overrides(
                 &[
                     "app_package_name",
                     "interaction_type",
+                    "raw_episode_start_timestamp_ns",
+                    "raw_episode_stop_timestamp_ns",
                     "start_timestamp_ns",
                     "stop_timestamp_ns",
                     "usage_layer",
@@ -3266,6 +4819,8 @@ fn query_field_edge_overrides(
                 &[
                     "app_package_name",
                     "interaction_type",
+                    "raw_episode_start_timestamp_ns",
+                    "raw_episode_stop_timestamp_ns",
                     "start_timestamp_ns",
                     "stop_timestamp_ns",
                     "usage_layer",
@@ -3277,6 +4832,8 @@ fn query_field_edge_overrides(
                 &[
                     "app_package_name",
                     "interaction_type",
+                    "raw_episode_start_timestamp_ns",
+                    "raw_episode_stop_timestamp_ns",
                     "start_timestamp_ns",
                     "stop_timestamp_ns",
                     "usage_layer",
@@ -3288,6 +4845,8 @@ fn query_field_edge_overrides(
                 &[
                     "app_package_name",
                     "interaction_type",
+                    "raw_episode_start_timestamp_ns",
+                    "raw_episode_stop_timestamp_ns",
                     "start_timestamp_ns",
                     "stop_timestamp_ns",
                     "usage_layer",
@@ -3355,8 +4914,41 @@ const APP_ROW_COLUMNS: &[(&str, &[&str])] = &[
     ("interaction_type", &["interaction_type"]),
     ("start_timestamp", &["start_timestamp_ns", "timezone"]),
     ("stop_timestamp", &["stop_timestamp_ns", "timezone"]),
+    ("app_usage_end_reason", &["app_usage_end_reason"]),
+    ("screen_interval_id", &["screen_interval_id"]),
+    ("schoedel_completion", &["schoedel_completion"]),
+    ("usage_session_id", &["usage_session_id"]),
     ("duration_seconds", &["duration_seconds"]),
     ("duration_minutes", &["duration_minutes"]),
+    // Foundational B03/B04 columns, emitted only under a non-default
+    // micro-use policy or minimum-duration comparator/disposition — see
+    // `build_app_columns`. `raw_episode_duration_seconds` renders
+    // `raw_episode_duration_ns`.
+    ("micro_use_classification", &["micro_use_classification"]),
+    ("raw_episode_duration_seconds", &["raw_episode_duration_ns"]),
+    (
+        "minimum_duration_qualified",
+        &["minimum_duration_qualified"],
+    ),
+    (
+        "minimum_duration_aggregate_eligible",
+        &["minimum_duration_aggregate_eligible"],
+    ),
+    // B06 columns, emitted only under `post_reconstruction_strict_max_v1`
+    // with a fixed threshold — see `build_app_columns`.
+    (
+        "maximum_duration_qualified",
+        &["maximum_duration_qualified"],
+    ),
+    (
+        "maximum_duration_aggregate_eligible",
+        &["maximum_duration_aggregate_eligible"],
+    ),
+    (
+        "maximum_duration_trimmed_seconds",
+        &["maximum_duration_trimmed_ns"],
+    ),
+    ("effective_endpoint_reason", &["effective_endpoint_reason"]),
     ("any_app_usage_flags", &["any_app_usage_flags"]),
     ("data_time_gap_hours", &["data_time_gap_hours"]),
     ("day", &["day"]),
@@ -3429,6 +5021,10 @@ const SCREEN_ROW_COLUMNS: &[(&str, &[&str])] = &[
         &["screen_usage_foreground_app_package"],
     ),
     (
+        "screen_usage_session_classification",
+        &["screen_usage_session_classification"],
+    ),
+    (
         "screen_usage_apps_forcing_screen_open_label",
         &["screen_usage_apps_forcing_screen_open_label"],
     ),
@@ -3445,6 +5041,40 @@ const SCREEN_ROW_COLUMNS: &[(&str, &[&str])] = &[
     ("quarter", &["quarter"]),
     ("preprocessor_version", &[]),
     ("datetime_of_preprocessing", &[]),
+    ("screen_interval_id", &["derived.screen_state_timeline"]),
+    (
+        "screen_session_construction_strategy",
+        &["derived.screen_state_timeline"],
+    ),
+    ("screen_interval_kind", &["derived.screen_state_timeline"]),
+    (
+        "screen_start_boundary_source_row",
+        &["derived.screen_state_timeline"],
+    ),
+    (
+        "screen_stop_boundary_source_row",
+        &["derived.screen_state_timeline"],
+    ),
+    (
+        "screen_start_source_rows",
+        &["derived.screen_state_timeline"],
+    ),
+    (
+        "screen_stop_source_rows",
+        &["derived.screen_state_timeline"],
+    ),
+    (
+        "screen_interval_close_reason",
+        &["derived.screen_state_timeline"],
+    ),
+    (
+        "screen_interval_left_censored",
+        &["derived.screen_state_timeline"],
+    ),
+    (
+        "screen_interval_right_censored",
+        &["derived.screen_state_timeline"],
+    ),
     ("shape/rows", &[]),
 ];
 
@@ -3651,6 +5281,24 @@ const NON_ROW_CELL_BINDINGS: &[PipelineOutputCellBinding] = &[
             "app_package_name",
         ],
     },
+    // The opt-in B03 receipt in the review summary: only its class census is
+    // data-dependent — `checkpoint` is a protocol constant and the remaining
+    // leaves restate requested options.
+    PipelineOutputCellBinding {
+        output_kind: "review-summary-json",
+        column: "/microUseReceipt/classCounts/*",
+        emitting_query: "assemble_result_manifest",
+        from: &["micro_use_classification"],
+    },
+    // The opt-in foundational provenance projection embeds the B05 screen
+    // intervals and Schoedel episode bindings; every data-dependent leaf
+    // derives from the full screen-classification input surface.
+    PipelineOutputCellBinding {
+        output_kind: "review-summary-json",
+        column: "/foundationalProvenance/*",
+        emitting_query: "assemble_result_manifest",
+        from: CLASSIFY_SCREEN_SESSION_READS,
+    },
     PipelineOutputCellBinding {
         output_kind: "visualization-data-json",
         column: "/appRows/*/*",
@@ -3662,6 +5310,12 @@ const NON_ROW_CELL_BINDINGS: &[PipelineOutputCellBinding] = &[
         column: "/screenRows/*/*",
         emitting_query: "assemble_result_manifest",
         from: VISUALIZATION_ROW_FIELDS,
+    },
+    PipelineOutputCellBinding {
+        output_kind: "visualization-data-json",
+        column: "/screenRows",
+        emitting_query: "assemble_result_manifest",
+        from: &[],
     },
     PipelineOutputCellBinding {
         output_kind: "visualization-data-json",
@@ -3697,6 +5351,41 @@ const AGGREGATE_METRIC_FIELDS: &[&str] = &[
     "usage_layer",
     "duration_minutes",
     "app_package_name",
+];
+
+/// Every participant-amount cell reads the per-day usage buckets — the metric
+/// fields minus the package identity, which this table never distinguishes —
+/// plus the raw-date spine that supplies tracked-but-unused days, whose
+/// contribution is already covered by `participant_id` and `date`.
+const AGGREGATE_PARTICIPANT_AMOUNT_FIELDS: &[&str] = &[
+    "participant_id",
+    "date",
+    "interaction_type",
+    "start_timestamp_ns",
+    "stop_timestamp_ns",
+    "usage_layer",
+    "duration_minutes",
+];
+
+/// `participant_amount_summary_output` column bindings. Every column is a
+/// function of the same participant/day fold, including the two sample-cut
+/// columns, which are repeated on every row.
+const AGGREGATE_PARTICIPANT_AMOUNT_COLUMNS: &[(&str, &[&str])] = &[
+    ("participant_id", AGGREGATE_PARTICIPANT_AMOUNT_FIELDS),
+    ("days_tracked", AGGREGATE_PARTICIPANT_AMOUNT_FIELDS),
+    (
+        "total_app_usage_minutes",
+        AGGREGATE_PARTICIPANT_AMOUNT_FIELDS,
+    ),
+    ("daily_average_minutes", AGGREGATE_PARTICIPANT_AMOUNT_FIELDS),
+    (
+        "daily_average_minutes_winsorized",
+        AGGREGATE_PARTICIPANT_AMOUNT_FIELDS,
+    ),
+    ("huber_m_daily_minutes", AGGREGATE_PARTICIPANT_AMOUNT_FIELDS),
+    ("sample_p1_minutes", AGGREGATE_PARTICIPANT_AMOUNT_FIELDS),
+    ("sample_p99_minutes", AGGREGATE_PARTICIPANT_AMOUNT_FIELDS),
+    ("shape/rows", AGGREGATE_PARTICIPANT_AMOUNT_FIELDS),
 ];
 
 /// `summary_csv` wide/long period columns shared by the daily and weekly
@@ -3930,6 +5619,7 @@ pub const ROW_ADDRESSED_OUTPUT_KINDS: &[&str] = &[
     "aggregate-top-apps-csv",
     "aggregate-category-time-budget-csv",
     "aggregate-app-co-usage-csv",
+    "aggregate-participant-amount-summary-csv",
 ];
 
 /// Every declared canonical output cell family and the data fields that render
@@ -3998,6 +5688,10 @@ pub fn output_cell_bindings() -> Vec<PipelineOutputCellBinding> {
             AGGREGATE_CATEGORY_COLUMNS,
         ),
         ("aggregate-app-co-usage-csv", AGGREGATE_CO_USAGE_COLUMNS),
+        (
+            "aggregate-participant-amount-summary-csv",
+            AGGREGATE_PARTICIPANT_AMOUNT_COLUMNS,
+        ),
     ] {
         for (column, from) in columns {
             bindings.push(PipelineOutputCellBinding {
@@ -4172,7 +5866,19 @@ pub struct PipelineSourceColumnReach {
 /// The declared column-granular reach of every supplied source column. Output
 /// families that carry no row lineage are witnessed at this granularity
 /// instead of being reported as one unresolved whole-artifact gap.
-pub fn source_column_output_reach() -> Vec<PipelineSourceColumnReach> {
+///
+/// Like `workflow_contract()`, this is a pure function of the compiled
+/// query/field/cell tables, and the fixpoint walk over every query's field
+/// edges per source column costs several milliseconds. The provenance-evidence
+/// path of every `ExecuteWorkspace` asked for it twice, so it is built once
+/// per process / WASM instance and shared.
+pub fn source_column_output_reach() -> &'static [PipelineSourceColumnReach] {
+    static REACH: std::sync::OnceLock<Vec<PipelineSourceColumnReach>> =
+        std::sync::OnceLock::new();
+    REACH.get_or_init(build_source_column_output_reach)
+}
+
+fn build_source_column_output_reach() -> Vec<PipelineSourceColumnReach> {
     let bindings = output_cell_bindings();
     declared_source_columns()
         .into_iter()
@@ -4249,6 +5955,10 @@ fn query_output_ports(query_id: &str) -> Vec<String> {
 }
 
 fn query_review_behavior(query_id: &str) -> ReviewBehavior {
+    // A review writes a fresh timestamp into its requested outputs too.
+    if query_id == "bind_processing_timestamp" {
+        return ReviewBehavior::Execute;
+    }
     if matches!(
         query_id,
         "identify_credit_eligible_sessions"
@@ -4258,6 +5968,19 @@ fn query_review_behavior(query_id: &str) -> ReviewBehavior {
             | "derive_credited_intervals"
             | "materialize_credited_rows"
             | "assemble_credit_outputs"
+            // Same shape as the credit group: an output-only channel the
+            // review path never materializes. Left on the default `Execute`
+            // the review run reported "tracked query output changed without a
+            // changed bound input", because the call site skipped them while
+            // their input key still claimed a full-output run.
+            | "select_notification_events"
+            | "index_observed_usage_spans"
+            | "classify_notification_contacts"
+            | "assemble_notification_contact_outputs"
+            | "sample_polled_timeline"
+            | "group_polled_runs"
+            | "materialize_polled_rows"
+            | "assemble_polled_emulation_outputs"
             | "index_raw_dates"
             | "build_participant_day_coverage"
             | "aggregate_attribution_minutes"
@@ -4280,8 +6003,10 @@ fn query_review_behavior(query_id: &str) -> ReviewBehavior {
                 | "suppress_excluded_timing"
                 | "remove_selected_interaction_types"
                 | "remove_zero_duration_rows"
+                | "assign_usage_session_ids"
                 | "apply_participant_windows"
                 | "classify_person_attribution"
+                | "divide_sessions_at_day_boundary"
                 | "synthesize_placeholder_rows"
         )
     {
@@ -4367,8 +6092,23 @@ fn operation_direct_request_fields(operation: &OperationSpec) -> &'static [&'sta
             "screen_auto_lock_tolerance_seconds",
             "screen_manual_lock_max_tail_seconds",
             "screen_keyguard_near_stop_seconds",
+            "screen_session_classification_policy",
+            "screen_session_maximum_duration_minutes",
+            "screen_session_maximum_duration_disposition",
         ],
-        "policy.suppress_short_durations" => &["minimum_usage_duration"],
+        "reconstruct.classify_app_episodes" => &["use_background_apps_file"],
+        "policy.suppress_short_durations" => &[
+            "micro_use_classification_policy",
+            "minimum_usage_duration",
+            "minimum_duration_comparator",
+            "minimum_duration_disposition",
+        ],
+        "policy.apply_maximum_duration" => &[
+            "maximum_duration_policy",
+            "maximum_duration_disposition",
+            "maximum_duration_threshold_source",
+            "maximum_duration_threshold_ns",
+        ],
         "reconstruct.segment_concurrent_usage" => {
             &["model_concurrent_usage", "use_background_apps_file"]
         }
@@ -4382,11 +6122,21 @@ fn operation_direct_request_fields(operation: &OperationSpec) -> &'static [&'sta
         "credit.cap_candidate_intervals" => &["credited_session_cap_minutes"],
         "credit.derive_device_live_spans" => &["device_liveness_gap_tolerance_minutes"],
         "credit.derive_screen_creditable_spans" => &["auto_lock_bridge_seconds"],
+        "policy.assign_usage_session_ids" => &[
+            "session_grouping_policy",
+            "session_gap_basis",
+            "session_boundary_scope",
+            "emit_session_break_lineage",
+        ],
+        "assessment.divide_sessions_at_day_boundary" => &["day_boundary_attribution"],
+        "credit.intersect_evidence" => &["screen_gating_rule"],
         "credit.apply_no_witness_fallback" => &["no_witness_min_day_apps"],
         "publish.project_app_table" => &[
             "usage_session_mode",
             "include_app_output",
             "include_category_column",
+            "include_app_usage_end_reason",
+            "session_grouping_policy",
             "study_name",
             "timezone",
             "datetime_of_preprocessing",
@@ -4415,14 +6165,18 @@ fn operation_direct_request_fields(operation: &OperationSpec) -> &'static [&'sta
         "publish.build_aggregate_tables" => &[
             "enable_aggregates",
             "aggregate_shape",
+            "aggregate_top_apps_limit",
             "study_name",
             "use_app_codebook",
             "model_concurrent_usage",
             "use_background_apps_file",
         ],
+        "publish.build_participant_amount_summary" => {
+            &["enable_participant_amount_summary", "usage_session_mode"]
+        }
         "publish.encode_selected_formats" => &["enable_parquet_export", "enable_spss_export"],
         "publish.build_visualization_data" => &["materialize_visualization_data"],
-        "publish.commit_workspace_bundle" => &[],
+        "publish.commit_workspace_bundle" => &["neutralize_spreadsheet_formulas"],
         _ if operation_specs(operation.query_id).len() == 1 => {
             query_request_fields(operation.query_id)
         }
@@ -4526,6 +6280,10 @@ fn operation_applicability(operation: &OperationSpec) -> ApplicabilityExpression
             option_true("enable_screen_gated_crediting"),
         ]),
         "publish.build_aggregate_tables" => option_true("enable_aggregates"),
+        "publish.build_participant_amount_summary" => all(vec![
+            app_mode(),
+            option_true("enable_participant_amount_summary"),
+        ]),
         "publish.build_visualization_data" => option_true("materialize_visualization_data"),
         _ => query_applicability(operation.query_id),
     }
@@ -4952,7 +6710,25 @@ fn execution_identity_value(execution: &WorkflowExecutionContract) -> serde_json
     })
 }
 
-pub fn workflow_contract() -> WorkflowContract {
+/// The workflow contract of this build.
+///
+/// `build_workflow_contract` takes no arguments and reads only the compiled
+/// registries and constants in this module (`WORKFLOW_QUERIES`, the root-role,
+/// operation, artifact and cell-binding tables, `PREPROCESSOR_VERSION`), so its
+/// value is fixed for the lifetime of a build. It used to be rebuilt —
+/// including serializing and hashing every layer for `digests` — on every
+/// call (about 4 ms natively), and the runtime calls it about five times per
+/// `ExecuteWorkspace` (query executions, support-role check, workflow explorer
+/// view, provenance JSON-LD, workspace root). Build it once per process / WASM
+/// instance and hand out the same value;
+/// `cached_contract_is_byte_identical_to_a_fresh_build` pins that the cached
+/// value is exactly what a fresh build produces.
+pub fn workflow_contract() -> &'static WorkflowContract {
+    static CONTRACT: std::sync::OnceLock<WorkflowContract> = std::sync::OnceLock::new();
+    CONTRACT.get_or_init(build_workflow_contract)
+}
+
+fn build_workflow_contract() -> WorkflowContract {
     let root_roles = root_role_contract();
     let (operations, artifacts) = build_semantic_registry(&root_roles);
     let semantic = WorkflowSemanticContract {
@@ -5032,6 +6808,7 @@ pub fn workflow_contract() -> WorkflowContract {
             "parallel_processing",
             "parallel_max_workers",
         ],
+        runtime_artifact_request_fields: RUNTIME_ARTIFACT_REQUEST_FIELDS,
         semantic,
         presentation,
         execution,
@@ -5124,7 +6901,27 @@ mod tests {
     }
 
     #[cfg(feature = "incremental-v2")]
+    /// Every Salsa configuration field must be written by the options-application
+    /// path. A field with no `set_if_changed!` keeps whatever value it was first
+    /// constructed with, so the option appears in the UI and in the contract but
+    /// changing it does nothing — and no golden moves, because nothing changed.
     #[test]
+    fn every_config_field_is_written_by_the_options_path() {
+        let declared = field_use_scan::config_field_universe();
+        let written = field_use_scan::config_fields_with_setters();
+        let unwritten = declared
+            .iter()
+            .filter(|field| !written.contains(*field))
+            .collect::<Vec<_>>();
+        assert!(
+            unwritten.is_empty(),
+            "these configuration fields have no set_if_changed! call, so changing \
+             them cannot affect a run: {unwritten:?}"
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "incremental-v2")]
     fn declared_query_edges_equal_direct_salsa_query_calls() {
         use syn::visit::{self, Visit};
 
@@ -5153,8 +6950,21 @@ mod tests {
 
             fn visit_expr_call(&mut self, call: &'ast syn::ExprCall) {
                 if let (Some(current), syn::Expr::Path(path)) = (&self.current, &*call.func) {
-                    if path.qself.is_none() && path.path.segments.len() == 1 {
-                        let called = path.path.segments[0].ident.to_string();
+                    // A bare local call, or the same call written `self::foo(..)`.
+                    // Type-qualified paths (`Foo::new`) stay invisible on purpose:
+                    // associated functions are not local helpers and matching on
+                    // the last segment alone would collide with them.
+                    let local_ident = if path.qself.is_none() && path.path.segments.len() == 1 {
+                        Some(path.path.segments[0].ident.to_string())
+                    } else if path.qself.is_none()
+                        && path.path.segments.len() == 2
+                        && path.path.segments[0].ident == "self"
+                    {
+                        Some(path.path.segments[1].ident.to_string())
+                    } else {
+                        None
+                    };
+                    if let Some(called) = local_ident {
                         self.local_calls
                             .entry(current.clone())
                             .or_default()
@@ -5207,12 +7017,22 @@ mod tests {
             })
             .expect("tracked query module");
         collector.visit_item_mod(tracked_module);
+        for source in [
+            include_str!("pipeline/incremental/inputs.rs"),
+            include_str!("pipeline/incremental/db.rs"),
+            include_str!("pipeline/incremental/persistence.rs"),
+            include_str!("pipeline/incremental/checkpoints.rs"),
+            include_str!("pipeline/payload.rs"),
+        ] {
+            let syntax = syn::parse_file(source).expect("tracked infrastructure must parse");
+            collector.visit_file(&syntax);
+        }
 
         fn collect_step_calls(
             function: &str,
             calls: &BTreeMap<String, BTreeSet<String>>,
             local_calls: &BTreeMap<String, BTreeSet<String>>,
-            transparent_edge_aggregates: &BTreeSet<&str>,
+            edge_boundaries: &BTreeSet<&str>,
             visited: &mut BTreeSet<String>,
         ) -> BTreeSet<String> {
             if !visited.insert(function.to_string()) {
@@ -5220,20 +7040,46 @@ mod tests {
             }
             let mut result = calls.get(function).cloned().unwrap_or_default();
             for called in local_calls.get(function).into_iter().flatten() {
-                if transparent_edge_aggregates.contains(called.as_str()) {
-                    result.extend(collect_step_calls(
-                        called,
-                        calls,
-                        local_calls,
-                        transparent_edge_aggregates,
-                        visited,
-                    ));
+                if edge_boundaries.contains(called.as_str()) {
+                    continue;
                 }
+                result.extend(collect_step_calls(
+                    called,
+                    calls,
+                    local_calls,
+                    edge_boundaries,
+                    visited,
+                ));
             }
             result
         }
 
-        let transparent_edge_aggregates = BTreeSet::from(["collect_early_assembly"]);
+        // Recurse through EVERY plain local helper, mirroring
+        // `collect_option_reads` below: a new helper that calls a tracked
+        // query must surface that edge without a human remembering to list it
+        // (the previous 4-name allowlist certified any forgotten helper's
+        // edges as correctly absent). Boundaries are the workflow queries
+        // themselves (a call to one IS the edge; its own edges belong to it)
+        // and the internal Salsa queries, which memoize behind their own
+        // dependency edges -- except the two preflight aggregates that
+        // deliberately stay transparent for edge attribution.
+        let edge_transparent_internal_queries = BTreeSet::from([
+            "build_neutral_chronicle_screen_construction",
+            "collect_early_assembly",
+            "prepare_b05_screen_substrate_query",
+            "reconstruct_schoedel_preflight",
+        ]);
+        let edge_boundaries = query_ids
+            .iter()
+            .copied()
+            .chain(
+                collector
+                    .internal_queries
+                    .iter()
+                    .map(String::as_str)
+                    .filter(|query| !edge_transparent_internal_queries.contains(query)),
+            )
+            .collect::<BTreeSet<_>>();
         let mut mismatches = Vec::new();
         for step in WORKFLOW_QUERIES {
             let declared = step.inputs.iter().copied().collect::<BTreeSet<_>>();
@@ -5241,7 +7087,7 @@ mod tests {
                 step.id,
                 &collector.calls,
                 &collector.local_calls,
-                &transparent_edge_aggregates,
+                &edge_boundaries,
                 &mut BTreeSet::new(),
             );
             let observed = observed_owned.iter().map(String::as_str).collect();
@@ -5292,9 +7138,15 @@ mod tests {
             fields
         }
 
-        let field_universe = WORKFLOW_QUERIES
+        // The option namespace comes from the Salsa configuration inputs, NOT
+        // from `query_request_fields`. Deriving it from the declarations being
+        // checked made this test self-referential: an option read by a query but
+        // declared in no step's request fields was filtered out of `observed`
+        // below, so `declared == observed` held and the omission was invisible.
+        let owned_field_universe = field_use_scan::config_field_universe();
+        let field_universe = owned_field_universe
             .iter()
-            .flat_map(|step| query_request_fields(step.id).iter().copied())
+            .map(String::as_str)
             .collect::<BTreeSet<_>>();
         // These internal Salsa queries memoize parsed support values but do
         // not hide their reads from the workflow contract. Follow through
@@ -5308,6 +7160,9 @@ mod tests {
             "parsed_device_sharing",
             "parsed_survey_attribution",
             "parsed_enrolled_devices",
+            "parse_schoedel_capability_evidence_query",
+            "prepare_b05_screen_substrate_query",
+            "reconstruct_schoedel_preflight",
         ]
         .into_iter()
         .collect::<BTreeSet<_>>();
@@ -5322,6 +7177,20 @@ mod tests {
                     .filter(|query| !transparent_support_queries.contains(query)),
             )
             .collect::<BTreeSet<_>>();
+        fn request_field_for_accessor(field: &str) -> &str {
+            match field {
+                // Presence is tracked as a separate Salsa fact so an omitted key
+                // and an explicitly supplied default have distinct receipt/cache
+                // identity. On the wire each fact still belongs to its one JSON
+                // request key; the workflow contract must not invent `_explicit`
+                // options that callers cannot send.
+                "micro_use_classification_policy_explicit" => "micro_use_classification_policy",
+                "minimum_usage_duration_explicit" => "minimum_usage_duration",
+                "minimum_duration_comparator_explicit" => "minimum_duration_comparator",
+                "minimum_duration_disposition_explicit" => "minimum_duration_disposition",
+                _ => field,
+            }
+        }
         let mut field_mismatches = Vec::new();
         for step in WORKFLOW_QUERIES {
             let declared = query_request_fields(step.id)
@@ -5336,7 +7205,11 @@ mod tests {
                 &collector.local_calls,
                 &mut BTreeSet::new(),
             );
-            let observed = observed.iter().map(String::as_str).collect::<BTreeSet<_>>();
+            let observed = observed
+                .iter()
+                .map(String::as_str)
+                .map(request_field_for_accessor)
+                .collect::<BTreeSet<_>>();
             if declared != observed {
                 field_mismatches.push(format!(
                     "{}: declared={declared:?} observed={observed:?}",
@@ -5364,6 +7237,10 @@ mod tests {
             ("device_sharing_csv", "device_sharing_file"),
             ("survey_attribution_csv", "survey_attribution_file"),
             ("enrolled_devices_csv", "enrolled_devices_file"),
+            (
+                "input_capability_evidence_csv",
+                "input_capability_evidence_file",
+            ),
         ]);
         let source_accessor_universe = source_accessor_roles
             .keys()
@@ -5612,8 +7489,22 @@ mod tests {
             );
         }
 
-        let declared_app = crate::pipeline_v2::declared_app_output_columns(true, true, true, 300.0);
-        let declared_screen = crate::pipeline_v2::declared_screen_output_columns();
+        let mut declared_app =
+            crate::pipeline_v2::declared_app_output_columns(true, true, true, 300.0, true, true);
+        // The foundational B03/B04 columns are inserted by `build_app_columns`
+        // only under non-default options, so `declared_app_output_columns`
+        // never lists them; without this they would escape binding coverage.
+        declared_app.extend(
+            [
+                "micro_use_classification",
+                "raw_episode_duration_seconds",
+                "minimum_duration_qualified",
+                "minimum_duration_aggregate_eligible",
+            ]
+            .map(String::from),
+        );
+        let mut declared_screen = crate::pipeline_v2::declared_screen_output_columns();
+        declared_screen.push("screen_usage_session_classification".into());
         for (kind, columns) in [
             ("app-csv", &declared_app),
             ("credited-app-csv", &declared_app),
@@ -5879,7 +7770,7 @@ mod tests {
             declared_source_columns(),
         );
         let bindings = output_cell_bindings();
-        for entry in &reach {
+        for entry in reach {
             for cell in &entry.cells {
                 assert!(
                     bindings.contains(cell),
@@ -5965,6 +7856,402 @@ mod tests {
         );
     }
 
+    #[test]
+    fn opener_set_is_bound_only_where_it_is_read_directly() {
+        let reconstruction_knobs = query_group_config_dependencies("reconstruct_episodes");
+        assert!(reconstruction_knobs.iter().any(|dependency| {
+            dependency.option_key == "opener_set" && dependency.edge == "selects"
+        }));
+
+        assert!(query_request_fields("match_app_episodes").contains(&"opener_set"));
+        assert!(query_request_fields("assemble_result_manifest").contains(&"opener_set"));
+
+        // Both queries consume matcher-derived opener evidence, not the request
+        // option itself, so declaring a direct config read here would overstate
+        // their cache and provenance dependencies.
+        assert!(!query_request_fields("materialize_candidate_episodes").contains(&"opener_set"));
+        assert!(!query_request_fields("classify_episode_durations").contains(&"opener_set"));
+    }
+
+    #[test]
+    fn screen_gating_rule_is_bound_only_where_it_is_read_directly() {
+        let credit_knobs = query_group_config_dependencies("effective_usage");
+        assert!(credit_knobs.iter().any(|dependency| {
+            dependency.option_key == "screen_gating_rule" && dependency.edge == "selects"
+        }));
+
+        // The rule chooses which witness evidence the intersection consumes,
+        // so the step that performs the intersection is the one that reads it.
+        assert_eq!(
+            operation_direct_request_fields(
+                OPERATION_SPECS
+                    .iter()
+                    .find(|operation| operation.id == "credit.intersect_evidence")
+                    .expect("intersect operation"),
+            ),
+            &["screen_gating_rule"],
+        );
+
+        assert!(query_request_fields("derive_credited_intervals").contains(&"screen_gating_rule"));
+        assert!(query_request_fields("assemble_result_manifest").contains(&"screen_gating_rule"));
+
+        // The screen and liveness spans are derived before the rule selects
+        // between them, and the credited rows consume the already-selected
+        // intervals, so neither reads the option itself. Declaring a direct
+        // config read on either would overstate its cache dependencies.
+        assert!(!query_request_fields("construct_screen_intervals").contains(&"screen_gating_rule"));
+        assert!(!query_request_fields("classify_screen_sessions").contains(&"screen_gating_rule"));
+    }
+
+    /// The published policy plus the three axes B11 adds around it. Every one
+    /// is read at the same place, so the test asserts over the set rather than
+    /// letting a new one be added without a binding.
+    const SESSION_GROUPING_KEYS: &[&str] = &[
+        "session_grouping_policy",
+        "session_gap_basis",
+        "session_boundary_scope",
+        "emit_session_break_lineage",
+    ];
+
+    #[test]
+    fn session_grouping_policy_is_bound_only_where_it_is_read_directly() {
+        let cleaning_knobs = query_group_config_dependencies("interval_cleaning");
+        assert!(cleaning_knobs.iter().any(|dependency| {
+            dependency.option_key == "session_grouping_policy" && dependency.edge == "selects"
+        }));
+
+        // The policy names the published gap definition, so the step that
+        // physically numbers the sessions is the one that reads it.
+        assert_eq!(
+            operation_direct_request_fields(
+                OPERATION_SPECS
+                    .iter()
+                    .find(|operation| operation.id == "policy.assign_usage_session_ids")
+                    .expect("numbering operation"),
+            ),
+            &[
+                "session_grouping_policy",
+                "session_gap_basis",
+                "session_boundary_scope",
+                "emit_session_break_lineage",
+            ],
+        );
+
+        // Every one of the four is a knob on the same group, and every one is
+        // read by the numbering step and committed to the manifest.
+        for key in SESSION_GROUPING_KEYS {
+            assert!(
+                cleaning_knobs
+                    .iter()
+                    .any(|dependency| dependency.option_key == *key),
+                "{key} must be a declared knob on interval_cleaning"
+            );
+            assert!(
+                query_request_fields("assign_usage_session_ids").contains(key),
+                "the numbering query must declare a direct read of {key}"
+            );
+            assert!(
+                query_request_fields("assemble_result_manifest").contains(key),
+                "{key} must be committed to the result manifest"
+            );
+        }
+
+        assert!(query_field_writes("assign_usage_session_ids").contains(&"usage_session_id"));
+        // The lineage flag is appended to an EXISTING column, so the numbering
+        // query both reads and writes it. Declaring only the write would let a
+        // change upstream of the flags column skip the numbering step.
+        assert!(query_field_writes("assign_usage_session_ids").contains(&"any_app_usage_flags"));
+        assert!(query_field_reads("assign_usage_session_ids").contains(&"any_app_usage_flags"));
+        // The wider boundary scopes read these, so the field graph declares
+        // them whether or not the current run selects a scope that uses them.
+        assert!(query_field_reads("assign_usage_session_ids").contains(&"study_id"));
+        assert!(query_field_reads("assign_usage_session_ids").contains(&"username"));
+
+        // The app table writer reads the policy to decide whether the column
+        // exists at all, which is a separate decision from the numbering.
+        let app_table = operation_direct_request_fields(
+            OPERATION_SPECS
+                .iter()
+                .find(|operation| operation.id == "publish.project_app_table")
+                .expect("app table operation"),
+        );
+        assert!(app_table.contains(&"session_grouping_policy"));
+        // It does NOT read the other three: none of them changes WHETHER the
+        // column exists, only what is numbered and what the flags say, and
+        // both of those are already decided by the time the writer runs.
+        for key in [
+            "session_gap_basis",
+            "session_boundary_scope",
+            "emit_session_break_lineage",
+        ] {
+            assert!(
+                !app_table.contains(&key),
+                "the app table writer must not declare a direct read of {key}"
+            );
+        }
+
+        // Everything between the numbering and the writer carries an id that
+        // has already been assigned. Declaring a direct config read on any of
+        // them would overstate its cache dependencies.
+        for query in [
+            "remove_zero_duration_rows",
+            "apply_participant_windows",
+            "classify_person_attribution",
+            "divide_sessions_at_day_boundary",
+            "synthesize_placeholder_rows",
+        ] {
+            for key in SESSION_GROUPING_KEYS {
+                assert!(
+                    !query_request_fields(query).contains(key),
+                    "{query} must not declare a direct read of {key}"
+                );
+            }
+        }
+
+        assert!(WORKFLOW_QUERIES
+            .iter()
+            .find(|query| query.id == "assign_usage_session_ids")
+            .expect("the numbering query is registered")
+            .inputs
+            .contains(&"remove_zero_duration_rows"));
+    }
+
+    #[test]
+    fn day_boundary_attribution_is_bound_only_where_it_is_read_directly() {
+        let coverage_knobs = query_group_config_dependencies("day_coverage");
+        assert!(coverage_knobs.iter().any(|dependency| {
+            dependency.option_key == "day_boundary_attribution" && dependency.edge == "selects"
+        }));
+
+        // The option chooses the day-attribution rule, so the step that
+        // physically divides a session is the one that reads it.
+        assert_eq!(
+            operation_direct_request_fields(
+                OPERATION_SPECS
+                    .iter()
+                    .find(|operation| operation.id == "assessment.divide_sessions_at_day_boundary")
+                    .expect("divide operation"),
+            ),
+            &["day_boundary_attribution"],
+        );
+
+        assert!(query_request_fields("divide_sessions_at_day_boundary")
+            .contains(&"day_boundary_attribution"));
+        assert!(
+            query_request_fields("assemble_result_manifest").contains(&"day_boundary_attribution")
+        );
+
+        // Everything downstream consumes rows that have already been divided,
+        // and the calendar work upstream dates a row from the timestamp it is
+        // handed. Declaring a direct config read on any of them would
+        // overstate its cache dependencies.
+        for query in [
+            "synthesize_placeholder_rows",
+            "build_participant_day_coverage",
+            "aggregate_attribution_minutes",
+            "classify_compliance_days",
+            "classify_person_attribution",
+            "index_raw_dates",
+        ] {
+            assert!(
+                !query_request_fields(query).contains(&"day_boundary_attribution"),
+                "{query} must not declare a direct read of day_boundary_attribution"
+            );
+        }
+
+        // The divided rows must reach the day tables, not stop at the query.
+        let placeholders = WORKFLOW_QUERIES
+            .iter()
+            .find(|query| query.id == "synthesize_placeholder_rows")
+            .expect("placeholder query");
+        assert!(placeholders
+            .inputs
+            .contains(&"divide_sessions_at_day_boundary"));
+    }
+
+    #[test]
+    fn b04_drop_row_is_declared_as_membership_changing_at_its_physical_step() {
+        let operation = OPERATION_SPECS
+            .iter()
+            .find(|operation| operation.id == "policy.apply_app_inclusion")
+            .expect("app-inclusion operation");
+        assert!(operation.effects.contains(&DataEffect::DropsRows));
+        assert!(query_field_reads("apply_app_inclusion_policy")
+            .contains(&"minimum_duration_drop_pending"));
+        assert!(query_field_writes("apply_app_inclusion_policy").contains(&"row.membership"));
+    }
+
+    #[test]
+    fn b05_contract_activation_matches_the_runtime_trigger_classes() {
+        let b05_activation = any(vec![
+            option_true("process_screen_usage"),
+            all(vec![
+                option_true("process_app_usage"),
+                ApplicabilityExpression::OptionStringEquals {
+                    option_key: "episode_reconstruction_strategy",
+                    value: "schoedel_2026_app_within_screen_prose_v1",
+                },
+            ]),
+            ApplicabilityExpression::OptionStringEquals {
+                option_key: "screen_session_maximum_duration_disposition",
+                value: "exclude_participant",
+            },
+            ApplicabilityExpression::OptionStringEquals {
+                option_key: "locked_screen_audio_disposition",
+                value: "exclude_from_phone_and_app_sessions",
+            },
+        ]);
+        assert_eq!(
+            query_group_applicability("device_state_timeline"),
+            b05_activation
+        );
+        assert_eq!(
+            query_applicability("construct_screen_intervals"),
+            b05_activation
+        );
+        assert_eq!(
+            query_applicability("infer_screen_session_skeletons"),
+            all(vec![
+                ApplicabilityExpression::OptionStringEquals {
+                    option_key: "screen_session_construction_strategy",
+                    value: "chronicle_screen_interactive_v1",
+                },
+                b05_activation,
+            ])
+        );
+
+        let classification_activation = any(vec![
+            option_true("process_screen_usage"),
+            ApplicabilityExpression::OptionStringEquals {
+                option_key: "locked_screen_audio_disposition",
+                value: "exclude_from_phone_and_app_sessions",
+            },
+        ]);
+        assert_eq!(
+            query_applicability("classify_screen_sessions"),
+            classification_activation
+        );
+        assert_eq!(
+            query_applicability("index_keyguard_events"),
+            all(vec![
+                classification_activation,
+                ApplicabilityExpression::OptionStringEquals {
+                    option_key: "screen_session_construction_strategy",
+                    value: "chronicle_screen_interactive_v1",
+                },
+            ])
+        );
+    }
+
+    #[test]
+    fn schoedel_matcher_owns_raw_and_capability_roles_only_under_its_episode_arm() {
+        assert_eq!(
+            query_source_role_bindings("match_app_episodes"),
+            vec![
+                QuerySourceRoleBinding {
+                    role: "raw_chronicle_csv",
+                    when_all: SCHOEDEL_EPISODE_STRATEGY,
+                },
+                QuerySourceRoleBinding {
+                    role: "input_capability_evidence_file",
+                    when_all: SCHOEDEL_EPISODE_STRATEGY,
+                },
+            ],
+        );
+        // Screen construction is the asymmetric one, and the asymmetry is the
+        // point. Positive: the raw stream is bound with NO predicate, because
+        // `build_neutral_chronicle_screen_construction` reads
+        // `raw.input_sha256(db)` on the default Chronicle arm and publishes it
+        // in this query's own output. Negative: capability evidence stays
+        // gated on the source-sensitive strategies, because the default arm
+        // passes `evidence: None` and never reads the sidecar -- declaring it
+        // unconditionally would overstate the query's cache and provenance
+        // dependencies exactly as `opener_set_is_bound_only_where_it_is_read_directly`
+        // describes.
+        assert_eq!(
+            query_source_role_bindings("construct_screen_intervals"),
+            vec![
+                QuerySourceRoleBinding {
+                    role: "raw_chronicle_csv",
+                    when_all: &[],
+                },
+                QuerySourceRoleBinding {
+                    role: "input_capability_evidence_file",
+                    when_all: SOURCE_B05_SCREEN_STRATEGIES,
+                },
+            ],
+        );
+        // The unconditional raw binding must not leak onto the sibling that
+        // really is arm-scoped: `match_app_episodes` reads raw only under the
+        // Schoedel episode arm, asserted above, and `classify_screen_sessions`
+        // consumes `construct_screen_intervals`' output rather than the stream.
+        assert!(!query_source_role_bindings("classify_screen_sessions")
+            .iter()
+            .any(|binding| binding.role == "raw_chronicle_csv"));
+    }
+
+    #[test]
+    fn foundational_semantics_checkpoint_declares_its_exact_request_reads() {
+        // Four B03/B04 facts, the four B06 selection keys, and the background
+        // list that keeps a filtered background app's timing. The B06
+        // presence marker and legacy companions are deliberately absent:
+        // they are receipt identity, bound only by `assemble_result_manifest`.
+        assert_eq!(
+            query_request_fields("classify_episode_durations"),
+            &[
+                "maximum_duration_disposition",
+                "maximum_duration_policy",
+                "maximum_duration_threshold_ns",
+                "maximum_duration_threshold_source",
+                "micro_use_classification_policy",
+                "minimum_usage_duration",
+                "minimum_duration_comparator",
+                "minimum_duration_disposition",
+                "use_background_apps_file",
+            ],
+        );
+        for receipt_only in [
+            "long_duration_threshold_explicit",
+            "b06_legacy_threshold_hours_canonical",
+            "b06_legacy_threshold_ns_canonical",
+        ] {
+            assert!(
+                !query_request_fields("classify_episode_durations").contains(&receipt_only),
+                "{receipt_only} must not recompute rows"
+            );
+            assert!(
+                query_request_fields("assemble_result_manifest").contains(&receipt_only),
+                "{receipt_only} must be bound by the manifest"
+            );
+        }
+        let operation = operation_specs("classify_episode_durations")
+            .into_iter()
+            .find(|operation| operation.id == "policy.suppress_short_durations")
+            .expect("B04 operation is registered");
+        assert_eq!(
+            operation_direct_request_fields(operation),
+            &[
+                "micro_use_classification_policy",
+                "minimum_usage_duration",
+                "minimum_duration_comparator",
+                "minimum_duration_disposition",
+            ],
+        );
+        let operation = operation_specs("classify_episode_durations")
+            .into_iter()
+            .find(|operation| operation.id == "policy.apply_maximum_duration")
+            .expect("B06 operation is registered");
+        assert_eq!(
+            operation_direct_request_fields(operation),
+            &[
+                "maximum_duration_policy",
+                "maximum_duration_disposition",
+                "maximum_duration_threshold_source",
+                "maximum_duration_threshold_ns",
+            ],
+        );
+    }
+
     /// The exported contract is a product artifact, not internal metadata:
     /// `src/bin/export_workflow_contract.rs` prints exactly these bytes and
     /// `web/scripts/generate_pipeline_graph_artifacts.mts` and
@@ -5985,9 +8272,56 @@ mod tests {
 
     #[test]
     fn serialized_contract_is_deterministic() {
-        let first = serde_json::to_vec(&workflow_contract()).expect("serialize contract");
-        let second = serde_json::to_vec(&workflow_contract()).expect("serialize contract");
+        let first = serde_json::to_vec(&build_workflow_contract()).expect("serialize contract");
+        let second = serde_json::to_vec(&build_workflow_contract()).expect("serialize contract");
         assert_eq!(first, second);
+    }
+
+    /// `workflow_contract()` hands out one value built on first use. It must
+    /// be the value a fresh build produces, byte for byte, and every call must
+    /// return that same instance rather than a rebuilt copy. (Other tests in
+    /// this binary may have populated the cache first; the build is pure, so
+    /// that does not weaken the comparison. The runtime's
+    /// `workflow_contract_cache_byte_identity` integration test covers a
+    /// genuinely cold process.)
+    #[test]
+    fn cached_contract_is_byte_identical_to_a_fresh_build() {
+        let fresh = serde_json::to_vec(&build_workflow_contract()).expect("serialize contract");
+        let cached = workflow_contract();
+        assert_eq!(
+            serde_json::to_vec(cached).expect("serialize contract"),
+            fresh
+        );
+        assert!(std::ptr::eq(cached, workflow_contract()));
+        assert_eq!(
+            serde_json::to_vec(&build_workflow_contract()).expect("serialize contract"),
+            serde_json::to_vec(workflow_contract()).expect("serialize contract")
+        );
+        // Serialization omits `None` options; the Debug form covers every field.
+        assert_eq!(
+            format!("{cached:?}"),
+            format!("{:?}", build_workflow_contract())
+        );
+        // The runtime reads the exact-cell table through the cached contract
+        // instead of calling `exact_cell_contributions()` again.
+        assert_eq!(
+            cached.semantic.exact_cell_contributions,
+            exact_cell_contributions()
+        );
+    }
+
+    /// Same guarantee for the shared source-column reach table.
+    #[test]
+    fn cached_source_column_reach_equals_a_fresh_build() {
+        let cached = source_column_output_reach();
+        let fresh = build_source_column_output_reach();
+        assert_eq!(cached.len(), fresh.len());
+        assert!(!cached.is_empty());
+        for (cached, fresh) in cached.iter().zip(&fresh) {
+            assert_eq!(cached.source_field, fresh.source_field);
+            assert_eq!(cached.cells, fresh.cells);
+        }
+        assert!(std::ptr::eq(cached, source_column_output_reach()));
     }
 
     #[test]
@@ -6002,16 +8336,31 @@ mod tests {
             "use_apps_forcing_screen_open": false,
             "use_app_codebook": false,
             "correct_duplicate_event_timestamps": true,
+            "episode_reconstruction_strategy": "fused_matcher",
+            "opener_set": "strategy_defined",
+            "micro_use_classification_policy": "none",
+            "minimum_usage_duration": 60.0,
+            "minimum_duration_comparator": "strict_lt",
+            "minimum_duration_disposition": "chronicle_blank_keep_row",
+            "interval_quality_policy": "none",
             "allow_stop_event_reuse": false,
             "use_activity_stopped_as_fallback": true,
             "apply_threshold_to_fallback": true,
-            "long_duration_threshold_ns": 1,
+            "long_duration_threshold_ns": 43_200_000_000_000_i64,
+            "maximum_duration_policy": "post_reconstruction_strict_max_v1",
+            "maximum_duration_disposition": "truncate_to_threshold",
+            "maximum_duration_threshold_source": "fixed_parameter",
+            "maximum_duration_threshold_ns": "3600000000000",
+            "long_duration_threshold_explicit": true,
+            "b06_legacy_threshold_hours_canonical": "12",
+            "b06_legacy_threshold_ns_canonical": "43200000000000",
             "custom_app_engagement_duration": 1.0,
             "long_data_time_gap_thresholds": [],
             "long_usage_duration_thresholds": [],
             "same_app_stop_types": [],
             "other_stop_types": [],
             "interaction_types_to_remove": [],
+            "interaction_type_removal_mode": "gap_preserving",
             "screen_auto_lock_timeout_seconds": 1.0,
             "screen_auto_lock_tolerance_seconds": 1.0,
             "screen_manual_lock_max_tail_seconds": 1.0,
@@ -6019,6 +8368,71 @@ mod tests {
             "datetime_of_preprocessing": "2026-07-21 12:00:00 UTC"
         }))
         .unwrap();
+        let mut request = serde_json::to_value(options).unwrap();
+        // The optional B06 wire fields, present so every bound field appears.
+        // (Inserted after `json!` — the macro's recursion limit is close.)
+        for (field, value) in [
+            ("aggregate_top_apps_limit", serde_json::json!(5)),
+            ("drop_out_of_source_order_events", serde_json::json!(false)),
+            ("filter_match_field", serde_json::json!("application_label")),
+            (
+                "application_label_exclusions",
+                serde_json::json!(["Excluded label"]),
+            ),
+            (
+                "interaction_type_removal_mode",
+                serde_json::json!("gap_preserving"),
+            ),
+            ("interval_expansion_method", serde_json::json!("none")),
+            (
+                "screen_session_classification_policy",
+                serde_json::json!("none"),
+            ),
+            (
+                "screen_session_maximum_duration_minutes",
+                serde_json::json!(0),
+            ),
+            (
+                "screen_session_maximum_duration_disposition",
+                serde_json::json!("none"),
+            ),
+            (
+                "locked_screen_audio_disposition",
+                serde_json::json!("include"),
+            ),
+            (
+                "maximum_duration_policy",
+                serde_json::json!("post_reconstruction_strict_max_v1"),
+            ),
+            (
+                "maximum_duration_disposition",
+                serde_json::json!("truncate_to_threshold"),
+            ),
+            (
+                "maximum_duration_threshold_source",
+                serde_json::json!("fixed_parameter"),
+            ),
+            (
+                "maximum_duration_threshold_ns",
+                serde_json::json!("3600000000000"),
+            ),
+            ("long_duration_threshold_explicit", serde_json::json!(true)),
+            (
+                "b06_legacy_threshold_hours_canonical",
+                serde_json::json!("12"),
+            ),
+            (
+                "b06_legacy_threshold_ns_canonical",
+                serde_json::json!("43200000000000"),
+            ),
+            ("neutralize_spreadsheet_formulas", serde_json::json!(true)),
+        ] {
+            request
+                .as_object_mut()
+                .unwrap()
+                .insert(field.to_string(), value);
+        }
+        let options: PipelineV2OptionsJson = serde_json::from_value(request).unwrap();
         let serialized = serde_json::to_value(options).unwrap();
         let exact_fields = serialized
             .as_object()
@@ -6032,6 +8446,37 @@ mod tests {
             .collect::<BTreeSet<_>>();
         bound_fields.extend(RUNTIME_ARTIFACT_REQUEST_FIELDS.iter().copied());
         assert_eq!(bound_fields, exact_fields);
+        // The optional wire fields are exactly the B06 vector and its
+        // companions; every one of them is bound somewhere, and none of the
+        // other bound fields may go missing from a serialized request.
+        let optional = OPTIONAL_REQUEST_FIELDS
+            .iter()
+            .copied()
+            .collect::<BTreeSet<_>>();
+        assert!(optional.is_subset(&bound_fields));
+        let mut without_optional = serialized.clone();
+        for field in OPTIONAL_REQUEST_FIELDS {
+            without_optional.as_object_mut().unwrap().remove(*field);
+        }
+        let minimal: PipelineV2OptionsJson = serde_json::from_value(without_optional).unwrap();
+        let minimal_fields = serde_json::to_value(minimal)
+            .unwrap()
+            .as_object()
+            .unwrap()
+            .keys()
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        let minimal_fields = minimal_fields
+            .iter()
+            .map(String::as_str)
+            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            bound_fields
+                .difference(&minimal_fields)
+                .copied()
+                .collect::<BTreeSet<_>>(),
+            optional
+        );
 
         for step in WORKFLOW_QUERIES {
             let fields = query_request_fields(step.id);
@@ -6085,6 +8530,7 @@ mod tests {
                 "apps_forcing_screen_open_file",
                 "background_apps_file",
                 "app_codebook_file",
+                "input_capability_evidence_file",
                 "study_dates_file",
                 "device_sharing_file",
                 "survey_attribution_file",

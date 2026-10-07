@@ -1,0 +1,155 @@
+{
+  "schemaVersion": "chronicle-completed-week-thresholds-canonical-source-fixture/v1",
+  "reusedOwner": {
+    "component": "OrderedThresholdBucketizer",
+    "sourcePath": "rust/chronicle_preprocessing_runtime_wasm/src/categorical_threshold_bucketizer.rs",
+    "sourceSha256": "8d1346fcdea163de16585d45c6661c2634c3203bc7b1a8a5370615450e464c7d",
+    "semanticBoundary": "A caller-supplied finite scalar is assigned to lower-inclusive ordered buckets; this fixture narrows the scalar to a nonnegative JSON integer before invocation."
+  },
+  "settings": [
+    {
+      "sourceWorkId": "doi:10.1109/socialcom.2013.118",
+      "canonicalSetting": {
+        "settingId": "method-setting-81c5e2881d3b56866842b6c5",
+        "parameterKey": "collection.minimum_complete_weeks",
+        "sourceObservedSetting": "collection.minimum_complete_weeks: \">8 complete weeks per included subject\"",
+        "sourceValueSha256": "fecb8ca8561a22b48620faa9f47c4a8f38cceb656738e31dd82805e77ace62ce"
+      },
+      "supersededAliases": [
+        "method-setting-b3a290f19214fcb52dbb2410"
+      ],
+      "sourceArtifacts": [
+        {
+          "role": "primary paper text",
+          "locator": ".tmp-literature-review-private/corrective-queue-audit-b-20260831/packet-05-ranks-124-173/fulltext/rank147.txt:69-78",
+          "sha256": "299b50324299c85002330ac67bc02d33afa7b2865fd4c8f5379530c5c219b295"
+        },
+        {
+          "role": "primary author-repository PDF",
+          "locator": ".tmp-literature-review-private/corrective-queue-audit-b-20260831/packet-05-ranks-124-173/fulltext/rank147.pdf",
+          "sha256": "63dcaed448d25876d801e9eaef94df502a78036eec3a9012912b48b8bb2f19c9"
+        },
+        {
+          "role": "canonical source-completeness audit",
+          "locator": ".tmp-literature-review-private/ontology-sublation-20260831/source-completeness-audits/doi-10.1109-socialcom.2013.118.json",
+          "sha256": "548af2b4eaa9e5fa1bf98b37d47f325bad168b41677c4501cac94b91393d2638"
+        },
+        {
+          "role": "alias and tombstone ledger",
+          "locator": ".tmp-literature-review-private/ontology-sublation-20260831/method-setting-alias-tombstones.json",
+          "sha256": "018221f6036218887355a0a2dcd9d6d54a9e90eb93f380b4e1b81cc75c0f76b5"
+        }
+      ],
+      "inputMeasure": "caller-derived complete weeks for one included subject",
+      "inputBoundary": "One caller-supplied nonnegative integer count of complete weeks. The source does not disclose how days, gaps, uploads, or missing streams make a week complete.",
+      "outputBoundary": "Report only whether the supplied count satisfies the source property. Strictly more than 8 complete weeks is exactly equivalent to at least 9 only at this integer boundary.",
+      "minimumInclusiveWeeks": 9,
+      "cases": [
+        {
+          "caseId": "zero",
+          "completedWeekCount": 0,
+          "expectedDisposition": "does_not_meet_source_boundary"
+        },
+        {
+          "caseId": "strict_source_boundary",
+          "completedWeekCount": 8,
+          "expectedDisposition": "does_not_meet_source_boundary"
+        },
+        {
+          "caseId": "first_satisfying_integer",
+          "completedWeekCount": 9,
+          "expectedDisposition": "meets_source_boundary"
+        },
+        {
+          "caseId": "above",
+          "completedWeekCount": 10,
+          "expectedDisposition": "meets_source_boundary"
+        }
+      ],
+      "limitations": [
+        "The fixture does not derive or define a complete week from lower-level event coverage.",
+        "The output is boundary satisfaction, not a reconstructed participant-inclusion or exclusion decision.",
+        "The paper's 117-subject cohort membership and underlying rows are not inferred.",
+        "The unbound candidate FUNF snapshot is not used to strengthen this paper-level threshold claim."
+      ]
+    },
+    {
+      "sourceWorkId": "doi:10.2139/ssrn.4768783",
+      "canonicalSetting": {
+        "settingId": "method-setting-e8e92790d9b904e0020df18f",
+        "parameterKey": "study.minimum_collection_duration",
+        "sourceObservedSetting": "study.minimum_collection_duration: {\"value\":2,\"unit\":\"consecutive weeks\",\"instruction\":\"activate MapOnTap\"}",
+        "sourceValueSha256": "10d6aeede0c189415365aa9029cc66c87977cbb03644465403217d2f2e6fcd65"
+      },
+      "supersededAliases": [],
+      "sourceArtifacts": [
+        {
+          "role": "layout-preserving primary text",
+          "locator": ".tmp-literature-review-private/new-strict-methods-discovery-batch-c-20260830/extracted/zingaro-2024-ssrn.txt:1703-1711",
+          "sha256": "489f19427d55bab8e2bfb970d2a62469a01480162ca502ebc3d7fc682576392f"
+        },
+        {
+          "role": "primary preprint PDF",
+          "locator": ".tmp-literature-review-private/new-strict-methods-discovery-batch-c-20260830/artifacts/zingaro-2024-ssrn.pdf",
+          "sha256": "129272881b959ded148c7f9552085c8df0db26ae0d761d3d4d48f25d855684ce"
+        },
+        {
+          "role": "canonical source-completeness audit",
+          "locator": ".tmp-literature-review-private/ontology-sublation-20260831/source-completeness-audits/doi-10.2139-ssrn.4768783.json",
+          "sha256": "d8b4883f8d5fc80002d493470429369fb89eebc810ee2e10461b303e974cf70b"
+        }
+      ],
+      "inputMeasure": "caller-derived consecutive completed weeks of MapOnTap activation",
+      "inputBoundary": "One caller-supplied nonnegative integer count of consecutive completed weeks during which MapOnTap was activated. Continuity and completion are established upstream.",
+      "outputBoundary": "Report only whether the supplied consecutive-week count is at least 2; equality satisfies the source instruction.",
+      "minimumInclusiveWeeks": 2,
+      "cases": [
+        {
+          "caseId": "zero",
+          "completedWeekCount": 0,
+          "expectedDisposition": "does_not_meet_source_boundary"
+        },
+        {
+          "caseId": "below",
+          "completedWeekCount": 1,
+          "expectedDisposition": "does_not_meet_source_boundary"
+        },
+        {
+          "caseId": "inclusive_source_boundary",
+          "completedWeekCount": 2,
+          "expectedDisposition": "meets_source_boundary"
+        },
+        {
+          "caseId": "above",
+          "completedWeekCount": 3,
+          "expectedDisposition": "meets_source_boundary"
+        }
+      ],
+      "limitations": [
+        "The fixture does not derive continuous MapOnTap activation or decide whether an observed week is complete.",
+        "The output is boundary satisfaction, not participant eligibility, compliance, or cohort membership.",
+        "Stopping recording or deleting the application after the requested period is not reinterpreted as a data-cleaning rule.",
+        "No missing-week repair, grace period, timezone, or partial-week policy is inferred."
+      ]
+    }
+  ],
+  "invalidCompletedWeekCounts": [
+    {
+      "caseId": "negative",
+      "completedWeekCount": -1
+    },
+    {
+      "caseId": "fractional",
+      "completedWeekCount": 2.5
+    },
+    {
+      "caseId": "numeric_string",
+      "completedWeekCount": "2"
+    },
+    {
+      "caseId": "missing",
+      "completedWeekCount": null
+    }
+  ],
+  "invalidCountError": "nonnegative_integer_completed_week_count_required"
+}

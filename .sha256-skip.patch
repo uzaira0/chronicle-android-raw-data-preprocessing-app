@@ -1,0 +1,34 @@
+diff --git a/rust/chronicle_preprocessing_runtime_wasm/src/lib.rs b/rust/chronicle_preprocessing_runtime_wasm/src/lib.rs
+index 56eb4e0..a8bdd9c 100644
+--- a/rust/chronicle_preprocessing_runtime_wasm/src/lib.rs
++++ b/rust/chronicle_preprocessing_runtime_wasm/src/lib.rs
+@@ -2924,6 +2924,29 @@ pub fn execute_workspace_native_with_review_bases(
+     reconstruction_base_bytes: &[u8],
+     support_files: &RuntimeSupportFiles,
+ ) -> Result<RuntimeHandle, String> {
++    if review_base_bytes.is_empty() && reconstruction_base_bytes.is_empty() {
++        let request: RuntimeRequest = serde_json::from_str(request_json)
++            .map_err(|error| format!("invalid request: {error}"))?;
++        if request.command == QUERY_REVIEW_COMMAND {
++            let warm = INCREMENTAL_RUNTIME_STATES.with(|states| {
++                states.borrow().has_warm_review_input(
++                    &request.workspace_id,
++                    request.workspace_root_digest.as_deref(),
++                    &request.input_sha256,
++                )
++            });
++            if warm {
++                let prepared = prepare_runtime_workspace_from_persisted_input(
++                    request_json,
++                    csv_bytes.len() as u64,
++                    support_files,
++                )?;
++                return execute_prepared_workspace(
++                    prepared, &[], None, true, true, &[], &[],
++                );
++            }
++        }
++    }
+     let prepared = prepare_runtime_workspace(request_json, csv_bytes, support_files)?;
+     execute_prepared_workspace(
+         prepared,

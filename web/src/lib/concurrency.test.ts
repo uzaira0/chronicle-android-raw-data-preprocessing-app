@@ -5,6 +5,7 @@ import {
   computeSafeComparisonPoolSize,
   computeSafeConcurrency,
   deviceMemoryBudgetScale,
+  payloadBudgetBytesForWorkers,
   readDeviceMemory,
 } from "@/lib/concurrency";
 
@@ -203,6 +204,15 @@ describe("computeAdaptiveLaneTarget", () => {
     // 4 GiB device → half budget → 4 lanes; 1 GiB device → floored 0.25 → 2 lanes.
     expect(computeAdaptiveLaneTarget({ ...input, deviceMemory: 4 })).toBe(4);
     expect(computeAdaptiveLaneTarget({ ...input, deviceMemory: 1 })).toBe(2);
+  });
+});
+
+describe("payloadBudgetBytesForWorkers", () => {
+  it("raises only a lone worker's budget, scaled to the device", () => {
+    expect(payloadBudgetBytesForWorkers(8, 1)).toBe(1536 * MB);
+    expect(payloadBudgetBytesForWorkers(undefined, 1)).toBe(1536 * MB);
+    expect(payloadBudgetBytesForWorkers(4, 1)).toBe(512 * MB);
+    expect(payloadBudgetBytesForWorkers(8, 2)).toBe(512 * MB);
   });
 });
 

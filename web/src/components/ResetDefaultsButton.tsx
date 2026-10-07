@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { ReactElement } from "react";
 
-import { createPortal } from "react-dom";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import type { BrowserProcessingOptions } from "@/lib/types";
 
@@ -29,15 +29,6 @@ export function ResetDefaultsButton({ options, onReset }: Props): ReactElement {
   const [confirming, setConfirming] = useState(false);
   const dirty = isAnyModified(options);
 
-  useEffect(() => {
-    if (!confirming) return undefined;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setConfirming(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [confirming]);
-
   return (
     <>
       <button
@@ -48,49 +39,24 @@ export function ResetDefaultsButton({ options, onReset }: Props): ReactElement {
       >
         Reset all to defaults
       </button>
-      {confirming
-        ? createPortal(
-            <div
-              className="modal-backdrop"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="reset-modal-title"
-              onClick={(event) => {
-                if (event.target === event.currentTarget) setConfirming(false);
-              }}
-            >
-              <div className="modal">
-                <h2 id="reset-modal-title" className="modal__title">
-                  Reset all settings to defaults?
-                </h2>
-                <p className="modal__body">
-                  Every setting in every section will be returned to the canonical default.
-                  Your selected files (raw, filter, apps forcing screen open, codebook) are kept.
-                </p>
-                <div className="modal__actions">
-                  <button
-                    type="button"
-                    className="btn btn--ghost"
-                    onClick={() => setConfirming(false)}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn--primary"
-                    onClick={() => {
-                      onReset({ ...DEFAULT_BROWSER_OPTIONS });
-                      setConfirming(false);
-                    }}
-                  >
-                    Reset all
-                  </button>
-                </div>
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
+      {confirming ? (
+        <ConfirmDialog
+          title="Reset all settings to defaults?"
+          confirmLabel="Reset all"
+          tone="primary"
+          testId="reset-defaults-dialog"
+          onCancel={() => setConfirming(false)}
+          onConfirm={() => {
+            onReset({ ...DEFAULT_BROWSER_OPTIONS });
+            setConfirming(false);
+          }}
+        >
+          <p>
+            Every setting in every section will be returned to the canonical default.
+            Your selected files (raw, filter, apps forcing screen open, codebook) are kept.
+          </p>
+        </ConfirmDialog>
+      ) : null}
     </>
   );
 }

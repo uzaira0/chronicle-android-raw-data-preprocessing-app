@@ -1,0 +1,217 @@
+{
+  "generated_at": "2026-08-30T00:57:28.755Z",
+  "requested_unique_dois": 1990,
+  "matched_works": 1940,
+  "unmatched_or_failed": 52,
+  "failures": [
+    {
+      "doi": "10.1001/archpsyc.59.6.530.yoa20425",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.1001/jama.2017.11295.2654782",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.1002/(sici)1097-4679(199701)53:1",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.1007/978-3-319-46547-0_40",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.1007/978-3-31956549-1_31",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.1007/978-3642-39345-7_7",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.1007/s00406-018-0927-x.10.1007/s00406-018-0927-x",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.1007/s00406-019-00998-y.10.1007/s00406-019-00998-y",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.1007/s10484-020-09491-y.10.1007/s10484-020-09491-y",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.1016/j.biopsycho.2007.10.004.s0301-0511(07)00163-9",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.1016/j.biopsycho.2018.09.006.s0301-0511(18)30075-9",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.1016/j.brainres.2009.08.056.s0006-8993(09)01714-4",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.1016/j.chiabu.2011.08.006.s0145-2134(11)00305-x",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.1016/j.clinph.2019.11.013.s1388-2457(19)31302-1",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.1016/j.comppsych.2012.12.023.s0010-440x(13)00020-5",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.1016/j.cpr.2011.06.005.s0272-7358(11)00104-8",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.1016/j.encep.2008.06.016.s0013-7006(08)00264-9",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.1016/j.eurpsy.2015.07.008.s0924-9338(15)00141-8",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.1016/j.ijpsycho.2004.03.005.s0167876004000534",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.1016/j.ijpsycho.2008.07.009.s0167-8760(08)00763-0",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.1016/j.ijpsycho.2013.07.008.s0167-8760(13)00216-x",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.1016/j.jad.2013.05.002.s0165-0327(13)00360-1",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.1016/j.jad.2016.11.010.s0165-0327(16)31195-8",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.1016/j.jad.2017.08.038.s0165-0327(17)30034-4",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.1016/j.jad.2018.05.071.s0165-0327(17)32145-6",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.1016/j.jpsychires.2005.07.005.s0022-3956(05)00091-9",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.1016/j.jpsychires.2017.12.012.s0022-3956(17)30481-8",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.1016/j.jpsychires.2018.01.008.s0022-3956(17)30907-x",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.1016/j.jpsychores.2021.110478.s0022-3999(21)00123-9",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.1016/j.neubiorev.2016.12.007.s0149-7634(16)30355-4",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.1016/j.neubiorev.2019.07.009.s0149-7634(18)30918-7",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.1016/j.neubiorev.2020.10.026.s0149-7634(20)30630-8",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.1016/j.pnpbp.2004.05.031.s0278-5846(04)00089-2",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.1016/j.psychres.2017.01.053.s0165-1781(16)31051-4",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.1037/a0037326.2014-27995-001",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.1093/europace/eus341.eus341",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.1145/2968219.2968332",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.11517/pjsai.jsai2024.0_3xin234",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.1162/imag_a_00523/127274/",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.1176/ps.2009.60.11.1439.60/11/1439",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.1177/1073191115602551.1073191115602551",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.13232/j.cnki.jnju.2018.06.009",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.14836/ssi.13.3_1",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.17605/osf.io/q25uf",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.48550/arxiv.1207.6231",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.48550/arxiv.2511.03351",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.48550/arxiv.2512.14425",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.5281/zenodo.10291750",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.5281/zenodo.5826281",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.5281/zenodo.5957104",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.5555/3235838.3235857",
+      "reason": "not_returned_by_openalex"
+    },
+    {
+      "doi": "10.5694/mja12.10628.10.5694/mja12.10628",
+      "reason": "not_returned_by_openalex"
+    }
+  ],
+  "caution": "OpenAlex metadata and OA locations are discovery evidence. They do not prove that a full text was retrieved or read."
+}

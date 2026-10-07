@@ -1,3 +1,4 @@
+import { sanitizeOptions } from "@/lib/settingsPersistence";
 import type {
   BrowserProcessingOptions,
   ProcessedFileResult,
@@ -8,7 +9,7 @@ export const LAST_RUN_DB_VERSION = 1;
 export const LAST_RUN_STORE_NAME = "lastRun";
 export const LAST_RUN_RECORD_ID = "last";
 export const LAST_RUN_SCHEMA_VERSION = 1;
-const LEGACY_LAST_RUN_DB_NAME = "chronicle-last-run";
+export const LEGACY_LAST_RUN_DB_NAME = "chronicle-last-run";
 const DB_NAME = LAST_RUN_DB_NAME;
 const STORE = LAST_RUN_STORE_NAME;
 const DB_VERSION = LAST_RUN_DB_VERSION;
@@ -40,6 +41,16 @@ export type LastRunRecord = {
   options: BrowserProcessingOptions;
   results: ProcessedFileResult[];
   discoveredTimezones: string[];
+  /**
+   * How many files the batch set out to process, and how many did not produce a
+   * result. A cancelled or partly failed batch is restored as an incomplete run,
+   * not as a clean one: without these the restored rows are indistinguishable
+   * from a complete batch of `results.length` files. Optional so records written
+   * before these fields existed still load instead of being discarded; absent
+   * means "no shortfall information", which restores exactly as it used to.
+   */
+  attemptedFileCount?: number;
+  unfinishedFileNames?: string[];
 };
 
 export type LegacyLastRunState = {
@@ -148,24 +159,68 @@ function runStore<T>(
               : new Error(String(transaction.error)),
           );
         };
+        // A commit the browser aborts (quota exhausted while committing)
+        // fires no request error. Without this the promise never settled,
+        // and a caller awaiting a save stayed "running" forever.
+        transaction.onabort = () => {
+          db.close();
+          reject(
+            transaction.error instanceof Error
+              ? transaction.error
+              : new Error("The browser aborted the saved-run write."),
+          );
+        };
       }),
   );
+}
+
+// A locator only: source tables and verified receipts remain in the existing OPFS workspace.
+export async function saveLastComponentManifest(manifestJson: string): Promise<void> {
+  await runStore("readwrite", (store) => store.put({ id: "component", manifestJson }));
+}
+
+export async function loadLastComponentManifest(): Promise<string | undefined> {
+  const record = await runStore<{ manifestJson?: unknown } | undefined>("readonly", (store) =>
+    store.get("component") as IDBRequest<{ manifestJson?: unknown } | undefined>);
+  if (record === undefined) return undefined;
+  if (typeof record.manifestJson !== "string") throw new Error("Saved component locator is invalid");
+  return record.manifestJson;
+}
+
+export async function clearLastComponentManifest(): Promise<void> {
+  await runStore("readwrite", (store) => store.delete("component"));
+}
+
+export async function saveResearchMethodSelection(selectionJson: string): Promise<void> {
+  await runStore("readwrite", (store) => store.put({ id: "research-selection", selectionJson }));
+}
+
+export async function loadResearchMethodSelection(): Promise<string | undefined> {
+  const record = await runStore<{ selectionJson?: unknown } | undefined>("readonly", (store) =>
+    store.get("research-selection") as IDBRequest<{ selectionJson?: unknown } | undefined>);
+  if (!record) return undefined;
+  if (typeof record.selectionJson !== "string") throw new Error("Saved research selection is invalid");
+  return record.selectionJson;
 }
 
 export async function saveLastRun(input: {
   options: BrowserProcessingOptions;
   results: ProcessedFileResult[];
   discoveredTimezones: string[];
+  attemptedFileCount?: number;
+  unfinishedFileNames?: string[];
   savedAt?: string;
 }): Promise<void> {
   const record: LastRunRecord = {
     id: LAST_RUN_ID,
     schemaVersion: SCHEMA_VERSION,
     savedAt: input.savedAt ?? new Date().toISOString(),
-    options: input.options,
+    options: sanitizeOptions(input.options),
     // Persist only the lightweight shape — never the multi-hundred-MB artifacts.
     results: toLightweightResults(input.results),
     discoveredTimezones: input.discoveredTimezones,
+    attemptedFileCount: input.attemptedFileCount ?? input.results.length,
+    unfinishedFileNames: input.unfinishedFileNames ?? [],
   };
   try {
     await runStore("readwrite", (store) => store.put(record));
@@ -179,12 +234,53 @@ export async function saveLastRun(input: {
   }
 }
 
-export async function loadLastRun(): Promise<LastRunRecord | undefined> {
+/**
+ * Where a saved run that this version cannot reopen is kept: the same store,
+ * one slot, overwritten by the next such run. "Clear cached run" and "Delete
+ * all local data" delete the whole database, archive included.
+ */
+export const LAST_RUN_ARCHIVE_ID = "archived-last";
+
+export type ArchivedLastRun = {
+  id: typeof LAST_RUN_ARCHIVE_ID;
+  archivedAt: string;
+  reason: string;
+  record: unknown;
+};
+
+/**
+ * What the boot found in the last-run slot. A saved run is never deleted
+ * because it could not be reopened: one this version cannot read is moved to
+ * the archive slot (`archived`), and one that cannot even be read or moved is
+ * left where it is (`kept`). Both are reported so the user can decide.
+ */
+export type LastRunLoadOutcome =
+  | { status: "none" }
+  | { status: "restored"; record: LastRunRecord }
+  | { status: "archived"; reason: string }
+  | { status: "kept"; reason: string };
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function unusableReason(record: { schemaVersion?: unknown; results?: unknown }): string | null {
+  if (record.schemaVersion !== SCHEMA_VERSION) {
+    return `it was saved in format ${String(record.schemaVersion)} and this version reads format ${SCHEMA_VERSION}`;
+  }
+  if (!Array.isArray(record.results)) return "it has no list of results";
+  return null;
+}
+
+export async function loadLastRunOutcome(): Promise<LastRunLoadOutcome> {
   if (hasDeletedFence()) {
+    // The user deleted this run (the fence closes the click-then-reload race);
+    // finishing that deletion is the point, and a failure here is retried on
+    // the next boot because the fence stays set until a new save.
     await runStore("readwrite", (store) => store.delete(LAST_RUN_ID)).catch(
-      () => {},
+      () => undefined,
     );
-    return undefined;
+    return { status: "none" };
   }
   let record: LastRunRecord | undefined;
   try {
@@ -193,22 +289,56 @@ export async function loadLastRun(): Promise<LastRunRecord | undefined> {
       (store) =>
         store.get(LAST_RUN_ID) as IDBRequest<LastRunRecord | undefined>,
     );
-  } catch {
-    // A corrupt/unreadable record would otherwise throw on every boot. Self-heal:
-    // clear it and start fresh rather than wedging the app.
-    await clearLastRun().catch(() => {});
-    return undefined;
+  } catch (error) {
+    // Unreadable now is not unreadable forever (another tab mid-upgrade, a
+    // transient quota or I/O error). The record stays; the app keeps booting
+    // and says so.
+    return { status: "kept", reason: `it could not be read (${errorMessage(error)})` };
   }
   if (!record) {
-    return undefined;
+    return { status: "none" };
   }
-  if (record.schemaVersion !== SCHEMA_VERSION || !record.results.length) {
-    // Stale (old schema) or empty record: clear it so it doesn't sit in IndexedDB
-    // forever being re-read and counting against quota on every boot.
-    await clearLastRun().catch(() => {});
-    return undefined;
+  const reason = unusableReason(record);
+  if (reason !== null) {
+    const archive: ArchivedLastRun = {
+      id: LAST_RUN_ARCHIVE_ID,
+      archivedAt: new Date().toISOString(),
+      reason,
+      record,
+    };
+    try {
+      // One transaction: the copy is written and the slot emptied together,
+      // so a failure leaves the original exactly where it was.
+      await runStore("readwrite", (store) => {
+        store.put(archive);
+        return store.delete(LAST_RUN_ID);
+      });
+    } catch (error) {
+      return { status: "kept", reason: `${reason}, and it could not be moved aside (${errorMessage(error)})` };
+    }
+    return { status: "archived", reason };
   }
-  return record;
+  if (!record.results.length) {
+    // An empty run holds nothing to lose: clear it so it is not re-read on
+    // every boot. A failed clear just leaves it to the next boot.
+    await clearLastRun().catch(() => undefined);
+    return { status: "none" };
+  }
+  return { status: "restored", record: { ...record, options: sanitizeOptions(record.options) } };
+}
+
+/** The restorable last run, or undefined (see {@link loadLastRunOutcome}). */
+export async function loadLastRun(): Promise<LastRunRecord | undefined> {
+  const outcome = await loadLastRunOutcome();
+  return outcome.status === "restored" ? outcome.record : undefined;
+}
+
+/** The archived run, if a boot moved one aside (inspection and tests). */
+export async function loadArchivedLastRun(): Promise<ArchivedLastRun | undefined> {
+  return runStore<ArchivedLastRun | undefined>(
+    "readonly",
+    (store) => store.get(LAST_RUN_ARCHIVE_ID) as IDBRequest<ArchivedLastRun | undefined>,
+  );
 }
 
 export async function clearLastRun(): Promise<void> {

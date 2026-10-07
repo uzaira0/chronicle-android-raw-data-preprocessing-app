@@ -1,0 +1,20 @@
+id: chronicle-ts-eval
+snapshots:
+  const fn = Function('return this')();:
+    labels:
+    - source: Function('return this')
+      style: primary
+      start: 11
+      end: 34
+  const fn = new Function('a', 'return a');:
+    labels:
+    - source: new Function('a', 'return a')
+      style: primary
+      start: 11
+      end: 40
+  const value = eval(text);:
+    labels:
+    - source: eval(text)
+      style: primary
+      start: 14
+      end: 24

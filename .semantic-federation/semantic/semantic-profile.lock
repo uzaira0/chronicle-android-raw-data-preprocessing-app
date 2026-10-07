@@ -2,12 +2,12 @@
   "protocol_version": "0.1",
   "root_profile": "urn:uzaira0:semantic-federation:chronicle-preprocessing",
   "root_version": "0.1.0",
-  "root_manifest_digest": "sha256:444af27d8331523780e0480cda96b5af6d27f5ad6b8781bf137a1646b05e9c1c",
+  "root_manifest_digest": "sha256:637623272b4ab1bfd901a4d45103bc95984cc2e272dfa400745541b96a5aaefb",
   "entries": [
     {
       "profile_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing",
       "version": "0.1.0",
-      "manifest_digest": "sha256:444af27d8331523780e0480cda96b5af6d27f5ad6b8781bf137a1646b05e9c1c",
+      "manifest_digest": "sha256:637623272b4ab1bfd901a4d45103bc95984cc2e272dfa400745541b96a5aaefb",
       "resources": [
         {
           "path": "resources/identity-contract.json",
@@ -17,7 +17,7 @@
         },
         {
           "path": "capability-bindings.json",
-          "digest": "sha256:cdad33b8cb0433fb78391361a5e184f7dadb82a4672b603f0a91af6edb7b13b7",
+          "digest": "sha256:9367a316ee51cebdb4f0d0f343f91625500e0e6e81fbe1b166a14568f550d637",
           "media_type": "application/json",
           "role": "binding-source"
         },
@@ -29,37 +29,37 @@
         },
         {
           "path": "resources/chronicle.plan.json",
-          "digest": "sha256:f32b34442d2aad2bb027d53039f112f49bd375b7210a616fbda99aa5d11858d3",
+          "digest": "sha256:be0258af6aafbc9a1855ae4223adcc642a8d22b5fa8bb87eb09f6b62dc3abbd0",
           "media_type": "application/json",
           "role": "binding-source"
         },
         {
           "path": "resources/runtime-authority.json",
-          "digest": "sha256:643041e4330b4aca4b2cdf9a8e0dc285fdfb50b24338be312bdbff98c3d3ddbd",
+          "digest": "sha256:7807fe99a35b4ede2c85d8e8868ec3dcb2accb22e8265c4643966eb9840ce4e4",
           "media_type": "application/json",
           "role": "binding-source"
         },
         {
           "path": "resources/chronicle-research-ontology.linkml.yaml",
-          "digest": "sha256:8f31e65b9c6e0a1c63df67415b22a7d2abaa613314024719d3e7244128026c71",
+          "digest": "sha256:b7e1e1e668c3bb236a901396a7d8678f7dd2fae37d86b89e8b1073a1044043c8",
           "media_type": "application/yaml",
           "role": "ontology"
         },
         {
           "path": "resources/chronicle-research-ontology.merged.shacl.ttl",
-          "digest": "sha256:c74095bcca0c9cab205b0ff4a32df92cc16e2fb261f1b54c8d6bdc74484d6f38",
+          "digest": "sha256:c14103105a275132c374b9cc01c4bed36fd18f0682c07b82d83f105cef4b34b7",
           "media_type": "text/turtle",
           "role": "shape"
         },
         {
           "path": "resources/registered-queries.json",
-          "digest": "sha256:e2e59edc0bc62ad710ff2b56d5189d079ebb2914088f6b0c0976bdee6fa022ec",
+          "digest": "sha256:d23a3d5ba6d88251f75b8e573c50a5b48644596e94a2eb7acf8e85b8ca25b70e",
           "media_type": "application/json",
           "role": "query"
         },
         {
           "path": "resources/chronicle-views.schema.json",
-          "digest": "sha256:dc90e501ebba55b4d206d8805f229ce87e38efc47534afb226e1cd8b4acdf03b",
+          "digest": "sha256:25f1e8de6ef5ece924a1540cfdae69f10685b4b41ca2b4127c5a3fb3c306be1d",
           "media_type": "application/schema+json",
           "role": "binding-source"
         },
@@ -72,5 +72,5 @@
       ]
     }
   ],
-  "closure_digest": "sha256:6c9e478e29320e62dfac4313d37713fa23444c6f2674a79677a92af30340c27d"
+  "closure_digest": "sha256:414a1d51bf6be8de6776a861e53f84f8c56f0eb18712f46dce08cb91f4cc25ac"
 }

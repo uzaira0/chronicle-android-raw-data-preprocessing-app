@@ -1,0 +1,106 @@
+{
+  "schemaVersion": "chronicle-literature-component-source-fixture/v1",
+  "sourceWorkId": "doi:10.1016/j.jbi.2019.103151",
+  "sourceMethodVariantId": "source-audit-configuration-space-2b68c825b87370eb1e27a305",
+  "sourceLocators": [
+    ".tmp-literature-review-private/strict-screen-native-ranks37-73-20260831T0415Z/text/66-fukazawa-2019-anxiety-passive-sensing.txt:120-220",
+    ".tmp-literature-review-private/strict-screen-native-ranks37-73-20260831T0415Z/text/66-fukazawa-2019-anxiety-passive-sensing.txt:296-333",
+    ".tmp-literature-review-private/strict-screen-native-ranks37-73-20260831T0415Z/text/66-fukazawa-2019-anxiety-passive-sensing.txt:350-352"
+  ],
+  "exactCanonicalSettingIds": [
+    "method-setting-24d16a28258b2c207fe0a97e",
+    "method-setting-2de2abe341da563d74c76707",
+    "method-setting-437957e2ff212aea85b0bf44",
+    "method-setting-5474009ac415f21f178116ae",
+    "method-setting-a9395a2a67e5031edf4fdbff",
+    "method-setting-ccb76ca4b5a883bd20b40abc",
+    "method-setting-e5b7a9e21049adf49390270d"
+  ],
+  "deliberatelyNotClaimed": {
+    "method-setting-37305215e151d6899d4a168c": "The source does not disclose the gravity-removal algorithm used before acceleration magnitude.",
+    "method-setting-b6afda5d77f1734a6a4eae9b": "The full four-stream acquisition cadence is not reproduced from raw study logs.",
+    "method-setting-f2f9cbe99f2b646596e00c0a": "The full BR/ACC/ANG/APP integral is not claimed because application classification is outside this component.",
+    "method-setting-f3d4f4467818855ce2cb4c97": "The source does not disclose the timezone/calendar anchor or incomplete-day policy needed to reproduce its 24-hour partition.",
+    "method-setting-e56f4acd73df79245a2aaffa": "The component does not execute or claim the downstream 60-minute model-selection result."
+  },
+  "componentConfig": {
+    "samplingCadenceSeconds": 0.5,
+    "windowDurationsMinutes": [30, 60, 120],
+    "progression": "non_overlapping",
+    "gridAnchoring": "explicit_input_only",
+    "incompleteWindowPolicy": "reject",
+    "thresholdFeatures": [
+      {
+        "featureId": "illuminance",
+        "scalarInputStage": "precomputed_scalar",
+        "sourceScalarUnit": "lux",
+        "thresholds": [300, 1000],
+        "categories": ["dark", "medium", "bright"]
+      },
+      {
+        "featureId": "acceleration_magnitude",
+        "scalarInputStage": "precomputed_scalar",
+        "sourceScalarUnit": "m/s^2",
+        "thresholds": [2, 5],
+        "categories": ["still_or_constant", "gentle", "intense"]
+      },
+      {
+        "featureId": "rotation_x",
+        "scalarInputStage": "precomputed_scalar",
+        "sourceScalarUnit": "degrees",
+        "thresholds": [30, 60],
+        "categories": ["parallel", "diagonal", "perpendicular"]
+      }
+    ]
+  },
+  "rawCsvLines": [
+    "feature_id,window_minutes,grid_anchor_timestamp_ns,run_start_sample_index,run_length_samples,scalar_value",
+    "illuminance,30,0,0,900,299.5",
+    "illuminance,30,0,900,900,300",
+    "illuminance,30,0,1800,900,999.5",
+    "illuminance,30,0,2700,900,1000",
+    "illuminance,60,0,0,1800,299.5",
+    "illuminance,60,0,1800,1800,300",
+    "illuminance,60,0,3600,1800,999.5",
+    "illuminance,60,0,5400,1800,1000",
+    "illuminance,120,0,0,3600,299.5",
+    "illuminance,120,0,3600,3600,300",
+    "illuminance,120,0,7200,3600,999.5",
+    "illuminance,120,0,10800,3600,1000",
+    "acceleration_magnitude,30,0,0,900,1.5",
+    "acceleration_magnitude,30,0,900,900,2",
+    "acceleration_magnitude,30,0,1800,900,4.5",
+    "acceleration_magnitude,30,0,2700,900,5",
+    "acceleration_magnitude,60,0,0,1800,1.5",
+    "acceleration_magnitude,60,0,1800,1800,2",
+    "acceleration_magnitude,60,0,3600,1800,4.5",
+    "acceleration_magnitude,60,0,5400,1800,5",
+    "acceleration_magnitude,120,0,0,3600,1.5",
+    "acceleration_magnitude,120,0,3600,3600,2",
+    "acceleration_magnitude,120,0,7200,3600,4.5",
+    "acceleration_magnitude,120,0,10800,3600,5",
+    "rotation_x,30,0,0,900,29.5",
+    "rotation_x,30,0,900,900,30",
+    "rotation_x,30,0,1800,900,59.5",
+    "rotation_x,30,0,2700,900,60",
+    "rotation_x,60,0,0,1800,29.5",
+    "rotation_x,60,0,1800,1800,30",
+    "rotation_x,60,0,3600,1800,59.5",
+    "rotation_x,60,0,5400,1800,60",
+    "rotation_x,120,0,0,3600,29.5",
+    "rotation_x,120,0,3600,3600,30",
+    "rotation_x,120,0,7200,3600,59.5",
+    "rotation_x,120,0,10800,3600,60"
+  ],
+  "expectedDerivedCsvContains": [
+    "acceleration_magnitude,m/s^2,30,0,0,1800000000000,still_or_constant,450000000000",
+    "acceleration_magnitude,m/s^2,30,0,0,1800000000000,gentle,900000000000",
+    "acceleration_magnitude,m/s^2,30,0,0,1800000000000,intense,450000000000",
+    "illuminance,lux,60,0,0,3600000000000,dark,900000000000",
+    "illuminance,lux,60,0,0,3600000000000,medium,1800000000000",
+    "illuminance,lux,60,0,0,3600000000000,bright,900000000000",
+    "rotation_x,degrees,120,0,0,7200000000000,parallel,1800000000000",
+    "rotation_x,degrees,120,0,0,7200000000000,diagonal,3600000000000",
+    "rotation_x,degrees,120,0,0,7200000000000,perpendicular,1800000000000"
+  ]
+}

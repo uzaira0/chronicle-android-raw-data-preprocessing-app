@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "npm run build:wasm && npm run typecheck && node scripts/run-clean-env.mjs vite build",
-    "build:app": "npm run typecheck && node scripts/run-clean-env.mjs vite build",
+    "build:app": "npm run typecheck && npm run build:vite",
+    "build:vite": "node scripts/run-clean-env.mjs vite build",
+    "build:test": "npm run typecheck && CHRONICLE_E2E_TEST_HOOKS=1 npm run build:vite",
     "generate:contract": "node scripts/run-clean-env.mjs vite-node scripts/generate_contract_artifacts.mts",
     "generate:boundary": "node scripts/run-clean-env.mjs vite-node scripts/generate_runtime_boundary_artifacts.mts",
     "check:boundary": "node scripts/run-clean-env.mjs vite-node scripts/generate_runtime_boundary_artifacts.mts --check",
@@ -37,6 +39,7 @@
     "check:workflow-schema": "make -C schema validate-workflow",
     "check:contract-compat": "node scripts/run-clean-env.mjs vite-node scripts/check_contract_compat.mts",
     "check:authority-boundary": "node scripts/run-clean-env.mjs vite-node scripts/check_no_typescript_authority.mts",
+    "check:axis-completeness": "node scripts/run-clean-env.mjs vite-node scripts/check_axis_completeness.mts",
     "check:deploy-artifact": "node scripts/run-clean-env.mjs vite-node scripts/check_deploy_artifact.mts",
     "check:github-pages-artifact": "node scripts/run-clean-env.mjs vite-node scripts/check_deploy_artifact.mts github-pages",
     "test:e2e": "node scripts/run-clean-env.mjs playwright test",
@@ -47,13 +50,19 @@
     "benchmark:runtime-wasm": "node scripts/run-clean-env.mjs vite-node scripts/benchmark_runtime_wasm.mts",
     "measure:review-batch": "node scripts/measure_review_batch.mjs",
     "measure:perf-debt": "node scripts/run-clean-env.mjs vite-node scripts/measure_perf_debt.mts",
+    "generate:b03-b05-proof-report": "node scripts/run-clean-env.mjs vite-node scripts/generate_b03_b05_scientific_proof_report.mts --assert-b03-b05-scientific-proof --update",
+    "check:b03-b05-proof-report": "node scripts/run-clean-env.mjs vite-node scripts/generate_b03_b05_scientific_proof_report.mts --assert-b03-b05-scientific-proof --check",
+    "generate:b06-omission-fixtures": "node scripts/run-clean-env.mjs vite-node scripts/generate_b06_omission_fixtures.mts --update",
+    "check:b06-omission-fixtures": "node scripts/run-clean-env.mjs vite-node scripts/generate_b06_omission_fixtures.mts --check",
     "measure:unique-review-batch": "node scripts/measure_unique_review_batch.mjs",
     "measure:browser-peak-memory": "node scripts/measure_browser_peak_memory.mjs",
     "generate:benchmark-fixture": "node scripts/run-clean-env.mjs vite-node scripts/generate_benchmark_fixture.mts",
     "build:wasm": "node --test scripts/check_wasm_build_flags.mjs && node scripts/build_wasm.mjs && node scripts/check_wasm_exports.mjs",
     "check:wasm-exports": "node scripts/check_wasm_exports.mjs",
     "generate:workflow": "node scripts/run-clean-env.mjs vite-node scripts/generate_workflow_artifacts.mts",
-    "generate:output-codebook": "node scripts/run-clean-env.mjs vite-node scripts/generate_output_codebook_artifacts.mts"
+    "generate:output-codebook": "node scripts/run-clean-env.mjs vite-node scripts/generate_output_codebook_artifacts.mts",
+    "generate:sleep-diary-catalog": "node scripts/import_sleep_diary_catalog.mjs",
+    "check:sleep-diary-catalog": "node scripts/import_sleep_diary_catalog.mjs --check"
   },
   "dependencies": {
     "@dagrejs/dagre": "^3.0.0",
@@ -79,6 +88,7 @@
     "eslint": "^10.8.0",
     "fake-indexeddb": "^6.2.5",
     "knip": "^6.29.0",
+    "rollup-plugin-license": "^3.7.1",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.20.0",
     "vite": "^7.1.12",
@@ -96,6 +106,10 @@
     "uuid": "^11.1.1",
     "nanoid": "^3.3.18",
     "basic-ftp": "^6.2.1",
-    "@puppeteer/browsers": "^3.2.3"
+    "@puppeteer/browsers": "^3.2.3",
+    "compression": "^1.8.2",
+    "proxy-addr": "^2.0.8",
+    "smol-toml": "^1.9.0",
+    "source-map-js": "^1.2.2"
   }
 }

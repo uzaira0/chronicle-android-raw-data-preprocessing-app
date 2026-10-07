@@ -1,0 +1,47 @@
+{
+  "schemaVersion": "chronicle-esm-timezone-window-correction-r-oracle/v1",
+  "sourceWorkId": "doi:10.1016/j.chb.2023.107977",
+  "sourceMethodVariantId": "source-audit-configuration-space-8b14e63d69954819163df993",
+  "exactCanonicalSettingId": "method-setting-d6cf2e011a5d485758d44fc5",
+  "sourceObservedSetting": "esm_timezone: Infer ESM timezone from sensor records in ±30-minute window",
+  "sourceValue": "Infer ESM timezone from sensor records in ±30-minute window",
+  "sourceValueSha256": "73c658cefe3272afa3bacb3fa91b9a7d91479b88c36cefe643be8f3f3225744b",
+  "sourceArtifacts": [
+    {
+      "path": ".tmp-literature-review-private/corrective-packet-08-ranks277-329-20260831/work/rank287-archive/SmartphoneUsage_Wellbeing/scripts/featureExtraction/helper/timestamp_correction.R",
+      "sha256": "80ef81e8d7e074598385155360562f01e8130a595e72392daa20d571a7b832bc",
+      "locator": "lines 68-90"
+    },
+    {
+      "path": ".tmp-literature-review-private/corrective-packet-08-ranks277-329-20260831/work/rank287-archive/SmartphoneUsage_Wellbeing/scripts/featureExtraction/helper/helper_variables.R",
+      "sha256": "61a921f5f8b8e2b0c6c60f24d3ae13de477a340f8967e21e74707daeebba873a",
+      "locator": "lines 13-18"
+    },
+    {
+      "path": ".tmp-literature-review-private/corrective-packet-08-ranks277-329-20260831/work/rank287-archive/SmartphoneUsage_Wellbeing/renv.lock",
+      "sha256": "35c4f8e9279c8f454a37d159c24562b055a7faac6b0ed388e8dd2303ffdf4329",
+      "locator": "package versions"
+    }
+  ],
+  "configuration": {
+    "inputStage": "one_participant_ema_with_corresponding_sensing_offsets",
+    "windowRadiusMinutes": 30,
+    "boundary": "strict_open",
+    "modePolicy": "first_seen_nonmissing_mode",
+    "offsetUnit": "milliseconds"
+  },
+  "sensingCsv": "participant_id,source_row_id,client_db_id,timestamp,timezoneOffset\np-source-01,boundary-low,s1,2020-01-01 11:30:00,7200000\np-source-01,tie-first,s2,2020-01-01 11:45:00,3600000\np-source-01,missing,s3,2020-01-01 11:50:00,NA\np-source-01,tie-second,s4,2020-01-01 12:10:00,-18000000\np-source-01,boundary-high,s5,2020-01-01 12:30:00,-18000000\np-source-01,second-a,s6,2020-01-01 12:31:00,-18000000\np-source-01,second-b,s7,2020-01-01 12:35:00,-18000000\np-source-01,second-missing,s8,2020-01-01 12:45:00,NaN\np-source-01,second-other,s9,2020-01-01 13:29:00,3600000\n",
+  "esmCsv": "participant_id,source_row_id,notificationTimestamp,questionnaireStartedTimestamp,questionnaireEndedTimestamp\np-source-01,no-mode,2020-01-01 15:00:00,2020-01-01 15:01:00,2020-01-01 15:02:00\np-source-01,tie,2020-01-01 12:00:00,2020-01-01 12:05:00,2020-01-01 12:10:00\np-source-01,majority,2020-01-01 13:00:00,2020-01-01 13:01:00,2020-01-01 13:02:00\n",
+  "oracleOutputCsv": "participant_id,source_row_id,notificationTimestamp,questionnaireStartedTimestamp,questionnaireEndedTimestamp,timezoneOffset.mode,notificationTimestamp.corrected,questionnaireStartedTimestamp.corrected,questionnaireEndedTimestamp.corrected,weekday,nr\np-source-01,tie,2020-01-01 12:00:00,2020-01-01 12:05:00,2020-01-01 12:10:00,3600000,2020-01-01 13:00:00,2020-01-01 13:05:00,2020-01-01 13:10:00,Wed,1\np-source-01,majority,2020-01-01 13:00:00,2020-01-01 13:01:00,2020-01-01 13:02:00,-18000000,2020-01-01 08:00:00,2020-01-01 08:01:00,2020-01-01 08:02:00,Wed,2\np-source-01,no-mode,2020-01-01 15:00:00,2020-01-01 15:01:00,2020-01-01 15:02:00,NA,NA,NA,NA,NA,3\n",
+  "expectedSensingInputRowCount": 9,
+  "expectedEsmInputRowCount": 3,
+  "expectedCorrectedEsmRowCount": 2,
+  "expectedMissingModeRowCount": 1,
+  "limitations": [
+    "The source caller must supply one participant's ESM rows and the corresponding sensing offset rows; participant association is not inferred.",
+    "The executable code uses strict open bounds and minutes(30), although its adjacent comment says plus-or-minus 30 seconds.",
+    "The source mode ignores NA offsets and resolves a frequency tie to the first distinct nonmissing value in filtered sensing source order.",
+    "Unsupported timestamp spellings and offsets that cannot be represented exactly as nanoseconds fail closed instead of invoking lubridate's heuristic parsing.",
+    "This component stops after ESM timestamp correction, weekday labeling, and chronological numbering."
+  ]
+}

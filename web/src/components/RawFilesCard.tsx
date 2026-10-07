@@ -1,6 +1,9 @@
 import { useRef, useState, type ReactElement } from "react";
 
-import { effectiveWarnings, type RawFileInspection } from "@/lib/fileInspection";
+import {
+  effectiveWarnings,
+  type RawFileInspection,
+} from "@/lib/fileInspection";
 import type { BrowserProcessingOptions } from "@/lib/types";
 import type { DemoDisplayMasker } from "@/lib/demoDisplay";
 
@@ -11,8 +14,12 @@ type Props = {
   options: BrowserProcessingOptions;
   displayMasker: DemoDisplayMasker;
   onFilesChange: (files: File[]) => void;
+  /** Pure permutation of the current selection; must not discard run state. */
+  onFilesReorder: (files: File[]) => void;
   onClear: () => void;
   isRunning: boolean;
+  literatureComponentActive?: boolean;
+  componentTableFormat?: "arrow-ipc-file";
 };
 
 function formatBytes(bytes: number): string {
@@ -34,13 +41,18 @@ export function RawFilesCard({
   options,
   displayMasker,
   onFilesChange,
+  onFilesReorder,
   onClear,
   isRunning,
+  literatureComponentActive = false,
+  componentTableFormat,
 }: Props): ReactElement {
+  const typedTable = componentTableFormat === "arrow-ipc-file";
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const handleFilesPicked = (files: FileList | File[] | null) => {
+    if (isRunning) return;
     onFilesChange(files ? Array.from(files) : []);
   };
 
@@ -54,16 +66,24 @@ export function RawFilesCard({
     const [moved] = next.splice(from, 1);
     if (moved === undefined) return;
     next.splice(to, 0, moved);
-    onFilesChange(next);
+    onFilesReorder(next);
   };
 
   return (
-    <section id="files" className="workflow-section" aria-labelledby="files-title">
+    <section
+      id="files"
+      className="workflow-section"
+      aria-labelledby="files-title"
+    >
       <div className="workflow-section__header">
         <div>
-          <h2 id="files-title" className="workflow-section__title">Files</h2>
+          <h2 id="files-title" className="workflow-section__title">
+            Files
+          </h2>
           <p className="workflow-section__intro">
-            Add raw Chronicle CSV files and review file readiness before processing.
+            {typedTable ? "Add an explicitly typed Arrow analysis table. The selected component validates its schema when run."
+              : literatureComponentActive ? "Add one source-specific CSV matching the selected component's required fields. The component validates its input when run; ordinary Chronicle event columns are not required."
+                : "Add raw Chronicle CSV files and review file readiness before processing."}
           </p>
         </div>
         <button
@@ -80,12 +100,14 @@ export function RawFilesCard({
         className={`raw-drop${dragging ? " is-dragging" : ""}`}
         onDragOver={(event) => {
           event.preventDefault();
+          if (isRunning) return;
           setDragging(true);
         }}
         onDragLeave={() => setDragging(false)}
         onDrop={(event) => {
           event.preventDefault();
           setDragging(false);
+          if (isRunning) return;
           handleFilesPicked(event.dataTransfer.files);
         }}
       >
@@ -94,18 +116,27 @@ export function RawFilesCard({
           data-testid="raw-file-input"
           className="visually-hidden-file-input"
           type="file"
-          accept=".csv,text/csv"
+          accept={typedTable ? ".arrow,application/vnd.apache.arrow.file" : ".csv,text/csv"}
           multiple
           tabIndex={-1}
           aria-hidden="true"
+          disabled={isRunning}
           onChange={(event) => {
             handleFilesPicked(event.target.files);
             event.currentTarget.value = "";
           }}
         />
         <div>
-          <strong>{uploadedFiles.length ? `${uploadedFiles.length} raw file${uploadedFiles.length === 1 ? "" : "s"} ready` : "Drop raw Chronicle CSV files here"}</strong>
-          <span>{isInspecting ? "Inspecting selected files..." : "CSV files are processed locally in the browser."}</span>
+          <strong>
+            {uploadedFiles.length
+              ? `${uploadedFiles.length} raw file${uploadedFiles.length === 1 ? "" : "s"} ready`
+              : typedTable ? "Drop an Arrow analysis table here" : literatureComponentActive ? "Drop the component source CSV here" : "Drop raw Chronicle CSV files here"}
+          </strong>
+          <span>
+            {isInspecting
+              ? "Inspecting selected files..."
+              : `${typedTable ? "Arrow tables" : "CSV files"} are processed locally in the browser.`}
+          </span>
         </div>
         <button
           type="button"
@@ -133,34 +164,87 @@ export function RawFilesCard({
                     a position:absolute sr-only span escapes the table's
                     overflow-x wrapper and pushes documentElement.scrollWidth
                     past the viewport at 200% zoom (horizontal-scroll regression). */}
-                <th scope="col" className="raw-file-table__actions-head" aria-label="Actions" />
+                <th
+                  scope="col"
+                  className="raw-file-table__actions-head"
+                  aria-label="Actions"
+                />
               </tr>
             </thead>
             <tbody>
               {uploadedFiles.map((file, index) => {
-                const inspection = inspections.find((entry) => entry.fileName === file.name);
+                const inspection = inspections.find(
+                  (entry) => entry.fileName === file.name,
+                );
                 const displayFile = displayMasker.fileName(file.name);
-                const warnings = inspection ? effectiveWarnings(inspection, options) : [];
+                const warnings = inspection
+                  ? effectiveWarnings(inspection, options)
+                  : [];
+                // A missing required column is not a cosmetic warning: the
+                // kernel resolves columns by name and silently substitutes an
+                // empty string, so the file would process to blank fields and
+                // still report success. It gets its own error state, and the
+                // Process button refuses the run.
+                const missingRequiredColumns =
+                  !!inspection && !inspection.hasRequiredColumns;
+                const componentValidationPending =
+                  missingRequiredColumns && literatureComponentActive;
                 const status = inspection
-                  ? warnings.length
-                    ? { label: "Warning: Review", className: "is-warning" }
-                    : { label: "Success: Ready", className: "is-success" }
-                  : { label: "Status: Inspecting", className: "" };
+                  ? missingRequiredColumns
+                    ? componentValidationPending
+                      ? { label: "Component validates at run", className: "is-warning" }
+                      : { label: "Error: Missing columns", className: "is-error" }
+                    : warnings.length
+                      ? { label: "Warning: Review", className: "is-warning" }
+                      : { label: "Success: Ready", className: "is-success" }
+                  : typedTable ? { label: "Component validates at run", className: "is-warning" }
+                    : { label: "Status: Inspecting", className: "" };
                 const dupCount = inspection?.duplicateTimestampCount ?? 0;
-                const dupCorrected = options.correctDuplicateEventTimestamps && dupCount > 0;
+                const dupCorrected =
+                  options.correctDuplicateEventTimestamps && dupCount > 0;
                 return (
                   <tr
-                    className={`raw-file-row${warnings.length ? " has-warning" : ""}`}
+                    className={`raw-file-row${
+                      missingRequiredColumns && !componentValidationPending
+                        ? " has-error"
+                        : warnings.length
+                          ? " has-warning"
+                          : ""
+                    }`}
                     key={`${file.name}-${file.size}-${file.lastModified}`}
                     data-testid="raw-file-row"
                   >
                     <td>
                       <strong>{displayFile}</strong>
                       {warnings.length ? (
-                        <p className="raw-file-row__warning">{warnings.join(" ")}</p>
+                        <p
+                          className={
+                            missingRequiredColumns && !componentValidationPending
+                              ? "raw-file-row__error"
+                              : "raw-file-row__warning"
+                          }
+                          role={
+                            missingRequiredColumns && !componentValidationPending
+                              ? "alert"
+                              : undefined
+                          }
+                          data-testid={
+                            missingRequiredColumns && !componentValidationPending
+                              ? "raw-file-row-error"
+                              : undefined
+                          }
+                        >
+                          {missingRequiredColumns && !componentValidationPending
+                            ? `Cannot process this file. ${warnings.join(" ")}`
+                            : componentValidationPending
+                              ? "This source-shaped file is validated by the selected literature component when run."
+                              : warnings.join(" ")}
+                        </p>
                       ) : null}
                     </td>
-                    <td className="text-faint u-meta-xs">{formatBytes(file.size)}</td>
+                    <td className="text-faint u-meta-xs">
+                      {formatBytes(file.size)}
+                    </td>
                     <td className="text-faint u-meta-xs">
                       {inspection ? inspection.rowCount.toLocaleString() : "—"}
                     </td>
@@ -186,7 +270,9 @@ export function RawFilesCard({
                           : `${dupCount.toLocaleString()} (not corrected)`}
                     </td>
                     <td>
-                      <span className={`status-pill ${status.className}`}>{status.label}</span>
+                      <span className={`status-pill ${status.className}`}>
+                        {status.label}
+                      </span>
                     </td>
                     <td className="raw-file-row__actions">
                       <div className="raw-file-row__actions-group">
@@ -206,7 +292,9 @@ export function RawFilesCard({
                           aria-label={`Move ${displayFile} down`}
                           data-testid="move-file-down"
                           onClick={() => moveFile(index, index + 1)}
-                          disabled={isRunning || index === uploadedFiles.length - 1}
+                          disabled={
+                            isRunning || index === uploadedFiles.length - 1
+                          }
                         >
                           ↓
                         </button>

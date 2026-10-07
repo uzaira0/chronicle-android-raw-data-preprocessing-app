@@ -1,0 +1,365 @@
+{
+  "task_occurrences": [
+    {
+      "task_occurrence_id": "example:screenomics-baseline",
+      "method_profile_id": "method-profile:doi:10.1007/s41347-024-00443-5",
+      "source_work_id": "doi:10.1007/s41347-024-00443-5",
+      "participant_id": "example:participant",
+      "record_origin": "analyst_constructed_example",
+      "task_label": "Separate supplied baseline MacArthur youth ratings",
+      "task_questionnaire_responses": [
+        {"questionnaire_response_id": "example:society", "questionnaire_setting_reference": "method-setting-8c739d069da8a56c9a891555", "observed_property": "subjective socioeconomic status relative to society", "response_value_json": "1", "source_locators": ["Screenomics primary191–200; hypothetical lower endpoint: worse off"]},
+        {"questionnaire_response_id": "example:school", "questionnaire_setting_reference": "method-setting-8c739d069da8a56c9a891555", "observed_property": "subjective socioeconomic status relative to others in their school", "response_value_json": "10", "source_locators": ["Screenomics primary191–200; hypothetical upper endpoint: best off; separate comparison group"]}
+      ],
+      "source_locators": ["Screenomics primary191–200; PDF SHA256:6a0aabc0166dd810e42201638d25b30d520fad214eefb8eea08e2de01892c712; constructed normalized baseline, no join to hourly use or deployed row schema"]
+    },
+    {
+      "task_occurrence_id": "example:screenomics-exit",
+      "method_profile_id": "method-profile:doi:10.1007/s41347-024-00443-5",
+      "source_work_id": "doi:10.1007/s41347-024-00443-5",
+      "participant_id": "example:participant",
+      "record_origin": "analyst_constructed_example",
+      "task_label": "Post-four-week acceptability interview, separate from baseline",
+      "task_questionnaire_responses": [
+        {"questionnaire_response_id": "example:privacy", "questionnaire_setting_reference": "method-setting-68a65400daac8d76ea3b55e6", "observed_property": "privacy concerns", "response_value_json": "1", "source_locators": ["Screenomics primary208–225; hypothetical not at all"]},
+        {"questionnaire_response_id": "example:noticed", "questionnaire_setting_reference": "method-setting-68a65400daac8d76ea3b55e6", "observed_property": "noticed AWARE", "response_value_json": "2", "source_locators": ["Screenomics primary208–225; hypothetical somewhat"]},
+        {"questionnaire_response_id": "example:battery", "questionnaire_setting_reference": "method-setting-68a65400daac8d76ea3b55e6", "observed_property": "battery drain", "response_value_json": "3", "source_locators": ["Screenomics primary208–225; hypothetical often"]},
+        {"questionnaire_response_id": "example:crashes", "questionnaire_setting_reference": "method-setting-68a65400daac8d76ea3b55e6", "observed_property": "crashes/errors", "response_value_json": "4", "source_locators": ["Screenomics primary208–225; hypothetical almost always"]},
+        {"questionnaire_response_id": "example:feedback", "questionnaire_setting_reference": "method-setting-68a65400daac8d76ea3b55e6", "observed_property": "additional open-ended feedback", "response_value_json": " \"hypothetical supplied feedback\" ", "source_locators": ["Screenomics primary218–225; open text, not a fifth ordinal rating or a coded theme"]}
+      ],
+      "source_locators": ["Screenomics primary208–225; analyst-constructed completion, no numeric recoding, means, thematic analysis or participant-row claim"]
+    },
+    {
+      "task_occurrence_id": "example:affectpro-session-a",
+      "method_profile_id": "method-profile:doi:10.1145/3536221.3556603",
+      "source_work_id": "doi:10.1145/3536221.3556603",
+      "participant_id": "example:not-a-source-participant",
+      "record_origin": "analyst_constructed_example",
+      "task_label": "At-a-stretch typing in supplied application A",
+      "task_actions": [
+        {"task_action_id": "example:touch-a", "action_label": "Touch", "action_content_json": " {\"timestamp\":\"opaque-t1\"} ", "source_locators": ["AffectPro2022 primary text108–125; supplied touch timestamp with no clock or alphanumeric text inferred"]},
+        {"task_action_id": "example:touch-b", "action_label": "Backspace or delete pressed", "action_content_json": " {\"timestamp\":\"opaque-t2\"} ", "source_locators": ["AffectPro2022 primary text134–137; supplied key-use designation, not inferred typing error or before/after text"]}
+      ],
+      "task_questionnaire_responses": [
+        {"questionnaire_response_id": "example:emotion", "questionnaire_setting_reference": "method-setting-974fa6121494acddefd05b39", "observed_property": "Perceived emotion for this typing session", "response_value_json": " \"happy\" ", "source_locators": ["AffectPro2022 primary text139–157; hypothetical supplied post-switch answer with no intensity or clock inferred"]}
+      ],
+      "source_locators": ["AffectPro2022 PDF SHA256:432e12be1573da8ba9bbd46df3ca00e3214fd228b41b4ab364d2e8994fcf4f09; primary text108–157; analyst-constructed per-app session association, not recovered collector rows or raw prompt join"]
+    },
+    {
+      "task_occurrence_id": "example:affectpro-session-b",
+      "method_profile_id": "method-profile:doi:10.1145/3536221.3556603",
+      "source_work_id": "doi:10.1145/3536221.3556603",
+      "participant_id": "example:not-a-source-participant",
+      "record_origin": "analyst_constructed_example",
+      "task_label": "At-a-stretch typing in supplied application B",
+      "task_actions": [
+        {"task_action_id": "example:touch-a", "action_label": "Touch", "action_content_json": "{\"timestamp\":\"opaque-t1\"}", "source_locators": ["AffectPro2022 primary text108–125; independently identified touch, equal tokens do not join sessions"]}
+      ],
+      "task_questionnaire_responses": [
+        {"questionnaire_response_id": "example:emotion", "questionnaire_setting_reference": "method-setting-974fa6121494acddefd05b39", "observed_property": "Perceived emotion for this typing session", "response_value_json": "\"No Response\"", "source_locators": ["AffectPro2022 primary text139–157; emotion.no_response_option method-setting-6a22d93704ae202f9325fa18; hypothetical supplied skip, not inferred from the default-selected UI option or a fifth emotion state"]}
+      ],
+      "source_locators": ["AffectPro2022 primary text108–157; independent analyst-constructed session with explicit supplied No Response; omission is not converted to this value"]
+    },
+    {
+      "task_occurrence_id": "example:text-entry-a",
+      "method_profile_id": "method-profile:doi:10.1109/acii.2019.8925518",
+      "source_work_id": "doi:10.1109/acii.2019.8925518",
+      "participant_id": "example:not-a-source-participant",
+      "record_origin": "analyst_constructed_example",
+      "task_label": "Just-completed text-entry session A",
+      "task_actions": [
+        {"task_action_id": "example:touch-a", "action_label": "Touch instance", "source_locators": ["ACII2019 primary pp2–3 Fig3; supplied session member, no clock or touch-vector units inferred"]},
+        {"task_action_id": "example:touch-b", "action_label": "Touch instance", "source_locators": ["ACII2019 primary pp2–3 Fig3; independently identified second touch"]}
+      ],
+      "task_questionnaire_responses": [
+        {"questionnaire_response_id": "example:emotion", "questionnaire_setting_reference": "method-setting-5915b11408226e140a2a1d44", "observed_property": "Perceived emotion during this text-entry session", "response_value_json": " \"No Response\" ", "source_locators": ["ACII2019 primary text104–132,201–210,227–237; hypothetical explicit skip, not null, absence or a fifth modeled emotion"]}
+      ],
+      "source_locators": ["ACII2019 PDF SHA256:8e067249f2f1c5800cdac260be9edfabe5ea2e6c6165ee4d59587dbd5b38f792; analyst-constructed association, not recovered raw ESM/session join"]
+    },
+    {
+      "task_occurrence_id": "example:text-entry-b",
+      "method_profile_id": "method-profile:doi:10.1109/acii.2019.8925518",
+      "source_work_id": "doi:10.1109/acii.2019.8925518",
+      "participant_id": "example:not-a-source-participant",
+      "record_origin": "analyst_constructed_example",
+      "task_label": "Just-completed text-entry session B",
+      "task_actions": [
+        {"task_action_id": "example:touch-a", "action_label": "Touch instance", "source_locators": ["ACII2019 primary Fig3; same local action identifier in a different supplied session is not the same touch"]}
+      ],
+      "task_questionnaire_responses": [
+        {"questionnaire_response_id": "example:emotion", "questionnaire_setting_reference": "method-setting-5915b11408226e140a2a1d44", "observed_property": "Perceived emotion during this text-entry session", "response_value_json": "\"happy\"", "source_locators": ["ACII2019 primary text201–210; hypothetical categorical answer, not a recovered participant response"]}
+      ],
+      "source_locators": ["ACII2019 primary Fig3; second analyst-constructed session preserves independent touch/answer membership"]
+    },
+    {
+      "task_occurrence_id": "example:sus-phone-baseline",
+      "method_profile_id": "method-profile:doi:10.1145/2371574.2371619",
+      "source_work_id": "doi:10.1145/2371574.2371619",
+      "participant_id": "example:not-a-source-participant",
+      "record_origin": "analyst_constructed_example",
+      "task_label": "SUS completion—phone baseline condition",
+      "task_questionnaire_responses": [
+        {"questionnaire_response_id": "example:sus-answer", "questionnaire_setting_reference": "method-setting-617e2edbcbb54bb3b1daa8cd", "observed_property": "Supplied SUS item", "response_value_json": " \"hypothetical supplied answer\" ", "source_locators": ["Alt2012 physical p3/printed307 Evaluation; hypothetical lexical answer without invented item wording, endpoints or scoring"]}
+      ],
+      "source_locators": ["Alt2012 PDF SHA256:0fb036a5e91dc9e85daed6da6de34965796d87ee8615075874df028491a7a89f; distinct condition-local completion, not browser/search-task membership or recovered condition join"]
+    },
+    {
+      "task_occurrence_id": "example:sus-phone-time-multiplex",
+      "method_profile_id": "method-profile:doi:10.1145/2371574.2371619",
+      "source_work_id": "doi:10.1145/2371574.2371619",
+      "participant_id": "example:not-a-source-participant",
+      "record_origin": "analyst_constructed_example",
+      "task_label": "SUS completion—phone time-multiplex condition",
+      "task_questionnaire_responses": [
+        {"questionnaire_response_id": "example:sus-answer", "questionnaire_setting_reference": "method-setting-617e2edbcbb54bb3b1daa8cd", "observed_property": "Supplied SUS item", "response_value_json": null, "source_locators": ["Alt2012 physical p3/printed307 Evaluation; unknown supplied answer, not an assumed numeric code or timing"]}
+      ],
+      "source_locators": ["Alt2012 physical p3/printed307; separate analyst-constructed condition-local completion; browser tasks remain separate"]
+    },
+    {
+      "task_occurrence_id": "example:browser-time-multiplex",
+      "method_profile_id": "method-profile:doi:10.1145/2371574.2371619",
+      "source_work_id": "doi:10.1145/2371574.2371619",
+      "participant_id": "example:not-a-source-participant",
+      "record_origin": "analyst_constructed_example",
+      "task_label": "Supplied page load—phone time-multiplex condition",
+      "task_actions": [
+        {"task_action_id": "example:load", "action_label": "Requested website loading", "denotes_interval": {"start_instant": "example:request", "end_instant": "example:loaded", "duration_seconds": null}, "action_content_json": " {\"website\":\"https://example.invalid/constructed\",\"device\":\"phone\"} ", "source_locators": ["Alt2012 physical p3 Evaluation; hypothetical supplied loading interval, no raw clock or duration inferred"]},
+        {"task_action_id": "example:close", "action_label": "Bridging content closed before page loaded", "source_locators": ["Alt2012 physical p3 Evaluation/Findings; supplied direction preserved, not inferred from timestamp order"]},
+        {"task_action_id": "example:bring-back", "action_label": "Bridging content brought back", "source_locators": ["Alt2012 physical p3 Evaluation/Findings; independent supplied action, not an assumed repeated close or visit"]}
+      ],
+      "source_locators": ["Alt2012 physical p3/printed307; analyst-constructed directed browser actions separate from condition-level SUS; no recovered task/answer join"]
+    },
+    {
+      "task_occurrence_id": "example:browser-space-multiplex",
+      "method_profile_id": "method-profile:doi:10.1145/2371574.2371619",
+      "source_work_id": "doi:10.1145/2371574.2371619",
+      "participant_id": "example:not-a-source-participant",
+      "record_origin": "analyst_constructed_example",
+      "task_label": "Supplied page load—phone space-multiplex condition",
+      "task_actions": [
+        {"task_action_id": "example:load", "action_label": "Requested website loading", "denotes_interval": {"start_instant": "example:request", "end_instant": "example:loaded", "duration_seconds": null}, "source_locators": ["Alt2012 physical p3 Evaluation; separately owned equal-bound constructed load, not the same visit"]},
+        {"task_action_id": "example:scroll-away", "action_label": "Time until scrolling away from bridging content", "denotes_interval": {"start_instant": "example:visible", "end_instant": "example:scroll-away", "duration_seconds": null}, "source_locators": ["Alt2012 physical p3 Evaluation/Findings; supplied visibility interval distinct from page-loading interval; clock unknown"]}
+      ],
+      "source_locators": ["Alt2012 physical p3/printed307; analyst-constructed space-multiplex browser task, not questionnaire completion or reconstructed logging rows"]
+    },
+    {
+      "task_occurrence_id": "example:tlx-multiplex",
+      "method_profile_id": "method-profile:doi:10.1145/2556288.2557066",
+      "source_work_id": "doi:10.1145/2556288.2557066",
+      "participant_id": "example:not-a-source-participant",
+      "record_origin": "analyst_constructed_example",
+      "task_label": "TLX and additional items—after multiplex condition part",
+      "task_questionnaire_responses": [
+        {"questionnaire_response_id": "example:mental-demand", "questionnaire_setting_reference": "method-setting-f67fc62d62cef42c7e3a6c8e", "observed_property": "mental demand", "response_value_json": "7.00", "source_locators": ["Böhmer2014 primary p5 Measures/Fig4; hypothetical lexical response, no anchors or weighting inferred"]},
+        {"questionnaire_response_id": "example:annoyance", "questionnaire_setting_reference": "method-setting-f67fc62d62cef42c7e3a6c8e", "observed_property": "annoyance of phone call interruptions", "response_value_json": "null", "source_locators": ["Böhmer2014 primary p5 Measures; independently supplied additional item, not a TLX dimension"]}
+      ],
+      "source_locators": ["Böhmer2014 PDF SHA256:7b66db164a6c0a232e67d59813277c65c8be78776a6199196aacde2c90663627; text225–243,267–284: after each condition part, not each call or primary task"]
+    },
+    {
+      "task_occurrence_id": "example:tlx-baseline",
+      "method_profile_id": "method-profile:doi:10.1145/2556288.2557066",
+      "source_work_id": "doi:10.1145/2556288.2557066",
+      "participant_id": "example:not-a-source-participant",
+      "record_origin": "analyst_constructed_example",
+      "task_label": "TLX and additional items—after baseline condition part",
+      "task_questionnaire_responses": [
+        {"questionnaire_response_id": "example:mental-demand", "questionnaire_setting_reference": "method-setting-f67fc62d62cef42c7e3a6c8e", "observed_property": "mental demand", "source_locators": ["Böhmer2014 primary p5 Measures; omitted value remains distinct from null or zero"]}
+      ],
+      "source_locators": ["Böhmer2014 primary p5; independently identified hypothetical condition completion; no task/call pairing or score inferred"]
+    },
+    {
+      "task_occurrence_id": "example:pi-recall:completion-a",
+      "method_profile_id": "method-profile:doi:10.30773/pi.2020.0197",
+      "source_work_id": "doi:10.30773/pi.2020.0197",
+      "participant_id": "example:not-a-source-participant",
+      "record_origin": "analyst_constructed_example",
+      "task_label": "Independent post-monitoring questionnaire completion",
+      "task_questionnaire_responses": [
+        {
+          "questionnaire_response_id": "example:pi-recall:answer-1",
+          "questionnaire_setting_reference": "method-setting-32b3bf84ec92c0e7ef62019a",
+          "observed_property": "smartphone count",
+          "response_value_json": "1",
+          "source_locators": [
+            "rank153.txt:80–96; primary PDF SHA256:b3d9cb188e84d0fba927d18af2926337916a1eb63fbe5f3f65c2865b6f967717; no per-device or daily attribution inferred"
+          ]
+        }
+      ],
+      "source_locators": [
+        "rank153.txt:80–96; primary PDF SHA256:b3d9cb188e84d0fba927d18af2926337916a1eb63fbe5f3f65c2865b6f967717; no per-device or daily attribution inferred; hypothetical supplied answers, not recovered participant data"
+      ]
+    },
+    {
+      "task_occurrence_id": "example:pi-recall:completion-b",
+      "method_profile_id": "method-profile:doi:10.30773/pi.2020.0197",
+      "source_work_id": "doi:10.30773/pi.2020.0197",
+      "participant_id": "example:not-a-source-participant",
+      "record_origin": "analyst_constructed_example",
+      "task_label": "Independent post-monitoring questionnaire completion",
+      "task_questionnaire_responses": [
+        {
+          "questionnaire_response_id": "example:pi-recall:answer-1",
+          "questionnaire_setting_reference": "method-setting-32b3bf84ec92c0e7ef62019a",
+          "observed_property": "tablet count",
+          "response_value_json": "0",
+          "source_locators": [
+            "rank153.txt:80–96; primary PDF SHA256:b3d9cb188e84d0fba927d18af2926337916a1eb63fbe5f3f65c2865b6f967717; no per-device or daily attribution inferred"
+          ]
+        }
+      ],
+      "source_locators": [
+        "rank153.txt:80–96; primary PDF SHA256:b3d9cb188e84d0fba927d18af2926337916a1eb63fbe5f3f65c2865b6f967717; no per-device or daily attribution inferred; hypothetical supplied answers, not recovered participant data"
+      ]
+    },
+    {
+      "task_occurrence_id": "example:tsdi:completion-a",
+      "method_profile_id": "method-profile:doi:10.3390/j2020008",
+      "source_work_id": "doi:10.3390/j2020008",
+      "participant_id": "example:not-a-source-participant",
+      "record_origin": "analyst_constructed_example",
+      "task_label": "Independent TSDI questionnaire completion",
+      "task_questionnaire_responses": [
+        {
+          "questionnaire_response_id": "example:tsdi:answer-1",
+          "questionnaire_setting_reference": "method-setting-7afde6ca031dcddbad05c01a",
+          "observed_property": "TSDI item response",
+          "response_value_json": "1",
+          "source_locators": [
+            "rank135.txt:666–673; primary PDF SHA256:a075a49da753982cfb7fd790ff50ac56631ab354b4006a0a27dfcf91ba3bb2d9; supplied response IDs, undisclosed item wording omitted"
+          ]
+        }
+      ],
+      "source_locators": [
+        "rank135.txt:666–673; primary PDF SHA256:a075a49da753982cfb7fd790ff50ac56631ab354b4006a0a27dfcf91ba3bb2d9; supplied response IDs, undisclosed item wording omitted; hypothetical supplied answers, not recovered participant data"
+      ]
+    },
+    {
+      "task_occurrence_id": "example:tsdi:completion-b",
+      "method_profile_id": "method-profile:doi:10.3390/j2020008",
+      "source_work_id": "doi:10.3390/j2020008",
+      "participant_id": "example:not-a-source-participant",
+      "record_origin": "analyst_constructed_example",
+      "task_label": "Independent TSDI questionnaire completion",
+      "task_questionnaire_responses": [
+        {
+          "questionnaire_response_id": "example:tsdi:answer-1",
+          "questionnaire_setting_reference": "method-setting-7afde6ca031dcddbad05c01a",
+          "observed_property": "TSDI item response",
+          "response_value_json": "7",
+          "source_locators": [
+            "rank135.txt:666–673; primary PDF SHA256:a075a49da753982cfb7fd790ff50ac56631ab354b4006a0a27dfcf91ba3bb2d9; supplied response IDs, undisclosed item wording omitted"
+          ]
+        }
+      ],
+      "source_locators": [
+        "rank135.txt:666–673; primary PDF SHA256:a075a49da753982cfb7fd790ff50ac56631ab354b4006a0a27dfcf91ba3bb2d9; supplied response IDs, undisclosed item wording omitted; hypothetical supplied answers, not recovered participant data"
+      ]
+    },
+    {
+      "task_occurrence_id": "example:ias:completion",
+      "method_profile_id": "method-profile:doi:10.7717/peerj.2197",
+      "source_work_id": "doi:10.7717/peerj.2197",
+      "participant_id": "example:not-a-source-participant",
+      "record_origin": "analyst_constructed_example",
+      "task_label": "Independent IAS questionnaire completion",
+      "task_questionnaire_responses": [
+        {
+          "questionnaire_response_id": "example:ias:answer-1",
+          "questionnaire_setting_reference": "method-setting-3f946857c01494b92432cbac",
+          "observed_property": "IAS item response",
+          "response_value_json": null,
+          "source_locators": [
+            "rank136.txt:165–175; primary PDF SHA256:a412b5bb0b201ac6d7c9f06ef58ad404054ae0808aa8e5493a4a4448015c44db; item code and endpoint labels not reported"
+          ]
+        }
+      ],
+      "source_locators": [
+        "rank136.txt:165–175; primary PDF SHA256:a412b5bb0b201ac6d7c9f06ef58ad404054ae0808aa8e5493a4a4448015c44db; item code and endpoint labels not reported; hypothetical supplied answers, not recovered participant data"
+      ]
+    },
+    {
+      "task_occurrence_id": "example:ucla-ls:completion",
+      "method_profile_id": "method-profile:doi:10.7717/peerj.2197",
+      "source_work_id": "doi:10.7717/peerj.2197",
+      "participant_id": "example:not-a-source-participant",
+      "record_origin": "analyst_constructed_example",
+      "task_label": "Independent UCLA-LS questionnaire completion",
+      "task_questionnaire_responses": [
+        {
+          "questionnaire_response_id": "example:ucla-ls:answer-1",
+          "questionnaire_setting_reference": "method-setting-a8d33318a34e0716ecbff121",
+          "observed_property": "UCLA-LS item response",
+          "response_value_json": "null",
+          "source_locators": [
+            "rank136.txt:165–175; primary PDF SHA256:a412b5bb0b201ac6d7c9f06ef58ad404054ae0808aa8e5493a4a4448015c44db; explicit JSON null, not an inferred numeric code"
+          ]
+        }
+      ],
+      "source_locators": [
+        "rank136.txt:165–175; primary PDF SHA256:a412b5bb0b201ac6d7c9f06ef58ad404054ae0808aa8e5493a4a4448015c44db; explicit JSON null, not an inferred numeric code; hypothetical supplied answers, not recovered participant data"
+      ]
+    },
+    {
+      "task_occurrence_id": "example:hardlock-c1:completion",
+      "method_profile_id": "method-profile:usenix:soups2014:harbach-hard-lock-life",
+      "source_work_id": "usenix:soups2014:harbach-hard-lock-life",
+      "participant_id": "example:not-a-source-participant",
+      "record_origin": "analyst_constructed_example",
+      "task_label": "Independent C1 current unlocking/screen questionnaire completion",
+      "task_questionnaire_responses": [
+        {
+          "questionnaire_response_id": "example:hardlock-c1:answer-1",
+          "questionnaire_setting_reference": "method-setting-ccbd9a2d214d46740e511a62",
+          "observed_property": "C1 item 1",
+          "response_value_json": "\"Nobody\"",
+          "source_locators": [
+            "hard-lock-life-usenix.txt:1360–1426, printed p229 Appendix C.1; primary PDF SHA256:1cce21497694eff895d02f5a79572084257836cf9a806bd3076042663f6690e0; no inferred unlock occurrence linkage"
+          ]
+        },
+        {
+          "questionnaire_response_id": "example:hardlock-c1:answer-2",
+          "questionnaire_setting_reference": "method-setting-ccbd9a2d214d46740e511a62",
+          "observed_property": "C1 item 6",
+          "response_value_json": "\"Private\"",
+          "source_locators": [
+            "hard-lock-life-usenix.txt:1360–1426, printed p229 Appendix C.1; primary PDF SHA256:1cce21497694eff895d02f5a79572084257836cf9a806bd3076042663f6690e0; no inferred unlock occurrence linkage"
+          ]
+        }
+      ],
+      "source_locators": [
+        "hard-lock-life-usenix.txt:1360–1426, printed p229 Appendix C.1; primary PDF SHA256:1cce21497694eff895d02f5a79572084257836cf9a806bd3076042663f6690e0; no inferred unlock occurrence linkage; hypothetical supplied answers, not recovered participant data"
+      ]
+    },
+    {
+      "task_occurrence_id": "example:hardlock-c2:completion",
+      "method_profile_id": "method-profile:usenix:soups2014:harbach-hard-lock-life",
+      "source_work_id": "usenix:soups2014:harbach-hard-lock-life",
+      "participant_id": "example:not-a-source-participant",
+      "record_origin": "analyst_constructed_example",
+      "task_label": "Independent C2 current unlock and since-last-use questionnaire completion",
+      "task_questionnaire_responses": [
+        {
+          "questionnaire_response_id": "example:hardlock-c2:answer-1",
+          "questionnaire_setting_reference": "method-setting-cf2cd3ca6657bd01dfa2d8d1",
+          "observed_property": "C2 item 3",
+          "response_value_json": "\"No\"",
+          "source_locators": [
+            "hard-lock-life-usenix.txt:1380–1426, printed p229 Appendix C.2; primary PDF SHA256:1cce21497694eff895d02f5a79572084257836cf9a806bd3076042663f6690e0; recalled interval endpoints remain unknown"
+          ]
+        },
+        {
+          "questionnaire_response_id": "example:hardlock-c2:answer-2",
+          "questionnaire_setting_reference": "method-setting-cf2cd3ca6657bd01dfa2d8d1",
+          "observed_property": "C2 item 7",
+          "response_value_json": "\"Semi-Public\"",
+          "source_locators": [
+            "hard-lock-life-usenix.txt:1380–1426, printed p229 Appendix C.2; primary PDF SHA256:1cce21497694eff895d02f5a79572084257836cf9a806bd3076042663f6690e0; recalled interval endpoints remain unknown"
+          ]
+        }
+      ],
+      "source_locators": [
+        "hard-lock-life-usenix.txt:1380–1426, printed p229 Appendix C.2; primary PDF SHA256:1cce21497694eff895d02f5a79572084257836cf9a806bd3076042663f6690e0; recalled interval endpoints remain unknown; hypothetical supplied answers, not recovered participant data"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "schemaVersion": "chronicle-session-minimum-touch-interactions-source-fixture/v1",
+  "sourceWorkId": "doi:10.1109/acii.2019.8925518",
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-733de83da57da36a570a9f1b",
+    "parameterKey": "corpus.minimum_touches",
+    "legacySourceParameterKey": "session_minimum_touches",
+    "sourceObservedSetting": "corpus.minimum_touches: {\"exclude_if\":\"less_than\",\"threshold\":80,\"unit\":\"touch interactions\"}",
+    "sourceClause": "sessions having less than 80 interactions are eliminated",
+    "sourceValueSha256": "dc66e24e3d1829c116fd186b4027dab407df62f26b68cdf86cb961ac2171361a"
+  },
+  "sourceArtifacts": [
+    {
+      "locator": ".tmp-literature-review-private/corrective-packet-06-ranks174-223-20260831/source-pdfs/214-primary.txt:240-247",
+      "sha256": "e7541b1d4d0c67e705b9b60fbb80e486931dda3240fc28c9ee53a6b3358560dd"
+    },
+    {
+      "locator": ".tmp-literature-review-private/corrective-packet-06-ranks174-223-20260831/source-pdfs/214-primary.pdf:pages 1-8#audit-locator=214-primary.txt:240-247",
+      "sha256": "8e067249f2f1c5800cdac260be9edfabe5ea2e6c6165ee4d59587dbd5b38f792"
+    }
+  ],
+  "inputBoundary": "One caller-supplied nonnegative integer count of touch interactions for one already-constructed keyboard session after the source's No Response session exclusion; session construction and interaction counting occur before this gate.",
+  "outputBoundary": "Exclude an app session only when its touch-interaction count is strictly less than 80; retain equality and larger counts.",
+  "limitations": [
+    "This binding does not construct or identify keyboard sessions and does not identify, deduplicate, or count touch interactions.",
+    "The prior removal of sessions tagged No Response is a separate predicate and is not implemented by this numeric threshold.",
+    "A missing session count fails closed; no zero count or partial-session count is synthesized.",
+    "The generic scalar bucketizer accepts finite real values, but this source binding requires a nonnegative integer count before invoking it.",
+    "The separate participant-level less-than-40 emotion-label gate does not share this session-level threshold.",
+    "Per-user SMOTE, train-test splitting, representation learning, and model tuning occur after this corpus gate and are outside its behavior."
+  ],
+  "minimumRetainedCount": 80,
+  "dispositions": [
+    "exclude",
+    "retain"
+  ],
+  "sessions": [
+    {
+      "sessionId": "immediately-below-threshold",
+      "touchInteractionCount": 79,
+      "expectedDisposition": "exclude"
+    },
+    {
+      "sessionId": "exact-threshold",
+      "touchInteractionCount": 80,
+      "expectedDisposition": "retain"
+    },
+    {
+      "sessionId": "immediately-above-threshold",
+      "touchInteractionCount": 81,
+      "expectedDisposition": "retain"
+    }
+  ],
+  "missingCountCase": {
+    "sessionId": "missing-session-count",
+    "touchInteractionCount": null,
+    "expectedError": "session_touch_interaction_count_required"
+  }
+}

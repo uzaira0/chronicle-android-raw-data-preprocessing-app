@@ -1,0 +1,266 @@
+{
+  "schema_version": "chronicle-prepared-extracted-text-confidence-hand-oracle/v1",
+  "oracle_status": "source_read_independent_hand_cases_not_author_execution",
+  "source_work_id": "doi:10.2196/55999",
+  "setting_id": "method-setting-580115f8fe7e59bb87e3e65b",
+  "source_method_variant_id": "source-audit-configuration-space-bbddb18168478ab287b24e8e",
+  "method_profile_version": "literature-sublation-v3-atomic+source-complete-v1",
+  "source_value": {
+    "definition": {
+      "input": "supplied_extracted_text_confidence",
+      "comparator": "less_than",
+      "threshold": 0.7,
+      "below_disposition": "discard_text",
+      "equal_or_above_disposition": "not_discarded_by_confidence",
+      "OCR_text_extraction_normalization_dictionary_and_scoring_construction_excluded": true
+    },
+    "source_facing_role": "quality_control",
+    "source_facing_target": "raw_record",
+    "source_evidence_status": "retained primary extracted-text confidence threshold; upstream OCR and downstream normalization/dictionaries/scoring remain excluded",
+    "source_artifact_sha256": "324357547dc2684c16854d03ea665ec562e3f489475915cb321c2e438755eee0"
+  },
+  "source_artifacts": [
+    {
+      "path": ".tmp-literature-review-private/ontology-sublation-20260831/work/e55999.txt",
+      "sha256": "324357547dc2684c16854d03ea665ec562e3f489475915cb321c2e438755eee0",
+      "locator": "174–188, especially185–188; printed p4 right column"
+    },
+    {
+      "path": ".tmp-literature-review-private/ontology-sublation-20260831/work/formative_v8i1e55999.pdf",
+      "sha256": "48527c80c03a278caf2bb5246b89e91df1f3f32fcf64fa20cbcd0d31f3777c4f",
+      "locator": "PDF p4 postprocessing text confidence paragraph"
+    }
+  ],
+  "input_boundary": "Already supplied finite f64 EasyOCR-extracted-text confidence. This is only the text-removal predicate before normalization, not OCR, acceptance of a whole screenshot or a feature/scoring computation. No 0–1 range, clipping, probability calibration, dictionary or missing confidence default is inferred.",
+  "output_boundary": "Existing shared scalar route emits source_row_id, parsed supplied confidence and discard_text vs not_discarded_by_confidence, preserving input row order. The latter means only this predicate did not discard, never OCR quality acceptance or pipeline completion. Existing row-ID/numeric surrounding-whitespace transport handling remains unchanged.",
+  "observations": [
+    {
+      "id": "negative",
+      "confidence": "-0.1",
+      "serialized": "-0.1",
+      "disposition": "discard_text"
+    },
+    {
+      "id": "zero",
+      "confidence": "0",
+      "serialized": "0.0",
+      "disposition": "discard_text"
+    },
+    {
+      "id": "signed_zero",
+      "confidence": "-0",
+      "serialized": "-0.0",
+      "disposition": "discard_text"
+    },
+    {
+      "id": "below",
+      "confidence": "0.69",
+      "serialized": "0.69",
+      "disposition": "discard_text"
+    },
+    {
+      "id": "previous_f64",
+      "confidence": "0.6999999999999998",
+      "serialized": "0.6999999999999998",
+      "disposition": "discard_text"
+    },
+    {
+      "id": "equal",
+      "confidence": "0.70",
+      "serialized": "0.7",
+      "disposition": "not_discarded_by_confidence"
+    },
+    {
+      "id": "next_f64",
+      "confidence": "0.7000000000000001",
+      "serialized": "0.7000000000000001",
+      "disposition": "not_discarded_by_confidence"
+    },
+    {
+      "id": "above",
+      "confidence": "0.71",
+      "serialized": "0.71",
+      "disposition": "not_discarded_by_confidence"
+    },
+    {
+      "id": "one",
+      "confidence": "1",
+      "serialized": "1.0",
+      "disposition": "not_discarded_by_confidence"
+    },
+    {
+      "id": "above_one",
+      "confidence": "1.1",
+      "serialized": "1.1",
+      "disposition": "not_discarded_by_confidence"
+    },
+    {
+      "id": "exponent_equal",
+      "confidence": "7e-1",
+      "serialized": "0.7",
+      "disposition": "not_discarded_by_confidence"
+    },
+    {
+      "id": "padded_equal",
+      "confidence": "  0.7  ",
+      "serialized": "0.7",
+      "disposition": "not_discarded_by_confidence"
+    }
+  ],
+  "cases": [
+    {
+      "id": "negative",
+      "input_csv": "source_row_id,extracted_text_confidence\nnegative,-0.1\n",
+      "expected_csv": "source_row_id,extracted_text_confidence,disposition\nnegative,-0.1,discard_text\n",
+      "source_rows": 1,
+      "emitted_rows": 1
+    },
+    {
+      "id": "zero",
+      "input_csv": "source_row_id,extracted_text_confidence\nzero,0\n",
+      "expected_csv": "source_row_id,extracted_text_confidence,disposition\nzero,0.0,discard_text\n",
+      "source_rows": 1,
+      "emitted_rows": 1
+    },
+    {
+      "id": "signed_zero",
+      "input_csv": "source_row_id,extracted_text_confidence\nsigned_zero,-0\n",
+      "expected_csv": "source_row_id,extracted_text_confidence,disposition\nsigned_zero,-0.0,discard_text\n",
+      "source_rows": 1,
+      "emitted_rows": 1
+    },
+    {
+      "id": "below",
+      "input_csv": "source_row_id,extracted_text_confidence\nbelow,0.69\n",
+      "expected_csv": "source_row_id,extracted_text_confidence,disposition\nbelow,0.69,discard_text\n",
+      "source_rows": 1,
+      "emitted_rows": 1
+    },
+    {
+      "id": "previous_f64",
+      "input_csv": "source_row_id,extracted_text_confidence\nprevious_f64,0.6999999999999998\n",
+      "expected_csv": "source_row_id,extracted_text_confidence,disposition\nprevious_f64,0.6999999999999998,discard_text\n",
+      "source_rows": 1,
+      "emitted_rows": 1
+    },
+    {
+      "id": "equal",
+      "input_csv": "source_row_id,extracted_text_confidence\nequal,0.70\n",
+      "expected_csv": "source_row_id,extracted_text_confidence,disposition\nequal,0.7,not_discarded_by_confidence\n",
+      "source_rows": 1,
+      "emitted_rows": 1
+    },
+    {
+      "id": "next_f64",
+      "input_csv": "source_row_id,extracted_text_confidence\nnext_f64,0.7000000000000001\n",
+      "expected_csv": "source_row_id,extracted_text_confidence,disposition\nnext_f64,0.7000000000000001,not_discarded_by_confidence\n",
+      "source_rows": 1,
+      "emitted_rows": 1
+    },
+    {
+      "id": "above",
+      "input_csv": "source_row_id,extracted_text_confidence\nabove,0.71\n",
+      "expected_csv": "source_row_id,extracted_text_confidence,disposition\nabove,0.71,not_discarded_by_confidence\n",
+      "source_rows": 1,
+      "emitted_rows": 1
+    },
+    {
+      "id": "one",
+      "input_csv": "source_row_id,extracted_text_confidence\none,1\n",
+      "expected_csv": "source_row_id,extracted_text_confidence,disposition\none,1.0,not_discarded_by_confidence\n",
+      "source_rows": 1,
+      "emitted_rows": 1
+    },
+    {
+      "id": "above_one",
+      "input_csv": "source_row_id,extracted_text_confidence\nabove_one,1.1\n",
+      "expected_csv": "source_row_id,extracted_text_confidence,disposition\nabove_one,1.1,not_discarded_by_confidence\n",
+      "source_rows": 1,
+      "emitted_rows": 1
+    },
+    {
+      "id": "exponent_equal",
+      "input_csv": "source_row_id,extracted_text_confidence\nexponent_equal,7e-1\n",
+      "expected_csv": "source_row_id,extracted_text_confidence,disposition\nexponent_equal,0.7,not_discarded_by_confidence\n",
+      "source_rows": 1,
+      "emitted_rows": 1
+    },
+    {
+      "id": "padded_equal",
+      "input_csv": "source_row_id,extracted_text_confidence\npadded_equal,  0.7  \n",
+      "expected_csv": "source_row_id,extracted_text_confidence,disposition\npadded_equal,0.7,not_discarded_by_confidence\n",
+      "source_rows": 1,
+      "emitted_rows": 1
+    },
+    {
+      "id": "ordered_mixed_boundaries",
+      "input_csv": "source_row_id,extracted_text_confidence\nnegative,-0.1\nzero,0\nsigned_zero,-0\nbelow,0.69\nprevious_f64,0.6999999999999998\nequal,0.70\nnext_f64,0.7000000000000001\nabove,0.71\none,1\nabove_one,1.1\nexponent_equal,7e-1\npadded_equal,  0.7  \n",
+      "expected_csv": "source_row_id,extracted_text_confidence,disposition\nnegative,-0.1,discard_text\nzero,0.0,discard_text\nsigned_zero,-0.0,discard_text\nbelow,0.69,discard_text\nprevious_f64,0.6999999999999998,discard_text\nequal,0.7,not_discarded_by_confidence\nnext_f64,0.7000000000000001,not_discarded_by_confidence\nabove,0.71,not_discarded_by_confidence\none,1.0,not_discarded_by_confidence\nabove_one,1.1,not_discarded_by_confidence\nexponent_equal,0.7,not_discarded_by_confidence\npadded_equal,0.7,not_discarded_by_confidence\n",
+      "source_rows": 12,
+      "emitted_rows": 12
+    },
+    {
+      "id": "no_rows_is_not_a_missing_confidence_row",
+      "input_csv": "source_row_id,extracted_text_confidence\n",
+      "expected_csv": "source_row_id,extracted_text_confidence,disposition\n",
+      "source_rows": 0,
+      "emitted_rows": 0
+    },
+    {
+      "id": "unavailable_confidence_0",
+      "input_csv": "source_row_id,extracted_text_confidence\nbad,\n",
+      "expected_error_contains": "violates input domain finite"
+    },
+    {
+      "id": "unavailable_confidence_1",
+      "input_csv": "source_row_id,extracted_text_confidence\nbad,NA\n",
+      "expected_error_contains": "violates input domain finite"
+    },
+    {
+      "id": "unavailable_confidence_2",
+      "input_csv": "source_row_id,extracted_text_confidence\nbad,unknown\n",
+      "expected_error_contains": "violates input domain finite"
+    },
+    {
+      "id": "unavailable_confidence_3",
+      "input_csv": "source_row_id,extracted_text_confidence\nbad,null\n",
+      "expected_error_contains": "violates input domain finite"
+    },
+    {
+      "id": "unavailable_confidence_4",
+      "input_csv": "source_row_id,extracted_text_confidence\nbad,NaN\n",
+      "expected_error_contains": "violates input domain finite"
+    },
+    {
+      "id": "unavailable_confidence_5",
+      "input_csv": "source_row_id,extracted_text_confidence\nbad,Inf\n",
+      "expected_error_contains": "violates input domain finite"
+    },
+    {
+      "id": "unavailable_confidence_6",
+      "input_csv": "source_row_id,extracted_text_confidence\nbad,-Inf\n",
+      "expected_error_contains": "violates input domain finite"
+    },
+    {
+      "id": "unavailable_confidence_7",
+      "input_csv": "source_row_id,extracted_text_confidence\nbad,bad\n",
+      "expected_error_contains": "violates input domain finite"
+    },
+    {
+      "id": "unavailable_confidence_8",
+      "input_csv": "source_row_id,extracted_text_confidence\nbad,1e400\n",
+      "expected_error_contains": "violates input domain finite"
+    },
+    {
+      "id": "missing_confidence_column",
+      "input_csv": "source_row_id\nbad\n",
+      "expected_error_contains": "extracted_text_confidence"
+    },
+    {
+      "id": "blank_row_identity",
+      "input_csv": "source_row_id,extracted_text_confidence\n,0.7\n",
+      "expected_error_contains": "requires a nonempty source_row_id"
+    }
+  ],
+  "case_count": 25
+}

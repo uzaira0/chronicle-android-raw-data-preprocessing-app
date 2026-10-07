@@ -1,8 +1,10 @@
 import { execSync } from "node:child_process";
-import { existsSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
+import { packedJsonAssetsPlugin } from "./scripts/packed_json_assets.mjs";
+import { thirdPartyNoticesPlugins } from "./scripts/third_party_notices.mjs";
 
 /**
  * Build identity stamped into the bundle at build time (footer + plot subtitles),
@@ -23,6 +25,15 @@ function buildIdentity(): { sha: string; date: string } {
   }
 }
 const BUILD = buildIdentity();
+/**
+ * Test builds only (`npm run build:test`, used by the Playwright web server
+ * and the browser benchmarks): honour `window.__CHRONICLE_TEST_RUNTIME__` and
+ * `__CHRONICLE_BENCHMARK_PAYLOAD_BUDGET_BYTES__` (src/lib/testHooks.ts). Every
+ * other build, including `npm run build:app` in the deploy workflow, compiles
+ * both reads out of the bundle.
+ */
+const TEST_HOOKS = process.env.CHRONICLE_E2E_TEST_HOOKS === "1";
+const thirdPartyNotices = thirdPartyNoticesPlugins(resolve(__dirname));
 const dependencyCampaignPackage = process.env.CHRONICLE_DEPENDENCY_CAMPAIGN_WASM_DIR;
 if (dependencyCampaignPackage && process.env.VITEST !== "true") {
   throw new Error(
@@ -54,12 +65,31 @@ function devCspPlugin(): Plugin {
 }
 
 /**
+ * A test build says so in index.html, so the e2e helpers can tell a build
+ * that honours the injected runtime from a deployed one (the canary runs the
+ * smoke suite against the live site) without probing the bundle.
+ */
+function testHooksMarkerPlugin(): Plugin {
+  return {
+    name: "chronicle-test-hooks-marker",
+    transformIndexHtml(html) {
+      if (!TEST_HOOKS) return html;
+      return html.replace(
+        "</head>",
+        '    <meta name="chronicle-test-hooks" content="on" />\n  </head>',
+      );
+    },
+  };
+}
+
+/**
  * Vite emits module workers (the matcher's `chronicle-worker-*.js`) and their
  * WASM as a SEPARATE sub-build whose outputs never land in `manifest.json`. The
  * service worker precaches by walking that manifest, so those chunks were never
  * cached — a first processing run while offline could not load the worker and
  * hung silently. After the whole build is on disk, scan `dist` for every emitted
- * JS/CSS/WASM file and write a supplementary precache list the SW also loads.
+ * JS/CSS/WASM/packed-JSON file and write a supplementary precache list the SW
+ * also loads, including lossless payloads used only by the worker sub-build.
  */
 function precacheExtraPlugin(): Plugin {
   return {
@@ -81,7 +111,7 @@ function precacheExtraPlugin(): Plugin {
           const rel = base ? `${base}/${entry.name}` : entry.name;
           if (entry.isDirectory()) {
             walk(resolve(dir, entry.name), rel);
-          } else if (/\.(js|css|wasm)$/.test(entry.name) && rel !== "sw.js") {
+          } else if (/\.(js|css|wasm|json\.pack)$/.test(entry.name) && rel !== "sw.js") {
             // Exclude sw.js — it's already in the SW's own SHELL_URLS; listing it
             // here too would double-cache the service worker on install.
             files.push(`./${rel}`);
@@ -90,6 +120,21 @@ function precacheExtraPlugin(): Plugin {
       };
       walk(outDir, "");
       writeFileSync(resolve(outDir, "sw-precache-extra.json"), JSON.stringify(files.sort()));
+      // `public/sw.js` is copied verbatim, so its bytes never changed between
+      // deploys: the browser's byte-compare update check never fired, a
+      // returning user never re-ran the precache, and old caches were never
+      // dropped. Stamping the cache name with the build makes every deploy a
+      // new service worker whose `activate` purges the previous cache.
+      const swPath = resolve(outDir, "sw.js");
+      const sw = readFileSync(swPath, "utf8");
+      const stamped = sw.replace(
+        /^const CACHE_NAME = "chronicle-local-shell-v3";/,
+        `const CACHE_NAME = "chronicle-local-shell-v3-${BUILD.sha}";`,
+      );
+      if (stamped === sw && !sw.includes(`-${BUILD.sha}"`)) {
+        throw new Error("sw.js: CACHE_NAME literal not found, the build stamp was not applied");
+      }
+      writeFileSync(swPath, stamped);
     },
   };
 }
@@ -99,8 +144,16 @@ export default defineConfig({
   define: {
     __BUILD_SHA__: JSON.stringify(BUILD.sha),
     __BUILD_DATE__: JSON.stringify(BUILD.date),
+    __CHRONICLE_TEST_HOOKS__: JSON.stringify(TEST_HOOKS),
   },
-  plugins: [react(), devCspPlugin(), precacheExtraPlugin()],
+  plugins: [
+    react(),
+    devCspPlugin(),
+    testHooksMarkerPlugin(),
+    packedJsonAssetsPlugin(resolve(__dirname)),
+    precacheExtraPlugin(),
+    ...thirdPartyNotices.main,
+  ],
   resolve: {
     alias: [
       ...(dependencyCampaignPackage
@@ -119,6 +172,7 @@ export default defineConfig({
   },
   worker: {
     format: "es",
+    plugins: () => [packedJsonAssetsPlugin(resolve(__dirname)), thirdPartyNotices.worker()],
   },
   build: {
     outDir: "dist",

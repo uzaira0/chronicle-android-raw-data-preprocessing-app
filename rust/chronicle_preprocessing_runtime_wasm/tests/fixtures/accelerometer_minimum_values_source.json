@@ -1,0 +1,32 @@
+{
+  "schemaVersion": "chronicle-accelerometer-minimum-values-source-fixture/v1",
+  "sourceWorkId": "doi:10.1002/per.2309",
+  "exactCanonicalSettingId": "method-setting-7d18dc8d566bfe8d6b6aa541",
+  "parameterKey": "feature.accelerometer.minimum_values",
+  "sourceValue": "a burst contributes to state standard-deviation features only when it contains at least 200 magnitudes",
+  "sourceValueSha256": "6460aeca7309655a3dd440d1ff05c4446d43027b5b334d2d5887c5c55048ef3f",
+  "sourceArtifact": {
+    "path": ".tmp-literature-review-private/corrective-packet-06-ranks174-223-20260831/artifacts/rank183-osf-j93bs/osfstorage/processing/feature_extraction/state.py",
+    "sha256": "74de549e3b9c068339d4a68d94dae623b63e2a8120f06886427ce491a1175532",
+    "locator": "state.py:631-707"
+  },
+  "sourceTestArtifact": {
+    "path": ".tmp-literature-review-private/corrective-packet-06-ranks174-223-20260831/artifacts/rank183-osf-j93bs/osfstorage/processing/feature_extraction/test_state.py",
+    "sha256": "8257552c5fa29eb72ede03b884be65e4cb4a091212f477509928a81a5d7907c6",
+    "locator": "test_state.py:191-224",
+    "coverage": "The released test uses 250 values; the fixture adds the untested 199/200 boundary without changing the disclosed predicate."
+  },
+  "threshold": 200,
+  "categories": ["excluded", "included"],
+  "cases": [
+    {"caseId":"empty-burst","magnitudeCount":0,"expectedCategory":"excluded"},
+    {"caseId":"immediately-below","magnitudeCount":199,"expectedCategory":"excluded"},
+    {"caseId":"inclusive-boundary","magnitudeCount":200,"expectedCategory":"included"},
+    {"caseId":"released-test-count","magnitudeCount":250,"expectedCategory":"included"}
+  ],
+  "limitations": [
+    "This binding begins after one source burst has been parsed and its magnitude vector has been constructed; it does not parse axes or infer missing values.",
+    "Magnitude calculation, Android/iOS scaling, standard deviation, time-category assignment, and cross-burst averaging remain separate dependencies.",
+    "The source count is an integer vector length; this fixture does not broaden the setting to fractional or nonfinite observations."
+  ]
+}

@@ -1,18 +1,18 @@
 {
   "protocolVersion": "chronicle-mixed-artifact-configuration-ledger/v1",
-  "claimBoundary": "Exhaustive value-level pair coverage between every declared computational configuration alternate and one empirically branch-activating intervention for the selected raw/support source role. Its activation context is selected deterministically from the six existing synthetic corpora. Both transition orders must equal an independent cold Rust/WASM target at every workflow checkpoint, output artifact, and canonical output cell. The nine independently recycled role shards form the aggregate role/value proof; one representative mutation does not exhaust every record- or field-level interaction.",
+  "claimBoundary": "Exhaustive value-level pair coverage between every non-compound computational configuration alternate and one empirically branch-activating intervention for the selected raw/support source role. Its activation context is selected deterministically from the six existing synthetic corpora. Raw-role alternates that activate Parry/Zhu/Schoedel and therefore rebind the capability sidecar are explicitly excluded and unestimated as compound raw+capability mutations; the configuration-space sourceSensitiveScientificCells domain proves only the generic LF-sidecar to CRLF-raw Parry rebind mechanism. Capability representative discovery preserves exact typed refusal receipts with executeCalls=0 while selecting an executable intervention. Input-dependent structural outcomes are recorded with their exact phase and error but cannot enter manifest-to-manifest transition equality because they produce no workspace manifest. Every remaining pair's two transition orders must equal an independent cold Rust/WASM target at every workflow checkpoint, output artifact, and canonical output cell. The nine independently recycled generic role shards form the aggregate role/value proof; one representative mutation does not exhaust every record- or field-level interaction.",
   "plan": {
     "id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:plan/raw-data/v1",
     "revision": "0.1.0"
   },
   "implementationReceipt": {
     "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
-    "implementationDigest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb",
-    "planDigest": "sha256:f32b34442d2aad2bb027d53039f112f49bd375b7210a616fbda99aa5d11858d3",
-    "profileDigest": "sha256:444af27d8331523780e0480cda96b5af6d27f5ad6b8781bf137a1646b05e9c1c",
-    "profileLockDigest": "sha256:ae08bf61c3bde50b58deb445bc1f198d441a37f4bc9fe4fcad5f186cac30dd79",
-    "runtimeAuthorityDigest": "sha256:643041e4330b4aca4b2cdf9a8e0dc285fdfb50b24338be312bdbff98c3d3ddbd",
-    "productContractDigest": "sha256:ce4f7d309cea44fd24fcb85fb81f3cd0639ec9c6c77eb8041b6ca071659a7562"
+    "implementationDigest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43",
+    "planDigest": "sha256:be0258af6aafbc9a1855ae4223adcc642a8d22b5fa8bb87eb09f6b62dc3abbd0",
+    "profileDigest": "sha256:637623272b4ab1bfd901a4d45103bc95984cc2e272dfa400745541b96a5aaefb",
+    "profileLockDigest": "sha256:424844ecf7fceb750d1f409453abf2f0ab76754f36861bd86cec1464a4fc6655",
+    "runtimeAuthorityDigest": "sha256:7807fe99a35b4ede2c85d8e8868ec3dcb2accb22e8265c4643966eb9840ce4e4",
+    "productContractDigest": "sha256:81e857feb3c24afaf0b3bbbef63081e884a498cfaa8398a76fabfe23c8c5c61b"
   },
   "roleRepresentatives": {
     "device_sharing_file": {
@@ -39,19 +39,24 @@
       "reason": "selected timezone is required by a selected-* timezone policy"
     }
   ],
+  "inputDependentStructuralOutcomes": [],
+  "capabilityRefusalWitnesses": [],
   "coverage": {
     "sourceRoles": 1,
-    "computationalAxes": 46,
-    "declaredAlternateValues": 51,
-    "validConfigurationVariants": 50,
+    "computationalAxes": 83,
+    "declaredAlternateValues": 124,
+    "directlyCrossedAlternateValues": 124,
+    "sourceSensitiveCompoundVariants": [],
+    "validConfigurationVariants": 123,
     "invalidConfigurationVariants": 1,
-    "validRoleValuePairs": 50,
-    "coldExecutions": 102,
-    "incrementalExecutions": 300,
-    "totalRustExecutions": 402,
-    "warmColdComparisons": 300,
-    "exactClusterComparisons": 100,
-    "nonAdditiveOrMaskedPairs": 15
+    "inputDependentStructuralOutcomes": 0,
+    "scientificRefusalExecutionsAvoided": 0,
+    "validRoleValuePairs": 123,
+    "coldExecutions": 248,
+    "incrementalExecutions": 738,
+    "totalRustExecutions": 986,
+    "warmColdComparisons": 738,
+    "nonAdditiveOrMaskedPairs": 30
   },
   "interactions": [
     {
@@ -63,19 +68,18 @@
         "label": "false",
         "value": false
       },
-      "configAfterDataPredictedSteps": [
-        "assemble_result_manifest"
-      ],
       "configAfterDataActualSteps": [
-        "assemble_result_manifest"
+        "apply_participant_windows",
+        "assemble_result_manifest",
+        "resolve_participant_windows"
       ],
       "configAfterDataDeactivatedSteps": [
         "aggregate_attribution_minutes",
         "apply_app_inclusion_policy",
         "apply_episode_flags",
-        "apply_participant_windows",
         "assemble_credit_outputs",
         "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
         "build_activity_witness_indexes",
         "build_app_event_index",
         "build_participant_day_coverage",
@@ -87,6 +91,7 @@
         "derive_broad_category",
         "derive_credited_intervals",
         "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
         "identify_credit_eligible_sessions",
         "index_raw_dates",
         "index_survey_responses",
@@ -99,14 +104,12 @@
         "remove_selected_interaction_types",
         "remove_zero_duration_rows",
         "resolve_excluded_packages",
-        "resolve_participant_windows",
         "resolve_sharing_status",
         "segment_concurrent_usage",
         "summarize_daily_apps",
         "suppress_excluded_timing",
         "synthesize_placeholder_rows"
       ],
-      "dataAfterConfigPredictedSteps": [],
       "dataAfterConfigActualSteps": [],
       "dataAfterConfigDeactivatedSteps": [],
       "configConditioning": {
@@ -137,15 +140,15 @@
       }
     },
     {
-      "caseId": "device_sharing_file:support:sharing-shared-to-nonshared×useActivityStoppedAsFallback=false",
+      "caseId": "device_sharing_file:support:sharing-shared-to-nonshared×eventRetentionSet=parrytoth7",
       "roleId": "device_sharing_file",
       "interventionId": "support:sharing-shared-to-nonshared",
-      "optionKey": "useActivityStoppedAsFallback",
+      "optionKey": "eventRetentionSet",
       "alternate": {
-        "label": "false",
-        "value": false
+        "label": "parrytoth7",
+        "value": "parry_toth_7"
       },
-      "configAfterDataPredictedSteps": [
+      "configAfterDataActualSteps": [
         "aggregate_attribution_minutes",
         "apply_app_inclusion_policy",
         "apply_episode_flags",
@@ -153,6 +156,8 @@
         "assemble_credit_outputs",
         "assemble_result_manifest",
         "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_app_event_index",
         "build_participant_day_coverage",
         "classify_compliance_days",
         "classify_episode_durations",
@@ -162,8 +167,10 @@
         "derive_broad_category",
         "derive_credited_intervals",
         "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
         "identify_credit_eligible_sessions",
         "join_app_codebook",
+        "mask_excluded_app_events",
         "match_app_episodes",
         "materialize_candidate_episodes",
         "materialize_credited_rows",
@@ -177,6 +184,49 @@
         "suppress_excluded_timing",
         "synthesize_placeholder_rows"
       ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "aggregate_attribution_minutes",
+        "assemble_result_manifest",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_person_attribution",
+        "compute_attribution_completeness",
+        "divide_sessions_at_day_boundary",
+        "resolve_sharing_status",
+        "synthesize_placeholder_rows"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 100,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:290b57196d37ad8e63fca04e9ba0b13dd9a5182065e12a42223334229dfcc537"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 48,
+        "maskedCount": 136,
+        "introducedDigest": "sha256:1a77d03d616ef2507e6f564b6585d275ae92c2068fcd4a4460d0f54f5afd4b8a",
+        "maskedDigest": "sha256:7460b11378eb0e487677d3cf58b86eceb4c7498109419693ea7827425d7fbdd5"
+      }
+    },
+    {
+      "caseId": "device_sharing_file:support:sharing-shared-to-nonshared×eventRetentionSet=usagelogger5",
+      "roleId": "device_sharing_file",
+      "interventionId": "support:sharing-shared-to-nonshared",
+      "optionKey": "eventRetentionSet",
+      "alternate": {
+        "label": "usagelogger5",
+        "value": "usage_logger_5"
+      },
       "configAfterDataActualSteps": [
         "aggregate_attribution_minutes",
         "apply_app_inclusion_policy",
@@ -185,6 +235,8 @@
         "assemble_credit_outputs",
         "assemble_result_manifest",
         "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_app_event_index",
         "build_participant_day_coverage",
         "classify_compliance_days",
         "classify_episode_durations",
@@ -194,6 +246,243 @@
         "derive_broad_category",
         "derive_credited_intervals",
         "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "join_app_codebook",
+        "mask_excluded_app_events",
+        "match_app_episodes",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "aggregate_attribution_minutes",
+        "assemble_result_manifest",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_person_attribution",
+        "compute_attribution_completeness",
+        "divide_sessions_at_day_boundary",
+        "resolve_sharing_status",
+        "synthesize_placeholder_rows"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 72,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:713a77799d7a8e8177f71beb632fd982a30536014274d81277eb48ccc4d7d3bc"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 66,
+        "maskedCount": 88,
+        "introducedDigest": "sha256:8b1160c44fb1461b32bbb05c854f296c1d4f73a3e92155a255e1da2fbbebd3b8",
+        "maskedDigest": "sha256:704ff77e9190016ca00dae16f6d84acf94ec73a78ce76032de81750a7a3166b3"
+      }
+    },
+    {
+      "caseId": "device_sharing_file:support:sharing-shared-to-nonshared×eventRetentionSet=tothtrifonova",
+      "roleId": "device_sharing_file",
+      "interventionId": "support:sharing-shared-to-nonshared",
+      "optionKey": "eventRetentionSet",
+      "alternate": {
+        "label": "tothtrifonova",
+        "value": "toth_trifonova_app"
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_app_event_index",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "join_app_codebook",
+        "mask_excluded_app_events",
+        "match_app_episodes",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "aggregate_attribution_minutes",
+        "assemble_result_manifest",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_person_attribution",
+        "compute_attribution_completeness",
+        "divide_sessions_at_day_boundary",
+        "resolve_sharing_status",
+        "synthesize_placeholder_rows"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 72,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:713a77799d7a8e8177f71beb632fd982a30536014274d81277eb48ccc4d7d3bc"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 66,
+        "maskedCount": 88,
+        "introducedDigest": "sha256:8b1160c44fb1461b32bbb05c854f296c1d4f73a3e92155a255e1da2fbbebd3b8",
+        "maskedDigest": "sha256:704ff77e9190016ca00dae16f6d84acf94ec73a78ce76032de81750a7a3166b3"
+      }
+    },
+    {
+      "caseId": "device_sharing_file:support:sharing-shared-to-nonshared×eventRetentionSet=fgbgonly",
+      "roleId": "device_sharing_file",
+      "interventionId": "support:sharing-shared-to-nonshared",
+      "optionKey": "eventRetentionSet",
+      "alternate": {
+        "label": "fgbgonly",
+        "value": "foreground_background_only"
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_app_event_index",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "join_app_codebook",
+        "mask_excluded_app_events",
+        "match_app_episodes",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "aggregate_attribution_minutes",
+        "assemble_result_manifest",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_person_attribution",
+        "compute_attribution_completeness",
+        "divide_sessions_at_day_boundary",
+        "resolve_sharing_status",
+        "synthesize_placeholder_rows"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 72,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:713a77799d7a8e8177f71beb632fd982a30536014274d81277eb48ccc4d7d3bc"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 66,
+        "maskedCount": 90,
+        "introducedDigest": "sha256:8b1160c44fb1461b32bbb05c854f296c1d4f73a3e92155a255e1da2fbbebd3b8",
+        "maskedDigest": "sha256:f919fae9106c30ed2a099369119aa5f33793fa6fbc05168b6bd7dd0eeed2d0b5"
+      }
+    },
+    {
+      "caseId": "device_sharing_file:support:sharing-shared-to-nonshared×episodeReconstructionStrategy=forward",
+      "roleId": "device_sharing_file",
+      "interventionId": "support:sharing-shared-to-nonshared",
+      "optionKey": "episodeReconstructionStrategy",
+      "alternate": {
+        "label": "forward",
+        "value": "parry_toth_forward_pairing"
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
         "identify_credit_eligible_sessions",
         "join_app_codebook",
         "match_app_episodes",
@@ -210,16 +499,6 @@
         "synthesize_placeholder_rows"
       ],
       "configAfterDataDeactivatedSteps": [],
-      "dataAfterConfigPredictedSteps": [
-        "aggregate_attribution_minutes",
-        "assemble_result_manifest",
-        "build_participant_day_coverage",
-        "classify_compliance_days",
-        "classify_person_attribution",
-        "compute_attribution_completeness",
-        "resolve_sharing_status",
-        "synthesize_placeholder_rows"
-      ],
       "dataAfterConfigActualSteps": [
         "aggregate_attribution_minutes",
         "assemble_result_manifest",
@@ -227,6 +506,315 @@
         "classify_compliance_days",
         "classify_person_attribution",
         "compute_attribution_completeness",
+        "divide_sessions_at_day_boundary",
+        "resolve_sharing_status",
+        "synthesize_placeholder_rows"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 92,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:ec2f13cc5c7de96324e94e070e67349992bce545761fc3caa7c7b3b215a8ed0f"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 14,
+        "maskedCount": 194,
+        "introducedDigest": "sha256:978fdd2b499b44663b3766097055a6e78b726c25e2f51d7faddb4a49fa492534",
+        "maskedDigest": "sha256:17d36bd45385eaea32b3a25642b5b59ea61d777fd7a22f965ecfe86f1abff7df"
+      }
+    },
+    {
+      "caseId": "device_sharing_file:support:sharing-shared-to-nonshared×episodeReconstructionStrategy=eyes",
+      "roleId": "device_sharing_file",
+      "interventionId": "support:sharing-shared-to-nonshared",
+      "optionKey": "episodeReconstructionStrategy",
+      "alternate": {
+        "label": "eyes",
+        "value": "eyes_complement"
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "join_app_codebook",
+        "match_app_episodes",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "aggregate_attribution_minutes",
+        "assemble_result_manifest",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_person_attribution",
+        "compute_attribution_completeness",
+        "divide_sessions_at_day_boundary",
+        "resolve_sharing_status",
+        "synthesize_placeholder_rows"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 100,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:012a10d8cb1971ec303f44201b210ece10ebb4a75f8decbbad5b3a327aea7d17"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 16,
+        "maskedCount": 190,
+        "introducedDigest": "sha256:7a9597301c8f39ae0d4e8f8ca92fe5e86466e03ef973a3de3a888b8f70883c14",
+        "maskedDigest": "sha256:1afa71eefb5c48b45b9d79e269359cc33bf6d6aeb600b6f52bb964ead2910898"
+      }
+    },
+    {
+      "caseId": "device_sharing_file:support:sharing-shared-to-nonshared×episodeReconstructionStrategy=gesis",
+      "roleId": "device_sharing_file",
+      "interventionId": "support:sharing-shared-to-nonshared",
+      "optionKey": "episodeReconstructionStrategy",
+      "alternate": {
+        "label": "gesis",
+        "value": "gesis_start_stop_repair"
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "join_app_codebook",
+        "match_app_episodes",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "aggregate_attribution_minutes",
+        "assemble_result_manifest",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_person_attribution",
+        "compute_attribution_completeness",
+        "divide_sessions_at_day_boundary",
+        "resolve_sharing_status",
+        "synthesize_placeholder_rows"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 92,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:ec2f13cc5c7de96324e94e070e67349992bce545761fc3caa7c7b3b215a8ed0f"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 14,
+        "maskedCount": 194,
+        "introducedDigest": "sha256:978fdd2b499b44663b3766097055a6e78b726c25e2f51d7faddb4a49fa492534",
+        "maskedDigest": "sha256:17d36bd45385eaea32b3a25642b5b59ea61d777fd7a22f965ecfe86f1abff7df"
+      }
+    },
+    {
+      "caseId": "device_sharing_file:support:sharing-shared-to-nonshared×episodeReconstructionStrategy=schoedelprose",
+      "roleId": "device_sharing_file",
+      "interventionId": "support:sharing-shared-to-nonshared",
+      "optionKey": "episodeReconstructionStrategy",
+      "alternate": {
+        "label": "schoedelprose",
+        "value": "schoedel_2026_app_within_screen_prose_v1"
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "join_app_codebook",
+        "match_app_episodes",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "aggregate_attribution_minutes",
+        "assemble_result_manifest",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_person_attribution",
+        "compute_attribution_completeness",
+        "divide_sessions_at_day_boundary",
+        "resolve_sharing_status",
+        "synthesize_placeholder_rows"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 36,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:5a2589b10ea60e8363a604433af8559168ac4c1717629f6bac1541676d7e7d81"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 36,
+        "maskedCount": 216,
+        "introducedDigest": "sha256:5a2589b10ea60e8363a604433af8559168ac4c1717629f6bac1541676d7e7d81",
+        "maskedDigest": "sha256:e2f1cb8a7a704f83896fed355eee0b48247f53276ff2e59e896914edf737607b"
+      }
+    },
+    {
+      "caseId": "device_sharing_file:support:sharing-shared-to-nonshared×useActivityStoppedAsFallback=false",
+      "roleId": "device_sharing_file",
+      "interventionId": "support:sharing-shared-to-nonshared",
+      "optionKey": "useActivityStoppedAsFallback",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "join_app_codebook",
+        "match_app_episodes",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "aggregate_attribution_minutes",
+        "assemble_result_manifest",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_person_attribution",
+        "compute_attribution_completeness",
+        "divide_sessions_at_day_boundary",
         "resolve_sharing_status",
         "synthesize_placeholder_rows"
       ],
@@ -261,38 +849,6 @@
         "label": "h1",
         "value": 1
       },
-      "configAfterDataPredictedSteps": [
-        "aggregate_attribution_minutes",
-        "apply_app_inclusion_policy",
-        "apply_episode_flags",
-        "apply_participant_windows",
-        "assemble_credit_outputs",
-        "assemble_result_manifest",
-        "assess_screen_evidence_capability",
-        "build_participant_day_coverage",
-        "classify_compliance_days",
-        "classify_episode_durations",
-        "classify_person_attribution",
-        "collapse_app_genre",
-        "compute_attribution_completeness",
-        "derive_broad_category",
-        "derive_credited_intervals",
-        "derive_engagement_basis",
-        "identify_credit_eligible_sessions",
-        "join_app_codebook",
-        "match_app_episodes",
-        "materialize_candidate_episodes",
-        "materialize_credited_rows",
-        "order_app_episodes",
-        "remove_selected_interaction_types",
-        "remove_zero_duration_rows",
-        "resolve_participant_windows",
-        "resolve_sharing_status",
-        "segment_concurrent_usage",
-        "summarize_daily_apps",
-        "suppress_excluded_timing",
-        "synthesize_placeholder_rows"
-      ],
       "configAfterDataActualSteps": [
         "aggregate_attribution_minutes",
         "apply_app_inclusion_policy",
@@ -301,6 +857,7 @@
         "assemble_credit_outputs",
         "assemble_result_manifest",
         "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
         "build_participant_day_coverage",
         "classify_compliance_days",
         "classify_episode_durations",
@@ -310,6 +867,7 @@
         "derive_broad_category",
         "derive_credited_intervals",
         "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
         "identify_credit_eligible_sessions",
         "join_app_codebook",
         "match_app_episodes",
@@ -326,16 +884,6 @@
         "synthesize_placeholder_rows"
       ],
       "configAfterDataDeactivatedSteps": [],
-      "dataAfterConfigPredictedSteps": [
-        "aggregate_attribution_minutes",
-        "assemble_result_manifest",
-        "build_participant_day_coverage",
-        "classify_compliance_days",
-        "classify_person_attribution",
-        "compute_attribution_completeness",
-        "resolve_sharing_status",
-        "synthesize_placeholder_rows"
-      ],
       "dataAfterConfigActualSteps": [
         "aggregate_attribution_minutes",
         "assemble_result_manifest",
@@ -343,6 +891,7 @@
         "classify_compliance_days",
         "classify_person_attribution",
         "compute_attribution_completeness",
+        "divide_sessions_at_day_boundary",
         "resolve_sharing_status",
         "synthesize_placeholder_rows"
       ],
@@ -377,49 +926,6 @@
         "label": "false",
         "value": false
       },
-      "configAfterDataPredictedSteps": [
-        "aggregate_attribution_minutes",
-        "apply_app_inclusion_policy",
-        "apply_episode_flags",
-        "apply_participant_windows",
-        "assemble_credit_outputs",
-        "assemble_result_manifest",
-        "assess_screen_evidence_capability",
-        "build_activity_witness_indexes",
-        "build_app_event_index",
-        "build_participant_day_coverage",
-        "classify_compliance_days",
-        "classify_episode_durations",
-        "classify_person_attribution",
-        "classify_screen_sessions",
-        "collapse_app_genre",
-        "compute_attribution_completeness",
-        "derive_broad_category",
-        "derive_credited_intervals",
-        "derive_engagement_basis",
-        "derive_time_gap_evidence",
-        "disambiguate_duplicate_timestamps",
-        "identify_credit_eligible_sessions",
-        "index_keyguard_events",
-        "index_raw_dates",
-        "infer_screen_session_skeletons",
-        "join_app_codebook",
-        "mark_app_policy_matches",
-        "mask_excluded_app_events",
-        "match_app_episodes",
-        "materialize_candidate_episodes",
-        "materialize_credited_rows",
-        "order_app_episodes",
-        "remove_selected_interaction_types",
-        "remove_zero_duration_rows",
-        "resolve_excluded_packages",
-        "resolve_participant_windows",
-        "resolve_sharing_status",
-        "segment_concurrent_usage",
-        "summarize_daily_apps",
-        "suppress_excluded_timing",
-        "synthesize_placeholder_rows"
-      ],
       "configAfterDataActualSteps": [
         "aggregate_attribution_minutes",
         "apply_app_inclusion_policy",
@@ -428,6 +934,7 @@
         "assemble_credit_outputs",
         "assemble_result_manifest",
         "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
         "build_activity_witness_indexes",
         "build_app_event_index",
         "build_participant_day_coverage",
@@ -437,11 +944,13 @@
         "classify_screen_sessions",
         "collapse_app_genre",
         "compute_attribution_completeness",
+        "construct_screen_intervals",
         "derive_broad_category",
         "derive_credited_intervals",
         "derive_engagement_basis",
         "derive_time_gap_evidence",
         "disambiguate_duplicate_timestamps",
+        "divide_sessions_at_day_boundary",
         "identify_credit_eligible_sessions",
         "index_keyguard_events",
         "index_raw_dates",
@@ -464,16 +973,6 @@
         "synthesize_placeholder_rows"
       ],
       "configAfterDataDeactivatedSteps": [],
-      "dataAfterConfigPredictedSteps": [
-        "aggregate_attribution_minutes",
-        "assemble_result_manifest",
-        "build_participant_day_coverage",
-        "classify_compliance_days",
-        "classify_person_attribution",
-        "compute_attribution_completeness",
-        "resolve_sharing_status",
-        "synthesize_placeholder_rows"
-      ],
       "dataAfterConfigActualSteps": [
         "aggregate_attribution_minutes",
         "assemble_result_manifest",
@@ -481,6 +980,7 @@
         "classify_compliance_days",
         "classify_person_attribution",
         "compute_attribution_completeness",
+        "divide_sessions_at_day_boundary",
         "resolve_sharing_status",
         "synthesize_placeholder_rows"
       ],
@@ -495,15 +995,15 @@
       },
       "configCellConditioning": {
         "introducedCount": 0,
-        "maskedCount": 126,
+        "maskedCount": 152,
         "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "maskedDigest": "sha256:bb6d83a18aa93bf6923bce90b756a228579254dc2a0ea92378a811147cea1f97"
+        "maskedDigest": "sha256:0fe8596e44ddea1d15c9e22a9bec185d48cdf5c0e6697dcc68604af112841fe9"
       },
       "dataCellConditioning": {
-        "introducedCount": 68,
-        "maskedCount": 66,
-        "introducedDigest": "sha256:19d3314b37492a9c24ce75c390f668c78453331bcfd5f2a43c7be35b2ed51743",
-        "maskedDigest": "sha256:ccd2c737f9bb5e1c52f4bebdab7655d7dd1321ab8bd197854b08966daca15783"
+        "introducedCount": 78,
+        "maskedCount": 86,
+        "introducedDigest": "sha256:941811c5b514f6f9407580f3dc8c76b23c5e4a54823209e4b85a19a91574c8f1",
+        "maskedDigest": "sha256:f1a068688f71581abf38e9df56227329985412be2bed8e5f49fa2e1bf172e0a3"
       }
     },
     {
@@ -515,54 +1015,6 @@
         "label": "america_new_york",
         "value": "America/New_York"
       },
-      "configAfterDataPredictedSteps": [
-        "aggregate_attribution_minutes",
-        "apply_app_inclusion_policy",
-        "apply_episode_flags",
-        "apply_participant_windows",
-        "assemble_credit_outputs",
-        "assemble_result_manifest",
-        "assess_screen_evidence_capability",
-        "build_activity_witness_indexes",
-        "build_app_event_index",
-        "build_participant_day_coverage",
-        "canonicalize_source_rows",
-        "classify_compliance_days",
-        "classify_episode_durations",
-        "classify_person_attribution",
-        "classify_screen_sessions",
-        "coalesce_duplicate_event_keys",
-        "collapse_app_genre",
-        "compute_attribution_completeness",
-        "derive_broad_category",
-        "derive_credited_intervals",
-        "derive_engagement_basis",
-        "derive_time_gap_evidence",
-        "disambiguate_duplicate_timestamps",
-        "identify_credit_eligible_sessions",
-        "index_keyguard_events",
-        "index_raw_dates",
-        "infer_screen_session_skeletons",
-        "join_app_codebook",
-        "mark_app_policy_matches",
-        "mask_excluded_app_events",
-        "materialize_candidate_episodes",
-        "materialize_credited_rows",
-        "order_app_episodes",
-        "remove_selected_interaction_types",
-        "remove_zero_duration_rows",
-        "resolve_excluded_packages",
-        "resolve_participant_windows",
-        "resolve_sharing_status",
-        "resolve_timezone_strategy",
-        "segment_concurrent_usage",
-        "standardize_event_clock",
-        "summarize_daily_apps",
-        "summarize_duplicate_groups",
-        "summarize_row_selection",
-        "suppress_excluded_timing",
-        "synthesize_placeholder_rows"
-      ],
       "configAfterDataActualSteps": [
         "aggregate_attribution_minutes",
         "apply_app_inclusion_policy",
@@ -571,6 +1023,7 @@
         "assemble_credit_outputs",
         "assemble_result_manifest",
         "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
         "build_activity_witness_indexes",
         "build_app_event_index",
         "build_participant_day_coverage",
@@ -582,11 +1035,13 @@
         "coalesce_duplicate_event_keys",
         "collapse_app_genre",
         "compute_attribution_completeness",
+        "construct_screen_intervals",
         "derive_broad_category",
         "derive_credited_intervals",
         "derive_engagement_basis",
         "derive_time_gap_evidence",
         "disambiguate_duplicate_timestamps",
+        "divide_sessions_at_day_boundary",
         "identify_credit_eligible_sessions",
         "index_keyguard_events",
         "index_raw_dates",
@@ -594,6 +1049,7 @@
         "join_app_codebook",
         "mark_app_policy_matches",
         "mask_excluded_app_events",
+        "match_app_episodes",
         "materialize_candidate_episodes",
         "materialize_credited_rows",
         "order_app_episodes",
@@ -612,16 +1068,6 @@
         "synthesize_placeholder_rows"
       ],
       "configAfterDataDeactivatedSteps": [],
-      "dataAfterConfigPredictedSteps": [
-        "aggregate_attribution_minutes",
-        "assemble_result_manifest",
-        "build_participant_day_coverage",
-        "classify_compliance_days",
-        "classify_person_attribution",
-        "compute_attribution_completeness",
-        "resolve_sharing_status",
-        "synthesize_placeholder_rows"
-      ],
       "dataAfterConfigActualSteps": [
         "aggregate_attribution_minutes",
         "assemble_result_manifest",
@@ -629,6 +1075,7 @@
         "classify_compliance_days",
         "classify_person_attribution",
         "compute_attribution_completeness",
+        "divide_sessions_at_day_boundary",
         "resolve_sharing_status",
         "synthesize_placeholder_rows"
       ],
@@ -663,54 +1110,6 @@
         "label": "selected_filter",
         "value": "selected-filter"
       },
-      "configAfterDataPredictedSteps": [
-        "aggregate_attribution_minutes",
-        "apply_app_inclusion_policy",
-        "apply_episode_flags",
-        "apply_participant_windows",
-        "assemble_credit_outputs",
-        "assemble_result_manifest",
-        "assess_screen_evidence_capability",
-        "build_activity_witness_indexes",
-        "build_app_event_index",
-        "build_participant_day_coverage",
-        "classify_compliance_days",
-        "classify_episode_durations",
-        "classify_person_attribution",
-        "classify_screen_sessions",
-        "coalesce_duplicate_event_keys",
-        "collapse_app_genre",
-        "compute_attribution_completeness",
-        "derive_broad_category",
-        "derive_credited_intervals",
-        "derive_engagement_basis",
-        "derive_time_gap_evidence",
-        "disambiguate_duplicate_timestamps",
-        "identify_credit_eligible_sessions",
-        "index_keyguard_events",
-        "index_raw_dates",
-        "infer_screen_session_skeletons",
-        "join_app_codebook",
-        "mark_app_policy_matches",
-        "mask_excluded_app_events",
-        "match_app_episodes",
-        "materialize_candidate_episodes",
-        "materialize_credited_rows",
-        "order_app_episodes",
-        "remove_selected_interaction_types",
-        "remove_zero_duration_rows",
-        "resolve_excluded_packages",
-        "resolve_participant_windows",
-        "resolve_sharing_status",
-        "resolve_timezone_strategy",
-        "segment_concurrent_usage",
-        "standardize_event_clock",
-        "summarize_daily_apps",
-        "summarize_duplicate_groups",
-        "summarize_row_selection",
-        "suppress_excluded_timing",
-        "synthesize_placeholder_rows"
-      ],
       "configAfterDataActualSteps": [
         "aggregate_attribution_minutes",
         "apply_app_inclusion_policy",
@@ -719,6 +1118,7 @@
         "assemble_credit_outputs",
         "assemble_result_manifest",
         "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
         "build_activity_witness_indexes",
         "build_app_event_index",
         "build_participant_day_coverage",
@@ -729,11 +1129,13 @@
         "coalesce_duplicate_event_keys",
         "collapse_app_genre",
         "compute_attribution_completeness",
+        "construct_screen_intervals",
         "derive_broad_category",
         "derive_credited_intervals",
         "derive_engagement_basis",
         "derive_time_gap_evidence",
         "disambiguate_duplicate_timestamps",
+        "divide_sessions_at_day_boundary",
         "identify_credit_eligible_sessions",
         "index_keyguard_events",
         "index_raw_dates",
@@ -760,16 +1162,6 @@
         "synthesize_placeholder_rows"
       ],
       "configAfterDataDeactivatedSteps": [],
-      "dataAfterConfigPredictedSteps": [
-        "aggregate_attribution_minutes",
-        "assemble_result_manifest",
-        "build_participant_day_coverage",
-        "classify_compliance_days",
-        "classify_person_attribution",
-        "compute_attribution_completeness",
-        "resolve_sharing_status",
-        "synthesize_placeholder_rows"
-      ],
       "dataAfterConfigActualSteps": [
         "aggregate_attribution_minutes",
         "assemble_result_manifest",
@@ -777,6 +1169,7 @@
         "classify_compliance_days",
         "classify_person_attribution",
         "compute_attribution_completeness",
+        "divide_sessions_at_day_boundary",
         "resolve_sharing_status",
         "synthesize_placeholder_rows"
       ],
@@ -811,54 +1204,6 @@
         "label": "primary_filter",
         "value": "primary-filter"
       },
-      "configAfterDataPredictedSteps": [
-        "aggregate_attribution_minutes",
-        "apply_app_inclusion_policy",
-        "apply_episode_flags",
-        "apply_participant_windows",
-        "assemble_credit_outputs",
-        "assemble_result_manifest",
-        "assess_screen_evidence_capability",
-        "build_activity_witness_indexes",
-        "build_app_event_index",
-        "build_participant_day_coverage",
-        "classify_compliance_days",
-        "classify_episode_durations",
-        "classify_person_attribution",
-        "classify_screen_sessions",
-        "coalesce_duplicate_event_keys",
-        "collapse_app_genre",
-        "compute_attribution_completeness",
-        "derive_broad_category",
-        "derive_credited_intervals",
-        "derive_engagement_basis",
-        "derive_time_gap_evidence",
-        "disambiguate_duplicate_timestamps",
-        "identify_credit_eligible_sessions",
-        "index_keyguard_events",
-        "index_raw_dates",
-        "infer_screen_session_skeletons",
-        "join_app_codebook",
-        "mark_app_policy_matches",
-        "mask_excluded_app_events",
-        "match_app_episodes",
-        "materialize_candidate_episodes",
-        "materialize_credited_rows",
-        "order_app_episodes",
-        "remove_selected_interaction_types",
-        "remove_zero_duration_rows",
-        "resolve_excluded_packages",
-        "resolve_participant_windows",
-        "resolve_sharing_status",
-        "resolve_timezone_strategy",
-        "segment_concurrent_usage",
-        "standardize_event_clock",
-        "summarize_daily_apps",
-        "summarize_duplicate_groups",
-        "summarize_row_selection",
-        "suppress_excluded_timing",
-        "synthesize_placeholder_rows"
-      ],
       "configAfterDataActualSteps": [
         "aggregate_attribution_minutes",
         "apply_app_inclusion_policy",
@@ -867,6 +1212,7 @@
         "assemble_credit_outputs",
         "assemble_result_manifest",
         "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
         "build_activity_witness_indexes",
         "build_app_event_index",
         "build_participant_day_coverage",
@@ -877,11 +1223,13 @@
         "coalesce_duplicate_event_keys",
         "collapse_app_genre",
         "compute_attribution_completeness",
+        "construct_screen_intervals",
         "derive_broad_category",
         "derive_credited_intervals",
         "derive_engagement_basis",
         "derive_time_gap_evidence",
         "disambiguate_duplicate_timestamps",
+        "divide_sessions_at_day_boundary",
         "identify_credit_eligible_sessions",
         "index_keyguard_events",
         "index_raw_dates",
@@ -908,16 +1256,6 @@
         "synthesize_placeholder_rows"
       ],
       "configAfterDataDeactivatedSteps": [],
-      "dataAfterConfigPredictedSteps": [
-        "aggregate_attribution_minutes",
-        "assemble_result_manifest",
-        "build_participant_day_coverage",
-        "classify_compliance_days",
-        "classify_person_attribution",
-        "compute_attribution_completeness",
-        "resolve_sharing_status",
-        "synthesize_placeholder_rows"
-      ],
       "dataAfterConfigActualSteps": [
         "aggregate_attribution_minutes",
         "assemble_result_manifest",
@@ -925,6 +1263,7 @@
         "classify_compliance_days",
         "classify_person_attribution",
         "compute_attribution_completeness",
+        "divide_sessions_at_day_boundary",
         "resolve_sharing_status",
         "synthesize_placeholder_rows"
       ],
@@ -959,41 +1298,6 @@
         "label": "false",
         "value": false
       },
-      "configAfterDataPredictedSteps": [
-        "aggregate_attribution_minutes",
-        "apply_app_inclusion_policy",
-        "apply_episode_flags",
-        "apply_participant_windows",
-        "assemble_credit_outputs",
-        "assemble_result_manifest",
-        "assess_screen_evidence_capability",
-        "build_activity_witness_indexes",
-        "build_participant_day_coverage",
-        "classify_compliance_days",
-        "classify_episode_durations",
-        "classify_person_attribution",
-        "collapse_app_genre",
-        "compute_attribution_completeness",
-        "derive_broad_category",
-        "derive_credited_intervals",
-        "derive_engagement_basis",
-        "identify_credit_eligible_sessions",
-        "index_raw_dates",
-        "join_app_codebook",
-        "mark_app_policy_matches",
-        "materialize_candidate_episodes",
-        "materialize_credited_rows",
-        "order_app_episodes",
-        "remove_selected_interaction_types",
-        "remove_zero_duration_rows",
-        "resolve_excluded_packages",
-        "resolve_participant_windows",
-        "resolve_sharing_status",
-        "segment_concurrent_usage",
-        "summarize_daily_apps",
-        "suppress_excluded_timing",
-        "synthesize_placeholder_rows"
-      ],
       "configAfterDataActualSteps": [
         "aggregate_attribution_minutes",
         "apply_app_inclusion_policy",
@@ -1002,6 +1306,7 @@
         "assemble_credit_outputs",
         "assemble_result_manifest",
         "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
         "build_activity_witness_indexes",
         "build_participant_day_coverage",
         "classify_compliance_days",
@@ -1012,6 +1317,7 @@
         "derive_broad_category",
         "derive_credited_intervals",
         "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
         "identify_credit_eligible_sessions",
         "index_raw_dates",
         "join_app_codebook",
@@ -1030,16 +1336,6 @@
         "synthesize_placeholder_rows"
       ],
       "configAfterDataDeactivatedSteps": [],
-      "dataAfterConfigPredictedSteps": [
-        "aggregate_attribution_minutes",
-        "assemble_result_manifest",
-        "build_participant_day_coverage",
-        "classify_compliance_days",
-        "classify_person_attribution",
-        "compute_attribution_completeness",
-        "resolve_sharing_status",
-        "synthesize_placeholder_rows"
-      ],
       "dataAfterConfigActualSteps": [
         "aggregate_attribution_minutes",
         "assemble_result_manifest",
@@ -1047,6 +1343,7 @@
         "classify_compliance_days",
         "classify_person_attribution",
         "compute_attribution_completeness",
+        "divide_sessions_at_day_boundary",
         "resolve_sharing_status",
         "synthesize_placeholder_rows"
       ],
@@ -1073,15 +1370,15 @@
       }
     },
     {
-      "caseId": "device_sharing_file:support:sharing-shared-to-nonshared×useBackgroundAppsFile=false",
+      "caseId": "device_sharing_file:support:sharing-shared-to-nonshared×filterMatchField=application_label",
       "roleId": "device_sharing_file",
       "interventionId": "support:sharing-shared-to-nonshared",
-      "optionKey": "useBackgroundAppsFile",
+      "optionKey": "filterMatchField",
       "alternate": {
-        "label": "false",
-        "value": false
+        "label": "application_label",
+        "value": "application_label"
       },
-      "configAfterDataPredictedSteps": [
+      "configAfterDataActualSteps": [
         "aggregate_attribution_minutes",
         "apply_app_inclusion_policy",
         "apply_episode_flags",
@@ -1089,7 +1386,8 @@
         "assemble_credit_outputs",
         "assemble_result_manifest",
         "assess_screen_evidence_capability",
-        "build_app_event_index",
+        "assign_usage_session_ids",
+        "build_activity_witness_indexes",
         "build_participant_day_coverage",
         "classify_compliance_days",
         "classify_episode_durations",
@@ -1099,10 +1397,90 @@
         "derive_broad_category",
         "derive_credited_intervals",
         "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "index_raw_dates",
+        "join_app_codebook",
+        "mark_app_policy_matches",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_excluded_packages",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "aggregate_attribution_minutes",
+        "assemble_result_manifest",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_person_attribution",
+        "compute_attribution_completeness",
+        "divide_sessions_at_day_boundary",
+        "resolve_sharing_status",
+        "synthesize_placeholder_rows"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 158,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:a0a65dbaf59943b194d37231687bc6224a6b32c33faf7a2235739e0f41714eab"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 110,
+        "maskedCount": 80,
+        "introducedDigest": "sha256:8ca94b993eddea251933b0d02012562205b85f0129958bcf8d9b9df837168cb0",
+        "maskedDigest": "sha256:0452afb77398972458b7ffc4b77caace22a3bfb1fa7cd4752e779ac55ea7db1f"
+      }
+    },
+    {
+      "caseId": "device_sharing_file:support:sharing-shared-to-nonshared×applicationLabelExclusions=unknown_app",
+      "roleId": "device_sharing_file",
+      "interventionId": "support:sharing-shared-to-nonshared",
+      "optionKey": "applicationLabelExclusions",
+      "alternate": {
+        "label": "unknown_app",
+        "value": [
+          "Uncatalogued Research App"
+        ]
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
         "identify_credit_eligible_sessions",
         "join_app_codebook",
-        "match_app_episodes",
-        "materialize_candidate_episodes",
+        "mark_app_policy_matches",
         "materialize_credited_rows",
         "order_app_episodes",
         "remove_selected_interaction_types",
@@ -1114,6 +1492,49 @@
         "suppress_excluded_timing",
         "synthesize_placeholder_rows"
       ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "aggregate_attribution_minutes",
+        "assemble_result_manifest",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_person_attribution",
+        "compute_attribution_completeness",
+        "divide_sessions_at_day_boundary",
+        "resolve_sharing_status",
+        "synthesize_placeholder_rows"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 128,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:272cb4a6539ceae926f6a385883bb9da4ecf741d2e4aa879f386a290de4993af"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 56,
+        "maskedCount": 104,
+        "introducedDigest": "sha256:99f4510c0c411b4b94c365e75bb6c1a41ba8f9333543435b206626d0868fead3",
+        "maskedDigest": "sha256:d1cb305e5527819a61e9512e7ce38f01b72d587574dda03d421e4dc34b60c226"
+      }
+    },
+    {
+      "caseId": "device_sharing_file:support:sharing-shared-to-nonshared×packageExclusionPreset=systemscopeonly",
+      "roleId": "device_sharing_file",
+      "interventionId": "support:sharing-shared-to-nonshared",
+      "optionKey": "packageExclusionPreset",
+      "alternate": {
+        "label": "systemscopeonly",
+        "value": "system_scope_only"
+      },
       "configAfterDataActualSteps": [
         "aggregate_attribution_minutes",
         "apply_app_inclusion_policy",
@@ -1122,6 +1543,87 @@
         "assemble_credit_outputs",
         "assemble_result_manifest",
         "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_activity_witness_indexes",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "index_raw_dates",
+        "join_app_codebook",
+        "mark_app_policy_matches",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_excluded_packages",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "aggregate_attribution_minutes",
+        "assemble_result_manifest",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_person_attribution",
+        "compute_attribution_completeness",
+        "divide_sessions_at_day_boundary",
+        "resolve_sharing_status",
+        "synthesize_placeholder_rows"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 148,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:98750acd8294ce536513cc2785f7f7121bac0bb43e20381f9c57f5cf7acb702d"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 102,
+        "maskedCount": 76,
+        "introducedDigest": "sha256:0a995ecdebfedab75462b851c4a86703fe0a36aede2267c11d156a7404b26607",
+        "maskedDigest": "sha256:3b33dc26a655acb5d58f7e2695c0efbdb143b05d196ed1fbcdaec994270ee325"
+      }
+    },
+    {
+      "caseId": "device_sharing_file:support:sharing-shared-to-nonshared×useBackgroundAppsFile=false",
+      "roleId": "device_sharing_file",
+      "interventionId": "support:sharing-shared-to-nonshared",
+      "optionKey": "useBackgroundAppsFile",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
         "build_app_event_index",
         "build_participant_day_coverage",
         "classify_compliance_days",
@@ -1132,6 +1634,7 @@
         "derive_broad_category",
         "derive_credited_intervals",
         "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
         "identify_credit_eligible_sessions",
         "join_app_codebook",
         "match_app_episodes",
@@ -1148,16 +1651,6 @@
         "synthesize_placeholder_rows"
       ],
       "configAfterDataDeactivatedSteps": [],
-      "dataAfterConfigPredictedSteps": [
-        "aggregate_attribution_minutes",
-        "assemble_result_manifest",
-        "build_participant_day_coverage",
-        "classify_compliance_days",
-        "classify_person_attribution",
-        "compute_attribution_completeness",
-        "resolve_sharing_status",
-        "synthesize_placeholder_rows"
-      ],
       "dataAfterConfigActualSteps": [
         "aggregate_attribution_minutes",
         "assemble_result_manifest",
@@ -1165,6 +1658,7 @@
         "classify_compliance_days",
         "classify_person_attribution",
         "compute_attribution_completeness",
+        "divide_sessions_at_day_boundary",
         "resolve_sharing_status",
         "synthesize_placeholder_rows"
       ],
@@ -1191,15 +1685,15 @@
       }
     },
     {
-      "caseId": "device_sharing_file:support:sharing-shared-to-nonshared×sameAppInteractionTypesToStopUsageAt=empty",
+      "caseId": "device_sharing_file:support:sharing-shared-to-nonshared×minimumDurationDisposition=droprow",
       "roleId": "device_sharing_file",
       "interventionId": "support:sharing-shared-to-nonshared",
-      "optionKey": "sameAppInteractionTypesToStopUsageAt",
+      "optionKey": "minimumDurationDisposition",
       "alternate": {
-        "label": "empty",
-        "value": []
+        "label": "droprow",
+        "value": "drop_row"
       },
-      "configAfterDataPredictedSteps": [
+      "configAfterDataActualSteps": [
         "aggregate_attribution_minutes",
         "apply_app_inclusion_policy",
         "apply_episode_flags",
@@ -1207,7 +1701,7 @@
         "assemble_credit_outputs",
         "assemble_result_manifest",
         "assess_screen_evidence_capability",
-        "build_app_event_index",
+        "assign_usage_session_ids",
         "build_participant_day_coverage",
         "classify_compliance_days",
         "classify_episode_durations",
@@ -1217,11 +1711,9 @@
         "derive_broad_category",
         "derive_credited_intervals",
         "derive_engagement_basis",
-        "disambiguate_duplicate_timestamps",
+        "divide_sessions_at_day_boundary",
         "identify_credit_eligible_sessions",
         "join_app_codebook",
-        "match_app_episodes",
-        "materialize_candidate_episodes",
         "materialize_credited_rows",
         "order_app_episodes",
         "remove_selected_interaction_types",
@@ -1233,6 +1725,115 @@
         "suppress_excluded_timing",
         "synthesize_placeholder_rows"
       ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "aggregate_attribution_minutes",
+        "assemble_result_manifest",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_person_attribution",
+        "compute_attribution_completeness",
+        "divide_sessions_at_day_boundary",
+        "resolve_sharing_status",
+        "synthesize_placeholder_rows"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 116,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:a71f3e8e040ab0419356e69609d1902ff4a2f373adfc97782071b575215c1f84"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 42,
+        "maskedCount": 154,
+        "introducedDigest": "sha256:87409045e46ded2f994d46eae9df27f4583e1d72e04c582a2398437f46d50a96",
+        "maskedDigest": "sha256:dd4267f19c7e23137828f61439b557d6cbeab508af4a3d2ab837cb9e3eb14196"
+      }
+    },
+    {
+      "caseId": "device_sharing_file:support:sharing-shared-to-nonshared×intervalQualityPolicy=culverhouse",
+      "roleId": "device_sharing_file",
+      "interventionId": "support:sharing-shared-to-nonshared",
+      "optionKey": "intervalQualityPolicy",
+      "alternate": {
+        "label": "culverhouse",
+        "value": "culverhouse_trim_and_log"
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_person_attribution",
+        "compute_attribution_completeness",
+        "derive_credited_intervals",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "materialize_credited_rows",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "aggregate_attribution_minutes",
+        "assemble_result_manifest",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_person_attribution",
+        "compute_attribution_completeness",
+        "divide_sessions_at_day_boundary",
+        "resolve_sharing_status",
+        "synthesize_placeholder_rows"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 100,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:ef8c24026f595cb2b515c11ee316bdf0620c6e7d9d45f868403fd2632296717f"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 48,
+        "maskedCount": 60,
+        "introducedDigest": "sha256:0210dc825ce1817a1df00926659ad43469c4de76d0d46ba97973419458d6a221",
+        "maskedDigest": "sha256:5026e9437a24c41b0826e9d6172e75a842f35e1da6553201b04d380b93688bcf"
+      }
+    },
+    {
+      "caseId": "device_sharing_file:support:sharing-shared-to-nonshared×screenSessionMaximumDurationDisposition=exclude_participant",
+      "roleId": "device_sharing_file",
+      "interventionId": "support:sharing-shared-to-nonshared",
+      "optionKey": "screenSessionMaximumDurationDisposition",
+      "alternate": {
+        "label": "exclude_participant",
+        "value": "exclude_participant"
+      },
       "configAfterDataActualSteps": [
         "aggregate_attribution_minutes",
         "apply_app_inclusion_policy",
@@ -1241,6 +1842,159 @@
         "assemble_credit_outputs",
         "assemble_result_manifest",
         "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_activity_witness_indexes",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_person_attribution",
+        "classify_screen_sessions",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "index_raw_dates",
+        "join_app_codebook",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "resolve_sharing_status"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": [
+          "attribute_person.payloadDigest"
+        ]
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": [
+          "attribute_person.classificationDigest",
+          "attribute_person.payloadDigest",
+          "day_coverage.classificationDigest",
+          "outputs.payloadDigest",
+          "score_compliance.payloadDigest"
+        ]
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 316,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:54a9bc3df10c860aa5d733a5aa00ab0fe8a972b6605ebaee74b32463fd495c66"
+      }
+    },
+    {
+      "caseId": "device_sharing_file:support:sharing-shared-to-nonshared×lockedScreenAudioDisposition=exclude_from_phone_and_app_sessions",
+      "roleId": "device_sharing_file",
+      "interventionId": "support:sharing-shared-to-nonshared",
+      "optionKey": "lockedScreenAudioDisposition",
+      "alternate": {
+        "label": "exclude_from_phone_and_app_sessions",
+        "value": "exclude_from_phone_and_app_sessions"
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_person_attribution",
+        "classify_screen_sessions",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "join_app_codebook",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "aggregate_attribution_minutes",
+        "assemble_result_manifest",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_person_attribution",
+        "compute_attribution_completeness",
+        "divide_sessions_at_day_boundary",
+        "resolve_sharing_status",
+        "synthesize_placeholder_rows"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 44,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:66b2fe89ed27e058d1a4d9e8cce48b31bde061dd479ccecb9dc8240f2a513111"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 36,
+        "maskedCount": 194,
+        "introducedDigest": "sha256:5a2589b10ea60e8363a604433af8559168ac4c1717629f6bac1541676d7e7d81",
+        "maskedDigest": "sha256:35bad7142355132a7b6b9bb0665f7dea1e6cacd3335411d8cabd885274dc3caa"
+      }
+    },
+    {
+      "caseId": "device_sharing_file:support:sharing-shared-to-nonshared×sameAppInteractionTypesToStopUsageAt=empty",
+      "roleId": "device_sharing_file",
+      "interventionId": "support:sharing-shared-to-nonshared",
+      "optionKey": "sameAppInteractionTypesToStopUsageAt",
+      "alternate": {
+        "label": "empty",
+        "value": []
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
         "build_app_event_index",
         "build_participant_day_coverage",
         "classify_compliance_days",
@@ -1252,6 +2006,7 @@
         "derive_credited_intervals",
         "derive_engagement_basis",
         "disambiguate_duplicate_timestamps",
+        "divide_sessions_at_day_boundary",
         "identify_credit_eligible_sessions",
         "join_app_codebook",
         "match_app_episodes",
@@ -1268,16 +2023,6 @@
         "synthesize_placeholder_rows"
       ],
       "configAfterDataDeactivatedSteps": [],
-      "dataAfterConfigPredictedSteps": [
-        "aggregate_attribution_minutes",
-        "assemble_result_manifest",
-        "build_participant_day_coverage",
-        "classify_compliance_days",
-        "classify_person_attribution",
-        "compute_attribution_completeness",
-        "resolve_sharing_status",
-        "synthesize_placeholder_rows"
-      ],
       "dataAfterConfigActualSteps": [
         "aggregate_attribution_minutes",
         "assemble_result_manifest",
@@ -1285,6 +2030,7 @@
         "classify_compliance_days",
         "classify_person_attribution",
         "compute_attribution_completeness",
+        "divide_sessions_at_day_boundary",
         "resolve_sharing_status",
         "synthesize_placeholder_rows"
       ],
@@ -1319,35 +2065,18 @@
         "label": "none",
         "value": []
       },
-      "configAfterDataPredictedSteps": [
-        "aggregate_attribution_minutes",
-        "apply_participant_windows",
-        "assemble_credit_outputs",
-        "assemble_result_manifest",
-        "assess_screen_evidence_capability",
-        "build_participant_day_coverage",
-        "classify_person_attribution",
-        "compute_attribution_completeness",
-        "derive_credited_intervals",
-        "identify_credit_eligible_sessions",
-        "materialize_credited_rows",
-        "remove_selected_interaction_types",
-        "remove_zero_duration_rows",
-        "resolve_participant_windows",
-        "resolve_sharing_status",
-        "summarize_daily_apps",
-        "synthesize_placeholder_rows"
-      ],
       "configAfterDataActualSteps": [
         "aggregate_attribution_minutes",
         "apply_participant_windows",
         "assemble_credit_outputs",
         "assemble_result_manifest",
         "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
         "build_participant_day_coverage",
         "classify_person_attribution",
         "compute_attribution_completeness",
         "derive_credited_intervals",
+        "divide_sessions_at_day_boundary",
         "identify_credit_eligible_sessions",
         "materialize_credited_rows",
         "remove_selected_interaction_types",
@@ -1358,16 +2087,6 @@
         "synthesize_placeholder_rows"
       ],
       "configAfterDataDeactivatedSteps": [],
-      "dataAfterConfigPredictedSteps": [
-        "aggregate_attribution_minutes",
-        "assemble_result_manifest",
-        "build_participant_day_coverage",
-        "classify_compliance_days",
-        "classify_person_attribution",
-        "compute_attribution_completeness",
-        "resolve_sharing_status",
-        "synthesize_placeholder_rows"
-      ],
       "dataAfterConfigActualSteps": [
         "aggregate_attribution_minutes",
         "assemble_result_manifest",
@@ -1375,6 +2094,7 @@
         "classify_compliance_days",
         "classify_person_attribution",
         "compute_attribution_completeness",
+        "divide_sessions_at_day_boundary",
         "resolve_sharing_status",
         "synthesize_placeholder_rows"
       ],
@@ -1411,59 +2131,6 @@
           "Custom Foreground => Activity Resumed"
         ]
       },
-      "configAfterDataPredictedSteps": [
-        "aggregate_attribution_minutes",
-        "apply_app_inclusion_policy",
-        "apply_episode_flags",
-        "apply_participant_windows",
-        "assemble_credit_outputs",
-        "assemble_result_manifest",
-        "assess_screen_evidence_capability",
-        "build_activity_witness_indexes",
-        "build_app_event_index",
-        "build_participant_day_coverage",
-        "canonicalize_source_rows",
-        "classify_compliance_days",
-        "classify_episode_durations",
-        "classify_person_attribution",
-        "classify_screen_sessions",
-        "coalesce_duplicate_event_keys",
-        "collapse_app_genre",
-        "collect_timezone_observations",
-        "compute_attribution_completeness",
-        "derive_broad_category",
-        "derive_credited_intervals",
-        "derive_engagement_basis",
-        "derive_time_gap_evidence",
-        "disambiguate_duplicate_timestamps",
-        "estimate_dominant_timezone",
-        "identify_credit_eligible_sessions",
-        "index_keyguard_events",
-        "index_raw_dates",
-        "infer_screen_session_skeletons",
-        "join_app_codebook",
-        "mark_app_policy_matches",
-        "mask_excluded_app_events",
-        "match_app_episodes",
-        "materialize_candidate_episodes",
-        "materialize_credited_rows",
-        "order_app_episodes",
-        "order_source_records",
-        "remove_selected_interaction_types",
-        "remove_zero_duration_rows",
-        "resolve_excluded_packages",
-        "resolve_participant_windows",
-        "resolve_sharing_status",
-        "resolve_timezone_strategy",
-        "segment_concurrent_usage",
-        "standardize_event_clock",
-        "summarize_daily_apps",
-        "summarize_duplicate_groups",
-        "summarize_row_selection",
-        "suppress_excluded_timing",
-        "synthesize_placeholder_rows",
-        "validate_remap_rules"
-      ],
       "configAfterDataActualSteps": [
         "aggregate_attribution_minutes",
         "apply_app_inclusion_policy",
@@ -1472,6 +2139,7 @@
         "assemble_credit_outputs",
         "assemble_result_manifest",
         "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
         "build_activity_witness_indexes",
         "build_app_event_index",
         "build_participant_day_coverage",
@@ -1484,11 +2152,13 @@
         "collapse_app_genre",
         "collect_timezone_observations",
         "compute_attribution_completeness",
+        "construct_screen_intervals",
         "derive_broad_category",
         "derive_credited_intervals",
         "derive_engagement_basis",
         "derive_time_gap_evidence",
         "disambiguate_duplicate_timestamps",
+        "divide_sessions_at_day_boundary",
         "estimate_dominant_timezone",
         "identify_credit_eligible_sessions",
         "index_keyguard_events",
@@ -1518,16 +2188,6 @@
         "validate_remap_rules"
       ],
       "configAfterDataDeactivatedSteps": [],
-      "dataAfterConfigPredictedSteps": [
-        "aggregate_attribution_minutes",
-        "assemble_result_manifest",
-        "build_participant_day_coverage",
-        "classify_compliance_days",
-        "classify_person_attribution",
-        "compute_attribution_completeness",
-        "resolve_sharing_status",
-        "synthesize_placeholder_rows"
-      ],
       "dataAfterConfigActualSteps": [
         "aggregate_attribution_minutes",
         "assemble_result_manifest",
@@ -1535,6 +2195,7 @@
         "classify_compliance_days",
         "classify_person_attribution",
         "compute_attribution_completeness",
+        "divide_sessions_at_day_boundary",
         "resolve_sharing_status",
         "synthesize_placeholder_rows"
       ],
@@ -1569,13 +2230,6 @@
         "label": "false",
         "value": false
       },
-      "configAfterDataPredictedSteps": [
-        "aggregate_attribution_minutes",
-        "assemble_result_manifest",
-        "build_participant_day_coverage",
-        "compute_attribution_completeness",
-        "synthesize_placeholder_rows"
-      ],
       "configAfterDataActualSteps": [
         "aggregate_attribution_minutes",
         "assemble_result_manifest",
@@ -1584,16 +2238,6 @@
         "synthesize_placeholder_rows"
       ],
       "configAfterDataDeactivatedSteps": [],
-      "dataAfterConfigPredictedSteps": [
-        "aggregate_attribution_minutes",
-        "assemble_result_manifest",
-        "build_participant_day_coverage",
-        "classify_compliance_days",
-        "classify_person_attribution",
-        "compute_attribution_completeness",
-        "resolve_sharing_status",
-        "synthesize_placeholder_rows"
-      ],
       "dataAfterConfigActualSteps": [
         "aggregate_attribution_minutes",
         "assemble_result_manifest",
@@ -1601,6 +2245,7 @@
         "classify_compliance_days",
         "classify_person_attribution",
         "compute_attribution_completeness",
+        "divide_sessions_at_day_boundary",
         "resolve_sharing_status",
         "synthesize_placeholder_rows"
       ],
@@ -1635,24 +2280,15 @@
         "label": "false",
         "value": false
       },
-      "configAfterDataPredictedSteps": [
-        "assemble_result_manifest",
-        "classify_person_attribution",
-        "compute_attribution_completeness",
-        "index_survey_responses",
-        "resolve_sharing_status",
-        "synthesize_placeholder_rows"
-      ],
       "configAfterDataActualSteps": [
         "assemble_result_manifest",
         "classify_person_attribution",
         "compute_attribution_completeness",
+        "divide_sessions_at_day_boundary",
         "index_survey_responses",
-        "resolve_sharing_status",
-        "synthesize_placeholder_rows"
+        "resolve_sharing_status"
       ],
       "configAfterDataDeactivatedSteps": [],
-      "dataAfterConfigPredictedSteps": [],
       "dataAfterConfigActualSteps": [],
       "dataAfterConfigDeactivatedSteps": [],
       "configConditioning": {
@@ -1661,7 +2297,6 @@
           "attribute_person.classificationDigest",
           "attribute_person.payloadDigest",
           "day_coverage.classificationDigest",
-          "outputs.payloadDigest",
           "score_compliance.payloadDigest"
         ]
       },
@@ -1697,9 +2332,6 @@
         "label": "false",
         "value": false
       },
-      "configAfterDataPredictedSteps": [
-        "assemble_result_manifest"
-      ],
       "configAfterDataActualSteps": [
         "assemble_result_manifest"
       ],
@@ -1708,17 +2340,11 @@
         "classify_compliance_days",
         "compute_attribution_completeness"
       ],
-      "dataAfterConfigPredictedSteps": [
-        "assemble_result_manifest",
-        "build_participant_day_coverage",
-        "classify_person_attribution",
-        "resolve_sharing_status",
-        "synthesize_placeholder_rows"
-      ],
       "dataAfterConfigActualSteps": [
         "assemble_result_manifest",
         "build_participant_day_coverage",
         "classify_person_attribution",
+        "divide_sessions_at_day_boundary",
         "resolve_sharing_status",
         "synthesize_placeholder_rows"
       ],
@@ -1747,5 +2373,5 @@
       }
     }
   ],
-  "caseSetDigest": "sha256:1db9eba84ea0512e28cfaa7d63a49a2c26921d95b2176b557192e740892d7f90"
+  "caseSetDigest": "sha256:2b468f4c7016634c6adcee5b1145f9efc4298b25f37136f47d2fe6151d0d3ae3"
 }

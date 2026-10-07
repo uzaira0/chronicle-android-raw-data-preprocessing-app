@@ -1,0 +1,93 @@
+{
+  "schemaVersion": "chronicle-phq9-depression-threshold-source-fixture/v1",
+  "sourceWorkId": "doi:10.1145/3410530.3414441",
+  "exactCanonicalSettings": [
+    {
+      "settingId": "method-setting-994e2587e952171e362b00a0",
+      "parameterKey": "clinical.depressed",
+      "sourceClause": "PHQ-9 score at least 10 is depressed",
+      "sourceObservedSetting": "clinical.depressed: {\"comparator\":\">=\",\"threshold\":10}",
+      "sourceValueSha256": "d0a7e41a51f961d46acb2b9f23f09f976371cac8fa854025eea030d5a6f1baf7"
+    },
+    {
+      "settingId": "method-setting-3aacecd369532cadd5475c42",
+      "parameterKey": "clinical.non_depressed",
+      "sourceClause": "PHQ-9 score below 10 is non-depressed",
+      "sourceObservedSetting": "clinical.non_depressed: {\"comparator\":\"<\",\"threshold\":10}",
+      "sourceValueSha256": "1898068b829bbdd8526c21ef56dd76c665cbc3ef65db6732a1417d3b9700db70"
+    }
+  ],
+  "sourceArtifacts": [
+    {
+      "locator": ".tmp-literature-review-private/corrective-packet-09-ranks330-381-20260831/text/359.txt:113-122",
+      "sha256": "c72d2c5dcf2513ab3e8dcf1309fcb636e13396dc7f55c476c353b0827570fe86"
+    },
+    {
+      "locator": ".tmp-literature-review-private/corrective-packet-09-ranks330-381-20260831/pdfs/359-primary.pdf:pages 1-5#audit-locator=359.txt:113-122",
+      "sha256": "de28468872ad2cb37c7683686382743b4b97f1b892ac9ed79670ec9fff677935"
+    }
+  ],
+  "inputBoundary": "One caller-supplied finite numeric PHQ-9 score for one participant, constrained to the source-disclosed closed score range 0 through 27; PHQ-9 item collection and score construction occur before this classifier.",
+  "outputBoundary": "Classify a score below 10 as non_depressed and a score equal to or above 10 as depressed, using one complementary partition for both canonical settings.",
+  "limitations": [
+    "The source states a PHQ-9 score range of 0 through 27 but does not disclose item-level scoring code, so this binding does not infer questionnaire responses or score construction.",
+    "The binding does not require integer-valued scores because integer representation is not stated in the audited source clause.",
+    "A missing, nonfinite, or out-of-range PHQ-9 score fails closed before threshold classification.",
+    "The reported counts of 18 depressed and 26 non-depressed students are cohort results, not required outputs for an arbitrary fixture.",
+    "Participant identity joins, UsageStats collection, launcher exclusion, app categorization, aggregation, and statistical tests are outside this clinical-label boundary."
+  ],
+  "scoreRange": {
+    "minimumInclusive": 0.0,
+    "maximumInclusive": 27.0
+  },
+  "pivot": 10.0,
+  "categories": {
+    "below": "non_depressed",
+    "equal": "depressed",
+    "above": "depressed"
+  },
+  "observations": [
+    {
+      "caseId": "minimum-source-score",
+      "phq9Score": 0.0,
+      "expectedClass": "non_depressed"
+    },
+    {
+      "caseId": "immediately-below-threshold",
+      "phq9Score": 9.0,
+      "expectedClass": "non_depressed"
+    },
+    {
+      "caseId": "exact-threshold",
+      "phq9Score": 10.0,
+      "expectedClass": "depressed"
+    },
+    {
+      "caseId": "immediately-above-threshold",
+      "phq9Score": 11.0,
+      "expectedClass": "depressed"
+    },
+    {
+      "caseId": "maximum-source-score",
+      "phq9Score": 27.0,
+      "expectedClass": "depressed"
+    }
+  ],
+  "invalidObservations": [
+    {
+      "caseId": "missing-score",
+      "phq9Score": null,
+      "expectedError": "phq9_score_required"
+    },
+    {
+      "caseId": "below-source-range",
+      "phq9Score": -0.1,
+      "expectedError": "phq9_score_out_of_source_range"
+    },
+    {
+      "caseId": "above-source-range",
+      "phq9Score": 27.1,
+      "expectedError": "phq9_score_out_of_source_range"
+    }
+  ]
+}

@@ -80,8 +80,15 @@ def main() -> int:
         print("semantic artifacts are out of sync:", file=sys.stderr)
         for problem in problems:
             print(f"  - {problem}", file=sys.stderr)
+        # `semprof` is not on PATH on a normal developer machine; the root
+        # Makefile resolves it (SEM_PROF_BIN) and forwards it on every
+        # `$(MAKE) -C .semantic-federation` line. Printing the bare command
+        # sends the reader into `make: semprof: No such file or directory`, so
+        # print the form that actually runs.
         print(
-            "\nRun `make -C .semantic-federation closure` and commit the result.",
+            "\nRun `make -C .semantic-federation closure "
+            "SEM_PROF_BIN=$(make -s print-sem-prof-bin)` from the repository "
+            "root and commit the result.",
             file=sys.stderr,
         )
         return 1

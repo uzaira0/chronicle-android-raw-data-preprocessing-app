@@ -6,9 +6,6 @@ import { wasmBuildOptions } from "./wasm_build_flags.mjs";
 
 const webRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repositoryRoot = path.resolve(webRoot, "..");
-// Remaps the checkout, Cargo home and Rust sysroot out of the binaries, so the
-// shipped WASM carries no build-machine paths (check_wasm_exports.mjs refuses
-// any that remain).
 const buildOptions = wasmBuildOptions(repositoryRoot);
 
 const crates = [
@@ -36,3 +33,12 @@ for (const [crate, output] of crates) {
   if (result.error) throw result.error;
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
+
+// The license notices of the crates just linked are committed beside the
+// packages (the deploy runner cannot resolve the Rust graph); `make wasm-fresh`
+// fails when this regeneration changes them.
+const notices = spawnSync(process.execPath, [path.join(webRoot, "scripts", "rust_wasm_notices.mjs")], {
+  stdio: "inherit",
+});
+if (notices.error) throw notices.error;
+if (notices.status !== 0) process.exit(notices.status ?? 1);

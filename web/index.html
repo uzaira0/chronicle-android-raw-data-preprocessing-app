@@ -18,6 +18,11 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:; manifest-src 'self'; font-src 'self' data:; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'"
     />
+    <!-- GitHub Pages sends no Referrer-Policy header (web/public/_headers is not applied there). -->
+    <meta
+      name="referrer"
+      content="no-referrer"
+    />
     <link
       rel="manifest"
       href="./manifest.webmanifest"
@@ -41,9 +46,28 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Chronicle" />
     <title>Chronicle Android Raw Data Preprocessor</title>
+    <script src="./theme-boot.js"></script>
   </head>
   <body>
-    <div id="root"></div>
+    <!-- Painted while the app's JavaScript loads; React's first render
+         replaces everything inside #root. Styles come from src/index.css
+         (the CSP allows no inline style). -->
+    <div id="root">
+      <main class="app-shell boot-skeleton" data-testid="boot-skeleton" aria-busy="true">
+        <header class="hero">
+          <div class="hero__copy">
+            <p class="boot-skeleton__title">Chronicle Android Raw Data Preprocessor</p>
+            <p class="lede">
+              This app runs entirely in your browser. Your data never leaves your device.
+            </p>
+          </div>
+        </header>
+        <p class="boot-skeleton__status" role="status">Loading the preprocessor…</p>
+        <noscript>
+          <p>This app needs JavaScript to process files in your browser.</p>
+        </noscript>
+      </main>
+    </div>
     <script
       type="module"
       src="/src/main.tsx"

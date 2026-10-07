@@ -1,17 +1,50 @@
 import "fake-indexeddb/auto";
+import { IDBFactory as FreshIDBFactory } from "fake-indexeddb";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
+import {
+  DEFAULT_BROWSER_OPTIONS,
+  OPENER_SET_VALUES,
+} from "@/lib/generatedContract";
 import {
   clearLastRun,
+  clearLastComponentManifest,
+  loadLastComponentManifest,
+  saveLastComponentManifest,
+  loadResearchMethodSelection,
+  saveResearchMethodSelection,
   detectLegacyLastRunState,
   LAST_RUN_DB_NAME,
   LAST_RUN_DB_VERSION,
+  LAST_RUN_RECORD_ID,
+  LAST_RUN_SCHEMA_VERSION,
+  LAST_RUN_STORE_NAME,
+  loadArchivedLastRun,
   loadLastRun,
+  loadLastRunOutcome,
+  LAST_RUN_ARCHIVE_ID,
   saveLastRun,
   toLightweightResults,
+  type LastRunRecord,
 } from "@/lib/lastRunStore";
-import type { ProcessedFileResult } from "@/lib/types";
+import type {
+  BrowserProcessingOptions,
+  ProcessedFileResult,
+} from "@/lib/types";
+
+const INVALID_OPENERS = [
+  { label: "missing", present: false, value: undefined },
+  { label: "unknown", present: true, value: "unknown_opener" },
+  { label: "wrong type", present: true, value: 1 },
+  { label: "null", present: true, value: null },
+] as const;
+
+function optionsWithOpener(value: unknown, present = true): BrowserProcessingOptions {
+  const options = { ...DEFAULT_BROWSER_OPTIONS } as Record<string, unknown>;
+  if (present) options.openerSet = value;
+  else delete options.openerSet;
+  return options as BrowserProcessingOptions;
+}
 
 function result(): ProcessedFileResult {
   return {
@@ -98,6 +131,49 @@ function result(): ProcessedFileResult {
   };
 }
 
+async function rawLastRunStore<T>(
+  mode: IDBTransactionMode,
+  operation: (store: IDBObjectStore) => IDBRequest<T>,
+): Promise<T> {
+  const db = await new Promise<IDBDatabase>((resolve, reject) => {
+    const request = indexedDB.open(LAST_RUN_DB_NAME);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () =>
+      reject(
+        request.error instanceof Error
+          ? request.error
+          : new Error(String(request.error)),
+      );
+  });
+  return new Promise<T>((resolve, reject) => {
+    const transaction = db.transaction(LAST_RUN_STORE_NAME, mode);
+    const request = operation(transaction.objectStore(LAST_RUN_STORE_NAME));
+    transaction.oncomplete = () => {
+      db.close();
+      resolve(request.result);
+    };
+    transaction.onerror = () => {
+      db.close();
+      reject(
+        transaction.error instanceof Error
+          ? transaction.error
+          : new Error(String(transaction.error)),
+      );
+    };
+  });
+}
+
+function rawLastRunRecord(options: BrowserProcessingOptions): LastRunRecord {
+  return {
+    id: LAST_RUN_RECORD_ID,
+    schemaVersion: LAST_RUN_SCHEMA_VERSION,
+    savedAt: "2026-08-11T00:00:00Z",
+    options,
+    results: [result()],
+    discoveredTimezones: [],
+  };
+}
+
 beforeEach(async () => {
   await clearLastRun();
 });
@@ -110,7 +186,7 @@ function persistedReceipt(): NonNullable<
   ProcessedFileResult["rustRuntimeReceipt"]
 > {
   return {
-    protocolVersion: "chronicle-preprocessing-runtime/v1",
+    protocolVersion: "chronicle-preprocessing-runtime/v2",
     workspaceId: `sha256:${"1".repeat(64)}`,
     workspaceRootDigest: `sha256:${"2".repeat(64)}`,
     previousWorkspaceRootDigest: null,
@@ -235,7 +311,85 @@ describe("legacy last-run database boundary", () => {
   });
 });
 
+describe("lastRunStore never deletes a saved run it cannot reopen", () => {
+  it("moves a record of another format to the archive slot and says why", async () => {
+    const stale = { ...rawLastRunRecord(DEFAULT_BROWSER_OPTIONS), schemaVersion: LAST_RUN_SCHEMA_VERSION + 1 };
+    await rawLastRunStore("readwrite", (store) => store.put(stale));
+
+    const outcome = await loadLastRunOutcome();
+
+    expect(outcome).toEqual({
+      status: "archived",
+      reason: `it was saved in format ${LAST_RUN_SCHEMA_VERSION + 1} and this version reads format ${LAST_RUN_SCHEMA_VERSION}`,
+    });
+    expect(await rawLastRunStore("readonly", (store) => store.get(LAST_RUN_RECORD_ID))).toBeUndefined();
+    const archived = await loadArchivedLastRun();
+    expect(archived?.id).toBe(LAST_RUN_ARCHIVE_ID);
+    expect(archived?.reason).toBe(outcome.status === "archived" ? outcome.reason : "");
+    expect(JSON.stringify(archived?.record)).toBe(JSON.stringify(stale));
+    // The next boot finds nothing to restore and nothing more to report.
+    await expect(loadLastRunOutcome()).resolves.toEqual({ status: "none" });
+    expect(await loadArchivedLastRun()).toBeDefined();
+  });
+
+  it("archives a record whose results are not a list", async () => {
+    await rawLastRunStore("readwrite", (store) =>
+      store.put({ ...rawLastRunRecord(DEFAULT_BROWSER_OPTIONS), results: "garbled" }),
+    );
+    await expect(loadLastRunOutcome()).resolves.toEqual({
+      status: "archived",
+      reason: "it has no list of results",
+    });
+  });
+
+  it("restores a current record through the outcome API", async () => {
+    await saveLastRun({ options: DEFAULT_BROWSER_OPTIONS, results: [result()], discoveredTimezones: [] });
+    const outcome = await loadLastRunOutcome();
+    expect(outcome.status).toBe("restored");
+    expect(outcome.status === "restored" ? outcome.record.results : []).toHaveLength(1);
+  });
+});
+
+describe("lastRunStore batch completeness", () => {
+  it("records what a partial batch attempted, so a restore is not mistaken for a clean run", async () => {
+    await saveLastRun({
+      options: DEFAULT_BROWSER_OPTIONS,
+      results: [result()],
+      discoveredTimezones: [],
+      attemptedFileCount: 10,
+      unfinishedFileNames: ["b.csv", "c.csv"],
+    });
+    const record = await loadLastRun();
+    expect(record?.attemptedFileCount).toBe(10);
+    expect(record?.unfinishedFileNames).toEqual(["b.csv", "c.csv"]);
+    // The shortfall the restore banner reports.
+    expect((record?.attemptedFileCount ?? 0) - (record?.results.length ?? 0)).toBe(9);
+  });
+
+  it("defaults a complete batch to no shortfall", async () => {
+    await saveLastRun({
+      options: DEFAULT_BROWSER_OPTIONS,
+      results: [result()],
+      discoveredTimezones: [],
+    });
+    const record = await loadLastRun();
+    expect(record?.attemptedFileCount).toBe(1);
+    expect(record?.unfinishedFileNames).toEqual([]);
+  });
+});
+
 describe("lastRunStore", () => {
+  it("retains a component locator independently of ordinary results and removes only that pointer", async () => {
+    await saveLastRun({ options: DEFAULT_BROWSER_OPTIONS, results: [result()], discoveredTimezones: [] });
+    await saveLastComponentManifest('{"workspaceId":"verified-at-reopen"}');
+    await saveResearchMethodSelection('{"profile":"validated-by-profile-parser","selectedLevels":{"axis":"level"}}');
+    expect(await loadLastComponentManifest()).toBe('{"workspaceId":"verified-at-reopen"}');
+    await clearLastComponentManifest();
+    expect(await loadLastComponentManifest()).toBeUndefined();
+    expect((await loadLastRun())?.results).toHaveLength(1);
+    expect(await loadResearchMethodSelection()).toBe('{"profile":"validated-by-profile-parser","selectedLevels":{"axis":"level"}}');
+  });
+
   it("opens only the workflow-namespaced current database", async () => {
     const open = vi.spyOn(indexedDB, "open");
     try {
@@ -325,6 +479,138 @@ describe("lastRunStore", () => {
     expect(loaded?.discoveredTimezones).toEqual(["America/Chicago"]);
   });
 
+  it("sanitizes opener values at both direct write and direct load boundaries", async () => {
+    for (const openerSet of OPENER_SET_VALUES) {
+      await saveLastRun({
+        options: optionsWithOpener(openerSet),
+        results: [result()],
+        discoveredTimezones: [],
+      });
+      expect((await loadLastRun())?.options.openerSet).toBe(openerSet);
+    }
+
+    for (const { label, present, value } of INVALID_OPENERS) {
+      await saveLastRun({
+        options: optionsWithOpener(value, present),
+        results: [result()],
+        discoveredTimezones: [],
+      });
+      const stored = await rawLastRunStore<LastRunRecord | undefined>(
+        "readonly",
+        (store) =>
+          store.get(LAST_RUN_RECORD_ID) as IDBRequest<
+            LastRunRecord | undefined
+          >,
+      );
+      expect(stored?.options.openerSet, `write ${label}`).toBe(
+        "strategy_defined",
+      );
+
+      await rawLastRunStore("readwrite", (store) =>
+        store.put(
+          rawLastRunRecord(optionsWithOpener(value, present)),
+        ),
+      );
+      expect((await loadLastRun())?.options.openerSet, `load ${label}`).toBe(
+        "strategy_defined",
+      );
+    }
+  });
+
+  it("keeps a legal B06 vector and returns a partial one to omission at both boundaries", async () => {
+    const legal = {
+      ...DEFAULT_BROWSER_OPTIONS,
+      longDurationThresholdHoursExplicit: true,
+      maximumDurationPolicy: "post_reconstruction_strict_max_v1",
+      maximumDurationDisposition: "drop_row",
+      maximumDurationThresholdSource: "fixed_parameter",
+      maximumDurationThresholdNs: "9223372036854775807",
+    } as BrowserProcessingOptions;
+    await saveLastRun({ options: legal, results: [result()], discoveredTimezones: [] });
+    expect((await loadLastRun())?.options).toMatchObject({
+      longDurationThresholdHoursExplicit: true,
+      maximumDurationPolicy: "post_reconstruction_strict_max_v1",
+      maximumDurationDisposition: "drop_row",
+      maximumDurationThresholdSource: "fixed_parameter",
+      maximumDurationThresholdNs: "9223372036854775807",
+    });
+
+    // A policy without its siblings, and a threshold that is not exact
+    // base-10 i64, are both illegal shapes: the whole vector (and the marker)
+    // returns to omission rather than being repaired.
+    for (const partial of [
+      { maximumDurationPolicy: "strategy_native" },
+      {
+        maximumDurationPolicy: "post_reconstruction_strict_max_v1",
+        maximumDurationDisposition: "truncate_to_threshold",
+        maximumDurationThresholdSource: "fixed_parameter",
+        maximumDurationThresholdNs: "9223372036854775808",
+      },
+    ]) {
+      const malformed = {
+        ...DEFAULT_BROWSER_OPTIONS,
+        longDurationThresholdHoursExplicit: true,
+        ...partial,
+      } as unknown as BrowserProcessingOptions;
+      await saveLastRun({ options: malformed, results: [result()], discoveredTimezones: [] });
+      const stored = await rawLastRunStore<LastRunRecord | undefined>(
+        "readonly",
+        (store) => store.get(LAST_RUN_RECORD_ID) as IDBRequest<LastRunRecord | undefined>,
+      );
+      for (const key of [
+        "maximumDurationPolicy",
+        "maximumDurationDisposition",
+        "maximumDurationThresholdSource",
+        "maximumDurationThresholdNs",
+        "longDurationThresholdHoursExplicit",
+      ]) {
+        expect(stored?.options, `write ${JSON.stringify(partial)}`).not.toHaveProperty(key);
+      }
+      await rawLastRunStore("readwrite", (store) => store.put(rawLastRunRecord(malformed)));
+      const loaded = (await loadLastRun())?.options;
+      for (const key of [
+        "maximumDurationPolicy",
+        "maximumDurationDisposition",
+        "maximumDurationThresholdSource",
+        "maximumDurationThresholdNs",
+        "longDurationThresholdHoursExplicit",
+      ]) {
+        expect(loaded, `load ${JSON.stringify(partial)}`).not.toHaveProperty(key);
+      }
+    }
+  });
+
+  it("defaults new research axes at both last-run write and load boundaries", async () => {
+    const malformed = {
+      ...DEFAULT_BROWSER_OPTIONS,
+      microUseClassificationPolicy: "unknown-micro",
+      minimumDurationComparator: null,
+      minimumDurationDisposition: [],
+      screenSessionConstructionStrategy: 5,
+    } as unknown as BrowserProcessingOptions;
+    await saveLastRun({
+      options: malformed,
+      results: [result()],
+      discoveredTimezones: [],
+    });
+    expect((await loadLastRun())?.options).toMatchObject({
+      microUseClassificationPolicy: "none",
+      minimumDurationComparator: "strict_lt",
+      minimumDurationDisposition: "chronicle_blank_keep_row",
+      screenSessionConstructionStrategy: "chronicle_screen_interactive_v1",
+    });
+
+    await rawLastRunStore("readwrite", (store) =>
+      store.put(rawLastRunRecord(malformed)),
+    );
+    expect((await loadLastRun())?.options).toMatchObject({
+      microUseClassificationPolicy: "none",
+      minimumDurationComparator: "strict_lt",
+      minimumDurationDisposition: "chronicle_blank_keep_row",
+      screenSessionConstructionStrategy: "chronicle_screen_interactive_v1",
+    });
+  });
+
   it("clears the cached run", async () => {
     await saveLastRun({
       options: DEFAULT_BROWSER_OPTIONS,
@@ -347,14 +633,14 @@ describe("lastRunStore", () => {
   });
 
   it("drops the record and rethrows when the write itself fails", async () => {
-    const unsavable = {
-      ...DEFAULT_BROWSER_OPTIONS,
+    const unsavableResult = {
+      ...result(),
       poison: () => {},
-    } as unknown as typeof DEFAULT_BROWSER_OPTIONS;
+    } as unknown as ProcessedFileResult;
     await expect(
       saveLastRun({
-        options: unsavable,
-        results: [result()],
+        options: DEFAULT_BROWSER_OPTIONS,
+        results: [unsavableResult],
         discoveredTimezones: [],
       }),
     ).rejects.toThrow();
@@ -436,8 +722,70 @@ describe("lastRunStore under a failing IndexedDB", () => {
     ).rejects.toThrow("quota exhausted");
   });
 
-  it("loadLastRun self-heals to undefined instead of throwing on every boot", async () => {
+  it("loadLastRun keeps an unreadable record, reports it, and never throws on boot", async () => {
+    const deletes = vi.fn();
+    const failing = failingIndexedDB();
+    vi.stubGlobal("indexedDB", {
+      open: () => {
+        const request = failing.open();
+        const transaction = request.result.transaction.bind(request.result);
+        request.result.transaction = () => {
+          const tx = transaction();
+          const store = tx.objectStore();
+          tx.objectStore = () => ({ ...store, delete: () => (deletes(), {}) });
+          return tx;
+        };
+        return request;
+      },
+    });
+    await expect(loadLastRunOutcome()).resolves.toEqual({
+      status: "kept",
+      reason: "it could not be read (quota exhausted)",
+    });
     await expect(loadLastRun()).resolves.toBeUndefined();
+    expect(deletes).not.toHaveBeenCalled();
+  });
+
+  it("keeps a record of another format in place when it cannot be moved aside", async () => {
+    let transactionNumber = 0;
+    const db = {
+      close: vi.fn(),
+      transaction: (_store: string, mode: IDBTransactionMode) => {
+        transactionNumber += 1;
+        const tx: {
+          error: Error;
+          onerror?: () => void;
+          oncomplete?: () => void;
+          objectStore: () => object;
+        } = {
+          error: new Error("quota exhausted"),
+          objectStore: () => ({
+            get: () => {
+              queueMicrotask(() => tx.oncomplete?.());
+              return { result: { ...rawLastRunRecord(DEFAULT_BROWSER_OPTIONS), schemaVersion: 0 } };
+            },
+            put: () => ({}),
+            delete: () => {
+              queueMicrotask(() => tx.onerror?.());
+              return {};
+            },
+          }),
+        };
+        expect(mode).toBe(transactionNumber === 1 ? "readonly" : "readwrite");
+        return tx;
+      },
+    };
+    vi.stubGlobal("indexedDB", {
+      open: () => {
+        const request: { result: typeof db; onsuccess?: () => void } = { result: db };
+        queueMicrotask(() => request.onsuccess?.());
+        return request;
+      },
+    });
+    await expect(loadLastRunOutcome()).resolves.toEqual({
+      status: "kept",
+      reason: `it was saved in format 0 and this version reads format ${LAST_RUN_SCHEMA_VERSION}, and it could not be moved aside (quota exhausted)`,
+    });
   });
 
   it.each([new Error("open failed"), "open failed"])(
@@ -459,6 +807,57 @@ describe("lastRunStore under a failing IndexedDB", () => {
     });
 
     await expect(loadLastRun()).resolves.toBeUndefined();
+  });
+});
+
+describe("lastRunStore under an aborted commit", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("rejects a save the browser aborts while committing instead of never settling", async () => {
+    // Quota exhaustion at commit time aborts the transaction and fires no
+    // request error: only onabort runs.
+    const db = {
+      close: vi.fn(),
+      transaction: () => {
+        const tx: {
+          error: Error | null;
+          onabort?: () => void;
+          objectStore: () => { put: () => object; delete: () => object };
+        } = {
+          error: null,
+          objectStore: () => ({
+            put: () => {
+              queueMicrotask(() => tx.onabort?.());
+              return {};
+            },
+            delete: () => {
+              queueMicrotask(() => tx.onabort?.());
+              return {};
+            },
+          }),
+        };
+        return tx;
+      },
+    };
+    vi.stubGlobal("indexedDB", {
+      open: () => {
+        const request: { result: typeof db; onsuccess?: () => void } = { result: db };
+        queueMicrotask(() => request.onsuccess?.());
+        return request;
+      },
+    });
+
+    await expect(
+      saveLastRun({
+        options: DEFAULT_BROWSER_OPTIONS,
+        results: [result()],
+        discoveredTimezones: [],
+      }),
+    ).rejects.toThrow("The browser aborted the saved-run write.");
+    await expect(clearLastRun()).rejects.toThrow("The browser aborted the saved-run write.");
+    expect(db.close).toHaveBeenCalled();
   });
 });
 
@@ -585,6 +984,48 @@ describe("lastRunStore IndexedDB edge cases", () => {
     try {
       await expect(loadLastRun()).resolves.toBeUndefined();
       expect(transactionNumber).toBe(2);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
+describe("lastRunStore locator validation", () => {
+  it.each([
+    [
+      "a component locator that is not a string",
+      () => saveLastComponentManifest(1 as unknown as string),
+      () => loadLastComponentManifest(),
+      "Saved component locator is invalid",
+    ],
+    [
+      "a research selection that is not a string",
+      () => saveResearchMethodSelection(1 as unknown as string),
+      () => loadResearchMethodSelection(),
+      "Saved research selection is invalid",
+    ],
+  ])("refuses %s", async (_label, save, load, message) => {
+    await save();
+    await expect(load()).rejects.toThrow(message);
+  });
+
+  it("reports no research selection on a browser that never saved one", async () => {
+    vi.stubGlobal("indexedDB", new FreshIDBFactory());
+    await expect(loadResearchMethodSelection()).resolves.toBeUndefined();
+    await saveResearchMethodSelection('{"profile":"first-save"}');
+    await expect(loadResearchMethodSelection()).resolves.toBe('{"profile":"first-save"}');
+  });
+
+  it.each([
+    ["there is no IndexedDB factory", undefined],
+    ["the factory cannot enumerate databases", {} as IDBFactory],
+  ])("reports legacy detection unsupported when %s", async (_label, factory) => {
+    vi.stubGlobal("indexedDB", undefined);
+    try {
+      await expect(detectLegacyLastRunState(factory)).resolves.toEqual({
+        detected: false,
+        detectionSupported: false,
+      });
     } finally {
       vi.unstubAllGlobals();
     }

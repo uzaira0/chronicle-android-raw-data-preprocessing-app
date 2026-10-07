@@ -1,0 +1,57 @@
+{
+  "schemaVersion": "chronicle-schoedel-timestamp-correction-r-oracle/v1",
+  "sourceWorkId": "doi:10.1016/j.chb.2023.107977",
+  "sourceMethodVariantId": "source-audit-configuration-space-8b14e63d69954819163df993",
+  "exactCanonicalSettingIds": [
+    "method-setting-89f718192c3ca086dcaa99c5",
+    "method-setting-f023abce9be53100e2dd22a6",
+    "method-setting-8e387e15b09a02c6d5c2f942",
+    "method-setting-cb3bf10d6500476969672b53",
+    "method-setting-071995a6e078e7c57832d3a6"
+  ],
+  "sourceArtifacts": [
+    {
+      "path": ".tmp-literature-review-private/corrective-packet-08-ranks277-329-20260831/work/rank287-archive/SmartphoneUsage_Wellbeing/scripts/featureExtraction/helper/timestamp_correction.R",
+      "sha256": "80ef81e8d7e074598385155360562f01e8130a595e72392daa20d571a7b832bc",
+      "locator": "lines 15-43"
+    },
+    {
+      "path": ".tmp-literature-review-private/corrective-packet-08-ranks277-329-20260831/work/rank287-archive/SmartphoneUsage_Wellbeing/scripts/featureExtraction/helper/helper_variables.R",
+      "sha256": "61a921f5f8b8e2b0c6c60f24d3ae13de477a340f8967e21e74707daeebba873a",
+      "locator": "lines 13-38"
+    },
+    {
+      "path": ".tmp-literature-review-private/corrective-packet-08-ranks277-329-20260831/work/rank287-archive/SmartphoneUsage_Wellbeing/renv.lock",
+      "sha256": "35c4f8e9279c8f454a37d159c24562b055a7faac6b0ed388e8dd2303ffdf4329",
+      "locator": "package versions"
+    }
+  ],
+  "oracle": {
+    "containerImage": "rocker/tidyverse@sha256:879098acd5a8277f3c368a1e2c431019d00d952959a588da12cdaaee9d968b8b",
+    "runtime": "R version 4.1.2 (2021-11-01)",
+    "packages": {
+      "lubridate": "1.8.0",
+      "dplyr": "1.0.8",
+      "data.table": "1.14.2",
+      "tidyr": "1.2.0"
+    }
+  },
+  "configuration": {
+    "inputStage": "one_participant_ps_activity",
+    "timezoneKnnK": 10,
+    "studyYear": 2020
+  },
+  "rawCsv": "participant_id,source_row_id,client_db_id,timestamp,timezoneOffset\np-source-01,r-late,dup-a,2020-01-01 23:30:00,3600000\np-source-01,r-wrong-old,old,2019-12-31 20:00:00,-18000000\np-source-01,r-zero,zero,2020-06-15 21:15:30,0\np-source-01,r-negative,west,2020-06-16 02:00:00,-18000000\np-source-01,r-early,dup-a,2020-01-01 20:00:00,3600000\np-source-01,r-wrong-new,new,2021-01-01 00:00:00,3600000\np-source-01,r-other,east,2020-06-15 22:00:00,7200000\n",
+  "oracleOutputCsv": "participant_id,source_row_id,client_db_id,timestamp,timezoneOffset,timestamp.corrected,weekday,date,time,year,time_to_hours,time_to_sec\np-source-01,r-early,dup-a,2020-01-01 20:00:00,3600000,2020-01-01 21:00:00,Wed,2020-01-01,21:00:00,2020,21,75600\np-source-01,r-zero,zero,2020-06-15 21:15:30,3600000,2020-06-15 22:15:30,Mon,2020-06-15,22:15:30,2020,22.2583333333333,80130\np-source-01,r-other,east,2020-06-15 22:00:00,7200000,2020-06-16 00:00:00,Tue,2020-06-16,00:00:00,2020,0,0\np-source-01,r-negative,west,2020-06-16 02:00:00,-1.8e+07,2020-06-15 21:00:00,Mon,2020-06-15,21:00:00,2020,21,75600\n",
+  "expectedInputRowCount": 7,
+  "expectedOutputRowCount": 4,
+  "expectedWrongYearOrMissingTimestampRowCount": 2,
+  "expectedDuplicateIdRowCount": 1,
+  "limitations": [
+    "The component accepts exactly one participant's ps_activity rows, matching the deposited function boundary.",
+    "Input timestamps outside Chronicle's closed accepted timestamp spellings fail closed instead of relying on lubridate's heuristic parser.",
+    "Timezone offsets must be finite and exactly representable as integer nanoseconds; Android's millisecond offsets satisfy this boundary.",
+    "The separate ESM plus-or-minus-30-minute timezone lookup at timestamp_correction.R:68-90 is outside this component.",
+    "The corrected timestamp intentionally retains a UTC-formatted representation of the already offset-adjusted local wall clock, as documented by the source."
+  ]
+}

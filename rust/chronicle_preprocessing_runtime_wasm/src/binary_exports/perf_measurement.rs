@@ -192,14 +192,14 @@ fn export_reparse_share_of_parquet_and_spss_paths() {
         if bytes.is_empty() {
             continue;
         }
-        let table = parse_csv(&bytes).expect("canonical CSV parses");
+        let table = parse_csv(bytes.as_slice()).expect("canonical CSV parses");
         let rows = table.rows.len();
         let columns = table.headers.len();
         let heap_bytes = table_heap_bytes(&table);
         drop(table);
 
         let parse = Samples::collect(ITERATIONS, || {
-            let parsed = parse_csv(&bytes).expect("parse");
+            let parsed = parse_csv(bytes.as_slice()).expect("parse");
             std::hint::black_box(&parsed);
         });
         let parquet = Samples::collect(ITERATIONS, || {
@@ -265,12 +265,12 @@ fn both_exports_shared_table_versus_independent_reparse() {
             std::hint::black_box((&parquet, &sav));
         });
         let shared = Samples::collect(ITERATIONS, || {
-            let table = parse_csv(&bytes).expect("parse");
+            let table = parse_csv(bytes.as_slice()).expect("parse");
             let parquet = parquet_from_table(&table, screen).expect("parquet");
             let sav = sav_from_table(&table, screen).expect("sav");
             std::hint::black_box((&parquet, &sav));
         });
-        let table = parse_csv(&bytes).unwrap();
+        let table = parse_csv(bytes.as_slice()).unwrap();
         assert_eq!(
             parquet_from_table(&table, screen).unwrap(),
             parquet_from_csv(&bytes, screen).unwrap(),

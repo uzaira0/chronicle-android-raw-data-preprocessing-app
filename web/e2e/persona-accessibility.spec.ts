@@ -10,6 +10,7 @@ import {
   setInputFile,
   setTheme,
   trackExternalRequests,
+  RESULT_PANEL_TIMEOUT_MS,
 } from "./helpers";
 
 /**
@@ -76,7 +77,7 @@ test("the review (View) surface and the compare drawer have no serious axe viola
   // headings are the only place those identity colours are used as text.
   await page.getByTestId("review-compare-toggle").click();
   await expect(drawer).toBeVisible();
-  await drawer.getByTestId("minimum-usage-duration-input").fill("999999");
+  await drawer.getByTestId("minimum-usage-duration-input").fill("3600"); // the allowed maximum
   await page.getByTestId("review-run-comparison").click();
   await expect(page.getByTestId("review-mcard-delta")).toBeVisible();
   for (const theme of ["light", "dark"] as const) {
@@ -91,6 +92,9 @@ test("the review (View) surface and the compare drawer have no serious axe viola
 test("the Pipeline Explorer has no serious axe violations across interpretation layers and run evidence", async ({
   page,
 }) => {
+  // This test deliberately runs ten full axe scans plus one processing pass.
+  // The config-level 120 s local budget covers it; an explicit 60 s override
+  // here would now LOWER the budget, so it was removed.
   // Both themes: node labels and evidence badges are the smallest text in the
   // explorer, while Audit also adds search and phase-collapse controls.
   for (const theme of ["light", "dark"] as const) {
@@ -153,7 +157,7 @@ test("a keyboard user can select the Process tab by arrow keys and run by Enter"
   await button.focus();
   await expect(button).toBeFocused();
   await page.keyboard.press("Enter");
-  await expect(page.getByTestId("result-panel").first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("result-panel").first()).toBeVisible({ timeout: RESULT_PANEL_TIMEOUT_MS });
   assertNoExternalRequests(requestTracker);
 });
 

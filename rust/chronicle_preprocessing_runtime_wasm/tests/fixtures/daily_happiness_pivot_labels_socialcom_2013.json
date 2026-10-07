@@ -1,0 +1,49 @@
+{
+  "schemaVersion": "chronicle-finite-scalar-pivot-source-fixture/v1",
+  "sourceWorkId": "doi:10.1109/socialcom.2013.118",
+  "exactCanonicalSettings": [
+    {
+      "settingId": "method-setting-859db1341c366e052b69daed",
+      "parameterKey": "labels.class_not_happy",
+      "sourceObservedSetting": "labels.class_not_happy: {\"label\":-1,\"predicate\":\"score < 4\"}",
+      "sourceValueSha256": "a5070117f0956286e9c81d968b0a64e84da81697c87f45260389b38b5053a3e8"
+    },
+    {
+      "settingId": "method-setting-0e72d6265ee03fcb1d07b5a6",
+      "parameterKey": "labels.class_neutral",
+      "sourceObservedSetting": "labels.class_neutral: {\"label\":0,\"predicate\":\"score = 4\"}",
+      "sourceValueSha256": "9509a53f278694b598e99af30c008266d7123802bb1124dd69881ad352fcf989"
+    },
+    {
+      "settingId": "method-setting-944b443a92867aa4c05d57c4",
+      "parameterKey": "labels.class_happy",
+      "sourceObservedSetting": "labels.class_happy: {\"label\":1,\"predicate\":\"score > 4\"}",
+      "sourceValueSha256": "ef9d7d88a21d3d20ee68d9bc24c0e7dc0008efdee70d67915c88e3e24caa1e82"
+    }
+  ],
+  "sourceArtifacts": [
+    {
+      "locator": ".tmp-literature-review-private/corrective-queue-audit-b-20260831/packet-05-ranks-124-173/fulltext/rank147.txt:155-166",
+      "sha256": "299b50324299c85002330ac67bc02d33afa7b2865fd4c8f5379530c5c219b295"
+    },
+    {
+      "locator": ".tmp-literature-review-private/corrective-queue-audit-b-20260831/packet-05-ranks-124-173/fulltext/rank147.pdf#audit-locator=rank147.txt:155-166",
+      "sha256": "63dcaed448d25876d801e9eaef94df502a78036eec3a9012912b48b8bb2f19c9"
+    }
+  ],
+  "inputBoundary": "A caller-supplied finite daily happiness score that has already been constructed and associated with the intended participant-day.",
+  "outputBoundary": "Exactly one caller-configured class label selected by strict comparison with, or exact equality to, the disclosed pivot score 4.",
+  "limitations": [
+    "This binding does not construct the daily happiness score or infer its questionnaire wording, response timing, or missing-response policy.",
+    "This binding does not enforce a scale range or coerce textual and non-finite values because those input-schema behaviors are not part of these three disclosed predicates.",
+    "This binding does not derive participant/day joins, training/test splits, feature normalization, or any downstream classifier result.",
+    "No tolerance is introduced around equality to the disclosed pivot."
+  ],
+  "pivot": 4,
+  "labels": {"below": -1, "equal": 0, "above": 1},
+  "observations": [
+    {"observationId": "not-happy", "score": 3, "expectedLabel": -1},
+    {"observationId": "neutral", "score": 4, "expectedLabel": 0},
+    {"observationId": "happy", "score": 5, "expectedLabel": 1}
+  ]
+}

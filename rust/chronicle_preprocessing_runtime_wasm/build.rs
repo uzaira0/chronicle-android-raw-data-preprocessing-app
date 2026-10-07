@@ -1,164 +1,37 @@
 use quote::ToTokens;
 use sha2::{Digest, Sha256};
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use syn::visit_mut::{self, VisitMut};
 
-fn collect_files(root: &Path, relative: &Path, files: &mut Vec<PathBuf>) {
-    let path = root.join(relative);
-    if path.is_file() {
-        files.push(relative.to_path_buf());
-        return;
+include!("src/footprint_digest_core.rs");
+
+fn pack_json_assets(repository_root: &Path) {
+    let output = PathBuf::from(std::env::var_os("OUT_DIR").expect("build output directory"));
+    let mut declarations = String::new();
+    for (name, relative) in [
+        ("ANDROID_REGISTRY", "web/src/generated/android-method-profile-runtime-registry.json"),
+        ("SLEEP_DIARY_BRIDGE", "web/schema/sleep-diary-catalog.bridge.json"),
+        ("ADAPTER_CONTRACT", "web/schema/literature-input-adapter-contract.json"),
+        ("ADAPTER_CONFORMANCE", "rust/chronicle_preprocessing_runtime_wasm/tests/fixtures/literature_input_adapter_conformance.json"),
+    ] {
+        let source = repository_root.join(relative);
+        println!("cargo:rerun-if-changed={}", source.display());
+        let bytes = fs::read(&source).expect("read existing JSON deploy input");
+        let mut compressor = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::best());
+        compressor.write_all(&bytes).expect("pack exact JSON bytes");
+        let packed = compressor.finish().expect("finish packed JSON bytes");
+        let file = format!("{name}.json.gz");
+        fs::write(output.join(&file), packed).expect("write packed JSON deploy input");
+        declarations.push_str(&format!(
+            "pub(crate) static {name}: PackedJson = PackedJson {{ name: \"{name}\", gzip: include_bytes!(concat!(env!(\"OUT_DIR\"), \"/{file}\")), expected_bytes: {}, raw_sha256: \"{}\", text: OnceLock::new() }};\n",
+            bytes.len(), hex::encode(Sha256::digest(&bytes)),
+        ));
     }
-    let mut entries = fs::read_dir(&path)
-        .unwrap_or_else(|error| panic!("read implementation source {}: {error}", path.display()))
-        .map(|entry| entry.expect("implementation source directory entry").path())
-        .collect::<Vec<_>>();
-    entries.sort();
-    for entry in entries {
-        let child = entry
-            .strip_prefix(root)
-            .expect("implementation source remains below repository root");
-        if entry.is_dir() {
-            collect_files(root, child, files);
-        } else if entry.is_file() {
-            files.push(child.to_path_buf());
-        }
-    }
-}
-
-fn digest_field(hasher: &mut Sha256, bytes: &[u8]) {
-    hasher.update((bytes.len() as u64).to_le_bytes());
-    hasher.update(bytes);
-}
-
-fn is_cfg_test(attributes: &[syn::Attribute]) -> bool {
-    attributes.iter().any(|attribute| {
-        attribute.path().is_ident("cfg")
-            && matches!(&attribute.meta, syn::Meta::List(list)
-                if list.tokens.to_string().split_whitespace().collect::<String>() == "test")
-    })
-}
-
-/// Attributes may be written in any order, and a doc comment *is* an
-/// attribute. Reading only the first one meant a documented `#[cfg(test)]`
-/// module was hashed into the implementation digest as production source —
-/// the kernel's `output_contract` and `golden` modules both are — so every
-/// edit to a test moved the digest that the runtime binds its receipts and
-/// resume decisions to.
-fn is_test_only_item(item: &syn::Item) -> bool {
-    let attributes: &[syn::Attribute] = match item {
-        syn::Item::Const(item) => &item.attrs,
-        syn::Item::Enum(item) => &item.attrs,
-        syn::Item::ExternCrate(item) => &item.attrs,
-        syn::Item::Fn(item) => &item.attrs,
-        syn::Item::ForeignMod(item) => &item.attrs,
-        syn::Item::Impl(item) => &item.attrs,
-        syn::Item::Macro(item) => &item.attrs,
-        syn::Item::Mod(item) => &item.attrs,
-        syn::Item::Static(item) => &item.attrs,
-        syn::Item::Struct(item) => &item.attrs,
-        syn::Item::Trait(item) => &item.attrs,
-        syn::Item::TraitAlias(item) => &item.attrs,
-        syn::Item::Type(item) => &item.attrs,
-        syn::Item::Union(item) => &item.attrs,
-        syn::Item::Use(item) => &item.attrs,
-        _ => &[],
-    };
-    is_cfg_test(attributes)
-}
-
-fn is_test_only_statement(statement: &syn::Stmt) -> bool {
-    match statement {
-        syn::Stmt::Local(local) => is_cfg_test(&local.attrs),
-        syn::Stmt::Item(item) => is_test_only_item(item),
-        syn::Stmt::Macro(macro_statement) => is_cfg_test(&macro_statement.attrs),
-        syn::Stmt::Expr(expression, _) => is_cfg_test(expression_attributes(expression)),
-    }
-}
-
-fn expression_attributes(expression: &syn::Expr) -> &[syn::Attribute] {
-    match expression {
-        syn::Expr::Array(expression) => &expression.attrs,
-        syn::Expr::Assign(expression) => &expression.attrs,
-        syn::Expr::Async(expression) => &expression.attrs,
-        syn::Expr::Await(expression) => &expression.attrs,
-        syn::Expr::Binary(expression) => &expression.attrs,
-        syn::Expr::Block(expression) => &expression.attrs,
-        syn::Expr::Break(expression) => &expression.attrs,
-        syn::Expr::Call(expression) => &expression.attrs,
-        syn::Expr::Cast(expression) => &expression.attrs,
-        syn::Expr::Closure(expression) => &expression.attrs,
-        syn::Expr::Const(expression) => &expression.attrs,
-        syn::Expr::Continue(expression) => &expression.attrs,
-        syn::Expr::Field(expression) => &expression.attrs,
-        syn::Expr::ForLoop(expression) => &expression.attrs,
-        syn::Expr::Group(expression) => &expression.attrs,
-        syn::Expr::If(expression) => &expression.attrs,
-        syn::Expr::Index(expression) => &expression.attrs,
-        syn::Expr::Infer(expression) => &expression.attrs,
-        syn::Expr::Let(expression) => &expression.attrs,
-        syn::Expr::Lit(expression) => &expression.attrs,
-        syn::Expr::Loop(expression) => &expression.attrs,
-        syn::Expr::Macro(expression) => &expression.attrs,
-        syn::Expr::Match(expression) => &expression.attrs,
-        syn::Expr::MethodCall(expression) => &expression.attrs,
-        syn::Expr::Paren(expression) => &expression.attrs,
-        syn::Expr::Path(expression) => &expression.attrs,
-        syn::Expr::Range(expression) => &expression.attrs,
-        syn::Expr::Reference(expression) => &expression.attrs,
-        syn::Expr::Repeat(expression) => &expression.attrs,
-        syn::Expr::Return(expression) => &expression.attrs,
-        syn::Expr::Struct(expression) => &expression.attrs,
-        syn::Expr::Try(expression) => &expression.attrs,
-        syn::Expr::TryBlock(expression) => &expression.attrs,
-        syn::Expr::Tuple(expression) => &expression.attrs,
-        syn::Expr::Unary(expression) => &expression.attrs,
-        syn::Expr::Unsafe(expression) => &expression.attrs,
-        syn::Expr::While(expression) => &expression.attrs,
-        syn::Expr::Yield(expression) => &expression.attrs,
-        _ => &[],
-    }
-}
-
-struct StripTestOnly;
-
-impl VisitMut for StripTestOnly {
-    fn visit_file_mut(&mut self, file: &mut syn::File) {
-        visit_mut::visit_file_mut(self, file);
-        file.items.retain(|item| !is_test_only_item(item));
-    }
-
-    fn visit_item_mod_mut(&mut self, module: &mut syn::ItemMod) {
-        visit_mut::visit_item_mod_mut(self, module);
-        if let Some((_, items)) = module.content.as_mut() {
-            items.retain(|item| !is_test_only_item(item));
-        }
-    }
-
-    fn visit_block_mut(&mut self, block: &mut syn::Block) {
-        visit_mut::visit_block_mut(self, block);
-        block
-            .stmts
-            .retain(|statement| !is_test_only_statement(statement));
-    }
-}
-
-fn production_source(path: &Path) -> Vec<u8> {
-    let bytes = fs::read(path)
-        .unwrap_or_else(|error| panic!("read implementation source {}: {error}", path.display()));
-    if path.extension().and_then(|extension| extension.to_str()) != Some("rs") {
-        return bytes;
-    }
-
-    let mut file =
-        syn::parse_file(std::str::from_utf8(&bytes).unwrap_or_else(|error| {
-            panic!("UTF-8 implementation source {}: {error}", path.display())
-        }))
-        .unwrap_or_else(|error| panic!("parse implementation source {}: {error}", path.display()));
-    StripTestOnly.visit_file_mut(&mut file);
-    file.into_token_stream().to_string().into_bytes()
+    fs::write(output.join("packed_json_assets.rs"), declarations)
+        .expect("write packed JSON byte identities");
 }
 
 fn main() {
@@ -173,12 +46,14 @@ fn main() {
         "cargo:rustc-env=CHRONICLE_REPOSITORY_ROOT={}",
         repository_root.display()
     );
+    pack_json_assets(&repository_root);
 
     // Watch the directories as well as the files discovered below. Watching
     // only today's files misses a newly added or removed Rust module and can
     // leave the compiled implementation receipt bound to stale source.
     for relative in [
         "rust/chronicle_preprocessing_runtime_wasm/src",
+        "rust/chronicle_preprocessing_runtime_wasm/vendor/arrow-ipc-59.1.0/src",
         "rust/chronicle_preprocessing_semantic_adapter/src",
         "rust/chronicle_chrono_kernel_wasm/src",
         "rust/chronicle_app_usage_matcher/src",
@@ -190,47 +65,9 @@ fn main() {
         );
     }
 
-    let mut files = Vec::new();
-    for relative in [
-        "rust/chronicle_preprocessing_runtime_wasm/Cargo.toml",
-        "rust/chronicle_preprocessing_runtime_wasm/Cargo.lock",
-        "rust/chronicle_preprocessing_runtime_wasm/build.rs",
-        "rust/chronicle_preprocessing_runtime_wasm/.cargo",
-        "rust/chronicle_preprocessing_runtime_wasm/src",
-        "rust/chronicle_preprocessing_semantic_adapter/Cargo.toml",
-        "rust/chronicle_preprocessing_semantic_adapter/Cargo.lock",
-        "rust/chronicle_preprocessing_semantic_adapter/build.rs",
-        "rust/chronicle_preprocessing_semantic_adapter/src",
-        "rust/chronicle_chrono_kernel_wasm/Cargo.toml",
-        "rust/chronicle_chrono_kernel_wasm/Cargo.lock",
-        "rust/chronicle_chrono_kernel_wasm/src",
-        "rust/chronicle_app_usage_matcher/Cargo.toml",
-        "rust/chronicle_app_usage_matcher/Cargo.lock",
-        "rust/chronicle_app_usage_matcher/src",
-        "rust/chronicle_semantic_index_wasm/Cargo.toml",
-        "rust/chronicle_semantic_index_wasm/Cargo.lock",
-        "rust/chronicle_semantic_index_wasm/build.rs",
-        "rust/chronicle_semantic_index_wasm/src",
-        "web/scripts/build_wasm.mjs",
-    ] {
-        let relative = Path::new(relative);
-        if repository_root.join(relative).exists() {
-            collect_files(&repository_root, relative, &mut files);
-        }
-    }
-    files.sort();
-    files.dedup();
-    // The workflow contract contains semantic/execution identity plus
-    // presentation copy. Those layers have their own digests and are watched
-    // above, but must not contaminate the implementation-source digest: a
-    // label-only edit cannot invalidate every physical cache entry.
-    let workflow_contract_file =
-        Path::new("rust/chronicle_chrono_kernel_wasm/src/workflow_contract.rs");
-    let workflow_contract_modules =
-        Path::new("rust/chronicle_chrono_kernel_wasm/src/workflow_contract");
-    files.retain(|relative| {
-        relative != workflow_contract_file && !relative.starts_with(workflow_contract_modules)
-    });
+    // The workflow-contract exclusion rationale lives with the shared list in
+    // src/footprint_digest_core.rs.
+    let files = implementation_source_files(&repository_root);
 
     let mut implementation_hasher = Sha256::new();
     digest_field(
@@ -250,7 +87,7 @@ fn main() {
     println!("cargo:rustc-env=CHRONICLE_IMPLEMENTATION_BUILD_DIGEST={implementation_digest}");
 
     let mut environment_hasher = Sha256::new();
-    digest_field(&mut environment_hasher, b"chronicle-build-environment/v1");
+    digest_field(&mut environment_hasher, b"chronicle-build-environment/v2");
     digest_field(&mut environment_hasher, implementation_digest.as_bytes());
     for key in [
         "TARGET",
@@ -262,11 +99,14 @@ fn main() {
         "RUSTFLAGS",
     ] {
         println!("cargo:rerun-if-env-changed={key}");
+        let value = std::env::var(key).unwrap_or_default();
+        let value = match key {
+            "CARGO_ENCODED_RUSTFLAGS" => without_remap_sources(value.split('\x1f'), "\x1f"),
+            "RUSTFLAGS" => without_remap_sources(value.split_whitespace(), " "),
+            _ => value,
+        };
         digest_field(&mut environment_hasher, key.as_bytes());
-        digest_field(
-            &mut environment_hasher,
-            std::env::var(key).unwrap_or_default().as_bytes(),
-        );
+        digest_field(&mut environment_hasher, value.as_bytes());
     }
     let mut enabled_features = std::env::vars()
         .filter(|(key, value)| key.starts_with("CARGO_FEATURE_") && value == "1")
@@ -285,4 +125,35 @@ fn main() {
     digest_field(&mut environment_hasher, &rustc_version.stdout);
     let environment_digest = format!("sha256:{}", hex::encode(environment_hasher.finalize()));
     println!("cargo:rustc-env=CHRONICLE_BUILD_ENVIRONMENT_DIGEST={environment_digest}");
+}
+
+/// Keep only the destination of each `--remap-path-prefix FROM=TO`. FROM is
+/// the absolute checkout, cargo-home or sysroot path, which the remap exists to
+/// keep out of the binary; hashing it made the embedded digest (and so the
+/// WASM bytes) depend on where the repository was checked out.
+fn without_remap_sources<'a>(flags: impl Iterator<Item = &'a str>, separator: &str) -> String {
+    let mut normalized = Vec::new();
+    let mut destinations = Vec::new();
+    let mut remap_value_next = false;
+    for flag in flags {
+        if remap_value_next {
+            remap_value_next = false;
+            destinations.push(remap_destination(flag).to_owned());
+        } else if flag == "--remap-path-prefix" {
+            remap_value_next = true;
+        } else if let Some(mapping) = flag.strip_prefix("--remap-path-prefix=") {
+            destinations.push(remap_destination(mapping).to_owned());
+        } else {
+            normalized.push(flag.to_owned());
+        }
+    }
+    // The remaps are ordered by source-path length, which differs per checkout.
+    destinations.sort();
+    normalized.extend(destinations.into_iter().map(|to| format!("--remap-path-prefix={to}")));
+    normalized.join(separator)
+}
+
+/// rustc splits a remap at its last `=`.
+fn remap_destination(mapping: &str) -> &str {
+    mapping.rsplit_once('=').map_or(mapping, |(_, to)| to)
 }

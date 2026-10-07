@@ -1,0 +1,27 @@
+{
+  "generated_at": "2026-08-30T01:06:05.601Z",
+  "harvested_reference_rows": 2833,
+  "explicit_included_table_rows": 283,
+  "combined_evidence_rows": 3116,
+  "provisional_deduplicated_reference_groups": 2830,
+  "groups_with_doi": 1502,
+  "review_included_primary_candidates": 500,
+  "unscreened_reference_discovery_groups": 2330,
+  "reference_index_evidence_rules": [
+    "R006",
+    "R013",
+    "R015",
+    "R018",
+    "R020"
+  ],
+  "explicit_included_table_reviews": [
+    "R013",
+    "R032",
+    "R033",
+    "R034",
+    "R036",
+    "R037",
+    "R038"
+  ],
+  "warning": "Deduplication is exact DOI/PMID, then normalized parsed title, then normalized full citation. Non-DOI groups remain provisional. Only explicitly mapped reference-index ranges are marked as review-included candidates."
+}

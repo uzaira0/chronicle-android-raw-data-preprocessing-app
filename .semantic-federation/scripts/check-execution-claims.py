@@ -11,6 +11,23 @@ import re
 from pathlib import Path
 
 
+def module_source(root: Path) -> str:
+    paths = [root]
+    sources = []
+    for source in paths:
+        text = source.read_text(encoding="utf-8")
+        sources.append(text)
+        for relative, delimiter in re.findall(
+            r'#\[path\s*=\s*"([^"]+)"\]\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+\w+\s*([;{])', text
+        ):
+            child = source.parent / relative
+            children = sorted(child.rglob("*.rs")) if delimiter == "{" else [child]
+            for child in children:
+                if child not in paths:
+                    paths.append(child)
+    return "\n".join(sources)
+
+
 FEDERATION_ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY_ROOT = FEDERATION_ROOT.parent
 PLAN_PATH = FEDERATION_ROOT / "semantic/resources/chronicle.plan.json"
@@ -225,7 +242,7 @@ def check_source_shape(declared_queries: set[str]) -> None:
     runtime_path = (
         REPOSITORY_ROOT / "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs"
     )
-    runtime = runtime_path.read_text(encoding="utf-8")
+    runtime = module_source(runtime_path)
     for symbol in (
         "IncrementalPipelineV2Engine",
         "evaluate_dependency_cache_decision(",
@@ -233,7 +250,7 @@ def check_source_shape(declared_queries: set[str]) -> None:
         ".execute_review_with_bases(",
         "review_base_bytes,",
         "reconstruction_base_bytes,",
-        ".execute(csv_bytes, options, support_files)?",
+        ".execute_raw(",
         "fn build_runtime_query_executions(",
         "fn project_query_groups(",
         "fn execute_incremental_pipeline(",
@@ -252,11 +269,11 @@ def check_source_shape(declared_queries: set[str]) -> None:
     execute_body = runtime[runtime.index("fn execute_incremental_pipeline(") :]
     cache_decision = execute_body.index("evaluate_dependency_cache_decision(")
     tracked_execution = execute_body.index(
-        "let tracked_execution = if request.command == QUERY_REVIEW_COMMAND"
+        "Ok::<_, String>(if request.command == QUERY_REVIEW_COMMAND"
     )
     review_execution = execute_body.index(".execute_review_with_bases(")
     full_execution = execute_body.index(
-        ".execute(csv_bytes, options, support_files)?"
+        ".execute_raw("
     )
     projected_status = execute_body.index("build_runtime_query_executions(")
     group_projection = execute_body.index("project_query_groups(")
@@ -309,9 +326,9 @@ def check_source_shape(declared_queries: set[str]) -> None:
     if not derived_queries:
         fail("the runtime must declare its internal cache queries explicitly")
 
-    oracle = (
+    oracle = module_source(
         REPOSITORY_ROOT / "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2.rs"
-    ).read_text(encoding="utf-8")
+    )
     if "pub fn run_pipeline_v2_with_supports(" not in oracle:
         fail("independent fused cold-test oracle is missing")
 

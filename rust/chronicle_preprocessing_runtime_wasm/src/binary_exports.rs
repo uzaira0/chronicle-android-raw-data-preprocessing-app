@@ -6,11 +6,15 @@ use arrow_array::{
     Array, ArrayRef, DictionaryArray, RecordBatch, StringArray, UInt32Array,
 };
 use arrow_ipc::{
+    reader::FileReader,
     writer::{DictionaryHandling, FileWriter, IpcWriteOptions},
     CompressionType,
 };
 use arrow_schema::{DataType, Field, Schema};
-use chronicle_chrono_kernel_wasm::pipeline_v2::{PipelineRowLineage, WorkflowCheckpoint};
+use chronicle_chrono_kernel_wasm::payload_store::{PayloadByteWriter, PayloadBytes};
+use chronicle_chrono_kernel_wasm::pipeline_v2::{
+    LineageSearchEvidence, PipelineRowLineage, WorkflowCheckpoint,
+};
 use chronicle_preprocessing_semantic_adapter::ChroniclePlan;
 use parquet::{
     basic::{ConvertedType, Repetition, Type as PhysicalType},
@@ -23,6 +27,36 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 use std::fmt::Write as FmtWrite;
 use std::io::{Cursor, Write};
 use std::sync::Arc;
+
+/// Typed component tables use the existing Arrow IPC file format. Require one
+/// batch so a caller cannot silently discard later batches or accept a schema
+/// without the explicitly supplied (possibly empty) table.
+pub(crate) fn read_single_table_arrow(bytes: &[u8]) -> Result<RecordBatch, String> {
+    let mut reader = FileReader::try_new(Cursor::new(bytes), None)
+        .map_err(|error| format!("read Arrow table: {error}"))?;
+    if reader.num_batches() != 1 {
+        return Err("Arrow component input requires exactly one record batch".to_owned());
+    }
+    reader
+        .next()
+        .ok_or("Arrow table has no record batch")?
+        .map_err(|error| format!("read Arrow record batch: {error}"))
+}
+
+pub(crate) fn single_table_arrow(table: &RecordBatch) -> Result<Vec<u8>, String> {
+    let mut writer = FileWriter::try_new(Cursor::new(Vec::new()), table.schema().as_ref())
+        .map_err(|error| format!("create Arrow table writer: {error}"))?;
+    writer
+        .write(table)
+        .map_err(|error| format!("write Arrow table: {error}"))?;
+    writer
+        .finish()
+        .map_err(|error| format!("finish Arrow table: {error}"))?;
+    writer
+        .into_inner()
+        .map(|cursor| cursor.into_inner())
+        .map_err(|error| format!("close Arrow table: {error}"))
+}
 
 const RESULT_CELL_CORRESPONDENCE_PROTOCOL: &str = "chronicle-result-cell-correspondence/v4";
 const SOURCE_COORDINATE_PROTOCOL: &str = "chronicle-source-coordinate-index/v3";
@@ -128,7 +162,8 @@ impl RunCachedStringDictionaryBuilder {
 pub struct CanonicalOutput<'a> {
     pub kind: &'a str,
     pub media_type: &'a str,
-    pub bytes: &'a [u8],
+    /// Chunked so indexing a large output never needs a contiguous copy.
+    pub bytes: &'a PayloadBytes,
     pub terminal_query_group: &'a str,
 }
 
@@ -372,20 +407,20 @@ fn source_coordinate_schema() -> Arc<Schema> {
 
 struct SourceCoordinateBatchWriter {
     schema: Arc<Schema>,
-    writer: FileWriter<Cursor<Vec<u8>>>,
+    writer: FileWriter<PayloadByteWriter>,
     builders: SourceCoordinateBuilders,
     row_count: u32,
 }
 
 impl SourceCoordinateBatchWriter {
-    fn new() -> Result<Self, String> {
+    fn new(store: &chronicle_chrono_kernel_wasm::payload_store::PayloadStore) -> Result<Self, String> {
         let schema = source_coordinate_schema();
         let write_options = IpcWriteOptions::default()
             .try_with_compression(Some(CompressionType::LZ4_FRAME))
             .map_err(|error| format!("configure source coordinate compression: {error}"))?
             .with_dictionary_handling(DictionaryHandling::Delta);
         let writer =
-            FileWriter::try_new_with_options(Cursor::new(Vec::new()), &schema, write_options)
+            FileWriter::try_new_with_options(PayloadByteWriter::with_store(store.clone()), &schema, write_options)
                 .map_err(|error| format!("create source coordinate writer: {error}"))?;
         Ok(Self {
             schema,
@@ -458,13 +493,13 @@ impl SourceCoordinateBatchWriter {
             .map_err(|error| format!("write source coordinate batch: {error}"))
     }
 
-    fn finish(mut self) -> Result<(Vec<u8>, u32), String> {
+    fn finish(mut self) -> Result<(PayloadBytes, u32), String> {
         self.flush()?;
         let output = self
             .writer
             .into_inner()
             .map_err(|error| format!("finish source coordinate file: {error}"))?;
-        Ok((output.into_inner(), self.row_count))
+        Ok((output.finish(), self.row_count))
     }
 }
 
@@ -771,20 +806,20 @@ fn result_cell_schema() -> Arc<Schema> {
 
 struct ResultCellBatchWriter {
     schema: Arc<Schema>,
-    writer: FileWriter<Cursor<Vec<u8>>>,
+    writer: FileWriter<PayloadByteWriter>,
     builders: ResultCellBuilders,
     row_count: u32,
 }
 
 impl ResultCellBatchWriter {
-    fn new() -> Result<Self, String> {
+    fn new(store: &chronicle_chrono_kernel_wasm::payload_store::PayloadStore) -> Result<Self, String> {
         let schema = result_cell_schema();
         let write_options = IpcWriteOptions::default()
             .try_with_compression(Some(CompressionType::LZ4_FRAME))
             .map_err(|error| format!("configure result-cell compression: {error}"))?
             .with_dictionary_handling(DictionaryHandling::Delta);
         let writer =
-            FileWriter::try_new_with_options(Cursor::new(Vec::new()), &schema, write_options)
+            FileWriter::try_new_with_options(PayloadByteWriter::with_store(store.clone()), &schema, write_options)
                 .map_err(|error| format!("create result-cell correspondence writer: {error}"))?;
         Ok(Self {
             schema,
@@ -818,13 +853,13 @@ impl ResultCellBatchWriter {
             .map_err(|error| format!("write result-cell correspondence batch: {error}"))
     }
 
-    fn finish(mut self) -> Result<(Vec<u8>, u32), String> {
+    fn finish(mut self) -> Result<(PayloadBytes, u32), String> {
         self.flush()?;
         let output = self
             .writer
             .into_inner()
             .map_err(|error| format!("finish result-cell correspondence file: {error}"))?;
-        Ok((output.into_inner(), self.row_count))
+        Ok((output.finish(), self.row_count))
     }
 }
 
@@ -1069,16 +1104,28 @@ fn append_json_cells(
     Ok(())
 }
 
+enum LineageLookup<'a> {
+    Ordered(&'a [PipelineRowLineage]),
+    Sparse(Vec<Option<&'a PipelineRowLineage>>),
+}
+
+impl LineageLookup<'_> {
+    fn get(&self, index: usize) -> Option<&PipelineRowLineage> {
+        match self {
+            Self::Ordered(rows) => rows.get(index),
+            Self::Sparse(rows) => rows.get(index).copied().flatten(),
+        }
+    }
+}
+
 fn append_csv_cells(
     batch_writer: &mut ResultCellBatchWriter,
     output: &CanonicalOutput<'_>,
-    lineages: Option<&[Option<&PipelineRowLineage>]>,
+    lineages: Option<&LineageLookup<'_>>,
 ) -> Result<(), String> {
-    std::str::from_utf8(output.bytes)
-        .map_err(|error| format!("read {} result CSV as UTF-8: {error}", output.kind))?;
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(true)
-        .from_reader(output.bytes);
+        .from_reader(output.bytes.reader());
     let headers = reader
         .headers()
         .map_err(|error| format!("read {} result CSV header: {error}", output.kind))?
@@ -1098,10 +1145,7 @@ fn append_csv_cells(
         let row_index = u32::try_from(next_row_index)
             .map_err(|_| format!("{} row index exceeds u32", output.kind))?;
         row_count = row_index.saturating_add(1);
-        let lineage = lineages
-            .and_then(|rows| rows.get(row_index as usize))
-            .copied()
-            .flatten();
+        let lineage = lineages.and_then(|rows| rows.get(row_index as usize));
         for (sorted_index, (column_index, column)) in sorted_columns.iter().enumerate() {
             let value_bytes = row.get(*column_index).unwrap_or_default();
             push_cell(
@@ -1161,9 +1205,10 @@ fn dictionary_type() -> DataType {
 /// identity while `normalization` makes decoded/normalized coordinate spaces
 /// explicit.
 pub fn source_coordinate_index_arrow(
+    store: &chronicle_chrono_kernel_wasm::payload_store::PayloadStore,
     sources: &[CanonicalSource<'_>],
-) -> Result<(Vec<u8>, u32), String> {
-    let mut batch_writer = SourceCoordinateBatchWriter::new()?;
+) -> Result<(PayloadBytes, u32), String> {
+    let mut batch_writer = SourceCoordinateBatchWriter::new(store)?;
     let mut sorted_sources = sources.iter().collect::<Vec<_>>();
     sorted_sources.sort_by_key(|source| source.role_id);
     for source in sorted_sources {
@@ -1199,24 +1244,37 @@ pub fn source_coordinate_index_arrow(
 /// row_lineage_row_index)`. The joined raw-row relation remains explicitly
 /// conservative until product kernels retain field-level contributor sets.
 pub fn result_cell_correspondence_arrow(
+    store: &chronicle_chrono_kernel_wasm::payload_store::PayloadStore,
     outputs: &[CanonicalOutput<'_>],
     row_lineages: &[PipelineRowLineage],
-) -> Result<(Vec<u8>, u32), String> {
-    let mut lineages = BTreeMap::<&str, Vec<Option<&PipelineRowLineage>>>::new();
-    for lineage in row_lineages {
-        let row_index = lineage.output_row_index as usize;
-        let rows = lineages.entry(lineage.output_kind.as_str()).or_default();
-        if rows.len() <= row_index {
-            rows.resize(row_index + 1, None);
+) -> Result<(PayloadBytes, u32), String> {
+    // Native pipeline populations are contiguous and indexed within each
+    // output. Borrow those runs instead of duplicating every row pointer.
+    let mut lineages = BTreeMap::new();
+    let mut ordered = true;
+    for rows in row_lineages.chunk_by(|left, right| left.output_kind == right.output_kind) {
+        let kind = rows[0].output_kind.as_str();
+        if lineages.contains_key(kind) || rows.iter().enumerate().any(|(index, row)| row.output_row_index as usize != index) {
+            ordered = false;
+            break;
         }
-        if rows[row_index].replace(lineage).is_some() {
-            return Err(format!(
-                "duplicate row lineage for {} row {}",
-                lineage.output_kind, lineage.output_row_index
-            ));
+        lineages.insert(kind, LineageLookup::Ordered(rows));
+    }
+    if !ordered {
+        // Preserve the existing acceptance and duplicate diagnostics for
+        // callers supplying sparse or reordered lineage records.
+        lineages.clear();
+        for lineage in row_lineages {
+            let row_index = lineage.output_row_index as usize;
+            let LineageLookup::Sparse(rows) = lineages.entry(lineage.output_kind.as_str())
+                .or_insert_with(|| LineageLookup::Sparse(Vec::new())) else { unreachable!() };
+            if rows.len() <= row_index { rows.resize(row_index + 1, None); }
+            if rows[row_index].replace(lineage).is_some() {
+                return Err(format!("duplicate row lineage for {} row {}", lineage.output_kind, lineage.output_row_index));
+            }
         }
     }
-    let mut batch_writer = ResultCellBatchWriter::new()?;
+    let mut batch_writer = ResultCellBatchWriter::new(store)?;
     let mut sorted_outputs = outputs.iter().collect::<Vec<_>>();
     sorted_outputs.sort_by_key(|output| output.kind);
     for output in sorted_outputs {
@@ -1224,10 +1282,10 @@ pub fn result_cell_correspondence_arrow(
             "text/csv" => append_csv_cells(
                 &mut batch_writer,
                 output,
-                lineages.get(output.kind).map(Vec::as_slice),
+                lineages.get(output.kind),
             )?,
             "application/json" => {
-                let value: serde_json::Value = serde_json::from_slice(output.bytes)
+                let value: serde_json::Value = serde_json::from_reader(output.bytes.reader())
                     .map_err(|error| format!("parse {} JSON cells: {error}", output.kind))?;
                 append_json_cells(&mut batch_writer, output, &mut String::new(), &value)?;
             }
@@ -1237,25 +1295,171 @@ pub fn result_cell_correspondence_arrow(
     batch_writer.finish()
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct InfluenceWitnessRecord {
-    source_key_kind: &'static str,
-    source_role_id: String,
-    source_selector_prefix: Option<String>,
-    source_field: Option<String>,
-    source_record_index: Option<u32>,
-    source_record_last: Option<u32>,
-    source_index_space: Option<String>,
-    target_kind: &'static str,
-    target_id: String,
-    target_query_group: String,
-    target_output_kind: Option<String>,
-    target_output_row_index: Option<u32>,
-    target_output_column: Option<String>,
-    relation: &'static str,
-    precision: &'static str,
-    evidence_kind: &'static str,
-    evidence_digest: [u8; 32],
+/// Strings interned for one witness build. Records hold ids; every
+/// comparison and column append resolves through this table, so a
+/// multi-million-row build owns no per-row strings.
+#[derive(Default)]
+struct WitnessStrings<'a> {
+    values: Vec<&'a str>,
+    ids: HashMap<&'a str, u32>,
+}
+
+impl<'a> WitnessStrings<'a> {
+    fn intern(&mut self, value: &'a str) -> u32 {
+        if let Some(&id) = self.ids.get(value) {
+            return id;
+        }
+        let id = u32::try_from(self.values.len())
+            .ok()
+            .filter(|id| *id != u32::MAX)
+            .expect("witness string table");
+        self.values.push(value);
+        self.ids.insert(value, id);
+        id
+    }
+    fn intern_opt(&mut self, value: Option<&'a str>) -> OptU32 {
+        OptU32::new(value.map(|value| self.intern(value)))
+            .expect("witness string ids never reach the absent sentinel")
+    }
+    fn get(&self, id: u32) -> &'a str {
+        self.values[id as usize]
+    }
+    fn opt(&self, id: OptU32) -> Option<&'a str> {
+        id.get().map(|id| self.get(id))
+    }
+}
+
+/// `Option<u32>` in four bytes: `u32::MAX` stands for absent. Interned ids
+/// count from zero and record indices are row positions, so neither reaches
+/// it; `new` refuses the sentinel rather than aliasing it.
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct OptU32(u32);
+
+impl OptU32 {
+    const NONE: Self = Self(u32::MAX);
+
+    fn new(value: Option<u32>) -> Result<Self, String> {
+        match value {
+            Some(u32::MAX) => Err("source-result influence witness index exceeds u32".to_string()),
+            Some(value) => Ok(Self(value)),
+            None => Ok(Self::NONE),
+        }
+    }
+
+    fn get(self) -> Option<u32> {
+        (self != Self::NONE).then_some(self.0)
+    }
+}
+
+/// `target_id` kept as its parts; formatted only when compared or appended.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum WitnessTarget {
+    Id(u32),
+    Row { kind: u32, row: u32 },
+    Cell { kind: u32, row: u32, column: u32 },
+    Column { kind: u32, column: u32 },
+}
+
+impl WitnessTarget {
+    fn write(self, strings: &WitnessStrings<'_>, out: &mut String) {
+        out.clear();
+        match self {
+            Self::Id(id) => out.push_str(strings.get(id)),
+            Self::Row { kind, row } => {
+                let _ = write!(out, "{}:{}", strings.get(kind), row);
+            }
+            Self::Cell { kind, row, column } => {
+                let _ = write!(out, "{}:{}:{}", strings.get(kind), row, strings.get(column));
+            }
+            Self::Column { kind, column } => {
+                let _ = write!(out, "{}:{}", strings.get(kind), strings.get(column));
+            }
+        }
+    }
+}
+
+/// The bytes hashed into `evidence_digest`, recoverable from the record
+/// itself so the digest is computed once, at column append time. Search
+/// evidence is addressed by lineage row and position rather than borrowed:
+/// the record carries no pointer, and millions of records are held while
+/// the file is sorted.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum WitnessExtra {
+    /// `{first}-{last}:{row}` from the record's own range and target row.
+    RowRange,
+    /// `{reason}:{index_space}:` followed by the candidate chain digest of
+    /// `lineages[lineage].searches[search]`.
+    Search { lineage: u32, search: u32 },
+    /// `{source_field}:{record_index}` from the record's own fields.
+    ExactField,
+    Str(u32),
+}
+
+impl WitnessExtra {
+    fn search_evidence(self, lineages: &[PipelineRowLineage]) -> Option<&LineageSearchEvidence> {
+        match self {
+            Self::Search { lineage, search } => {
+                lineages.get(lineage as usize)?.searches.get(search as usize)
+            }
+            _ => None,
+        }
+    }
+
+    /// Equality of the published text: search evidence compares by content,
+    /// so two rows that scanned the same window with the same outcome are
+    /// one row, whichever lineage each came from.
+    fn same(self, other: Self, lineages: &[PipelineRowLineage]) -> bool {
+        match (self.search_evidence(lineages), other.search_evidence(lineages)) {
+            (Some(left), Some(right)) => {
+                left.reason == right.reason
+                    && left.index_space == right.index_space
+                    && left.candidate_chain_digest.as_bytes()
+                        == right.candidate_chain_digest.as_bytes()
+            }
+            (None, None) => self == other,
+            _ => false,
+        }
+    }
+}
+
+/// One witness row before sorting: interned ids and an unformatted target.
+/// A large export produces millions of these, so every optional field is a
+/// four-byte `OptU32` and the whole record is 88 bytes. `same_row` is
+/// equality of the published row, digest included, because the digest is a
+/// function of exactly these fields and the search evidence they address.
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct WitnessRecord {
+    source_key_kind: u32,
+    source_role_id: u32,
+    source_selector_prefix: OptU32,
+    source_field: OptU32,
+    source_record_index: OptU32,
+    source_record_last: OptU32,
+    source_index_space: OptU32,
+    target_kind: u32,
+    target: WitnessTarget,
+    target_query_group: u32,
+    target_output_kind: OptU32,
+    target_output_row_index: OptU32,
+    target_output_column: OptU32,
+    relation: u32,
+    precision: u32,
+    evidence_kind: u32,
+    extra: WitnessExtra,
+}
+
+enum SpecTarget<'a> {
+    Id(&'a str),
+    Row(&'a str, u32),
+    Cell(&'a str, u32, &'a str),
+    Column(&'a str, &'a str),
+}
+
+enum SpecExtra<'a> {
+    RowRange,
+    Search { lineage: u32, search: u32 },
+    ExactField,
+    Str(&'a str),
 }
 
 struct InfluenceWitnessSpec<'a> {
@@ -1274,9 +1478,9 @@ struct InfluenceWitnessSpec<'a> {
     /// are therefore excluded from `sourceCoordinateJoin`.
     source_index_space: Option<&'a str>,
     target_kind: &'static str,
-    target_id: String,
-    target_query_group: String,
-    target_output_kind: Option<String>,
+    target: SpecTarget<'a>,
+    target_query_group: &'a str,
+    target_output_kind: Option<&'a str>,
     target_output_row_index: Option<u32>,
     /// The exact output column, or the `*`-globbed JSON pointer family the step
     /// contract binds. Null on rows that claim only whole-artifact reach.
@@ -1284,7 +1488,108 @@ struct InfluenceWitnessSpec<'a> {
     relation: &'static str,
     precision: &'static str,
     evidence_kind: &'static str,
-    extra_evidence: &'a [u8],
+    /// Hashed into `evidence_digest` only; never stored on the record.
+    extra: SpecExtra<'a>,
+}
+
+type InfluenceSortPrefix<'a> = (
+    &'a str,
+    &'a str,
+    Option<&'a str>,
+    Option<&'a str>,
+    Option<&'a str>,
+    Option<u32>,
+    Option<u32>,
+    &'a str,
+);
+
+impl WitnessRecord {
+    /// The sort key up to `target_id`; the target and `relation` follow.
+    fn sort_prefix<'a>(&self, strings: &WitnessStrings<'a>) -> InfluenceSortPrefix<'a> {
+        (
+            strings.get(self.source_key_kind),
+            strings.get(self.source_role_id),
+            strings.opt(self.source_selector_prefix),
+            strings.opt(self.source_field),
+            strings.opt(self.source_index_space),
+            self.source_record_index.get(),
+            self.source_record_last.get(),
+            strings.get(self.target_kind),
+        )
+    }
+
+    /// The published row is the same: every field, with search evidence
+    /// compared by content.
+    fn same_row(&self, other: &Self, lineages: &[PipelineRowLineage]) -> bool {
+        let without_extra = |record: &Self| Self {
+            extra: WitnessExtra::RowRange,
+            ..*record
+        };
+        without_extra(self) == without_extra(other) && self.extra.same(other.extra, lineages)
+    }
+
+    fn write_source_key(&self, strings: &WitnessStrings<'_>, out: &mut String) {
+        out.clear();
+        let _ = write!(
+            out,
+            "{}:{}:{}:{}:",
+            strings.get(self.source_key_kind),
+            strings.get(self.source_role_id),
+            strings.opt(self.source_selector_prefix).unwrap_or("*"),
+            strings.opt(self.source_field).unwrap_or("*"),
+        );
+        match (self.source_record_index.get(), self.source_record_last.get()) {
+            (Some(first), Some(last)) => {
+                let _ = write!(out, "{first}-{last}");
+            }
+            (Some(first), None) => {
+                let _ = write!(out, "{first}");
+            }
+            _ => out.push('*'),
+        }
+        let _ = write!(out, ":{}", strings.opt(self.source_index_space).unwrap_or("*"));
+    }
+
+    fn write_extra(
+        &self,
+        strings: &WitnessStrings<'_>,
+        lineages: &[PipelineRowLineage],
+        out: &mut Vec<u8>,
+    ) {
+        out.clear();
+        match self.extra {
+            WitnessExtra::RowRange => {
+                let _ = std::io::Write::write_fmt(
+                    out,
+                    format_args!(
+                        "{}-{}:{}",
+                        self.source_record_index.get().unwrap_or_default(),
+                        self.source_record_last.get().unwrap_or_default(),
+                        self.target_output_row_index.get().unwrap_or_default()
+                    ),
+                );
+            }
+            WitnessExtra::Search { lineage, search } => {
+                let search = &lineages[lineage as usize].searches[search as usize];
+                let _ = std::io::Write::write_fmt(
+                    out,
+                    format_args!("{}:{}:", search.reason, search.index_space),
+                );
+                out.extend_from_slice(search.candidate_chain_digest.as_bytes());
+            }
+            WitnessExtra::ExactField => {
+                let _ = std::io::Write::write_fmt(
+                    out,
+                    format_args!(
+                        "{}:{}",
+                        strings.opt(self.source_field).unwrap_or_default(),
+                        self.source_record_index.get().unwrap_or_default()
+                    ),
+                );
+            }
+            WitnessExtra::Str(id) => out.extend_from_slice(strings.get(id).as_bytes()),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -1384,6 +1689,7 @@ fn source_scopes(
         .collect())
 }
 
+#[cfg(test)]
 fn influence_evidence_digest(
     context: &InfluenceContext<'_>,
     source_key: &str,
@@ -1392,13 +1698,43 @@ fn influence_evidence_digest(
     relation: &str,
     extra: &[u8],
 ) -> [u8; 32] {
+    influence_evidence_digest_from_prefix(
+        &influence_evidence_prefix(context),
+        source_key,
+        target_kind,
+        target_id,
+        relation,
+        extra,
+    )
+}
+
+/// The hasher after the fields every record of one export shares: about 400
+/// bytes, six of a record's eight SHA-256 blocks, compressed once per export.
+fn influence_evidence_prefix(context: &InfluenceContext<'_>) -> Sha256 {
     let mut hasher = Sha256::new();
     for field in [
-        SOURCE_RESULT_INFLUENCE_PROTOCOL.as_bytes(),
-        context.implementation_digest.as_bytes(),
-        context.plan_digest.as_bytes(),
-        context.profile_lock_digest.as_bytes(),
-        context.dependency_certificate_digest.as_bytes(),
+        SOURCE_RESULT_INFLUENCE_PROTOCOL,
+        context.implementation_digest,
+        context.plan_digest,
+        context.profile_lock_digest,
+        context.dependency_certificate_digest,
+    ] {
+        hasher.update((field.len() as u64).to_le_bytes());
+        hasher.update(field.as_bytes());
+    }
+    hasher
+}
+
+fn influence_evidence_digest_from_prefix(
+    prefix: &Sha256,
+    source_key: &str,
+    target_kind: &str,
+    target_id: &str,
+    relation: &str,
+    extra: &[u8],
+) -> [u8; 32] {
+    let mut hasher = prefix.clone();
+    for field in [
         source_key.as_bytes(),
         target_kind.as_bytes(),
         target_id.as_bytes(),
@@ -1411,51 +1747,53 @@ fn influence_evidence_digest(
     hasher.finalize().into()
 }
 
-fn append_influence_witness(
-    records: &mut Vec<InfluenceWitnessRecord>,
-    context: &InfluenceContext<'_>,
-    spec: InfluenceWitnessSpec<'_>,
-) {
-    let source_key = format!(
-        "{}:{}:{}:{}:{}:{}",
-        spec.source_key_kind,
-        spec.source_role_id,
-        spec.source_selector_prefix.unwrap_or("*"),
-        spec.source_field.unwrap_or("*"),
-        match (spec.source_record_index, spec.source_record_last) {
-            (Some(first), Some(last)) => format!("{first}-{last}"),
-            (Some(first), None) => first.to_string(),
-            _ => "*".into(),
+fn append_influence_witness<'a>(
+    records: &mut Vec<WitnessRecord>,
+    strings: &mut WitnessStrings<'a>,
+    spec: InfluenceWitnessSpec<'a>,
+) -> Result<(), String> {
+    let target = match spec.target {
+        SpecTarget::Id(id) => WitnessTarget::Id(strings.intern(id)),
+        SpecTarget::Row(kind, row) => WitnessTarget::Row {
+            kind: strings.intern(kind),
+            row,
         },
-        spec.source_index_space.unwrap_or("*"),
-    );
-    let evidence_digest = influence_evidence_digest(
-        context,
-        &source_key,
-        spec.target_kind,
-        &spec.target_id,
-        spec.relation,
-        spec.extra_evidence,
-    );
-    records.push(InfluenceWitnessRecord {
-        source_key_kind: spec.source_key_kind,
-        source_role_id: spec.source_role_id.into(),
-        source_selector_prefix: spec.source_selector_prefix.map(str::to_string),
-        source_field: spec.source_field.map(str::to_string),
-        source_record_index: spec.source_record_index,
-        source_record_last: spec.source_record_last,
-        source_index_space: spec.source_index_space.map(str::to_string),
-        target_kind: spec.target_kind,
-        target_id: spec.target_id,
-        target_query_group: spec.target_query_group,
-        target_output_kind: spec.target_output_kind,
-        target_output_row_index: spec.target_output_row_index,
-        target_output_column: spec.target_output_column.map(str::to_string),
-        relation: spec.relation,
-        precision: spec.precision,
-        evidence_kind: spec.evidence_kind,
-        evidence_digest,
+        SpecTarget::Cell(kind, row, column) => WitnessTarget::Cell {
+            kind: strings.intern(kind),
+            row,
+            column: strings.intern(column),
+        },
+        SpecTarget::Column(kind, column) => WitnessTarget::Column {
+            kind: strings.intern(kind),
+            column: strings.intern(column),
+        },
+    };
+    let extra = match spec.extra {
+        SpecExtra::RowRange => WitnessExtra::RowRange,
+        SpecExtra::Search { lineage, search } => WitnessExtra::Search { lineage, search },
+        SpecExtra::ExactField => WitnessExtra::ExactField,
+        SpecExtra::Str(value) => WitnessExtra::Str(strings.intern(value)),
+    };
+    records.push(WitnessRecord {
+        source_key_kind: strings.intern(spec.source_key_kind),
+        source_role_id: strings.intern(spec.source_role_id),
+        source_selector_prefix: strings.intern_opt(spec.source_selector_prefix),
+        source_field: strings.intern_opt(spec.source_field),
+        source_record_index: OptU32::new(spec.source_record_index)?,
+        source_record_last: OptU32::new(spec.source_record_last)?,
+        source_index_space: strings.intern_opt(spec.source_index_space),
+        target_kind: strings.intern(spec.target_kind),
+        target,
+        target_query_group: strings.intern(spec.target_query_group),
+        target_output_kind: strings.intern_opt(spec.target_output_kind),
+        target_output_row_index: OptU32::new(spec.target_output_row_index)?,
+        target_output_column: strings.intern_opt(spec.target_output_column),
+        relation: strings.intern(spec.relation),
+        precision: strings.intern(spec.precision),
+        evidence_kind: strings.intern(spec.evidence_kind),
+        extra,
     });
+    Ok(())
 }
 
 /// A compact, proof-carrying bridge between exact source coordinates, typed
@@ -1471,13 +1809,14 @@ fn append_influence_witness(
 /// positions in the ordering their `source_index_space` names, not raw data
 /// rows, and the published `sourceCoordinateJoin` excludes them.
 pub fn source_result_influence_witness_arrow(
+    store: &chronicle_chrono_kernel_wasm::payload_store::PayloadStore,
     sources: &[CanonicalSource<'_>],
     outputs: &[CanonicalOutput<'_>],
     row_lineages: &[PipelineRowLineage],
     plan: &ChroniclePlan,
     checkpoints: &BTreeMap<String, WorkflowCheckpoint>,
     context: &InfluenceContext<'_>,
-) -> Result<(Vec<u8>, u32), String> {
+) -> Result<(PayloadBytes, u32), String> {
     let scopes = source_scopes(sources, plan)?;
     let output_scopes = outputs
         .iter()
@@ -1487,6 +1826,7 @@ pub fn source_result_influence_witness_arrow(
         .iter()
         .map(|lineage| lineage.output_kind.as_str())
         .collect::<BTreeSet<_>>();
+    let mut strings = WitnessStrings::default();
     let mut records = Vec::new();
 
     for scope in &scopes {
@@ -1497,9 +1837,7 @@ pub fn source_result_influence_witness_arrow(
         };
         for query_group_id in &scope.reached_nodes {
             if let Some(checkpoint) = checkpoints.get(query_group_id) {
-                append_influence_witness(
-                    &mut records,
-                    context,
+                append_influence_witness(&mut records, &mut strings,
                     InfluenceWitnessSpec {
                         source_key_kind: source_kind,
                         source_role_id: &scope.role_id,
@@ -1509,17 +1847,17 @@ pub fn source_result_influence_witness_arrow(
                         source_index_space: None,
                         source_field: None,
                         target_kind: "workflow-checkpoint",
-                        target_id: checkpoint.terminal_digest.clone(),
-                        target_query_group: query_group_id.clone(),
+                        target: SpecTarget::Id(&checkpoint.terminal_digest),
+                        target_query_group: query_group_id,
                         target_output_kind: None,
                         target_output_row_index: None,
                         target_output_column: None,
                         relation: "may-affect-checkpoint",
                         precision: "declared-transitive",
                         evidence_kind: "product-plan-and-typed-checkpoint",
-                        extra_evidence: checkpoint.schema_digest.as_bytes(),
+                        extra: SpecExtra::Str(&checkpoint.schema_digest),
                     },
-                );
+                )?;
             }
         }
     }
@@ -1545,10 +1883,11 @@ pub fn source_result_influence_witness_arrow(
                 .map(|headers| headers.iter().map(str::to_string).collect())
         })
         .unwrap_or_default();
-    let exact_contributions =
-        chronicle_chrono_kernel_wasm::workflow_contract::exact_cell_contributions();
+    let exact_contributions = &chronicle_chrono_kernel_wasm::workflow_contract::workflow_contract()
+        .semantic
+        .exact_cell_contributions;
     let mut exact_by_output_kind: BTreeMap<&str, Vec<_>> = BTreeMap::new();
-    for contribution in &exact_contributions {
+    for contribution in exact_contributions {
         let supplied_column = contribution
             .source_field
             .split_once('.')
@@ -1563,16 +1902,34 @@ pub fn source_result_influence_witness_arrow(
             .push(contribution);
     }
 
-    for lineage in row_lineages {
+    // One allocation for everything still to come: the lineage rows exactly,
+    // plus a bound on the declared-reach and gap rows appended after them. A
+    // reserve short by even one record doubles a multi-million-row vector.
+    let lineage_records = row_lineages
+        .iter()
+        .map(|lineage| {
+            let exact = match lineage.source_data_row_ranges.as_slice() {
+                [only] if only.first == only.last && lineage.searches.is_empty() => {
+                    exact_by_output_kind
+                        .get(lineage.output_kind.as_str())
+                        .map_or(0, Vec::len)
+                }
+                _ => 0,
+            };
+            lineage.source_data_row_ranges.len() + lineage.searches.len() + exact
+        })
+        .sum::<usize>();
+    let declared_reach_bound =
+        chronicle_chrono_kernel_wasm::workflow_contract::source_column_output_reach()
+            .iter()
+            .map(|reach| reach.cells.len())
+            .sum::<usize>();
+    records.reserve(lineage_records + declared_reach_bound + scopes.len() * output_scopes.len());
+    for (lineage_index, lineage) in row_lineages.iter().enumerate() {
+        let lineage_index = u32::try_from(lineage_index)
+            .map_err(|_| "source-result influence witness exceeds u32 lineage rows".to_string())?;
         for source_range in &lineage.source_data_row_ranges {
-            let target_id = format!("{}:{}", lineage.output_kind, lineage.output_row_index);
-            let extra = format!(
-                "{}-{}:{}",
-                source_range.first, source_range.last, lineage.output_row_index
-            );
-            append_influence_witness(
-                &mut records,
-                context,
+            append_influence_witness(&mut records, &mut strings,
                 InfluenceWitnessSpec {
                     source_key_kind: "raw-row",
                     source_role_id: "raw_chronicle_csv",
@@ -1582,17 +1939,17 @@ pub fn source_result_influence_witness_arrow(
                     source_record_last: Some(source_range.last),
                     source_index_space: None,
                     target_kind: "result-row",
-                    target_id,
-                    target_query_group: lineage.terminal_query_group.to_string(),
-                    target_output_kind: Some(lineage.output_kind.to_string()),
+                    target: SpecTarget::Row(lineage.output_kind.as_str(), lineage.output_row_index),
+                    target_query_group: lineage.terminal_query_group.as_str(),
+                    target_output_kind: Some(lineage.output_kind.as_str()),
                     target_output_row_index: Some(lineage.output_row_index),
                     target_output_column: None,
                     relation: "may-contribute-via-row-lineage",
                     precision: "conservative-row-lineage",
                     evidence_kind: "kernel-row-lineage",
-                    extra_evidence: extra.as_bytes(),
+                    extra: SpecExtra::RowRange,
                 },
-            );
+            )?;
         }
 
         // The stop-event search window is a real control dependency the row
@@ -1610,16 +1967,13 @@ pub fn source_result_influence_witness_arrow(
         // a superset, of what was scanned — a `participant-source-event-order`
         // search starting at 0 addressed a record outside the one-based space
         // entirely, so the `conservative-search-window` claim was false.
-        for search in &lineage.searches {
+        for (search_index, search) in lineage.searches.iter().enumerate() {
             if search.end_event_index_exclusive <= search.start_event_index {
                 continue;
             }
-            let target_id = format!("{}:{}", lineage.output_kind, lineage.output_row_index);
-            let mut extra = format!("{}:{}:", search.reason, search.index_space).into_bytes();
-            extra.extend_from_slice(search.candidate_chain_digest.as_bytes());
-            append_influence_witness(
-                &mut records,
-                context,
+            let search_index = u32::try_from(search_index)
+                .map_err(|_| "source-result influence witness exceeds u32 searches".to_string())?;
+            append_influence_witness(&mut records, &mut strings,
                 InfluenceWitnessSpec {
                     source_key_kind: LINEAGE_SEARCH_SOURCE_KEY_KIND,
                     source_role_id: "raw_chronicle_csv",
@@ -1629,17 +1983,20 @@ pub fn source_result_influence_witness_arrow(
                     source_record_last: Some(search.end_event_index_exclusive - 1),
                     source_index_space: Some(search.index_space.as_str()),
                     target_kind: "result-row",
-                    target_id,
-                    target_query_group: lineage.terminal_query_group.to_string(),
-                    target_output_kind: Some(lineage.output_kind.to_string()),
+                    target: SpecTarget::Row(lineage.output_kind.as_str(), lineage.output_row_index),
+                    target_query_group: lineage.terminal_query_group.as_str(),
+                    target_output_kind: Some(lineage.output_kind.as_str()),
                     target_output_row_index: Some(lineage.output_row_index),
                     target_output_column: None,
                     relation: "may-contribute-via-lineage-search",
                     precision: "conservative-search-window",
                     evidence_kind: "kernel-lineage-search",
-                    extra_evidence: &extra,
+                    extra: SpecExtra::Search {
+                        lineage: lineage_index,
+                        search: search_index,
+                    },
                 },
-            );
+            )?;
         }
 
         // Exactly one contributing raw record and no search window means the
@@ -1656,14 +2013,7 @@ pub fn source_result_influence_witness_arrow(
             .map(Vec::as_slice)
             .unwrap_or_default()
         {
-            let target_id = format!(
-                "{}:{}:{}",
-                lineage.output_kind, lineage.output_row_index, contribution.column
-            );
-            let extra = format!("{}:{}", contribution.source_field, record_index);
-            append_influence_witness(
-                &mut records,
-                context,
+            append_influence_witness(&mut records, &mut strings,
                 InfluenceWitnessSpec {
                     source_key_kind: "source-column-record",
                     source_role_id: "raw_chronicle_csv",
@@ -1673,17 +2023,21 @@ pub fn source_result_influence_witness_arrow(
                     source_record_last: Some(record_index),
                     source_index_space: None,
                     target_kind: "result-cell",
-                    target_id,
-                    target_query_group: lineage.terminal_query_group.to_string(),
-                    target_output_kind: Some(lineage.output_kind.to_string()),
+                    target: SpecTarget::Cell(
+                        lineage.output_kind.as_str(),
+                        lineage.output_row_index,
+                        contribution.column,
+                    ),
+                    target_query_group: lineage.terminal_query_group.as_str(),
+                    target_output_kind: Some(lineage.output_kind.as_str()),
                     target_output_row_index: Some(lineage.output_row_index),
                     target_output_column: Some(contribution.column),
                     relation: "exact-field-contribution",
                     precision: "exact-field",
                     evidence_kind: "kernel-row-lineage-and-field-contract",
-                    extra_evidence: extra.as_bytes(),
+                    extra: SpecExtra::ExactField,
                 },
-            );
+            )?;
         }
     }
 
@@ -1713,10 +2067,7 @@ pub fn source_result_influence_witness_arrow(
                 continue;
             };
             column_witnessed_scopes.insert((role_id, cell.output_kind));
-            let target_id = format!("{}:{}", cell.output_kind, cell.column);
-            append_influence_witness(
-                &mut records,
-                context,
+            append_influence_witness(&mut records, &mut strings,
                 InfluenceWitnessSpec {
                     source_key_kind: "source-column",
                     source_role_id: role_id,
@@ -1726,17 +2077,17 @@ pub fn source_result_influence_witness_arrow(
                     source_record_last: None,
                     source_index_space: None,
                     target_kind: "result-column",
-                    target_id,
-                    target_query_group: (*terminal_node).into(),
-                    target_output_kind: Some(cell.output_kind.into()),
+                    target: SpecTarget::Column(cell.output_kind, cell.column),
+                    target_query_group: terminal_node,
+                    target_output_kind: Some(cell.output_kind),
                     target_output_row_index: None,
                     target_output_column: Some(cell.column),
                     relation: "may-affect-output-column",
                     precision: "declared-column-scope",
                     evidence_kind: "field-level-workflow-contract",
-                    extra_evidence: cell.emitting_query.as_bytes(),
+                    extra: SpecExtra::Str(cell.emitting_query),
                 },
-            );
+            )?;
         }
     }
 
@@ -1757,9 +2108,7 @@ pub fn source_result_influence_witness_arrow(
             let has_column_witness =
                 column_witnessed_scopes.contains(&(scope.role_id.as_str(), *output_kind));
             if no_declared_binding || (reached_output && !has_row_witness && !has_column_witness) {
-                append_influence_witness(
-                    &mut records,
-                    context,
+                append_influence_witness(&mut records, &mut strings,
                     InfluenceWitnessSpec {
                         source_key_kind: source_kind,
                         source_role_id: &scope.role_id,
@@ -1769,9 +2118,9 @@ pub fn source_result_influence_witness_arrow(
                         source_record_last: None,
                         source_index_space: None,
                         target_kind: "result-scope",
-                        target_id: (*output_kind).into(),
-                        target_query_group: (*terminal_node).into(),
-                        target_output_kind: Some((*output_kind).into()),
+                        target: SpecTarget::Id(output_kind),
+                        target_query_group: terminal_node,
+                        target_output_kind: Some(output_kind),
                         target_output_row_index: None,
                         target_output_column: None,
                         relation: if no_declared_binding {
@@ -1781,140 +2130,39 @@ pub fn source_result_influence_witness_arrow(
                         },
                         precision: "unresolved",
                         evidence_kind: "explicit-gap",
-                        extra_evidence: output_kind.as_bytes(),
+                        extra: SpecExtra::Str(output_kind),
                     },
-                );
+                )?;
             }
         }
     }
 
-    records.sort_by(|left, right| {
-        (
-            left.source_key_kind,
-            left.source_role_id.as_str(),
-            left.source_selector_prefix.as_deref(),
-            left.source_field.as_deref(),
-            left.source_index_space.as_deref(),
-            left.source_record_index,
-            left.source_record_last,
-            left.target_kind,
-            left.target_id.as_str(),
-            left.relation,
-        )
-            .cmp(&(
-                right.source_key_kind,
-                right.source_role_id.as_str(),
-                right.source_selector_prefix.as_deref(),
-                right.source_field.as_deref(),
-                right.source_index_space.as_deref(),
-                right.source_record_index,
-                right.source_record_last,
-                right.target_kind,
-                right.target_id.as_str(),
-                right.relation,
-            ))
-    });
-    records.dedup();
-    let row_count = u32::try_from(records.len())
+    // Stable sort of an index vector: the same order a stable sort of the
+    // records gives, without the merge buffer that copied half of a
+    // multi-million-row vector. The key is the string form of every field
+    // it names, so `target_id` compares as the text the column publishes.
+    // Consecutive duplicates are skipped below.
+    let record_count = u32::try_from(records.len())
         .map_err(|_| "source-result influence witness exceeds u32 rows".to_string())?;
-
-    let mut source_key_kind = StringDictionaryBuilder::<Int32Type>::new();
-    let mut source_role_id = StringDictionaryBuilder::<Int32Type>::new();
-    let mut source_selector_prefix = StringDictionaryBuilder::<Int32Type>::new();
-    let mut source_field = StringDictionaryBuilder::<Int32Type>::new();
-    let source_record_index = UInt32Array::from(
-        records
-            .iter()
-            .map(|record| record.source_record_index)
-            .collect::<Vec<_>>(),
-    );
-    let source_record_last = UInt32Array::from(
-        records
-            .iter()
-            .map(|record| record.source_record_last)
-            .collect::<Vec<_>>(),
-    );
-    let mut source_index_space = StringDictionaryBuilder::<Int32Type>::new();
-    let mut target_kind = StringDictionaryBuilder::<Int32Type>::new();
-    let mut target_id = StringDictionaryBuilder::<Int32Type>::new();
-    let mut target_query_group = StringDictionaryBuilder::<Int32Type>::new();
-    let mut target_output_kind = StringDictionaryBuilder::<Int32Type>::new();
-    let target_output_row_index = UInt32Array::from(
-        records
-            .iter()
-            .map(|record| record.target_output_row_index)
-            .collect::<Vec<_>>(),
-    );
-    let mut target_output_column = StringDictionaryBuilder::<Int32Type>::new();
-    let mut relation = StringDictionaryBuilder::<Int32Type>::new();
-    let mut precision = StringDictionaryBuilder::<Int32Type>::new();
-    let mut evidence_kind = StringDictionaryBuilder::<Int32Type>::new();
-    let mut evidence_digest = FixedSizeBinaryBuilder::with_capacity(records.len(), 32);
-
-    for record in &records {
-        source_key_kind
-            .append(record.source_key_kind)
-            .map_err(|error| error.to_string())?;
-        source_role_id
-            .append(&record.source_role_id)
-            .map_err(|error| error.to_string())?;
-        if let Some(value) = &record.source_selector_prefix {
-            source_selector_prefix
-                .append(value)
-                .map_err(|error| error.to_string())?;
-        } else {
-            source_selector_prefix.append_null();
-        }
-        if let Some(value) = &record.source_field {
-            source_field
-                .append(value)
-                .map_err(|error| error.to_string())?;
-        } else {
-            source_field.append_null();
-        }
-        if let Some(value) = &record.source_index_space {
-            source_index_space
-                .append(value)
-                .map_err(|error| error.to_string())?;
-        } else {
-            source_index_space.append_null();
-        }
-        target_kind
-            .append(record.target_kind)
-            .map_err(|error| error.to_string())?;
-        target_id
-            .append(&record.target_id)
-            .map_err(|error| error.to_string())?;
-        target_query_group
-            .append(&record.target_query_group)
-            .map_err(|error| error.to_string())?;
-        if let Some(value) = &record.target_output_kind {
-            target_output_kind
-                .append(value)
-                .map_err(|error| error.to_string())?;
-        } else {
-            target_output_kind.append_null();
-        }
-        if let Some(value) = &record.target_output_column {
-            target_output_column
-                .append(value)
-                .map_err(|error| error.to_string())?;
-        } else {
-            target_output_column.append_null();
-        }
-        relation
-            .append(record.relation)
-            .map_err(|error| error.to_string())?;
-        precision
-            .append(record.precision)
-            .map_err(|error| error.to_string())?;
-        evidence_kind
-            .append(record.evidence_kind)
-            .map_err(|error| error.to_string())?;
-        evidence_digest
-            .append_value(record.evidence_digest)
-            .map_err(|error| error.to_string())?;
-    }
+    let mut order = (0..record_count).collect::<Vec<u32>>();
+    let mut left_target = String::new();
+    let mut right_target = String::new();
+    order.sort_by(|&left, &right| {
+        let (left, right) = (&records[left as usize], &records[right as usize]);
+        left.sort_prefix(&strings)
+            .cmp(&right.sort_prefix(&strings))
+            .then_with(|| {
+                left.target.write(&strings, &mut left_target);
+                right.target.write(&strings, &mut right_target);
+                left_target.cmp(&right_target)
+            })
+            .then_with(|| strings.get(left.relation).cmp(strings.get(right.relation)))
+    });
+    order.dedup_by(|next, previous| {
+        records[*next as usize].same_row(&records[*previous as usize], row_lineages)
+    });
+    let row_count = u32::try_from(order.len())
+        .map_err(|_| "source-result influence witness exceeds u32 rows".to_string())?;
 
     let mut metadata = HashMap::new();
     metadata.insert(
@@ -1977,48 +2225,173 @@ pub fn source_result_influence_witness_arrow(
         ],
         metadata,
     ));
-    let arrays: Vec<ArrayRef> = vec![
-        Arc::new(source_key_kind.finish()),
-        Arc::new(source_role_id.finish()),
-        Arc::new(source_selector_prefix.finish()),
-        Arc::new(source_field.finish()),
-        Arc::new(source_record_index),
-        Arc::new(source_record_last),
-        Arc::new(source_index_space.finish()),
-        Arc::new(target_kind.finish()),
-        Arc::new(target_id.finish()),
-        Arc::new(target_query_group.finish()),
-        Arc::new(target_output_kind.finish()),
-        Arc::new(target_output_row_index),
-        Arc::new(target_output_column.finish()),
-        Arc::new(relation.finish()),
-        Arc::new(precision.finish()),
-        Arc::new(evidence_kind.finish()),
-        Arc::new(evidence_digest.finish()),
-    ];
-    let batch = RecordBatch::try_new(schema.clone(), arrays)
-        .map_err(|error| format!("build source-result influence Arrow batch: {error}"))?;
-    let mut output = Cursor::new(Vec::new());
-    {
-        let write_options = IpcWriteOptions::default()
-            .try_with_compression(Some(CompressionType::LZ4_FRAME))
-            .map_err(|error| format!("configure source-result influence compression: {error}"))?;
-        let mut writer = FileWriter::try_new_with_options(&mut output, &schema, write_options)
-            .map_err(|error| format!("create source-result influence writer: {error}"))?;
+    // The columns are built and written one batch at a time: an export with
+    // millions of witness rows never holds seventeen row-sized builders and
+    // the encoded file side by side. Every dictionary is seeded from the
+    // previous batch so each batch extends it and the file carries deltas.
+    let write_options = IpcWriteOptions::default()
+        .try_with_compression(Some(CompressionType::LZ4_FRAME))
+        .map_err(|error| format!("configure source-result influence compression: {error}"))?
+        .with_dictionary_handling(DictionaryHandling::Delta);
+    // The file goes straight into the payload store's chunked writer: the
+    // encoded witness of a large export is never one contiguous allocation
+    // beside its records.
+    let mut output = PayloadByteWriter::with_store(store.clone());
+    let mut writer = FileWriter::try_new_with_options(&mut output, &schema, write_options)
+        .map_err(|error| format!("create source-result influence writer: {error}"))?;
+    let mut dictionaries: Option<Vec<StringArray>> = None;
+    let mut target_text = String::new();
+    let mut source_key = String::new();
+    let mut extra = Vec::new();
+    let evidence_prefix = influence_evidence_prefix(context);
+    for chunk in order.chunks(RESULT_CELL_BATCH_ROWS) {
+        let rows = chunk.len();
+        let seeded = |column: usize, values: usize| -> Result<_, String> {
+            match dictionaries.as_ref() {
+                Some(previous) => StringDictionaryBuilder::<Int32Type>::new_with_dictionary(
+                    rows,
+                    &previous[column],
+                )
+                .map_err(|error| error.to_string()),
+                None => Ok(StringDictionaryBuilder::<Int32Type>::with_capacity(
+                    rows,
+                    values,
+                    values * 32,
+                )),
+            }
+        };
+        let mut source_key_kind = seeded(0, 8)?;
+        let mut source_role_id = seeded(1, 16)?;
+        let mut source_selector_prefix = seeded(2, 64)?;
+        let mut source_field = seeded(3, 256)?;
+        let mut source_index_space = seeded(4, 8)?;
+        let mut target_kind = seeded(5, 8)?;
+        let mut target_id = seeded(6, rows)?;
+        let mut target_query_group = seeded(7, 128)?;
+        let mut target_output_kind = seeded(8, 64)?;
+        let mut target_output_column = seeded(9, 256)?;
+        let mut relation = seeded(10, 8)?;
+        let mut precision = seeded(11, 8)?;
+        let mut evidence_kind = seeded(12, 8)?;
+        let mut source_record_index = UInt32Builder::with_capacity(rows);
+        let mut source_record_last = UInt32Builder::with_capacity(rows);
+        let mut target_output_row_index = UInt32Builder::with_capacity(rows);
+        let mut evidence_digest = FixedSizeBinaryBuilder::with_capacity(rows, 32);
+        for &index in chunk {
+            let record = &records[index as usize];
+            source_record_index.append_option(record.source_record_index.get());
+            source_record_last.append_option(record.source_record_last.get());
+            target_output_row_index.append_option(record.target_output_row_index.get());
+            let append_opt = |builder: &mut StringDictionaryBuilder<Int32Type>,
+                                  value: OptU32|
+             -> Result<(), String> {
+                match strings.opt(value) {
+                    Some(value) => builder.append(value).map(|_| ()).map_err(|error| error.to_string()),
+                    None => {
+                        builder.append_null();
+                        Ok(())
+                    }
+                }
+            };
+            source_key_kind
+                .append(strings.get(record.source_key_kind))
+                .map_err(|error| error.to_string())?;
+            source_role_id
+                .append(strings.get(record.source_role_id))
+                .map_err(|error| error.to_string())?;
+            append_opt(&mut source_selector_prefix, record.source_selector_prefix)?;
+            append_opt(&mut source_field, record.source_field)?;
+            append_opt(&mut source_index_space, record.source_index_space)?;
+            target_kind
+                .append(strings.get(record.target_kind))
+                .map_err(|error| error.to_string())?;
+            record.target.write(&strings, &mut target_text);
+            target_id
+                .append(&target_text)
+                .map_err(|error| error.to_string())?;
+            target_query_group
+                .append(strings.get(record.target_query_group))
+                .map_err(|error| error.to_string())?;
+            append_opt(&mut target_output_kind, record.target_output_kind)?;
+            append_opt(&mut target_output_column, record.target_output_column)?;
+            relation
+                .append(strings.get(record.relation))
+                .map_err(|error| error.to_string())?;
+            precision
+                .append(strings.get(record.precision))
+                .map_err(|error| error.to_string())?;
+            evidence_kind
+                .append(strings.get(record.evidence_kind))
+                .map_err(|error| error.to_string())?;
+            record.write_source_key(&strings, &mut source_key);
+            record.write_extra(&strings, row_lineages, &mut extra);
+            evidence_digest
+                .append_value(influence_evidence_digest_from_prefix(
+                    &evidence_prefix,
+                    &source_key,
+                    strings.get(record.target_kind),
+                    &target_text,
+                    strings.get(record.relation),
+                    &extra,
+                ))
+                .map_err(|error| error.to_string())?;
+        }
+        let arrays: Vec<ArrayRef> = vec![
+            Arc::new(source_key_kind.finish()),
+            Arc::new(source_role_id.finish()),
+            Arc::new(source_selector_prefix.finish()),
+            Arc::new(source_field.finish()),
+            Arc::new(source_record_index.finish()),
+            Arc::new(source_record_last.finish()),
+            Arc::new(source_index_space.finish()),
+            Arc::new(target_kind.finish()),
+            Arc::new(target_id.finish()),
+            Arc::new(target_query_group.finish()),
+            Arc::new(target_output_kind.finish()),
+            Arc::new(target_output_row_index.finish()),
+            Arc::new(target_output_column.finish()),
+            Arc::new(relation.finish()),
+            Arc::new(precision.finish()),
+            Arc::new(evidence_kind.finish()),
+            Arc::new(evidence_digest.finish()),
+        ];
+        let batch = RecordBatch::try_new(schema.clone(), arrays)
+            .map_err(|error| format!("build source-result influence Arrow batch: {error}"))?;
+        dictionaries = Some(
+            [0, 1, 2, 3, 6, 7, 8, 9, 10, 12, 13, 14, 15]
+                .into_iter()
+                .map(|column| dictionary_values(&batch, column))
+                .collect::<Result<Vec<_>, _>>()?,
+        );
         writer
             .write(&batch)
             .map_err(|error| format!("write source-result influence batch: {error}"))?;
-        writer
-            .finish()
-            .map_err(|error| format!("finish source-result influence file: {error}"))?;
     }
-    Ok((output.into_inner(), row_count))
+    writer
+        .finish()
+        .map_err(|error| format!("finish source-result influence file: {error}"))?;
+    drop(writer);
+    drop(order);
+    drop(records);
+    drop(strings);
+    Ok((output.finish(), row_count))
+}
+
+fn dictionary_values(batch: &RecordBatch, column: usize) -> Result<StringArray, String> {
+    batch
+        .column(column)
+        .as_any()
+        .downcast_ref::<DictionaryArray<Int32Type>>()
+        .and_then(|dictionary| dictionary.values().as_any().downcast_ref::<StringArray>())
+        .cloned()
+        .ok_or_else(|| format!("source-result influence column {column} is not a string dictionary"))
 }
 
 pub fn row_lineage_arrow(
+    store: &chronicle_chrono_kernel_wasm::payload_store::PayloadStore,
     lineages: &[PipelineRowLineage],
     source_input_digest: &str,
-) -> Result<Vec<u8>, String> {
+) -> Result<PayloadBytes, String> {
     let mut output_kind = StringDictionaryBuilder::<Int32Type>::new();
     let mut output_row_index = Vec::new();
     let mut relationship_kind = StringDictionaryBuilder::<Int32Type>::new();
@@ -2158,7 +2531,7 @@ pub fn row_lineage_arrow(
     ];
     let batch = RecordBatch::try_new(schema.clone(), arrays)
         .map_err(|error| format!("build lineage Arrow record batch: {error}"))?;
-    let mut output = Cursor::new(Vec::new());
+    let mut output = PayloadByteWriter::with_store(store.clone());
     {
         let write_options = IpcWriteOptions::default()
             .try_with_compression(Some(CompressionType::LZ4_FRAME))
@@ -2172,7 +2545,7 @@ pub fn row_lineage_arrow(
             .finish()
             .map_err(|error| format!("finish lineage Arrow file: {error}"))?;
     }
-    Ok(output.into_inner())
+    Ok(output.finish())
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -2191,7 +2564,7 @@ pub struct CsvTable {
 /// `binary_exports` is a private module, so `pub` here is crate-internal: it
 /// only lets `append_binary_exports` parse a canonical CSV once and hand the
 /// same table to both the Parquet and the SPSS writer.
-pub fn parse_csv(bytes: &[u8]) -> Result<CsvTable, String> {
+pub fn parse_csv(bytes: impl std::io::Read) -> Result<CsvTable, String> {
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(true)
         .from_reader(bytes);
@@ -2683,7 +3056,7 @@ pub fn sav_from_table(table: &CsvTable, screen: bool) -> Result<Vec<u8>, String>
                 let bytes = value.as_bytes();
                 let keep = truncated_utf8_len(bytes, variable.string_width);
                 padded[..keep].copy_from_slice(&bytes[..keep]);
-                for segment in padded.chunks_exact(8) {
+                for segment in padded.as_chunks::<8>().0 {
                     if segment.iter().all(|byte| *byte == b' ') {
                         commands.emit(&mut sink, 254, None);
                     } else {
@@ -2734,7 +3107,26 @@ mod perf_measurement;
 mod tests {
     use super::*;
     use arrow_array::{Array, DictionaryArray, FixedSizeBinaryArray};
+
+    fn bytes_of(file: Result<(PayloadBytes, u32), String>) -> (Vec<u8>, u32) {
+        let (bytes, rows) = file.unwrap();
+        (bytes.into_vec().unwrap(), rows)
+    }
+
+    #[test]
+    fn a_witness_record_is_eighty_eight_bytes_with_four_byte_optionals() {
+        assert_eq!(std::mem::size_of::<WitnessRecord>(), 88);
+        assert_eq!(std::mem::size_of::<OptU32>(), 4);
+        assert_eq!(OptU32::new(None).unwrap().get(), None);
+        assert_eq!(OptU32::new(Some(0)).unwrap().get(), Some(0));
+        assert_eq!(
+            OptU32::new(Some(u32::MAX - 1)).unwrap().get(),
+            Some(u32::MAX - 1)
+        );
+        assert!(OptU32::new(Some(u32::MAX)).is_err());
+    }
     use arrow_ipc::reader::FileReader;
+    use std::io::Cursor;
     use bytes::Bytes;
     use parquet::{
         file::reader::{FileReader as ParquetFileReader, SerializedFileReader},
@@ -2901,15 +3293,15 @@ mod tests {
             .unwrap_or_default();
         assert!(result_second_error.contains("result-cell column 1"));
 
-        let mut source_writer = SourceCoordinateBatchWriter::new().unwrap();
+        let mut source_writer = SourceCoordinateBatchWriter::new(&chronicle_chrono_kernel_wasm::payload_store::current_store()).unwrap();
         source_writer.flush().unwrap();
-        let (source_bytes, source_rows) = source_writer.finish().unwrap();
+        let (source_bytes, source_rows) = bytes_of(source_writer.finish());
         assert_eq!(source_rows, 0);
         assert!(!source_bytes.is_empty());
 
-        let mut result_writer = ResultCellBatchWriter::new().unwrap();
+        let mut result_writer = ResultCellBatchWriter::new(&chronicle_chrono_kernel_wasm::payload_store::current_store()).unwrap();
         result_writer.flush().unwrap();
-        let (result_bytes, result_rows) = result_writer.finish().unwrap();
+        let (result_bytes, result_rows) = bytes_of(result_writer.finish());
         assert_eq!(result_rows, 0);
         assert!(!result_bytes.is_empty());
     }
@@ -2995,10 +3387,11 @@ mod tests {
                 },
             ],
             terminal_query_group: Arc::new("outputs".to_string()),
+            screen: None,
         }];
         let digest = format!("sha256:{}", "a".repeat(64));
-        let first = row_lineage_arrow(&lineages, &digest).unwrap();
-        let second = row_lineage_arrow(&lineages, &digest).unwrap();
+        let first = row_lineage_arrow(&chronicle_chrono_kernel_wasm::payload_store::current_store(), &lineages, &digest).unwrap().into_vec().unwrap();
+        let second = row_lineage_arrow(&chronicle_chrono_kernel_wasm::payload_store::current_store(), &lineages, &digest).unwrap().into_vec().unwrap();
         assert_eq!(first, second);
         let mut reader = FileReader::try_new(Cursor::new(first), None).unwrap();
         let batch = reader.next().unwrap().unwrap();
@@ -3078,8 +3471,8 @@ mod tests {
                 bytes: options,
             },
         ];
-        let (first, row_count) = source_coordinate_index_arrow(&sources).unwrap();
-        let (second, second_count) = source_coordinate_index_arrow(&sources).unwrap();
+        let (first, row_count) = bytes_of(source_coordinate_index_arrow(&chronicle_chrono_kernel_wasm::payload_store::current_store(), &sources));
+        let (second, second_count) = bytes_of(source_coordinate_index_arrow(&chronicle_chrono_kernel_wasm::payload_store::current_store(), &sources));
         assert_eq!(first, second);
         assert_eq!((row_count, second_count), (9, 9));
 
@@ -3134,10 +3527,10 @@ mod tests {
             normalization: "identity-csv",
             bytes: changed_raw,
         }];
-        let (changed, _) = source_coordinate_index_arrow(&changed_sources).unwrap();
+        let (changed, _) = bytes_of(source_coordinate_index_arrow(&chronicle_chrono_kernel_wasm::payload_store::current_store(), &changed_sources));
         assert_ne!(first, changed);
 
-        assert!(source_coordinate_index_arrow(&[CanonicalSource {
+        assert!(source_coordinate_index_arrow(&chronicle_chrono_kernel_wasm::payload_store::current_store(), &[CanonicalSource {
             role_id: "processing_options",
             source_artifact_digest: &options_digest,
             source_media_type: "application/json",
@@ -3165,7 +3558,9 @@ mod tests {
 
         let plan = crate::embedded_plan();
         let closure = downstream_closure(plan, BTreeSet::from(["normalize_timezones".to_string()]));
-        assert_eq!(closure.len(), 14);
+        // 16 since B09 added the polled_emulation group alongside B08's
+        // notification_proxy, both downstream of timezone normalization.
+        assert_eq!(closure.len(), 16);
         assert!(closure.contains("normalize_timezones"));
         assert!(closure.contains("outputs"));
         assert!(!closure.contains("parse_events"));
@@ -3230,6 +3625,25 @@ mod tests {
             influence_evidence_digest(&context, "source-a", "result", "target-a", "may", b"x");
         let second_evidence =
             influence_evidence_digest(&context, "source-a", "result", "target-b", "may", b"x");
+        let fields: [&[u8]; 10] = [
+            SOURCE_RESULT_INFLUENCE_PROTOCOL.as_bytes(),
+            b"implementation-a",
+            b"plan-a",
+            b"lock-a",
+            b"certificate-a",
+            b"source-a",
+            b"result",
+            b"target-a",
+            b"may",
+            b"x",
+        ];
+        let mut one_shot = Sha256::new();
+        for field in fields {
+            one_shot.update((field.len() as u64).to_le_bytes());
+            one_shot.update(field);
+        }
+        let one_shot: [u8; 32] = one_shot.finalize().into();
+        assert_eq!(first_evidence, one_shot);
         assert_ne!(first_evidence, [0; 32]);
         assert_ne!(first_evidence, [1; 32]);
         assert_ne!(first_evidence, second_evidence);
@@ -3254,8 +3668,8 @@ mod tests {
             bytes: csv.as_bytes(),
         }];
 
-        let (first, row_count) = source_coordinate_index_arrow(&sources).unwrap();
-        let (second, second_count) = source_coordinate_index_arrow(&sources).unwrap();
+        let (first, row_count) = bytes_of(source_coordinate_index_arrow(&chronicle_chrono_kernel_wasm::payload_store::current_store(), &sources));
+        let (second, second_count) = bytes_of(source_coordinate_index_arrow(&chronicle_chrono_kernel_wasm::payload_store::current_store(), &sources));
         assert_eq!(first, second);
         assert_eq!(row_count, second_count);
         assert_eq!(row_count as usize, data_rows + 2);
@@ -3284,9 +3698,9 @@ mod tests {
             normalization: "canonical-json",
             bytes: b"{}",
         }];
-        let (_, source_rows) = source_coordinate_index_arrow(&empty_object).unwrap();
+        let (_, source_rows) = bytes_of(source_coordinate_index_arrow(&chronicle_chrono_kernel_wasm::payload_store::current_store(), &empty_object));
         assert_eq!(source_rows, 1);
-        assert!(source_coordinate_index_arrow(&[CanonicalSource {
+        assert!(source_coordinate_index_arrow(&chronicle_chrono_kernel_wasm::payload_store::current_store(), &[CanonicalSource {
             role_id: "unsupported",
             source_artifact_digest: &digest,
             source_media_type: "application/octet-stream",
@@ -3301,23 +3715,24 @@ mod tests {
             CanonicalOutput {
                 kind: "empty-array-json",
                 media_type: "application/json",
-                bytes: b"[]",
+                bytes: &PayloadBytes::from_vec(b"[]".to_vec()),
                 terminal_query_group: "outputs",
             },
             CanonicalOutput {
                 kind: "empty-object-json",
                 media_type: "application/json",
-                bytes: b"{}",
+                bytes: &PayloadBytes::from_vec(b"{}".to_vec()),
                 terminal_query_group: "outputs",
             },
         ];
-        let (_, result_rows) = result_cell_correspondence_arrow(&empty_json_outputs, &[]).unwrap();
+        let (_, result_rows) = bytes_of(result_cell_correspondence_arrow(&chronicle_chrono_kernel_wasm::payload_store::current_store(), &empty_json_outputs, &[]));
         assert_eq!(result_rows, 2);
         assert!(result_cell_correspondence_arrow(
+            &chronicle_chrono_kernel_wasm::payload_store::current_store(),
             &[CanonicalOutput {
                 kind: "unsupported",
                 media_type: "application/octet-stream",
-                bytes: b"x",
+                bytes: &PayloadBytes::from_vec(b"x".to_vec()),
                 terminal_query_group: "outputs",
             }],
             &[],
@@ -3343,13 +3758,13 @@ mod tests {
             CanonicalOutput {
                 kind: "app-csv",
                 media_type: "text/csv",
-                bytes: app_csv,
+                bytes: &PayloadBytes::from_vec(app_csv.to_vec()),
                 terminal_query_group: "outputs",
             },
             CanonicalOutput {
                 kind: "review-summary-json",
                 media_type: "application/json",
-                bytes: review_json,
+                bytes: &PayloadBytes::from_vec(review_json.to_vec()),
                 terminal_query_group: "outputs",
             },
         ];
@@ -3363,10 +3778,11 @@ mod tests {
             source_data_row_count: 2,
             searches: Vec::new(),
             terminal_query_group: Arc::new("outputs".to_string()),
+            screen: None,
         }];
 
-        let (first, row_count) = result_cell_correspondence_arrow(&outputs, &lineages).unwrap();
-        let (second, second_count) = result_cell_correspondence_arrow(&outputs, &lineages).unwrap();
+        let (first, row_count) = bytes_of(result_cell_correspondence_arrow(&chronicle_chrono_kernel_wasm::payload_store::current_store(), &outputs, &lineages));
+        let (second, second_count) = bytes_of(result_cell_correspondence_arrow(&chronicle_chrono_kernel_wasm::payload_store::current_store(), &outputs, &lineages));
         assert_eq!(first, second);
         assert_eq!((row_count, second_count), (6, 6));
 
@@ -3438,10 +3854,11 @@ mod tests {
         assert!(reader.next().is_none());
 
         assert!(result_cell_correspondence_arrow(
+            &chronicle_chrono_kernel_wasm::payload_store::current_store(),
             &[CanonicalOutput {
                 kind: "review-summary-json",
                 media_type: "application/json",
-                bytes: b"{",
+                bytes: &PayloadBytes::from_vec(b"{".to_vec()),
                 terminal_query_group: "outputs",
             }],
             &[],
@@ -3455,7 +3872,7 @@ mod tests {
         let raw_digest = format!("sha256:{}", "a".repeat(64));
         let options_digest = format!("sha256:{}", "b".repeat(64));
         let raw = b"participant_id,event_timestamp\nP01,2026-01-01 00:00:00\n";
-        let options = br#"{"interaction_type_remap":true}"#;
+        let options = br#"{"interaction_type_remap":true,"interval_expansion_method":"none","datetime_of_preprocessing":"2026-07-22 00:00:00 UTC"}"#;
         let sources = [
             CanonicalSource {
                 role_id: "raw_chronicle_csv",
@@ -3478,7 +3895,7 @@ mod tests {
         let outputs = [CanonicalOutput {
             kind: "app-csv",
             media_type: "text/csv",
-            bytes: app_csv,
+            bytes: &PayloadBytes::from_vec(app_csv.to_vec()),
             terminal_query_group: "outputs",
         }];
         let lineages = [PipelineRowLineage {
@@ -3490,6 +3907,7 @@ mod tests {
             source_data_row_count: 1,
             searches: Vec::new(),
             terminal_query_group: Arc::new("outputs".to_string()),
+            screen: None,
         }];
         let plan = crate::embedded_plan();
         let checkpoints = plan
@@ -3524,6 +3942,7 @@ mod tests {
         };
 
         let (first, row_count) = source_result_influence_witness_arrow(
+            &chronicle_chrono_kernel_wasm::payload_store::current_store(),
             &sources,
             &outputs,
             &lineages,
@@ -3532,7 +3951,9 @@ mod tests {
             &context,
         )
         .unwrap();
+        let first = first.into_vec().unwrap();
         let (second, second_count) = source_result_influence_witness_arrow(
+            &chronicle_chrono_kernel_wasm::payload_store::current_store(),
             &sources,
             &outputs,
             &lineages,
@@ -3541,6 +3962,7 @@ mod tests {
             &context,
         )
         .unwrap();
+        let second = second.into_vec().unwrap();
         assert_eq!(first, second);
         assert_eq!(row_count, second_count);
         assert!(row_count > 4);
@@ -3721,6 +4143,95 @@ mod tests {
                     .to_string(),
             )
         };
+        // The timestamp binds output assembly only. It must not recreate the
+        // old sixteen upstream may-affect-checkpoint claims or raw-row claims.
+        let timestamp_rows = (0..batch.num_rows())
+            .filter(|index| {
+                read_dictionary(2, *index).as_deref() == Some("/datetime_of_preprocessing")
+            })
+            .map(|index| {
+                assert!(!source_rows.is_valid(index));
+                assert!(!source_last_rows.is_valid(index));
+                assert!(read_dictionary(6, index).is_none());
+                (
+                    read_dictionary(0, index),
+                    read_dictionary(1, index),
+                    read_dictionary(7, index),
+                    read_dictionary(9, index),
+                    read_dictionary(10, index),
+                    read_dictionary(13, index),
+                    read_dictionary(14, index),
+                )
+            })
+            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            timestamp_rows,
+            BTreeSet::from([
+                (
+                    Some("selector-prefix".into()),
+                    Some("processing_options".into()),
+                    Some("workflow-checkpoint".into()),
+                    Some("outputs".into()),
+                    None,
+                    Some("may-affect-checkpoint".into()),
+                    Some("declared-transitive".into())
+                ),
+                (
+                    Some("selector-prefix".into()),
+                    Some("processing_options".into()),
+                    Some("result-scope".into()),
+                    Some("outputs".into()),
+                    Some("app-csv".into()),
+                    Some("cell-contribution-unresolved".into()),
+                    Some("unresolved".into())
+                ),
+            ])
+        );
+        let interval_expansion_rows = (0..batch.num_rows())
+            .filter(|index| {
+                read_dictionary(2, *index).as_deref() == Some("/interval_expansion_method")
+            })
+            .map(|index| {
+                (
+                    read_dictionary(0, index),
+                    read_dictionary(1, index),
+                    read_dictionary(7, index),
+                    read_dictionary(8, index),
+                    read_dictionary(9, index),
+                    read_dictionary(10, index),
+                    read_dictionary(13, index),
+                    read_dictionary(14, index),
+                    read_dictionary(15, index),
+                )
+            })
+            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            interval_expansion_rows,
+            BTreeSet::from([
+                (
+                    Some("selector-prefix".to_string()),
+                    Some("processing_options".to_string()),
+                    Some("result-scope".to_string()),
+                    Some("app-csv".to_string()),
+                    Some("outputs".to_string()),
+                    Some("app-csv".to_string()),
+                    Some("cell-contribution-unresolved".to_string()),
+                    Some("unresolved".to_string()),
+                    Some("explicit-gap".to_string()),
+                ),
+                (
+                    Some("selector-prefix".to_string()),
+                    Some("processing_options".to_string()),
+                    Some("workflow-checkpoint".to_string()),
+                    Some(checkpoints["outputs"].terminal_digest.clone()),
+                    Some("outputs".to_string()),
+                    None,
+                    Some("may-affect-checkpoint".to_string()),
+                    Some("declared-transitive".to_string()),
+                    Some("product-plan-and-typed-checkpoint".to_string()),
+                ),
+            ])
+        );
         let exact_rows = (0..batch.num_rows())
             .filter(|index| {
                 precision_values.value(precision_column.keys().value(*index) as usize)
@@ -3791,6 +4302,7 @@ mod tests {
             },
         ];
         let (with_study, _) = source_result_influence_witness_arrow(
+            &chronicle_chrono_kernel_wasm::payload_store::current_store(),
             &sources_with_study,
             &outputs,
             &lineages,
@@ -3799,6 +4311,7 @@ mod tests {
             &context,
         )
         .unwrap();
+        let with_study = with_study.into_vec().unwrap();
         let mut study_reader = FileReader::try_new(Cursor::new(with_study), None).unwrap();
         let study_batch = study_reader.next().unwrap().unwrap();
         let study_precision = study_batch
@@ -3872,13 +4385,13 @@ mod tests {
             CanonicalOutput {
                 kind: "app-csv",
                 media_type: "text/csv",
-                bytes: b"participant_id\nP01\n",
+                bytes: &PayloadBytes::from_vec(b"participant_id\nP01\n".to_vec()),
                 terminal_query_group: "outputs",
             },
             CanonicalOutput {
                 kind: "compliance-csv",
                 media_type: "text/csv",
-                bytes: b"participant_id\nP01\n",
+                bytes: &PayloadBytes::from_vec(b"participant_id\nP01\n".to_vec()),
                 terminal_query_group: "outputs",
             },
         ];
@@ -3925,6 +4438,7 @@ mod tests {
                 },
             ],
             terminal_query_group: Arc::new("outputs".to_string()),
+            screen: None,
         }];
         let plan = crate::embedded_plan();
         let checkpoints = BTreeMap::new();
@@ -3935,6 +4449,7 @@ mod tests {
             dependency_certificate_digest: crate::EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256,
         };
         let (bytes, _rows) = source_result_influence_witness_arrow(
+            &chronicle_chrono_kernel_wasm::payload_store::current_store(),
             &sources,
             &outputs,
             &lineages,
@@ -3943,6 +4458,7 @@ mod tests {
             &context,
         )
         .unwrap();
+        let bytes = bytes.into_vec().unwrap();
         let mut reader = FileReader::try_new(Cursor::new(bytes), None).unwrap();
         let batch = reader.next().unwrap().unwrap();
         let text = |column: usize, index: usize| {
@@ -4059,12 +4575,12 @@ mod tests {
         let outputs = [CanonicalOutput {
             kind: "app-csv",
             media_type: "text/csv",
-            bytes: csv.as_bytes(),
+            bytes: &PayloadBytes::from_vec(csv.as_bytes().to_vec()),
             terminal_query_group: "outputs",
         }];
 
-        let (first, row_count) = result_cell_correspondence_arrow(&outputs, &[]).unwrap();
-        let (second, second_count) = result_cell_correspondence_arrow(&outputs, &[]).unwrap();
+        let (first, row_count) = bytes_of(result_cell_correspondence_arrow(&chronicle_chrono_kernel_wasm::payload_store::current_store(), &outputs, &[]));
+        let (second, second_count) = bytes_of(result_cell_correspondence_arrow(&chronicle_chrono_kernel_wasm::payload_store::current_store(), &outputs, &[]));
         assert_eq!(first, second);
         assert_eq!(row_count, second_count);
         assert_eq!(row_count as usize, data_rows + 2);
@@ -4178,7 +4694,7 @@ mod tests {
             ColumnKind::Boolean
         );
 
-        let table = parse_csv(b"free_text,duration_minutes,day\nlonger,1.25,2\nx,,\n").unwrap();
+        let table = parse_csv(&b"free_text,duration_minutes,day\nlonger,1.25,2\nx,,\n"[..]).unwrap();
         let variables = sav_variables(&table, false);
         assert_eq!(variables.len(), 3);
         assert_eq!(variables[0].kind, ColumnKind::String);

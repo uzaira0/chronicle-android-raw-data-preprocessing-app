@@ -9,26 +9,38 @@ permissions:
 jobs:
   gitleaks:
     runs-on: ubuntu-latest
+    # gitleaks-action lists the PR's commits through the API on pull_request
+    # events; without pull-requests: read that call is refused.
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
       - name: gitleaks secret scan
-        uses: gitleaks/gitleaks-action@v3
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
         env:
           # gitleaks-action requires GITHUB_TOKEN to scan pull_request events.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The action's default (8.24.3) predates the [[allowlists]] tables in
+          # .gitleaks.toml and reports every ledger digest as a leak. Match the
+          # version `make security` runs locally.
+          GITLEAKS_VERSION: "8.30.1"
   # osv-scanner-action ships ONLY as a reusable workflow — its root action.yml is
   # branding-only (no `runs:`), and there is no `v1`/`v2` moving tag — so the
   # previous `uses: google/osv-scanner-action@v1` step never resolved. Call the
   # reusable workflow at the job level, pinned to a real release tag.
   osv-scanner:
-    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.3.8
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
     permissions:
       actions: read
       contents: read
       security-events: write
     with:
+      # Private repos without GitHub Code Security reject SARIF uploads. The
+      # scan still fails the job on any vulnerability (fail-on-vuln).
+      upload-sarif: ${{ github.event.repository.private != true }}
       # --config is required: a recursive scan only auto-loads an
       # osv-scanner.toml sitting beside each lockfile, so the repo-root
       # exception file is ignored without it.

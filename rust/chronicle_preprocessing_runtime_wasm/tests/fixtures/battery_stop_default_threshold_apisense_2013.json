@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "chronicle-battery-stop-default-threshold-source-fixture/v1",
+  "sourceWorkId": "doi:10.1007/978-3-642-38541-4_4",
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-039630561cb82a4dfa0c3d2a",
+    "parameterKey": "platform.battery_stop_default",
+    "sourceObservedSetting": "platform.battery_stop_default: {\"operator\":\"below\",\"percent\":20,\"default\":true,\"action\":\"suspend scripting engine and stop all experiments\"}",
+    "sourceClause": "below 20 percent by default suspends the scripting engine and stops all running experiments",
+    "sourceValueSha256": "f62bdcaab2c28345c7ec47de1c8a9c4e23aec672c4a944168ea309fd757de940"
+  },
+  "adjacentConfigurableSetting": {
+    "settingId": "method-setting-1c29dbc4cec73cf93ca26d78",
+    "relationship": "The participant-configurable threshold is preserved separately and is not collapsed into this default-20 binding."
+  },
+  "sourceArtifacts": [
+    {
+      "locator": ".tmp-literature-review-private/corrective-packet-06-ranks174-223-20260831/source-pdfs/184-primary.txt:266-270",
+      "sha256": "0a981bd3ca30fb9fcd4a28c72b43701fa0ab8a56c5a25bec13334b22d63b25b7"
+    },
+    {
+      "locator": ".tmp-literature-review-private/corrective-packet-06-ranks174-223-20260831/source-pdfs/184-primary.pdf:pages 1-14#audit-locator=184-primary.txt:266-270",
+      "sha256": "4508d402f72b9bc76dd91786977639f345dc2007d0cc96a84eda2e338b97d5d0"
+    }
+  ],
+  "inputBoundary": "One caller-supplied finite numeric current-battery-level value expressed in percentage points, evaluated against the source's default threshold; Android event decoding and participant overrides occur before this decision.",
+  "outputBoundary": "Suspend the scripting engine and stop all running experiments only below 20 percentage points; at exactly 20 and above, this default battery predicate says to continue.",
+  "limitations": [
+    "This binding does not decode Android battery events, choose a sampling cadence, or infer whether the source device reports integer or fractional percentage points.",
+    "No encoded battery range, rounding, measurement tolerance, hysteresis, or debounce behavior is inferred from the source.",
+    "Participant threshold configuration, persistence, and selection are represented by the separate configurable setting and are not implemented by this default-value fixture.",
+    "Scripting-engine transition idempotence, experiment fanout, resumption after charging, and application lifecycle behavior are not disclosed.",
+    "The separate charging-only dataset upload trigger and privacy-rule suspension paths are outside this battery-level predicate.",
+    "A missing or nonfinite current battery level fails closed rather than being treated as above the threshold."
+  ],
+  "pivotPercentagePoints": 20.0,
+  "actions": {
+    "below": "suspend_scripting_engine_and_stop_all_running_experiments",
+    "equal": "continue_running_experiments",
+    "above": "continue_running_experiments"
+  },
+  "observations": [
+    {
+      "caseId": "below-default-threshold",
+      "batteryPercentagePoints": 19.9,
+      "expectedAction": "suspend_scripting_engine_and_stop_all_running_experiments"
+    },
+    {
+      "caseId": "exact-default-threshold",
+      "batteryPercentagePoints": 20.0,
+      "expectedAction": "continue_running_experiments"
+    },
+    {
+      "caseId": "above-default-threshold",
+      "batteryPercentagePoints": 20.1,
+      "expectedAction": "continue_running_experiments"
+    }
+  ]
+}

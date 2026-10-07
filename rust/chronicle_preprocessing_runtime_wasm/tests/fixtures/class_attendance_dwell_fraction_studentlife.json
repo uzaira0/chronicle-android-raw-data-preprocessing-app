@@ -1,0 +1,47 @@
+{
+  "schemaVersion": "chronicle-class-period-dwell-threshold-source-fixture/v1",
+  "sourceWorkId": "doi:10.1007/978-3-319-51394-2_2",
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-b361e4912604d386fb7d7735",
+    "parameterKey": "gpa.class_attendance_rule",
+    "sourceObservedSetting": "gpa.class_attendance_rule: Location dwell at least 90% of scheduled class period",
+    "sourceValueSha256": "006dc3a486103c2343b310ec3e8f0bf28deaa80bee1c98d6e8a4470950af6d34"
+  },
+  "sourceArtifact": {
+    "locator": ".tmp-literature-review-private/corrective-packet-08-ranks277-329-20260831/fulltext/rank280-primary.txt:827-834",
+    "sha256": "377f08b265cbf3da8b6200fc478ae3f0c335a3924f7aa52900510ad196d85276"
+  },
+  "inputBoundary": "One already-derived finite dwell percentage for one student at the scheduled class location during the scheduled class period.",
+  "outputBoundary": "Classify the class period as not attended below 90% location dwell and attended at or above 90%; equality is attended.",
+  "limitations": [
+    "This binding does not identify a student's classes from transcripts or join registrar schedule and location data.",
+    "This binding does not determine whether location observations belong to the scheduled class location.",
+    "This binding does not reconstruct dwell intervals or derive the scheduled-period dwell numerator or denominator.",
+    "This binding does not aggregate per-class classifications into student attendance rates.",
+    "A missing class-period dwell percentage fails closed rather than being interpreted as zero."
+  ],
+  "minimumAttendedPercent": 90.0,
+  "dispositions": ["not_attended", "attended"],
+  "classPeriods": [
+    {
+      "observationId": "immediately-below",
+      "locationDwellPercent": 89.999,
+      "expectedDisposition": "not_attended"
+    },
+    {
+      "observationId": "at-boundary",
+      "locationDwellPercent": 90.0,
+      "expectedDisposition": "attended"
+    },
+    {
+      "observationId": "above-boundary",
+      "locationDwellPercent": 90.001,
+      "expectedDisposition": "attended"
+    }
+  ],
+  "missingDwellCase": {
+    "observationId": "missing-dwell-percentage",
+    "locationDwellPercent": null,
+    "expectedError": "class_period_dwell_percent_required"
+  }
+}

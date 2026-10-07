@@ -1,0 +1,44 @@
+id: chronicle-ts-inner-html
+snapshots:
+  container.innerHTML += row;:
+    labels:
+    - source: container.innerHTML
+      style: primary
+      start: 0
+      end: 19
+    - source: container.innerHTML += row
+      style: secondary
+      start: 0
+      end: 26
+    - source: innerHTML
+      style: secondary
+      start: 10
+      end: 19
+  element.innerHTML = label;:
+    labels:
+    - source: element.innerHTML
+      style: primary
+      start: 0
+      end: 17
+    - source: element.innerHTML = label
+      style: secondary
+      start: 0
+      end: 25
+    - source: innerHTML
+      style: secondary
+      start: 8
+      end: 17
+  element.outerHTML = `<b>${label}</b>`;:
+    labels:
+    - source: element.outerHTML
+      style: primary
+      start: 0
+      end: 17
+    - source: element.outerHTML = `<b>${label}</b>`
+      style: secondary
+      start: 0
+      end: 37
+    - source: outerHTML
+      style: secondary
+      start: 8
+      end: 17

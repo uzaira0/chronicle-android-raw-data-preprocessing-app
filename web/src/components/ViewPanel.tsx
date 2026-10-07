@@ -14,6 +14,12 @@ import { CompareConfigDrawer } from "@/components/review/CompareConfigDrawer";
 import { buildComparisonWaterfallScene } from "@/lib/reviewCompareScene";
 import { materializePersistedTimeline } from "@/lib/rustPipelineAuthority";
 import { readPersistedRustArtifact } from "@/lib/rustPipelineRuntime";
+import { scientificPreflightReceiptFromError } from "@/lib/scientificPreflightTransport";
+import {
+  partialComparisonFailureFromError,
+  type ComparisonFailure,
+} from "@/lib/comparisonFailures";
+import type { RuntimeScientificPreflightReceipt } from "@/lib/generatedRuntimeBoundary";
 import type { DemoDisplayMasker } from "@/lib/demoDisplay";
 import type {
   BrowserProcessingOptions,
@@ -44,6 +50,8 @@ type Props = {
   ) => Promise<ProcessedFileResult[]>;
   displayMasker: DemoDisplayMasker;
   includeFilteredAppUsageInPlots: boolean;
+  /** Take the user to the "Timeline viewer" toggle in Settings. */
+  onOpenTimelineSetting?: () => void;
 };
 
 type ViewType = "app" | "screen";
@@ -136,6 +144,7 @@ export function ViewPanel({
   onRunComparison,
   displayMasker,
   includeFilteredAppUsageInPlots,
+  onOpenTimelineSetting,
 }: Props): ReactElement {
   const reviewableFiles = useMemo(
     () => results.filter(canLoadReview),
@@ -167,11 +176,21 @@ export function ViewPanel({
   const [compareOptions, setCompareOptions] =
     useState<BrowserProcessingOptions>(options);
   const [armBResults, setArmBResults] = useState<ProcessedFileResult[]>([]);
+  // The settings each Arm-B result was produced with. The drawer edits
+  // `compareOptions` live, so the summary must not read it for a finished run.
+  const [armBOptionsByName, setArmBOptionsByName] = useState<
+    ReadonlyMap<string, BrowserProcessingOptions>
+  >(new Map());
   const [lastComparedOptionsKey, setLastComparedOptionsKey] = useState<
     string | null
   >(null);
   const [running, setRunning] = useState(false);
   const [compareError, setCompareError] = useState<string | null>(null);
+  const [compareScientificRefusal, setCompareScientificRefusal] =
+    useState<RuntimeScientificPreflightReceipt | null>(null);
+  const [comparisonFailures, setComparisonFailures] = useState<
+    ComparisonFailure[]
+  >([]);
   const [loadedReview, setLoadedReview] = useState<{
     key: string;
     summary: ReviewSummary;
@@ -220,6 +239,8 @@ export function ViewPanel({
     setCompareOptions(options);
     setLastComparedOptionsKey(null);
     setCompareError(null);
+    setCompareScientificRefusal(null);
+    setComparisonFailures([]);
   }, [results, options]);
 
   const activeFile =
@@ -253,16 +274,35 @@ export function ViewPanel({
     // Settings controls can emit several updates while a value is typed. Wait
     // briefly, then compute the exact selected-file Arm B in the background so
     // Run can reuse the completed result (or await the same in-flight promise).
+    let current = true;
     const timer = window.setTimeout(() => {
-      void onPrepareComparison(activeFile.inputFileName, compareOptions).catch(
-        (error) => {
+      setCompareError(null);
+      setCompareScientificRefusal(null);
+      setComparisonFailures([]);
+      void onPrepareComparison(activeFile.inputFileName, compareOptions).then(
+        () => {
+          if (!current) return;
+          setCompareError(null);
+          setCompareScientificRefusal(null);
+        },
+        (error: unknown) => {
+          if (!current) return;
           setCompareError(
-            error instanceof Error ? error.message : String(error),
+            displayMasker.text(
+              error instanceof Error ? error.message : String(error),
+              uploadedFileNames,
+            ),
+          );
+          setCompareScientificRefusal(
+            scientificPreflightReceiptFromError(error) ?? null,
           );
         },
       );
     }, 200);
-    return () => window.clearTimeout(timer);
+    return () => {
+      current = false;
+      window.clearTimeout(timer);
+    };
   }, [
     activeFile,
     armBResults.length,
@@ -271,6 +311,8 @@ export function ViewPanel({
     lastComparedOptionsKey,
     onPrepareComparison,
     running,
+    displayMasker,
+    uploadedFileNames,
   ]);
 
   useEffect(() => {
@@ -397,6 +439,15 @@ export function ViewPanel({
     (loadedTimeline?.key === timelineLoadKey
       ? loadedTimeline.timeline
       : undefined);
+  // With the opt-in timeline off (the contract default) the run built no
+  // timeline at all; say so and how to turn it on, instead of reporting that
+  // this participant has no usage.
+  const timelineOffForRun =
+    !timeline &&
+    !timelineRequest &&
+    !timelineLoading &&
+    !timelineLoadError &&
+    !options.enableInteractiveTimeline;
   const availableTypes: ViewType[] = timeline
     ? [
         ...(hasAppViews(timeline) ? (["app"] as const) : []),
@@ -501,14 +552,37 @@ export function ViewPanel({
   const openDrawer = (): void => {
     // First open seeds Arm B from the current run (A); reopening to edit keeps
     // the last Arm-B config instead of discarding it.
-    if (!armB) setCompareOptions(options);
-    setCompareError(null);
+    if (
+      !armB &&
+      lastComparedOptionsKey === null &&
+      comparisonFailures.length === 0 &&
+      compareScientificRefusal === null
+    ) {
+      setCompareOptions(options);
+    }
+    if (comparisonFailures.length === 0) {
+      setCompareError(null);
+      setCompareScientificRefusal(null);
+    }
     setDrawerOpen(true);
   };
+  const recordArmBOptions = (
+    produced: readonly ProcessedFileResult[],
+    producedWith: BrowserProcessingOptions,
+  ): void =>
+    setArmBOptionsByName((current) => {
+      const next = new Map(current);
+      for (const result of produced) next.set(result.inputFileName, producedWith);
+      return next;
+    });
   const runComparison = async (): Promise<void> => {
     if (!onRunComparison) return;
+    const runOptions = compareOptions;
+    const runOptionsKey = JSON.stringify(runOptions);
     setRunning(true);
     setCompareError(null);
+    setCompareScientificRefusal(null);
+    setComparisonFailures([]);
     const pendingResults = new Map<string, ProcessedFileResult>();
     let pendingFrame: number | null = null;
     try {
@@ -517,9 +591,6 @@ export function ViewPanel({
         if (pendingResults.size === 0) return;
         const updates = Array.from(pendingResults.values());
         pendingResults.clear();
-        const includesActive = updates.some(
-          (result) => result.inputFileName === activeFile.inputFileName,
-        );
         setArmBResults((current) => {
           const byName = new Map(
             current.map((entry) => [entry.inputFileName, entry]),
@@ -529,10 +600,10 @@ export function ViewPanel({
           }
           return Array.from(byName.values());
         });
-        if (includesActive) {
-          setLastComparedOptionsKey(JSON.stringify(compareOptions));
-          setDrawerOpen(false);
-        }
+        recordArmBOptions(updates, runOptions);
+        // Keep the drawer open until the complete batch settles. Closing on a
+        // fast active-file success hid a slower background typed refusal, and
+        // reopening intentionally clears stale decisions.
       };
       const replaceResults = (results: ProcessedFileResult[]): void => {
         for (const result of results) {
@@ -544,18 +615,39 @@ export function ViewPanel({
       };
       const compared = await onRunComparison(
         activeFile.inputFileName,
-        compareOptions,
+        runOptions,
         replaceResults,
       );
       if (pendingFrame !== null) cancelAnimationFrame(pendingFrame);
       pendingResults.clear();
       setArmBResults(compared);
-      setLastComparedOptionsKey(JSON.stringify(compareOptions));
+      recordArmBOptions(compared, runOptions);
+      setLastComparedOptionsKey(runOptionsKey);
       setDrawerOpen(false);
+      setCompareScientificRefusal(null);
+      setComparisonFailures([]);
     } catch (error) {
       if (pendingFrame !== null) cancelAnimationFrame(pendingFrame);
       pendingResults.clear();
-      setCompareError(error instanceof Error ? error.message : String(error));
+      const partial = partialComparisonFailureFromError(error);
+      if (partial) {
+        // The completed Arm-B files remain usable, but the drawer stays open
+        // with every exact typed refusal associated with its failed file group.
+        setArmBResults(partial.partialResults);
+        recordArmBOptions(partial.partialResults, runOptions);
+        setLastComparedOptionsKey(runOptionsKey);
+        setComparisonFailures(partial.failures);
+        setDrawerOpen(true);
+      }
+      setCompareError(
+        displayMasker.text(
+          error instanceof Error ? error.message : String(error),
+          uploadedFileNames,
+        ),
+      );
+      setCompareScientificRefusal(
+        scientificPreflightReceiptFromError(error) ?? null,
+      );
     } finally {
       setRunning(false);
     }
@@ -564,6 +656,8 @@ export function ViewPanel({
     setCompareOptions(options);
     setArmBResults([]);
     setCompareError(null);
+    setCompareScientificRefusal(null);
+    setComparisonFailures([]);
   };
 
   const activeFileLabel = displayMasker.fileName(activeFile.inputFileName);
@@ -578,6 +672,8 @@ export function ViewPanel({
       setFocusedDate(null);
       setDrawerOpen(false);
       setCompareError(null);
+      setCompareScientificRefusal(null);
+      setComparisonFailures([]);
     }
   };
 
@@ -719,12 +815,27 @@ export function ViewPanel({
       {subView === "timeline" && drawerOpen ? (
         <CompareConfigDrawer
           options={compareOptions}
-          setOptions={setCompareOptions}
+          setOptions={(update) => {
+            if (running) return;
+            // A refusal belongs to one exact Arm-B binding. Clear it before
+            // accepting the edit rather than waiting for the debounced warmup:
+            // the researcher may close and reopen the drawer before that timer
+            // fires, and must never see the old receipt under the new vector.
+            setCompareError(null);
+            setCompareScientificRefusal(null);
+            setComparisonFailures([]);
+            setCompareOptions(update);
+          }}
           onRun={() => void runComparison()}
           onResetToA={resetToA}
-          onClose={() => setDrawerOpen(false)}
+          onClose={() => {
+            if (!running) setDrawerOpen(false);
+          }}
           running={running}
           error={compareError}
+          scientificRefusal={compareScientificRefusal}
+          comparisonFailures={comparisonFailures}
+          displayMasker={displayMasker}
           completedCount={armBResults.length}
           fileCount={reviewableFileCount}
         />
@@ -781,6 +892,25 @@ export function ViewPanel({
                 gapDates={gapDates}
                 allowExport
               />
+            ) : timelineOffForRun ? (
+              <div className="timeline-view__empty" data-testid="timeline-off-notice">
+                <p>
+                  The interactive timeline was off when these results were processed, so there
+                  is no timeline to show. Turn on “Timeline viewer (View tab + HTML export)” in
+                  Settings, then process the files again. The per-day metrics beside this are
+                  unaffected.
+                </p>
+                {onOpenTimelineSetting ? (
+                  <button
+                    type="button"
+                    className="btn btn--secondary"
+                    data-testid="open-timeline-setting"
+                    onClick={onOpenTimelineSetting}
+                  >
+                    Open the Timeline viewer setting
+                  </button>
+                ) : null}
+              </div>
             ) : (
               <p className="timeline-view__empty">
                 {timelineLoading
@@ -803,6 +933,12 @@ export function ViewPanel({
               options={options}
               result={activeFile}
               masker={displayMasker}
+              compareOptions={
+                armB
+                  ? (armBOptionsByName.get(activeFile.inputFileName) ??
+                    compareOptions)
+                  : null
+              }
             />
           </div>
           <ReviewMetricsPanel

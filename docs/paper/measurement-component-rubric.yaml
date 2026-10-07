@@ -1,0 +1,346 @@
+schema_version: "1.0.0"
+rubric_version: "0.2.0"
+authority_id: "chronicle:measurement-component-rubric"
+title: "Chronicle Android event-to-usage measurement component rubric"
+status: provisional_pending_counterexample_audit
+last_updated: "2026-08-11"
+
+revision_history:
+  - rubric_version: "0.1.0"
+    date: "2026-08-11"
+    change: "Established 21 stable component IDs and separated census evidence namespaces."
+  - rubric_version: "0.2.0"
+    date: "2026-08-11"
+    change: "Made UNDET exact and split parameter derivation, transfer, and documentary support."
+
+authority:
+  role: >-
+    The sole machine-readable project authority for the stable identifiers and meanings of
+    Chronicle's 21 scientific measurement components.
+  narrative_crosswalks_are_authoritative: false
+  universal_completeness_claim: false
+  change_policy: >-
+    Revise this versioned file when the counterexample audit changes a component identifier,
+    meaning, or scoring rule; do not redefine components in manuscript prose or delivery plans.
+
+scope:
+  domain: >-
+    Scientific decisions used to construct Android app- and device-usage measures from typed,
+    punctual event records through episode reconstruction, temporal assignment, grouping, and
+    parameterized inclusion or exclusion.
+  unit: one scientifically meaningful measurement decision
+  applies_to:
+    - literature disclosure scoring
+    - method-binding specification
+    - counterexample and coverage auditing
+  excludes:
+    - product delivery milestones and implementation sequencing
+    - user-interface controls as such
+    - a claim that these components exhaust every measurement system or research domain
+  qualification: >-
+    The set is a provisional project rubric for the Android event-to-usage methods under study.
+    Its adequacy must be tested against independently located counterexamples before publication.
+
+source_pointers:
+  originating_design_table:
+    path: docs/superpowers/specs/2026-08-05-screen-time-measurement-ontology-paper-design.md
+    locator: "C1a > The component list — this table is itself the complexity argument"
+    role: originating provisional 21-row decision table
+  manuscript_crosswalk:
+    path: docs/paper/paper-outline.md
+    locator: "Proposed manuscript structure > Decision structure and disclosure instrument"
+    role: narrative manuscript crosswalk; not an identifier authority
+  research_ontology:
+    path: web/schema/chronicle-research-ontology.linkml.yaml
+    locator: "core occurrence, record, assertion, execution, interval, and provenance model"
+    role: entity and provenance vocabulary used by executable method records
+
+census_scoring_contract:
+  disclosure:
+    purpose: score what an accessible source discloses for one scientific component
+    allowed_fields:
+      - study_id
+      - component_id
+      - disclosure_status
+      - evidence_locator
+      - delegation_target
+      - qualification_note
+      - coder_id
+      - rubric_version
+    status_field: disclosure_status
+    allowed_status_values:
+      - DECLARED
+      - DELEGATED
+      - ABSENT
+      - N/A
+      - UNDET
+    semantics:
+      DECLARED: the source states enough component detail to code at least one setting
+      DELEGATED: the source assigns the decision to another named system, source, or actor
+      ABSENT: an accessible source was reviewed and does not disclose or delegate the component
+      N/A: the component does not apply to the measure described by the source
+      UNDET: the source was not read in full; never means silent, absent, or merely unresolved after full-text review
+  access:
+    purpose: record which source material was available to a coder
+    allowed_fields:
+      - study_id
+      - access_depth
+      - source_locator
+      - access_note
+      - checked_at
+    status_field: access_depth
+    allowed_status_values:
+      - FULL_TEXT
+      - ABSTRACT_OR_METADATA
+      - UNAVAILABLE
+    separation_rule: >-
+      Access depth constrains what may be scored but is not itself a disclosure status. In the
+      fixed census, material not read in full is UNDET rather than ABSENT. Ambiguity after
+      full-text review belongs in adjudication fields and does not broaden UNDET.
+  adjudication:
+    purpose: preserve independent coding and resolution without overwriting source access
+    allowed_fields:
+      - study_id
+      - component_id
+      - coder_a_status
+      - coder_b_status
+      - adjudication_state
+      - adjudicated_status
+      - adjudicator_id
+      - adjudication_note
+      - adjudicated_at
+    status_field: adjudication_state
+    allowed_status_values:
+      - NOT_REQUIRED
+      - PENDING
+      - RESOLVED
+    adjudicated_status_values_from: "census_scoring_contract.disclosure.allowed_status_values"
+    separation_rule: adjudication state is not a disclosure status
+  parameter_provenance:
+    purpose: >-
+      Record the origin and interpretation of a disclosed parameter; component:C21 separately
+      scores whether the source accounts for that provenance.
+    allowed_fields:
+      - study_id
+      - component_id
+      - parameter_name
+      - parameter_value
+      - parameter_unit
+      - derivation_kind
+      - transfer_kind
+      - source_support
+      - source_locator
+      - inherited_from
+      - boundary_convention
+      - provenance_note
+    derivation_field: derivation_kind
+    allowed_derivation_values:
+      - AUTHOR_SET
+      - DATA_DERIVED
+      - CONVENTION
+      - ENGINEERING_CONSTANT
+      - REPOSITORY_DEFAULT
+      - UNRESOLVED
+    transfer_field: transfer_kind
+    allowed_transfer_values:
+      - DIRECT
+      - INHERITED
+      - UNRESOLVED
+    source_support_field: source_support
+    allowed_source_support_values:
+      - PRIMARY_VERIFIED
+      - SECONDARY_ONLY
+      - CITED_NOT_VERIFIED
+      - NO_SOURCE_STATED
+      - UNRESOLVED
+    separation_rule: >-
+      Derivation describes how a value originated; transfer describes whether the current method
+      adopted it; source support describes documentary verification. None is a census disclosure
+      state, and a citation is never treated as a value-origin category.
+  runtime_refusal:
+    purpose: record whether an executable binding can or must not run
+    allowed_fields:
+      - binding_id
+      - component_id
+      - execution_disposition
+      - refusal_code
+      - refusal_reason
+      - required_signal
+      - evidence_locator
+    status_field: execution_disposition
+    allowed_status_values:
+      - NOT_EVALUATED
+      - RUNNABLE
+      - REFUSED
+    separation_rule: runtime execution and refusal are never encoded as literature disclosure
+
+component_defaults:
+  status: provisional_pending_counterexample_audit
+  source: originating_design_table
+
+components:
+  - id: "component:C01"
+    name: event_selection
+    label: Event selection
+    status: provisional_pending_counterexample_audit
+    definition: Which raw event types are read at all before reconstruction begins.
+    source_pointer: "originating_design_table row 1"
+
+  - id: "component:C02"
+    name: opener
+    label: Opener set
+    status: provisional_pending_counterexample_audit
+    definition: Which event types open an episode.
+    source_pointer: "originating_design_table row 2"
+
+  - id: "component:C03"
+    name: closer
+    label: Closer set
+    status: provisional_pending_counterexample_audit
+    definition: Which event types close an episode.
+    source_pointer: "originating_design_table row 3"
+
+  - id: "component:C04"
+    name: pairing
+    label: Pairing discipline
+    status: provisional_pending_counterexample_audit
+    definition: How openers bind to closers to form episode assertions and intervals.
+    source_pointer: "originating_design_table row 4"
+
+  - id: "component:C05"
+    name: unmatched_open
+    label: Unmatched open
+    status: provisional_pending_counterexample_audit
+    definition: What happens when an opener has no closing event.
+    source_pointer: "originating_design_table row 5"
+
+  - id: "component:C06"
+    name: unmatched_close
+    label: Unmatched close
+    status: provisional_pending_counterexample_audit
+    definition: What happens when a closer has no preceding opener.
+    source_pointer: "originating_design_table row 6"
+
+  - id: "component:C07"
+    name: duplicate_opens
+    label: Duplicate opens
+    status: provisional_pending_counterexample_audit
+    definition: >-
+      What happens when two openers for the same package occur without an intervening closer.
+    source_pointer: "originating_design_table row 7"
+
+  - id: "component:C08"
+    name: duplicate_closes
+    label: Duplicate closes
+    status: provisional_pending_counterexample_audit
+    definition: What happens when more than one closer is available for one opener.
+    source_pointer: "originating_design_table row 8"
+
+  - id: "component:C09"
+    name: same_package_runs
+    label: Same-package runs
+    status: provisional_pending_counterexample_audit
+    definition: >-
+      Whether consecutive openers for the same package collapse into one episode or remain
+      separate episode assertions.
+    source_pointer: "originating_design_table row 9"
+
+  - id: "component:C10"
+    name: collisions
+    label: Collision policy
+    status: provisional_pending_counterexample_audit
+    definition: How overlapping episode assertions across packages are represented or resolved.
+    source_pointer: "originating_design_table row 10"
+
+  - id: "component:C11"
+    name: device_state_coupling
+    label: Device-state coupling
+    status: provisional_pending_counterexample_audit
+    definition: >-
+      Whether and how device-state transitions, such as screen-off or lock, end or constrain an
+      app episode or its credited duration.
+    source_pointer: "originating_design_table row 11"
+
+  - id: "component:C12"
+    name: shutdown_startup
+    label: Shutdown and startup
+    status: provisional_pending_counterexample_audit
+    definition: How open episodes and unmatched events are handled across shutdown and startup.
+    source_pointer: "originating_design_table row 12"
+
+  - id: "component:C13"
+    name: window_censoring
+    label: Window censoring
+    status: provisional_pending_counterexample_audit
+    definition: >-
+      How episodes crossing an observation-query or reporting-window boundary are censored,
+      truncated, carried, dropped, or allocated.
+    source_pointer: "originating_design_table row 13"
+
+  - id: "component:C14"
+    name: timezone_day_assignment
+    label: Timezone and day assignment
+    status: provisional_pending_counterexample_audit
+    definition: >-
+      Which timezone and boundary convention assign events or intervals to days, including
+      daylight-saving and timezone-change behavior.
+    source_pointer: "originating_design_table row 14"
+
+  - id: "component:C15"
+    name: maximum_duration
+    label: Maximum-duration policy
+    status: provisional_pending_counterexample_audit
+    definition: >-
+      Whether a maximum episode duration applies and what action occurs when it is exceeded.
+    source_pointer: "originating_design_table row 15"
+
+  - id: "component:C16"
+    name: minimum_duration
+    label: Minimum-duration exclusion
+    status: provisional_pending_counterexample_audit
+    definition: >-
+      Whether episodes below a minimum duration are excluded, reclassified, or retained, and with
+      what boundary inclusivity.
+    source_pointer: "originating_design_table row 16"
+
+  - id: "component:C17"
+    name: inactivity_gap_session_grouping
+    label: Inactivity gap and session grouping
+    status: provisional_pending_counterexample_audit
+    definition: >-
+      Whether completed episodes are grouped into sessions using an inactivity-gap rule and, if
+      so, the threshold, comparison operator, and package-change behavior.
+    source_pointer: "originating_design_table row 17"
+
+  - id: "component:C18"
+    name: package_policy
+    label: Package policy
+    status: provisional_pending_counterexample_audit
+    definition: >-
+      How launcher, system, keyboard, excluded, or otherwise special packages are retained,
+      removed, capped, or classified.
+    source_pointer: "originating_design_table row 18"
+
+  - id: "component:C19"
+    name: background_attribution
+    label: Background attribution
+    status: provisional_pending_counterexample_audit
+    definition: Whether background events or inferred background activity count toward usage.
+    source_pointer: "originating_design_table row 19"
+
+  - id: "component:C20"
+    name: data_gap_policy
+    label: Data-gap policy
+    status: provisional_pending_counterexample_audit
+    definition: >-
+      How logging gaps and device silence affect episode continuity, day validity, flagging, or
+      imputation.
+    source_pointer: "originating_design_table row 20"
+
+  - id: "component:C21"
+    name: parameter_provenance
+    label: Parameter provenance
+    status: provisional_pending_counterexample_audit
+    definition: >-
+      For every numeric threshold or boundary operator, where the value and convention came from.
+    source_pointer: "originating_design_table row 21"

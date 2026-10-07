@@ -13,8 +13,8 @@
  * no extra worker payload.
  */
 
-import { WATERFALL_GEOMETRY } from "@/lib/plotGenerator";
-import type { Primitive, Scene, SceneRegion, WaterfallSceneMeta } from "@/lib/plotScene";
+import { dstRowPrimitives, WATERFALL_GEOMETRY } from "@/lib/plotGenerator";
+import type { DstRowMarks, Primitive, Scene, SceneRegion, WaterfallSceneMeta } from "@/lib/plotScene";
 import type { TimelineParticipantView } from "@/lib/types";
 
 /** Arm identity colours, matching the reference (A amber, B teal) and the
@@ -131,19 +131,28 @@ export function buildComparisonWaterfallScene(
   formatDate: (iso: string) => string = (iso) => (iso.length >= 5 ? iso.slice(5) : iso),
 ): TimelineParticipantView {
   const geo = WATERFALL_GEOMETRY;
+  // Each arm's scene is widened past the 24 h mark when it holds a 25 h
+  // (DST fall-back) row; carry the wider of the two so that row is not clipped.
+  const width = Math.max(geo.width, aView.scene.width, bView.scene.width);
+  const plotWidth = geo.plotWidth + (width - geo.width);
   const aByDate = laneItemsByDate(aView);
   const bByDate = laneItemsByDate(bView);
 
   const dateSet = new Set<string>();
+  // A DST (23/25 h) row's marks, from whichever arm drew that date.
+  const dstByDate = new Map<string, DstRowMarks>();
   for (const meta of [waterfallMeta(aView), waterfallMeta(bView)]) {
-    for (const row of meta?.rows ?? []) dateSet.add(row.date);
+    for (const row of meta?.rows ?? []) {
+      dateSet.add(row.date);
+      if (row.dst && !dstByDate.has(row.date)) dstByDate.set(row.date, row.dst);
+    }
   }
   for (const d of perDayA.keys()) dateSet.add(d);
   for (const d of perDayB.keys()) dateSet.add(d);
   const dates = [...dateSet].sort();
 
   const height = LAYOUT.padTop + dates.length * LAYOUT.rowH + LAYOUT.padBottom;
-  const prims: Primitive[] = [{ type: "rect", x: 0, y: 0, w: geo.width, h: height, fill: "#ffffff" }];
+  const prims: Primitive[] = [{ type: "rect", x: 0, y: 0, w: width, h: height, fill: "#ffffff" }];
   const regions: SceneRegion[] = [];
 
   // Hour axis: labels along the top band (every 6h). Per-row gridline segments
@@ -201,14 +210,20 @@ export function buildComparisonWaterfallScene(
 
     // Row separator above every row after the first.
     if (i > 0) {
-      prims.push({ type: "line", x1: 0, y1: rowY, x2: geo.width, y2: rowY, stroke: "#e4e7eb", strokeWidth: 1 });
+      prims.push({ type: "line", x1: 0, y1: rowY, x2: width, y2: rowY, stroke: "#e4e7eb", strokeWidth: 1 });
     }
 
     // Faint per-row hour gridlines (6/12/18) — vertical within the row, so the
-    // interactive viewer's per-row x-zoom carries them along.
-    for (const hh of [6, 12, 18]) {
-      const x = geo.hoursToX(hh);
-      prims.push({ type: "line", x1: x, y1: rowY + 2, x2: x, y2: rowY + LAYOUT.rowH - 2, stroke: "#f0f2f5", strokeWidth: 1 });
+    // interactive viewer's per-row x-zoom carries them along. They mark clock
+    // hours only on a 24 h row; a DST row carries its own clock labels instead.
+    const dst = dstByDate.get(date);
+    if (dst) {
+      prims.push(...dstRowPrimitives(dst, rowY, LAYOUT.rowH, geo.hoursToX));
+    } else {
+      for (const hh of [6, 12, 18]) {
+        const x = geo.hoursToX(hh);
+        prims.push({ type: "line", x1: x, y1: rowY + 2, x2: x, y2: rowY + LAYOUT.rowH - 2, stroke: "#f0f2f5", strokeWidth: 1 });
+      }
     }
 
     // Date + weekday label in the gutter.
@@ -285,10 +300,10 @@ export function buildComparisonWaterfallScene(
   const meta: WaterfallSceneMeta = {
     kind: "waterfall",
     gutter: geo.gutter,
-    plotWidth: geo.plotWidth,
+    plotWidth,
     rows: dates.map((date, i) => ({ date, y: LAYOUT.padTop + i * LAYOUT.rowH, h: LAYOUT.rowH })),
   };
 
-  const scene: Scene = { width: geo.width, height, primitives: prims, meta };
+  const scene: Scene = { width, height, primitives: prims, meta };
   return { participantId: aView.participantId, scene, regions };
 }

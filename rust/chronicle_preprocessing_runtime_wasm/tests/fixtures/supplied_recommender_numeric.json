@@ -1,0 +1,1851 @@
+{
+  "schemaVersion": "chronicle-supplied-recommender-numeric-hand-oracle/v1",
+  "source": {
+    "work": "doi:10.1007/s00530-018-0601-1",
+    "authorTextUrl": "https://www.researchgate.net/publication/330282077_An_app_usage_recommender_system_improving_prediction_accuracy_for_both_warm_and_cold_start_users",
+    "locators": [
+      "§3.2 lines715–830 Eq1; eight features lines690–696,774 and Table2",
+      "§4.3 lines1362–1461 and1534–1596 Eqs4–6"
+    ],
+    "qualifications": [
+      "These are independently hand-calculated synthetic supplied-numeric fixtures, not author-runtime execution or reported-study output.",
+      "Chronicle engineering fields/aliases/CSV, declared binary64 projection and exact u64 counts do not authenticate the original collector, PDF bytes, source parser/serializer, embeddings, null meanings, cluster membership or models.",
+      "Full aggregates use all eight supplied Table2 dimensions. A precomputed location similarity/frequency/stability is upstream qualification, not raw location processing.",
+      "No Oth/CEV threshold decision is implemented. Num=0/missing source behavior is unknown and refused."
+    ]
+  },
+  "defaults": {
+    "distance": {
+      "participant_id": "P",
+      "device_id": "D",
+      "pair_id": "Q",
+      "left_instance_id": "L",
+      "right_instance_id": "R",
+      "feature_key": "last_opened_app",
+      "feature_domain": "caller-supplied-single-source-feature",
+      "input_stage": "caller-supplied-normalized-feature-similarities"
+    },
+    "norm": {
+      "participant_id": "P",
+      "device_id": "D",
+      "pair_id": "Q",
+      "left_instance_id": "L",
+      "right_instance_id": "R",
+      "feature_key": "last_opened_app",
+      "feature_domain": "caller-complete-paper-eight-session-features",
+      "input_stage": "caller-supplied-normalized-feature-similarities"
+    },
+    "frequency": {
+      "participant_id": "P",
+      "device_id": "D",
+      "cluster_id": "Q",
+      "feature_key": "last_opened_app",
+      "cluster_instance_count": "10",
+      "input_stage": "caller-supplied-qualified-cluster-feature-counts"
+    },
+    "stability": {
+      "participant_id": "P",
+      "device_id": "D",
+      "cluster_id": "Q",
+      "feature_key": "last_opened_app",
+      "cluster_instance_count": "10",
+      "input_stage": "caller-supplied-qualified-cluster-feature-counts"
+    },
+    "credibility": {
+      "participant_id": "P",
+      "device_id": "D",
+      "cluster_id": "Q",
+      "feature_domain": "caller-complete-paper-eight-session-features",
+      "input_stage": "caller-supplied-qualified-feature-frequency-stability"
+    }
+  },
+  "cases": [
+    {
+      "id": "distance-quarter",
+      "kind": "distance",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "similarity": "0.25"
+        }
+      ],
+      "expected": [
+        [
+          "0.75"
+        ]
+      ]
+    },
+    {
+      "id": "distance-zero",
+      "kind": "distance",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "similarity": "0"
+        }
+      ],
+      "expected": [
+        [
+          "1"
+        ]
+      ]
+    },
+    {
+      "id": "distance-one",
+      "kind": "distance",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "similarity": "1"
+        }
+      ],
+      "expected": [
+        [
+          "0"
+        ]
+      ]
+    },
+    {
+      "id": "distance-negative-zero",
+      "kind": "distance",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "similarity": "-0"
+        }
+      ],
+      "expected": [
+        [
+          "1"
+        ]
+      ]
+    },
+    {
+      "id": "distance-lexical-extras",
+      "kind": "distance",
+      "rows": [
+        {
+          "source_row_id": " r 1 ",
+          "similarity": "0.5",
+          "participant_id": " P ",
+          "device_id": " D ",
+          "pair_id": " Q ",
+          "payload": "x,y\nz"
+        }
+      ],
+      "expected": [
+        [
+          "0.5"
+        ]
+      ],
+      "extra_headers": [
+        "payload"
+      ]
+    },
+    {
+      "id": "distance-invalid-missing",
+      "kind": "distance",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "similarity": ""
+        }
+      ],
+      "error": "binary64 value in [0,1]"
+    },
+    {
+      "id": "distance-invalid-NaN",
+      "kind": "distance",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "similarity": "NaN"
+        }
+      ],
+      "error": "binary64 value in [0,1]"
+    },
+    {
+      "id": "distance-invalid-inf",
+      "kind": "distance",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "similarity": "inf"
+        }
+      ],
+      "error": "binary64 value in [0,1]"
+    },
+    {
+      "id": "distance-invalid--0.01",
+      "kind": "distance",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "similarity": "-0.01"
+        }
+      ],
+      "error": "binary64 value in [0,1]"
+    },
+    {
+      "id": "distance-invalid-1.01",
+      "kind": "distance",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "similarity": "1.01"
+        }
+      ],
+      "error": "binary64 value in [0,1]"
+    },
+    {
+      "id": "distance-wrong-domain",
+      "kind": "distance",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "similarity": "0.5",
+          "feature_domain": "seven-only"
+        }
+      ],
+      "error": "single-feature qualification"
+    },
+    {
+      "id": "distance-wrong-stage",
+      "kind": "distance",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "similarity": "0.5",
+          "input_stage": "raw-events"
+        }
+      ],
+      "error": "exact supplied input stage"
+    },
+    {
+      "id": "distance-unknown-feature",
+      "kind": "distance",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "similarity": "0.5",
+          "feature_key": "gps-coordinate"
+        }
+      ],
+      "error": "named source Table2 feature"
+    },
+    {
+      "id": "distance-duplicate-id",
+      "kind": "distance",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "similarity": "0.2"
+        },
+        {
+          "source_row_id": "r1",
+          "similarity": "0.7"
+        }
+      ],
+      "error": "duplicate source row identity"
+    },
+    {
+      "id": "frequency-6",
+      "kind": "frequency",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "occurrence_count": "6"
+        }
+      ],
+      "expected": [
+        [
+          "6",
+          "10",
+          "0.6"
+        ]
+      ]
+    },
+    {
+      "id": "frequency-0",
+      "kind": "frequency",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "occurrence_count": "0"
+        }
+      ],
+      "expected": [
+        [
+          "0",
+          "10",
+          "0"
+        ]
+      ]
+    },
+    {
+      "id": "frequency-10",
+      "kind": "frequency",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "occurrence_count": "10"
+        }
+      ],
+      "expected": [
+        [
+          "10",
+          "10",
+          "1"
+        ]
+      ]
+    },
+    {
+      "id": "stability-2",
+      "kind": "stability",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "distinct_value_count": "2"
+        }
+      ],
+      "expected": [
+        [
+          "2",
+          "10",
+          "0.8"
+        ]
+      ]
+    },
+    {
+      "id": "stability-0",
+      "kind": "stability",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "distinct_value_count": "0"
+        }
+      ],
+      "expected": [
+        [
+          "0",
+          "10",
+          "1"
+        ]
+      ]
+    },
+    {
+      "id": "stability-10",
+      "kind": "stability",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "distinct_value_count": "10"
+        }
+      ],
+      "expected": [
+        [
+          "10",
+          "10",
+          "0"
+        ]
+      ]
+    },
+    {
+      "id": "frequency-u64-max",
+      "kind": "frequency",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "cluster_instance_count": "18446744073709551615",
+          "occurrence_count": "18446744073709551615"
+        }
+      ],
+      "expected": [
+        [
+          "18446744073709551615",
+          "18446744073709551615",
+          "1"
+        ]
+      ]
+    },
+    {
+      "id": "frequency-above-2pow53",
+      "kind": "frequency",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "cluster_instance_count": "9007199254740994",
+          "occurrence_count": "9007199254740993"
+        }
+      ],
+      "expected": [
+        [
+          "9007199254740993",
+          "9007199254740994",
+          "0.9999999999999998"
+        ]
+      ]
+    },
+    {
+      "id": "frequency-zero-denominator",
+      "kind": "frequency",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "cluster_instance_count": "0",
+          "occurrence_count": "0"
+        }
+      ],
+      "error": "source zero-denominator behavior is undisclosed"
+    },
+    {
+      "id": "frequency-missing-denominator",
+      "kind": "frequency",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "cluster_instance_count": "",
+          "occurrence_count": "1"
+        }
+      ],
+      "error": "supplied u64 count"
+    },
+    {
+      "id": "frequency-missing-numerator",
+      "kind": "frequency",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "occurrence_count": ""
+        }
+      ],
+      "error": "supplied u64 count"
+    },
+    {
+      "id": "frequency-fractional-count",
+      "kind": "frequency",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "occurrence_count": "1.5"
+        }
+      ],
+      "error": "supplied u64 count"
+    },
+    {
+      "id": "frequency-negative-count",
+      "kind": "frequency",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "occurrence_count": "-1"
+        }
+      ],
+      "error": "supplied u64 count"
+    },
+    {
+      "id": "frequency-overflow-count",
+      "kind": "frequency",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "occurrence_count": "18446744073709551616"
+        }
+      ],
+      "error": "supplied u64 count"
+    },
+    {
+      "id": "frequency-excess-count",
+      "kind": "frequency",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "occurrence_count": "11"
+        }
+      ],
+      "error": "exceeds cluster instance count"
+    },
+    {
+      "id": "stability-u64-max",
+      "kind": "stability",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "cluster_instance_count": "18446744073709551615",
+          "distinct_value_count": "18446744073709551615"
+        }
+      ],
+      "expected": [
+        [
+          "18446744073709551615",
+          "18446744073709551615",
+          "0"
+        ]
+      ]
+    },
+    {
+      "id": "stability-above-2pow53",
+      "kind": "stability",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "cluster_instance_count": "9007199254740994",
+          "distinct_value_count": "9007199254740993"
+        }
+      ],
+      "expected": [
+        [
+          "9007199254740993",
+          "9007199254740994",
+          "2.220446049250313e-16"
+        ]
+      ]
+    },
+    {
+      "id": "stability-zero-denominator",
+      "kind": "stability",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "cluster_instance_count": "0",
+          "distinct_value_count": "0"
+        }
+      ],
+      "error": "source zero-denominator behavior is undisclosed"
+    },
+    {
+      "id": "stability-missing-denominator",
+      "kind": "stability",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "cluster_instance_count": "",
+          "distinct_value_count": "1"
+        }
+      ],
+      "error": "supplied u64 count"
+    },
+    {
+      "id": "stability-missing-numerator",
+      "kind": "stability",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "distinct_value_count": ""
+        }
+      ],
+      "error": "supplied u64 count"
+    },
+    {
+      "id": "stability-fractional-count",
+      "kind": "stability",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "distinct_value_count": "1.5"
+        }
+      ],
+      "error": "supplied u64 count"
+    },
+    {
+      "id": "stability-negative-count",
+      "kind": "stability",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "distinct_value_count": "-1"
+        }
+      ],
+      "error": "supplied u64 count"
+    },
+    {
+      "id": "stability-overflow-count",
+      "kind": "stability",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "distinct_value_count": "18446744073709551616"
+        }
+      ],
+      "error": "supplied u64 count"
+    },
+    {
+      "id": "stability-excess-count",
+      "kind": "stability",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "distinct_value_count": "11"
+        }
+      ],
+      "error": "exceeds cluster instance count"
+    },
+    {
+      "id": "norm-one-distance",
+      "kind": "norm",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "feature_key": "last_opened_app",
+          "similarity": "0"
+        },
+        {
+          "source_row_id": "r2",
+          "feature_key": "last_audio_cable",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r3",
+          "feature_key": "last_location",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r4",
+          "feature_key": "last_charge_cable",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r5",
+          "feature_key": "last_wifi",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r6",
+          "feature_key": "last_data",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r7",
+          "feature_key": "last_bluetooth",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r8",
+          "feature_key": "last_light",
+          "similarity": "1"
+        }
+      ],
+      "expected": [
+        {
+          "value": "1",
+          "source_ids": [
+            "r1",
+            "r2",
+            "r3",
+            "r4",
+            "r5",
+            "r6",
+            "r7",
+            "r8"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "norm-zero",
+      "kind": "norm",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "feature_key": "last_opened_app",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r2",
+          "feature_key": "last_audio_cable",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r3",
+          "feature_key": "last_location",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r4",
+          "feature_key": "last_charge_cable",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r5",
+          "feature_key": "last_wifi",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r6",
+          "feature_key": "last_data",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r7",
+          "feature_key": "last_bluetooth",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r8",
+          "feature_key": "last_light",
+          "similarity": "1"
+        }
+      ],
+      "expected": [
+        {
+          "value": "0",
+          "source_ids": [
+            "r1",
+            "r2",
+            "r3",
+            "r4",
+            "r5",
+            "r6",
+            "r7",
+            "r8"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "norm-eight-unit-distances",
+      "kind": "norm",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "feature_key": "last_opened_app",
+          "similarity": "0"
+        },
+        {
+          "source_row_id": "r2",
+          "feature_key": "last_audio_cable",
+          "similarity": "0"
+        },
+        {
+          "source_row_id": "r3",
+          "feature_key": "last_location",
+          "similarity": "0"
+        },
+        {
+          "source_row_id": "r4",
+          "feature_key": "last_charge_cable",
+          "similarity": "0"
+        },
+        {
+          "source_row_id": "r5",
+          "feature_key": "last_wifi",
+          "similarity": "0"
+        },
+        {
+          "source_row_id": "r6",
+          "feature_key": "last_data",
+          "similarity": "0"
+        },
+        {
+          "source_row_id": "r7",
+          "feature_key": "last_bluetooth",
+          "similarity": "0"
+        },
+        {
+          "source_row_id": "r8",
+          "feature_key": "last_light",
+          "similarity": "0"
+        }
+      ],
+      "expected": [
+        {
+          "value": "2.8284271247461903",
+          "source_ids": [
+            "r1",
+            "r2",
+            "r3",
+            "r4",
+            "r5",
+            "r6",
+            "r7",
+            "r8"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "norm-eight-halves",
+      "kind": "norm",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "feature_key": "last_opened_app",
+          "similarity": "0.5"
+        },
+        {
+          "source_row_id": "r2",
+          "feature_key": "last_audio_cable",
+          "similarity": "0.5"
+        },
+        {
+          "source_row_id": "r3",
+          "feature_key": "last_location",
+          "similarity": "0.5"
+        },
+        {
+          "source_row_id": "r4",
+          "feature_key": "last_charge_cable",
+          "similarity": "0.5"
+        },
+        {
+          "source_row_id": "r5",
+          "feature_key": "last_wifi",
+          "similarity": "0.5"
+        },
+        {
+          "source_row_id": "r6",
+          "feature_key": "last_data",
+          "similarity": "0.5"
+        },
+        {
+          "source_row_id": "r7",
+          "feature_key": "last_bluetooth",
+          "similarity": "0.5"
+        },
+        {
+          "source_row_id": "r8",
+          "feature_key": "last_light",
+          "similarity": "0.5"
+        }
+      ],
+      "expected": [
+        {
+          "value": "1.4142135623730951",
+          "source_ids": [
+            "r1",
+            "r2",
+            "r3",
+            "r4",
+            "r5",
+            "r6",
+            "r7",
+            "r8"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "norm-near-one",
+      "kind": "norm",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "feature_key": "last_opened_app",
+          "similarity": "0.9999999999999999"
+        },
+        {
+          "source_row_id": "r2",
+          "feature_key": "last_audio_cable",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r3",
+          "feature_key": "last_location",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r4",
+          "feature_key": "last_charge_cable",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r5",
+          "feature_key": "last_wifi",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r6",
+          "feature_key": "last_data",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r7",
+          "feature_key": "last_bluetooth",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r8",
+          "feature_key": "last_light",
+          "similarity": "1"
+        }
+      ],
+      "expected": [
+        {
+          "value": "1.1102230246251565e-16",
+          "source_ids": [
+            "r1",
+            "r2",
+            "r3",
+            "r4",
+            "r5",
+            "r6",
+            "r7",
+            "r8"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "credibility-maximum",
+      "kind": "credibility",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "feature_key": "last_opened_app",
+          "frequency": "0.6",
+          "stability": "0.8"
+        },
+        {
+          "source_row_id": "r2",
+          "feature_key": "last_audio_cable",
+          "frequency": "0.3",
+          "stability": "0.9"
+        },
+        {
+          "source_row_id": "r3",
+          "feature_key": "last_location",
+          "frequency": "0",
+          "stability": "0"
+        },
+        {
+          "source_row_id": "r4",
+          "feature_key": "last_charge_cable",
+          "frequency": "0",
+          "stability": "0"
+        },
+        {
+          "source_row_id": "r5",
+          "feature_key": "last_wifi",
+          "frequency": "0",
+          "stability": "0"
+        },
+        {
+          "source_row_id": "r6",
+          "feature_key": "last_data",
+          "frequency": "0",
+          "stability": "0"
+        },
+        {
+          "source_row_id": "r7",
+          "feature_key": "last_bluetooth",
+          "frequency": "0",
+          "stability": "0"
+        },
+        {
+          "source_row_id": "r8",
+          "feature_key": "last_light",
+          "frequency": "0",
+          "stability": "0"
+        }
+      ],
+      "expected": [
+        {
+          "value": "1.4",
+          "source_ids": [
+            "r1",
+            "r2",
+            "r3",
+            "r4",
+            "r5",
+            "r6",
+            "r7",
+            "r8"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "credibility-tied-max",
+      "kind": "credibility",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "feature_key": "last_opened_app",
+          "frequency": "1",
+          "stability": "1"
+        },
+        {
+          "source_row_id": "r2",
+          "feature_key": "last_audio_cable",
+          "frequency": "1",
+          "stability": "1"
+        },
+        {
+          "source_row_id": "r3",
+          "feature_key": "last_location",
+          "frequency": "1",
+          "stability": "1"
+        },
+        {
+          "source_row_id": "r4",
+          "feature_key": "last_charge_cable",
+          "frequency": "1",
+          "stability": "1"
+        },
+        {
+          "source_row_id": "r5",
+          "feature_key": "last_wifi",
+          "frequency": "1",
+          "stability": "1"
+        },
+        {
+          "source_row_id": "r6",
+          "feature_key": "last_data",
+          "frequency": "1",
+          "stability": "1"
+        },
+        {
+          "source_row_id": "r7",
+          "feature_key": "last_bluetooth",
+          "frequency": "1",
+          "stability": "1"
+        },
+        {
+          "source_row_id": "r8",
+          "feature_key": "last_light",
+          "frequency": "1",
+          "stability": "1"
+        }
+      ],
+      "expected": [
+        {
+          "value": "2",
+          "source_ids": [
+            "r1",
+            "r2",
+            "r3",
+            "r4",
+            "r5",
+            "r6",
+            "r7",
+            "r8"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "credibility-zero",
+      "kind": "credibility",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "feature_key": "last_opened_app",
+          "frequency": "0",
+          "stability": "0"
+        },
+        {
+          "source_row_id": "r2",
+          "feature_key": "last_audio_cable",
+          "frequency": "0",
+          "stability": "0"
+        },
+        {
+          "source_row_id": "r3",
+          "feature_key": "last_location",
+          "frequency": "0",
+          "stability": "0"
+        },
+        {
+          "source_row_id": "r4",
+          "feature_key": "last_charge_cable",
+          "frequency": "0",
+          "stability": "0"
+        },
+        {
+          "source_row_id": "r5",
+          "feature_key": "last_wifi",
+          "frequency": "0",
+          "stability": "0"
+        },
+        {
+          "source_row_id": "r6",
+          "feature_key": "last_data",
+          "frequency": "0",
+          "stability": "0"
+        },
+        {
+          "source_row_id": "r7",
+          "feature_key": "last_bluetooth",
+          "frequency": "0",
+          "stability": "0"
+        },
+        {
+          "source_row_id": "r8",
+          "feature_key": "last_light",
+          "frequency": "0",
+          "stability": "0"
+        }
+      ],
+      "expected": [
+        {
+          "value": "0",
+          "source_ids": [
+            "r1",
+            "r2",
+            "r3",
+            "r4",
+            "r5",
+            "r6",
+            "r7",
+            "r8"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "norm-seven-only",
+      "kind": "norm",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "feature_key": "last_opened_app",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r2",
+          "feature_key": "last_audio_cable",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r3",
+          "feature_key": "last_location",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r4",
+          "feature_key": "last_charge_cable",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r5",
+          "feature_key": "last_wifi",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r6",
+          "feature_key": "last_data",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r7",
+          "feature_key": "last_bluetooth",
+          "similarity": "1"
+        }
+      ],
+      "error": "exactly eight unique source features"
+    },
+    {
+      "id": "norm-partial-attestation",
+      "kind": "norm",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "feature_key": "last_opened_app",
+          "similarity": "1",
+          "feature_domain": "partial-seven-nonGPS"
+        },
+        {
+          "source_row_id": "r2",
+          "feature_key": "last_audio_cable",
+          "similarity": "1",
+          "feature_domain": "partial-seven-nonGPS"
+        },
+        {
+          "source_row_id": "r3",
+          "feature_key": "last_location",
+          "similarity": "1",
+          "feature_domain": "partial-seven-nonGPS"
+        },
+        {
+          "source_row_id": "r4",
+          "feature_key": "last_charge_cable",
+          "similarity": "1",
+          "feature_domain": "partial-seven-nonGPS"
+        },
+        {
+          "source_row_id": "r5",
+          "feature_key": "last_wifi",
+          "similarity": "1",
+          "feature_domain": "partial-seven-nonGPS"
+        },
+        {
+          "source_row_id": "r6",
+          "feature_key": "last_data",
+          "similarity": "1",
+          "feature_domain": "partial-seven-nonGPS"
+        },
+        {
+          "source_row_id": "r7",
+          "feature_key": "last_bluetooth",
+          "similarity": "1",
+          "feature_domain": "partial-seven-nonGPS"
+        },
+        {
+          "source_row_id": "r8",
+          "feature_key": "last_light",
+          "similarity": "1",
+          "feature_domain": "partial-seven-nonGPS"
+        }
+      ],
+      "error": "caller-complete paper eight-feature domain"
+    },
+    {
+      "id": "norm-duplicate-feature",
+      "kind": "norm",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "feature_key": "last_opened_app",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r2",
+          "feature_key": "last_audio_cable",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r3",
+          "feature_key": "last_location",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r4",
+          "feature_key": "last_charge_cable",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r5",
+          "feature_key": "last_wifi",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r6",
+          "feature_key": "last_data",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r7",
+          "feature_key": "last_bluetooth",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r8",
+          "feature_key": "last_light",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r9",
+          "feature_key": "last_opened_app",
+          "similarity": "1"
+        }
+      ],
+      "error": "duplicate feature membership"
+    },
+    {
+      "id": "norm-missing-scalar",
+      "kind": "norm",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "feature_key": "last_opened_app",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r2",
+          "feature_key": "last_audio_cable",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r3",
+          "feature_key": "last_location",
+          "similarity": ""
+        },
+        {
+          "source_row_id": "r4",
+          "feature_key": "last_charge_cable",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r5",
+          "feature_key": "last_wifi",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r6",
+          "feature_key": "last_data",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r7",
+          "feature_key": "last_bluetooth",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r8",
+          "feature_key": "last_light",
+          "similarity": "1"
+        }
+      ],
+      "error": "binary64 value in [0,1]"
+    },
+    {
+      "id": "norm-nan",
+      "kind": "norm",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "feature_key": "last_opened_app",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r2",
+          "feature_key": "last_audio_cable",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r3",
+          "feature_key": "last_location",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r4",
+          "feature_key": "last_charge_cable",
+          "similarity": "NaN"
+        },
+        {
+          "source_row_id": "r5",
+          "feature_key": "last_wifi",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r6",
+          "feature_key": "last_data",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r7",
+          "feature_key": "last_bluetooth",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r8",
+          "feature_key": "last_light",
+          "similarity": "1"
+        }
+      ],
+      "error": "binary64 value in [0,1]"
+    },
+    {
+      "id": "credibility-seven-only",
+      "kind": "credibility",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "feature_key": "last_opened_app",
+          "frequency": "0.5",
+          "stability": "0.5"
+        },
+        {
+          "source_row_id": "r2",
+          "feature_key": "last_audio_cable",
+          "frequency": "0.5",
+          "stability": "0.5"
+        },
+        {
+          "source_row_id": "r3",
+          "feature_key": "last_location",
+          "frequency": "0.5",
+          "stability": "0.5"
+        },
+        {
+          "source_row_id": "r4",
+          "feature_key": "last_charge_cable",
+          "frequency": "0.5",
+          "stability": "0.5"
+        },
+        {
+          "source_row_id": "r5",
+          "feature_key": "last_wifi",
+          "frequency": "0.5",
+          "stability": "0.5"
+        },
+        {
+          "source_row_id": "r6",
+          "feature_key": "last_data",
+          "frequency": "0.5",
+          "stability": "0.5"
+        },
+        {
+          "source_row_id": "r7",
+          "feature_key": "last_bluetooth",
+          "frequency": "0.5",
+          "stability": "0.5"
+        }
+      ],
+      "error": "exactly eight unique source features"
+    },
+    {
+      "id": "credibility-partial-attestation",
+      "kind": "credibility",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "feature_key": "last_opened_app",
+          "frequency": "0.5",
+          "stability": "0.5",
+          "feature_domain": "partial-seven-nonGPS"
+        },
+        {
+          "source_row_id": "r2",
+          "feature_key": "last_audio_cable",
+          "frequency": "0.5",
+          "stability": "0.5",
+          "feature_domain": "partial-seven-nonGPS"
+        },
+        {
+          "source_row_id": "r3",
+          "feature_key": "last_location",
+          "frequency": "0.5",
+          "stability": "0.5",
+          "feature_domain": "partial-seven-nonGPS"
+        },
+        {
+          "source_row_id": "r4",
+          "feature_key": "last_charge_cable",
+          "frequency": "0.5",
+          "stability": "0.5",
+          "feature_domain": "partial-seven-nonGPS"
+        },
+        {
+          "source_row_id": "r5",
+          "feature_key": "last_wifi",
+          "frequency": "0.5",
+          "stability": "0.5",
+          "feature_domain": "partial-seven-nonGPS"
+        },
+        {
+          "source_row_id": "r6",
+          "feature_key": "last_data",
+          "frequency": "0.5",
+          "stability": "0.5",
+          "feature_domain": "partial-seven-nonGPS"
+        },
+        {
+          "source_row_id": "r7",
+          "feature_key": "last_bluetooth",
+          "frequency": "0.5",
+          "stability": "0.5",
+          "feature_domain": "partial-seven-nonGPS"
+        },
+        {
+          "source_row_id": "r8",
+          "feature_key": "last_light",
+          "frequency": "0.5",
+          "stability": "0.5",
+          "feature_domain": "partial-seven-nonGPS"
+        }
+      ],
+      "error": "caller-complete paper eight-feature domain"
+    },
+    {
+      "id": "credibility-duplicate-feature",
+      "kind": "credibility",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "feature_key": "last_opened_app",
+          "frequency": "0.5",
+          "stability": "0.5"
+        },
+        {
+          "source_row_id": "r2",
+          "feature_key": "last_audio_cable",
+          "frequency": "0.5",
+          "stability": "0.5"
+        },
+        {
+          "source_row_id": "r3",
+          "feature_key": "last_location",
+          "frequency": "0.5",
+          "stability": "0.5"
+        },
+        {
+          "source_row_id": "r4",
+          "feature_key": "last_charge_cable",
+          "frequency": "0.5",
+          "stability": "0.5"
+        },
+        {
+          "source_row_id": "r5",
+          "feature_key": "last_wifi",
+          "frequency": "0.5",
+          "stability": "0.5"
+        },
+        {
+          "source_row_id": "r6",
+          "feature_key": "last_data",
+          "frequency": "0.5",
+          "stability": "0.5"
+        },
+        {
+          "source_row_id": "r7",
+          "feature_key": "last_bluetooth",
+          "frequency": "0.5",
+          "stability": "0.5"
+        },
+        {
+          "source_row_id": "r8",
+          "feature_key": "last_light",
+          "frequency": "0.5",
+          "stability": "0.5"
+        },
+        {
+          "source_row_id": "r9",
+          "feature_key": "last_opened_app",
+          "frequency": "0.5",
+          "stability": "0.5"
+        }
+      ],
+      "error": "duplicate feature membership"
+    },
+    {
+      "id": "credibility-missing-scalar",
+      "kind": "credibility",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "feature_key": "last_opened_app",
+          "frequency": "0.5",
+          "stability": "0.5"
+        },
+        {
+          "source_row_id": "r2",
+          "feature_key": "last_audio_cable",
+          "frequency": "0.5",
+          "stability": "0.5"
+        },
+        {
+          "source_row_id": "r3",
+          "feature_key": "last_location",
+          "frequency": "",
+          "stability": "0.5"
+        },
+        {
+          "source_row_id": "r4",
+          "feature_key": "last_charge_cable",
+          "frequency": "0.5",
+          "stability": "0.5"
+        },
+        {
+          "source_row_id": "r5",
+          "feature_key": "last_wifi",
+          "frequency": "0.5",
+          "stability": "0.5"
+        },
+        {
+          "source_row_id": "r6",
+          "feature_key": "last_data",
+          "frequency": "0.5",
+          "stability": "0.5"
+        },
+        {
+          "source_row_id": "r7",
+          "feature_key": "last_bluetooth",
+          "frequency": "0.5",
+          "stability": "0.5"
+        },
+        {
+          "source_row_id": "r8",
+          "feature_key": "last_light",
+          "frequency": "0.5",
+          "stability": "0.5"
+        }
+      ],
+      "error": "binary64 value in [0,1]"
+    },
+    {
+      "id": "credibility-nan",
+      "kind": "credibility",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "feature_key": "last_opened_app",
+          "frequency": "0.5",
+          "stability": "0.5"
+        },
+        {
+          "source_row_id": "r2",
+          "feature_key": "last_audio_cable",
+          "frequency": "0.5",
+          "stability": "0.5"
+        },
+        {
+          "source_row_id": "r3",
+          "feature_key": "last_location",
+          "frequency": "0.5",
+          "stability": "0.5"
+        },
+        {
+          "source_row_id": "r4",
+          "feature_key": "last_charge_cable",
+          "frequency": "0.5",
+          "stability": "NaN"
+        },
+        {
+          "source_row_id": "r5",
+          "feature_key": "last_wifi",
+          "frequency": "0.5",
+          "stability": "0.5"
+        },
+        {
+          "source_row_id": "r6",
+          "feature_key": "last_data",
+          "frequency": "0.5",
+          "stability": "0.5"
+        },
+        {
+          "source_row_id": "r7",
+          "feature_key": "last_bluetooth",
+          "frequency": "0.5",
+          "stability": "0.5"
+        },
+        {
+          "source_row_id": "r8",
+          "feature_key": "last_light",
+          "frequency": "0.5",
+          "stability": "0.5"
+        }
+      ],
+      "error": "binary64 value in [0,1]"
+    },
+    {
+      "id": "norm-conflicting-instance",
+      "kind": "norm",
+      "rows": [
+        {
+          "source_row_id": "r1",
+          "feature_key": "last_opened_app",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r2",
+          "feature_key": "last_audio_cable",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r3",
+          "feature_key": "last_location",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r4",
+          "feature_key": "last_charge_cable",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r5",
+          "feature_key": "last_wifi",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r6",
+          "feature_key": "last_data",
+          "similarity": "1"
+        },
+        {
+          "source_row_id": "r7",
+          "feature_key": "last_bluetooth",
+          "similarity": "1",
+          "left_instance_id": "other"
+        },
+        {
+          "source_row_id": "r8",
+          "feature_key": "last_light",
+          "similarity": "1"
+        }
+      ],
+      "error": "conflicting instance membership"
+    },
+    {
+      "id": "norm-interleaved-first-seen-lexical-groups",
+      "kind": "norm",
+      "extra_headers": [
+        "payload"
+      ],
+      "rows": [
+        {
+          "source_row_id": "b1",
+          "feature_key": "last_opened_app",
+          "similarity": "1",
+          "pair_id": " B ",
+          "payload": "quoted, payload"
+        },
+        {
+          "source_row_id": "a1",
+          "feature_key": "last_opened_app",
+          "similarity": "0",
+          "pair_id": "A",
+          "payload": "other"
+        },
+        {
+          "source_row_id": "b2",
+          "feature_key": "last_audio_cable",
+          "similarity": "1",
+          "pair_id": " B ",
+          "payload": "quoted, payload"
+        },
+        {
+          "source_row_id": "a2",
+          "feature_key": "last_audio_cable",
+          "similarity": "1",
+          "pair_id": "A",
+          "payload": "other"
+        },
+        {
+          "source_row_id": "b3",
+          "feature_key": "last_location",
+          "similarity": "1",
+          "pair_id": " B ",
+          "payload": "quoted, payload"
+        },
+        {
+          "source_row_id": "a3",
+          "feature_key": "last_location",
+          "similarity": "1",
+          "pair_id": "A",
+          "payload": "other"
+        },
+        {
+          "source_row_id": "b4",
+          "feature_key": "last_charge_cable",
+          "similarity": "1",
+          "pair_id": " B ",
+          "payload": "quoted, payload"
+        },
+        {
+          "source_row_id": "a4",
+          "feature_key": "last_charge_cable",
+          "similarity": "1",
+          "pair_id": "A",
+          "payload": "other"
+        },
+        {
+          "source_row_id": "b5",
+          "feature_key": "last_wifi",
+          "similarity": "1",
+          "pair_id": " B ",
+          "payload": "quoted, payload"
+        },
+        {
+          "source_row_id": "a5",
+          "feature_key": "last_wifi",
+          "similarity": "1",
+          "pair_id": "A",
+          "payload": "other"
+        },
+        {
+          "source_row_id": "b6",
+          "feature_key": "last_data",
+          "similarity": "1",
+          "pair_id": " B ",
+          "payload": "quoted, payload"
+        },
+        {
+          "source_row_id": "a6",
+          "feature_key": "last_data",
+          "similarity": "1",
+          "pair_id": "A",
+          "payload": "other"
+        },
+        {
+          "source_row_id": "b7",
+          "feature_key": "last_bluetooth",
+          "similarity": "1",
+          "pair_id": " B ",
+          "payload": "quoted, payload"
+        },
+        {
+          "source_row_id": "a7",
+          "feature_key": "last_bluetooth",
+          "similarity": "1",
+          "pair_id": "A",
+          "payload": "other"
+        },
+        {
+          "source_row_id": "b8",
+          "feature_key": "last_light",
+          "similarity": "1",
+          "pair_id": " B ",
+          "payload": "quoted, payload"
+        },
+        {
+          "source_row_id": "a8",
+          "feature_key": "last_light",
+          "similarity": "1",
+          "pair_id": "A",
+          "payload": "other"
+        }
+      ],
+      "expected": [
+        {
+          "value": "0",
+          "source_ids": [
+            "b1",
+            "b2",
+            "b3",
+            "b4",
+            "b5",
+            "b6",
+            "b7",
+            "b8"
+          ],
+          "scope_id": " B "
+        },
+        {
+          "value": "1",
+          "source_ids": [
+            "a1",
+            "a2",
+            "a3",
+            "a4",
+            "a5",
+            "a6",
+            "a7",
+            "a8"
+          ],
+          "scope_id": "A"
+        }
+      ]
+    },
+    {
+      "id": "distance-empty",
+      "kind": "distance",
+      "rows": [],
+      "expected": []
+    },
+    {
+      "id": "norm-empty",
+      "kind": "norm",
+      "rows": [],
+      "expected": []
+    },
+    {
+      "id": "frequency-empty",
+      "kind": "frequency",
+      "rows": [],
+      "expected": []
+    },
+    {
+      "id": "stability-empty",
+      "kind": "stability",
+      "rows": [],
+      "expected": []
+    },
+    {
+      "id": "credibility-empty",
+      "kind": "credibility",
+      "rows": [],
+      "expected": []
+    }
+  ]
+}

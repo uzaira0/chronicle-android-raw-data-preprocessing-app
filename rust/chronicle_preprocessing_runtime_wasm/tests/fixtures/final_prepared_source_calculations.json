@@ -1,0 +1,499 @@
+{
+  "schemaVersion": "chronicle-final-prepared-source-read-hand-fixture/v1",
+  "cases": [
+    {
+      "adapterId": "chronicle.lin-supplied-daily-epoch-features/v1",
+      "componentId": "chronicle.lin-supplied-daily-epoch-features/v1",
+      "methodSettingId": "method-setting-52b1fd0f5c43f0c37850b3c4",
+      "sourceWorkId": "doi:10.4088/jcp.15m10310",
+      "sourceMethodVariantId": "source-audit-configuration-space-c4d94f8f8253dbd23ad0d6fa",
+      "sourceValue": {
+        "name": "daily frequency",
+        "operation": "count reconstructed epochs"
+      },
+      "rawCsvLines": [
+        "source_row_id,participant_id,device_id,source_stream_id,clock_id,source_window_id,source_day_id,input_stage,record_type,epoch_id,duration_seconds",
+        "r0,P,D,stream,clock,window,d1,caller-complete-lin-qualified-epoch-day-inventory,admitted_day,,",
+        "r1,P,D,stream,clock,window,d2,caller-complete-lin-qualified-epoch-day-inventory,admitted_day,,",
+        "r2,P,D,stream,clock,window,d3,caller-complete-lin-qualified-epoch-day-inventory,admitted_day,,",
+        "r3,P,D,stream,clock,window,d1,caller-complete-lin-qualified-epoch-day-inventory,epoch,e1,1",
+        "r4,P,D,stream,clock,window,d1,caller-complete-lin-qualified-epoch-day-inventory,epoch,e2,3",
+        "r5,P,D,stream,clock,window,d2,caller-complete-lin-qualified-epoch-day-inventory,epoch,e3,4"
+      ],
+      "expectedRows": [
+        [
+          "P",
+          "D",
+          "stream",
+          "clock",
+          "window",
+          "d1",
+          "2",
+          "4",
+          "2",
+          "available"
+        ],
+        [
+          "P",
+          "D",
+          "stream",
+          "clock",
+          "window",
+          "d2",
+          "1",
+          "4",
+          "4",
+          "available"
+        ],
+        [
+          "P",
+          "D",
+          "stream",
+          "clock",
+          "window",
+          "d3",
+          "0",
+          "0",
+          "",
+          "unavailable_complete_empty_day"
+        ]
+      ]
+    },
+    {
+      "adapterId": "chronicle.lin-supplied-daily-epoch-features/v1",
+      "componentId": "chronicle.lin-supplied-daily-epoch-features/v1",
+      "methodSettingId": "method-setting-41ef33bfdacfb46739bc966c",
+      "sourceWorkId": "doi:10.4088/jcp.15m10310",
+      "sourceMethodVariantId": "source-audit-configuration-space-c4d94f8f8253dbd23ad0d6fa",
+      "sourceValue": {
+        "name": "total daily screen-on time, distinct from the diagnostic duration parameter",
+        "operation": "sum epoch durations",
+        "unit": "seconds",
+        "evidence": "Figure 1 illustrates 20,865 seconds for one day; Dapp uses app-recorded daily use duration, but its exact aggregation window is not specified"
+      },
+      "rawCsvLines": [
+        "source_row_id,participant_id,device_id,source_stream_id,clock_id,source_window_id,source_day_id,input_stage,record_type,epoch_id,duration_seconds",
+        "r0,P,D,stream,clock,window,d1,caller-complete-lin-qualified-epoch-day-inventory,admitted_day,,",
+        "r1,P,D,stream,clock,window,d2,caller-complete-lin-qualified-epoch-day-inventory,admitted_day,,",
+        "r2,P,D,stream,clock,window,d3,caller-complete-lin-qualified-epoch-day-inventory,admitted_day,,",
+        "r3,P,D,stream,clock,window,d1,caller-complete-lin-qualified-epoch-day-inventory,epoch,e1,1",
+        "r4,P,D,stream,clock,window,d1,caller-complete-lin-qualified-epoch-day-inventory,epoch,e2,3",
+        "r5,P,D,stream,clock,window,d2,caller-complete-lin-qualified-epoch-day-inventory,epoch,e3,4"
+      ],
+      "expectedRows": [
+        [
+          "P",
+          "D",
+          "stream",
+          "clock",
+          "window",
+          "d1",
+          "2",
+          "4",
+          "2",
+          "available"
+        ],
+        [
+          "P",
+          "D",
+          "stream",
+          "clock",
+          "window",
+          "d2",
+          "1",
+          "4",
+          "4",
+          "available"
+        ],
+        [
+          "P",
+          "D",
+          "stream",
+          "clock",
+          "window",
+          "d3",
+          "0",
+          "0",
+          "",
+          "unavailable_complete_empty_day"
+        ]
+      ]
+    },
+    {
+      "adapterId": "chronicle.lin-supplied-daily-epoch-features/v1",
+      "componentId": "chronicle.lin-supplied-daily-epoch-features/v1",
+      "methodSettingId": "method-setting-a0ed59c25bf19377cfecc238",
+      "sourceWorkId": "doi:10.4088/jcp.15m10310",
+      "sourceMethodVariantId": "source-audit-configuration-space-c4d94f8f8253dbd23ad0d6fa",
+      "sourceValue": {
+        "name": "daily median",
+        "operation": "median epoch duration",
+        "unit": "seconds"
+      },
+      "rawCsvLines": [
+        "source_row_id,participant_id,device_id,source_stream_id,clock_id,source_window_id,source_day_id,input_stage,record_type,epoch_id,duration_seconds",
+        "r0,P,D,stream,clock,window,d1,caller-complete-lin-qualified-epoch-day-inventory,admitted_day,,",
+        "r1,P,D,stream,clock,window,d2,caller-complete-lin-qualified-epoch-day-inventory,admitted_day,,",
+        "r2,P,D,stream,clock,window,d3,caller-complete-lin-qualified-epoch-day-inventory,admitted_day,,",
+        "r3,P,D,stream,clock,window,d1,caller-complete-lin-qualified-epoch-day-inventory,epoch,e1,1",
+        "r4,P,D,stream,clock,window,d1,caller-complete-lin-qualified-epoch-day-inventory,epoch,e2,3",
+        "r5,P,D,stream,clock,window,d2,caller-complete-lin-qualified-epoch-day-inventory,epoch,e3,4"
+      ],
+      "expectedRows": [
+        [
+          "P",
+          "D",
+          "stream",
+          "clock",
+          "window",
+          "d1",
+          "2",
+          "4",
+          "2",
+          "available"
+        ],
+        [
+          "P",
+          "D",
+          "stream",
+          "clock",
+          "window",
+          "d2",
+          "1",
+          "4",
+          "4",
+          "available"
+        ],
+        [
+          "P",
+          "D",
+          "stream",
+          "clock",
+          "window",
+          "d3",
+          "0",
+          "0",
+          "",
+          "unavailable_complete_empty_day"
+        ]
+      ]
+    },
+    {
+      "adapterId": "chronicle.lin-supplied-monthly-feature-means/v1",
+      "componentId": "chronicle.lin-supplied-monthly-feature-means/v1",
+      "methodSettingId": "method-setting-80e173c6b86f5d96e92a1e21",
+      "sourceWorkId": "doi:10.4088/jcp.15m10310",
+      "sourceMethodVariantId": "source-audit-configuration-space-c4d94f8f8253dbd23ad0d6fa",
+      "sourceValue": {
+        "operation": "mean over daily values",
+        "outputs": [
+          "mean daily epoch count",
+          "mean daily epoch length",
+          "mean daily median epoch duration"
+        ]
+      },
+      "rawCsvLines": [
+        "source_row_id,participant_id,device_id,source_stream_id,clock_id,source_window_id,source_day_id,input_stage,record_type,feature_id,daily_value,value_unit",
+        "r0,P,D,stream,clock,window,opaque1,caller-complete-lin-three-feature-retained-day-inventory,admitted_day,,,",
+        "r1,P,D,stream,clock,window,opaque9,caller-complete-lin-three-feature-retained-day-inventory,admitted_day,,,",
+        "r2,P,D,stream,clock,window,opaque1,caller-complete-lin-three-feature-retained-day-inventory,daily_value,daily_epoch_count,2,count",
+        "r3,P,D,stream,clock,window,opaque1,caller-complete-lin-three-feature-retained-day-inventory,daily_value,daily_epoch_length,100,seconds",
+        "r4,P,D,stream,clock,window,opaque1,caller-complete-lin-three-feature-retained-day-inventory,daily_value,daily_median_epoch_duration,1,seconds",
+        "r5,P,D,stream,clock,window,opaque9,caller-complete-lin-three-feature-retained-day-inventory,daily_value,daily_epoch_count,4,count",
+        "r6,P,D,stream,clock,window,opaque9,caller-complete-lin-three-feature-retained-day-inventory,daily_value,daily_epoch_length,200,seconds",
+        "r7,P,D,stream,clock,window,opaque9,caller-complete-lin-three-feature-retained-day-inventory,daily_value,daily_median_epoch_duration,3,seconds"
+      ],
+      "expectedRows": [
+        [
+          "P",
+          "D",
+          "stream",
+          "clock",
+          "window",
+          "2",
+          "3",
+          "150",
+          "2"
+        ]
+      ]
+    },
+    {
+      "adapterId": "chronicle.studentlife-demanding-period-lock-unlock-mean/v1",
+      "componentId": "chronicle.studentlife-demanding-period-lock-unlock-mean/v1",
+      "methodSettingId": "method-setting-a3b1426fe94dbb1a8f1df727",
+      "sourceWorkId": "source-ref:e2014b2268ac2833bb8e",
+      "sourceMethodVariantId": "source-audit-configuration-space-b8e099996c850c92b31f6bb5",
+      "sourceValue": "mean of daily numbers of screen locks/unlocks in cognitively demanding periods",
+      "rawCsvLines": [
+        "source_row_id,participant_id,device_id,source_stream_id,clock_id,source_window_id,source_day_id,input_stage,record_type,event_id,action,demanding_period_id",
+        "r0,P,D,stream,clock,window,d1,caller-complete-studentlife-demanding-period-day-inventory,admitted_day,,,",
+        "r1,P,D,stream,clock,window,d2,caller-complete-studentlife-demanding-period-day-inventory,admitted_day,,,",
+        "r2,P,D,stream,clock,window,d1,caller-complete-studentlife-demanding-period-day-inventory,event,e1,lock,lecture",
+        "r3,P,D,stream,clock,window,d1,caller-complete-studentlife-demanding-period-day-inventory,event,e2,lock,lecture",
+        "r4,P,D,stream,clock,window,d1,caller-complete-studentlife-demanding-period-day-inventory,event,e3,unlock,study"
+      ],
+      "expectedRows": [
+        [
+          "P",
+          "D",
+          "stream",
+          "clock",
+          "window",
+          "d1",
+          "3",
+          "2",
+          "1.5"
+        ],
+        [
+          "P",
+          "D",
+          "stream",
+          "clock",
+          "window",
+          "d2",
+          "0",
+          "2",
+          "1.5"
+        ]
+      ]
+    },
+    {
+      "adapterId": "chronicle.rapids-released-app-episodes/v1",
+      "componentId": "chronicle.rapids-released-app-episodes/v1",
+      "methodSettingId": "method-setting-1751208b539d6da4f48ba0a3",
+      "sourceWorkId": "doi:10.1007/s41347-024-00443-5",
+      "sourceMethodVariantId": "source-audit-configuration-space-980f99f6ebe75e6ff78f4a96",
+      "sourceValue": {
+        "definition": {
+          "calculation": "full timestamp-only join of supplied foreground rows and supplied screen-episode end timestamps; sort ascending timestamp; assign start_timestamp=timestamp and end_timestamp=next joined timestamp; remove missing application_name rows; remove the final retained app row; duration=(end_timestamp-start_timestamp)/60000",
+          "source_version": "RAPIDS 1.9.4",
+          "input_boundary": "one caller-qualified complete participant inventory pair on one explicitly declared common clock with finite binary64 millisecond timestamps and selected typed foreground/screen fields; multiple app devices remain participant-wide, not per-device joined",
+          "duplicate_timestamp_membership": "preserve full Cartesian app-major and matching-screen-input-order multiplicity, append unmatched screens in input order, then stable ascending timestamp order; no secondary app/device/row-ID sort",
+          "empty_inventory_behavior": "if either supplied inventory is empty, emit no episodes",
+          "raw_acquisition_original_readr_coercions_screen_episode_construction_category_and_segment_construction_episode_thresholds_and_study_version_equivalence_excluded": true
+        },
+        "source_facing_role": "reconstruction",
+        "source_facing_target": "app_episode",
+        "source_evidence_status": "retained versioned RAPIDS 1.9.4 app_episodes.R transformation on qualified typed inputs; dependency join/stable numeric ordering recovered from pinned source; original study deployment and unchanged author-runtime parity unknown",
+        "source_artifact_sha256": "d576229549f6cca09d42f925458bc1200f3a3e3f75df128a93f8f37373be3934"
+      },
+      "rawCsvLines": [
+        "source_row_id,participant_id,inventory_pair_id,clock_id,clock_unit,input_stage,record_kind,timestamp_ms,device_id,package_name,application_name,application_name_is_missing,is_system_app,genre,screen_end_timestamp_ms",
+        "a0,P,pair,clock,ms,caller-complete-v194-typed-app-screen-inventories,app,-0,D1,pkg,Z,false,0,genre,",
+        "a1,P,pair,clock,ms,caller-complete-v194-typed-app-screen-inventories,app,0,D2,pkg,A,false,0,genre,",
+        "a2,P,pair,clock,ms,caller-complete-v194-typed-app-screen-inventories,app,60000,D2,pkg,B,false,0,genre,",
+        "a3,P,pair,clock,ms,caller-complete-v194-typed-app-screen-inventories,app,120000,D1,pkg,C,false,0,genre,",
+        "s0,P,pair,clock,ms,caller-complete-v194-typed-app-screen-inventories,screen,,,,,,,,0",
+        "s1,P,pair,clock,ms,caller-complete-v194-typed-app-screen-inventories,screen,,,,,,,,0",
+        "s2,P,pair,clock,ms,caller-complete-v194-typed-app-screen-inventories,screen,,,,,,,,90000",
+        "s3,P,pair,clock,ms,caller-complete-v194-typed-app-screen-inventories,screen,,,,,,,,180000"
+      ],
+      "expectedRows": [
+        [
+          "D1",
+          "pkg",
+          "Z",
+          "0",
+          "genre",
+          "-0",
+          "-0",
+          "0",
+          "1",
+          "5"
+        ],
+        [
+          "D1",
+          "pkg",
+          "Z",
+          "0",
+          "genre",
+          "-0",
+          "0",
+          "0",
+          "1",
+          "6"
+        ],
+        [
+          "D2",
+          "pkg",
+          "A",
+          "0",
+          "genre",
+          "0",
+          "0",
+          "0",
+          "2",
+          "5"
+        ],
+        [
+          "D2",
+          "pkg",
+          "A",
+          "0",
+          "genre",
+          "0",
+          "60000",
+          "1",
+          "2",
+          "6"
+        ],
+        [
+          "D2",
+          "pkg",
+          "B",
+          "0",
+          "genre",
+          "60000",
+          "90000",
+          "0.5",
+          "3",
+          ""
+        ]
+      ]
+    },
+    {
+      "adapterId": "chronicle.ubiqlog-released-literal-encoder/v1",
+      "componentId": "chronicle.ubiqlog-released-literal-encoder/v1",
+      "methodSettingId": "method-setting-5fb17eba14a4914f69862979",
+      "sourceWorkId": "doi:10.1007/s00779-012-0511-8",
+      "sourceMethodVariantId": "source-audit-configuration-space-afa1fb4e1e1f51bee3e5c63f",
+      "sourceValue": {
+        "definition": {
+          "source_commit": "5ba1c1a5548585e19ae63de47037c30439e1449c",
+          "record_kinds": [
+            "APP",
+            "CALL",
+            "SMS"
+          ],
+          "input_boundary": "caller-supplied non-null text fields and already source-formatted date text; signed Java i32 duration/type; non-null annotation Boolean and explicit null-or-string annotation name",
+          "output": "exact literal string returned by EncodeApplication, EncodeCall or EncodeSms, with dateformat.format(Date) supplied as text",
+          "field_order_and_case": "APP ProcessName,Start,End; CALL Number,Duration,Time,Type; SMS Address,type,date,body,Type; metadata last",
+          "string_escaping": "none; literal concatenation",
+          "call_annotation": "emit iff annotation true; explicit null name becomes the quoted literal null",
+          "sms_annotation": "emit iff annotation true and name nonnull",
+          "timestamp_conversion_json_repair_contacts_collection_article_DTAnormalization_excluded": true
+        },
+        "source_facing_role": "reconstruction",
+        "source_facing_target": "raw_record",
+        "source_evidence_status": "pinned postpublication source; evaluated article build unknown; date formatting supplied rather than reproduced",
+        "source_artifact_sha256": "829f452c020ea390674c541981cc34a7866ce078e4826b131760f306c6585610",
+        "source_member_sha256": "2a8a511273aba60bac4071df9aaa7f46c96d5d2c95a96a0e7f6a132ef4135004"
+      },
+      "rawCsvLines": [
+        "source_row_id,participant_id,device_id,source_platform,input_stage,kind,friendly_name,process_name,start_text,end_text,phone_number,duration,time_text,type,body,with_annotation,annotation_name,annotation_name_is_null",
+        "u0,P,D,Android,caller-supplied-v2014-source-formatted-date-tokens,APP,Application,org.app,3-4-2014 01:02:03,3-4-2014 01:02:10,,,,,,false,,true",
+        "u1,P,D,Android,caller-supplied-v2014-source-formatted-date-tokens,CALL,Call,,,,0123,-2,3-4-2014 01:02:03,0,,true,,true",
+        "u2,P,D,Android,caller-supplied-v2014-source-formatted-date-tokens,CALL,Call,,,,0123,-2,3-4-2014 01:02:03,0,,false,,true",
+        "u3,P,D,Android,caller-supplied-v2014-source-formatted-date-tokens,SMS,SMS,,,,0123,,3-4-2014 01:02:03,1,hello,true,,true",
+        "u4,P,D,Android,caller-supplied-v2014-source-formatted-date-tokens,SMS,SMS,,,,0123,,3-4-2014 01:02:03,1,\"He said \"\"go\"\"\",true,,false"
+      ],
+      "expectedRows": [
+        [
+          "u0",
+          "P",
+          "D",
+          "Android",
+          "caller-supplied-v2014-source-formatted-date-tokens",
+          "APP",
+          "Application",
+          "org.app",
+          "3-4-2014 01:02:03",
+          "3-4-2014 01:02:10",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "false",
+          "",
+          "true",
+          "{\"Application\":{\"ProcessName\":\"org.app\",\"Start\":\"3-4-2014 01:02:03\",\"End\":\"3-4-2014 01:02:10\"}}"
+        ],
+        [
+          "u1",
+          "P",
+          "D",
+          "Android",
+          "caller-supplied-v2014-source-formatted-date-tokens",
+          "CALL",
+          "Call",
+          "",
+          "",
+          "",
+          "0123",
+          "-2",
+          "3-4-2014 01:02:03",
+          "0",
+          "",
+          "true",
+          "",
+          "true",
+          "{\"Call\":{\"Number\":\"0123\",\"Duration\":\"-2\",\"Time\":\"3-4-2014 01:02:03\",\"Type\":\"0\", \"metadata\": {\"name\": \"null\"}}}"
+        ],
+        [
+          "u2",
+          "P",
+          "D",
+          "Android",
+          "caller-supplied-v2014-source-formatted-date-tokens",
+          "CALL",
+          "Call",
+          "",
+          "",
+          "",
+          "0123",
+          "-2",
+          "3-4-2014 01:02:03",
+          "0",
+          "",
+          "false",
+          "",
+          "true",
+          "{\"Call\":{\"Number\":\"0123\",\"Duration\":\"-2\",\"Time\":\"3-4-2014 01:02:03\",\"Type\":\"0\"}}"
+        ],
+        [
+          "u3",
+          "P",
+          "D",
+          "Android",
+          "caller-supplied-v2014-source-formatted-date-tokens",
+          "SMS",
+          "SMS",
+          "",
+          "",
+          "",
+          "0123",
+          "",
+          "3-4-2014 01:02:03",
+          "1",
+          "hello",
+          "true",
+          "",
+          "true",
+          "{\"SMS\":{\"Address\":\"0123\",\"type\":\"1\",\"date\":\"3-4-2014 01:02:03\",\"body\":\"hello\",\"Type\":\"1\"}}"
+        ],
+        [
+          "u4",
+          "P",
+          "D",
+          "Android",
+          "caller-supplied-v2014-source-formatted-date-tokens",
+          "SMS",
+          "SMS",
+          "",
+          "",
+          "",
+          "0123",
+          "",
+          "3-4-2014 01:02:03",
+          "1",
+          "He said \"go\"",
+          "true",
+          "",
+          "false",
+          "{\"SMS\":{\"Address\":\"0123\",\"type\":\"1\",\"date\":\"3-4-2014 01:02:03\",\"body\":\"He said \"go\"\",\"Type\":\"1\", \"metadata\": {\"name\": \"\"}}}"
+        ]
+      ]
+    }
+  ]
+}

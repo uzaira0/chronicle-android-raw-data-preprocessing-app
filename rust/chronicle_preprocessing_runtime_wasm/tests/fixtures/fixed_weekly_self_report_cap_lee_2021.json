@@ -1,0 +1,94 @@
+{
+  "schemaVersion": "chronicle-fixed-weekly-self-report-cap-source-fixture/v1",
+  "sourceWorkId": "doi:10.30773/pi.2020.0197",
+  "sourcePdfSha256": "b3d9cb188e84d0fba927d18af2926337916a1eb63fbe5f3f65c2865b6f967717",
+  "sourceTextSha256": "0054e43b008cae345f5b741d252cb6f54935d2f4ee92ee86f0490c5bf9cd50bd",
+  "sourceLocator": ".tmp-literature-review-private/corrective-queue-audit-b-20260831/packet-05-ranks-124-173/fulltext/rank153.txt:112-128",
+  "exactCanonicalSettingIds": [
+    "method-setting-71f115f4d10a7a596fcaa44c",
+    "method-setting-8635523f80433dc441372044"
+  ],
+  "configurationRelation": "joint_predicate_and_action",
+  "inputBoundary": "Caller-selected, already-computed weekly self-report values expressed in hours; this component does not reconstruct questionnaire answers.",
+  "outputBoundary": "Every input row remains present. Values >=84 hours are marked as source outliers and their analysis value is 84 hours; original values remain preserved.",
+  "limitations": [
+    "No questionnaire instrument, exact item wording or raw response data were released.",
+    "Raw response units, missing-item handling, per-device attribution and exact category reconciliation are unavailable.",
+    "No supplement, processing code or dataset was reported for this study.",
+    "The caller must select which source weekly self-report measures receive this rule; the component does not infer category scope."
+  ],
+  "records": [
+    {
+      "participantId": "P01",
+      "measureId": "total",
+      "weeklyHours": 0.0,
+      "payload": "zero-kept"
+    },
+    {
+      "participantId": "P02",
+      "measureId": "social_network",
+      "weeklyHours": 83.999,
+      "payload": "below-kept"
+    },
+    {
+      "participantId": "P03",
+      "measureId": "total",
+      "weeklyHours": 84.0,
+      "payload": "threshold-marked"
+    },
+    {
+      "participantId": "P04",
+      "measureId": "total",
+      "weeklyHours": 100.5,
+      "payload": "above-replaced"
+    },
+    {
+      "participantId": "P04",
+      "measureId": "total",
+      "weeklyHours": 100.5,
+      "payload": "above-replaced"
+    }
+  ],
+  "expected": [
+    {
+      "participantId": "P01",
+      "measureId": "total",
+      "originalWeeklyHours": 0.0,
+      "analysisWeeklyHours": 0.0,
+      "sourceOutlier": false,
+      "payload": "zero-kept"
+    },
+    {
+      "participantId": "P02",
+      "measureId": "social_network",
+      "originalWeeklyHours": 83.999,
+      "analysisWeeklyHours": 83.999,
+      "sourceOutlier": false,
+      "payload": "below-kept"
+    },
+    {
+      "participantId": "P03",
+      "measureId": "total",
+      "originalWeeklyHours": 84.0,
+      "analysisWeeklyHours": 84.0,
+      "sourceOutlier": true,
+      "payload": "threshold-marked"
+    },
+    {
+      "participantId": "P04",
+      "measureId": "total",
+      "originalWeeklyHours": 100.5,
+      "analysisWeeklyHours": 84.0,
+      "sourceOutlier": true,
+      "payload": "above-replaced"
+    },
+    {
+      "participantId": "P04",
+      "measureId": "total",
+      "originalWeeklyHours": 100.5,
+      "analysisWeeklyHours": 84.0,
+      "sourceOutlier": true,
+      "payload": "above-replaced"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+row_id,user_id,activityName,event,client_db_id,communication_id,timestamp.corrected,call_length,usage,nonusage
+lead_nonusage,PATTERNS,APPLICATION,APP_EVENT,a0,,2020-09-21 10:00:00.000,NA,NA,1
+duplicate_keep,PATTERNS,SCREEN,OFF_LOCKED,s_dup_keep,,2020-09-21 10:00:01.000,NA,NA,1
+huawei_start,PATTERNS,SCREEN,ON_UNLOCKED,s_huawei_on,,2020-09-21 10:00:10.000,NA,2,NA
+huawei_mid,PATTERNS,APPLICATION,APP_EVENT,a_huawei_mid,,2020-09-21 10:00:11.000,NA,2,NA
+huawei_end,PATTERNS,SCREEN,OFF_LOCKED,s_huawei_off,,2020-09-21 10:00:12.000,NA,2,NA
+merge_gap,PATTERNS,APPLICATION,APP_EVENT,a_merge_gap,,2020-09-21 10:00:14.000,NA,2,NA
+samsung_start,PATTERNS,SCREEN,ON_UNLOCKED,s_samsung_on,,2020-09-21 10:00:16.500,NA,2,NA
+samsung_mid,PATTERNS,APPLICATION,APP_EVENT,a_samsung_mid,,2020-09-21 10:00:17.000,NA,2,NA
+samsung_end,PATTERNS,SCREEN,OFF_UNLOCKED,s_samsung_off,,2020-09-21 10:00:18.000,NA,2,NA
+exact_five_gap,PATTERNS,APPLICATION,APP_EVENT,a_exact_gap,,2020-09-21 10:00:20.000,NA,NA,2
+check_start,PATTERNS,SCREEN,ON_LOCKED,s_check_on,,2020-09-21 10:00:23.000,NA,3,NA
+check_mid,PATTERNS,APPLICATION,APP_EVENT,a_check_mid,,2020-09-21 10:00:24.000,NA,3,NA
+check_end,PATTERNS,SCREEN,OFF_LOCKED,s_check_off,,2020-09-21 10:00:25.000,NA,3,NA
+tail_nonusage,PATTERNS,APPLICATION,APP_EVENT,a_tail,,2020-09-21 10:00:26.000,NA,NA,3

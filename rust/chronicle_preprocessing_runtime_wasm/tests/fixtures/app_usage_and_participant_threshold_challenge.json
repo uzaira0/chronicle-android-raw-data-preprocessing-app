@@ -1,0 +1,72 @@
+{
+  "schemaVersion": "chronicle-app-usage-participant-conjunction-source-fixture/v1",
+  "sourceWorkId": "doi:10.1145/3706598.3713724",
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-746c132b321541ed6a104a7b",
+    "parameterKey": "social_filter.usage_threshold",
+    "sourceObservedSetting": "social_filter.usage_threshold: {\"app_uses\":\">50\",\"participants\":\">=3\"}",
+    "sourceValueSha256": "2797c16831d9e44fe3a3593dcb6b55d7e7b3d4021058eccfdca740188c8a72b7"
+  },
+  "sourceArtifact": {
+    "locator": ".tmp-literature-review-private/corrective-packet-07-ranks224-276-20260831/text/225.txt:313-317,399-420",
+    "sha256": "5c1852eb8a69571d0804dc990333ab4d1a2a603e0b105a0e0233f0e6b393fe94"
+  },
+  "inputBoundary": "One already-aggregated source-dataset row per app identity: appUseCount is the nonnegative integer count of source-defined app sessions (one foreground period), and distinctParticipantCount is the nonnegative integer count of distinct study participants represented among that app's uses.",
+  "outputBoundary": "Retain an app only when both source predicates hold: appUseCount is strictly greater than 50 and distinctParticipantCount is at least 3. Because appUseCount is an integer, the existing lower-inclusive threshold gate represents >50 exactly as >=51.",
+  "limitations": [
+    "This binding does not collect screenshots or reconstruct screen sessions and app sessions from Android events.",
+    "This binding does not choose an app-identity representation, attribute app sessions to participants, deduplicate source rows, or derive either aggregate count.",
+    "The caller must supply one source-dataset aggregate row per app identity; missing or non-integer counts fail closed rather than being interpreted as zero.",
+    "The separate exclusion of apps without a feed feature and the later exclusion of X are downstream and are not claimed.",
+    "Screenshot selection, LLM labeling, and quantitative regret analysis remain downstream."
+  ],
+  "minimumRetainedAppUseCount": 51,
+  "minimumRetainedDistinctParticipantCount": 3,
+  "thresholdDispositions": ["reject", "requirement_met"],
+  "appAggregates": [
+    {
+      "appId": "both-below",
+      "appUseCount": 50,
+      "distinctParticipantCount": 2,
+      "expectedDisposition": "reject_app"
+    },
+    {
+      "appId": "uses-at-source-boundary",
+      "appUseCount": 50,
+      "distinctParticipantCount": 3,
+      "expectedDisposition": "reject_app"
+    },
+    {
+      "appId": "participants-below",
+      "appUseCount": 51,
+      "distinctParticipantCount": 2,
+      "expectedDisposition": "reject_app"
+    },
+    {
+      "appId": "both-minimum-retained",
+      "appUseCount": 51,
+      "distinctParticipantCount": 3,
+      "expectedDisposition": "retain_app"
+    },
+    {
+      "appId": "both-above",
+      "appUseCount": 52,
+      "distinctParticipantCount": 4,
+      "expectedDisposition": "retain_app"
+    }
+  ],
+  "missingInputCases": [
+    {
+      "appId": "missing-app-use-count",
+      "appUseCount": null,
+      "distinctParticipantCount": 3,
+      "expectedError": "app_use_count_required"
+    },
+    {
+      "appId": "missing-distinct-participant-count",
+      "appUseCount": 51,
+      "distinctParticipantCount": null,
+      "expectedError": "distinct_participant_count_required"
+    }
+  ]
+}

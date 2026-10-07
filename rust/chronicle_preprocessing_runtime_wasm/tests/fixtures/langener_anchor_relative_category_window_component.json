@@ -1,0 +1,68 @@
+{
+  "schemaVersion": "chronicle-anchor-relative-category-window-source-fixture/v1",
+  "componentId": "chronicle.anchor-relative-category-window/v1",
+  "sourceWorkId": "doi:10.1037/emo0001485",
+  "sourceMethodVariantId": "source-audit-configuration-space-f9f67b7a0a36f3d5a59c9e0e",
+  "sourceOracleId": "anchor-relative-category-window-released-python/sha256:00b229a49773cef87a132fea1fd2d4c4daa91ba92e0154d2753320881fa5017b",
+  "sourceArtifact": ".tmp-literature-review-private/ontology-sublation-20260831/elmer-langener-behapp-esm-window-oracle/released-Match_ESM_App.py",
+  "sourceLocators": [
+    "released-Match_ESM_App.py:38-55,193-210",
+    "released-Match_ESM_App.py:60-100,215-255",
+    "Paper 1 - Clean Behapp data (OSF).ipynb#aggregate-app-usage-calls"
+  ],
+  "exactCanonicalSettingIds": [
+    "method-setting-11a9ffe9d12185b74798355b",
+    "method-setting-269d943c93638026c80f3efc",
+    "method-setting-26afbbff6833c88ff507ab35",
+    "method-setting-4e4373c191cd585d9ff881d4",
+    "method-setting-66b78a5d5b22a7c6e3d3668c",
+    "method-setting-7bc8872444087d904753071b",
+    "method-setting-7badd48847bf3ace72a43896",
+    "method-setting-84089535d6e57262deb22d9e",
+    "method-setting-88222ab3c5f002774524218b",
+    "method-setting-883a72c9a4a473b9cf3e43dd",
+    "method-setting-977db768434feb2c59d803c4",
+    "method-setting-b13d868cad80790edbc99c22",
+    "method-setting-da25cc5253c1032953fd5cf4",
+    "method-setting-e0935b4b8be87888f7443026"
+  ],
+  "rawCsvLines": [
+    "participant_id,recorded_naive,duration,category",
+    "P1,2026-01-01 22:30:00,2,interaction",
+    "P1,2026-01-01 23:00:00,2,social media",
+    "P1,2026-01-01 23:30:00,2,other",
+    "P1,2026-01-01 23:45:00,1.9,unknown",
+    "P1,2026-01-01 23:50:00,0,interaction",
+    "P1,2026-01-01 23:51:00,-1,interaction",
+    "P1,2026-01-01 23:59:58,2,interaction",
+    "P1,2026-01-02 00:00:00,1,social media",
+    "P1,2026-01-02 00:00:01,2,social media",
+    "P1,2026-01-02 00:30:00,2,other",
+    "P1,2026-01-02 01:00:00,2,interaction",
+    "P1,2026-01-02 01:30:00,2,unknown",
+    "P1,2026-01-02 23:59:59,1,interaction",
+    "P1,2026-01-03 00:00:01,1,social media",
+    "P1,2026-01-03 23:59:59,1,other",
+    "P1,2026-01-04 00:00:01,1,other"
+  ],
+  "anchorCsvLines": [
+    "participant_id,anchor_timestamp",
+    "P1,2026-01-02 00:00:00",
+    "P1,2026-01-03 00:00:00",
+    "P1,2026-01-04 00:00:00"
+  ],
+  "expectedDerivedCsvContains": [
+    "P1,0,2026-01-02 00:00:00,before,30,24,0.03333333333333333,0.016666666666666666,0,0.016666666666666666,0.06666666666666667",
+    "P1,0,2026-01-02 00:00:00,after,30,24,0,0,0.03333333333333333,,0.03333333333333333",
+    "P1,2,2026-01-04 00:00:00,before,90,24,0,0,0,0,0",
+    "P1,2,2026-01-04 00:00:00,after,90,24,0,0,0,,0",
+    "P1,0,2026-01-02 00:00:00,before,30,18,NaN,NaN,0,NaN,NaN",
+    "P1,0,2026-01-02 00:00:00,after,30,12,0,0,NaN,,NaN"
+  ],
+  "excludedClaims": [
+    "Behapp app_cleaning overlap handling",
+    "package-to-category taxonomy construction",
+    "unchanged full-notebook execution with its inconsistent after-ESM projection",
+    "affect preparation and statistical modeling"
+  ]
+}

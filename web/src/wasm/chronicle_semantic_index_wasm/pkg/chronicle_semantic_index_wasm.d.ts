@@ -1,16 +1,22 @@
 /* tslint:disable */
 /* eslint-disable */
 
+export function decompress_bundled_gzip(packed: Uint8Array, expected_bytes: number): Uint8Array;
+
 export function query_registered(index: Uint8Array, query_id: string): string;
 
-export function rebuild_semantic_index(source_json: Uint8Array): Uint8Array;
+export function query_registered_view(index: Uint8Array, query_id: string, workspace_root_digest: string, revision: bigint): string;
+
+export function rebuild_semantic_index(source_json: Uint8Array, scientific_artifact_bundle: Uint8Array): Uint8Array;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly decompress_bundled_gzip: (a: number, b: number, c: number, d: number) => void;
     readonly query_registered: (a: number, b: number, c: number, d: number, e: number) => void;
-    readonly rebuild_semantic_index: (a: number, b: number, c: number) => void;
+    readonly query_registered_view: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: bigint) => void;
+    readonly rebuild_semantic_index: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly __wbindgen_export: (a: number, b: number, c: number) => void;
     readonly __wbindgen_export2: (a: number) => void;
     readonly __wbindgen_export3: (a: number, b: number) => number;

@@ -1,9 +1,30 @@
+/**
+ * Same-raw-path View-tab comparison batch: DUPLICATE-CONTENT evidence only.
+ *
+ * `fileCount` workspaces, all carrying the bytes of one raw file under
+ * different names, are split across `workerCount` child processes. Each child
+ * first does what the app does for every one of its files — a Process run with
+ * the A options into a persisted workspace — then waits; all children start
+ * the comparison together, and each runs the B-option comparison for its files
+ * through the app's persisted-then-raw review path. A separate cold,
+ * non-persisted B review is the oracle every comparison must match. Because
+ * every file has the same bytes — and the app keys a workspace by content, so
+ * every name in one child shares one persisted workspace — this measures
+ * concurrent cost, never the cost of distinct inputs;
+ * `measure_unique_review_batch.mjs` is the distinct-input harness.
+ *
+ * Usage: node scripts/measure_review_batch.mjs <raw.csv> [files] [workers] [case]
+ */
 import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
-import { parse as parseYaml } from "yaml";
+import process from "node:process";
+import {
+  loadRuntimeWorkflowQueries,
+  verifyQueryStatuses,
+} from "./runtime_workflow_queries.mjs";
 
 const raw = path.resolve(
   process.argv[2] ?? "../.tmp-benchmark/chronicle-synthetic-100000.csv",
@@ -12,11 +33,15 @@ const fileCount = Number(process.argv[3] ?? "100");
 const workerCount = Number(process.argv[4] ?? "8");
 const benchmarkCase = process.argv[5] ?? "middle_concurrent_usage";
 if (
-  !new Set(["middle_concurrent_usage", "middle_minimum_usage_duration"]).has(
-    benchmarkCase,
-  )
+  !new Set([
+    "upstream_timezone_policy",
+    "middle_concurrent_usage",
+    "middle_minimum_usage_duration",
+    "downstream_day_coverage",
+    "output_study_name",
+  ]).has(benchmarkCase)
 ) {
-  throw new Error("benchmark case must be a supported middle-pipeline change");
+  throw new Error(`unsupported benchmark case: ${benchmarkCase}`);
 }
 if (!Number.isSafeInteger(fileCount) || fileCount < 1) {
   throw new Error("file count must be a positive integer");
@@ -25,45 +50,18 @@ if (!Number.isSafeInteger(workerCount) || workerCount < 1) {
   throw new Error("worker count must be a positive integer");
 }
 
-/** @type {{queries: Array<{id: string, inputs: string[], requestFields: string[]}>}} */
-const workflow = parseYaml(
-  await readFile(path.resolve("schema/chronicle-workflow.yaml"), "utf8"),
-);
-const queryIds = workflow.queries.map((query) => query.id);
+const runtimePackage = process.env.CHRONICLE_BENCHMARK_RUNTIME_DIR
+  ? path.resolve(process.env.CHRONICLE_BENCHMARK_RUNTIME_DIR)
+  : null;
+// Read the query registry from the same runtime package the helper runs.
+const queryIds = (await loadRuntimeWorkflowQueries(runtimePackage ?? undefined))
+  .map((query) => query.id);
 if (queryIds.length === 0 || new Set(queryIds).size !== queryIds.length) {
-  throw new Error("generated workflow query registry must be non-empty and unique");
-}
-const changedOption =
-  benchmarkCase === "middle_concurrent_usage"
-    ? "model_concurrent_usage"
-    : "minimum_usage_duration";
-const affectedQueryIds = new Set(
-  workflow.queries
-    .filter((query) => query.requestFields.includes(changedOption))
-    .map((query) => query.id),
-);
-let addedAffectedQuery = true;
-while (addedAffectedQuery) {
-  addedAffectedQuery = false;
-  for (const query of workflow.queries) {
-    if (
-      !affectedQueryIds.has(query.id) &&
-      query.inputs.some((input) => affectedQueryIds.has(input))
-    ) {
-      affectedQueryIds.add(query.id);
-      addedAffectedQuery = true;
-    }
-  }
-}
-if (affectedQueryIds.size === 0) {
-  throw new Error(`${changedOption} has no declared query impact`);
+  throw new Error("runtime workflow query registry must be non-empty and unique");
 }
 
 const executable = path.resolve("node_modules/.bin/vite-node");
 const benchmark = path.resolve("scripts/benchmark_runtime_wasm.mts");
-const runtimePackage = process.env.CHRONICLE_BENCHMARK_RUNTIME_DIR
-  ? path.resolve(process.env.CHRONICLE_BENCHMARK_RUNTIME_DIR)
-  : null;
 const runtimeArgs = runtimePackage
   ? [
       "--runtime-js",
@@ -74,9 +72,20 @@ const runtimeArgs = runtimePackage
   : [];
 const totalStarted = performance.now();
 
+/** @param {string} stdout @param {string} label */
+function lastJsonLine(stdout, label) {
+  const line = stdout
+    .trim()
+    .split("\n")
+    .reverse()
+    .find((candidate) => candidate.startsWith("{"));
+  if (!line) throw new Error(`${label} emitted no JSON\n${stdout}`);
+  return JSON.parse(line);
+}
+
 /**
  * @param {string[]} args
- * @returns {Promise<string>}
+ * @returns {Promise<Record<string, any>>}
  */
 function captureProcess(args) {
   return new Promise((resolve, reject) => {
@@ -101,21 +110,23 @@ function captureProcess(args) {
         );
         return;
       }
-      resolve(stdout);
+      try {
+        resolve(lastJsonLine(stdout, "benchmark helper"));
+      } catch (error) {
+        reject(error);
+      }
     });
   });
 }
 
-/** @typedef {{input: {path: string, bytes: number, sha256: string}, wasm: {bytes: number, sha256: string}, environment: {node: string, platform: string, architecture: string, logicalCpus: number, totalMemoryBytes: number, peakProcessMemoryBytes: {rss: number, heapTotal: number, heapUsed: number, external: number, arrayBuffers: number}}, reviewBaseBytes: number, reconstructionBaseBytes: number, measurements: {coldExecuteMs: number[], coldQueryStatuses: Array<Array<[string, string]>>, coldReviewSummaryDigests: Array<string>, coldCacheSources: string[][], coldSelectedBaseKinds: string[], coldWasmBoundaryBytes: number[], coldCounts: Array<{original: number, processed: number, app: number, screen: number}>, coldIdentities: Array<Record<string, string>>}}} ShardResult */
-/** @typedef {{ready: Promise<void>, start: () => void, complete: Promise<void>, result: Promise<ShardResult>}} ShardHandle */
+/** @typedef {{ready: Promise<void>, start: () => void, complete: Promise<void>, result: Promise<Record<string, any>>}} ShardHandle */
 /**
  * @param {number} index
  * @param {number} count
  * @param {number} offset
- * @param {string} reviewBasesDir
  * @returns {ShardHandle}
  */
-function createShard(index, count, offset, reviewBasesDir) {
+function createShard(index, count, offset) {
   const child = spawn(
     executable,
     [
@@ -124,9 +135,9 @@ function createShard(index, count, offset, reviewBasesDir) {
       "--raw",
       raw,
       "--mode",
-      "cold",
+      "warm",
       "--iterations",
-      "1",
+      "2",
       "--case",
       benchmarkCase,
       "--materialization",
@@ -136,13 +147,8 @@ function createShard(index, count, offset, reviewBasesDir) {
       "--workspace-offset",
       String(offset),
       "--full-options",
-      "--summary",
-      "--compact",
-      "--changed-only",
-      "--review-base",
-      "--review-bases-dir",
-      reviewBasesDir,
-      "--warm-runtime",
+      "--simultaneous-workers",
+      String(activeWorkerCount),
       "--wait-for-start",
     ],
     {
@@ -150,6 +156,7 @@ function createShard(index, count, offset, reviewBasesDir) {
       stdio: ["ignore", "pipe", "pipe", "ipc"],
     },
   );
+  children.push(child);
   let stdout = "";
   let stderr = "";
   child.stdout?.on("data", (chunk) => {
@@ -166,17 +173,20 @@ function createShard(index, count, offset, reviewBasesDir) {
   const ready = new Promise((resolve, reject) => {
     child.on("error", reject);
     child.on("message", (message) => {
-      const readyMessage = /** @type {{type?: string}} */ (message);
-      if (readyMessage?.type === "ready") {
-        resolve(undefined);
-      } else if (readyMessage?.type === "work-complete") {
-        markComplete(undefined);
-      }
+      const type = /** @type {{type?: string}} */ (message)?.type;
+      if (type === "ready") resolve(undefined);
+      else if (type === "work-complete") markComplete(undefined);
+    });
+    child.on("close", (code) => {
+      if (code !== 0) reject(new Error(`benchmark shard ${index} exited before ready\n${stderr}`));
     });
   });
   const result = new Promise((resolve, reject) => {
     child.on("error", reject);
     child.on("close", (code, signal) => {
+      // A child that dies mid-batch never sends work-complete; release the
+      // wall-clock wait so its failure surfaces through this promise.
+      markComplete(undefined);
       if (code !== 0 || signal) {
         reject(
           new Error(
@@ -185,18 +195,11 @@ function createShard(index, count, offset, reviewBasesDir) {
         );
         return;
       }
-      const jsonLine = stdout
-        .trim()
-        .split("\n")
-        .reverse()
-        .find((line) => line.startsWith("{"));
-      if (!jsonLine) {
-        reject(
-          new Error(`benchmark shard ${index} emitted no JSON\n${stdout}`),
-        );
-        return;
+      try {
+        resolve(lastJsonLine(stdout, `benchmark shard ${index}`));
+      } catch (error) {
+        reject(error);
       }
-      resolve(JSON.parse(jsonLine));
     });
   });
   return {
@@ -209,6 +212,12 @@ function createShard(index, count, offset, reviewBasesDir) {
   };
 }
 
+/** @type {import("node:child_process").ChildProcess[]} */
+const children = [];
+// One failed shard must not leave the others waiting for a start signal.
+process.on("exit", () => {
+  for (const child of children) if (child.exitCode === null) child.kill();
+});
 const activeWorkerCount = Math.min(workerCount, fileCount);
 const counts = Array.from(
   { length: activeWorkerCount },
@@ -216,288 +225,119 @@ const counts = Array.from(
     Math.floor(fileCount / activeWorkerCount) +
     (index < fileCount % activeWorkerCount ? 1 : 0),
 );
-const reviewBasesDir = await mkdtemp(
-  path.resolve(".tmp-review-benchmark-"),
-);
-/** @type {ShardResult[]} */
-let shards = [];
-let basePreparationElapsedMs;
-let coldOraclePreparationElapsedMs;
-let coldOracleReviewSummaryDigest;
-let workerPreparationElapsedMs;
-let changedWallElapsedMs;
-let baseMetadata;
-let oracle;
-try {
-  const baseStarted = performance.now();
-  await captureProcess([
-    "--raw",
-    raw,
-    "--mode",
-    "cold",
-    "--iterations",
-    "1",
-    "--materialization",
-    "review",
-    "--full-options",
-    "--review-base",
-    "--export-review-bases-dir",
-    reviewBasesDir,
-  ]);
-  basePreparationElapsedMs = performance.now() - baseStarted;
-  baseMetadata = JSON.parse(
-    await readFile(path.join(reviewBasesDir, "metadata.json"), "utf8"),
-  );
 
-  const oracleStarted = performance.now();
-  const oracleStdout = await captureProcess([
-    "--raw",
-    raw,
-    "--mode",
-    "cold",
-    "--iterations",
-    "1",
-    "--case",
-    benchmarkCase,
-    "--materialization",
-    "review",
-    "--full-options",
-    "--changed-only",
-    "--summary",
-    "--compact",
-  ]);
-  const oracleLine = oracleStdout
-    .trim()
-    .split("\n")
-    .reverse()
-    .find((line) => line.startsWith("{"));
-  if (!oracleLine) throw new Error("cold oracle emitted no JSON");
-  oracle = JSON.parse(oracleLine);
-  coldOracleReviewSummaryDigest =
-    oracle.measurements.coldReviewSummaryDigests[0];
-  if (!coldOracleReviewSummaryDigest) {
-    throw new Error("cold oracle omitted its review-summary digest");
-  }
-  coldOraclePreparationElapsedMs = performance.now() - oracleStarted;
-
-  const workerStarted = performance.now();
-  let offset = 0;
-  const workers = counts.map((count, index) => {
-    const shardOffset = offset;
-    offset += count;
-    return createShard(index, count, shardOffset, reviewBasesDir);
-  });
-  await Promise.all(workers.map((worker) => worker.ready));
-  workerPreparationElapsedMs = performance.now() - workerStarted;
-
-  const changedStarted = performance.now();
-  workers.forEach((worker) => worker.start());
-  await Promise.all(workers.map((worker) => worker.complete));
-  changedWallElapsedMs = performance.now() - changedStarted;
-  shards = await Promise.all(workers.map((worker) => worker.result));
-} finally {
-  await rm(reviewBasesDir, { recursive: true, force: true });
+const oracleStarted = performance.now();
+const oracle = await captureProcess([
+  "--raw",
+  raw,
+  "--mode",
+  "cold",
+  "--iterations",
+  "1",
+  "--case",
+  benchmarkCase,
+  "--materialization",
+  "review",
+  "--full-options",
+  "--changed-only",
+]);
+const coldOracleElapsedMs = performance.now() - oracleStarted;
+const [oracleReview] = oracle.results;
+if (!oracleReview?.reviewSummaryDigest) {
+  throw new Error("cold oracle omitted its review-summary digest");
 }
-if (!baseMetadata || !oracle) {
-  throw new Error("benchmark preparation did not produce complete metadata");
-}
+verifyQueryStatuses(oracleReview.queryStatuses, queryIds, oracleReview.cacheSources, "oracle");
+
+const workerStarted = performance.now();
+let offset = 0;
+const workers = counts.map((count, index) => {
+  const shardOffset = offset;
+  offset += count;
+  return createShard(index, count, shardOffset);
+});
+await Promise.all(workers.map((worker) => worker.ready));
+const processPhaseElapsedMs = performance.now() - workerStarted;
+
+const changedStarted = performance.now();
+workers.forEach((worker) => worker.start());
+await Promise.all(workers.map((worker) => worker.complete));
+const changedWallElapsedMs = performance.now() - changedStarted;
+const shards = await Promise.all(workers.map((worker) => worker.result));
+
+/** @type {Array<Record<string, any>>} */
+const processRuns = [];
+/** @type {Array<Record<string, any>>} */
+const reviews = [];
 for (const [index, shard] of shards.entries()) {
-  const expectedCount = counts[index];
-  for (const [name, values] of Object.entries({
-    coldExecuteMs: shard.measurements.coldExecuteMs,
-    coldQueryStatuses: shard.measurements.coldQueryStatuses,
-    coldReviewSummaryDigests: shard.measurements.coldReviewSummaryDigests,
-    coldCacheSources: shard.measurements.coldCacheSources,
-    coldSelectedBaseKinds: shard.measurements.coldSelectedBaseKinds,
-    coldWasmBoundaryBytes: shard.measurements.coldWasmBoundaryBytes,
-    coldCounts: shard.measurements.coldCounts,
-    coldIdentities: shard.measurements.coldIdentities,
-  })) {
-    if (!Array.isArray(values) || values.length !== expectedCount) {
-      throw new Error(
-        `benchmark shard ${index} ${name} count was ${Array.isArray(values) ? values.length : "invalid"}, expected ${expectedCount}`,
-      );
-    }
-  }
   if (
     shard.input.sha256 !== oracle.input.sha256 ||
-    shard.input.bytes !== oracle.input.bytes ||
-    shard.wasm.sha256 !== oracle.wasm.sha256 ||
-    shard.wasm.bytes !== oracle.wasm.bytes ||
-    shard.reviewBaseBytes !== baseMetadata.reviewBaseBytes ||
-    shard.reconstructionBaseBytes !== baseMetadata.reconstructionBaseBytes
+    JSON.stringify(shard.wasm) !== JSON.stringify(oracle.wasm)
   ) {
+    throw new Error(`benchmark shard ${index} identity does not match the oracle`);
+  }
+  const shardProcess = shard.results.filter((/** @type {any} */ result) => result.kind === "process");
+  const shardReviews = shard.results.filter((/** @type {any} */ result) => result.kind === "review");
+  if (shardProcess.length !== counts[index] || shardReviews.length !== counts[index]) {
     throw new Error(
-      `benchmark shard ${index} identity does not match preparation`,
+      `benchmark shard ${index} ran ${shardProcess.length} Process runs and ${shardReviews.length} comparisons, expected ${counts[index]} of each`,
     );
   }
-}
-const values = shards
-  .flatMap((shard) => shard.measurements.coldExecuteMs)
-  .sort((left, right) => left - right);
-const queryStatuses = shards.flatMap(
-  (shard) => shard.measurements.coldQueryStatuses,
-);
-const reviewSummaryDigests = new Set(
-  shards.flatMap((shard) => shard.measurements.coldReviewSummaryDigests),
-);
-const cacheSources = shards.flatMap(
-  (shard) => shard.measurements.coldCacheSources,
-);
-const selectedBaseKinds = shards.flatMap(
-  (shard) => shard.measurements.coldSelectedBaseKinds,
-);
-const wasmBoundaryBytes = shards.flatMap(
-  (shard) => shard.measurements.coldWasmBoundaryBytes,
-);
-const resultCounts = shards.flatMap((shard) => shard.measurements.coldCounts);
-const resultIdentities = shards.flatMap(
-  (shard) => shard.measurements.coldIdentities,
-);
-for (const [name, entries] of Object.entries({
-  values,
-  queryStatuses,
-  cacheSources,
-  selectedBaseKinds,
-  wasmBoundaryBytes,
-  resultCounts,
-  resultIdentities,
-})) {
-  if (entries.length !== fileCount) {
-    throw new Error(
-      `benchmark ${name} count was ${entries.length}, expected ${fileCount}`,
-    );
-  }
-}
-const workerMemory = {
-  rss: Math.max(
-    ...shards.map((shard) => shard.environment.peakProcessMemoryBytes.rss),
-  ),
-  heapTotal: Math.max(
-    ...shards.map(
-      (shard) => shard.environment.peakProcessMemoryBytes.heapTotal,
-    ),
-  ),
-  heapUsed: Math.max(
-    ...shards.map((shard) => shard.environment.peakProcessMemoryBytes.heapUsed),
-  ),
-  external: Math.max(
-    ...shards.map((shard) => shard.environment.peakProcessMemoryBytes.external),
-  ),
-  arrayBuffers: Math.max(
-    ...shards.map(
-      (shard) => shard.environment.peakProcessMemoryBytes.arrayBuffers,
-    ),
-  ),
-};
-const expectedCacheSources =
-  benchmarkCase === "middle_minimum_usage_duration"
-    ? ["verified-reconstruction-base"]
-    : ["verified-review-base"];
-const expectedSelectedBaseKind =
-  benchmarkCase === "middle_minimum_usage_duration"
-    ? "reconstruction-base"
-    : "review-base";
-const expectedWasmBoundaryBytes =
-  148 +
-  116 +
-  (expectedSelectedBaseKind === "reconstruction-base"
-    ? baseMetadata.reconstructionBaseBytes
-    : baseMetadata.reviewBaseBytes);
-const validStatuses = new Set(["cached", "recomputed", "bypassed", "skipped"]);
-for (const [resultIndex, entries] of queryStatuses.entries()) {
-  const statuses = new Map(entries);
-  if (statuses.size !== queryIds.length) {
-    throw new Error(
-      `benchmark result ${resultIndex} reported an incomplete query status registry`,
-    );
-  }
-  if (entries.map(([query]) => query).join("\n") !== queryIds.join("\n")) {
-    throw new Error(
-      `${benchmarkCase} result ${resultIndex} query order drifted`,
-    );
-  }
-  for (const [query, status] of entries) {
-    if (!validStatuses.has(status)) {
+  // `runtimeWorkspaceId` keys a workspace by content, so every name in this
+  // shard is one workspace whose head is the shard's last Process run; each
+  // comparison must have recovered exactly that head.
+  const head = shardProcess.at(-1)?.workspaceRootDigest;
+  for (const review of shardReviews) {
+    if (!head || review.previousWorkspaceRootDigest !== head) {
       throw new Error(
-        `${benchmarkCase} result ${resultIndex}: ${query} reported invalid status ${status}`,
+        `review ${review.inputFileName} did not run against the persisted workspace head`,
       );
     }
-    if (status === "recomputed" && !affectedQueryIds.has(query)) {
-      throw new Error(
-        `${benchmarkCase} result ${resultIndex}: unrelated query ${query} recomputed`,
-      );
-    }
+  }
+  processRuns.push(...shardProcess);
+  reviews.push(...shardReviews);
+}
+/** @type {Record<string, number>} */
+const reviewStatusTotals = {};
+for (const review of reviews) {
+  const label = `review ${review.inputFileName}`;
+  if (review.arm !== "B") throw new Error(`${label} did not run the B options`);
+  if (review.comparisonDigest !== oracleReview.comparisonDigest) {
+    throw new Error(`${label} comparison digest differs from the cold oracle`);
+  }
+  if (review.reviewSummaryDigest !== oracleReview.reviewSummaryDigest) {
+    throw new Error(
+      `${label} differs from the cold oracle: ${review.reviewSummaryDigest} != ${oracleReview.reviewSummaryDigest}`,
+    );
   }
   if (
-    !entries.some(
-      ([query, status]) =>
-        status === "recomputed" && affectedQueryIds.has(query),
-    )
+    JSON.stringify(review.counts) !== JSON.stringify(oracleReview.counts) ||
+    JSON.stringify(review.identity) !== JSON.stringify(oracleReview.identity)
   ) {
-    throw new Error(
-      `${benchmarkCase} result ${resultIndex} did not recompute an affected query`,
-    );
+    throw new Error(`${label} counts or runtime identity differ from the cold oracle`);
+  }
+  for (const [status, count] of Object.entries(
+    verifyQueryStatuses(review.queryStatuses, queryIds, review.cacheSources, label),
+  )) {
+    reviewStatusTotals[status] = (reviewStatusTotals[status] ?? 0) + count;
   }
 }
-const oracleCounts = oracle.measurements.coldCounts?.[0];
-const oracleIdentity = oracle.measurements.coldIdentities?.[0];
-if (!oracleCounts || !oracleIdentity) {
-  throw new Error("cold oracle omitted counts or runtime identities");
+
+/** @param {number[]} values */
+function distribution(values) {
+  const sorted = [...values].sort((left, right) => left - right);
+  /** @param {number} fraction */
+  const percentile = (fraction) =>
+    sorted[Math.max(0, Math.ceil(fraction * sorted.length) - 1)] ?? 0;
+  return {
+    count: sorted.length,
+    minimumMs: sorted[0] ?? 0,
+    medianMs: percentile(0.5),
+    p90Ms: percentile(0.9),
+    p95Ms: percentile(0.95),
+    maximumMs: sorted.at(-1) ?? 0,
+    meanMs: sorted.reduce((sum, value) => sum + value, 0) / sorted.length,
+  };
 }
-for (const [resultIndex, countsValue] of resultCounts.entries()) {
-  if (JSON.stringify(countsValue) !== JSON.stringify(oracleCounts)) {
-    throw new Error(
-      `benchmark result ${resultIndex} counts do not match the cold oracle`,
-    );
-  }
-}
-for (const [resultIndex, identity] of resultIdentities.entries()) {
-  if (JSON.stringify(identity) !== JSON.stringify(oracleIdentity)) {
-    throw new Error(
-      `benchmark result ${resultIndex} runtime identity does not match the cold oracle`,
-    );
-  }
-}
-for (const [resultIndex, sources] of cacheSources.entries()) {
-  if (JSON.stringify(sources) !== JSON.stringify(expectedCacheSources)) {
-    throw new Error(
-      `${benchmarkCase} result ${resultIndex}: cache sources ${JSON.stringify(sources)}, expected ${JSON.stringify(expectedCacheSources)}`,
-    );
-  }
-}
-for (const [resultIndex, kind] of selectedBaseKinds.entries()) {
-  if (kind !== expectedSelectedBaseKind) {
-    throw new Error(
-      `${benchmarkCase} result ${resultIndex}: selected ${kind}, expected ${expectedSelectedBaseKind}`,
-    );
-  }
-}
-for (const [resultIndex, bytes] of wasmBoundaryBytes.entries()) {
-  if (bytes !== expectedWasmBoundaryBytes) {
-    throw new Error(
-      `${benchmarkCase} result ${resultIndex}: transferred ${bytes} bytes, expected ${expectedWasmBoundaryBytes}`,
-    );
-  }
-}
-if (reviewSummaryDigests.size !== 1) {
-  throw new Error(
-    `duplicated inputs produced ${reviewSummaryDigests.size} review-summary digests`,
-  );
-}
-if (
-  ![...reviewSummaryDigests].every(
-    (digest) => digest === coldOracleReviewSummaryDigest,
-  )
-) {
-  throw new Error(
-    `persisted-cache result does not match cold oracle ${coldOracleReviewSummaryDigest}`,
-  );
-}
-/** @param {number} fraction */
-const percentile = (fraction) =>
-  values[Math.min(values.length - 1, Math.floor(values.length * fraction))] ??
-  0;
 const repositoryRoot = path.resolve("..");
 /** @param {...string} args */
 const git = (...args) =>
@@ -507,31 +347,27 @@ const hashFile = async (file) =>
   `sha256:${createHash("sha256")
     .update(await readFile(file))
     .digest("hex")}`;
-const source = {
-  gitCommit: git("rev-parse", "HEAD"),
-  gitTree: git("rev-parse", "HEAD^{tree}"),
-  dirty: git("status", "--porcelain", "--untracked-files=no").length > 0,
-  measureScriptDigest: await hashFile(
-    path.resolve("scripts/measure_review_batch.mjs"),
-  ),
-  workerScriptDigest: await hashFile(
-    path.resolve("scripts/benchmark_runtime_wasm.mts"),
-  ),
-};
 process.stdout.write(
   `${JSON.stringify({
-    receiptVersion: "chronicle-preloaded-review-batch/v1",
+    receiptVersion: "chronicle-same-raw-review-batch/v2",
     workload:
-      "A is already persisted and each worker has executed one untimed warmup; measured time is the B comparison computation only",
-    source,
+      "DUPLICATE CONTENT: one raw file under fileCount names; each worker Process-runs its files (A options, persisted), then all workers start together and run the View-tab comparison (B options) through queryPersistedRustReview -> queryRustReview; measured time is the comparison only",
+    source: {
+      gitCommit: git("rev-parse", "HEAD"),
+      gitTree: git("rev-parse", "HEAD^{tree}"),
+      dirty: git("status", "--porcelain", "--untracked-files=no").length > 0,
+      measureScriptDigest: await hashFile(path.resolve("scripts/measure_review_batch.mjs")),
+      workerScriptDigest: await hashFile(benchmark),
+    },
     input: {
       path: path.relative(repositoryRoot, raw),
       bytes: oracle.input.bytes,
       sha256: oracle.input.sha256,
-      counts: oracleCounts,
+      counts: oracleReview.counts,
     },
+    runtime: oracle.runtime,
     wasm: oracle.wasm,
-    runtimeIdentity: oracleIdentity,
+    runtimeIdentity: oracleReview.identity,
     environment: {
       node: oracle.environment.node,
       platform: oracle.environment.platform,
@@ -539,43 +375,28 @@ process.stdout.write(
       logicalCpus: oracle.environment.logicalCpus,
       totalMemoryBytes: oracle.environment.totalMemoryBytes,
     },
-    persistedBases: {
-      review: {
-        bytes: baseMetadata.reviewBaseBytes,
-        sha256: baseMetadata.reviewBaseSha256,
-      },
-      reconstruction: {
-        bytes: baseMetadata.reconstructionBaseBytes,
-        sha256: baseMetadata.reconstructionBaseSha256,
-      },
-    },
     fileCount,
     workerCount: counts.length,
     benchmarkCase,
-    basePreparationElapsedMs,
-    coldOraclePreparationElapsedMs,
-    workerPreparationElapsedMs,
+    coldOracleElapsedMs,
+    processPhaseElapsedMs,
     changedWallElapsedMs,
     totalElapsedMs: performance.now() - totalStarted,
-    cacheProof: {
-      exactQueryStatusResults: queryStatuses.length,
-      changedOption,
-      declaredAffectedQueryIds: [...affectedQueryIds],
-      expectedCacheSources,
-      expectedSelectedBaseKind,
-      wasmBoundaryBytesPerFile: expectedWasmBoundaryBytes,
-      reviewSummaryDigest: [...reviewSummaryDigests][0],
-      coldOracleReviewSummaryDigest,
+    proof: {
+      exactColdOracleMatches: reviews.length,
+      coldOracleReviewSummaryDigest: oracleReview.reviewSummaryDigest,
+      persistedReviewHits: reviews.filter((review) => review.persistedReviewHit).length,
+      // Within one child, every comparison after the first is offered the
+      // digest of the identical earlier one, as the page would offer it.
+      reviewSummaryReuses: reviews.filter((review) => review.reviewSummaryReused).length,
+      reviewCacheSources: [...new Set(reviews.flatMap((review) => review.cacheSources))],
+      reviewQueryStatusTotals: reviewStatusTotals,
     },
-    peakPerWorkerProcessMemoryBytes: workerMemory,
-    execute: {
-      count: values.length,
-      minimumMs: values[0] ?? 0,
-      medianMs: percentile(0.5),
-      p90Ms: percentile(0.9),
-      p95Ms: percentile(0.95),
-      maximumMs: values.at(-1) ?? 0,
-      meanMs: values.reduce((sum, value) => sum + value, 0) / values.length,
-    },
+    peakPerWorkerRssBytes: Math.max(
+      ...shards.map((shard) => shard.environment.peakRssBytes),
+    ),
+    processRun: distribution(processRuns.map((result) => result.elapsedMs)),
+    comparison: distribution(reviews.map((review) => review.elapsedMs)),
+    comparisonRawReview: distribution(reviews.map((review) => review.rawReviewMs ?? 0)),
   })}\n`,
 );

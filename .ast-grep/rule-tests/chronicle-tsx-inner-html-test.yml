@@ -1,0 +1,7 @@
+id: chronicle-tsx-inner-html
+valid:
+  - "const view = <span>{label}</span>;"
+  - "const markup = ref.current?.innerHTML;"
+invalid:
+  - "ref.current!.innerHTML = label;"
+  - "node.outerHTML = html;"

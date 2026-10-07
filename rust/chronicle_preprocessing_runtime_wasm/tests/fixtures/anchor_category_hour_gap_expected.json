@@ -1,0 +1,3838 @@
+{
+  "source_sha256": "00b229a49773cef87a132fea1fd2d4c4daa91ba92e0154d2753320881fa5017b",
+  "fixture_sha256": "3a2ae05d68013d48d3f2898e69cf66f46054ed6e6c36bdd6a599a763887c3054",
+  "runtime": {
+    "pandas": "1.5.3",
+    "numpy": "1.24.4"
+  },
+  "results": [
+    {
+      "case": "duplicate_anchor_right_join_multiplies_rows",
+      "threshold_hours": 18,
+      "direction": "before",
+      "rows": [
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        }
+      ]
+    },
+    {
+      "case": "duplicate_anchor_right_join_multiplies_rows",
+      "threshold_hours": 18,
+      "direction": "after",
+      "rows": [
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        }
+      ]
+    },
+    {
+      "case": "duplicate_anchor_right_join_multiplies_rows",
+      "threshold_hours": 12,
+      "direction": "before",
+      "rows": [
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        }
+      ]
+    },
+    {
+      "case": "duplicate_anchor_right_join_multiplies_rows",
+      "threshold_hours": 12,
+      "direction": "after",
+      "rows": [
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        }
+      ]
+    },
+    {
+      "case": "duplicate_anchor_right_join_multiplies_rows",
+      "threshold_hours": 24,
+      "direction": "before",
+      "rows": [
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 0
+          },
+          "app_usage_min": 0
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 30
+          },
+          "app_usage_min": 30
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 30
+          },
+          "app_usage_min": 30
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 30
+          },
+          "app_usage_min": 30
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 30
+          },
+          "app_usage_min": 30
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 0
+          },
+          "app_usage_min": 0
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 30
+          },
+          "app_usage_min": 30
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 30
+          },
+          "app_usage_min": 30
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 30
+          },
+          "app_usage_min": 30
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 30
+          },
+          "app_usage_min": 30
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 0
+          },
+          "app_usage_min": 0
+        }
+      ]
+    },
+    {
+      "case": "duplicate_anchor_right_join_multiplies_rows",
+      "threshold_hours": 24,
+      "direction": "after",
+      "rows": [
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 0
+          },
+          "app_usage_min": 0
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 59.983333333333334
+          },
+          "app_usage_min": 59.983333333333334
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 59.983333333333334
+          },
+          "app_usage_min": 59.983333333333334
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 59.983333333333334
+          },
+          "app_usage_min": 59.983333333333334
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 59.983333333333334
+          },
+          "app_usage_min": 59.983333333333334
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 0
+          },
+          "app_usage_min": 0
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 89.98333333333333
+          },
+          "app_usage_min": 89.98333333333333
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 89.98333333333333
+          },
+          "app_usage_min": 89.98333333333333
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 89.98333333333333
+          },
+          "app_usage_min": 89.98333333333333
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 89.98333333333333
+          },
+          "app_usage_min": 89.98333333333333
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 0
+          },
+          "app_usage_min": 0
+        }
+      ]
+    },
+    {
+      "case": "final_duplicate_anchor_recovers_computed_features",
+      "threshold_hours": 18,
+      "direction": "before",
+      "rows": [
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        }
+      ]
+    },
+    {
+      "case": "final_duplicate_anchor_recovers_computed_features",
+      "threshold_hours": 18,
+      "direction": "after",
+      "rows": [
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        }
+      ]
+    },
+    {
+      "case": "final_duplicate_anchor_recovers_computed_features",
+      "threshold_hours": 12,
+      "direction": "before",
+      "rows": [
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        }
+      ]
+    },
+    {
+      "case": "final_duplicate_anchor_recovers_computed_features",
+      "threshold_hours": 12,
+      "direction": "after",
+      "rows": [
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        }
+      ]
+    },
+    {
+      "case": "final_duplicate_anchor_recovers_computed_features",
+      "threshold_hours": 24,
+      "direction": "before",
+      "rows": [
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 30
+          },
+          "app_usage_min": 30
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 59.983333333333334
+          },
+          "app_usage_min": 59.983333333333334
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 30
+          },
+          "app_usage_min": 30
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 30
+          },
+          "app_usage_min": 30
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 60
+          },
+          "app_usage_min": 60
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 30
+          },
+          "app_usage_min": 30
+        }
+      ]
+    },
+    {
+      "case": "final_duplicate_anchor_recovers_computed_features",
+      "threshold_hours": 24,
+      "direction": "after",
+      "rows": [
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 59.983333333333334
+          },
+          "app_usage_min": 59.983333333333334
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 59.983333333333334
+          },
+          "app_usage_min": 59.983333333333334
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 59.983333333333334
+          },
+          "app_usage_min": 59.983333333333334
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 89.98333333333333
+          },
+          "app_usage_min": 89.98333333333333
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 59.983333333333334
+          },
+          "app_usage_min": 59.983333333333334
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 89.98333333333333
+          },
+          "app_usage_min": 89.98333333333333
+        }
+      ]
+    },
+    {
+      "case": "continuous_usage_is_not_an_endpoint_gap",
+      "threshold_hours": 18,
+      "direction": "before",
+      "rows": [
+        {
+          "anchor_seconds": 43200,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 129600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 43200,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 59.983333333333334
+          },
+          "app_usage_min": 59.983333333333334
+        },
+        {
+          "anchor_seconds": 129600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 43200,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 89.98333333333333
+          },
+          "app_usage_min": 89.98333333333333
+        },
+        {
+          "anchor_seconds": 129600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        }
+      ]
+    },
+    {
+      "case": "continuous_usage_is_not_an_endpoint_gap",
+      "threshold_hours": 18,
+      "direction": "after",
+      "rows": [
+        {
+          "anchor_seconds": 43200,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 129600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 43200,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 59.983333333333334
+          },
+          "app_usage_min": 59.983333333333334
+        },
+        {
+          "anchor_seconds": 129600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 43200,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 89.98333333333333
+          },
+          "app_usage_min": 89.98333333333333
+        },
+        {
+          "anchor_seconds": 129600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        }
+      ]
+    },
+    {
+      "case": "continuous_usage_is_not_an_endpoint_gap",
+      "threshold_hours": 12,
+      "direction": "before",
+      "rows": [
+        {
+          "anchor_seconds": 43200,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 129600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 43200,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 59.983333333333334
+          },
+          "app_usage_min": 59.983333333333334
+        },
+        {
+          "anchor_seconds": 129600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 43200,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 89.98333333333333
+          },
+          "app_usage_min": 89.98333333333333
+        },
+        {
+          "anchor_seconds": 129600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        }
+      ]
+    },
+    {
+      "case": "continuous_usage_is_not_an_endpoint_gap",
+      "threshold_hours": 12,
+      "direction": "after",
+      "rows": [
+        {
+          "anchor_seconds": 43200,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 129600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 43200,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 59.983333333333334
+          },
+          "app_usage_min": 59.983333333333334
+        },
+        {
+          "anchor_seconds": 129600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 43200,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 89.98333333333333
+          },
+          "app_usage_min": 89.98333333333333
+        },
+        {
+          "anchor_seconds": 129600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        }
+      ]
+    },
+    {
+      "case": "continuous_usage_is_not_an_endpoint_gap",
+      "threshold_hours": 24,
+      "direction": "before",
+      "rows": [
+        {
+          "anchor_seconds": 43200,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 129600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 43200,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 59.983333333333334
+          },
+          "app_usage_min": 59.983333333333334
+        },
+        {
+          "anchor_seconds": 129600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 43200,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 89.98333333333333
+          },
+          "app_usage_min": 89.98333333333333
+        },
+        {
+          "anchor_seconds": 129600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        }
+      ]
+    },
+    {
+      "case": "continuous_usage_is_not_an_endpoint_gap",
+      "threshold_hours": 24,
+      "direction": "after",
+      "rows": [
+        {
+          "anchor_seconds": 43200,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 129600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 43200,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 59.983333333333334
+          },
+          "app_usage_min": 59.983333333333334
+        },
+        {
+          "anchor_seconds": 129600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 43200,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 89.98333333333333
+          },
+          "app_usage_min": 89.98333333333333
+        },
+        {
+          "anchor_seconds": 129600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        }
+      ]
+    },
+    {
+      "case": "trailing_gap_masks_features_and_retains_unobserved_day",
+      "threshold_hours": 18,
+      "direction": "before",
+      "rows": [
+        {
+          "anchor_seconds": 5400,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 91800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 5400,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 91800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 5400,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 91800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        }
+      ]
+    },
+    {
+      "case": "trailing_gap_masks_features_and_retains_unobserved_day",
+      "threshold_hours": 18,
+      "direction": "after",
+      "rows": [
+        {
+          "anchor_seconds": 5400,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 91800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 5400,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 91800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 5400,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 91800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        }
+      ]
+    },
+    {
+      "case": "trailing_gap_masks_features_and_retains_unobserved_day",
+      "threshold_hours": 12,
+      "direction": "before",
+      "rows": [
+        {
+          "anchor_seconds": 5400,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 91800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 5400,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 91800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 5400,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 91800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        }
+      ]
+    },
+    {
+      "case": "trailing_gap_masks_features_and_retains_unobserved_day",
+      "threshold_hours": 12,
+      "direction": "after",
+      "rows": [
+        {
+          "anchor_seconds": 5400,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 91800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 5400,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 91800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 5400,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 91800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        }
+      ]
+    },
+    {
+      "case": "trailing_gap_masks_features_and_retains_unobserved_day",
+      "threshold_hours": 24,
+      "direction": "before",
+      "rows": [
+        {
+          "anchor_seconds": 5400,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 91800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 5400,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 30
+          },
+          "app_usage_min": 30
+        },
+        {
+          "anchor_seconds": 91800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 5400,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 30
+          },
+          "app_usage_min": 30
+        },
+        {
+          "anchor_seconds": 91800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        }
+      ]
+    },
+    {
+      "case": "trailing_gap_masks_features_and_retains_unobserved_day",
+      "threshold_hours": 24,
+      "direction": "after",
+      "rows": [
+        {
+          "anchor_seconds": 5400,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 91800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 5400,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 91800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 5400,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 91800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        }
+      ]
+    },
+    {
+      "case": "exactly_eighteen_hour_boundary",
+      "threshold_hours": 18,
+      "direction": "before",
+      "rows": [
+        {
+          "anchor_seconds": 23400,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 25200,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 0
+          },
+          "app_usage_min": 0
+        },
+        {
+          "anchor_seconds": 23400,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 30
+          },
+          "app_usage_min": 30
+        },
+        {
+          "anchor_seconds": 25200,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 0
+          },
+          "app_usage_min": 0
+        },
+        {
+          "anchor_seconds": 23400,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 30
+          },
+          "app_usage_min": 30
+        },
+        {
+          "anchor_seconds": 25200,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 0
+          },
+          "app_usage_min": 0
+        }
+      ]
+    },
+    {
+      "case": "exactly_eighteen_hour_boundary",
+      "threshold_hours": 18,
+      "direction": "after",
+      "rows": [
+        {
+          "anchor_seconds": 23400,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 25200,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 0
+          },
+          "app_usage_min": 0
+        },
+        {
+          "anchor_seconds": 23400,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 25200,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 0
+          },
+          "app_usage_min": 0
+        },
+        {
+          "anchor_seconds": 23400,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 25200,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 0
+          },
+          "app_usage_min": 0
+        }
+      ]
+    },
+    {
+      "case": "exactly_eighteen_hour_boundary",
+      "threshold_hours": 12,
+      "direction": "before",
+      "rows": [
+        {
+          "anchor_seconds": 23400,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 25200,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 23400,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 25200,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 23400,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 25200,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        }
+      ]
+    },
+    {
+      "case": "exactly_eighteen_hour_boundary",
+      "threshold_hours": 12,
+      "direction": "after",
+      "rows": [
+        {
+          "anchor_seconds": 23400,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 25200,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 23400,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 25200,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 23400,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 25200,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        }
+      ]
+    },
+    {
+      "case": "exactly_eighteen_hour_boundary",
+      "threshold_hours": 24,
+      "direction": "before",
+      "rows": [
+        {
+          "anchor_seconds": 23400,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 25200,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 0
+          },
+          "app_usage_min": 0
+        },
+        {
+          "anchor_seconds": 23400,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 30
+          },
+          "app_usage_min": 30
+        },
+        {
+          "anchor_seconds": 25200,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 0
+          },
+          "app_usage_min": 0
+        },
+        {
+          "anchor_seconds": 23400,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 30
+          },
+          "app_usage_min": 30
+        },
+        {
+          "anchor_seconds": 25200,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 0
+          },
+          "app_usage_min": 0
+        }
+      ]
+    },
+    {
+      "case": "exactly_eighteen_hour_boundary",
+      "threshold_hours": 24,
+      "direction": "after",
+      "rows": [
+        {
+          "anchor_seconds": 23400,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 25200,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 0
+          },
+          "app_usage_min": 0
+        },
+        {
+          "anchor_seconds": 23400,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 25200,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 0
+          },
+          "app_usage_min": 0
+        },
+        {
+          "anchor_seconds": 23400,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 25200,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 0
+          },
+          "app_usage_min": 0
+        }
+      ]
+    },
+    {
+      "case": "only_first_recorded_leading_gap_is_ignored",
+      "threshold_hours": 18,
+      "direction": "before",
+      "rows": [
+        {
+          "anchor_seconds": 73800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 160200,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 165600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 73800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 30
+          },
+          "app_usage_min": 30
+        },
+        {
+          "anchor_seconds": 160200,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 165600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 73800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 30
+          },
+          "app_usage_min": 30
+        },
+        {
+          "anchor_seconds": 160200,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 165600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        }
+      ]
+    },
+    {
+      "case": "only_first_recorded_leading_gap_is_ignored",
+      "threshold_hours": 18,
+      "direction": "after",
+      "rows": [
+        {
+          "anchor_seconds": 73800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 160200,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 165600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 73800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 160200,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 165600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 73800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 160200,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 165600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        }
+      ]
+    },
+    {
+      "case": "only_first_recorded_leading_gap_is_ignored",
+      "threshold_hours": 12,
+      "direction": "before",
+      "rows": [
+        {
+          "anchor_seconds": 73800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 160200,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 165600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 73800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 30
+          },
+          "app_usage_min": 30
+        },
+        {
+          "anchor_seconds": 160200,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 165600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 73800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 30
+          },
+          "app_usage_min": 30
+        },
+        {
+          "anchor_seconds": 160200,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 165600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        }
+      ]
+    },
+    {
+      "case": "only_first_recorded_leading_gap_is_ignored",
+      "threshold_hours": 12,
+      "direction": "after",
+      "rows": [
+        {
+          "anchor_seconds": 73800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 160200,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 165600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 73800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 160200,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 165600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 73800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 160200,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 165600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        }
+      ]
+    },
+    {
+      "case": "only_first_recorded_leading_gap_is_ignored",
+      "threshold_hours": 24,
+      "direction": "before",
+      "rows": [
+        {
+          "anchor_seconds": 73800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 160200,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 165600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 0
+          },
+          "app_usage_min": 0
+        },
+        {
+          "anchor_seconds": 73800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 30
+          },
+          "app_usage_min": 30
+        },
+        {
+          "anchor_seconds": 160200,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 30
+          },
+          "app_usage_min": 30
+        },
+        {
+          "anchor_seconds": 165600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 0
+          },
+          "app_usage_min": 0
+        },
+        {
+          "anchor_seconds": 73800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 30
+          },
+          "app_usage_min": 30
+        },
+        {
+          "anchor_seconds": 160200,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 30
+          },
+          "app_usage_min": 30
+        },
+        {
+          "anchor_seconds": 165600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 0
+          },
+          "app_usage_min": 0
+        }
+      ]
+    },
+    {
+      "case": "only_first_recorded_leading_gap_is_ignored",
+      "threshold_hours": 24,
+      "direction": "after",
+      "rows": [
+        {
+          "anchor_seconds": 73800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 160200,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 165600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 0
+          },
+          "app_usage_min": 0
+        },
+        {
+          "anchor_seconds": 73800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 160200,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 165600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 0
+          },
+          "app_usage_min": 0
+        },
+        {
+          "anchor_seconds": 73800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 160200,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 165600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 0
+          },
+          "app_usage_min": 0
+        }
+      ]
+    },
+    {
+      "case": "interior_eighteen_vs_nineteen_hour_gap",
+      "threshold_hours": 18,
+      "direction": "before",
+      "rows": [
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 66600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 88200,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 156600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 171000,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 30
+          },
+          "app_usage_min": 30
+        },
+        {
+          "anchor_seconds": 66600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 30
+          },
+          "app_usage_min": 30
+        },
+        {
+          "anchor_seconds": 88200,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 156600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 171000,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 30
+          },
+          "app_usage_min": 30
+        },
+        {
+          "anchor_seconds": 66600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 30
+          },
+          "app_usage_min": 30
+        },
+        {
+          "anchor_seconds": 88200,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 156600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 171000,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        }
+      ]
+    },
+    {
+      "case": "interior_eighteen_vs_nineteen_hour_gap",
+      "threshold_hours": 18,
+      "direction": "after",
+      "rows": [
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 66600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 88200,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 156600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 171000,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 66600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 88200,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 156600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 171000,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 66600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 88200,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 156600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 171000,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        }
+      ]
+    },
+    {
+      "case": "interior_eighteen_vs_nineteen_hour_gap",
+      "threshold_hours": 12,
+      "direction": "before",
+      "rows": [
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 66600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 88200,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 156600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 171000,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 66600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 88200,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 156600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 171000,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 66600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 88200,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 156600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 171000,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        }
+      ]
+    },
+    {
+      "case": "interior_eighteen_vs_nineteen_hour_gap",
+      "threshold_hours": 12,
+      "direction": "after",
+      "rows": [
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 66600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 88200,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 156600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 171000,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 66600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 88200,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 156600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 171000,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 66600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 88200,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 156600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 171000,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        }
+      ]
+    },
+    {
+      "case": "interior_eighteen_vs_nineteen_hour_gap",
+      "threshold_hours": 24,
+      "direction": "before",
+      "rows": [
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 66600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 88200,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 156600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 171000,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 0
+          },
+          "app_usage_min": 0
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 30
+          },
+          "app_usage_min": 30
+        },
+        {
+          "anchor_seconds": 66600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 30
+          },
+          "app_usage_min": 30
+        },
+        {
+          "anchor_seconds": 88200,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 30
+          },
+          "app_usage_min": 30
+        },
+        {
+          "anchor_seconds": 156600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 30
+          },
+          "app_usage_min": 30
+        },
+        {
+          "anchor_seconds": 171000,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 0
+          },
+          "app_usage_min": 0
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 30
+          },
+          "app_usage_min": 30
+        },
+        {
+          "anchor_seconds": 66600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 30
+          },
+          "app_usage_min": 30
+        },
+        {
+          "anchor_seconds": 88200,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 30
+          },
+          "app_usage_min": 30
+        },
+        {
+          "anchor_seconds": 156600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 30
+          },
+          "app_usage_min": 30
+        },
+        {
+          "anchor_seconds": 171000,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 0
+          },
+          "app_usage_min": 0
+        }
+      ]
+    },
+    {
+      "case": "interior_eighteen_vs_nineteen_hour_gap",
+      "threshold_hours": 24,
+      "direction": "after",
+      "rows": [
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 66600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 88200,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 156600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 171000,
+          "window_minutes": 30,
+          "category_minutes": {
+            "use_min": 0
+          },
+          "app_usage_min": 0
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 66600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 88200,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 156600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 171000,
+          "window_minutes": 60,
+          "category_minutes": {
+            "use_min": 0
+          },
+          "app_usage_min": 0
+        },
+        {
+          "anchor_seconds": 1800,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 66600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 88200,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 156600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 29.983333333333334
+          },
+          "app_usage_min": 29.983333333333334
+        },
+        {
+          "anchor_seconds": 171000,
+          "window_minutes": 90,
+          "category_minutes": {
+            "use_min": 0
+          },
+          "app_usage_min": 0
+        }
+      ]
+    },
+    {
+      "case": "mask_before_window_column_union",
+      "threshold_hours": 18,
+      "direction": "before",
+      "rows": [
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "near_min": "NaN",
+            "wide_min": 0
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 90000,
+          "window_minutes": 30,
+          "category_minutes": {
+            "near_min": "NaN",
+            "wide_min": 0
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "near_min": "NaN",
+            "wide_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 90000,
+          "window_minutes": 60,
+          "category_minutes": {
+            "near_min": "NaN",
+            "wide_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "near_min": "NaN",
+            "wide_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 90000,
+          "window_minutes": 90,
+          "category_minutes": {
+            "near_min": "NaN",
+            "wide_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        }
+      ]
+    },
+    {
+      "case": "mask_before_window_column_union",
+      "threshold_hours": 18,
+      "direction": "after",
+      "rows": [
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "near_min": "NaN",
+            "wide_min": 0
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 90000,
+          "window_minutes": 30,
+          "category_minutes": {
+            "near_min": "NaN",
+            "wide_min": 0
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "near_min": "NaN",
+            "wide_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 90000,
+          "window_minutes": 60,
+          "category_minutes": {
+            "near_min": "NaN",
+            "wide_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "near_min": "NaN",
+            "wide_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 90000,
+          "window_minutes": 90,
+          "category_minutes": {
+            "near_min": "NaN",
+            "wide_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        }
+      ]
+    },
+    {
+      "case": "mask_before_window_column_union",
+      "threshold_hours": 12,
+      "direction": "before",
+      "rows": [
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "near_min": "NaN",
+            "wide_min": 0
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 90000,
+          "window_minutes": 30,
+          "category_minutes": {
+            "near_min": "NaN",
+            "wide_min": 0
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "near_min": "NaN",
+            "wide_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 90000,
+          "window_minutes": 60,
+          "category_minutes": {
+            "near_min": "NaN",
+            "wide_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "near_min": "NaN",
+            "wide_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 90000,
+          "window_minutes": 90,
+          "category_minutes": {
+            "near_min": "NaN",
+            "wide_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        }
+      ]
+    },
+    {
+      "case": "mask_before_window_column_union",
+      "threshold_hours": 12,
+      "direction": "after",
+      "rows": [
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "near_min": "NaN",
+            "wide_min": 0
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 90000,
+          "window_minutes": 30,
+          "category_minutes": {
+            "near_min": "NaN",
+            "wide_min": 0
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "near_min": "NaN",
+            "wide_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 90000,
+          "window_minutes": 60,
+          "category_minutes": {
+            "near_min": "NaN",
+            "wide_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "near_min": "NaN",
+            "wide_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 90000,
+          "window_minutes": 90,
+          "category_minutes": {
+            "near_min": "NaN",
+            "wide_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        }
+      ]
+    },
+    {
+      "case": "mask_before_window_column_union",
+      "threshold_hours": 24,
+      "direction": "before",
+      "rows": [
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "near_min": 0.016666666666666666,
+            "wide_min": 0
+          },
+          "app_usage_min": 0.016666666666666666
+        },
+        {
+          "anchor_seconds": 90000,
+          "window_minutes": 30,
+          "category_minutes": {
+            "near_min": "NaN",
+            "wide_min": 0
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "near_min": 0.016666666666666666,
+            "wide_min": 0.016666666666666666
+          },
+          "app_usage_min": 0.03333333333333333
+        },
+        {
+          "anchor_seconds": 90000,
+          "window_minutes": 60,
+          "category_minutes": {
+            "near_min": "NaN",
+            "wide_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "near_min": 0.016666666666666666,
+            "wide_min": 0.016666666666666666
+          },
+          "app_usage_min": 0.03333333333333333
+        },
+        {
+          "anchor_seconds": 90000,
+          "window_minutes": 90,
+          "category_minutes": {
+            "near_min": "NaN",
+            "wide_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        }
+      ]
+    },
+    {
+      "case": "mask_before_window_column_union",
+      "threshold_hours": 24,
+      "direction": "after",
+      "rows": [
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 30,
+          "category_minutes": {
+            "near_min": 0.016666666666666666,
+            "wide_min": 0
+          },
+          "app_usage_min": 0.016666666666666666
+        },
+        {
+          "anchor_seconds": 90000,
+          "window_minutes": 30,
+          "category_minutes": {
+            "near_min": "NaN",
+            "wide_min": 0
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 60,
+          "category_minutes": {
+            "near_min": 0.016666666666666666,
+            "wide_min": 0.016666666666666666
+          },
+          "app_usage_min": 0.03333333333333333
+        },
+        {
+          "anchor_seconds": 90000,
+          "window_minutes": 60,
+          "category_minutes": {
+            "near_min": "NaN",
+            "wide_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        },
+        {
+          "anchor_seconds": 3600,
+          "window_minutes": 90,
+          "category_minutes": {
+            "near_min": 0.016666666666666666,
+            "wide_min": 0.016666666666666666
+          },
+          "app_usage_min": 0.03333333333333333
+        },
+        {
+          "anchor_seconds": 90000,
+          "window_minutes": 90,
+          "category_minutes": {
+            "near_min": "NaN",
+            "wide_min": "NaN"
+          },
+          "app_usage_min": "NaN"
+        }
+      ]
+    }
+  ]
+}

@@ -14,6 +14,16 @@
 #   make all     # ci + web checks + browser e2e smoke + deploy artifact
 #   make help    # list every target
 
+# Put rustup's shims ahead of whatever rustc is first on the interactive PATH.
+# Homebrew installs a real rustc at /opt/homebrew/bin/rustc — same version, but
+# its sysroot carries no wasm32-unknown-unknown. It is not a rustup shim, so it
+# ignores rust-toolchain.toml. Native `cargo test` passes on it and only the
+# WASM build fails, with "wasm32-unknown-unknown target not found in sysroot",
+# which is why this stayed hidden until `make dependency-evidence` ran.
+ifneq ($(wildcard $(HOME)/.cargo/bin/cargo),)
+export PATH := $(HOME)/.cargo/bin:$(PATH)
+endif
+
 MATCHER := rust/chronicle_app_usage_matcher/Cargo.toml
 CHRONO_KERNEL := rust/chronicle_chrono_kernel_wasm/Cargo.toml
 SEMANTIC_RUNTIME := rust/chronicle_preprocessing_semantic_adapter/Cargo.toml
@@ -22,10 +32,14 @@ SEMANTIC_INDEX := rust/chronicle_semantic_index_wasm/Cargo.toml
 LOCAL_SEM_PROF_BIN := $(HOME)/semantic-profile-toolchain/target/debug/semprof
 SEM_PROF_BIN ?= $(if $(wildcard $(LOCAL_SEM_PROF_BIN)),$(LOCAL_SEM_PROF_BIN),semprof)
 
-.PHONY: help ci all security web \
+.PHONY: help check pin-figures wasm-fresh ci all security web \
         rust \
-        semgrep ast-grep cargo-audit cargo-deny trivy gitleaks \
-        typecheck web-test contract boundary semantic-federation combinatorial gate-truth \
+        semgrep semgrep-packs ast-grep cargo-audit cargo-deny trivy gitleaks \
+        shellcheck actionlint udeps \
+        typecheck web-test contract boundary authority-boundary axis-completeness \
+        semantic-federation published-figures b03-b05-proof \
+        print-sem-prof-bin \
+        combinatorial gate-truth \
         mutation mutation-web mutation-rust coverage coverage-rust coverage-all \
         knip profile profile-current profile-many e2e deploy-artifact dependency-evidence \
         bench-regression fuzz-sanity
@@ -33,20 +47,27 @@ SEM_PROF_BIN ?= $(if $(wildcard $(LOCAL_SEM_PROF_BIN)),$(LOCAL_SEM_PROF_BIN),sem
 help:
 	@echo 'Local CI (GitHub Actions carries CD only):'
 	@echo ''
-	@echo '  make ci        rust tests + all security scanners'
-	@echo '  make all       ci + web checks + e2e smoke + deploy artifact'
-	@echo '  make security  semgrep ast-grep cargo-audit cargo-deny trivy gitleaks'
+	@echo '  make check     PR gate: only the phases the diff vs origin/main touches'
+	@echo '  make all       pre-deploy gate: ci + web + e2e (all browsers) + deploy artifact'
+	@echo '  make ci        rust tests + all security scanners + unused Cargo dependencies'
+	@echo '  make pin-figures  rewrite drifted published figures from their producers'
+	@echo '  make security  semgrep semgrep-packs ast-grep shellcheck actionlint'
+	@echo '                 cargo-audit cargo-deny trivy gitleaks'
 	@echo '  make web       typecheck + unit tests + contract + boundary checks'
 	@echo ''
-	@echo '  Individual:  rust semgrep ast-grep cargo-audit cargo-deny trivy gitleaks'
+	@echo '  Individual:  rust semgrep semgrep-packs ast-grep shellcheck actionlint udeps'
+	@echo '               cargo-audit cargo-deny trivy gitleaks'
 	@echo '               typecheck web-test contract boundary e2e gate-truth mutation'
 	@echo '               mutation-web mutation-rust coverage coverage-rust coverage-all'
+	@echo '               published-figures (documents vs their producing artifacts) b03-b05-proof'
+	@echo '               authority-boundary (no parallel TS/test-support semantic authority)'
+	@echo '               axis-completeness (an implemented delivery axis must reach contract + kernel)'
 	@echo '               knip profile profile-current profile-many combinatorial deploy-artifact dependency-evidence'
 	@echo '               bench-regression (criterion matcher benches vs benchmarks/baseline.json; local-only)'
-	@echo '               fuzz-sanity (bounded matcher + runtime ingestion cargo-fuzz targets; local-only)'
+	@echo '               fuzz-sanity (bounded matcher, runtime ingestion + archive-journal cargo-fuzz targets; local-only)'
 
 # ---------- aggregates ----------
-ci: rust security
+ci: rust security udeps
 
 # Run each phase as its own sequential sub-make rather than as prerequisites
 # of one invocation. With prerequisites, `web`'s two esbuild-spawning recipes
@@ -65,11 +86,33 @@ all:
 	$(MAKE) --no-print-directory e2e
 	@echo "── make all: 4/4 deploy-artifact ─────────────────"
 	$(MAKE) --no-print-directory deploy-artifact
+	$(MAKE) --no-print-directory wasm-fresh
 	@echo "✓ make all: ci + web + e2e + deploy-artifact all completed"
 
-security: semgrep ast-grep cargo-audit cargo-deny trivy gitleaks
+# Change-scoped PR gate. `make all` stays the pre-deploy gate.
+check:
+	scripts/check-scoped.sh
 
-web: typecheck web-test contract boundary semantic-federation
+# Rewrite drifted published figures (sizes, counts) from their producers.
+# Needs web/dist, so it builds the app from the committed WASM first.
+pin-figures:
+	cd web && npm run build:app
+	scripts/generate-sbom.sh
+	python3 scripts/check_published_figures.py --group all --fix
+
+# The committed WASM packages must be exactly what the Rust sources build.
+# Builds are path-independent (PR #36), so any drift is a stale commit.
+wasm-fresh:
+	cd web && npm run build:wasm
+	git diff --exit-code --stat -- web/src/wasm web/third-party/rust-wasm-crates.txt
+
+security: semgrep semgrep-packs ast-grep shellcheck actionlint cargo-audit cargo-deny trivy gitleaks
+
+WEB_TARGETS := typecheck web-test contract boundary authority-boundary axis-completeness semantic-federation published-figures b03-b05-proof
+web: $(WEB_TARGETS)
+
+print-web-targets:
+	@echo $(WEB_TARGETS)
 
 # ---------- Rust tests ----------
 # The matcher core is a library dependency of the production Rust/WASM runtime;
@@ -85,6 +128,8 @@ rust:
 	cargo test --locked --manifest-path $(SEMANTIC_INDEX)
 	rustup run stable cargo check --locked --manifest-path $(SEMANTIC_INDEX) --target wasm32-unknown-unknown
 	cargo clippy --locked --manifest-path $(CHRONO_KERNEL) --all-targets --features incremental-v2 -- -D warnings
+	# The semantic index links the kernel without incremental-v2; lint that build too.
+	cargo clippy --locked --manifest-path $(CHRONO_KERNEL) --all-targets -- -D warnings
 	cargo clippy --locked --manifest-path $(SEMANTIC_RUNTIME) --all-targets -- -D warnings
 	cargo clippy --locked --manifest-path $(PRODUCT_RUNTIME) --all-targets -- -D warnings
 	cargo clippy --locked --manifest-path $(SEMANTIC_INDEX) --all-targets -- -D warnings
@@ -92,6 +137,25 @@ rust:
 # ---------- security scanners ----------
 semgrep:
 	semgrep --config .semgrep/chronicle-security.yml --error .
+
+# Semgrep registry packs p/github-actions (.github/) and p/rust (rust/), with
+# the accepted findings and their reasons in .semgrep/registry-pack-ignores.json.
+# Fetches the packs from the registry, so it needs network access.
+semgrep-packs:
+	scripts/check-semgrep-packs.sh
+
+# Every shell script git knows or would add (tracked + untracked, not ignored):
+# scripts/, .semantic-federation/scripts/, test oracles.
+shellcheck:
+	git ls-files -z --cached --others --exclude-standard '*.sh' | xargs -0 shellcheck
+
+# Workflow syntax and expressions, and (through shellcheck) their run: blocks.
+actionlint:
+	actionlint
+
+# Unused Cargo dependencies in the five product crates (nightly cargo-udeps).
+udeps:
+	scripts/check-udeps.sh
 
 # scan = enforce the rules; test = meta-tests proving each rule still catches
 # its pinned bug shape (.ast-grep/rule-tests, snapshots committed).
@@ -101,6 +165,7 @@ ast-grep:
 
 cargo-audit:
 	cd rust/chronicle_app_usage_matcher && cargo audit
+	cd rust/chronicle_chrono_kernel_wasm && cargo audit
 	cd rust/chronicle_preprocessing_semantic_adapter && cargo audit
 	cd rust/chronicle_preprocessing_runtime_wasm && cargo audit
 	cd rust/chronicle_semantic_index_wasm && cargo audit
@@ -139,6 +204,47 @@ boundary:
 semantic-federation:
 	$(MAKE) -C .semantic-federation check SEM_PROF_BIN=$(SEM_PROF_BIN)
 
+# `semprof` is not on PATH; only this Makefile knows where it is. Anything that
+# tells a reader to run a `.semantic-federation` target by hand must forward the
+# binary, so expose the resolved path rather than making each caller guess.
+# check-artifacts-in-sync.py prints a command that uses this target.
+print-sem-prof-bin:
+	@echo $(SEM_PROF_BIN)
+
+# Every number copied out of a generated artifact into a document is a claim.
+# This re-reads each registered figure's producing artifact and fails on
+# disagreement. Register a figure whenever prose quotes a generated number;
+# an unregistered figure is an unverified claim (see scripts/check_published_figures.py).
+#
+# Only the `committed` group runs here, because `make web` runs before anything
+# builds web/dist. The `deploy` group is checked by `deploy-artifact`, after the
+# build that produces its artifacts.
+published-figures:
+	python3 scripts/check_published_figures.py --group committed
+
+# Recompute the B03-B05 synthetic engineering proof in memory against the
+# checked-in authoritative runtime and require byte-identical committed JSON
+# and Markdown reports. Report generation is an explicit post-reseal action;
+# this gate never writes or silently accepts a stale runtime identity.
+b03-b05-proof:
+	cd web && npm run check:b03-b05-proof-report
+
+# Process control 1 — the unpoliced zone. check_no_typescript_authority.mts skips
+# web/src/testSupport/ when it hunts for reintroduced TypeScript authority, and that
+# is precisely where 5,273 lines of parallel B06 semantic authority accumulated with
+# no gate reading them. The same script now also caps test-support module size and
+# option/branch-semantics density; this target runs it on its own so the failure is
+# attributable rather than buried in the contract chain.
+authority-boundary:
+	cd web && npm run check:authority-boundary
+
+# Process control 2 — definition of done per axis. An axis whose ledger entry claims
+# an implemented status, and which has a docs/paper/b{NN}-*.md, must have its option
+# key in the LinkML contract AND read by pipeline_v2.rs. Documents and tests alone
+# cannot mark an axis done. Pending and conditional-refusal axes are not gated.
+axis-completeness:
+	cd web && npm run check:axis-completeness
+
 # Combinatorial coverage: regenerates the PICT/ACTS models from the Rust-backed
 # contract, executes the generated t=2/t=3 arrays through Rust/WASM, and checks
 # their coverage with the built-in verifier. PICT and NIST CCM are optional
@@ -153,8 +259,16 @@ gate-truth:
 
 # Regenerate the six implementation-bound dependency ledgers using a temporary
 # test-only runtime, then rebuild the normal fail-closed WASM package.
+# SEM_PROF_BIN must be forwarded here the same way `semantic-federation` does it.
+# Without it, refresh_dependency_evidence.mjs falls back to a bare `semprof` on
+# PATH, which is not installed, and the target dies with spawn ENOENT after
+# already having rebuilt the evidence WASM.
+# Footprint selection: campaigns whose recorded executed-file footprint proves
+# nothing they ran changed are inherited instead of re-run (see
+# docs/architecture/authority-and-invalidation.md). FULL=1 forces a complete
+# re-measure of every campaign.
 dependency-evidence:
-	cd web && npm run refresh:dependency-evidence
+	cd web && SEM_PROF_BIN=$(SEM_PROF_BIN) FULL=$(FULL) npm run refresh:dependency-evidence
 
 # Mutation-score browser-owned transport/storage/view code and the Rust
 # preprocessing authority. This is intentionally local-only and slow.
@@ -179,6 +293,10 @@ bench-regression:
 	CRITERION_HOME=$(CURDIR)/benchmarks/criterion cargo bench --locked --manifest-path $(MATCHER) --no-default-features --bench matcher_bench
 	python3 scripts/check_bench_regression.py
 
+# Bounded libFuzzer runs (FUZZ_SECONDS each, default 10) over the matcher core,
+# raw CSV inspection, structure-aware ExecuteWorkspace ingestion, and the
+# evidence-journal CBOR decoder a workspace-archive import reaches. Needs the
+# nightly toolchain and cargo-fuzz; stays outside ci/all like bench-regression.
 fuzz-sanity:
 	scripts/run-fuzz-sanity.sh
 
@@ -190,7 +308,7 @@ profile:
 	cd web && npm run build && npm run benchmark:browser -- --raw "$(CSV)"
 
 # Reproduce the current query-registry native timing matrix, cold-run Hyperfine
-# distribution, peak RSS, flamegraph, Samply profile, and metadata-generator
+# distribution, peak RSS, Samply profile, and metadata-generator
 # cProfile. Override PROFILE_ROWS or PROFILE_RUNS when doing a quick diagnostic.
 profile-current:
 	PROFILE_ROWS="$${PROFILE_ROWS:-60624}" PROFILE_RUNS="$${PROFILE_RUNS:-5}" scripts/profile_current_performance.sh
@@ -223,9 +341,14 @@ e2e:
 	cd web && npm run test:e2e:smoke $(if $(E2E_ARGS),-- $(E2E_ARGS))
 
 # ---------- deploy artifact validation (CSP meta + _headers + PWA files) ----------
-# Builds the production bundle, then verifies dist carries the CSP <meta> fallback,
-# _headers, sw.js, manifest.webmanifest and .vite/manifest.json, and that the
-# _headers CSP matches the index.html meta CSP. Owns its build (the check reads
-# web/dist), restoring the validation that the deleted deploy workflow used to run.
+# Builds the production bundle and its CycloneDX SBOM (dist/sbom.cdx.json, syft),
+# then verifies dist carries the CSP <meta> fallback, _headers, sw.js,
+# manifest.webmanifest, .vite/manifest.json and an SBOM that covers every package
+# THIRD-PARTY-NOTICES.txt says ships, and that the _headers CSP matches the
+# index.html meta CSP. Owns its build (the check reads web/dist), restoring the
+# validation that the deleted deploy workflow used to run.
 deploy-artifact:
-	cd web && npm run build && npm run check:deploy-artifact
+	cd web && npm run build:app
+	scripts/generate-sbom.sh
+	cd web && npm run check:deploy-artifact
+	python3 scripts/check_published_figures.py --group deploy

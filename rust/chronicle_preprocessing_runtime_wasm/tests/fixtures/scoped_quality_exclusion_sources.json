@@ -1,0 +1,122 @@
+{
+  "schemaVersion": "chronicle-scoped-quality-exclusion-source-fixture/v1",
+  "existingOwner": {
+    "sourceWorkId": "doi:10.1016/j.psychres.2023.115298",
+    "methodSettingId": "method-setting-0e3cf5dcc381e5aba25dc213",
+    "sourceLocator": ".tmp-literature-review-private/corrective-packet-06-ranks174-223-20260831/text/199-1-608fcbf141ac.txt:227-231",
+    "sourceSha256": "0a30c6e015958c7317b34d5a09676787bbbe571e85f9672bb3e6b62228bf39da",
+    "operatorId": "screen-duration-participant-exclusion-v1",
+    "fixtureId": "extension.exclude-participant-screen-interval-strict-gt-10h.v1",
+    "conformanceResultDigest": "sha256:deb0765faa4ff7182e0eeb6b8591f95519f4eb5286256a9659087dedb8a49598"
+  },
+  "participantDayRule": {
+    "sourceWorkId": "doi:10.1186/s13104-015-1280-z",
+    "methodSettingId": "method-setting-dd064a91f6fa5b9b002f5984",
+    "sourceLocator": ".tmp-literature-review-private/corrective-queue-audit-b-20260831/packet-05-ranks-124-173/fulltext/rank172.txt:153-165",
+    "sourceSha256": "19fb55ce570726203cce6772478e03a13c4165e22afbf0722bd0dc209b750b14",
+    "maximumInclusiveDurationNs": 36000000000000,
+    "comparator": "strict_gt",
+    "scope": "participant_day",
+    "disposition": "exclude_day"
+  },
+  "brokenLoggingRule": {
+    "sourceWorkId": "doi:10.1016/j.chb.2023.107977",
+    "methodSettingId": "method-setting-9c709fc6db3b34ad6ee17557",
+    "sourceLocator": ".tmp-literature-review-private/corrective-packet-08-ranks277-329-20260831/work/rank287-archive/SmartphoneUsage_Wellbeing/scripts/featureExtraction/screen/Screen_usageSessions_Macrolevel.R:29-41,130-134",
+    "sourceSha256": "8289ff398419d34ba94f5dcf767dd5bdd4d6d5ea3aa0c01ce34bfa674d63202f",
+    "oracleRuntime": "R version 4.1.2 (2021-11-01)",
+    "cases": [
+      {
+        "caseId": "both-strict-predicates-qualify",
+        "dailyCounts": [
+          {"date": "2020-01-01", "primaryCount": 7, "secondaryCount": 12},
+          {"date": "2020-01-02", "primaryCount": 9, "secondaryCount": 10},
+          {"date": "2020-01-03", "primaryCount": 10, "secondaryCount": 8}
+        ],
+        "dateEmaScopes": [
+          {"date": "2020-01-01", "emaScopeId": "ema-day-1"},
+          {"date": "2020-01-02", "emaScopeId": "ema-day-2"},
+          {"date": "2020-01-03", "emaScopeId": "ema-day-3"}
+        ],
+        "expectedPrimaryMean": 8.66666666666667,
+        "expectedPrimarySampleSd": 1.52752523165195,
+        "expectedPrimaryCutoff": 7.13914143501472,
+        "expectedSecondaryMean": 10,
+        "expectedExcludedEmaScopeIds": ["ema-day-1"]
+      },
+      {
+        "caseId": "primary-equality-is-retained",
+        "dailyCounts": [
+          {"date": "2020-01-01", "primaryCount": 8, "secondaryCount": 12},
+          {"date": "2020-01-02", "primaryCount": 9, "secondaryCount": 10},
+          {"date": "2020-01-03", "primaryCount": 10, "secondaryCount": 8}
+        ],
+        "dateEmaScopes": [
+          {"date": "2020-01-01", "emaScopeId": "ema-day-1"},
+          {"date": "2020-01-02", "emaScopeId": "ema-day-2"},
+          {"date": "2020-01-03", "emaScopeId": "ema-day-3"}
+        ],
+        "expectedPrimaryMean": 9,
+        "expectedPrimarySampleSd": 1,
+        "expectedPrimaryCutoff": 8,
+        "expectedSecondaryMean": 10,
+        "expectedExcludedEmaScopeIds": []
+      },
+      {
+        "caseId": "secondary-equality-is-retained",
+        "dailyCounts": [
+          {"date": "2020-01-01", "primaryCount": 7, "secondaryCount": 10},
+          {"date": "2020-01-02", "primaryCount": 9, "secondaryCount": 12},
+          {"date": "2020-01-03", "primaryCount": 10, "secondaryCount": 8}
+        ],
+        "dateEmaScopes": [
+          {"date": "2020-01-01", "emaScopeId": "ema-day-1"},
+          {"date": "2020-01-02", "emaScopeId": "ema-day-2"},
+          {"date": "2020-01-03", "emaScopeId": "ema-day-3"}
+        ],
+        "expectedPrimaryMean": 8.66666666666667,
+        "expectedPrimarySampleSd": 1.52752523165195,
+        "expectedPrimaryCutoff": 7.13914143501472,
+        "expectedSecondaryMean": 10,
+        "expectedExcludedEmaScopeIds": []
+      },
+      {
+        "caseId": "missing-app-left-join-propagates-na",
+        "dailyCounts": [
+          {"date": "2020-01-01", "primaryCount": 7, "secondaryCount": null},
+          {"date": "2020-01-02", "primaryCount": 9, "secondaryCount": 10},
+          {"date": "2020-01-03", "primaryCount": 10, "secondaryCount": 8}
+        ],
+        "dateEmaScopes": [
+          {"date": "2020-01-01", "emaScopeId": "ema-day-1"},
+          {"date": "2020-01-02", "emaScopeId": "ema-day-2"},
+          {"date": "2020-01-03", "emaScopeId": "ema-day-3"}
+        ],
+        "expectedPrimaryMean": 8.66666666666667,
+        "expectedPrimarySampleSd": 1.52752523165195,
+        "expectedPrimaryCutoff": 7.13914143501472,
+        "expectedSecondaryMean": null,
+        "expectedExcludedEmaScopeIds": []
+      },
+      {
+        "caseId": "one-screen-date-propagates-undefined-sd",
+        "dailyCounts": [
+          {"date": "2020-01-01", "primaryCount": 7, "secondaryCount": 12}
+        ],
+        "dateEmaScopes": [
+          {"date": "2020-01-01", "emaScopeId": "ema-day-1"}
+        ],
+        "expectedPrimaryMean": 7,
+        "expectedPrimarySampleSd": null,
+        "expectedPrimaryCutoff": null,
+        "expectedSecondaryMean": 12,
+        "expectedExcludedEmaScopeIds": []
+      }
+    ]
+  },
+  "limitations": [
+    "Participant-day classification consumes complete upstream phone-use totals on explicit source day IDs; it does not infer timezones, day boundaries, or failed-transmission days.",
+    "Broken-logging classification consumes the source left-join count boundary and an explicit date-to-EMA/session-scope mapping; it does not infer either input from timestamps.",
+    "The deposited R edge semantics are preserved: any missing app count makes mean(app_n) missing, fewer than two screen dates makes sd(n) missing, and either condition yields no qualifying which(...) index."
+  ]
+}

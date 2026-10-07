@@ -1,0 +1,5 @@
+phone_key,phone_address,timestamp_ns,source_address,destination_address,payload_bytes
+phone-a,10.0.0.2,59500000000,203.0.113.5,10.0.0.2,2
+phone-a,10.0.0.2,59999999999,10.0.0.2,203.0.113.5,40
+phone-a,10.0.0.2,60000000000,203.0.113.5,10.0.0.2,5
+phone-b,10.0.0.3,59999999999,10.0.0.3,203.0.113.5,7

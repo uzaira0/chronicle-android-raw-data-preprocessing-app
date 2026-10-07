@@ -1,0 +1,64 @@
+{
+  "schemaVersion": "chronicle-communication-detail-record-source-fixture/v1",
+  "sourceWorkId": "doi:10.1109/asonam.2012.243",
+  "sourceSha256": "2d4bc1f05b67b22cc03516ec6a2196f11ea59007d94ce82ae2fc11194e3a8202",
+  "sourceLocator": ".tmp-literature-review-private/ontology-sublation-20260831/work/2012_AppleAndroid_Battle-layout.txt:11-27,54-60",
+  "exactCanonicalSettingIds": [
+    "method-setting-41abbf6fc27ea43b4d3bed16"
+  ],
+  "supersededAtomicSettingIds": [
+    "atomic-20db0381cd44cff94ed9ae8a",
+    "atomic-ab0e1633de7c3e6618b20379"
+  ],
+  "aliasResolution": "superseded_by",
+  "aliasTombstoneRegistrySha256": "018221f6036218887355a0a2dcd9d6d54a9e90eb93f380b4e1b81cc75c0f76b5",
+  "canonicalParameterKey": "network.records",
+  "canonicalValue": [
+    "carrier voice-call detail records",
+    "carrier SMS detail records"
+  ],
+  "canonicalValueSha256": "6d43e8cd56c2b953c8d6317893b49d24eb37f0d4ea748badb971185104971698",
+  "configurationRelation": "joint_input_set",
+  "inputBoundary": "already-deidentified carrier communication records with two opaque linked subscriber endpoints and a disclosed voice-call or SMS modality",
+  "outputBoundary": "typed records in caller order for a later, separately specified graph-construction stage",
+  "limitations": [
+    "the source record dictionary and source rows are unavailable",
+    "timestamp and timezone are undisclosed",
+    "communication direction and call duration are undisclosed",
+    "edge direction, weight, deduplication, and aggregation are undisclosed",
+    "deidentification is caller-asserted and cannot be inferred from identifier spelling"
+  ],
+  "validCsvLines": [
+    "endpoint_1_id,endpoint_2_id,communication_modality,opaque_carrier_column",
+    "subscriber-a,subscriber-b,voice_call,retained-but-uninterpreted-upstream",
+    "subscriber-b,subscriber-a,sms,reverse-order-is-not-a-direction-claim",
+    "subscriber-a,subscriber-b,sms,duplicate-endpoints-are-not-deduplicated",
+    "subscriber-a,subscriber-b,sms,duplicate-required-fields-remain-separate-records"
+  ],
+  "expectedRecords": [
+    {
+      "sourceRecordIndex": 1,
+      "endpoint1Id": "subscriber-a",
+      "endpoint2Id": "subscriber-b",
+      "modality": "voice_call"
+    },
+    {
+      "sourceRecordIndex": 2,
+      "endpoint1Id": "subscriber-b",
+      "endpoint2Id": "subscriber-a",
+      "modality": "sms"
+    },
+    {
+      "sourceRecordIndex": 3,
+      "endpoint1Id": "subscriber-a",
+      "endpoint2Id": "subscriber-b",
+      "modality": "sms"
+    },
+    {
+      "sourceRecordIndex": 4,
+      "endpoint1Id": "subscriber-a",
+      "endpoint2Id": "subscriber-b",
+      "modality": "sms"
+    }
+  ]
+}

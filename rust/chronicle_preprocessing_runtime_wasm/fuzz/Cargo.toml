@@ -7,9 +7,15 @@ publish = false
 [package.metadata]
 cargo-fuzz = true
 
+[lib]
+path = "src/lib.rs"
+
 [dependencies]
 arbitrary = { version = "1", features = ["derive"] }
 chronicle_preprocessing_runtime_wasm = { path = ".." }
+# The same path the runtime crate uses, so both resolve to one package: the
+# closure_evidence_journal target calls its EvidenceJournal decoder directly.
+chronicle_preprocessing_semantic_adapter = { path = "../deps/chronicle_preprocessing_semantic_adapter" }
 csv = "1.3"
 hex = "0.4"
 libfuzzer-sys = "0.4"
@@ -29,3 +35,15 @@ path = "fuzz_targets/structured_workspace.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "closure_evidence_journal"
+path = "fuzz_targets/closure_evidence_journal.rs"
+test = false
+doc = false
+bench = false
+
+[patch.crates-io]
+# Same vendored arrow-ipc the runtime crate builds against; a `[patch]` only
+# applies from the root manifest, so this package has to repeat it.
+arrow-ipc = { path = "../vendor/arrow-ipc-59.1.0" }

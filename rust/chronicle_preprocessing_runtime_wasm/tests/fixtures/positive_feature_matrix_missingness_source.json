@@ -1,0 +1,219 @@
+{
+  "schemaVersion": "chronicle-positive-feature-matrix-missingness-source-fixture/v1",
+  "sourceWorkId": "doi:10.2196/13209",
+  "canonicalSettings": [
+    {
+      "settingId": "method-setting-79fb8e1d1c3eb1083e945d33",
+      "parameterKey": "missingness.scope",
+      "sourceObservedSetting": "missingness.scope: apply missingness processing independently for each feature set and time segment",
+      "sourceValueSha256": "d34046d5bdc65606a9a1eb356f52e93c5f7eb17a312e52d8c67f9bba1d360c53"
+    },
+    {
+      "settingId": "method-setting-bc30a690a8f91c0be9c32846",
+      "parameterKey": "missingness.feature_rule",
+      "sourceObservedSetting": "missingness.feature_rule: within each feature set and time segment, drop a feature when more than 30 participants are missing",
+      "sourceValueSha256": "b35472fe1dc123a398342690530f6b23125777e06f6908579f4c2b81e2933101"
+    },
+    {
+      "settingId": "method-setting-d0b0d241f8cb9af3f729ac1a",
+      "parameterKey": "missingness.participant_rule",
+      "sourceObservedSetting": "missingness.participant_rule: remove a participant when 20% of data are missing",
+      "sourceValueSha256": "e6b4907f623f26f08cc0f4966b7616e5be9dab437bcf20f1da5cb58badb1935a"
+    },
+    {
+      "settingId": "method-setting-atomic-3e4326e90309d00dc667",
+      "parameterKey": "missingness.imputation",
+      "sourceObservedSetting": "missingness.imputation: impute remaining missing cells as -1 because generated feature values are positive",
+      "sourceValueSha256": "a70e765d9cbe41d8d164fbd394ca76213176291b786267824aa9e43ba23c2d7f"
+    }
+  ],
+  "supersededAliases": {
+    "method-setting-bc30a690a8f91c0be9c32846": [
+      "method-setting-atomic-648e3fb686c84d453db9",
+      "method-setting-atomic-892674db410a99db8363"
+    ],
+    "method-setting-d0b0d241f8cb9af3f729ac1a": [
+      "method-setting-atomic-c7db47330e4eea9696a4",
+      "method-setting-atomic-eb53342a81dc6c285b27"
+    ]
+  },
+  "sourceArtifacts": [
+    {
+      "role": "primary_fulltext",
+      "locator": ".tmp-literature-review-private/strict-screen-native-ranks37-73-20260831T0415Z/text/59-loneliness.txt:366-377",
+      "sha256": "4a7cb9208c6a732dba9581c2e8cf6967606a11e879882eff9522ecf8ba87874d"
+    },
+    {
+      "role": "supplement",
+      "locator": ".tmp-literature-review-private/strict-screen-native-ranks37-73-20260831T0415Z/artifacts/59-loneliness-supplement-app1.pdf",
+      "sha256": "ce277239589993af768268d53c368dbfa57ee662ddf0d3b4b344e2e941fefd1d"
+    },
+    {
+      "role": "supplement_text",
+      "locator": ".tmp-literature-review-private/strict-screen-native-ranks37-73-20260831T0415Z/text/59-loneliness-supplement-app1.txt",
+      "sha256": "7990ffcffe6fa056280a2965846c4710731b5aedd46c6e04f92d0ee5f1b936f6"
+    }
+  ],
+  "participantCount": 32,
+  "participantRuleInterpretation": {
+    "comparator": "missing_count / retained_feature_count >= 0.20",
+    "equalityDisposition": "drop_participant",
+    "rationale": "The source says remove a participant if 20% of their data are missing; unlike the feature rule, it does not say more than 20%."
+  },
+  "featureSets": [
+    {
+      "featureSetId": "phone_usage",
+      "features": [
+        {
+          "featureId": "phone_unlocks::week_01",
+          "baseFeatureId": "phone_unlocks",
+          "timeSegmentId": "week_01",
+          "observedValue": "1",
+          "missingParticipantOrdinals": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30]
+        },
+        {
+          "featureId": "phone_unlocks::week_02",
+          "baseFeatureId": "phone_unlocks",
+          "timeSegmentId": "week_02",
+          "observedValue": "2",
+          "missingParticipantOrdinals": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
+        },
+        {
+          "featureId": "auxiliary_01::semester",
+          "baseFeatureId": "auxiliary_01",
+          "timeSegmentId": "semester",
+          "observedValue": "3",
+          "missingParticipantOrdinals": [1]
+        },
+        {
+          "featureId": "auxiliary_02::semester",
+          "baseFeatureId": "auxiliary_02",
+          "timeSegmentId": "semester",
+          "observedValue": "4",
+          "missingParticipantOrdinals": []
+        },
+        {
+          "featureId": "auxiliary_03::semester",
+          "baseFeatureId": "auxiliary_03",
+          "timeSegmentId": "semester",
+          "observedValue": "5",
+          "missingParticipantOrdinals": []
+        },
+        {
+          "featureId": "auxiliary_04::semester",
+          "baseFeatureId": "auxiliary_04",
+          "timeSegmentId": "semester",
+          "observedValue": "6",
+          "missingParticipantOrdinals": []
+        },
+        {
+          "featureId": "auxiliary_05::semester",
+          "baseFeatureId": "auxiliary_05",
+          "timeSegmentId": "semester",
+          "observedValue": "7",
+          "missingParticipantOrdinals": []
+        },
+        {
+          "featureId": "auxiliary_06::semester",
+          "baseFeatureId": "auxiliary_06",
+          "timeSegmentId": "semester",
+          "observedValue": "8",
+          "missingParticipantOrdinals": []
+        },
+        {
+          "featureId": "auxiliary_07::semester",
+          "baseFeatureId": "auxiliary_07",
+          "timeSegmentId": "semester",
+          "observedValue": "9",
+          "missingParticipantOrdinals": []
+        },
+        {
+          "featureId": "auxiliary_08::semester",
+          "baseFeatureId": "auxiliary_08",
+          "timeSegmentId": "semester",
+          "observedValue": "10",
+          "missingParticipantOrdinals": []
+        },
+        {
+          "featureId": "auxiliary_09::semester",
+          "baseFeatureId": "auxiliary_09",
+          "timeSegmentId": "semester",
+          "observedValue": "11",
+          "missingParticipantOrdinals": []
+        }
+      ]
+    },
+    {
+      "featureSetId": "bluetooth",
+      "features": [
+        {
+          "featureId": "nearby_devices::week_01",
+          "baseFeatureId": "nearby_devices",
+          "timeSegmentId": "week_01",
+          "observedValue": "12",
+          "missingParticipantOrdinals": []
+        }
+      ]
+    }
+  ],
+  "expectedRows": [
+    {
+      "participantId": "p01",
+      "featureSetId": "phone_usage",
+      "featureId": "phone_unlocks::week_01",
+      "featureMissingParticipantCount": 30,
+      "featureRetained": true,
+      "participantMissingFeatureCount": 2,
+      "participantRetainedFeatureCount": 10,
+      "participantMissingFractionPercent": "20.000000",
+      "participantRetained": false,
+      "outputValue": "",
+      "disposition": "drop_participant"
+    },
+    {
+      "participantId": "p02",
+      "featureSetId": "phone_usage",
+      "featureId": "phone_unlocks::week_01",
+      "featureMissingParticipantCount": 30,
+      "featureRetained": true,
+      "participantMissingFeatureCount": 1,
+      "participantRetainedFeatureCount": 10,
+      "participantMissingFractionPercent": "10.000000",
+      "participantRetained": true,
+      "outputValue": "-1",
+      "disposition": "impute_minus_one"
+    },
+    {
+      "participantId": "p31",
+      "featureSetId": "phone_usage",
+      "featureId": "phone_unlocks::week_02",
+      "featureMissingParticipantCount": 31,
+      "featureRetained": false,
+      "participantMissingFeatureCount": 0,
+      "participantRetainedFeatureCount": 10,
+      "participantMissingFractionPercent": "0.000000",
+      "participantRetained": true,
+      "outputValue": "",
+      "disposition": "drop_feature"
+    },
+    {
+      "participantId": "p01",
+      "featureSetId": "bluetooth",
+      "featureId": "nearby_devices::week_01",
+      "featureMissingParticipantCount": 0,
+      "featureRetained": true,
+      "participantMissingFeatureCount": 0,
+      "participantRetainedFeatureCount": 1,
+      "participantMissingFractionPercent": "0.000000",
+      "participantRetained": true,
+      "outputValue": "12",
+      "disposition": "retain_observed"
+    }
+  ],
+  "invalidObservedValues": ["0", "-0.5"],
+  "limitations": [
+    "The typed input boundary requires an already rectangular feature matrix and encodes each time segment in a distinct feature_id.",
+    "Feature extraction and time-segment construction are upstream and are not inferred by this binding.",
+    "Only observed values strictly greater than zero are accepted because -1 is source-justified solely as a sentinel outside the observed domain."
+  ]
+}

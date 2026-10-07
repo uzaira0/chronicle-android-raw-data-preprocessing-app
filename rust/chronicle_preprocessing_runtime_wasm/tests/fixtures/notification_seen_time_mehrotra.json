@@ -1,0 +1,132 @@
+{
+  "schemaVersion": "chronicle-notification-seen-time-source-fixture/v1",
+  "sourceWorkId": "doi:10.1145/3131901",
+  "sourceSha256": "2f1a06612f0ea26c2c09c634850b99a91e125784f2f4412b74725d69b1ea146e",
+  "sourceLocator": ".tmp-literature-review-private/corrective-queue-audit-b-20260831/packet-05-ranks-124-173/fulltext/rank149.txt:359-369",
+  "exactCanonicalSettingIds": [
+    "method-setting-19df120d26b64e11efb807ab",
+    "method-setting-74d0f04af4fa8ee64ddd9b81",
+    "method-setting-f095986a1bdd7eb9f5ce9b0d"
+  ],
+  "configuration": {
+    "maximumSeenTimeNanoseconds": 7200000000000,
+    "discardComparator": "strictly_greater_than",
+    "equalTimestampOrdering": "caller_input_order"
+  },
+  "executionBoundary": {
+    "inputStage": "ordered participant notification-arrival and phone lock/unlock events",
+    "outputStage": "per-notification retained or explicitly excluded seen-time outcome",
+    "limitations": [
+      "phone state before the first observed lock/unlock event is not inferred",
+      "notification removal, click/receptivity, application launch, activity/place aggregation, and downstream statistical tests are outside this component"
+    ]
+  },
+  "cases": [
+    {
+      "caseId": "already_unlocked",
+      "events": [
+        {"participantId":"p-unlocked","timestampNs":0,"kind":"phone_unlocked"},
+        {"participantId":"p-unlocked","timestampNs":10000000000,"kind":"notification_arrival","notificationId":"n-zero"}
+      ],
+      "expected": [
+        {"participantId":"p-unlocked","notificationId":"n-zero","arrivalTimestampNs":10000000000,"status":"retained","seenTimestampNs":10000000000,"seenTimeNs":0,"resolution":"already_unlocked"}
+      ]
+    },
+    {
+      "caseId": "locked_then_unlock",
+      "events": [
+        {"participantId":"p-locked","timestampNs":0,"kind":"phone_locked"},
+        {"participantId":"p-locked","timestampNs":10000000000,"kind":"notification_arrival","notificationId":"n-later"},
+        {"participantId":"p-locked","timestampNs":70000000000,"kind":"phone_unlocked"}
+      ],
+      "expected": [
+        {"participantId":"p-locked","notificationId":"n-later","arrivalTimestampNs":10000000000,"status":"retained","seenTimestampNs":70000000000,"seenTimeNs":60000000000,"resolution":"next_unlock"}
+      ]
+    },
+    {
+      "caseId": "exactly_two_hours_retained",
+      "events": [
+        {"participantId":"p-exact","timestampNs":0,"kind":"phone_locked"},
+        {"participantId":"p-exact","timestampNs":1000000000,"kind":"notification_arrival","notificationId":"n-exact"},
+        {"participantId":"p-exact","timestampNs":7201000000000,"kind":"phone_unlocked"}
+      ],
+      "expected": [
+        {"participantId":"p-exact","notificationId":"n-exact","arrivalTimestampNs":1000000000,"status":"retained","seenTimestampNs":7201000000000,"seenTimeNs":7200000000000,"resolution":"next_unlock"}
+      ]
+    },
+    {
+      "caseId": "over_two_hours_discarded",
+      "events": [
+        {"participantId":"p-over","timestampNs":0,"kind":"phone_locked"},
+        {"participantId":"p-over","timestampNs":1000000000,"kind":"notification_arrival","notificationId":"n-over"},
+        {"participantId":"p-over","timestampNs":7201000000001,"kind":"phone_unlocked"}
+      ],
+      "expected": [
+        {"participantId":"p-over","notificationId":"n-over","arrivalTimestampNs":1000000000,"status":"excluded","exclusionReason":"exceeded_maximum_seen_time","candidateSeenTimestampNs":7201000000001,"candidateSeenTimeNs":7200000000001}
+      ]
+    },
+    {
+      "caseId": "no_following_unlock",
+      "events": [
+        {"participantId":"p-none","timestampNs":0,"kind":"phone_locked"},
+        {"participantId":"p-none","timestampNs":1000000000,"kind":"notification_arrival","notificationId":"n-none"}
+      ],
+      "expected": [
+        {"participantId":"p-none","notificationId":"n-none","arrivalTimestampNs":1000000000,"status":"excluded","exclusionReason":"no_following_unlock"}
+      ]
+    },
+    {
+      "caseId": "multiple_notifications_one_unlock",
+      "events": [
+        {"participantId":"p-many","timestampNs":0,"kind":"phone_locked"},
+        {"participantId":"p-many","timestampNs":10000000000,"kind":"notification_arrival","notificationId":"n-first"},
+        {"participantId":"p-many","timestampNs":20000000000,"kind":"notification_arrival","notificationId":"n-second"},
+        {"participantId":"p-many","timestampNs":30000000000,"kind":"phone_unlocked"}
+      ],
+      "expected": [
+        {"participantId":"p-many","notificationId":"n-first","arrivalTimestampNs":10000000000,"status":"retained","seenTimestampNs":30000000000,"seenTimeNs":20000000000,"resolution":"next_unlock"},
+        {"participantId":"p-many","notificationId":"n-second","arrivalTimestampNs":20000000000,"status":"retained","seenTimestampNs":30000000000,"seenTimeNs":10000000000,"resolution":"next_unlock"}
+      ]
+    },
+    {
+      "caseId": "participant_isolation",
+      "events": [
+        {"participantId":"p-a","timestampNs":0,"kind":"phone_locked"},
+        {"participantId":"p-b","timestampNs":0,"kind":"phone_unlocked"},
+        {"participantId":"p-a","timestampNs":10000000000,"kind":"notification_arrival","notificationId":"n-a"},
+        {"participantId":"p-b","timestampNs":20000000000,"kind":"notification_arrival","notificationId":"n-b"},
+        {"participantId":"p-b","timestampNs":30000000000,"kind":"phone_unlocked"},
+        {"participantId":"p-a","timestampNs":40000000000,"kind":"phone_unlocked"}
+      ],
+      "expected": [
+        {"participantId":"p-a","notificationId":"n-a","arrivalTimestampNs":10000000000,"status":"retained","seenTimestampNs":40000000000,"seenTimeNs":30000000000,"resolution":"next_unlock"},
+        {"participantId":"p-b","notificationId":"n-b","arrivalTimestampNs":20000000000,"status":"retained","seenTimestampNs":20000000000,"seenTimeNs":0,"resolution":"already_unlocked"}
+      ]
+    },
+    {
+      "caseId": "equal_timestamp_caller_order",
+      "events": [
+        {"participantId":"p-tie","timestampNs":0,"kind":"phone_unlocked"},
+        {"participantId":"p-tie","timestampNs":10000000000,"kind":"phone_locked"},
+        {"participantId":"p-tie","timestampNs":10000000000,"kind":"notification_arrival","notificationId":"n-after-lock"},
+        {"participantId":"p-tie","timestampNs":10000000000,"kind":"phone_unlocked"},
+        {"participantId":"p-tie","timestampNs":20000000000,"kind":"notification_arrival","notificationId":"n-before-lock"},
+        {"participantId":"p-tie","timestampNs":20000000000,"kind":"phone_locked"}
+      ],
+      "expected": [
+        {"participantId":"p-tie","notificationId":"n-after-lock","arrivalTimestampNs":10000000000,"status":"retained","seenTimestampNs":10000000000,"seenTimeNs":0,"resolution":"next_unlock"},
+        {"participantId":"p-tie","notificationId":"n-before-lock","arrivalTimestampNs":20000000000,"status":"retained","seenTimestampNs":20000000000,"seenTimeNs":0,"resolution":"already_unlocked"}
+      ]
+    },
+    {
+      "caseId": "unknown_initial_phone_state",
+      "events": [
+        {"participantId":"p-unknown","timestampNs":10000000000,"kind":"notification_arrival","notificationId":"n-unknown"},
+        {"participantId":"p-unknown","timestampNs":20000000000,"kind":"phone_unlocked"}
+      ],
+      "expected": [
+        {"participantId":"p-unknown","notificationId":"n-unknown","arrivalTimestampNs":10000000000,"status":"excluded","exclusionReason":"unknown_phone_state_at_arrival"}
+      ]
+    }
+  ]
+}

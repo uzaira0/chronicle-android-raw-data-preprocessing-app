@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "chronicle-windowed-minimum-count-source-fixture/v1",
+  "sourceWorkId": "doi:10.1038/s41598-019-47493-x",
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-67e693711b7a065ce63386f3",
+    "parameterKey": "space.app_membership",
+    "sourceObservedSetting": "space.app_membership: {\"minimum_uses\":2,\"window_weeks\":20}",
+    "sourceValueSha256": "dd7616ee87bebbbf85c9c83e0a4472bcfcf07219ce98118c237117725b7daae3"
+  },
+  "sourceArtifact": {
+    "locator": ".tmp-literature-review-private/corrective-queue-a-20260831/evidence/rank11.txt:137-145",
+    "sha256": "d720426185ece4744a2cec4dcf47ac6e5b73f6dfda46bcd6b3b786bccdf530de"
+  },
+  "inputBoundary": "One already-derived nonnegative integer app-use count for one user and one app in an explicitly source-aligned 20-week window.",
+  "outputBoundary": "Exclude an app from the user's app space below two uses and include it at or above two uses; equality is included.",
+  "limitations": [
+    "This binding does not define or identify an application-use event or application identity.",
+    "This binding does not group app-use events by user and app or derive use counts.",
+    "This binding does not construct, anchor, or slide the 20-week time window; callers must supply that exact window and a mismatched window fails closed.",
+    "Distinct-app capacity, gain and loss measures, and window-length sensitivity analysis are separate downstream source operations.",
+    "A missing user-app use count fails closed rather than being interpreted as zero."
+  ],
+  "windowWeeks": 20,
+  "minimumIncludedCount": 2,
+  "dispositions": ["outside_app_space", "inside_app_space"],
+  "userApps": [
+    {
+      "observationId": "never-used",
+      "useCount": 0,
+      "expectedDisposition": "outside_app_space"
+    },
+    {
+      "observationId": "immediately-below",
+      "useCount": 1,
+      "expectedDisposition": "outside_app_space"
+    },
+    {
+      "observationId": "at-boundary",
+      "useCount": 2,
+      "expectedDisposition": "inside_app_space"
+    },
+    {
+      "observationId": "above-boundary",
+      "useCount": 3,
+      "expectedDisposition": "inside_app_space"
+    }
+  ],
+  "missingCountCase": {
+    "observationId": "missing-count",
+    "useCount": null,
+    "expectedError": "user_app_use_count_required"
+  },
+  "mismatchedWindowCase": {
+    "observationId": "nineteen-week-window",
+    "windowWeeks": 19,
+    "expectedError": "app_space_window_must_be_20_weeks"
+  }
+}

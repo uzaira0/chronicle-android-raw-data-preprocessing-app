@@ -18,6 +18,141 @@ export const APP_AND_SCREEN_RAW_CSV = [
   "study,P01,Android,Target Child,System,Unknown importance: 16,android,2026-03-07 10:01:40,,,America/Chicago",
 ].join("\n");
 
+// B07: one chat session held open from 10:00:20 to 10:16:40 while the screen
+// and the device disagree about what was witnessed. The screen is lit only
+// 10:00:00-10:06:40 and again 10:13:20-10:16:40; the reboot at 10:03:20 breaks
+// the alive chain until then. Each screen-gating rule therefore credits a
+// different span of the same session.
+export const SCREEN_GATING_RAW_CSV = [
+  "study_id,participant_id,possible_device_model,username,application_label,interaction_type,app_package_name,event_timestamp,start_timestamp,stop_timestamp,timezone",
+  "study,P01,Android,Target Child,System,Unknown importance: 15,android,2026-03-07 10:00:00,,,America/Chicago",
+  "study,P01,Android,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:20,,,America/Chicago",
+  "study,P01,Android,Target Child,System,Unknown importance: 27,android,2026-03-07 10:03:20,,,America/Chicago",
+  "study,P01,Android,Target Child,System,Unknown importance: 16,android,2026-03-07 10:06:40,,,America/Chicago",
+  "study,P01,Android,Target Child,System,Unknown importance: 15,android,2026-03-07 10:13:20,,,America/Chicago",
+  "study,P01,Android,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:16:40,,,America/Chicago",
+  "study,P01,Android,Target Child,System,Unknown importance: 16,android,2026-03-07 10:16:40,,,America/Chicago",
+].join("\n");
+
+/**
+ * One app session that runs past local midnight. The source timestamps are
+ * UTC, so 05:40 and 06:20 read as 23:40 and 00:20 in America/Chicago — the
+ * session starts on 2026-03-06 and ends on 2026-03-07.
+ */
+export const DAY_BOUNDARY_RAW_CSV = [
+  "study_id,participant_id,possible_device_model,username,application_label,interaction_type,app_package_name,event_timestamp,start_timestamp,stop_timestamp,timezone",
+  "study,P01,Android,Target Child,Video,Unknown importance: 1,com.example.video,2026-03-07 05:40:00,,,America/Chicago",
+  "study,P01,Android,Target Child,Video,Unknown importance: 2,com.example.video,2026-03-07 06:20:00,,,America/Chicago",
+].join("\n");
+
+/**
+ * Three packages, one per `app_filter_category` case the B10 presets separate:
+ * a system row, a carrier row, and a system row the researcher disabled with
+ * `filter_bool` 0. Pairs with PACKAGE_EXCLUSION_FILTER_CSV.
+ */
+export const PACKAGE_EXCLUSION_RAW_CSV = [
+  "study_id,participant_id,possible_device_model,username,application_label,interaction_type,app_package_name,event_timestamp,start_timestamp,stop_timestamp,timezone",
+  "study,P01,Android,Target Child,Launcher,Unknown importance: 1,com.android.launcher3,2026-03-07 10:00:00,,,UTC",
+  "study,P01,Android,Target Child,Launcher,Unknown importance: 2,com.android.launcher3,2026-03-07 10:01:00,,,UTC",
+  "study,P01,Android,Target Child,Carrier,Unknown importance: 1,com.carrier.app,2026-03-07 10:02:00,,,UTC",
+  "study,P01,Android,Target Child,Carrier,Unknown importance: 2,com.carrier.app,2026-03-07 10:03:00,,,UTC",
+  "study,P01,Android,Target Child,Disabled,Unknown importance: 1,com.disabled.row,2026-03-07 10:04:00,,,UTC",
+  "study,P01,Android,Target Child,Disabled,Unknown importance: 2,com.disabled.row,2026-03-07 10:05:00,,,UTC",
+].join("\n");
+
+/** The shipped filter file's own four columns, one row per raw package above. */
+export const PACKAGE_EXCLUSION_FILTER_CSV = [
+  "app_package_name,known_application_labels,app_filter_category,filter_bool",
+  "com.android.launcher3,Launcher,system,1",
+  "com.carrier.app,Carrier,carrier,1",
+  "com.disabled.row,Disabled,system,0",
+].join("\n");
+
+/**
+ * B08. A two-minute chat episode with a notification INSIDE it, a second
+ * notification for the same app well after it ended, and an interruption for an
+ * app that is never opened at all. Chronicle logs types 10 and 12 as
+ * `Unknown importance: 10` and `Unknown importance: 12`.
+ */
+export const NOTIFICATION_PROXY_RAW_CSV = [
+  "study_id,participant_id,possible_device_model,username,application_label,interaction_type,app_package_name,event_timestamp,start_timestamp,stop_timestamp,timezone",
+  "study,P01,Android,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,,,UTC",
+  "study,P01,Android,Target Child,Chat,Unknown importance: 10,com.example.chat,2026-03-07 10:01:00,,,UTC",
+  "study,P01,Android,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:02:00,,,UTC",
+  "study,P01,Android,Target Child,Chat,Unknown importance: 10,com.example.chat,2026-03-07 10:30:00,,,UTC",
+  "study,P01,Android,Target Child,News,Unknown importance: 12,com.example.news,2026-03-07 11:00:00,,,UTC",
+].join("\n");
+
+/**
+ * B09. The same three episodes the kernel test uses: 35 s of one app, a 6 s
+ * episode of the same app falling entirely BETWEEN two ten-second grid
+ * instants, and 25 s of a second app. 66 s observed; a ten-second poller sees
+ * 50 s under the Ross conversion and 70 s under the Cerit one.
+ */
+export const POLLED_EMULATION_RAW_CSV = [
+  "study_id,participant_id,possible_device_model,username,application_label,interaction_type,app_package_name,event_timestamp,start_timestamp,stop_timestamp,timezone",
+  "study,P01,Android,Target Child,A,Unknown importance: 1,com.example.a,2026-03-07 10:00:00,,,UTC",
+  "study,P01,Android,Target Child,A,Unknown importance: 2,com.example.a,2026-03-07 10:00:35,,,UTC",
+  "study,P01,Android,Target Child,A,Unknown importance: 1,com.example.a,2026-03-07 10:00:52,,,UTC",
+  "study,P01,Android,Target Child,A,Unknown importance: 2,com.example.a,2026-03-07 10:00:58,,,UTC",
+  "study,P01,Android,Target Child,B,Unknown importance: 1,com.example.b,2026-03-07 10:02:00,,,UTC",
+  "study,P01,Android,Target Child,B,Unknown importance: 2,com.example.b,2026-03-07 10:02:25,,,UTC",
+].join("\n");
+
+export const SESSION_GROUPING_RAW_CSV = [
+  "study_id,participant_id,possible_device_model,username,application_label,interaction_type,app_package_name,event_timestamp,start_timestamp,stop_timestamp,timezone",
+  // Three two-minute episodes. The first gap is 10 s and the second is 50 s, so
+  // a 45 s cut opens a new session at the third and a 60 s cut does not.
+  "study,P01,Android,Target Child,Video,Unknown importance: 1,com.example.video,2026-03-07 12:00:00,,,UTC",
+  "study,P01,Android,Target Child,Video,Unknown importance: 2,com.example.video,2026-03-07 12:02:00,,,UTC",
+  "study,P01,Android,Target Child,Video,Unknown importance: 1,com.example.video,2026-03-07 12:02:10,,,UTC",
+  "study,P01,Android,Target Child,Video,Unknown importance: 2,com.example.video,2026-03-07 12:04:10,,,UTC",
+  "study,P01,Android,Target Child,Video,Unknown importance: 1,com.example.video,2026-03-07 12:05:00,,,UTC",
+  "study,P01,Android,Target Child,Video,Unknown importance: 2,com.example.video,2026-03-07 12:07:00,,,UTC",
+].join("\n");
+
+/// Two participants with deliberately different gap distributions, for the
+/// individualized Peng & Zhu (2020) grouping arm. P01's inter-episode gaps
+/// are 5 s, 10 s and 100 s (median 10 s); P02's are 200 s, 300 s and 400 s
+/// (median 300 s). The same 200 s of silence would therefore break P01 and
+/// join P02 — the threshold is a function of the participant, not a constant.
+export const MEDIAN_GROUPING_RAW_CSV = [
+  "study_id,participant_id,possible_device_model,username,application_label,interaction_type,app_package_name,event_timestamp,start_timestamp,stop_timestamp,timezone",
+  // P01: four ten-second episodes, gaps 5 s, 10 s, 100 s.
+  "study,P01,Android,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 12:00:00,,,UTC",
+  "study,P01,Android,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 12:00:10,,,UTC",
+  "study,P01,Android,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 12:00:15,,,UTC",
+  "study,P01,Android,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 12:00:25,,,UTC",
+  "study,P01,Android,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 12:00:35,,,UTC",
+  "study,P01,Android,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 12:00:45,,,UTC",
+  "study,P01,Android,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 12:02:25,,,UTC",
+  "study,P01,Android,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 12:02:35,,,UTC",
+  // P02: four ten-second episodes, gaps 200 s, 300 s, 400 s.
+  "study,P02,Android,Target Child,Video,Unknown importance: 1,com.example.video,2026-03-07 12:00:00,,,UTC",
+  "study,P02,Android,Target Child,Video,Unknown importance: 2,com.example.video,2026-03-07 12:00:10,,,UTC",
+  "study,P02,Android,Target Child,Video,Unknown importance: 1,com.example.video,2026-03-07 12:03:30,,,UTC",
+  "study,P02,Android,Target Child,Video,Unknown importance: 2,com.example.video,2026-03-07 12:03:40,,,UTC",
+  "study,P02,Android,Target Child,Video,Unknown importance: 1,com.example.video,2026-03-07 12:08:40,,,UTC",
+  "study,P02,Android,Target Child,Video,Unknown importance: 2,com.example.video,2026-03-07 12:08:50,,,UTC",
+  "study,P02,Android,Target Child,Video,Unknown importance: 1,com.example.video,2026-03-07 12:15:30,,,UTC",
+  "study,P02,Android,Target Child,Video,Unknown importance: 2,com.example.video,2026-03-07 12:15:40,,,UTC",
+].join("\n");
+
+/// A genuinely NESTED episode, which the matcher produces once "Activity
+/// Resumed" is removed from the other-interaction-types-that-end-a-session set:
+/// A then closes only on its own Paused, so B opens and closes inside it. C
+/// starts 20 s after A ends, so no 60 s silence exists anywhere in this input —
+/// but the published gap basis measures C's gap from B and splits.
+export const NESTED_EPISODE_RAW_CSV = [
+  "study_id,participant_id,possible_device_model,username,application_label,interaction_type,app_package_name,event_timestamp,start_timestamp,stop_timestamp,timezone",
+  "study,P01,Android,Target Child,A,Activity Resumed,com.example.a,2026-03-07 12:00:00,,,UTC",
+  "study,P01,Android,Target Child,B,Activity Resumed,com.example.b,2026-03-07 12:01:00,,,UTC",
+  "study,P01,Android,Target Child,B,Activity Paused,com.example.b,2026-03-07 12:02:00,,,UTC",
+  "study,P01,Android,Target Child,A,Activity Paused,com.example.a,2026-03-07 12:30:00,,,UTC",
+  "study,P01,Android,Target Child,C,Activity Resumed,com.example.c,2026-03-07 12:30:20,,,UTC",
+  "study,P01,Android,Target Child,C,Activity Paused,com.example.c,2026-03-07 12:31:00,,,UTC",
+].join("\n");
+
 export const MIXED_TIMEZONE_RAW_CSV = [
   "study_id,participant_id,possible_device_model,username,application_label,interaction_type,app_package_name,event_timestamp,start_timestamp,stop_timestamp,timezone",
   "study,P01,Android,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,,,America/Chicago",
@@ -25,7 +160,6 @@ export const MIXED_TIMEZONE_RAW_CSV = [
   "study,P01,Android,Target Child,Maps,Unknown importance: 1,com.example.maps,2026-03-07 11:00:00,,,America/New_York",
   "study,P01,Android,Target Child,Maps,Unknown importance: 2,com.example.maps,2026-03-07 11:01:00,,,America/New_York",
 ].join("\n");
-
 
 export const MULTI_FILE_RAW_CSV_B = [
   "study_id,participant_id,possible_device_model,username,application_label,interaction_type,app_package_name,event_timestamp,start_timestamp,stop_timestamp,timezone",

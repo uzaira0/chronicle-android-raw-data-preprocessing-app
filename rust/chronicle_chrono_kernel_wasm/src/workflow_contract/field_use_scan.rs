@@ -21,7 +21,29 @@ use syn::visit::{self, Visit};
 
 /// Files that carry the tracked queries and their pure implementations.
 const SOURCES: &[(&str, &str)] = &[
+    ("pipeline/payload.rs", include_str!("../pipeline/payload.rs")),
+    ("pipeline/execution.rs", include_str!("../pipeline/execution.rs")),
+    ("pipeline/incremental/inputs.rs", concat!("mod tracked {", include_str!("../pipeline/incremental/inputs.rs"), "}")),
+    ("pipeline/incremental/db.rs", concat!("mod tracked {", include_str!("../pipeline/incremental/db.rs"), "}")),
+    ("pipeline/incremental/persistence.rs", concat!("mod tracked {", include_str!("../pipeline/incremental/persistence.rs"), "}")),
+    ("pipeline/incremental/checkpoints.rs", concat!("mod tracked {", include_str!("../pipeline/incremental/checkpoints.rs"), "}")),
     ("pipeline_v2.rs", include_str!("../pipeline_v2.rs")),
+    ("pipeline/options.rs", include_str!("../pipeline/options.rs")),
+    ("pipeline/model.rs", include_str!("../pipeline/model.rs")),
+    ("pipeline/row_codec.rs", include_str!("../pipeline/row_codec.rs")),
+    ("pipeline/checkpoint.rs", include_str!("../pipeline/checkpoint.rs")),
+    ("pipeline/output.rs", include_str!("../pipeline/output.rs")),
+    ("pipeline/stages/source.rs", include_str!("../pipeline/stages/source.rs")),
+    ("pipeline/stages/support.rs", include_str!("../pipeline/stages/support.rs")),
+    ("pipeline/stages/reconstruction.rs", include_str!("../pipeline/stages/reconstruction.rs")),
+    ("pipeline/stages/annotations.rs", include_str!("../pipeline/stages/annotations.rs")),
+    ("pipeline/stages/screen.rs", include_str!("../pipeline/stages/screen.rs")),
+    ("pipeline/stages/credit.rs", include_str!("../pipeline/stages/credit.rs")),
+    ("pipeline/stages/notification.rs", include_str!("../pipeline/stages/notification.rs")),
+    ("pipeline/stages/polled.rs", include_str!("../pipeline/stages/polled.rs")),
+    ("pipeline/stages/attribution.rs", include_str!("../pipeline/stages/attribution.rs")),
+    ("pipeline/scientific.rs", include_str!("../pipeline/scientific.rs")),
+    ("pipeline/sequential.rs", include_str!("../pipeline/sequential.rs")),
     (
         "pipeline_v2_incremental.rs",
         include_str!("../pipeline_v2_incremental.rs"),
@@ -29,6 +51,14 @@ const SOURCES: &[(&str, &str)] = &[
     (
         "pipeline_v2_aggregates.rs",
         include_str!("../pipeline_v2_aggregates.rs"),
+    ),
+    (
+        "b05_foundational_semantics.rs",
+        include_str!("../b05_foundational_semantics.rs"),
+    ),
+    (
+        "b06_maximum_duration.rs",
+        include_str!("../b06_maximum_duration.rs"),
     ),
 ];
 
@@ -67,7 +97,19 @@ const TRANSPARENT_INTERNAL_QUERIES: &[&str] = &[
     // product step owns the output writers, so its field reads are that step's.
     "assemble_primary_outputs",
     "collect_early_assembly",
+    // Owns the input-dependent Schoedel applicability decision but is folded
+    // into the public `match_app_episodes` product step. Looking through both
+    // layers keeps its raw-row and optional capability-evidence reads visible.
+    "reconstruct_schoedel_preflight",
+    "parse_schoedel_capability_evidence_query",
+    "prepare_b05_screen_substrate_query",
 ];
+
+/// Transparent helpers whose carrier construction adapts a supplied input
+/// into private scientific evidence rather than producing workflow row
+/// fields. Their reads/source columns remain attributable to the caller, but
+/// writes to a temporary `RawRow` must not masquerade as product writes.
+const CARRIER_WRITE_OPAQUE_INTERNAL_QUERIES: &[&str] = &["prepare_b05_screen_substrate_query"];
 
 /// Parse helpers that decode one supplied source artifact. Column literals seen
 /// inside them are attributed to that role.
@@ -81,6 +123,21 @@ const PARSE_FN_ROLES: &[(&str, &str)] = &[
     ("parse_device_sharing", "device_sharing_file"),
     ("parse_survey_lookup", "survey_attribution_file"),
     ("parse_enrolled_devices", "enrolled_devices_file"),
+    (
+        "parse_capability_evidence",
+        "input_capability_evidence_file",
+    ),
+];
+
+const INPUT_CAPABILITY_EVIDENCE_COLUMNS: &[&str] = &[
+    "schema_version",
+    "raw_input_sha256",
+    "participant_id",
+    "capability_id",
+    "state",
+    "evidence_basis",
+    "evidence_reference",
+    "evidence_sha256",
 ];
 
 #[derive(Default)]
@@ -160,6 +217,25 @@ impl<'a> FnCollector<'a> {
         }
     }
 
+    /// Walk the path *to* an assignment target without counting the target
+    /// field itself as a read.
+    ///
+    /// `*view.date = value` is `Unary(Field)`, not `Field`: it writes the row
+    /// field the view borrows and reads nothing. Stopping at the outer `Field`
+    /// arm alone made every bucket-scoped write look like a read as well, and
+    /// the declared read set of thirteen queries grew fields they only write.
+    /// A compound assignment (`*view.count += 1`) does not come through here —
+    /// `visit_expr_binary` records the write and lets the normal walk record
+    /// the read, which is correct, because it really does read the old value.
+    fn walk_assignment_path(&mut self, expr: &syn::Expr) {
+        match expr {
+            syn::Expr::Field(field) => visit::visit_expr(self, &field.base),
+            syn::Expr::Unary(unary) => self.walk_assignment_path(&unary.expr),
+            syn::Expr::Paren(paren) => self.walk_assignment_path(&paren.expr),
+            other => visit::visit_expr(self, other),
+        }
+    }
+
     fn record_write_target(&mut self, expr: &syn::Expr) {
         match expr {
             syn::Expr::Field(field) => self.record_field(&field.member, true),
@@ -213,10 +289,7 @@ impl<'ast, 'a> Visit<'ast> for FnCollector<'a> {
         visit::visit_expr(self, &assign.right);
         // Walk only *inside* an assigned field so the assignment target is not
         // also counted as a read, while nested reads on the path to it are.
-        match &*assign.left {
-            syn::Expr::Field(field) => visit::visit_expr(self, &field.base),
-            other => visit::visit_expr(self, other),
-        }
+        self.walk_assignment_path(&assign.left);
     }
 
     fn visit_expr_binary(&mut self, binary: &'ast syn::ExprBinary) {
@@ -266,6 +339,24 @@ impl<'ast, 'a> Visit<'ast> for FnCollector<'a> {
     }
 
     fn visit_expr_call(&mut self, call: &'ast syn::ExprCall) {
+        // StageFunctions names the existing production functions. Follow the
+        // selected slot as a qualified pure call, never as a tracked query.
+        if let syn::Expr::Paren(paren) = &*call.func {
+            if let syn::Expr::Field(field) = &*paren.expr {
+                let is_stages = match &*field.base {
+                    syn::Expr::MethodCall(method) => method.method == "stage_functions",
+                    syn::Expr::Path(path) => path.path.is_ident("stages"),
+                    _ => false,
+                };
+                if is_stages {
+                    if let syn::Member::Named(name) = &field.member {
+                        if let Some(facts) = self.entry() {
+                            facts.qualified_calls.insert(name.to_string());
+                        }
+                    }
+                }
+            }
+        }
         if let syn::Expr::Path(path) = &*call.func {
             if path.qself.is_none() {
                 let segments = path
@@ -367,6 +458,80 @@ pub(super) fn data_field_universe() -> BTreeSet<String> {
     data_field_universe_from(SOURCES)
 }
 
+/// The Salsa `#[salsa::input]` structs that carry configuration. Their fields
+/// ARE the option namespace: a query can only read a configuration value by
+/// reading one of these fields.
+const CONFIG_INPUT_STRUCTS: &[&str] = &[
+    "EarlyConfigInput",
+    "UsageConfigInput",
+    "LateConfigInput",
+    "OutputConfigInput",
+    // The support inputs carry the `use_*` toggles and the screen thresholds,
+    // which are contract options like any other even though they sit beside the
+    // parsed support payloads.
+    "UsageSupportInput",
+    "LateSupportInput",
+];
+
+/// Salsa configuration fields that are NOT contract options.
+///
+/// These fields are internal execution/support metadata: none appears in
+/// `chronicle-local-contract.linkml.yaml`, neither is researcher-facing, and
+/// neither describes a product input, so no step declares one as a request
+/// field. They are named here rather than filtered by a pattern so additions
+/// remain deliberate.
+const NON_OPTION_CONFIG_FIELDS: &[&str] = &[
+    // Whether this pass is the cheap review pass.
+    "review_only",
+    // Whether the full output artifacts get built on this pass.
+    "materialize_full_outputs",
+    // Derived from presence of the serialized screen-strategy field; it is
+    // not itself a distinct request field.
+    "screen_session_construction_strategy_explicit",
+    // Runtime-authenticated request provenance, not a member of the request
+    // object it authenticates.
+    "verified_request_options_digest",
+    // Verified support-artifact witnesses are represented by source-role
+    // identity, never as serialized browser request options.
+    "verified_evidence_artifact_digest",
+    "verified_evidence_assignment_digest",
+    // Executor-known participant partition boundaries are neither inferred
+    // from data nor serialized into the researcher options JCS.
+    "fragmented_participant_ids",
+];
+
+/// Every configuration field name the Salsa inputs actually declare.
+///
+/// This exists because the option universe used to be derived from
+/// `query_request_fields` — the very declarations being checked. An option that
+/// was read by a query but declared in NO step's request fields was filtered out
+/// of the observed set and the declared-equals-observed test passed. Deriving
+/// the universe from the inputs instead makes an undeclared option a mismatch.
+pub(super) fn config_field_universe() -> BTreeSet<String> {
+    let mut collector = StructFieldCollector {
+        wanted: CONFIG_INPUT_STRUCTS.iter().copied().collect(),
+        fields: BTreeSet::new(),
+    };
+    for (name, source) in SOURCES {
+        let file = syn::parse_file(source).unwrap_or_else(|error| panic!("{name}: {error}"));
+        collector.visit_file(&file);
+    }
+    for excluded in NON_OPTION_CONFIG_FIELDS {
+        collector.fields.remove(*excluded);
+    }
+    // Support-file PAYLOADS sit on the same inputs as the `use_*` toggles that
+    // gate them, but they are source artifacts, not configuration: the contract
+    // declares them through source roles (`query_source_roles`), never as
+    // request fields. The toggle `use_study_windows` is an option; the bytes in
+    // `study_dates_csv` are a source.
+    collector.fields.retain(|field| !field.ends_with("_csv"));
+    assert!(
+        !collector.fields.is_empty(),
+        "the Salsa configuration inputs must contribute fields"
+    );
+    collector.fields
+}
+
 /// The carrier data fields declared by `sources`. `data_field_universe` passes
 /// the real step implementations; the unit tests below pass small synthetic
 /// sources so the same walk can be driven over a known input.
@@ -387,6 +552,34 @@ fn data_field_universe_from(sources: &[(&str, &str)]) -> BTreeSet<String> {
         "carrier structs must contribute data fields"
     );
     collector.fields
+}
+
+/// Every configuration field that the options-application path actually writes.
+///
+/// Both `set_if_changed!` and its collection sibling `set_arc_vec_if_changed!`
+/// take the field as their second argument, so matching the shared
+/// `if_changed!(` suffix covers both without naming either. A field with no
+/// setter silently keeps whatever value it was first given, so changing that
+/// option in the UI would change nothing and no test would notice.
+pub(super) fn config_fields_with_setters() -> BTreeSet<String> {
+    let mut fields = BTreeSet::new();
+    for (_name, source) in SOURCES {
+        for invocation in source.split("if_changed!(").skip(1) {
+            let Some(args) = invocation.split_once(");") else {
+                continue;
+            };
+            let mut parts = args.0.split(',');
+            // First argument is the input handle, second is the field.
+            let _handle = parts.next();
+            if let Some(field) = parts.next() {
+                let field = field.trim();
+                if !field.is_empty() {
+                    fields.insert(field.to_string());
+                }
+            }
+        }
+    }
+    fields
 }
 
 /// Supplied app-codebook source columns, taken from the join's own table.
@@ -429,6 +622,10 @@ fn scan_sources(
         .iter()
         .copied()
         .collect::<BTreeSet<_>>();
+    let carrier_write_opaque = CARRIER_WRITE_OPAQUE_INTERNAL_QUERIES
+        .iter()
+        .copied()
+        .collect::<BTreeSet<_>>();
     let opaque_internal_queries = facts
         .iter()
         .filter(|(key, current)| {
@@ -444,15 +641,18 @@ fn scan_sources(
             facts.contains_key(&root),
             "no tracked query named {step} was found"
         );
-        let mut seen = BTreeSet::from([root.clone()]);
-        let mut frontier = VecDeque::from([root]);
+        let mut seen = BTreeSet::from([(root.clone(), false)]);
+        let mut reached = BTreeSet::from([root.clone()]);
+        let mut frontier = VecDeque::from([(root, false)]);
         let mut use_set = QueryFieldUse::default();
-        while let Some(function) = frontier.pop_front() {
+        while let Some((function, suppress_carrier_writes)) = frontier.pop_front() {
             let Some(current) = facts.get(&function) else {
                 continue;
             };
             use_set.reads.extend(current.reads.iter().cloned());
-            use_set.writes.extend(current.writes.iter().cloned());
+            if !suppress_carrier_writes {
+                use_set.writes.extend(current.writes.iter().cloned());
+            }
             let plain = function
                 .rsplit("::")
                 .next()
@@ -461,6 +661,11 @@ fn scan_sources(
                 for column in &current.column_literals {
                     use_set.source_columns.insert(format!("{role}.{column}"));
                 }
+                if *role == "input_capability_evidence_file" {
+                    for column in INPUT_CAPABILITY_EVIDENCE_COLUMNS {
+                        use_set.source_columns.insert(format!("{role}.{column}"));
+                    }
+                }
                 if current.reads_all_codebook_columns {
                     for column in codebook_source_columns() {
                         use_set.source_columns.insert(format!("{role}.{column}"));
@@ -468,14 +673,19 @@ fn scan_sources(
                 }
             }
             let mut enqueue = |name: &str, allow_tracked: bool| {
+                let suppress_descendant_writes = suppress_carrier_writes
+                    || carrier_write_opaque.contains(name.trim_start_matches("tracked::"));
                 let mut candidates = Vec::new();
                 if allow_tracked && tracked_fns.contains(name) {
                     candidates.push(format!("tracked::{name}"));
                 }
                 candidates.push(name.to_string());
                 for candidate in candidates {
-                    if facts.contains_key(&candidate) && seen.insert(candidate.clone()) {
-                        frontier.push_back(candidate);
+                    if facts.contains_key(&candidate)
+                        && seen.insert((candidate.clone(), suppress_descendant_writes))
+                    {
+                        reached.insert(candidate.clone());
+                        frontier.push_back((candidate, suppress_descendant_writes));
                     }
                 }
             };
@@ -496,7 +706,7 @@ fn scan_sources(
                 enqueue(called, false);
             }
         }
-        use_set.reached = seen;
+        use_set.reached = reached;
         result.insert((*step).to_string(), use_set);
     }
     result
@@ -561,8 +771,16 @@ struct RowData {
     }
 
     /// `*row.handle = value` is `Expr::Unary(Expr::Field)`: without the unary
-    /// arm of `record_write_target` the write disappears and only the read the
-    /// assignment walk records survives.
+    /// arm of `record_write_target` the write disappears entirely.
+    ///
+    /// It is a write and nothing else. It used to be recorded as a read too,
+    /// because the assignment walk only recognised a bare `Field` as the
+    /// target; that was invisible while nothing in the kernel assigned through
+    /// a dereference, and became thirteen queries' worth of phantom reads the
+    /// moment the bucket-scoped row views made `*view.field = value` the
+    /// normal spelling. A compound assignment is the case that really does
+    /// read the old value, and the twin below pins that it still counts as
+    /// both.
     #[test]
     fn a_write_through_a_dereference_records_the_field_write() {
         let use_set = scan_one(
@@ -576,7 +794,47 @@ mod tracked {
             "step_deref_write",
         );
         assert_eq!(use_set.writes, names(&["handle"]));
+        assert_eq!(use_set.reads, names(&[]));
+    }
+
+    /// The read side of the pair: `*row.handle += 1` reads the old value and
+    /// writes the new one, and both have to be recorded.
+    #[test]
+    fn a_compound_assignment_through_a_dereference_records_a_read_and_a_write() {
+        let use_set = scan_one(
+            r"
+mod tracked {
+    fn step_deref_compound(row: &mut RowData) {
+        *row.handle += 1;
+    }
+}
+",
+            "step_deref_compound",
+        );
+        assert_eq!(use_set.writes, names(&["handle"]));
         assert_eq!(use_set.reads, names(&["handle"]));
+    }
+
+    /// A carrier field on the RHS of a plain assignment must stay a read.
+    /// `visit_expr_assign` overrides the default visitor, so its explicit
+    /// right-side walk is the ONLY thing that records these reads -- without
+    /// this pin, dropping that walk would leave every RHS-only read
+    /// unobserved and the drift gate would be reconciled by shrinking the
+    /// declared graph (the under-report failure mode).
+    #[test]
+    fn a_plain_assignment_records_the_right_hand_field_read() {
+        let use_set = scan_one(
+            r"
+mod tracked {
+    fn step_assign_from_field(row: &mut RowData) {
+        *row.handle = row.alpha;
+    }
+}
+",
+            "step_assign_from_field",
+        );
+        assert_eq!(use_set.writes, names(&["handle"]));
+        assert_eq!(use_set.reads, names(&["alpha"]));
     }
 
     /// `row.items[position] = value` is `Expr::Index(Expr::Field)`.
@@ -596,7 +854,10 @@ mod tracked {
         assert_eq!(use_set.reads, names(&["items"]));
     }
 
-    /// `(row.alpha) = value` is `Expr::Paren(Expr::Field)`.
+    /// `(row.alpha) = value` is `Expr::Paren(Expr::Field)`, and like the bare
+    /// and dereferenced spellings it is a write and nothing else. (Indexing is
+    /// the case that stays both: `row.items[i] = v` really does read the
+    /// container, and the test above pins that.)
     #[test]
     fn a_write_through_parentheses_records_the_field_write() {
         let use_set = scan_one(
@@ -610,7 +871,7 @@ mod tracked {
             "step_paren_write",
         );
         assert_eq!(use_set.writes, names(&["alpha"]));
-        assert_eq!(use_set.reads, names(&["alpha"]));
+        assert_eq!(use_set.reads, names(&[]));
     }
 
     /// The outer `&mut` of `&mut &row.beta` is handled by
@@ -651,6 +912,28 @@ mod tracked {
         );
         assert_eq!(use_set.writes, names(&["items"]));
         assert_eq!(use_set.reads, names(&["items"]));
+    }
+
+    #[test]
+    fn a_private_b05_input_adapter_exposes_reads_but_not_temporary_carrier_writes() {
+        let use_set = scan_one(
+            r"
+mod tracked {
+    fn step_private_adapter(row: &mut RowData) {
+        let _ = row.alpha;
+        prepare_b05_screen_substrate_query(row);
+    }
+}
+
+fn prepare_b05_screen_substrate_query(row: &mut RowData) {
+    let _ = row.beta;
+    row.handle = 1;
+}
+",
+            "step_private_adapter",
+        );
+        assert_eq!(use_set.reads, names(&["alpha", "beta"]));
+        assert_eq!(use_set.writes, BTreeSet::new());
     }
 
     /// `visit_impl_item_fn` both scopes an inherent method to its own
