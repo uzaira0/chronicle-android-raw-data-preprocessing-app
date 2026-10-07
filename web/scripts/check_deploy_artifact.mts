@@ -13,7 +13,7 @@ const sharedRequiredFiles = [
   "index.html",
   "manifest.webmanifest",
   "sw.js",
-  ".vite/manifest.json",
+  "asset-manifest.json",
   "THIRD-PARTY-NOTICES.txt",
   "sbom.cdx.json",
 ];
@@ -346,7 +346,7 @@ async function main(): Promise<void> {
 
   const indexHtml = await readFile(path.join(artifactDir, "index.html"), "utf-8");
   const manifestText = await readFile(
-    path.join(artifactDir, ".vite/manifest.json"),
+    path.join(artifactDir, "asset-manifest.json"),
     "utf-8",
   );
   if (manifestText.includes("browserPipeline")) {
@@ -355,6 +355,19 @@ async function main(): Promise<void> {
     );
   }
   for await (const filePath of walkFiles(artifactDir)) {
+    // actions/upload-pages-artifact leaves every dot-path out of the production
+    // Pages artifact, so such a file is missing on the live site although every
+    // local check sees it (the 2026-10-07 deploy shipped without
+    // .vite/manifest.json and the service worker never installed). `.nojekyll`
+    // only matters to the branch-built preview site, which serves dotfiles.
+    if (artifactMode === "github-pages") {
+      const relative = path.relative(artifactDir, filePath);
+      if (relative !== ".nojekyll" && relative.split(path.sep).some((segment) => segment.startsWith("."))) {
+        throw new Error(
+          `${path.basename(artifactDir)} contains ${relative}, which actions/upload-pages-artifact leaves out of the production site`,
+        );
+      }
+    }
     if (path.basename(filePath).includes("browserPipeline")) {
       throw new Error(
         `${path.basename(artifactDir)} includes a legacy TypeScript computation chunk: ${path.basename(filePath)}`,
