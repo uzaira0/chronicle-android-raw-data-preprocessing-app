@@ -41,7 +41,7 @@ function worker(options: { missingAdd?: string; emptyAdd?: string; missingReadba
   const open = vi.fn(() => Promise.resolve(cache));
   const fetch = vi.fn((request: string | Request) => {
     const url = absolute(request);
-    if (url.endsWith("/.vite/manifest.json")) {
+    if (url.endsWith("/asset-manifest.json")) {
       return Promise.resolve(Response.json({ "index.html": { file: "assets/main.js", css: ["assets/main.css"] } }));
     }
     if (url.endsWith("/sw-precache-extra.json")) {

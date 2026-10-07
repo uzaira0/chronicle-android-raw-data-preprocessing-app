@@ -5,7 +5,7 @@ const CACHE_NAME = "chronicle-local-shell-v3";
 // overwrites or deletes another app's cache.
 const SCOPE = self.registration.scope;
 const SCOPED_CACHE_NAME = `${CACHE_NAME}@${SCOPE}`;
-const MANIFEST_URL = "./.vite/manifest.json";
+const MANIFEST_URL = "./asset-manifest.json";
 const SHELL_URLS = [
   "./",
   "./index.html",
