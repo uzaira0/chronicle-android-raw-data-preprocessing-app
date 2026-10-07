@@ -1,0 +1,75 @@
+{
+  "schemaVersion": "chronicle-duration-span-window-projection-source-fixture/v1",
+  "sourceWorkId": "doi:10.1002/per.2309",
+  "sourceCodeSha256": "74de549e3b9c068339d4a68d94dae623b63e2a8120f06886427ce491a1175532",
+  "sourceTestSha256": "8257552c5fa29eb72ede03b884be65e4cb4a091212f477509928a81a5d7907c6",
+  "sourceLocator": ".tmp-literature-review-private/corrective-packet-06-ranks174-223-20260831/artifacts/rank183-osf-j93bs/osfstorage/processing/feature_extraction/state.py:145-159",
+  "sourceTestLocator": ".tmp-literature-review-private/corrective-packet-06-ranks174-223-20260831/artifacts/rank183-osf-j93bs/osfstorage/processing/feature_extraction/test_state.py:83-101",
+  "sourceRuntime": {
+    "containerImage": "chronicle/rueegger-per2309:python3.7.1",
+    "containerImageId": "sha256:1ef375425fbba3b0f47c7c07838c12c78d94bea31e06307ed3cfa7834b80f58d",
+    "python": "3.7.1",
+    "numpy": "1.16.2",
+    "pandas": "1.0.5"
+  },
+  "exactCanonicalSettingIds": [
+    "method-setting-41cd423bea34eb27d528548b"
+  ],
+  "cases": [
+    {
+      "caseId": "normal-and-inclusive-boundaries",
+      "windowStart": "1000",
+      "windowEnd": "2000",
+      "rows": [
+        { "rowId": "crosses-left", "start": "500", "duration": "750" },
+        { "rowId": "ends-at-left", "start": "0", "duration": "1000" },
+        { "rowId": "zero-at-left", "start": "1000", "duration": "0" },
+        { "rowId": "zero-inside", "start": "1500", "duration": "0" },
+        { "rowId": "zero-at-right", "start": "2000", "duration": "0" },
+        { "rowId": "crosses-right", "start": "1750", "duration": "500" },
+        { "rowId": "covers-window", "start": "500", "duration": "2000" },
+        { "rowId": "starts-after-right", "start": "2001", "duration": "100" }
+      ],
+      "expected": [
+        { "rowId": "crosses-left", "overlap": "250" },
+        { "rowId": "zero-at-left", "overlap": "0" },
+        { "rowId": "zero-inside", "overlap": "0" },
+        { "rowId": "zero-at-right", "overlap": "0" },
+        { "rowId": "crosses-right", "overlap": "250" },
+        { "rowId": "covers-window", "overlap": "1000" }
+      ]
+    },
+    {
+      "caseId": "released-malformed-span-behavior",
+      "windowStart": "1000",
+      "windowEnd": "2000",
+      "rows": [
+        { "rowId": "reversed-start-inside", "start": "1500", "duration": "-1000" },
+        { "rowId": "reversed-start-outside", "start": "2500", "duration": "-1000" },
+        { "rowId": "nan-duration-start-inside", "start": "1500", "duration": "NaN" },
+        { "rowId": "nan-duration-start-outside", "start": "2500", "duration": "NaN" },
+        { "rowId": "nan-start", "start": "NaN", "duration": "1000" }
+      ],
+      "expected": [
+        { "rowId": "reversed-start-inside", "overlap": "0" },
+        { "rowId": "nan-duration-start-inside", "overlap": "500" },
+        { "rowId": "nan-start", "overlap": "1000" }
+      ]
+    },
+    {
+      "caseId": "reversed-window-drops-finite-spans",
+      "windowStart": "2000",
+      "windowEnd": "1000",
+      "rows": [
+        { "rowId": "finite", "start": "1500", "duration": "100" },
+        { "rowId": "reversed", "start": "1500", "duration": "-100" }
+      ],
+      "expected": []
+    }
+  ],
+  "limitations": [
+    "The primitive starts after the caller has converted duration into the timestamp coordinate unit; it does not infer timestamp units or timezones.",
+    "The fixture binds only span clipping and the released retention predicate, not call validation, neighbor selection, call labeling, time-category features, or downstream aggregation.",
+    "Malformed numeric behavior is reproduced rather than normalized because the released expression does not reject reversed spans or non-finite values at this boundary; an upstream validator may still refuse them."
+  ]
+}

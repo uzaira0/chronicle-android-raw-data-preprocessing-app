@@ -7,9 +7,12 @@
  */
 
 import { BUILD_LABEL } from "@/lib/buildInfo";
+import { requireDefined } from "@/lib/invariant";
 import type { Primitive, Scene, SceneRegion } from "@/lib/plotScene";
-import { sceneToSvgBlob } from "@/lib/plotScene";
+import { sceneToSvgBlob, textPaintX, type DstRowMarks } from "@/lib/plotScene";
 import type { BrowserProcessingOptions } from "@/lib/types";
+
+const LOOP_BOUND_INVARIANT = "the loop bound `i + 1 < length` keeps both indices inside the array";
 
 type Ctx2DBase = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
@@ -38,7 +41,7 @@ export function renderSceneToCanvas(ctx: Ctx2DBase, scene: Scene): void {
       ctx.fillStyle = p.fill;
       ctx.textAlign = p.anchor === "start" ? "left" : p.anchor === "middle" ? "center" : "right";
       ctx.textBaseline = p.baseline;
-      ctx.fillText(p.text, p.x, p.y);
+      ctx.fillText(p.text, textPaintX(p), p.y);
     } else if (p.type === "line") {
       ctx.strokeStyle = p.stroke;
       ctx.lineWidth = p.strokeWidth ?? 1;
@@ -99,9 +102,68 @@ export const CATEGORY_COLORS: Record<string, string> = {
   "Travel & Local": "#9a6324",
   "News & Magazines": "#dcbeff",
   "Photography": "yellow",
+  "System / OEM": "#a9a9a9",
   "Uncategorised": UNCATEGORISED_COLOR,
   "Unknown": "#555555",
 };
+
+/**
+ * The kernel coalesces four codebook category columns without normalizing,
+ * so a row's category arrives in the Play-Store title case above, babyemu's
+ * UPPER_SNAKE (`GAMING`, `PRODUCTIVITY_AND_BUSINESS`) or the BCM heuristic's
+ * `System/OEM`. 3,401 of the shipped codebook's 12,531 packages carry an
+ * off-palette spelling, and every one drew as "Uncategorised" black while the
+ * legend showed a swatch the plot never used. Spellings are folded here;
+ * a value that still matches nothing keeps the Uncategorised colour.
+ */
+const CATEGORY_ALIASES: Record<string, string> = {
+  GAMING: "Games",
+  GAME: "Games",
+  VIDEO: "Video Players (e.g. YouTube)",
+  VIDEO_PLAYERS: "Video Players (e.g. YouTube)",
+  COMMUNICATION: "Social & Communication",
+  SOCIAL: "Social & Communication",
+  SOCIAL_AND_COMMUNICATION: "Social & Communication",
+  PRODUCTIVITY_AND_BUSINESS: "Productivity & Business",
+  PRODUCTIVITY: "Productivity & Business",
+  UTILITIES: "Productivity & Business",
+  TOOLS: "Productivity & Business",
+  LIFESTYLE_MANAGEMENT: "Lifestyle",
+  ARTS_AND_LEISURE: "Entertainment",
+  KNOWLEDGE_AND_INFORMATION: "Education",
+  SYSTEM_OEM: "System / OEM",
+  OTHER: "Uncategorised",
+};
+
+function normalizeCategoryKey(label: string): string {
+  return label
+    .trim()
+    .toUpperCase()
+    .replace(/&/g, "AND")
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+const CATEGORY_COLOR_BY_KEY: ReadonlyMap<string, string> = (() => {
+  const map = new Map<string, string>();
+  for (const [label, color] of Object.entries(CATEGORY_COLORS)) {
+    map.set(normalizeCategoryKey(label), color);
+  }
+  for (const [alias, label] of Object.entries(CATEGORY_ALIASES)) {
+    map.set(alias, CATEGORY_COLORS[label] ?? UNCATEGORISED_COLOR);
+  }
+  return map;
+})();
+
+/** Palette colour for a row's derived category, whatever its source spelling. */
+export function categoryColor(label: string | null | undefined): string {
+  if (label === null || label === undefined) return CATEGORY_COLORS["Unknown"] ?? UNCATEGORISED_COLOR;
+  return (
+    CATEGORY_COLORS[label] ??
+    CATEGORY_COLOR_BY_KEY.get(normalizeCategoryKey(label)) ??
+    UNCATEGORISED_COLOR
+  );
+}
 const GAP_COLOR = "#808080";
 
 const APP_USAGE_TYPE = "App Usage";
@@ -121,6 +183,7 @@ const ROW_HEIGHT = 28;
 const MARGIN = { top: 60, right: 260, bottom: 60, left: 160 };
 const FONT = "13px system-ui, sans-serif";
 const FONT_SMALL = "11px system-ui, sans-serif";
+const FONT_TINY = "9px system-ui, sans-serif";
 
 // ─── formatter cache (module-level, reused across calls) ─────────────────────
 const _hoursFmtCache = new Map<string, Intl.DateTimeFormat>();
@@ -150,9 +213,113 @@ function getDateFormatter(tz: string): Intl.DateTimeFormat {
   return fmt;
 }
 
+/**
+ * Local-day geometry in one timezone. Every plot row is one local calendar
+ * day, and a position within it is REAL elapsed time since that day began, so
+ * a DST day is a 23 h (spring-forward) or 25 h (fall-back) row: the repeated
+ * fall-back hour gets its own slot instead of drawing on top of (or, for a
+ * session ending in the second pass, vanishing behind) the first, and the
+ * skipped spring-forward hour takes no width. On a 24 h day elapsed time is
+ * clock time, and the h + m/60 + s/3600 form reproduces the old clock-time
+ * values bit for bit.
+ */
+type DayClock = {
+  /** Local calendar date ("YYYY-MM-DD") of an instant. */
+  iso: (ns: bigint) => string;
+  /** Elapsed hours (whole-second precision) since the start of that date. */
+  hours: (ns: bigint) => number;
+  /** Real length of a local date in hours: 24, or 23/25 on a DST day. */
+  dayHours: (iso: string) => number;
+  /** Wall-clock minute of the day (0–1439) `elapsedH` hours after a date began. */
+  clockMinutes: (iso: string, elapsedH: number) => number;
+};
+
+function makeDayClock(timezone: string): DayClock {
+  const hoursFmt = getHoursFormatter(timezone);
+  const dateFmt = getDateFormatter(timezone);
+  const isoCache = new Map<bigint, string>();
+  const hoursCache = new Map<bigint, number>();
+  const startCache = new Map<string, number>();
+
+  const isoOfMs = (ms: number): string => dateFmt.format(new Date(ms));
+  function iso(ns: bigint): string {
+    let v = isoCache.get(ns);
+    if (v === undefined) {
+      v = isoOfMs(Number(ns / 1_000_000n));
+      isoCache.set(ns, v);
+    }
+    return v;
+  }
+  /** First whole second whose local date is `date` (local midnight, or the
+   * first instant after a transition that skips midnight). UTC offsets lie in
+   * [-12 h, +14 h], so it falls inside the searched window. */
+  function dayStartMs(date: string): number {
+    let v = startCache.get(date);
+    if (v === undefined) {
+      const utcMidnight = dateSerial(date) * 86_400_000;
+      let lo = utcMidnight - 15 * 3_600_000;
+      let hi = utcMidnight + 13 * 3_600_000;
+      while (hi - lo > 1000) {
+        const mid = lo + Math.floor((hi - lo) / 2000) * 1000;
+        if (isoOfMs(mid) >= date) hi = mid;
+        else lo = mid;
+      }
+      v = hi;
+      startCache.set(date, v);
+    }
+    return v;
+  }
+  function hours(ns: bigint): number {
+    let v = hoursCache.get(ns);
+    if (v === undefined) {
+      const ms = Number(ns / 1_000_000n);
+      try {
+        const sec = Math.floor((ms - dayStartMs(iso(ns))) / 1000);
+        v = Math.floor(sec / 3600) + Math.floor((sec % 3600) / 60) / 60 + (sec % 60) / 3600;
+      } catch {
+        v = (ms / 3_600_000) % 24;
+      }
+      hoursCache.set(ns, v);
+    }
+    return v;
+  }
+  return {
+    iso,
+    hours,
+    dayHours: (date) => (dayStartMs(serialToIso(dateSerial(date) + 1)) - dayStartMs(date)) / 3_600_000,
+    clockMinutes: (date, elapsedH) => {
+      const parts = hoursFmt.formatToParts(new Date(dayStartMs(date) + elapsedH * 3_600_000));
+      const h = Number(parts.find((p) => p.type === "hour")?.value ?? 0) % 24;
+      return h * 60 + Number(parts.find((p) => p.type === "minute")?.value ?? 0);
+    },
+  };
+}
+
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
+function serialToIso(serial: number): string {
+  return new Date(serial * 86_400_000).toISOString().slice(0, 10);
+}
+
 /** ISO "YYYY-MM-DD" → integer day serial (days since 2000-01-01, arbitrary but stable) */
+/** Every local calendar date from a session's start through its stop. */
+function addSessionSpannedDates(
+  dateSet: Set<string>,
+  rows: ReadonlyArray<{ start_timestamp_ns: bigint | null; stop_timestamp_ns: bigint | null }>,
+  dateFmt: Intl.DateTimeFormat,
+): void {
+  const iso = (ns: bigint): string => dateFmt.format(new Date(Number(ns / 1_000_000n)));
+  for (const row of rows) {
+    if (row.start_timestamp_ns === null || row.stop_timestamp_ns === null) continue;
+    const startIso = iso(row.start_timestamp_ns);
+    const startSerial = dateSerial(startIso);
+    const stopSerial = dateSerial(iso(row.stop_timestamp_ns));
+    for (let s = startSerial; s <= stopSerial; s++) {
+      dateSet.add(s === startSerial ? startIso : new Date(s * 86_400_000).toISOString().slice(0, 10));
+    }
+  }
+}
+
 function dateSerial(isoDate: string): number {
   const [y, mo, d] = isoDate.split("-").map(Number) as [number, number, number];
   return Math.floor(Date.UTC(y, mo - 1, d) / 86_400_000);
@@ -203,16 +370,16 @@ function formatSessionRange(
 
 // ─── core ─────────────────────────────────────────────────────────────────────
 
-function buildCanvas(height: number): OffscreenCanvas | HTMLCanvasElement {
+function buildCanvas(width: number, height: number): OffscreenCanvas | HTMLCanvasElement {
   if (typeof OffscreenCanvas !== "undefined") {
-    return new OffscreenCanvas(CANVAS_WIDTH, height);
+    return new OffscreenCanvas(width, height);
   }
   // DOM-only fallback: reached only when OffscreenCanvas is absent, which never
   // happens in a real browser (all supported targets have it) or in the node
   // test env (which stubs OffscreenCanvas). No algorithm.
   /* v8 ignore start */
   const el = document.createElement("canvas");
-  el.width = CANVAS_WIDTH;
+  el.width = width;
   el.height = height;
   return el;
   /* v8 ignore stop */
@@ -235,22 +402,39 @@ function hoursToX(h: number): number {
   return MARGIN.left + (h / 24) * plotWidth();
 }
 
-/** Title + subtitle primitives for the app-usage timeline. */
-function titlePrimitives(
+/** The app-usage timeline title, including its explicit filtered-apps state. */
+function appTimelineTitle(
   participantId: string,
   includeFiltered: boolean,
-  dateStr: string,
-  version: string,
-): Primitive[] {
+): string {
   // Always annotate the filtered-apps state both ways (mirrors the desktop
   // plot) so "unfiltered" is explicit, not merely the absence of a label.
   const suffix = includeFiltered ? " (Including Filtered Apps)" : " (Target Child Only)";
+  return `App Usage for ${participantId}${suffix}`;
+}
+
+/**
+ * Title + subtitle primitives for the app-usage and screen-usage report scenes.
+ *
+ * The subtitle carries the timezone. Every hour position in both scenes is
+ * computed through `Intl` in that zone, so a plot without it cannot be read
+ * back correctly — the heatmap has always stamped it and these two did not,
+ * which made two exports of the same run disagree about what "14:00" meant.
+ * Both scenes share this one builder so PNG, SVG, and any other consumer of the
+ * Scene cannot drift apart.
+ */
+function titlePrimitives(
+  title: string,
+  dateStr: string,
+  version: string,
+  timezone: string,
+): Primitive[] {
   return [
     {
       type: "text",
       x: CANVAS_WIDTH / 2,
       y: 28,
-      text: `App Usage for ${participantId}${suffix}`,
+      text: title,
       fill: "#111",
       font: "bold 16px system-ui, sans-serif",
       anchor: "middle",
@@ -260,7 +444,7 @@ function titlePrimitives(
       type: "text",
       x: CANVAS_WIDTH / 2,
       y: 46,
-      text: `Created on ${dateStr} · Preprocessor v${version} · build ${BUILD_LABEL}`,
+      text: `Created on ${dateStr} · Preprocessor v${version} · build ${BUILD_LABEL} · ${timezone}`,
       fill: "#666",
       font: FONT_SMALL,
       anchor: "middle",
@@ -311,8 +495,9 @@ function legendPrimitives(
   hasStartup: boolean,
   hasMissing: boolean,
   hasGap: boolean,
+  shiftX = 0,
 ): Primitive[] {
-  const x = CANVAS_WIDTH - MARGIN.right + 16;
+  const x = CANVAS_WIDTH - MARGIN.right + 16 + shiftX;
   let y = legendTop;
   const prims: Primitive[] = [];
   const header = (text: string): void => {
@@ -412,14 +597,15 @@ export function computeDataGapRects(
   regionsOut?: SceneRegion[],
   /** Clock formatter ("HH:MM:SS") for the gap tooltip; required to emit regions. */
   nsToClock?: (ns: bigint) => string,
+  /** Real length of a date row in hours (23/25 on a DST day); 24 when omitted. */
+  dayHours: (iso: string) => number = () => 24,
 ): { rects: GapRect[]; hadGap: boolean } {
   const GAP_THRESHOLD_NS = 3_600_000_000_000n; // 1 hour in ns
   const rects: GapRect[] = [];
   let hadGap = false;
   for (let i = 0; i + 1 < allEventNs.length; i++) {
-    const currentNs = allEventNs[i];
-    const nextNs = allEventNs[i + 1];
-    if (currentNs === undefined || nextNs === undefined) continue;
+    const currentNs = requireDefined(allEventNs[i], LOOP_BOUND_INVARIANT);
+    const nextNs = requireDefined(allEventNs[i + 1], LOOP_BOUND_INVARIANT);
     const gapNs = nextNs - currentNs;
     if (gapNs <= GAP_THRESHOLD_NS) continue;
     hadGap = true;
@@ -456,7 +642,7 @@ export function computeDataGapRects(
       const yStart = dateToY.get(startIso);
       if (yStart !== undefined) {
         const x1 = hoursToX(startH);
-        pushRect({ x: x1, y: yStart - ROW_HEIGHT / 2, w: hoursToX(24) - x1, h: ROW_HEIGHT });
+        pushRect({ x: x1, y: yStart - ROW_HEIGHT / 2, w: hoursToX(dayHours(startIso)) - x1, h: ROW_HEIGHT });
       }
       const startSerial = dateSerial(startIso);
       const endSerial = dateSerial(endIso);
@@ -464,7 +650,7 @@ export function computeDataGapRects(
         const isoD = new Date(s * 86_400_000).toISOString().slice(0, 10);
         const yMid = dateToY.get(isoD);
         if (yMid !== undefined) {
-          pushRect({ x: MARGIN.left, y: yMid - ROW_HEIGHT / 2, w: plotWidth(), h: ROW_HEIGHT });
+          pushRect({ x: MARGIN.left, y: yMid - ROW_HEIGHT / 2, w: (plotWidth() * dayHours(isoD)) / 24, h: ROW_HEIGHT });
         }
       }
       const yEnd = dateToY.get(endIso);
@@ -573,36 +759,9 @@ export function buildWaterfallScene(
   }
 
   const hoursFmt = getHoursFormatter(timezone);
-  const dateFmt = getDateFormatter(timezone);
-  const nsToHoursCache = new Map<bigint, number>();
-  const nsToIsoCache = new Map<bigint, string>();
-
-  function nsToLocalHours(ns: bigint): number {
-    let v = nsToHoursCache.get(ns);
-    if (v === undefined) {
-      const ms = Number(ns / 1_000_000n);
-      try {
-        const parts = hoursFmt.formatToParts(new Date(ms));
-        const h = Number(parts.find((p) => p.type === "hour")?.value ?? 0);
-        const m = Number(parts.find((p) => p.type === "minute")?.value ?? 0);
-        const s = Number(parts.find((p) => p.type === "second")?.value ?? 0);
-        v = (h % 24) + m / 60 + s / 3600;
-      } catch {
-        v = (ms / 3_600_000) % 24;
-      }
-      nsToHoursCache.set(ns, v);
-    }
-    return v;
-  }
-
-  function nsToIso(ns: bigint): string {
-    let v = nsToIsoCache.get(ns);
-    if (v === undefined) {
-      v = dateFmt.format(new Date(Number(ns / 1_000_000n)));
-      nsToIsoCache.set(ns, v);
-    }
-    return v;
-  }
+  const clock = makeDayClock(timezone);
+  const nsToLocalHours = clock.hours;
+  const nsToIso = clock.iso;
 
   const dateSet = new Set<string>();
   let minDateSerial = Number.POSITIVE_INFINITY;
@@ -643,18 +802,20 @@ export function buildWaterfallScene(
 
   const sortedDates = [...dateSet].sort();
   const height = WF.padTop + sortedDates.length * WF.rowH + WF.padBottom;
-  const rowsMeta = sortedDates.map((date, i) => ({
-    date,
-    y: WF.padTop + i * WF.rowH,
-    h: WF.rowH,
-  }));
+  // A 25 h fall-back row runs past the 24 h mark; widen the scene to hold it.
+  const extraW = dstExtraWidth(sortedDates, clock, wfPlotWidth());
+  const width = WF.width + extraW;
+  const rowsMeta = sortedDates.map((date, i) => {
+    const dst = dstRowMarks(clock, date);
+    return { date, y: WF.padTop + i * WF.rowH, h: WF.rowH, ...(dst ? { dst } : {}) };
+  });
   const dateToY = new Map<string, number>();
   sortedDates.forEach((d, i) => {
     dateToY.set(d, WF.padTop + i * WF.rowH + WF.rowH / 2);
   });
 
   const prims: Primitive[] = [
-    { type: "rect", x: 0, y: 0, w: WF.width, h: height, fill: "#ffffff" },
+    { type: "rect", x: 0, y: 0, w: width, h: height, fill: "#ffffff" },
   ];
 
   for (const [i, d] of sortedDates.entries()) {
@@ -676,11 +837,15 @@ export function buildWaterfallScene(
       type: "line",
       x1: 0,
       y1: y,
-      x2: WF.width,
+      x2: width,
       y2: y,
       stroke: "#e4e7eb",
       strokeWidth: 1,
     });
+  }
+
+  for (const row of rowsMeta) {
+    if (row.dst) prims.push(...dstRowPrimitives(row.dst, row.y, row.h, wfHoursToX));
   }
 
   const gapRegions: SceneRegion[] = [];
@@ -692,9 +857,8 @@ export function buildWaterfallScene(
   };
 
   for (let i = 0; i + 1 < sortedEvents.length; i++) {
-    const startNs = sortedEvents[i];
-    const endNs = sortedEvents[i + 1];
-    if (startNs === undefined || endNs === undefined) continue;
+    const startNs = requireDefined(sortedEvents[i], LOOP_BOUND_INVARIANT);
+    const endNs = requireDefined(sortedEvents[i + 1], LOOP_BOUND_INVARIANT);
     const gapNs = endNs - startNs;
     if (gapNs <= GAP_THRESHOLD_NS) continue;
 
@@ -718,7 +882,7 @@ export function buildWaterfallScene(
       const yStart = dateToY.get(startIso);
       if (yStart !== undefined) {
         const x1 = wfHoursToX(nsToLocalHours(startNs));
-        pushGapRect({ x: x1, y: yStart - WF.rowH / 2, w: wfHoursToX(24) - x1, h: WF.rowH }, lines);
+        pushGapRect({ x: x1, y: yStart - WF.rowH / 2, w: wfHoursToX(clock.dayHours(startIso)) - x1, h: WF.rowH }, lines);
       }
       const startSerial = dateSerial(startIso);
       const endSerial = dateSerial(endIso);
@@ -726,7 +890,7 @@ export function buildWaterfallScene(
         const isoD = new Date(s * 86_400_000).toISOString().slice(0, 10);
         const yMid = dateToY.get(isoD);
         if (yMid !== undefined) {
-          pushGapRect({ x: WF.gutter, y: yMid - WF.rowH / 2, w: wfPlotWidth(), h: WF.rowH }, lines);
+          pushGapRect({ x: WF.gutter, y: yMid - WF.rowH / 2, w: (wfPlotWidth() * clock.dayHours(isoD)) / 24, h: WF.rowH }, lines);
         }
       }
       const yEnd = dateToY.get(endIso);
@@ -757,16 +921,16 @@ export function buildWaterfallScene(
         barW = 1;
       } else if (s === startSerial && s === stopSerial) {
         x1 = wfHoursToX(nsToLocalHours(session.startNs));
-        barW = wfHoursToX(Math.min(nsToLocalHours(session.stopNs), 24)) - x1;
+        barW = wfHoursToX(Math.min(nsToLocalHours(session.stopNs), clock.dayHours(isoD))) - x1;
       } else if (s === startSerial) {
         x1 = wfHoursToX(nsToLocalHours(session.startNs));
-        barW = wfHoursToX(24) - x1;
+        barW = wfHoursToX(clock.dayHours(isoD)) - x1;
       } else if (s === stopSerial) {
         x1 = WF.gutter;
         barW = wfHoursToX(nsToLocalHours(session.stopNs)) - x1;
       } else {
         x1 = WF.gutter;
-        barW = wfPlotWidth();
+        barW = (wfPlotWidth() * clock.dayHours(isoD)) / 24;
       }
 
       if (barW <= 0) continue;
@@ -812,13 +976,13 @@ export function buildWaterfallScene(
   if (regionsOut) regionsOut.push(...gapRegions);
 
   return {
-    width: WF.width,
+    width,
     height,
     primitives: prims,
     meta: {
       kind: "waterfall",
       gutter: WF.gutter,
-      plotWidth: wfPlotWidth(),
+      plotWidth: wfPlotWidth() + extraW,
       rows: rowsMeta,
     },
   };
@@ -827,8 +991,8 @@ export function buildWaterfallScene(
 // ─── public API ───────────────────────────────────────────────────────────────
 
 /** White page background covering the whole canvas. */
-function backgroundPrimitive(height: number): Primitive {
-  return { type: "rect", x: 0, y: 0, w: CANVAS_WIDTH, h: height, fill: "#ffffff" };
+function backgroundPrimitive(height: number, extraW = 0): Primitive {
+  return { type: "rect", x: 0, y: 0, w: CANVAS_WIDTH + extraW, h: height, fill: "#ffffff" };
 }
 
 /** Dashed hour gridlines (every 4h) + their "HH:00" labels under the plot. */
@@ -861,6 +1025,65 @@ function rowSeparatorPrimitives(rowCount: number, plotTop: number): Primitive[] 
   return prims;
 }
 
+/** Width a plot must grow by so its longest (25 h fall-back) row fits; 0 when
+ * every row is 24 h or shorter, which leaves the layout untouched. */
+function dstExtraWidth(dates: readonly string[], clock: DayClock, fullDayWidth: number): number {
+  const longest = dates.reduce((max, d) => Math.max(max, clock.dayHours(d)), 24);
+  return ((longest - 24) / 24) * fullDayWidth;
+}
+
+/** "H", or "H:MM" off the hour (half-hour zones such as Australia/Lord_Howe). */
+function clockLabel(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m === 0 ? String(h) : `${h}:${String(m).padStart(2, "0")}`;
+}
+
+/** A DST row's real length and the wall clock at each elapsed hour
+ * (…0,1,1,2… on fall-back, …1,3… on spring-forward, 1,2,3… when midnight
+ * itself is skipped); undefined on a 24 h row. */
+function dstRowMarks(clock: DayClock, date: string): DstRowMarks | undefined {
+  const dayHours = clock.dayHours(date);
+  if (dayHours === 24) return undefined;
+  const labels: string[] = [];
+  for (let k = 0; k < dayHours; k++) labels.push(clockLabel(clock.clockMinutes(date, k)));
+  return { dayHours, labels };
+}
+
+/**
+ * Marks for a DST (non-24 h) row, which the shared hour axis cannot describe:
+ * its clock labels, the missing tail of a short row, and a rule at the row's
+ * real end. Drawn before the bars so bars stay on top. Labels are anchored at
+ * their hour with the pad in `dx`, so a zoomed row moves them with their hour.
+ * Shared with the A/B comparison scene, which reads the marks from row meta.
+ */
+export function dstRowPrimitives(
+  marks: DstRowMarks,
+  rowTop: number,
+  rowH: number,
+  toX: (h: number) => number,
+): Primitive[] {
+  const dayH = marks.dayHours;
+  const prims: Primitive[] = [];
+  const endX = toX(dayH);
+  if (dayH < 24) prims.push({ type: "rect", x: endX, y: rowTop, w: toX(24) - endX, h: rowH, fill: "#f3f3f3" });
+  marks.labels.forEach((text, k) => {
+    prims.push({
+      type: "text",
+      x: toX(k),
+      dx: 2,
+      y: rowTop + 1,
+      text,
+      fill: "#888",
+      font: FONT_TINY,
+      anchor: "start",
+      baseline: "top",
+    });
+  });
+  prims.push({ type: "line", x1: endX, y1: rowTop, x2: endX, y2: rowTop + rowH, stroke: "#666", strokeWidth: 1.5 });
+  return prims;
+}
+
 // ─── public API ───────────────────────────────────────────────────────────────
 
 /**
@@ -885,6 +1108,10 @@ export function buildTimelineScene(
   for (const row of rows) {
     if (row.date) dateSet.add(row.date);
   }
+  // The bar loop below walks every date a session spans; a date with no row
+  // of its own had no axis slot, and the post-midnight slice was dropped.
+  // Seed the spanned dates the way the heatmap does.
+  addSessionSpannedDates(dateSet, rows, getDateFormatter(timezone));
   const sortedDates = [...dateSet].sort();
   if (sortedDates.length === 0) {
     return { width: 1, height: 1, primitives: [] };
@@ -907,42 +1134,23 @@ export function buildTimelineScene(
   });
 
   // Per-call memoization caches — scoped here to avoid cross-participant leaks
-  const nsToHoursCache = new Map<bigint, number>();
-  const nsToIsoCache = new Map<bigint, string>();
   const hoursFmt = getHoursFormatter(timezone);
-  const dateFmt = getDateFormatter(timezone);
-
-  function cachedNsToLocalHours(ns: bigint): number {
-    let v = nsToHoursCache.get(ns);
-    if (v === undefined) {
-      const ms = Number(ns / 1_000_000n);
-      try {
-        const parts = hoursFmt.formatToParts(new Date(ms));
-        const h = Number(parts.find((p) => p.type === "hour")?.value ?? 0);
-        const m = Number(parts.find((p) => p.type === "minute")?.value ?? 0);
-        const s = Number(parts.find((p) => p.type === "second")?.value ?? 0);
-        v = (h % 24) + m / 60 + s / 3600;
-      } catch {
-        v = (ms / 3_600_000) % 24;
-      }
-      nsToHoursCache.set(ns, v);
-    }
-    return v;
-  }
-
-  function cachedNsToIso(ns: bigint): string {
-    let v = nsToIsoCache.get(ns);
-    if (v === undefined) {
-      const ms = Number(ns / 1_000_000n);
-      v = dateFmt.format(new Date(ms));
-      nsToIsoCache.set(ns, v);
-    }
-    return v;
-  }
+  const clock = makeDayClock(timezone);
+  const cachedNsToLocalHours = clock.hours;
+  const cachedNsToIso = clock.iso;
+  // A 25 h fall-back row runs past the 24 h mark; widen the canvas to hold it.
+  const extraW = dstExtraWidth(sortedDates, clock, plotWidth());
 
   const prims: Primitive[] = [];
-  prims.push(backgroundPrimitive(totalHeight));
-  prims.push(...titlePrimitives(participantId, options.includeFilteredAppUsageInPlots, dateStr, version));
+  prims.push(backgroundPrimitive(totalHeight, extraW));
+  prims.push(
+    ...titlePrimitives(
+      appTimelineTitle(participantId, options.includeFilteredAppUsageInPlots),
+      dateStr,
+      version,
+      timezone,
+    ),
+  );
 
   // Date row labels (no row striping — the background must stay uniform so the
   // category-coloured bars and faint gap shading read accurately; rows are
@@ -962,6 +1170,10 @@ export function buildTimelineScene(
 
   prims.push(...rowSeparatorPrimitives(sortedDates.length, plotTop));
   prims.push(...xAxisPrimitives(plotTop, plotBottom));
+  sortedDates.forEach((d, i) => {
+    const marks = dstRowMarks(clock, d);
+    if (marks) prims.push(...dstRowPrimitives(marks, plotTop + i * ROW_HEIGHT, ROW_HEIGHT, hoursToX));
+  });
 
   // ── data-gap shading ──────────────────────────────────────────────────────
   // Use pre-algorithm timestamps when available (they include all 30+ raw event
@@ -979,6 +1191,7 @@ export function buildTimelineScene(
     cachedNsToIso,
     regionsOut ? gapRegions : undefined,
     regionsOut ? (ns) => nsToClock(hoursFmt, ns) : undefined,
+    clock.dayHours,
   );
   prims.push(...gapPrimitives(gapRects));
 
@@ -992,9 +1205,7 @@ export function buildTimelineScene(
   for (const row of rows) {
     if (!usageTypes.has(row.interaction_type)) continue;
 
-    const color =
-      CATEGORY_COLORS[row.broad_app_category ?? "Unknown"] ??
-      CATEGORY_COLORS["Uncategorised"];
+    const color = categoryColor(row.broad_app_category);
 
     if (row.start_timestamp_ns === null || row.stop_timestamp_ns === null) {
       if (row.interaction_type !== FILTERED_APP_USAGE_TYPE) continue;
@@ -1032,22 +1243,23 @@ export function buildTimelineScene(
       if (yCenter === undefined) continue;
 
       let x1: number, barW: number;
+      const dayH = clock.dayHours(isoD);
       if (s === startSerial && s === stopSerial) {
         const sh = cachedNsToLocalHours(row.start_timestamp_ns);
         const eh = cachedNsToLocalHours(row.stop_timestamp_ns);
         x1 = hoursToX(sh);
-        barW = hoursToX(Math.min(eh, 24)) - x1;
+        barW = hoursToX(Math.min(eh, dayH)) - x1;
       } else if (s === startSerial) {
         const sh = cachedNsToLocalHours(row.start_timestamp_ns);
         x1 = hoursToX(sh);
-        barW = hoursToX(24) - x1;
+        barW = hoursToX(dayH) - x1;
       } else if (s === stopSerial) {
         const eh = cachedNsToLocalHours(row.stop_timestamp_ns);
         x1 = MARGIN.left;
         barW = hoursToX(eh) - x1;
       } else {
         x1 = MARGIN.left;
-        barW = plotWidth();
+        barW = (plotWidth() * dayH) / 24;
       }
 
       if (barW > 0) {
@@ -1122,9 +1334,9 @@ export function buildTimelineScene(
     baseline: "alphabetic",
   });
 
-  prims.push(...legendPrimitives(plotTop, hasShutdown, hasStartup, hasMissing, gapLegendNeeded));
+  prims.push(...legendPrimitives(plotTop, hasShutdown, hasStartup, hasMissing, gapLegendNeeded, extraW));
 
-  return { width: CANVAS_WIDTH, height: totalHeight, primitives: prims };
+  return { width: CANVAS_WIDTH + extraW, height: totalHeight, primitives: prims };
 }
 
 function todayLabel(): string {
@@ -1132,7 +1344,7 @@ function todayLabel(): string {
 }
 
 async function sceneToPngBlob(scene: Scene): Promise<Blob> {
-  const canvas = buildCanvas(scene.height);
+  const canvas = buildCanvas(Math.max(scene.width, CANVAS_WIDTH), scene.height);
   const ctx = canvas.getContext("2d") as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
   renderSceneToCanvas(ctx, scene);
   return canvasToBlob(canvas);
@@ -1227,6 +1439,7 @@ export function buildScreenScene(
   for (const row of rows) {
     if (row.date) dateSet.add(row.date);
   }
+  addSessionSpannedDates(dateSet, rows, getDateFormatter(timezone));
   const sortedDates = [...dateSet].sort();
   if (sortedDates.length === 0) {
     return { width: 1, height: 1, primitives: [] };
@@ -1246,62 +1459,21 @@ export function buildScreenScene(
     dateToY.set(d, plotTop + i * ROW_HEIGHT + ROW_HEIGHT / 2);
   });
 
-  const nsToHoursCache = new Map<bigint, number>();
-  const nsToIsoCache = new Map<bigint, string>();
   const hoursFmt = getHoursFormatter(timezone);
-  const dateFmt = getDateFormatter(timezone);
-
-  function nsToLocalHours(ns: bigint): number {
-    let v = nsToHoursCache.get(ns);
-    if (v === undefined) {
-      const ms = Number(ns / 1_000_000n);
-      try {
-        const parts = hoursFmt.formatToParts(new Date(ms));
-        const h = Number(parts.find((p) => p.type === "hour")?.value ?? 0);
-        const m = Number(parts.find((p) => p.type === "minute")?.value ?? 0);
-        const s = Number(parts.find((p) => p.type === "second")?.value ?? 0);
-        v = (h % 24) + m / 60 + s / 3600;
-      } catch {
-        v = (ms / 3_600_000) % 24;
-      }
-      nsToHoursCache.set(ns, v);
-    }
-    return v;
-  }
-
-  function nsToIso(ns: bigint): string {
-    let v = nsToIsoCache.get(ns);
-    if (v === undefined) {
-      const ms = Number(ns / 1_000_000n);
-      v = dateFmt.format(new Date(ms));
-      nsToIsoCache.set(ns, v);
-    }
-    return v;
-  }
+  const clock = makeDayClock(timezone);
+  const nsToLocalHours = clock.hours;
+  const nsToIso = clock.iso;
+  const extraW = dstExtraWidth(sortedDates, clock, plotWidth());
 
   const prims: Primitive[] = [];
-  prims.push(backgroundPrimitive(totalHeight));
+  prims.push(backgroundPrimitive(totalHeight, extraW));
   prims.push(
-    {
-      type: "text",
-      x: CANVAS_WIDTH / 2,
-      y: 28,
-      text: `Screen Usage for ${participantId}`,
-      fill: "#111",
-      font: "bold 16px system-ui, sans-serif",
-      anchor: "middle",
-      baseline: "alphabetic",
-    },
-    {
-      type: "text",
-      x: CANVAS_WIDTH / 2,
-      y: 46,
-      text: `Created on ${dateStr} · Preprocessor v${version} · build ${BUILD_LABEL}`,
-      fill: "#666",
-      font: FONT_SMALL,
-      anchor: "middle",
-      baseline: "alphabetic",
-    },
+    ...titlePrimitives(
+      `Screen Usage for ${participantId}`,
+      dateStr,
+      version,
+      timezone,
+    ),
   );
 
   // Date row labels (no striping — uniform background so bars/gaps read true).
@@ -1320,6 +1492,10 @@ export function buildScreenScene(
 
   prims.push(...rowSeparatorPrimitives(sortedDates.length, plotTop));
   prims.push(...xAxisPrimitives(plotTop, plotBottom));
+  sortedDates.forEach((d, i) => {
+    const marks = dstRowMarks(clock, d);
+    if (marks) prims.push(...dstRowPrimitives(marks, plotTop + i * ROW_HEIGHT, ROW_HEIGHT, hoursToX));
+  });
 
   // Data-gap shading (drawn before the session bars so bars sit on top). Uses
   // the pre-algorithm raw timestamps when supplied; otherwise the screen-session
@@ -1336,6 +1512,7 @@ export function buildScreenScene(
     nsToIso,
     regionsOut ? gapRegions : undefined,
     regionsOut ? (ns) => nsToClock(hoursFmt, ns) : undefined,
+    clock.dayHours,
   );
   prims.push(...gapPrimitives(gapRects));
 
@@ -1357,18 +1534,19 @@ export function buildScreenScene(
       if (yCenter === undefined) continue;
 
       let x1: number, barW: number;
+      const dayH = clock.dayHours(isoD);
       if (s === startSerial && s === stopSerial) {
         x1 = hoursToX(nsToLocalHours(row.start_timestamp_ns));
-        barW = hoursToX(Math.min(nsToLocalHours(row.stop_timestamp_ns), 24)) - x1;
+        barW = hoursToX(Math.min(nsToLocalHours(row.stop_timestamp_ns), dayH)) - x1;
       } else if (s === startSerial) {
         x1 = hoursToX(nsToLocalHours(row.start_timestamp_ns));
-        barW = hoursToX(24) - x1;
+        barW = hoursToX(dayH) - x1;
       } else if (s === stopSerial) {
         x1 = MARGIN.left;
         barW = hoursToX(nsToLocalHours(row.stop_timestamp_ns)) - x1;
       } else {
         x1 = MARGIN.left;
-        barW = plotWidth();
+        barW = (plotWidth() * dayH) / 24;
       }
 
       if (barW > 0) {
@@ -1412,14 +1590,14 @@ export function buildScreenScene(
     baseline: "alphabetic",
   });
 
-  prims.push(...screenLegendPrimitives(plotTop, gapLegendNeeded));
+  prims.push(...screenLegendPrimitives(plotTop, gapLegendNeeded, extraW));
 
-  return { width: CANVAS_WIDTH, height: totalHeight, primitives: prims };
+  return { width: CANVAS_WIDTH + extraW, height: totalHeight, primitives: prims };
 }
 
 /** Right-hand legend for the screen-usage timeline (end reasons + data gap). */
-function screenLegendPrimitives(legendTop: number, hasGap: boolean): Primitive[] {
-  const x = CANVAS_WIDTH - MARGIN.right + 16;
+function screenLegendPrimitives(legendTop: number, hasGap: boolean, shiftX = 0): Primitive[] {
+  const x = CANVAS_WIDTH - MARGIN.right + 16 + shiftX;
   let y = legendTop;
   const prims: Primitive[] = [
     {
@@ -1602,7 +1780,7 @@ export function buildAppTimelineViews(
       }
       if (!usageTypes.has(row.interaction_type)) continue;
       const category = row.broad_app_category ?? "Unknown";
-      const color = CATEGORY_COLORS[category] ?? UNCATEGORISED_COLOR;
+      const color = categoryColor(category);
       const appLabel = row.application_label?.trim();
       const packageName = row.app_package_name || "(app)";
       const title = appLabel || packageName;
@@ -1674,25 +1852,13 @@ export function buildScreenTimelineViews(
 export type HourDayMatrix = {
   /** Calendar dates (ISO "YYYY-MM-DD"), one per heatmap row, ascending. */
   dates: string[];
-  /** dates.length × 24; cell value = seconds of app usage in that (date, hour). */
+  /** One row per date; cell value = seconds of app usage in that (date, hour).
+   * Hours are real elapsed hours since local midnight, so a row has 24 cells,
+   * or 23/25 on a DST day. */
   cells: number[][];
   /** Largest single-cell value, for normalising the colour scale. */
   maxCell: number;
 };
-
-/** ns → fractional local hour-of-day [0,24) in `timezone`. */
-function nsToLocalHours(ns: bigint, hoursFmt: Intl.DateTimeFormat): number {
-  const ms = Number(ns / 1_000_000n);
-  try {
-    const parts = hoursFmt.formatToParts(new Date(ms));
-    const h = Number(parts.find((p) => p.type === "hour")?.value ?? 0);
-    const m = Number(parts.find((p) => p.type === "minute")?.value ?? 0);
-    const s = Number(parts.find((p) => p.type === "second")?.value ?? 0);
-    return (h % 24) + m / 60 + s / 3600;
-  } catch {
-    return (ms / 3_600_000) % 24;
-  }
-}
 
 /**
  * Aggregate app-usage seconds into an hour-of-day × calendar-day matrix,
@@ -1707,9 +1873,8 @@ export function computeHourDayMatrix(
     includeFilteredAppUsageInPlots: false,
   },
 ): HourDayMatrix {
-  const hoursFmt = getHoursFormatter(timezone);
-  const dateFmt = getDateFormatter(timezone);
-  const nsToIso = (ns: bigint): string => dateFmt.format(new Date(Number(ns / 1_000_000n)));
+  const clock = makeDayClock(timezone);
+  const nsToIso = clock.iso;
 
   const usageTypes = new Set([APP_USAGE_TYPE]);
   if (options.includeFilteredAppUsageInPlots) {
@@ -1739,7 +1904,7 @@ export function computeHourDayMatrix(
   }
   const dates = [...dateSet].sort();
   const dateIndex = new Map(dates.map((d, i) => [d, i]));
-  const cells: number[][] = dates.map(() => new Array<number>(24).fill(0));
+  const cells: number[][] = dates.map((d) => new Array<number>(Math.ceil(clock.dayHours(d))).fill(0));
 
   for (const row of rows) {
     if (!usageTypes.has(row.interaction_type)) continue;
@@ -1754,27 +1919,30 @@ export function computeHourDayMatrix(
       const isoD = s === startSerial ? startIso : new Date(s * 86_400_000).toISOString().slice(0, 10);
       const di = dateIndex.get(isoD);
       if (di === undefined) continue;
-      const cellRow = cells[di];
-      if (cellRow === undefined) continue;
+      const cellRow = requireDefined(
+        cells[di],
+        "`cells` has one row per entry of `dates`, which is what `dateIndex` indexes",
+      );
 
       let h0: number;
       let h1: number;
+      const dayH = clock.dayHours(isoD);
       if (s === startSerial && s === stopSerial) {
-        h0 = nsToLocalHours(row.start_timestamp_ns, hoursFmt);
-        h1 = nsToLocalHours(row.stop_timestamp_ns, hoursFmt);
+        h0 = clock.hours(row.start_timestamp_ns);
+        h1 = clock.hours(row.stop_timestamp_ns);
       } else if (s === startSerial) {
-        h0 = nsToLocalHours(row.start_timestamp_ns, hoursFmt);
-        h1 = 24;
+        h0 = clock.hours(row.start_timestamp_ns);
+        h1 = dayH;
       } else if (s === stopSerial) {
         h0 = 0;
-        h1 = nsToLocalHours(row.stop_timestamp_ns, hoursFmt);
+        h1 = clock.hours(row.stop_timestamp_ns);
       } else {
         h0 = 0;
-        h1 = 24;
+        h1 = dayH;
       }
       if (h1 <= h0) continue;
 
-      for (let hour = Math.floor(h0); hour < Math.ceil(h1) && hour < 24; hour++) {
+      for (let hour = Math.floor(h0); hour < Math.ceil(h1) && hour < cellRow.length; hour++) {
         const overlapHours = Math.min(h1, hour + 1) - Math.max(h0, hour);
         if (overlapHours > 0) cellRow[hour] = (cellRow[hour] ?? 0) + overlapHours * 3600;
       }
@@ -1786,6 +1954,42 @@ export function computeHourDayMatrix(
     for (const value of cellRow) if (value > maxCell) maxCell = value;
   }
   return { dates, cells, maxCell };
+}
+
+/**
+ * The two ends of the heatmap colour scale, named in a unit that can express
+ * the value the darkest cell actually holds.
+ *
+ * `maxCell` is in seconds and the ramp normalises every cell by it
+ * (`heatColor(cell / maxCell)`), so saturation is independent of magnitude. The
+ * old label rounded to whole minutes, which printed "0 min" at BOTH ends for a
+ * sparse participant whose busiest hour held under 30 s — a fully saturated
+ * column above a scale that read zero to zero. Below one minute the scale is
+ * stated in seconds so both ends stay in one unit and the top end is never 0.
+ */
+export function heatmapLegendLabels(maxCellSeconds: number): {
+  max: string;
+  min: string;
+} {
+  if (!(maxCellSeconds > 0)) return { max: "0 min", min: "0 min" };
+  if (maxCellSeconds < 60) {
+    // One decimal still rounded 0.01 s and 0.04 s to "0 s", reproducing the
+    // original defect one unit down: both ends reading zero under a saturated
+    // column. Below the smallest value a decimal can show, state the bound
+    // instead of a rounded zero — the exact figure is not the point, "there is
+    // usage here and it is under a tenth of a second" is.
+    if (maxCellSeconds < 0.05) return { max: "<0.1 s", min: "0 s" };
+    const seconds =
+      maxCellSeconds < 10
+        ? maxCellSeconds.toFixed(1).replace(/\.0$/, "")
+        : String(Math.round(maxCellSeconds));
+    return { max: `${seconds} s`, min: "0 s" };
+  }
+  const minutes = maxCellSeconds / 60;
+  return {
+    max: minutes < 10 ? `${minutes.toFixed(1)} min` : `${Math.round(minutes)} min`,
+    min: "0 min",
+  };
 }
 
 /** White → blue sequential colour ramp for a normalised intensity in [0,1]. */
@@ -1814,15 +2018,18 @@ export function buildHeatmapScene(
   if (dates.length === 0 || maxCell === 0) {
     return { width: 1, height: 1, primitives: [] };
   }
-
+  const clock = makeDayClock(timezone);
   const plotAreaHeight = dates.length * ROW_HEIGHT;
   const totalHeight = Math.max(MARGIN.top + plotAreaHeight + MARGIN.bottom, legendFloorHeight(8));
   const plotTop = MARGIN.top;
   const plotBottom = MARGIN.top + plotAreaHeight;
   const colWidth = plotWidth() / 24;
+  // A row longer than 24 h runs past the grid in whole cells (a 24.5 h day has
+  // 25); widen the canvas by those cells so the legend clears them.
+  const extraW = (cells.reduce((max, r) => Math.max(max, r.length), 24) - 24) * colWidth;
 
   const prims: Primitive[] = [];
-  prims.push(backgroundPrimitive(totalHeight));
+  prims.push(backgroundPrimitive(totalHeight, extraW));
   prims.push({
     type: "text",
     x: MARGIN.left,
@@ -1849,7 +2056,7 @@ export function buildHeatmapScene(
     const y = plotTop + di * ROW_HEIGHT;
     const cellRow = cells[di];
     if (cellRow === undefined) continue;
-    for (let hour = 0; hour < 24; hour++) {
+    for (let hour = 0; hour < cellRow.length; hour++) {
       prims.push({
         type: "rect",
         x: hoursToX(hour),
@@ -1858,6 +2065,10 @@ export function buildHeatmapScene(
         h: ROW_HEIGHT,
         fill: heatColor((cellRow[hour] ?? 0) / maxCell),
       });
+    }
+    const date = dates[di];
+    if (date !== undefined && clock.dayHours(date) !== 24) {
+      prims.push(...heatmapDstRowPrimitives(clock, date, cellRow, maxCell, y, colWidth));
     }
   }
 
@@ -1904,7 +2115,7 @@ export function buildHeatmapScene(
   });
 
   // Colour-scale legend (right)
-  const legendX = CANVAS_WIDTH - MARGIN.right + 24;
+  const legendX = CANVAS_WIDTH - MARGIN.right + 24 + extraW;
   const legendTop = plotTop;
   const legendH = Math.min(plotAreaHeight, 200);
   const steps = 32;
@@ -1929,11 +2140,68 @@ export function buildHeatmapScene(
     anchor: "start",
     baseline: "middle",
   });
-  prims.push(legendLabel(legendX + 22, legendTop, `${Math.round(maxCell / 60)} min`));
-  prims.push(legendLabel(legendX + 22, legendTop + legendH, "0 min"));
+  const legendScale = heatmapLegendLabels(maxCell);
+  prims.push(legendLabel(legendX + 22, legendTop, legendScale.max));
+  prims.push(legendLabel(legendX + 22, legendTop + legendH, legendScale.min));
   prims.push(legendLabel(legendX, legendTop - 12, "App usage / hour"));
 
-  return { width: CANVAS_WIDTH, height: totalHeight, primitives: prims };
+  return { width: CANVAS_WIDTH + extraW, height: totalHeight, primitives: prims };
+}
+
+/**
+ * Labels for a DST heatmap row, whose cells are real elapsed hours. Each cell's
+ * wall clock is compared with the previous cell's plus one hour (midnight for
+ * cell 0): the cell where the clock repeats reads "1 (repeat)", the cell after
+ * a skip reads "3 (2 skip)" ("1 (0 skip)" when midnight itself is skipped),
+ * and other shifts read "2:30 +30m" / "1:30 −30m". Each form fits one 9 px
+ * cell (plotDst.test.ts bounds the width), so text never spills into a
+ * neighbour whose colour it was not chosen for. Time past the
+ * row's real end, up to its last whole cell, is greyed so it cannot be read as
+ * an hour of zero usage.
+ */
+function heatmapDstRowPrimitives(
+  clock: DayClock,
+  date: string,
+  cellRow: readonly number[],
+  maxCell: number,
+  y: number,
+  colWidth: number,
+): Primitive[] {
+  const prims: Primitive[] = [];
+  const dayH = clock.dayHours(date);
+  const gridEnd = Math.max(24, cellRow.length);
+  if (dayH < gridEnd) {
+    const x = hoursToX(dayH);
+    prims.push({ type: "rect", x, y, w: hoursToX(gridEnd) - x, h: ROW_HEIGHT, fill: "#e6e6e6" });
+  }
+  for (let k = 0; k < cellRow.length; k++) {
+    const now = clock.clockMinutes(date, k);
+    const expected = k === 0 ? 0 : (clock.clockMinutes(date, k - 1) + 60) % 1440;
+    const shift = ((((now - expected) % 1440) + 1440 + 720) % 1440) - 720; // (-720, 720]
+    if (shift === 0) continue;
+    const label = clockLabel(now);
+    let text: string;
+    if (shift < 0) {
+      text = shift === -60 ? `${label} (repeat)` : `${label} −${-shift}m`;
+    } else if (shift % 60 === 0 && expected % 60 === 0) {
+      const first = expected / 60;
+      const last = (first + shift / 60 - 1) % 24;
+      text = `${label} (${first === last ? first : `${first}–${last}`} skip)`;
+    } else {
+      text = `${label} +${shift}m`;
+    }
+    prims.push({
+      type: "text",
+      x: hoursToX(k) + colWidth / 2,
+      y: y + ROW_HEIGHT / 2,
+      text,
+      fill: (cellRow[k] ?? 0) / maxCell > 0.5 ? "#fff" : "#333",
+      font: FONT_TINY,
+      anchor: "middle",
+      baseline: "middle",
+    });
+  }
+  return prims;
 }
 
 async function generateParticipantHeatmapBlob(

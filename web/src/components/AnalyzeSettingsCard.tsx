@@ -4,24 +4,87 @@ import type { ReactElement } from "react";
 import { SectionCard } from "@/components/SectionCard";
 import { SettingsField } from "@/components/SettingsField";
 import { ToggleField } from "@/components/ToggleField";
-import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
+import {
+  DEFAULT_BROWSER_OPTIONS,
+  INTERVAL_EXPANSION_METHOD_VALUES,
+  NOTIFICATION_PROXY_RULE_VALUES,
+  POLLED_EMULATION_METHOD_VALUES,
+  SCREEN_GATING_RULE_VALUES,
+  type IntervalExpansionMethod,
+  type NotificationProxyRule,
+  type PolledEmulationMethod,
+  type ScreenGatingRule,
+} from "@/lib/generatedContract";
 import { TOOLTIPS } from "@/lib/tooltipText";
 import { anyOptionModified, isOptionDefault, type OptionKey } from "@/lib/optionDefaults";
-import { rangeError } from "@/lib/validation";
+import { optionRangeError } from "@/lib/validation";
 import type { BrowserProcessingOptions } from "@/lib/types";
 
 const KEYS: readonly OptionKey[] = [
   "enableScreenGatedCrediting",
+  "screenGatingRule",
   "creditedSessionCapMinutes",
   "deviceLivenessGapToleranceMinutes",
   "autoLockBridgeSeconds",
   "noWitnessMinDayApps",
+  "notificationProxyRule",
+  "polledEmulationMethod",
+  "polledEmulationIntervalSeconds",
+  "polledEmulationGapSeconds",
+  "intervalExpansionMethod",
   "enableStudyWindowFilter",
   "enablePersonAttribution",
   "enableComplianceScoring",
   "complianceThresholdPercent",
   "enableDayCoverage",
 ];
+
+const SCREEN_GATING_RULE_LABELS = {
+  screen_and_liveness_v1: "Screen on and device alive (default)",
+  screen_witness_only: "Screen on only",
+  strict_visual_only: "Strict visual only — no fallback",
+  device_liveness_only: "Device alive only",
+} satisfies Record<ScreenGatingRule, string>;
+
+const SCREEN_GATING_RULES = SCREEN_GATING_RULE_VALUES.map((value) => ({
+  value,
+  label: SCREEN_GATING_RULE_LABELS[value],
+}));
+
+// `satisfies Record<NotificationProxyRule, string>` is the point: a new arm in
+// the contract becomes a compile error here until it is named for a reader.
+const NOTIFICATION_PROXY_RULE_LABELS = {
+  none: "Off — notifications are not measured (default)",
+  seen_contact_v1: "Notification Seen only",
+  interruption_contact_v1: "Notification Interruption only",
+  any_notification_contact_v1: "Both notification types",
+} satisfies Record<NotificationProxyRule, string>;
+
+const NOTIFICATION_PROXY_RULES = NOTIFICATION_PROXY_RULE_VALUES.map((value) => ({
+  value,
+  label: NOTIFICATION_PROXY_RULE_LABELS[value],
+}));
+
+const POLLED_EMULATION_METHOD_LABELS = {
+  none: "Off — no polled emulation (default)",
+  ross_2025_sampled_gap_v1: "Ross et al. 2025 — sample gap closes a session",
+  cerit_2025_sample_count_v1: "Cerit et al. 2025 — duration from sample count",
+} satisfies Record<PolledEmulationMethod, string>;
+
+const POLLED_EMULATION_METHODS = POLLED_EMULATION_METHOD_VALUES.map((value) => ({
+  value,
+  label: POLLED_EMULATION_METHOD_LABELS[value],
+}));
+
+const INTERVAL_EXPANSION_METHOD_LABELS = {
+  none: "Off — no interval expansion (default)",
+  behapp_start_anchored_half_open_1s_v1: "Behapp — start-anchored half-open 1 s rows",
+} satisfies Record<IntervalExpansionMethod, string>;
+
+const INTERVAL_EXPANSION_METHODS = INTERVAL_EXPANSION_METHOD_VALUES.map((value) => ({
+  value,
+  label: INTERVAL_EXPANSION_METHOD_LABELS[value],
+}));
 
 type Props = {
   options: BrowserProcessingOptions;
@@ -72,13 +135,43 @@ export function AnalyzeSettingsCard(props: Props): ReactElement {
         onReset={() => reset("enableScreenGatedCrediting")}
       />
       {options.enableScreenGatedCrediting ? (
+        <div className="settings-grid-1 settings-overview__subfield">
+          <SettingsField
+            label="Screen-gating rule"
+            htmlFor="screen-gating-rule-select"
+            tooltip={TOOLTIPS.screenGatingRule}
+            modified={isMod("screenGatingRule")}
+            onReset={() => reset("screenGatingRule")}
+          >
+            <select
+              id="screen-gating-rule-select"
+              data-testid="screen-gating-rule-select"
+              className="select"
+              value={options.screenGatingRule}
+              onChange={(event) =>
+                update(
+                  "screenGatingRule",
+                  event.target.value as BrowserProcessingOptions["screenGatingRule"],
+                )
+              }
+            >
+              {SCREEN_GATING_RULES.map((rule) => (
+                <option key={rule.value} value={rule.value}>
+                  {rule.label}
+                </option>
+              ))}
+            </select>
+          </SettingsField>
+        </div>
+      ) : null}
+      {options.enableScreenGatedCrediting ? (
         <div className="settings-grid-2 settings-overview__subfield">
           <SettingsField
             label="Credited-session cap (minutes)"
             tooltip={TOOLTIPS.creditedSessionCapMinutes}
             modified={isMod("creditedSessionCapMinutes")}
             onReset={() => reset("creditedSessionCapMinutes")}
-            error={rangeError(options.creditedSessionCapMinutes, 1, 1440)}
+            error={optionRangeError("creditedSessionCapMinutes", options.creditedSessionCapMinutes)}
           >
             <input
               type="number"
@@ -95,7 +188,7 @@ export function AnalyzeSettingsCard(props: Props): ReactElement {
             tooltip={TOOLTIPS.deviceLivenessGapToleranceMinutes}
             modified={isMod("deviceLivenessGapToleranceMinutes")}
             onReset={() => reset("deviceLivenessGapToleranceMinutes")}
-            error={rangeError(options.deviceLivenessGapToleranceMinutes, 1, 1440)}
+            error={optionRangeError("deviceLivenessGapToleranceMinutes", options.deviceLivenessGapToleranceMinutes)}
           >
             <input
               type="number"
@@ -109,12 +202,24 @@ export function AnalyzeSettingsCard(props: Props): ReactElement {
               }
             />
           </SettingsField>
+          {options.screenGatingRule === "device_liveness_only" ? (
+            <p
+              className="settings-dependency-note"
+              role="note"
+              data-testid="screen-witness-dependency-note"
+            >
+              Auto-lock bridge and the no-witness fallback apply only to rules
+              that read screen events; &ldquo;Device alive only&rdquo; credits
+              the alive spans either way.
+            </p>
+          ) : (
+            <>
           <SettingsField
             label="Auto-lock bridge (seconds)"
             tooltip={TOOLTIPS.autoLockBridgeSeconds}
             modified={isMod("autoLockBridgeSeconds")}
             onReset={() => reset("autoLockBridgeSeconds")}
-            error={rangeError(options.autoLockBridgeSeconds, 0, 3600)}
+            error={optionRangeError("autoLockBridgeSeconds", options.autoLockBridgeSeconds)}
           >
             <input
               type="number"
@@ -131,7 +236,7 @@ export function AnalyzeSettingsCard(props: Props): ReactElement {
             tooltip={TOOLTIPS.noWitnessMinDayApps}
             modified={isMod("noWitnessMinDayApps")}
             onReset={() => reset("noWitnessMinDayApps")}
-            error={rangeError(options.noWitnessMinDayApps, 1, 100)}
+            error={optionRangeError("noWitnessMinDayApps", options.noWitnessMinDayApps)}
           >
             <input
               type="number"
@@ -143,8 +248,141 @@ export function AnalyzeSettingsCard(props: Props): ReactElement {
               onChange={(event) => update("noWitnessMinDayApps", Number(event.target.value))}
             />
           </SettingsField>
+            </>
+          )}
         </div>
       ) : null}
+
+      <div className="settings-grid-1">
+        <SettingsField
+          label="Notification proxy rule"
+          htmlFor="notification-proxy-rule-select"
+          tooltip={TOOLTIPS.notificationProxyRule}
+          modified={isMod("notificationProxyRule")}
+          onReset={() => reset("notificationProxyRule")}
+        >
+          <select
+            id="notification-proxy-rule-select"
+            data-testid="notification-proxy-rule-select"
+            className="select"
+            value={options.notificationProxyRule}
+            onChange={(event) =>
+              update(
+                "notificationProxyRule",
+                event.target.value as BrowserProcessingOptions["notificationProxyRule"],
+              )
+            }
+          >
+            {NOTIFICATION_PROXY_RULES.map((rule) => (
+              <option key={rule.value} value={rule.value}>
+                {rule.label}
+              </option>
+            ))}
+          </select>
+        </SettingsField>
+      </div>
+
+      <div className="settings-grid-1">
+        <SettingsField
+          label="Polled-method emulation"
+          htmlFor="polled-emulation-method-select"
+          tooltip={TOOLTIPS.polledEmulationMethod}
+          modified={isMod("polledEmulationMethod")}
+          onReset={() => reset("polledEmulationMethod")}
+        >
+          <select
+            id="polled-emulation-method-select"
+            data-testid="polled-emulation-method-select"
+            className="select"
+            value={options.polledEmulationMethod}
+            onChange={(event) =>
+              update(
+                "polledEmulationMethod",
+                event.target.value as BrowserProcessingOptions["polledEmulationMethod"],
+              )
+            }
+          >
+            {POLLED_EMULATION_METHODS.map((method) => (
+              <option key={method.value} value={method.value}>
+                {method.label}
+              </option>
+            ))}
+          </select>
+        </SettingsField>
+      </div>
+      {options.polledEmulationMethod !== "none" ? (
+        <div className="settings-grid-2 settings-overview__subfield">
+          <SettingsField
+            label="Sampling cadence (seconds)"
+            tooltip={TOOLTIPS.polledEmulationIntervalSeconds}
+            modified={isMod("polledEmulationIntervalSeconds")}
+            onReset={() => reset("polledEmulationIntervalSeconds")}
+            error={optionRangeError("polledEmulationIntervalSeconds", options.polledEmulationIntervalSeconds)}
+          >
+            <input
+              type="number"
+              className="input"
+              data-testid="polled-emulation-interval-input"
+              min={1}
+              max={3600}
+              value={options.polledEmulationIntervalSeconds}
+              onChange={(event) =>
+                update("polledEmulationIntervalSeconds", Number(event.target.value))
+              }
+            />
+          </SettingsField>
+          {options.polledEmulationMethod === "ross_2025_sampled_gap_v1" ? (
+            <SettingsField
+              label="Session-break gap (seconds)"
+              tooltip={TOOLTIPS.polledEmulationGapSeconds}
+              modified={isMod("polledEmulationGapSeconds")}
+              onReset={() => reset("polledEmulationGapSeconds")}
+              error={optionRangeError("polledEmulationGapSeconds", options.polledEmulationGapSeconds)}
+            >
+              <input
+                type="number"
+                className="input"
+                data-testid="polled-emulation-gap-input"
+                min={0}
+                max={3600}
+                value={options.polledEmulationGapSeconds}
+                onChange={(event) =>
+                  update("polledEmulationGapSeconds", Number(event.target.value))
+                }
+              />
+            </SettingsField>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="settings-grid-1">
+        <SettingsField
+          label="Interval expansion output"
+          htmlFor="interval-expansion-method-select"
+          tooltip={TOOLTIPS.intervalExpansionMethod}
+          modified={isMod("intervalExpansionMethod")}
+          onReset={() => reset("intervalExpansionMethod")}
+        >
+          <select
+            id="interval-expansion-method-select"
+            data-testid="interval-expansion-method-select"
+            className="select"
+            value={options.intervalExpansionMethod}
+            onChange={(event) =>
+              update(
+                "intervalExpansionMethod",
+                event.target.value as BrowserProcessingOptions["intervalExpansionMethod"],
+              )
+            }
+          >
+            {INTERVAL_EXPANSION_METHODS.map((method) => (
+              <option key={method.value} value={method.value}>
+                {method.label}
+              </option>
+            ))}
+          </select>
+        </SettingsField>
+      </div>
 
       <ToggleField
         label="Study-window filter"
@@ -192,7 +430,7 @@ export function AnalyzeSettingsCard(props: Props): ReactElement {
             tooltip={TOOLTIPS.complianceThresholdPercent}
             modified={isMod("complianceThresholdPercent")}
             onReset={() => reset("complianceThresholdPercent")}
-            error={rangeError(options.complianceThresholdPercent, 0, 100)}
+            error={optionRangeError("complianceThresholdPercent", options.complianceThresholdPercent)}
           >
             <input
               type="number"

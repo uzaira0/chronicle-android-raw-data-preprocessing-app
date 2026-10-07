@@ -38,7 +38,6 @@ type QueryExecutionRecord = RustExecutionLedger[number]["queries"][number];
 export type ProjectionEvidence = {
   executionLedger?: RustExecutionLedger;
   supportPresence?: ReadonlyMap<string, boolean>;
-  artifactSizes?: ReadonlyMap<string, { bytes: number; mediaType: string }>;
 };
 
 function humanize(value: string): string {
@@ -133,15 +132,6 @@ function queryMetrics(record: QueryExecutionRecord | undefined): string {
       ? "row counts unavailable"
       : `${record.rowsIn ?? "?"} → ${record.rowsOut ?? "?"} rows`;
   return `${rows} · ${formatDuration(record.timing.durationMs)}`;
-}
-
-function artifactMetrics(
-  kind: string,
-  sizes: ProjectionEvidence["artifactSizes"],
-): string {
-  const evidence = sizes?.get(kind);
-  if (!evidence) return "size unavailable";
-  return `${evidence.bytes.toLocaleString()} bytes · ${evidence.mediaType}`;
 }
 
 function makeProjection(nodes: ExplorerGraphNode[]): ExplorerProjection {
@@ -347,7 +337,9 @@ export function graphForMode(
         off: artifact.runState === "absent",
         eyebrow: "may-change artifact",
         detail: "This artifact is in at least one selected decision's semantic impact closure",
-        metrics: artifactMetrics(artifact.kind, evidence.artifactSizes),
+        // The view's artifact kind is the semantic class (table, records…),
+        // not the persisted output kind, so no size joins here.
+        metrics: null,
         warnings: [],
         phaseId: artifact.producerOperationId
           ? (operationById.get(artifact.producerOperationId)?.phaseId ?? null)
@@ -456,7 +448,7 @@ export function graphForMode(
         artifact.consumerOperationIds.length > 0
           ? `Consumed by ${plural(artifact.consumerOperationIds.length, "operation")}`
           : "Terminal artifact; the projection does not classify it as a user deliverable",
-      metrics: artifactMetrics(artifact.kind, evidence.artifactSizes),
+      metrics: null,
       warnings: [],
       phaseId: producer?.phaseId ?? null,
       offReason: artifact.runState === "absent" ? "Its producer is not active" : null,

@@ -1,0 +1,85 @@
+decision,subclass,stable_key,title,reason
+retained,net-new import,10.1145/3714394.3754395,"PULSE: A Screenshot-Based Labeling Tool for Investigating Smartphone Behavior, Intent, and Perception.",Exact normalized DOI absent from all 496 supplied DOI strings; canonical title absent from the 428 mechanically detected heading lines.
+retained,net-new import,10.1145/3544548.3580689,Are You Killing Time? Predicting Smartphone Users’ Time-Killing Moments via Fusion of Smartphone Sensor Data and Screenshots.,DOI and title absent from supplied indexes; companion/session descendants already in the packet were treated separately and not re-imported.
+retained,net-new import,10.1145/3522711,Characterization and Prediction of Mobile Tasks.,Exact DOI/title absent from supplied indexes.
+retained,net-new import,10.1145/3479600,"Reflect, Not Regret: Understanding Regretful Smartphone Use with App Feature-Level Analysis.",Exact DOI/title absent from packet indexes.
+retained,net-new import,10.1145/3743726,On-Device Interaction Mining.,DOI/title absent from supplied indexes.
+retained,net-new import,10.1145/3675094.3677547,ScreenTK: Seamless Detection of Time-Killing Moments Using Continuous Mobile Screen Text and On-Device LLMs.,Exact DOI/title absent from supplied indexes.
+retained,net-new import,10.1145/3267305.3274118,Notification Log: An Open-Source Framework for Notification Research on Mobile Devices.,Exact DOI/title absent from packet indexes; later Annotif and Clear All were checked as distinct publications.
+retained,net-new import,10.3390/s24082612,Call to Action: Investigating Interaction Delay in Smartphone Notifications.,Exact DOI/title absent from packet indexes.
+retained,net-new import,10.1145/3770713,"Beyond the Feature Level: A Cluster Analysis of Feature-Level Social Media Behaviour Patterns, Maladaptive Use, and Psychological Well-Being.",Exact DOI/title absent from indexes.
+retained,net-new import,10.1145/3447991,"Understanding, Discovering, and Mitigating Habitual Smartphone Use in Young Adults.",Exact DOI/title absent from packet indexes; related app-switching work was capped as same-lineage unresolved/near-miss.
+retained,net-new import,10.5555/3235838.3235857,It’s a Hard Lock Life: A Field Study of Smartphone (Un)Locking Behavior and Risk Perception.,Title and stable accession absent from packet indexes.
+retained,net-new import,10.1145/3365610.3365611,Annotif: A System for Annotating Mobile Notifications in User Studies.,Exact DOI/title absent from packet indexes.
+retained,net-new import,10.1145/3229434.3229445,Dismissed! A Detailed Exploration of How Mobile Phone Users Handle Push Notifications.,DOI/title absent from supplied indexes.
+retained,net-new import,10.1145/2858036.2858566,My Phone and Me: Understanding People’s Receptivity to Mobile Notifications.,Exact DOI/title absent from packet indexes.
+retained,net-new import,10.1145/2858036.2858267,The Anatomy of Smartphone Unlocking: A Field Study of Android Lock Screens.,DOI/title absent from packet indexes.
+retained,net-new import,10.1145/3613904.3642583,Real-World Winds: Micro Challenges to Promote Balance Post Smartphone Overload.,Exact DOI/title absent from indexes.
+retained,net-new import,10.1145/3191754,What Makes Smartphone Use Meaningful or Meaningless?,DOI/title absent from supplied indexes.
+retained,net-new import,10.1145/3772318.3791137,Crepe: A Mobile Screen Data Collector Using Graph Query.,DOI/title absent from packet indexes; preprint/final treated as one work.
+retained,net-new import,10.1145/3613904.3642347,A Tool for Capturing Smartphone Screen Text.,Exact DOI/title absent from indexes.
+retained,net-new import,10.1145/3728898,Walls Have Ears: Demystifying Notification Listener Usage in Android Apps.,DOI/title absent from supplied indexes.
+retained,net-new import,10.1145/3473856.3473881,Why Did You Stop? - Investigating Origins and Effects of Interruptions during Mobile Language Learning.,DOI/title absent from supplied indexes.
+retained,net-new import,10.1145/3613904.3642832,S-ADL: Exploring Smartphone-Based Activities of Daily Living to Detect Blood Alcohol Concentration in a Controlled Environment.,DOI/title absent from supplied indexes.
+retained,net-new import,10.3758/s13428-022-02006-z,ScreenLife Capture: An Open-Source and User-Friendly Framework for Collecting Screenomes from Android Smartphones.,Exact DOI/title absent from supplied indexes; Stanford Screenomics is a separate known DOI and was rejected as duplicate.
+retained,net-new import,10.48550/arXiv.2603.05923,Learning Next Action Predictors from Human–Computer Interaction.,Exact arXiv DOI/title absent from supplied indexes.
+retained,net-new import,ios-unifiedlogs-unlock-2023,"iOS Unified Logs — Introduction, Screen Unlock and App Opening.",Exact title/URL manually checked against the DOI-free headings and not found.
+retained,net-new import,ios-unifiedlogs-parser-sql-2025,iOS Unified Logs Parser,Manual DOI-free title/URL check found no supplied record.
+retained,net-new import,powerlogs-monotonic-clocks-2022,"Time Well Spent: Precision Timing, Monotonic Clocks, and the PowerLogs Database for iOS.",Manual title/URL check found no supplied DOI-free record.
+retained,net-new import,10.1073/pnas.2213114120,Directing Smartphone Use Through the Self-Nudge App one sec.,DOI/title absent from supplied indexes.
+retained,net-new import,10.1145/3613904.3642370,A Longitudinal In-the-Wild Investigation of Design Frictions to Prevent Smartphone Overuse.,DOI/title absent from packet indexes; treated as a follow-up to one sec but a distinct longitudinal dataset/method paper.
+retained,net-new import,10.1073/pnas.2427311122,Smartphone Use in a Large US Adult Population: Temporal Associations Between Objective Measures of Usage and Mental Well-Being.,Exact DOI/title absent from supplied indexes.
+retained,net-new import,10.1145/3678579,"Pinning, Sorting, and Categorizing Notifications: A Mixed-Methods Usage and Experience Study of Mobile Notification-Management Features.",Exact DOI/title absent from packet indexes.
+retained,net-new import,10.1145/3532106.3533575,MindPhone: Mindful Reflection at Unlock Can Reduce Absentminded Smartphone Use.,Exact DOI/title absent from indexes.
+rejected,known-work duplicate,10.1145/3772318.3790925,Does Longer Phone Use Always Feel Worse? Examining How Intention and Duration Shape Evaluations of Time Use,Known A33 / supplied DOI key.
+rejected,known-work duplicate,10.1145/3604241,A Mixed-Method Exploration into the Mobile Phone Rabbit Hole,Known A32 / supplied DOI key.
+rejected,known-work duplicate,10.1145/3706598.3713638,Cyberoception: Finding a Painlessly Measurable New Digital Phenotype,Known A116/F85.
+rejected,known-work duplicate,arXiv:2606.08965,Before You Scroll Again: Predicting Regretful Social Media Sessions From In-the-Wild Contextual and Wearable Sensing,Known A117/D97/F86.
+rejected,known-work duplicate,10.1145/3706598.3713187,Scrolling in the Deep: Analysing Contextual Influences on Intervention Effectiveness During Infinite Scrolling on Social Media,Known A118/D98.
+rejected,known-work duplicate,10.1145/3831979,Can't Stop: How Context and Individual Traits Influence Effectiveness of Different Gradual Interventions for Infinite Scrolling on Short-Form Video Platforms,Known A119/D99.
+rejected,known-work duplicate,10.71627/How-to-work-with-Android-App-Logging-Data.1,How to Work With Android App Logging Data,Known A114; strongest prior-run direct threat.
+rejected,known-work duplicate,10.5117/CCR2025.1.8.PARR,Extracting Meaningful Measures of Smartphone Usage from Android Event Log Data: A Methodological Primer,Known A01.
+rejected,known-work duplicate,10.1145/3604240,A Minimalistic Approach to Predict and Understand the Relation of App Usage with Students’ Academic Performance,Known A86.
+rejected,known-work duplicate,10.1145/3770644,Leveraging Smartphone Human Interaction Routine Behavior Task Mining and Modeling for Daily Stress Monitoring,Known A89.
+rejected,known-work duplicate,10.1145/2638728.2641697,Diversity in Locked and Unlocked Mobile Device Usage,Supplied DOI key; title variant not needed for retention.
+rejected,known-work duplicate,10.1038/s44360-026-00072-7,An Open-Source Platform for Multimodal Digital Trace Data Collection From Smartphones,Known DOI and A99-equivalent Stanford Screenomics platform record.
+rejected,known-work duplicate,10.1145/2628363.2628367,Contextual Experience Sampling of Mobile Application Micro-Usage,"Supplied DOI key, despite title not being prominent in the numbered headings."
+rejected,known-work duplicate,10.31235/osf.io/k249t,Smartphone Use in Germany in 2023: A Mixed-Method Investigation,Supplied DOI key; therefore not net-new.
+rejected,off-scope/near-miss,10.1145/3772318.3790822,Stop Fiddling With Your Phone and Go Offline,Dominated by browser/cross-device online traces; explicit scope exclusion.
+rejected,off-scope/near-miss,10.2196/84618,Digital Phenotyping via Passive Network Traffic Monitoring,Network proxy cannot establish foreground human-use episodes.
+rejected,off-scope/near-miss,arXiv:2605.01616,Learning Behavioral Signals From Encrypted Smartphone Network Traffic,Encrypted traffic proxy; foreground/background and user action remain indeterminate.
+rejected,off-scope/near-miss,arXiv:2607.17185,PocketPPD,"Direct sensing is present, but the screen builder is delegated and adds no distinctive construction rule."
+rejected,off-scope/near-miss,Android Health Connect docs,Synthetic Package Name / provenance documentation,Step/health aggregation analogy; explicitly excluded modality.
+rejected,off-scope/near-miss,title-only,Understanding the Paths and Patterns of App-Switching Experiences in Mobile Searches,Search-task-specific interaction rather than general phone/app episode construction.
+rejected,off-scope/near-miss,title-only,Understanding Users’ App-Switching Behavior During the Mobile Search: PPM Framework,Survey/intention model without raw device-event reconstruction.
+rejected,off-scope/near-miss,arXiv:1805.02211,Target Apps Selection: Towards a Unified Search Framework for Mobile Devices,"Mobile search/retrieval, not behavioral episode measurement."
+rejected,off-scope/near-miss,10.1145/3701716.3717526,Agent-Initiated Interaction in Phone UI Automation,"Automation-agent episodes, not naturalistic human-use measurement."
+rejected,off-scope/near-miss,title-only,MobileA3gent: Training Mobile GUI Agents Using Decentralized Self-Sourced Data,GUI-agent training; upstream human session semantics are not the contribution.
+rejected,off-scope/near-miss,arXiv:2605.26546,MobileExplorer: Accelerating On-Device Inference for Mobile GUI Agents,"Automation/inference system, not human phone-use reconstruction."
+rejected,off-scope/near-miss,arXiv:2605.18758,OmniGUI: Benchmarking GUI Agents in Omni-Modal Smartphone Environments,GUI-agent benchmark; excluded from behavioral ledger.
+rejected,off-scope/near-miss,arXiv:2604.11259,Mobile GUI Agent Privacy Personalization with Trajectory-Induced Preference Optimization,"Agent trajectories and preference learning, not observed user episodes."
+rejected,off-scope/near-miss,arXiv:2508.01337,Screencast-Based Analysis of User-Perceived GUI Responsiveness,Automated performance/testing trace rather than naturalistic use.
+rejected,off-scope/near-miss,Android documentation,Notification History user-help and platform documentation,Useful platform context but no validated event-to-notification-episode builder.
+rejected,off-scope/near-miss,title-only,Evidence to Support Common Application Switching Behaviour on Smartphones,Transition counts without a materially new or inspectable boundary builder.
+rejected,off-scope/near-miss,10.3389/fcomp.2025.1422244,"When the Phone’s Away, People Use Their Computer to Play",Mixed phone/computer distraction; no distinctive mobile event construction.
+rejected,off-scope/near-miss,10.1145/3675094.3678489,Predicting Affective States from Screen Text Sentiment,Downstream use of the same screen-text lineage; no new acquisition/session policy.
+rejected,off-scope/near-miss,title-only,AutoJournaling: A Context-Aware Journaling System Leveraging MLLMs on Smartphone Screenshots,Downstream application of screenshots without distinctive event reconstruction.
+rejected,off-scope/near-miss,10.1145/3675094.3677545,Enabling On-Device LLMs Personalization with Smartphone Sensing,Demo/downstream personalization; builder not the contribution.
+rejected,off-scope/near-miss,GitHub:SimonBaars/AutoScreenshot,Android AutoScreenshot,"Open utility, but not a validated research instrument or episode builder."
+rejected,off-scope/near-miss,GitHub:Genymobile/scrcpy,scrcpy,General remote-control/screen-mirroring utility; no behavioral measurement semantics.
+rejected,off-scope/near-miss,arXiv:2511.01336,Beyond Permissions: Investigating Mobile Personalization with Simulated Personas,Synthetic app-response audit rather than naturalistic use episodes.
+rejected,off-scope/near-miss,arXiv:2603.21653,MISApp: Multi-Hop Intent-Aware Session Graph Learning for Next App Prediction,Model consumes already-sessionized app data; upstream builder hidden.
+rejected,off-scope/near-miss,10.1145/3706599.3720055,Media Content Atlas: A Pipeline to Explore and Investigate Multidimensional Media Space Using Multimodal LLMs,Content-analysis pipeline; no distinct phone-use episode policy.
+unresolved,not imported,10.1145/3478868,Alert Now or Never: Understanding and Predicting Notification Preferences of Smartphone Users,"Canonical identity verified, but removal-reason and notification-state construction could not be checked deeply enough for import."
+unresolved,not imported,10.1016/j.ijhcs.2021.102735,Understanding and Streamlining App Switching Experiences in the Wild,Potentially relevant app-transition construction; exact upstream boundary and missing-event policy not recovered.
+unresolved,not imported,10.1145/3411764.3445384,"“Put it on the Top, I’ll Read it Later”: Investigating Users’ Desired Display Order for Smartphone Notifications","Notification ordering is relevant, but the trace construction was not read deeply enough to distinguish callback events from visible notification objects."
+unresolved,not imported,10.1145/3130948,MyTraces: Investigating Correlation and Causation Between Users’ Emotional States and Mobile Phone Interaction,"Notification/app interaction logger verified, but the episode builder and cleaning branches remain insufficiently resolved."
+unresolved,not imported,10.1145/2971648.2971747,PrefMiner: Mining User’s Preferences for Intelligent Mobile Notification Management,Likely notification-state evidence; full rule semantics not verified.
+unresolved,not imported,10.1145/3365610.3365618,Can I Record Your Screen? Mobile Screen Recordings as a Long-Term Data Source for User Studies,"On-device privacy-preserving recording is relevant, but exact capture loss, segmentation, and output construction were not accessible enough for import."
+unresolved,not imported,10.1145/3544548.3581146,Not Merely Deemed as Distraction: Investigating Smartphone Users’ Motivations for Notification Interaction,Potentially useful notification-response labels; full event-state definitions not verified.
+unresolved,not imported,10.1145/3743703,From Overwhelmed to Overview: Understanding Smartphone Users’ Preferences and Expectations in Relieving Notification Overload via Text Summarization,2025 notification-system work; exact trace/cleanup rules not fully accessible.
+unresolved,not imported,10.1145/3340764.3340765,Clear All: A Large-Scale Observational Study on Mobile Notification Drawers,"Built on Notification Log and likely important, but full drawer-state reconstruction and filtering were not independently re-read in this run."
+unresolved,not imported,10.1080/19312458.2026.2697199,Beyond Apps: A Method to Model Full Distributions of Screen Content Over Time to Study Media Effects,"Canonical 2026 identity and sample scale verified; full acquisition/session methods were inaccessible, so it remains outside import."
+unresolved,not imported,10.1016/j.ijhcs.2026.103878,From Prediction to Explanation: Using Screen Text to Understand Smartphone Use and User Behaviour,Canonical 2026 identity verified; source/event construction appears inherited and could not be fully inspected.
+unresolved,not imported,10.1145/3594739.3610699,"Automatic, Manual, or Hybrid? A Preliminary Investigation of Notification Management Modes",Potential downstream state-machine evidence; not enough full-method inspection for import.
+unresolved,not imported,10.1145/3130956,Beyond Interruptibility: Predicting Opportune Moments to Engage Mobile Phone Users,"Important notification-receptivity lineage, but exact session/event cleaning was not independently reconstructed in this run."

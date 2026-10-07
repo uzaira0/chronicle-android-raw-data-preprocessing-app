@@ -1,0 +1,74 @@
+{
+  "schemaVersion": "chronicle-session-engage-duration-source-fixture/v1",
+  "sourceWorkId": "doi:10.1145/3429360.3468192",
+  "canonicalIdentityResolution": {
+    "settingId": "method-setting-2505e588b53e5beac8491cb7",
+    "supersededExtractionId": "extraction-7f793a8ee456fdd05bb0",
+    "aliasTombstoneDisposition": "canonical projected setting has no alias or tombstone entry",
+    "aliasTombstoneRegistrySha256": "018221f6036218887355a0a2dcd9d6d54a9e90eb93f380b4e1b81cc75c0f76b5"
+  },
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-2505e588b53e5beac8491cb7",
+    "parameterKey": "sessions.engage",
+    "sourceObservedSetting": "sessions.engage: duration >60 seconds",
+    "sourceValueSha256": "c60cf8d3023e4e042d63d4d444b9fc96e22323fb1e0c9e2a7672ba07c5cb4393"
+  },
+  "sourceArtifacts": [
+    {
+      "locator": ".tmp-literature-review-private/corrective-packet-09-ranks330-381-20260831/text/360.txt:186-201",
+      "sha256": "9300cc3091f69f5a6b07c54995b783672c5fcfe16f7bb90c01b8db97317025ff"
+    },
+    {
+      "locator": ".tmp-literature-review-private/corrective-packet-09-ranks330-381-20260831/pdfs/360-primary.pdf:pages 1-8#audit-locator=360.txt:186-201",
+      "sha256": "f714a8cdcf5911c105217acf800a2ec5ad47023dad0c43085d41631a03554b0e"
+    },
+    {
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/source-completeness-audits/doi-10.1145-3429360.3468192.json:888-908",
+      "sha256": "03e335522e628862b3b05eef97e99aac1c0517af27f21bbf73c833f43f933225"
+    },
+    {
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/method-setting-alias-tombstones.json#no-entry-for-method-setting-2505e588b53e5beac8491cb7",
+      "sha256": "018221f6036218887355a0a2dcd9d6d54a9e90eb93f380b4e1b81cc75c0f76b5"
+    }
+  ],
+  "inputBoundary": "One caller-supplied finite nonnegative duration in seconds for an already-reconstructed app-usage session.",
+  "outputBoundary": "Classify the session as engage only when its supplied duration is strictly greater than sixty seconds; equality is not engage.",
+  "limitations": [
+    "The source's separate greater-than-45-second inter-app break rule constructs sessions upstream; this binding does not reconstruct sessions from foreground/background events.",
+    "The paper says two duration-calculation methods were consistent but does not disclose either algorithm or which derived duration feeds this classification; the caller supplies the selected source-defined duration.",
+    "The source does not disclose timestamp ordering, missing-event handling, duration resolution, rounding, or tolerance; no sub-second measurement policy is inferred.",
+    "The adjacent at-most-15-second micro and 16-to-60-second review categories remain separate canonical settings and are not claimed by this one-atom fixture.",
+    "Negative, missing, or nonfinite duration fails closed instead of being converted into a zero-duration session.",
+    "No study app, source code, dataset, or machine-readable source oracle was found; this fixture proves the disclosed engage-session boundary against a reusable scalar operator, not end-to-end result reproduction."
+  ],
+  "pivotSeconds": 60.0,
+  "sessions": [
+    {
+      "sessionId": "below-engage-threshold",
+      "sourceDefinedDurationSeconds": 59.0,
+      "expectedCategory": "not_engage"
+    },
+    {
+      "sessionId": "exact-engage-threshold",
+      "sourceDefinedDurationSeconds": 60.0,
+      "expectedCategory": "not_engage"
+    },
+    {
+      "sessionId": "above-engage-threshold",
+      "sourceDefinedDurationSeconds": 61.0,
+      "expectedCategory": "engage"
+    }
+  ],
+  "invalidInputCases": [
+    {
+      "sessionId": "missing-session-duration",
+      "sourceDefinedDurationSeconds": null,
+      "expectedError": "source_defined_session_duration_required"
+    },
+    {
+      "sessionId": "negative-session-duration",
+      "sourceDefinedDurationSeconds": -1.0,
+      "expectedError": "source_defined_session_duration_must_be_nonnegative_finite"
+    }
+  ]
+}

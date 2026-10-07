@@ -1,0 +1,9 @@
+{
+  "generated_at": "2026-08-30T00:35:21.346Z",
+  "query_count": 15,
+  "unique_review_results": 1009,
+  "title_or_topic_relevant_unscreened": 128,
+  "relevant_already_in_seed_ledger": 8,
+  "relevant_net_new_unscreened": 120,
+  "warning": "These are discovery candidates, not retained reviews. Full text, scope, duplicate versions, and reference lists must be screened before inclusion."
+}

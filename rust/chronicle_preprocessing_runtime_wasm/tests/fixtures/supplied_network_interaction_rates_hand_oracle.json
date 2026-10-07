@@ -1,0 +1,64 @@
+{
+  "fixture_id": "supplied-network-interaction-rates-hand-oracle-v1",
+  "qualification": "Hand-authored independent expected values. This CSV is Chronicle's caller-qualified carrier, not a claimed study serialization. Source scope, last-SYN/transfer pairing and app-session totals are supplied; no hidden reconstruction or cohort availability inference.",
+  "source_pins": [
+    {
+      "work": "doi:10.1145/1879141.1879176",
+      "path": ".tmp-literature-review-private/ontology-sublation-20260831/work/traffic-smartphones-1879176.txt",
+      "sha256": "8d31c97cec39fdd3acabfcae62334b124c2f74a40ecc5fcbb08b1b6b213de74a",
+      "locator": "423-431 §5.1; relevant390-485 §§5.1–5.2 read"
+    },
+    {
+      "work": "doi:10.2139/ssrn.4768783",
+      "path": ".tmp-literature-review-private/new-strict-methods-discovery-batch-c-20260830/extracted/zingaro-2024-ssrn.txt",
+      "sha256": "489f19427d55bab8e2bfb970d2a62469a01480162ca502ebc3d7fc682576392f",
+      "locator": "1948-1966,1986-2005 §3.3.1; full relevant1860-2035 read"
+    }
+  ],
+  "cases": [
+    {
+      "component": "chronicle.supplied-last-syn-rtt/v1",
+      "setting": "method-setting-ab22a63657fdad32a18ae889",
+      "hand_math": "5−2=3 seconds, not5−0. Single SYN1−0=1ns. −1−(−1)=0 in caller seconds. Missing ACK stays unavailable.",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_stream_role,source_platform,clock_id,time_unit,time_precision,input_stage,transfer_id,initial_syn_event_id,initial_syn_transfer_id,initial_syn_event_kind,initial_syn_timestamp,last_syn_event_id,last_syn_transfer_id,last_syn_event_kind,last_syn_timestamp,synack_event_id,synack_transfer_id,synack_event_kind,synack_timestamp,syn_selection_stage,note",
+        "r1,A,dA,tcpA,caller_resolved_transfer_syn_anchors,Android,cA,s,1,caller-resolved-tcp-transfer,f1,i1,f1,TCP_SYN,0,l1,f1,TCP_SYN,2,a1,f1,TCP_SYN_ACK,5,caller-qualified-last-syn,retry uses last not initial",
+        "r2,B,dB,tcpB,caller_resolved_transfer_syn_anchors,Android,cB,ns,1,caller-resolved-tcp-transfer,fB,iB,fB,TCP_SYN,0,iB,fB,TCP_SYN,0,aB,fB,TCP_SYN_ACK,1,caller-qualified-last-syn,single SYN nanosecond",
+        "r3,A,dA,tcpA,caller_resolved_transfer_syn_anchors,Android,cA,s,2,caller-resolved-tcp-transfer,f3,i3,f3,TCP_SYN,-5,l3,f3,TCP_SYN,-1,a3,f3,TCP_SYN_ACK,-1,caller-qualified-last-syn,negative origin and equality",
+        "r4,A,dA,tcpA,caller_resolved_transfer_syn_anchors,Android,cA,s,1,caller-resolved-tcp-transfer,f4,i4,f4,TCP_SYN,7,l4,f4,TCP_SYN,9,a4,f4,TCP_SYN_ACK,,caller-qualified-last-syn,missing ACK not zero"
+      ],
+      "expected_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_stream_role,source_platform,clock_id,time_unit,time_precision,input_stage,transfer_id,initial_syn_event_id,initial_syn_transfer_id,initial_syn_event_kind,initial_syn_timestamp,last_syn_event_id,last_syn_transfer_id,last_syn_event_kind,last_syn_timestamp,synack_event_id,synack_transfer_id,synack_event_kind,synack_timestamp,syn_selection_stage,note,rtt_duration_in_declared_units,rtt_status",
+        "r1,A,dA,tcpA,caller_resolved_transfer_syn_anchors,Android,cA,s,1,caller-resolved-tcp-transfer,f1,i1,f1,TCP_SYN,0,l1,f1,TCP_SYN,2,a1,f1,TCP_SYN_ACK,5,caller-qualified-last-syn,retry uses last not initial,3,computed_supplied_last_syn",
+        "r2,B,dB,tcpB,caller_resolved_transfer_syn_anchors,Android,cB,ns,1,caller-resolved-tcp-transfer,fB,iB,fB,TCP_SYN,0,iB,fB,TCP_SYN,0,aB,fB,TCP_SYN_ACK,1,caller-qualified-last-syn,single SYN nanosecond,1,computed_supplied_last_syn",
+        "r3,A,dA,tcpA,caller_resolved_transfer_syn_anchors,Android,cA,s,2,caller-resolved-tcp-transfer,f3,i3,f3,TCP_SYN,-5,l3,f3,TCP_SYN,-1,a3,f3,TCP_SYN_ACK,-1,caller-qualified-last-syn,negative origin and equality,0,computed_supplied_last_syn",
+        "r4,A,dA,tcpA,caller_resolved_transfer_syn_anchors,Android,cA,s,1,caller-resolved-tcp-transfer,f4,i4,f4,TCP_SYN,7,l4,f4,TCP_SYN,9,a4,f4,TCP_SYN_ACK,,caller-qualified-last-syn,missing ACK not zero,,unavailable:missing_synack_timestamp"
+      ]
+    },
+    {
+      "component": "chronicle.supplied-app-session-tap-rate/v1",
+      "setting": "method-setting-c2cf6dbf42081b9b854603aa",
+      "hand_math": "6/3=2,3/1.5=2,7/2.5=2.8 taps/s; 6/0 unavailable,0/3=0; no missing count/duration imputation.",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_stream_role,source_platform,clock_id,time_unit,time_precision,input_stage,app_session_id,app_id,total_taps,session_duration_seconds,note",
+        "t1,A,dA,tapsA,caller_resolved_app_session_totals,Android,cA,s,0.001,caller-resolved-app-session-totals,s1,appX,6,3,source seconds",
+        "t2,B,dB,tapsB,caller_resolved_app_session_totals,Android,cB,s,0.002,caller-resolved-app-session-totals,sB,appY,3,1.5,fractional seconds",
+        "t3,A,dA,tapsA,caller_resolved_app_session_totals,Android,cA,s,0.003,caller-resolved-app-session-totals,s3,appX,7,2.5,fractional quotient",
+        "t4,A,dA,tapsA,caller_resolved_app_session_totals,Android,cA,s,0.001,caller-resolved-app-session-totals,s4,appX,6,0,zero duration unavailable",
+        "t5,A,dA,tapsA,caller_resolved_app_session_totals,Android,cA,s,0.001,caller-resolved-app-session-totals,s5,appX,0,3,zero taps available",
+        "t6,A,dA,tapsA,caller_resolved_app_session_totals,Android,cA,s,0.001,caller-resolved-app-session-totals,s6,appX,6,,missing duration",
+        "t7,A,dA,tapsA,caller_resolved_app_session_totals,Android,cA,s,0.001,caller-resolved-app-session-totals,s7,appX,,3,missing count"
+      ],
+      "expected_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_stream_role,source_platform,clock_id,time_unit,time_precision,input_stage,app_session_id,app_id,total_taps,session_duration_seconds,note,taps_per_second,tap_rate_status",
+        "t1,A,dA,tapsA,caller_resolved_app_session_totals,Android,cA,s,0.001,caller-resolved-app-session-totals,s1,appX,6,3,source seconds,2,computed_binary64_scalar_quotient",
+        "t2,B,dB,tapsB,caller_resolved_app_session_totals,Android,cB,s,0.002,caller-resolved-app-session-totals,sB,appY,3,1.5,fractional seconds,2,computed_binary64_scalar_quotient",
+        "t3,A,dA,tapsA,caller_resolved_app_session_totals,Android,cA,s,0.003,caller-resolved-app-session-totals,s3,appX,7,2.5,fractional quotient,2.8,computed_binary64_scalar_quotient",
+        "t4,A,dA,tapsA,caller_resolved_app_session_totals,Android,cA,s,0.001,caller-resolved-app-session-totals,s4,appX,6,0,zero duration unavailable,,unavailable:zero_duration_source_behavior_unknown",
+        "t5,A,dA,tapsA,caller_resolved_app_session_totals,Android,cA,s,0.001,caller-resolved-app-session-totals,s5,appX,0,3,zero taps available,0,computed_binary64_scalar_quotient",
+        "t6,A,dA,tapsA,caller_resolved_app_session_totals,Android,cA,s,0.001,caller-resolved-app-session-totals,s6,appX,6,,missing duration,,unavailable:missing_duration_seconds",
+        "t7,A,dA,tapsA,caller_resolved_app_session_totals,Android,cA,s,0.001,caller-resolved-app-session-totals,s7,appX,,3,missing count,,unavailable:missing_total_taps"
+      ]
+    }
+  ]
+}

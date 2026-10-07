@@ -11,7 +11,7 @@
 # outputs the workflow validation harness locks (docs/workflow/research-ontology-design.md).
 
 .DELETE_ON_ERROR:
-.PHONY: all owl shacl pydantic json-schema sqlddl merge-axioms repro-check methods-doc methods-doc-check validate validate-workflow emit-sidecar validate-sidecar check clean
+.PHONY: all owl shacl pydantic json-schema sqlddl merge-axioms repro-check methods-doc methods-doc-check validate validate-source-artifact-pydantic validate-device-state-records validate-screen-text-records validate-task-occurrences validate-session-associations validate-notification-callback-groups validate-workflow emit-sidecar validate-sidecar check clean
 
 LINKML := uvx --from linkml==1.10.0
 # linkml (for linkml-convert) + pyshacl in one ephemeral env for the axiom test.
@@ -59,9 +59,9 @@ $(PYDANTIC): $(SCHEMA)
 	$(LINKML) gen-pydantic $(SCHEMA) > $@
 
 json-schema: $(JSONSCHEMA)
-$(JSONSCHEMA): $(SCHEMA)
+$(JSONSCHEMA): $(SCHEMA) tools/generate_json_schema.py
 	@mkdir -p $(dir $@)
-	$(LINKML) gen-json-schema $(SCHEMA) > $@
+	$(LINKML) python tools/generate_json_schema.py $(SCHEMA) > $@
 
 sqlddl: $(DDL)
 $(DDL): $(SCHEMA)
@@ -126,6 +126,28 @@ methods-doc-check: methods-doc
 validate: $(MERGED)
 	$(VALIDATE_ENV) python tests/validate_axioms.py
 
+validate-source-artifact-pydantic: $(PYDANTIC)
+	$(LINKML) python tests/validate_source_artifact_pydantic.py
+
+validate-device-state-records: $(PYDANTIC) $(JSONSCHEMA)
+	$(LINKML) python tests/validate_device_state_records.py
+
+validate-screen-text-records: $(PYDANTIC) $(JSONSCHEMA)
+	$(LINKML) python tests/validate_screen_text_records.py
+
+validate-task-occurrences: $(PYDANTIC) $(JSONSCHEMA)
+	$(LINKML) python tests/validate_task_occurrences.py
+
+.PHONY: validate-interaction-traces
+validate-interaction-traces: $(PYDANTIC) $(JSONSCHEMA)
+	$(LINKML) python tests/validate_interaction_traces.py
+
+validate-session-associations: $(PYDANTIC) $(JSONSCHEMA)
+	$(LINKML) python tests/validate_session_associations.py
+
+validate-notification-callback-groups: $(PYDANTIC) $(JSONSCHEMA)
+	$(LINKML) python tests/validate_notification_callback_groups.py
+
 # Validate the generated YAML as an actual instance of the workflow classes
 # authored in the local LinkML contract. The validator also requires a broken
 # nested-operation fixture to fail, proving the gate has teeth.
@@ -147,7 +169,7 @@ validate-sidecar: $(MERGED) emit-sidecar
 # Full local verification: artifacts are byte-stable, the methods doc is
 # byte-stable, both LinkML instances validate, the axioms constrain, and the
 # Rust runtime sidecar conforms.
-check: repro-check methods-doc-check validate validate-workflow validate-sidecar
+check: repro-check methods-doc-check validate validate-source-artifact-pydantic validate-device-state-records validate-screen-text-records validate-task-occurrences validate-interaction-traces validate-session-associations validate-notification-callback-groups validate-workflow validate-sidecar
 
 clean:
 	rm -rf $(GEN)

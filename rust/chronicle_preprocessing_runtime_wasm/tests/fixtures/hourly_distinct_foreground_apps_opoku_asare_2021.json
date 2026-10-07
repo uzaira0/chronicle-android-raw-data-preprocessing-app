@@ -1,0 +1,36 @@
+{
+  "schemaVersion": "chronicle-hourly-distinct-foreground-apps-source-fixture/v1",
+  "sourceWorkId": "doi:10.2196/26540",
+  "exactCanonicalSettingId": "method-setting-9d9b2409732251983bc1658d",
+  "parameterKey": "feature.hourly_app_state",
+  "sourceValue": "number of distinct foreground apps used in each hour",
+  "sourceValueSha256": "fd6ae82047745540af5a89aa3ad681237eb63b5792838aa31fd105499853c126",
+  "sourceArtifact": {
+    "locator": ".tmp-literature-review-private/corrective-packet-04-ranks-074-123-20260831/text/100.txt:243-256",
+    "sha256": "a4683ab2ede60c1fb9ebae8c57bd55fdb71cae47ee1a1ade10318ab943f1ad69"
+  },
+  "inputBoundary": "Rows already classified as foreground-app use, each carrying a caller-reconstructed participant ID, source-local day ID, integer hour 0 through 23, and an opaque app identity.",
+  "outputBoundary": "One distinct-app count for each participant/day/hour group observed in the input.",
+  "limitations": [
+    "This binding does not decide which raw records are foreground-app use.",
+    "This binding does not parse timestamps, choose a timezone, derive the source-local day, or derive the hour.",
+    "The paper does not identify whether app identity means package, process, or another field, so the identity is supplied opaquely and is not transformed.",
+    "Hours with no supplied foreground-app rows are not synthesized or zero-filled."
+  ],
+  "observations": [
+    {"participantId": "P01", "sourceDayId": "2018-03-01", "hourOfDay": 9, "foregroundAppIdentity": "app-alpha"},
+    {"participantId": "P01", "sourceDayId": "2018-03-01", "hourOfDay": 9, "foregroundAppIdentity": "app-alpha"},
+    {"participantId": "P01", "sourceDayId": "2018-03-01", "hourOfDay": 9, "foregroundAppIdentity": "app-beta"},
+    {"participantId": "P01", "sourceDayId": "2018-03-01", "hourOfDay": 10, "foregroundAppIdentity": "app-alpha"},
+    {"participantId": "P01", "sourceDayId": "2018-03-02", "hourOfDay": 9, "foregroundAppIdentity": "app-alpha"},
+    {"participantId": "P02", "sourceDayId": "2018-03-01", "hourOfDay": 9, "foregroundAppIdentity": "app-alpha"},
+    {"participantId": "P02", "sourceDayId": "2018-03-01", "hourOfDay": 9, "foregroundAppIdentity": "app-gamma"}
+  ],
+  "expectedObservedGroups": [
+    {"participantId": "P01", "sourceDayId": "2018-03-01", "hourOfDay": 9, "distinctForegroundAppCount": 2},
+    {"participantId": "P01", "sourceDayId": "2018-03-01", "hourOfDay": 10, "distinctForegroundAppCount": 1},
+    {"participantId": "P01", "sourceDayId": "2018-03-02", "hourOfDay": 9, "distinctForegroundAppCount": 1},
+    {"participantId": "P02", "sourceDayId": "2018-03-01", "hourOfDay": 9, "distinctForegroundAppCount": 2}
+  ],
+  "explicitlyAbsentGroup": {"participantId": "P01", "sourceDayId": "2018-03-01", "hourOfDay": 11}
+}

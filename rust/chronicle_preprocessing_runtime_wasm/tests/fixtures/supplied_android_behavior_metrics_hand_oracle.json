@@ -1,0 +1,220 @@
+{
+  "schema_version": "chronicle-supplied-android-behavior-hand-oracle/v1",
+  "independent_arithmetic": "Hand values, not captured runtime outputs: HUSH sum1/count2=.5; updates .75,.375 even supplied suppressed observation; foreground minima5,10 mean7.5; Jones FFFBB length5 B2 ratio.4; same-app8-1=7; phone3 sessions,10+30+50=90,mean30,strict short1; holds10,30 mean20ms and flights5,15 mean10ms.",
+  "source_limits": "Caller-qualified complete source scopes and declared units; raw X, activity/context, unlock/hour, launch/typing pair constructors and historical missingness unavailable. No model/live energy suppression/GPS/survey/clinical pipeline. Finite binary64 ordered reductions are typed arithmetic, exact i128 endpoint differences retained.",
+  "cases": [
+    {
+      "component": "chronicle.hush-supplied-bfc/v1",
+      "stage": "HushBfc",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,beta,alpha,sequence_origin,observations_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-complete-ordered-app-active-background-following-screen-on,app,0.5,0.1,caller-qualified-source-sequence-from-initial-0.5,\"[{\"\"background_interval_id\"\":\"\"b1\"\",\"\"following_screen_on_interval_id\"\":\"\"on1\"\",\"\"source_order\"\":0,\"\"x_foreground\"\":true,\"\"was_suppressed\"\":false},{\"\"background_interval_id\"\":\"\"b2\"\",\"\"following_screen_on_interval_id\"\":\"\"on2\"\",\"\"source_order\"\":1,\"\"x_foreground\"\":false,\"\"was_suppressed\"\":true}]\""
+      ],
+      "expected_result_json": {
+        "background_count": 2,
+        "foreground_count": 1,
+        "static_bfc": 0.5,
+        "initial_bfc": 0.5,
+        "beta": 0.5,
+        "alpha": 0.1,
+        "updates": [
+          {
+            "background_interval_id": "b1",
+            "following_screen_on_interval_id": "on1",
+            "source_order": 0,
+            "was_suppressed": false,
+            "previous_bfc": 0.5,
+            "bfc": 0.75,
+            "suppress_using_previous_bfc": false,
+            "suppress_using_updated_bfc": false
+          },
+          {
+            "background_interval_id": "b2",
+            "following_screen_on_interval_id": "on2",
+            "source_order": 1,
+            "was_suppressed": true,
+            "previous_bfc": 0.75,
+            "bfc": 0.375,
+            "suppress_using_previous_bfc": false,
+            "suppress_using_updated_bfc": false
+          }
+        ],
+        "status": "computed_supplied_sequence"
+      },
+      "expected_source_row_count": 1,
+      "method_setting_ids": [
+        "method-setting-13ac5da35ae19ad08b270a31",
+        "method-setting-6f2ebc289423a56a0042e184",
+        "method-setting-c49f2aa876e765d1426f3fdb"
+      ]
+    },
+    {
+      "component": "chronicle.hush-supplied-staleness/v1",
+      "stage": "HushStaleness",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,coordinate_unit,timestamp_precision,foreground_activities_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-complete-device-app-foregrounds-with-latest-prior-activities,app,s,1,\"[{\"\"foreground\"\":{\"\"source_event_id\"\":\"\"fg1\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"foreground\"\",\"\"clock_id\"\":\"\"clockA\"\",\"\"coordinate\"\":20},\"\"prior_background_state\"\":\"\"present\"\",\"\"prior_background\"\":{\"\"source_event_id\"\":\"\"bg1\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"background\"\",\"\"clock_id\"\":\"\"clockA\"\",\"\"coordinate\"\":12},\"\"prior_foreground_state\"\":\"\"present\"\",\"\"prior_foreground\"\":{\"\"source_event_id\"\":\"\"pfg1\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"foreground\"\",\"\"clock_id\"\":\"\"clockA\"\",\"\"coordinate\"\":15}},{\"\"foreground\"\":{\"\"source_event_id\"\":\"\"fg2\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"foreground\"\",\"\"clock_id\"\":\"\"clockA\"\",\"\"coordinate\"\":40},\"\"prior_background_state\"\":\"\"present\"\",\"\"prior_background\"\":{\"\"source_event_id\"\":\"\"bg2\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"background\"\",\"\"clock_id\"\":\"\"clockA\"\",\"\"coordinate\"\":25},\"\"prior_foreground_state\"\":\"\"present\"\",\"\"prior_foreground\"\":{\"\"source_event_id\"\":\"\"pfg2\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"foreground\"\",\"\"clock_id\"\":\"\"clockA\"\",\"\"coordinate\"\":30}}]\""
+      ],
+      "expected_result_json": {
+        "foreground_count": 2,
+        "foreground_minima": [
+          {
+            "foreground_event_id": "fg1",
+            "minimum_elapsed_coordinates": "5"
+          },
+          {
+            "foreground_event_id": "fg2",
+            "minimum_elapsed_coordinates": "10"
+          }
+        ],
+        "mean_staleness_coordinates": 7.5,
+        "coordinate_unit": "s",
+        "status": "computed_binary64_mean_of_exact_minima"
+      },
+      "expected_source_row_count": 1,
+      "method_setting_ids": [
+        "method-setting-da9175502f6e6ff480a806dc"
+      ]
+    },
+    {
+      "component": "chronicle.jones-supplied-session-backtracking/v1",
+      "stage": "JonesBacktracking",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,launches_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-complete-ordered-unlock-lock-session-launches,\"[{\"\"launch_id\"\":\"\"l1\"\",\"\"app_id\"\":\"\"Email\"\",\"\"source_order\"\":0},{\"\"launch_id\"\":\"\"l2\"\",\"\"app_id\"\":\"\"Chrome\"\",\"\"source_order\"\":1},{\"\"launch_id\"\":\"\"l3\"\",\"\"app_id\"\":\"\"Facebook\"\",\"\"source_order\"\":2},{\"\"launch_id\"\":\"\"l4\"\",\"\"app_id\"\":\"\"Chrome\"\",\"\"source_order\"\":3},{\"\"launch_id\"\":\"\"l5\"\",\"\"app_id\"\":\"\"Facebook\"\",\"\"source_order\"\":4}]\""
+      ],
+      "expected_result_json": {
+        "sequence_length": 5,
+        "fb_string": "FFFBB",
+        "backtracking_count": 2,
+        "backtracking_ratio": 0.4,
+        "status": "computed_supplied_session"
+      },
+      "expected_source_row_count": 1,
+      "method_setting_ids": [
+        "method-setting-651483950c1e68eec2d0241e",
+        "method-setting-5b161ad21899e48a825b5698",
+        "method-setting-345db998b91698869805d764"
+      ]
+    },
+    {
+      "component": "chronicle.jones-supplied-app-return/v1",
+      "stage": "JonesReturn",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,coordinate_unit,timestamp_precision,previous_launch_json,current_launch_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-consecutive-same-app-launch-pair,app,ms,1,\"{\"\"source_event_id\"\":\"\"l1\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"clockA\"\",\"\"coordinate\"\":1}\",\"{\"\"source_event_id\"\":\"\"l2\"\",\"\"app_id\"\":\"\"app\"\",\"\"event_role\"\":\"\"application_launch\"\",\"\"clock_id\"\":\"\"clockA\"\",\"\"coordinate\"\":8}\""
+      ],
+      "expected_result_json": {
+        "app_id": "app",
+        "elapsed_coordinates": "7",
+        "coordinate_unit": "ms",
+        "status": "computed_exact_supplied_pair"
+      },
+      "expected_source_row_count": 1,
+      "method_setting_ids": [
+        "method-setting-fb7b1f342fee043de1564bde"
+      ]
+    },
+    {
+      "component": "chronicle.cognitive-supplied-phone-hour/v1",
+      "stage": "CognitivePhoneHour",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,hour_duration_seconds,duration_unit,sessions_json,duration_contributions_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-whole-phone-hour-session-and-duration-inventories,3600,s,\"[{\"\"session_id\"\":\"\"s1\"\",\"\"full_session_duration_seconds\"\":10},{\"\"session_id\"\":\"\"s2\"\",\"\"full_session_duration_seconds\"\":30},{\"\"session_id\"\":\"\"s3\"\",\"\"full_session_duration_seconds\"\":50}]\",\"[{\"\"contribution_id\"\":\"\"c1\"\",\"\"duration_seconds\"\":10},{\"\"contribution_id\"\":\"\"c2\"\",\"\"duration_seconds\"\":30},{\"\"contribution_id\"\":\"\"c3\"\",\"\"duration_seconds\"\":50}]\""
+      ],
+      "expected_result_json": {
+        "phone_session_count": 3,
+        "hourly_total_phone_duration_seconds": 90.0,
+        "mean_phone_session_duration_seconds": 30.0,
+        "short_session_classes": [
+          {
+            "session_id": "s1",
+            "short": true
+          },
+          {
+            "session_id": "s2",
+            "short": false
+          },
+          {
+            "session_id": "s3",
+            "short": false
+          }
+        ],
+        "short_session_count": 1,
+        "status": "computed_supplied_hour"
+      },
+      "expected_source_row_count": 1,
+      "method_setting_ids": [
+        "method-setting-69570d3c1d4013b8797d2309",
+        "method-setting-572d63a948e43c96d7afc554",
+        "method-setting-9e5cdc415ef5e4956f380717",
+        "method-setting-5ea538191641e72523a205d5",
+        "method-setting-b83eaac46dd54e01ea710f78"
+      ]
+    },
+    {
+      "component": "chronicle.rodrigues-supplied-typing-mean/v1",
+      "stage": "RodriguesTypingMean",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,coordinate_unit,timestamp_precision,typing_pairs_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-complete-trial-session-hold-flight-pairs,ms,1,\"[{\"\"pair_id\"\":\"\"h1\"\",\"\"kind\"\":\"\"hold\"\",\"\"pair_stage\"\":\"\"caller-resolved-same-key-press-release\"\",\"\"start_anchor\"\":{\"\"source_event_id\"\":\"\"kp1\"\",\"\"key_instance_id\"\":\"\"k1\"\",\"\"event_role\"\":\"\"key_press\"\",\"\"clock_id\"\":\"\"clockA\"\",\"\"coordinate\"\":0},\"\"end_anchor\"\":{\"\"source_event_id\"\":\"\"kr1\"\",\"\"key_instance_id\"\":\"\"k1\"\",\"\"event_role\"\":\"\"key_release\"\",\"\"clock_id\"\":\"\"clockA\"\",\"\"coordinate\"\":10}},{\"\"pair_id\"\":\"\"h2\"\",\"\"kind\"\":\"\"hold\"\",\"\"pair_stage\"\":\"\"caller-resolved-same-key-press-release\"\",\"\"start_anchor\"\":{\"\"source_event_id\"\":\"\"kp2\"\",\"\"key_instance_id\"\":\"\"k2\"\",\"\"event_role\"\":\"\"key_press\"\",\"\"clock_id\"\":\"\"clockA\"\",\"\"coordinate\"\":15},\"\"end_anchor\"\":{\"\"source_event_id\"\":\"\"kr2\"\",\"\"key_instance_id\"\":\"\"k2\"\",\"\"event_role\"\":\"\"key_release\"\",\"\"clock_id\"\":\"\"clockA\"\",\"\"coordinate\"\":45}},{\"\"pair_id\"\":\"\"f1\"\",\"\"kind\"\":\"\"flight\"\",\"\"pair_stage\"\":\"\"caller-resolved-release-next-keypress\"\",\"\"start_anchor\"\":{\"\"source_event_id\"\":\"\"kr1\"\",\"\"key_instance_id\"\":\"\"k1\"\",\"\"event_role\"\":\"\"key_release\"\",\"\"clock_id\"\":\"\"clockA\"\",\"\"coordinate\"\":10},\"\"end_anchor\"\":{\"\"source_event_id\"\":\"\"kp2\"\",\"\"key_instance_id\"\":\"\"k2\"\",\"\"event_role\"\":\"\"key_press\"\",\"\"clock_id\"\":\"\"clockA\"\",\"\"coordinate\"\":15}},{\"\"pair_id\"\":\"\"f2\"\",\"\"kind\"\":\"\"flight\"\",\"\"pair_stage\"\":\"\"caller-resolved-release-next-keypress\"\",\"\"start_anchor\"\":{\"\"source_event_id\"\":\"\"kr2\"\",\"\"key_instance_id\"\":\"\"k2\"\",\"\"event_role\"\":\"\"key_release\"\",\"\"clock_id\"\":\"\"clockA\"\",\"\"coordinate\"\":45},\"\"end_anchor\"\":{\"\"source_event_id\"\":\"\"kp3\"\",\"\"key_instance_id\"\":\"\"k3\"\",\"\"event_role\"\":\"\"key_press\"\",\"\"clock_id\"\":\"\"clockA\"\",\"\"coordinate\"\":60}}]\""
+      ],
+      "expected_result_json": {
+        "hold_pair_count": 2,
+        "flight_pair_count": 2,
+        "hold_mean_ms": 20.0,
+        "flight_mean_ms": 10.0,
+        "coordinate_unit": "ms",
+        "pairs": [
+          {
+            "pair_id": "h1",
+            "kind": "hold",
+            "elapsed_coordinates": "10"
+          },
+          {
+            "pair_id": "h2",
+            "kind": "hold",
+            "elapsed_coordinates": "30"
+          },
+          {
+            "pair_id": "f1",
+            "kind": "flight",
+            "elapsed_coordinates": "5"
+          },
+          {
+            "pair_id": "f2",
+            "kind": "flight",
+            "elapsed_coordinates": "15"
+          }
+        ],
+        "status": "computed_binary64_named_means"
+      },
+      "expected_source_row_count": 1,
+      "method_setting_ids": [
+        "method-setting-cf099932d0df8f3d1129f3c6"
+      ]
+    }
+  ],
+  "source_artifacts": [
+    {
+      "path": ".tmp-literature-review-private/authenticated-cookie-recovery-wave-20260830/retrieved/smartphone-background-activities-2015/primary.pdf",
+      "sha256": "45115c6f3afed626efcf671ca934da940d08dc2febe464b491456f2ec9d27cfb",
+      "locator": "HUSH Eq6.1.1/Eq6.2.1/Fig16, staleness and selected alpha discussion; rank169.txt460–478,627–653,747–764,879–900"
+    },
+    {
+      "path": ".tmp-literature-review-private/artifacts/packet08b/jones2015_bath_peer_reviewed_version.pdf",
+      "sha256": "7d55f75a6c99ac83983073a125b6bc2a4c7ca7f959ad2cce2b637f844ee61c15",
+      "locator": "physicalp5 same-app revisit; physicalp6 F/B example; source text261–280,318–400; no pooling-weight/censoring formula"
+    },
+    {
+      "path": ".tmp-literature-review-private/ontology-sublation-20260831/work/new-source-audits/sources/abdullah-cognitive-rhythms-2016.pdf",
+      "sha256": "d843f55d340665f9fb79532e99572677595f3a26386dbc45527bdb2d3aafb329",
+      "locator": "physicalp7 phone-use count/hour,total/hour,seconds/burst,strict<30; physicalp8 reduced mean-duration feature"
+    },
+    {
+      "path": ".tmp-literature-review-private/ontology-sublation-20260831/work/rodrigues-primary-http-20260927.54lzDO/rodrigues-text-entry.pdf",
+      "sha256": "f1e9d7058c3108cc8ed1273bcfdeef39cf9da5ad7c642590691cdc3189bd3a8b",
+      "locator": "physicalp7§4.3 release→nextpress flight and press→samekeyrelease hold; physicalp9Table1 ms; layout380–391"
+    }
+  ]
+}

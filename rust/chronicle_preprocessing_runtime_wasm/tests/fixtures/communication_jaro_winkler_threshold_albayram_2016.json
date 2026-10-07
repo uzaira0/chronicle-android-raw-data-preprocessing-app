@@ -1,0 +1,84 @@
+{
+  "schemaVersion": "chronicle-communication-jaro-winkler-threshold-source-fixture/v1",
+  "sourceWorkId": "doi:10.1186/s13673-016-0072-3",
+  "canonicalIdentity": {
+    "settingId": "method-setting-c2058445d529153381cac8a7",
+    "sourceCurrentSettingId": "method-setting-c2058445d529153381cac8a7",
+    "sourceExtractionId": "extraction-c2058445d529153381cac8a7",
+    "sourceExecutionUnitId": "dynamic-security-0072:communication_question",
+    "aliasResolution": "canonical_current_no_alias_or_tombstone",
+    "tombstoneRegistrySha256": "018221f6036218887355a0a2dcd9d6d54a9e90eb93f380b4e1b81cc75c0f76b5"
+  },
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-c2058445d529153381cac8a7",
+    "parameterKey": "communication.score_threshold",
+    "sourceObservedSetting": "communication.score_threshold: {\"comparator\":\">\",\"value\":85,\"unit\":\"percent\",\"pass_score\":\"correct\",\"fail_score\":0}",
+    "sourceValueSha256": "7df695df7bcbf7362ce5c47197ebb607439cc1612c2d410e34876094ea23ef42"
+  },
+  "sourceArtifacts": [
+    {
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/work/s13673-fulltext-layout.txt:526-539",
+      "sha256": "dc076e537744bea22bb6f50f28cb4f635dadcdc90378e5e299a6200b13b1a190"
+    },
+    {
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/work/s13673-fulltext.pdf#page=11;layout-lines=526-539",
+      "sha256": "99f6cfcf5bb973503fc0e55c7a13ac4d521688c746a9b7b18a4addee69a12bff"
+    },
+    {
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/source-completeness-audits/doi-10.1186-s13673-016-0072-3.json#key=communication.score_threshold",
+      "sha256": "fd62368ccc3f583f8e963317c92e01385f18ec87b62b0823d692f1e3e86b6abe"
+    },
+    {
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/method-setting-alias-tombstones.json#lookup=method-setting-c2058445d529153381cac8a7",
+      "sha256": "018221f6036218887355a0a2dcd9d6d54a9e90eb93f380b4e1b81cc75c0f76b5"
+    }
+  ],
+  "inputBoundary": "One caller-supplied finite Jaro-Winkler similarity score expressed as a percentage in the closed interval 0 through 100 for an open-ended Call or SMS answer. Answer normalization, string comparison, Jaro-Winkler implementation/version, correct-answer selection, and question construction occur upstream.",
+  "outputBoundary": "Classify a Call or SMS answer as correct only when its similarity is strictly greater than 85 percent; a score below or exactly equal to 85 percent receives score 0.",
+  "limitations": [
+    "The source names Jaro-Winkler and gives the strict threshold, but does not disclose the implementation/version, case folding, Unicode normalization, whitespace handling, or other string preprocessing; this fixture accepts only the already-derived similarity percentage.",
+    "A missing, nonfinite, negative, or above-100 similarity percentage fails closed before classification; no rescaling from a 0-to-1 library output, rounding, epsilon, or tolerance is invented.",
+    "The question generator, event weighting and ranking, autocomplete behavior, correct-answer source, participant/session identity, and multi-question session score remain outside this threshold setting.",
+    "Call/SMS log collection, event schemas, distractor resources, study APK/source, original response rows, and the paper's reported authentication analyses remain unresolved upstream or downstream inputs and are not reproduced by this binding."
+  ],
+  "pivotPercent": 85.0,
+  "categories": {
+    "below": "score_0",
+    "equal": "score_0",
+    "above": "correct"
+  },
+  "observations": [
+    {
+      "caseId": "immediately-below-threshold",
+      "similarityPercent": 84.999,
+      "expectedClass": "score_0"
+    },
+    {
+      "caseId": "exact-threshold-is-not-greater-than",
+      "similarityPercent": 85.0,
+      "expectedClass": "score_0"
+    },
+    {
+      "caseId": "immediately-above-threshold",
+      "similarityPercent": 85.001,
+      "expectedClass": "correct"
+    }
+  ],
+  "invalidObservations": [
+    {
+      "caseId": "missing-similarity",
+      "similarityPercent": null,
+      "expectedError": "communication_similarity_percent_required"
+    },
+    {
+      "caseId": "negative-percentage",
+      "similarityPercent": -0.001,
+      "expectedError": "communication_similarity_percent_out_of_range"
+    },
+    {
+      "caseId": "above-one-hundred-percent",
+      "similarityPercent": 100.001,
+      "expectedError": "communication_similarity_percent_out_of_range"
+    }
+  ]
+}

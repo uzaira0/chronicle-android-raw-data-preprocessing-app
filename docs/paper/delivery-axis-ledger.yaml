@@ -1,0 +1,529 @@
+schema_version: "1.0.0"
+ledger_id: "chronicle-preview-delivery-axes"
+ledger_version: "2026-08-25.1"
+status: "canonical"
+last_updated: "2026-08-25"
+
+authority:
+  namespace: "delivery"
+  id_pattern: "delivery:B(01|02|03|04|05|06|07|08|09|10|11|12|13|14)"
+  canonical_for:
+    - "The ordering and meaning of the fourteen delivery axes recovered from the operator workflow."
+    - "The baseline implementation and recovery status of each delivery axis."
+  explicitly_not_equivalent_to:
+    - system: "measurement-component rubric"
+      distinction: >-
+        The repository's twenty-one scientific measurement components describe a different,
+        non-isomorphic decomposition. A delivery ID must not be used as a component ID.
+    - system: "literature search slices"
+      distinction: >-
+        Labels such as literature slice B are corpus-partition labels. They do not identify
+        delivery:B02 or any other delivery axis.
+  change_control:
+    - "Never reuse a delivery ID for a different meaning."
+    - "Record a ledger_version change whenever an axis definition or baseline status changes."
+    - "Keep scientific claims, measurement-component IDs, LinkML ontology terms, and literature-slice identifiers in their own authorities."
+    - "A paper or thesis outline may cite this ledger but must not redefine its IDs."
+
+recovered_operator_workflow:
+  recovery_status: "full_text_recovered_from_prior_session_transcript"
+  prior_session_id: "59fba1b2-f713-4afd-bfce-2a2203dfe3de"
+  user_entry_uuid: "79cf30a1-4cbe-4401-a192-1eaa69197de1"
+  timestamp: "2026-08-11T10:43:42.673Z"
+  content_length: 14612
+  content_sha256: "3d506bfa8ff8b3b9d79c24b69948b43bf238bd5d45fafe21ecf29d39a131da6f"
+  collapsed_attachment_sha256: "0738059242f32f421eb71bd5d74466373b516cf4396ceea62af7abb308c95eb8"
+  provenance_note: >-
+    The collapsed attachment is not a complete requirements authority. The full recovered
+    user entry, identified and checksummed above, is the source for the meanings in this ledger.
+
+implementation_baseline:
+  repository: "uzaira0/chronicle-android-preprocessing-app-preview"
+  visibility: "private"
+  branch: "origin/main"
+  commit: "312ef636e3bd03d63bc5d8b2fd84b86fa5251cbc"
+  observed_at: "2026-08-11"
+  public_repository_policy: "never_merge_from_or_push_to_the_public_repository"
+
+status_vocabulary:
+  mechanism_present_alternatives_source_unverified: >-
+    A runtime mechanism is present, but the literature-derived alternative settings have not
+    been independently source-verified.
+  reported_unpublished_artifact_absent: >-
+    The recovered operator workflow reports unpublished implementation work, but the named
+    commits and byte artifact are absent from all successfully inspected evidence locations.
+  accepted_on_private_feature_branch: >-
+    A fresh implementation reconstructed from the frozen decision has passed its scoped
+    acceptance evidence on the private feature branch. It is neither the absent historical
+    artifact nor evidence of PR merge, deployment, or canary completion.
+  pending: "No implementation is accepted on the stated baseline."
+  conditional_refusal: >-
+    Implementation is prohibited unless the named public or synthetic evidence condition is met;
+    otherwise the runtime must refuse the option explicitly.
+
+artifact_recovery_policy:
+  applies_to: "delivery:B02"
+  priority: "recover_and_preserve_original_byte_artifact_before_reimplementation"
+  checks_completed_without_recovery:
+    - "Local objects and refs in the available checkouts."
+    - "All fetched private-preview refs: 39 branch heads and 10 tags."
+    - "Recovered prior-session evidence and the handoff/log locations named there."
+    - "Available backup locations."
+    - "The historical Mac endpoint was attempted but did not respond before timeout."
+  result: "original_commits_and_wasm_byte_artifact_not_recovered"
+  next_permitted_path: >-
+    Only after this documented recovery failure, implement the frozen delivery:B02 requirements
+    in a fresh implementation path with new provenance and focused tests.
+  prohibitions:
+    - "Never overwrite, regenerate in place, or discard an original delivery:B02 artifact if one becomes available."
+    - "Never present a reconstruction as the recovered historical artifact."
+
+axes:
+  - id: "delivery:B01"
+    ordinal: 1
+    key: "event_retention"
+    label: "Event retention"
+    requirement: >-
+      Make event-retention policy an explicit measurement choice rather than an implicit parser default.
+    baseline_status: "mechanism_present_alternatives_source_unverified"
+    baseline_evidence: >-
+      The baseline contains a retention mechanism and literature-labeled alternatives. The alternative
+      transcriptions remain source-unverified and therefore are not certified scientific presets.
+
+  - id: "delivery:B02"
+    ordinal: 2
+    key: "opener_set"
+    label: "Opener set"
+    requirement: >-
+      Make the interaction/event set that can open usage credit an independent, persisted,
+      Rust-reachable measurement axis with receipt evidence.
+    baseline_status: "reported_unpublished_artifact_absent"
+    baseline_evidence: >-
+      The recovered workflow reports unpublished delivery:B02 work, but historical commits f581581 and
+      90ae834 and the corresponding WASM bytes are absent after exhaustive successful local and
+      private-ref recovery checks. The WASM on origin/main is attributable to delivery:B01, not delivery:B02.
+    recovery_disposition: "See artifact_recovery_policy; preserve original bytes first, then use a fresh path only after recovery failure."
+    campaign_implementation:
+      status: "accepted_on_private_feature_branch"
+      branch: "codex/b2-b14-convergence"
+      provenance: "fresh_reimplementation_from_frozen_decision_not_recovered_historical_bytes"
+      accepted_values:
+        - "strategy_defined"
+        - "activity_resumed_only"
+        - "gesis_app_scoped_starts"
+      conditional_refusal:
+        crossing: "eyes_complement × gesis_app_scoped_starts"
+        reason: "eyes_requires_lifecycle_triplets"
+      implementation_sha256: "521dd7f2182f9da20c8dc0bb9b19a4f5d22178f698efc3c82a76d161cba7a8a1"
+      runtime_wasm_sha256: "a68b45274597b23c53da5203377981ed1d7c52b65584a6f9f52d3c54fec48e17"
+      dependency_certificate_sha256: "baa2262ded4892addcdea658d8c3b664c2d06afe10c7c5ee4006adf9e128d415"
+      evidence:
+        - "Every 7 × 3 strategy/opener crossing consumes the selected vector or refuses explicitly."
+        - "The binding multiverse closes 210 unique cells as 200 executions and 10 exact EYES refusals."
+        - "Default scientific outputs match detached baseline 312ef636 across all seven strategies."
+        - "Native, tracked, persisted-base, WASM, provenance, dependency, combinatorial, privacy, and supported-browser gates pass."
+      host_limitations:
+        - "Playwright WebKit cannot load on the RHEL 9 campaign host because its binary requires newer glibc symbols; no WebKit product pass is claimed."
+      private_preview_pr: "uzaira0/chronicle-android-preprocessing-app-preview#3 (squash-merged 2026-08-17 as 01be6d2)"
+      pending:
+        - "preview_deployment"
+        - "production_canary"
+
+  - id: "delivery:B03"
+    ordinal: 3
+    key: "micro_use_classification"
+    label: "Micro-use classification"
+    requirement: "Classify micro-use explicitly and expose the classification in outputs and provenance."
+    baseline_status: "pending"
+    baseline_evidence: "No micro-use classification exists at baseline 312ef63; the option surface landed only on the campaign branch."
+    campaign_implementation:
+      status: "accepted_on_private_feature_branch"
+      branch: "codex/b2-b14-convergence"
+      provenance: "fresh_implementation_from_frozen_b03_b05_decision"
+      decision_record: "docs/paper/b03-b05-foundational-semantics-research-decision.md"
+      option_keys:
+        - "micro_use_classification_policy"
+      accepted_values:
+        - "none"
+        - "okoshi_lt_5s"
+      implementation_sha256: "ee329400882e1a2ed2661aa251bd685167055093f581d97f4a3af722a49c2dcc"
+      runtime_wasm_sha256: "54f703ff51ed7b19f4f81218158f69d291776c8451e9dbb0d9f39b5a0a9b6d36"
+      dependency_certificate_sha256: "fff7f6bc2bff05bcce65b2b14fac56523ba43f6ff52bd0e26230c7ed1d5c259a"
+      source_commit: "b61e2bd"
+      gate_evidence:
+        - "make ci and the complete make all exit 0 on the committed tree (2026-08-13; make-ci-final2.log, make-all-final5.log)."
+        - "Kernel suite 485 passed, 0 failed, 1 ignored; detached-080801a byte oracle (tests/detached_b03_b05_oracle.rs) pins the pre-axis default outputs."
+        - "Dependency evidence regenerated after every production Rust change (runs 23-26; run 26 follows the independent-review fixes 75d6510 and c3d723e); declared graph and observed Salsa reads agree."
+        - "With every B03-B05 option at its default the golden output is byte-identical to the pre-axis baseline."
+      host_limitations:
+        - "Playwright WebKit cannot load on the RHEL 9 campaign host (binary requires glibc 2.38; host has 2.34); no WebKit product pass is claimed."
+      private_preview_pr: "uzaira0/chronicle-android-preprocessing-app-preview#3 (squash-merged 2026-08-17 as 01be6d2)"
+      pending:
+        - "preview_deployment"
+        - "production_canary"
+
+  - id: "delivery:B04"
+    ordinal: 4
+    key: "minimum_duration"
+    previous_key: "minimum_duration_exclusion"
+    key_note: >-
+      Renamed 2026-08-17: the frozen B03-B05 decision implements the axis as a comparator plus a
+      disposition (exclusion is one disposition among four), so the axis key is the shared
+      option-key prefix. The delivery ID and its meaning are unchanged.
+    label: "Minimum-duration exclusion"
+    requirement: "Make minimum-duration exclusion an explicit, auditable measurement choice."
+    baseline_status: "pending"
+    baseline_evidence: "Baseline 312ef63 has only the numeric minimum_usage_duration threshold with an implicit strict comparator and blank-keep-row disposition; neither is an explicit choice there."
+    campaign_implementation:
+      status: "accepted_on_private_feature_branch"
+      branch: "codex/b2-b14-convergence"
+      provenance: "fresh_implementation_from_frozen_b03_b05_decision"
+      decision_record: "docs/paper/b03-b05-foundational-semantics-research-decision.md"
+      option_keys:
+        - "minimum_duration_comparator"
+        - "minimum_duration_disposition"
+      accepted_values:
+        - "strict_lt"
+        - "inclusive_le"
+        - "chronicle_blank_keep_row"
+        - "retain_and_credit"
+        - "retain_but_exclude"
+        - "drop_row"
+      implementation_sha256: "ee329400882e1a2ed2661aa251bd685167055093f581d97f4a3af722a49c2dcc"
+      runtime_wasm_sha256: "54f703ff51ed7b19f4f81218158f69d291776c8451e9dbb0d9f39b5a0a9b6d36"
+      dependency_certificate_sha256: "fff7f6bc2bff05bcce65b2b14fac56523ba43f6ff52bd0e26230c7ed1d5c259a"
+      source_commit: "b61e2bd"
+      gate_evidence:
+        - "make ci and the complete make all exit 0 on the committed tree (2026-08-13; make-ci-final2.log, make-all-final5.log)."
+        - "Kernel suite 485 passed, 0 failed, 1 ignored; detached-080801a byte oracle (tests/detached_b03_b05_oracle.rs) pins the pre-axis default outputs."
+        - "Dependency evidence regenerated after every production Rust change (runs 23-26; run 26 follows the independent-review fixes 75d6510 and c3d723e); declared graph and observed Salsa reads agree."
+        - "With every B03-B05 option at its default the golden output is byte-identical to the pre-axis baseline."
+      host_limitations:
+        - "Playwright WebKit cannot load on the RHEL 9 campaign host (binary requires glibc 2.38; host has 2.34); no WebKit product pass is claimed."
+      private_preview_pr: "uzaira0/chronicle-android-preprocessing-app-preview#3 (squash-merged 2026-08-17 as 01be6d2)"
+      pending:
+        - "preview_deployment"
+        - "production_canary"
+
+  - id: "delivery:B05"
+    ordinal: 5
+    key: "screen_session_construction"
+    label: "Screen-session construction"
+    requirement: "Construct screen sessions with explicit boundary semantics and lineage."
+    baseline_status: "pending"
+    baseline_evidence: "Baseline 312ef63 constructs screen sessions only by the implicit Screen Interactive rule; no strategy choice or lineage exists there."
+    campaign_implementation:
+      status: "accepted_on_private_feature_branch"
+      branch: "codex/b2-b14-convergence"
+      provenance: "fresh_implementation_from_frozen_b03_b05_decision"
+      decision_record: "docs/paper/b03-b05-foundational-semantics-research-decision.md"
+      option_keys:
+        - "screen_session_construction_strategy"
+      accepted_values:
+        - "chronicle_screen_interactive_v1"
+        - "parry_toth_2025_session_glance_v1"
+        - "zhu_2018_unlock_lock_v1"
+      implementation_sha256: "ee329400882e1a2ed2661aa251bd685167055093f581d97f4a3af722a49c2dcc"
+      runtime_wasm_sha256: "54f703ff51ed7b19f4f81218158f69d291776c8451e9dbb0d9f39b5a0a9b6d36"
+      dependency_certificate_sha256: "fff7f6bc2bff05bcce65b2b14fac56523ba43f6ff52bd0e26230c7ed1d5c259a"
+      source_commit: "b61e2bd"
+      gate_evidence:
+        - "make ci and the complete make all exit 0 on the committed tree (2026-08-13; make-ci-final2.log, make-all-final5.log)."
+        - "Kernel suite 485 passed, 0 failed, 1 ignored; detached-080801a byte oracle (tests/detached_b03_b05_oracle.rs) pins the pre-axis default outputs."
+        - "Dependency evidence regenerated after every production Rust change (runs 23-26; run 26 follows the independent-review fixes 75d6510 and c3d723e); declared graph and observed Salsa reads agree."
+        - "With every B03-B05 option at its default the golden output is byte-identical to the pre-axis baseline."
+      host_limitations:
+        - "Playwright WebKit cannot load on the RHEL 9 campaign host (binary requires glibc 2.38; host has 2.34); no WebKit product pass is claimed."
+      private_preview_pr: "uzaira0/chronicle-android-preprocessing-app-preview#3 (squash-merged 2026-08-17 as 01be6d2)"
+      pending:
+        - "preview_deployment"
+        - "production_canary"
+
+  - id: "delivery:B06"
+    ordinal: 6
+    key: "maximum_duration_policy"
+    label: "Maximum-duration policy"
+    requirement: "Make maximum-duration handling explicit, parameterized, and receipted."
+    baseline_status: "pending"
+    baseline_evidence: >-
+      Baseline 312ef63 (and private main 01be6d2) has only the numeric long_duration_threshold_hours
+      read inside the fused matcher as a candidate-close admissibility rule; the rejected close
+      surfaces as End of Usage Missing and is indistinguishable from an unobserved close. No policy,
+      disposition, threshold source, or receipt exists there.
+    campaign_implementation:
+      status: "accepted_on_private_feature_branch"
+      branch: "codex/b06-maximum-duration"
+      provenance: "fresh_implementation_from_frozen_b06_decision"
+      decision_record: "docs/paper/b06-maximum-duration-research-decision.md"
+      proof_matrix: "docs/paper/b06-maximum-duration-proof-matrix.md"
+      option_keys:
+        - "maximum_duration_policy"
+        - "maximum_duration_disposition"
+        - "maximum_duration_threshold_source"
+        - "maximum_duration_threshold_ns"
+        - "long_duration_threshold_explicit"
+      accepted_values:
+        - "strategy_native"
+        - "chronicle_observed_close_rejection_v1"
+        - "post_reconstruction_strict_max_v1"
+        - "not_applicable"
+        - "flag_and_retain"
+        - "retain_but_exclude"
+        - "truncate_to_threshold"
+        - "drop_row"
+        - "chronicle_legacy_config"
+        - "fixed_parameter"
+        - "b12_adaptive_participant"
+      selection_shapes:
+        - "omitted (all keys absent): legacy behaviour, no receipt, byte-identical outputs"
+        - "strategy_native + not_applicable + strategy_native"
+        - "chronicle_observed_close_rejection_v1 + not_applicable + chronicle_legacy_config (fused_matcher only)"
+        - "post_reconstruction_strict_max_v1 + active disposition + fixed_parameter + threshold_ns"
+        - "post_reconstruction_strict_max_v1 + active disposition + b12_adaptive_participant"
+      conditional_refusal:
+        - crossing: "chronicle_observed_close_rejection_v1 × any non-fused reconstruction strategy"
+          reason: "maximum_duration_policy_incompatible_with_reconstruction_strategy"
+        - crossing: "b12_adaptive_participant (any policy)"
+          reason: "adaptive_maximum_threshold_provider_unavailable"
+      refusal_surface: >-
+        Both conditional refusals are typed preflight data (maximum_duration_applicability_json,
+        status refused + reasonCode) and an execution-time rejection
+        (pipeline_options_invalid:b06=<reason>) before any tracked query. They are not
+        invalid-request errors on the opener-set preflight, which judges B06 as
+        MaximumDurationValidation::MalformedOnly; malformed vectors (shape, threshold grammar,
+        legacy companions) stay invalid requests on every surface that judges them.
+      campaign_findings:
+        - finding: >-
+            Interaction tomography (dependency-evidence runs 9–10, 2026-08-17) exposed that the
+            opener-set preflight, which the product and the campaign run before the B06 preflight,
+            raised the raw pipeline_options_invalid:b06=maximum_duration_policy_incompatible_with_reconstruction_strategy
+            error, hiding the typed refusal from the browser and the harness.
+          fix: >-
+            pipeline_v2::validate_pipeline_v2_options_with(MaximumDurationValidation) and
+            RuntimeRequest::validate_fields_with; pinned by
+            refused_maximum_duration_vectors_pass_the_opener_preflight_and_surface_through_the_b06_preflight
+            (runtime) and maximum_duration_validation_scopes_separate_malformed_vectors_from_typed_refusals
+            (kernel).
+        - finding: >-
+            The screen strategies parry_toth and zhu refuse non_monotonic_source_timestamps on
+            non-monotone synthetic corpora; the configuration-space campaign now commits those
+            input-dependent refusals as outcomes with warm/cold identity instead of failing.
+        - finding: >-
+            The committed PICT model (52 parameters) predated the B03–B05 axes; the regenerated
+            model carries 61 computational parameters / 148 values.
+        - finding: >-
+            The B06 @smoke e2e (chromium and firefox, 2026-08-17) exposed that the runtime
+            manifest embedded the whole MaximumDurationEvidence, so the participant-level
+            excluded lineage crossed the browser boundary and its i64 nanosecond timestamps
+            failed the manifest contract ("expected a safe integer").
+          fix: >-
+            The manifest now carries the PHI-safe aggregate MaximumDurationReceipt only, exactly
+            as B04 does; the excluded lineage stays in the content-addressed
+            maximum-duration-receipt-json artifact bound by excluded_lineage_digest, and
+            MaximumDurationApplicability.threshold_ns became a canonical decimal string so the
+            full i64 range (including i64::MAX) travels exactly. Pinned by
+            maximum_duration_manifest_carries_the_aggregate_receipt_and_the_artifact_carries_the_lineage
+            (runtime) and the @smoke @opfs B06 e2e.
+      implementation_sha256: "ecea38b369353a00acf1dd668698f521518ca9ad0643a31602dc5fc216e7e4c8"
+      runtime_wasm_sha256: "a59dbb211729ff91b124267e67812e20a48c2b33e68f333f79afdb65d5f2766d"
+      dependency_certificate_sha256: "492a963b9e743bb1e8a90edc8dae1267e09c5f7c8ba9d74ed7f75a23c468697e"
+      source_commit: "4982ab4"
+      gate_evidence:
+        - "make ci and the complete make all exit 0 on the committed tree (2026-08-19; b06-makeall-5.log)."
+        - "Kernel suite 507 passed, 0 failed, 1 ignored; cargo clippy -D warnings clean on the kernel, adapter, runtime and semantic-index crates."
+        - "Web unit suite 74 files / 755 tests; e2e 16 passed on chromium and firefox (b06-e2e-verify2.log)."
+        - "Dependency evidence regenerated after every production Rust change (runs 11-16; run 16 follows the refusal-shape fix); declared graph and observed Salsa reads agree."
+        - "With every B06 key absent the golden output is byte-identical to the pre-axis baseline at 01be6d2."
+      host_limitations:
+        - "Playwright WebKit cannot load on the RHEL 9 campaign host (binary requires glibc 2.38; host has 2.34); no WebKit product pass is claimed."
+      known_preexisting_gap: >-
+        Restoring a persisted reconstruction base that a full (materialized) run produced onto the
+        review path reproduces the apply_episode_flags checkpoint differently from the cold oracle;
+        reproduced without any B06 key at 01be6d2, so it is not introduced by this axis. B06's own
+        persisted-base tests produce their bases on the review path. Tracked separately.
+      private_preview_pr: "uzaira0/chronicle-android-preprocessing-app-preview#9 (squash-merged 2026-08-19 as 63fe9c597)"
+      pending:
+        - "preview_deployment"
+        - "production_canary"
+
+  - id: "delivery:B07"
+    ordinal: 7
+    key: "screen_gating"
+    label: "Screen gating"
+    requirement: "Make screen-state gating an independent measurement decision."
+    baseline_status: "pending"
+    campaign_implementation:
+      status: "accepted_on_private_feature_branch"
+      option_keys:
+        - "screen_gating_rule"
+      accepted_values:
+        - "screen_and_liveness_v1"
+        - "screen_witness_only"
+        - "device_liveness_only"
+      private_preview_pr: "uzaira0/chronicle-android-preprocessing-app-preview#11 (squash-merged 2026-08-19 as 35629aa9e)"
+      gate_evidence:
+        - "The merged main containing this axis (d5fee649a) passes make dependency-evidence and the complete make all with chromium+firefox e2e on 2026-08-24 (faithful-depev / faithful-makeall logs in /home/opt/chronicle_campaign_backup): kernel 535+5, runtime 112, web 756/756, e2e 42/42, published figures agree."
+      pending:
+        - "preview_deployment"
+        - "production_canary"
+
+  - id: "delivery:B08"
+    ordinal: 8
+    key: "notification_derived_proxy_rules"
+    label: "Notification-derived proxy rules"
+    requirement: "Represent notification-derived usage only through explicit proxy rules and provenance."
+    baseline_status: "pending"
+    campaign_implementation:
+      status: "accepted_on_private_feature_branch"
+      option_keys:
+        - "notification_proxy_rule"
+      accepted_values:
+        - "none"
+        - "seen_contact_v1"
+        - "interruption_contact_v1"
+        - "any_notification_contact_v1"
+      private_preview_pr: "uzaira0/chronicle-android-preprocessing-app-preview#17 (squash-merged 2026-08-24 as 029e3130a)"
+      gate_evidence:
+        - "The merged main containing this axis (d5fee649a) passes make dependency-evidence and the complete make all with chromium+firefox e2e on 2026-08-24 (faithful-depev / faithful-makeall logs in /home/opt/chronicle_campaign_backup)."
+      pending:
+        - "preview_deployment"
+        - "production_canary"
+
+  - id: "delivery:B09"
+    ordinal: 9
+    key: "polled_method_emulation"
+    label: "Polled-method emulation"
+    requirement: "Emulate polled collection methods as a declared approximation with visible assumptions."
+    baseline_status: "pending"
+    campaign_implementation:
+      status: "accepted_on_private_feature_branch"
+      option_keys:
+        - "polled_emulation_method"
+        - "polled_emulation_interval_seconds"
+        - "polled_emulation_gap_seconds"
+      accepted_values:
+        - "none"
+        - "ross_2025_sampled_gap_v1"
+        - "cerit_2025_sample_count_v1"
+      private_preview_pr: "uzaira0/chronicle-android-preprocessing-app-preview#18 (squash-merged 2026-08-24 as 2e0b963f0)"
+      gate_evidence:
+        - "The merged main containing this axis (d5fee649a) passes make dependency-evidence and the complete make all with chromium+firefox e2e on 2026-08-24 (faithful-depev / faithful-makeall logs in /home/opt/chronicle_campaign_backup)."
+      pending:
+        - "preview_deployment"
+        - "production_canary"
+
+  - id: "delivery:B10"
+    ordinal: 10
+    key: "package_exclusion_presets"
+    label: "Package-exclusion presets"
+    requirement: "Provide auditable package-exclusion presets without silently changing reconstruction semantics."
+    baseline_status: "pending"
+    campaign_implementation:
+      status: "accepted_on_private_feature_branch"
+      option_keys:
+        - "package_exclusion_preset"
+      accepted_values:
+        - "all_supplied_rows"
+        - "honor_filter_flag"
+        - "system_scope_only"
+      private_preview_pr: "uzaira0/chronicle-android-preprocessing-app-preview#16 (squash-merged 2026-08-24 as d1fd7c303)"
+      gate_evidence:
+        - "The merged main containing this axis (d5fee649a) passes make dependency-evidence and the complete make all with chromium+firefox e2e on 2026-08-24 (faithful-depev / faithful-makeall logs in /home/opt/chronicle_campaign_backup)."
+      pending:
+        - "preview_deployment"
+        - "production_canary"
+
+  - id: "delivery:B11"
+    ordinal: 11
+    key: "session_grouping_extensions"
+    label: "Session-grouping extensions"
+    requirement: "Extend grouping with explicit gap and boundary rules and row-level lineage."
+    baseline_status: "pending"
+    campaign_implementation:
+      status: "accepted_on_private_feature_branch"
+      option_keys:
+        - "session_gap_basis"
+        - "session_boundary_scope"
+        - "emit_session_break_lineage"
+      accepted_values:
+        - "previous_episode_stop_v1"
+        - "session_running_maximum_stop_v1"
+        - "participant_v1"
+        - "participant_and_study_v1"
+        - "participant_study_and_person_v1"
+      private_preview_pr: "uzaira0/chronicle-android-preprocessing-app-preview#19 (squash-merged 2026-08-24 as 2e54fa67a)"
+      gate_evidence:
+        - "The merged main containing this axis (d5fee649a) passes make dependency-evidence and the complete make all with chromium+firefox e2e on 2026-08-24 (faithful-depev / faithful-makeall logs in /home/opt/chronicle_campaign_backup)."
+      pending:
+        - "preview_deployment"
+        - "production_canary"
+
+  - id: "delivery:B12"
+    ordinal: 12
+    key: "adaptive_participant_threshold"
+    label: "Adaptive participant threshold"
+    requirement: "Support a deterministic adaptive participant threshold with an inspectable derivation."
+    baseline_status: "pending"
+    resolution_note: >-
+      The consolidated corpus contains no per-participant duration-cap derivation, so the
+      cap-scope adaptive source (maximum_duration_threshold_source = b12_adaptive_participant)
+      remains a standing typed refusal (adaptive_maximum_threshold_provider_unavailable), the
+      same discipline as delivery:B13. The literature's individualized participant threshold is
+      a session-grouping rule, and it landed faithfully at the sessionization step:
+      session_grouping_policy = peng_zhu_2020_participant_median (Peng & Zhu 2020,
+      10.1093/jcmc/zmz029, implemented verbatim — per-participant median of the participant's
+      own previous-stop-to-next-start intervals, strict < joins, >= splits, integer-exact in
+      doubled nanoseconds). The derivation is inspectable: with emit_session_break_lineage the
+      open-session flag carries "MEDIAN <seconds> S N <interval-count>", so each participant's
+      derived threshold is reconstructible from the export. An earlier invented derivation
+      (a Tukey fence and a median multiplier attributed to no paper) was removed without trace
+      before this resolution landed.
+    campaign_implementation:
+      status: "accepted_on_private_feature_branch"
+      option_keys:
+        - "session_grouping_policy"
+      accepted_values:
+        - "peng_zhu_2020_participant_median"
+      conditional_refusal:
+        crossing: "maximum_duration_threshold_source = b12_adaptive_participant (any policy)"
+        reason: "adaptive_maximum_threshold_provider_unavailable"
+      private_preview_pr: "uzaira0/chronicle-android-preprocessing-app-preview#20 (squash-merged 2026-08-24 as d5fee649a)"
+      gate_evidence:
+        - "make dependency-evidence and the complete make all with chromium+firefox e2e exit 0 on the merged tree (2026-08-24; faithful-depev / faithful-makeall logs in /home/opt/chronicle_campaign_backup): kernel 535+5, runtime 112, web 756/756, e2e 42/42, published figures 17/17 and 3/3."
+        - "Independent code review (before merge) verified the median math and found one real projection bug (summary toggle with app usage off aborted the run); fixed and pinned by a unit test before the final gate."
+        - "With session_grouping_policy at any fixed arm the six existing arms are byte-identical under the doubled comparison (fixed_arms_keep_their_exact_boundaries_under_the_doubled_comparison)."
+      pending:
+        - "preview_deployment"
+        - "production_canary"
+
+  - id: "delivery:B13"
+    ordinal: 13
+    key: "media_continuation"
+    label: "Media continuation"
+    requirement: >-
+      Implement media continuation only if public or synthetic evidence demonstrates an observable
+      signal sufficient to support it; private participant exports must not be used to make this decision.
+    baseline_status: "conditional_refusal"
+    refusal_rule: >-
+      In the absence of qualifying public or synthetic evidence, do not implement an inferred rule;
+      expose an explicit unavailable/refused outcome instead.
+
+  - id: "delivery:B14"
+    ordinal: 14
+    key: "day_boundary_and_timezone"
+    label: "Day boundary and timezone"
+    requirement: "Make day-boundary and timezone semantics explicit and consistent across browser, schema, and Rust."
+    baseline_status: "pending"
+    campaign_implementation:
+      status: "accepted_on_private_feature_branch"
+      option_keys:
+        - "day_boundary_attribution"
+      accepted_values:
+        - "attribute_to_start_day"
+        - "split_at_local_midnight"
+      private_preview_pr: "uzaira0/chronicle-android-preprocessing-app-preview#12 (squash-merged 2026-08-24 as c03045042)"
+      gate_evidence:
+        - "The merged main containing this axis (d5fee649a) passes make dependency-evidence and the complete make all with chromium+firefox e2e on 2026-08-24 (faithful-depev / faithful-makeall logs in /home/opt/chronicle_campaign_backup)."
+      pending:
+        - "preview_deployment"
+        - "production_canary"

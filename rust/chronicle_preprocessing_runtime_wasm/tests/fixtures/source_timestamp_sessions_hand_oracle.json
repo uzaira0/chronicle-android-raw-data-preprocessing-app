@@ -1,0 +1,46 @@
+{
+  "schema_version": "chronicle-source-timestamp-sessions-hand-oracle/v1",
+  "qualified_boundary": "One explicitly declared device/source stream and common clock per participant; stage-specific stream role is caller attestation, not inferred completeness. Positive timestamp_precision_ns is retained metadata, not an epoch, modulo, rounding or quantization rule.",
+  "source_pins": [
+    {"path":".tmp-literature-review-private/corrective-queue-a-20260831/evidence/rank12.txt","sha256":"4370a9a7218dbde8c91aafd16b3e855aaa08351af0d9015d8a9140c39e221ef9","locator":"221-244"},
+    {"path":".tmp-literature-review-private/corrective-queue-a-20260831/evidence/rank08.txt","sha256":"bf112abde0eb844f39bd0ea4f5ca759f72b43142eb5943e2a08b09542e2d6d6b","locator":"397-429; analysis comparator rather than later labeler wording"},
+    {"path":".tmp-literature-review-private/ontology-sublation-20260831/work/new-source-audits/hard-lock-life-usenix.pdf","sha256":"1cce21497694eff895d02f5a79572084257836cf9a806bd3076042663f6690e0","locator":"printed p218 section4.1.1/Figure1"}
+  ],
+  "source_clauses": {
+    "idle_compressed_clock": "doi:10.1109/jsyst.2015.2472579; rank12.txt:221-244; gaps above five minutes become five minutes while date/time remain unchanged",
+    "capture_gap_partition": "doi:10.3758/s13428-022-02006-z; rank08.txt:397-429; analysis splits when consecutive recorded screenshots are more than seven seconds apart",
+    "resolved_unlock_upper_bound": "usenix:soups2014:harbach-hard-lock-life; proceedings printed p218 section4.1.1; ON_LOCKED to ON_UNLOCKED elapsed time is a worst-case estimate, not credential-entry time"
+  },
+  "cases": [
+    {
+      "stage": "idle_compressed_clock",
+      "input_csv": "participant_id,source_row_id,source_device_id,source_stream_id,source_stream_role,clock_id,timestamp_precision_ns,timestamp_ns,note\nA,a1,dA,jointA,fridman_joint_analyzed_events,cA,1000,0,first\nB,b1,dB,jointB,fridman_joint_analyzed_events,cB,1000,100,other\nA,a2,dA,jointA,fridman_joint_analyzed_events,cA,1000,300000000000,equality\nA,a3,dA,jointA,fridman_joint_analyzed_events,cA,1000,1500000000000,twenty minute gap\nB,b2,dB,jointB,fridman_joint_analyzed_events,cB,2000,100,tie\n",
+      "expected_extra_rows": [["0","0"],["100","0"],["0","300000000000"],["0","600000000000"],["100","0"]]
+    },
+    {
+      "stage": "capture_gap_partition",
+      "input_csv": "participant_id,source_row_id,source_device_id,source_stream_id,source_stream_role,clock_id,timestamp_precision_ns,timestamp_ns,note\nA,a1,dA,capturesA,screenlife_recorded_captures,cA,1000,0,first\nB,b1,dB,capturesB,screenlife_recorded_captures,cB,1000,0,other\nA,a2,dA,capturesA,screenlife_recorded_captures,cA,1000,7000000000,equality retained\nA,a3,dA,capturesA,screenlife_recorded_captures,cA,1000,14000000001,strictly over seven\nB,b2,dB,capturesB,screenlife_recorded_captures,cB,1000,8000000000,new B session\nA,a4,dA,capturesA,screenlife_recorded_captures,cA,2000,14000000001,tie retained\n",
+      "expected_extra_rows": [["1","a1","0",""],["1","b1","0",""],["1","a1","0","7000000000"],["2","a3","14000000001","7000000001"],["2","b2","8000000000","8000000000"],["2","a3","14000000001","0"]]
+    },
+    {
+      "stage": "resolved_unlock_upper_bound",
+      "input_csv": "participant_id,source_row_id,source_device_id,source_stream_id,source_stream_role,clock_id,timestamp_precision_ns,start_source_row_id,end_source_row_id,start_state,end_state,start_timestamp_ns,end_timestamp_ns,note\nA,pair1,dA,pairsA,hardlock_resolved_state_pairs,cA,1000,locked1,unlocked1,ON_LOCKED,ON_UNLOCKED,5000000000,12000000000,includes clock viewing\nA,pair2,dA,pairsA,hardlock_resolved_state_pairs,cA,2000,locked2,unlocked2,ON_LOCKED,ON_UNLOCKED,20,20,caller resolved tie\n",
+      "expected_extra_rows": [["7000000000"],["0"]]
+    },
+    {
+      "stage": "idle_compressed_clock",
+      "input_csv": "participant_id,source_row_id,source_device_id,source_stream_id,source_stream_role,clock_id,timestamp_precision_ns,timestamp_ns\nA,min,d,joint,fridman_joint_analyzed_events,c,1000,-9223372036854775808\nA,max,d,joint,fridman_joint_analyzed_events,c,1000,9223372036854775807\n",
+      "expected_extra_rows": [["-9223372036854775808","0"],["-9223372036854775808","300000000000"]]
+    },
+    {
+      "stage": "capture_gap_partition",
+      "input_csv": "participant_id,source_row_id,source_device_id,source_stream_id,source_stream_role,clock_id,timestamp_precision_ns,timestamp_ns\nA,min,d,captures,screenlife_recorded_captures,c,1000,-9223372036854775808\nA,max,d,captures,screenlife_recorded_captures,c,1000,9223372036854775807\n",
+      "expected_extra_rows": [["1","min","-9223372036854775808",""],["2","max","9223372036854775807","18446744073709551615"]]
+    },
+    {
+      "stage": "resolved_unlock_upper_bound",
+      "input_csv": "participant_id,source_row_id,source_device_id,source_stream_id,source_stream_role,clock_id,timestamp_precision_ns,start_source_row_id,end_source_row_id,start_state,end_state,start_timestamp_ns,end_timestamp_ns\nA,p,d,pairs,hardlock_resolved_state_pairs,c,1000,min,max,ON_LOCKED,ON_UNLOCKED,-9223372036854775808,9223372036854775807\n",
+      "expected_extra_rows": [["18446744073709551615"]]
+    }
+  ]
+}

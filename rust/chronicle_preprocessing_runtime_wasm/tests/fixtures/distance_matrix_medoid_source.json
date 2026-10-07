@@ -1,0 +1,60 @@
+{
+  "schemaVersion": "chronicle-distance-matrix-medoid-source-fixture/v1",
+  "sourceWorkId": "doi:10.1038/s41598-019-47493-x",
+  "exactCanonicalSettingId": "method-setting-e417f78f692addf3c606620a",
+  "parameterKey": "gps.stop_representative",
+  "sourceValue": "medoid minimizing distance to all other points",
+  "sourceValueSha256": "f370619f7de71c71efbe358a8bdfd0ba70fb2a72456c865ba24d099c988f0d49",
+  "sourceArtifact": {
+    "archivePath": "web/.tmp/literature-review/runs/20260830T022500Z/reference-harvest/artifacts/located/embedded-cited-work--2ec23aa61b8d.tar.gz",
+    "archiveSha256": "9213fbdb9cbf590e4c709ef22c40ea7f60d00ad0fb712cfeec6cb0f9a1ad7d08",
+    "member": "apps-mobility-capacity-strategy-master/pyspark_stop_locations.py",
+    "memberSha256": "738c92d3b46c0fb01655c547888604a9ecf41f88ad0486134915165361b88a5d",
+    "locator": "pyspark_stop_locations.py:53-60,115-124",
+    "commit": "61af2598fdadce4c4de81856be2d95037619b031"
+  },
+  "releasedRuntime": {
+    "python": "3.6",
+    "spark": "2.2.1",
+    "scikitLearn": "0.19",
+    "numpy": "not pinned by the released README"
+  },
+  "cases": [
+    {
+      "caseId": "asymmetric-proves-column-axis",
+      "matrix": [
+        ["0", "1", "2"],
+        ["100", "0", "2"],
+        ["1", "100", "0"]
+      ],
+      "expectedIndex": 2
+    },
+    {
+      "caseId": "first-index-breaks-equal-column-sum-tie",
+      "matrix": [
+        ["0", "1", "5"],
+        ["1", "0", "4"],
+        ["1", "1", "0"]
+      ],
+      "expectedIndex": 0
+    },
+    {
+      "caseId": "released-two-point-first-point-shortcut",
+      "matrix": [
+        ["0", "1"],
+        ["100", "0"]
+      ],
+      "expectedIndex": 0
+    },
+    {
+      "caseId": "single-point",
+      "matrix": [["0"]],
+      "expectedIndex": 0
+    }
+  ],
+  "limitations": [
+    "The primitive begins with an already-computed distance matrix; coordinate parsing, radian conversion, Haversine distance, Earth radius, point ordering, and stop growth remain separate dependencies.",
+    "The generic runtime fails closed on empty, non-square, or nonfinite matrices before executing the released finite-matrix column-sum and first-argmin boundary.",
+    "The released README does not pin NumPy, so the receipt does not claim bitwise equivalence for floating-point reductions whose order-sensitive rounding differs across NumPy builds."
+  ]
+}

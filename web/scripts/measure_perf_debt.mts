@@ -203,9 +203,11 @@ function executeCold(
   captureKinds: ReadonlySet<string> = new Set(),
 ): ExecuteOutcome {
   const requestJson = JSON.stringify({
-    protocolVersion: "chronicle-preprocessing-runtime/v1",
+    protocolVersion: "chronicle-preprocessing-runtime/v2",
     requestId: `measure-perf-debt-${tag}-${coldWorkspaceCounter}`,
     command: "ExecuteWorkspace",
+    executionEngine: "incremental",
+    provenanceEvidence: true,
     workspaceRootDigest: null,
     workspaceId: coldWorkspaceId(tag),
     inputFileName,
@@ -273,10 +275,22 @@ function interleavedExecute(
 // Shape of the run: one reference execution captures the semantic index source
 // and the artifact inventory both debt items are measured against.
 // ---------------------------------------------------------------------------
+// The scientific validation substrates are captured alongside the source because
+// rebuild_semantic_index takes the source AND the bundle those substrates
+// concatenate into. Which substrates apply is declared by the source itself, so
+// every allowed kind is captured here and the subset is selected below.
+const ALLOWED_SUBSTRATE_KINDS = [
+  "b05-schoedel-validation-receipt-json",
+  "b05-screen-construction-evidence-json",
+  "eyes-tagged-fau-evidence-json",
+  "foundational-semantics-receipt-json",
+  "schoedel-reconstruction-evidence-json",
+] as const;
+
 const reference = executeCold(
   "reference",
   {},
-  new Set(["semantic-index-source-json"]),
+  new Set(["semantic-index-source-json", ...ALLOWED_SUBSTRATE_KINDS]),
 );
 const semanticSource = reference.artifacts.get(
   "semantic-index-source-json",
@@ -294,11 +308,41 @@ if (args.dumpSemanticSource) {
 // ---------------------------------------------------------------------------
 // Debt item 5 — semantic index reconstruction vs registered query execution.
 // ---------------------------------------------------------------------------
+// Mirror the runtime's bundle assembly (rustPipelineRuntime.ts): concatenate the
+// substrates in the order the source declares, not in capture or sorted order.
+// Measuring a rebuild against an empty bundle would time a rejection, not a rebuild.
+const declaredSubstrateKinds: string[] =
+  JSON.parse(new TextDecoder().decode(semanticSource))?.semanticSnapshot?.source
+    ?.scientificValidationSubstrateKinds ?? [];
+const substrateBytes = declaredSubstrateKinds.map((kind) => {
+  const bytes = reference.artifacts.get(kind)?.bytes;
+  if (!bytes) {
+    throw new Error(
+      `reference execution did not capture declared substrate ${kind}`,
+    );
+  }
+  return bytes;
+});
+const scientificArtifactBundle = new Uint8Array(
+  substrateBytes.reduce((total, bytes) => total + bytes.byteLength, 0),
+);
+let bundleOffset = 0;
+for (const bytes of substrateBytes) {
+  scientificArtifactBundle.set(bytes, bundleOffset);
+  bundleOffset += bytes.byteLength;
+}
+
 const rebuildSamples: number[] = [];
-let semanticIndexBytes = semantic.rebuild_semantic_index(semanticSource);
+let semanticIndexBytes = semantic.rebuild_semantic_index(
+  semanticSource,
+  scientificArtifactBundle,
+);
 for (let iteration = 0; iteration < args.rebuildIterations; iteration += 1) {
   const started = performance.now();
-  semanticIndexBytes = semantic.rebuild_semantic_index(semanticSource);
+  semanticIndexBytes = semantic.rebuild_semantic_index(
+    semanticSource,
+    scientificArtifactBundle,
+  );
   rebuildSamples.push(performance.now() - started);
 }
 

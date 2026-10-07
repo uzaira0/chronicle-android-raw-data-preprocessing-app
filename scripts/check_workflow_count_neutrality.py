@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import os
 import re
+import subprocess
 from pathlib import Path
 
 
@@ -64,6 +65,8 @@ RETIRED_NAMES = (
     "GROUP_REGISTRY",
     "FIXED_GROUPS",
 )
+# This retired field is an identifier, not a substring of source-audit fields.
+RETIRED_UNIT_ID = re.compile(r"\bunit_id\b")
 RETIRED_WORKFLOW_TERMINOLOGY = re.compile(
     r"(?:"
     r"logical[-_ ]?stage"
@@ -165,13 +168,36 @@ def included(path: Path) -> bool:
 
 
 def candidate_paths() -> list[Path]:
-    paths: list[Path] = []
-    for directory, child_directories, filenames in os.walk(ROOT):
-        child_directories[:] = sorted(
-            name for name in child_directories if name not in SKIP_PARTS
-        )
-        paths.extend(Path(directory, filename) for filename in sorted(filenames))
-    return paths
+    """Enumerate the files this check owns.
+
+    Tracked files only. Walking the tree instead swept in build leftovers and
+    agent worktrees — `rust/*/mutants.out*/`, `.claude/worktrees/*/`,
+    `.claude/scratch/*` — and reported retired vocabulary inside them as repo
+    failures, which broke `make web` and `make all` for reasons that had nothing
+    to do with the working tree's actual content. `git ls-files` is the single
+    source of truth for what is in the repository, so every present and future
+    ignored leftover is excluded structurally rather than by chasing names into
+    SKIP_PARTS.
+
+    Falls back to the walk when git is unavailable (e.g. an exported tarball).
+    """
+    try:
+        listing = subprocess.run(
+            ["git", "-C", str(ROOT), "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+            capture_output=True,
+            check=True,
+            text=True,
+        ).stdout
+    except (OSError, subprocess.CalledProcessError):
+        paths: list[Path] = []
+        for directory, child_directories, filenames in os.walk(ROOT):
+            child_directories[:] = sorted(
+                name for name in child_directories if name not in SKIP_PARTS
+            )
+            paths.extend(Path(directory, filename) for filename in sorted(filenames))
+        return paths
+
+    return sorted(ROOT / name for name in listing.split("\0") if name)
 
 
 def is_ordinal_doc_scope(relative: Path) -> bool:
@@ -211,7 +237,24 @@ def append_registry_literal_failures(
     )
 
 
+def retired_name(line: str) -> str | None:
+    return next(
+        (name for name in RETIRED_NAMES if name in line
+         and (name != "unit_id" or RETIRED_UNIT_ID.search(line))),
+        None,
+    )
+
+
 def main() -> int:
+    # Keep the identifier distinction and all other legacy-name guards runnable.
+    for name in RETIRED_NAMES:
+        assert retired_name(name) is not None, name
+    for line in ('row.unit_id', '"unit_id": value', "unit_id = value"):
+        assert retired_name(line) == "unit_id", line
+    for line in ("atom.source_execution_unit_ids", "source_execution_unit_id",
+                 "analysis_unit_id"):
+        assert retired_name(line) is None, line
+    assert retired_name("PipelineStepRecord") == "PipelineStep"
     failures: list[str] = []
     for path in candidate_paths():
         if not included(path):
@@ -228,7 +271,7 @@ def main() -> int:
         except (FileNotFoundError, UnicodeDecodeError):
             continue
         for line_number, line in enumerate(text.splitlines(), start=1):
-            retired = next((name for name in RETIRED_NAMES if name in line), None)
+            retired = retired_name(line)
             if retired:
                 failures.append(f"{relative}:{line_number}: retired name {retired!r}")
             if TOPOLOGY_BRANDING.search(line):

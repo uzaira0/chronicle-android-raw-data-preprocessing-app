@@ -89,6 +89,18 @@
       }
     },
     {
+      "role_id": "input_capability_evidence_file",
+      "cardinality": {
+        "minimum": 0,
+        "maximum": 1
+      },
+      "media_types": [
+        "text/csv"
+      ],
+      "required": false,
+      "qualification": "scientific-capability-evidence"
+    },
+    {
       "role_id": "background_apps_file",
       "cardinality": {
         "minimum": 0,
@@ -197,8 +209,8 @@
           "edge": "tunes"
         },
         {
-          "option_key": "datetime_of_preprocessing",
-          "edge": "tunes"
+          "option_key": "drop_out_of_source_order_events",
+          "edge": "gates"
         }
       ],
       "support_roles": [],
@@ -290,6 +302,18 @@
         {
           "option_key": "use_filter_file",
           "edge": "gates"
+        },
+        {
+          "option_key": "package_exclusion_preset",
+          "edge": "selects"
+        },
+        {
+          "option_key": "filter_match_field",
+          "edge": "selects"
+        },
+        {
+          "option_key": "application_label_exclusions",
+          "edge": "selects"
         }
       ],
       "support_roles": [
@@ -311,13 +335,42 @@
       "section": "preprocess",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/device_state_timeline/v1",
       "input_query_groups": [
-        "dedup_and_order"
+        "dedup_and_order",
+        "parse_events"
       ],
       "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/query-group-output/device_state_timeline",
       "knobs": [
         {
           "option_key": "process_screen_usage",
           "edge": "gates"
+        },
+        {
+          "option_key": "process_app_usage",
+          "edge": "gates"
+        },
+        {
+          "option_key": "episode_reconstruction_strategy",
+          "edge": "gates"
+        },
+        {
+          "option_key": "screen_session_construction_strategy",
+          "edge": "selects"
+        },
+        {
+          "option_key": "screen_session_classification_policy",
+          "edge": "selects"
+        },
+        {
+          "option_key": "screen_session_maximum_duration_minutes",
+          "edge": "tunes"
+        },
+        {
+          "option_key": "screen_session_maximum_duration_disposition",
+          "edge": "selects"
+        },
+        {
+          "option_key": "locked_screen_audio_disposition",
+          "edge": "selects"
         },
         {
           "option_key": "use_apps_forcing_screen_open_file",
@@ -341,11 +394,41 @@
         }
       ],
       "support_roles": [
-        "apps_forcing_screen_open_file"
+        "apps_forcing_screen_open_file",
+        "input_capability_evidence_file"
       ],
       "applicability": {
-        "kind": "option-true",
-        "option_key": "process_screen_usage"
+        "kind": "any",
+        "terms": [
+          {
+            "kind": "option-true",
+            "option_key": "process_screen_usage"
+          },
+          {
+            "kind": "all",
+            "terms": [
+              {
+                "kind": "option-true",
+                "option_key": "process_app_usage"
+              },
+              {
+                "kind": "option-string-equals",
+                "option_key": "episode_reconstruction_strategy",
+                "value": "schoedel_2026_app_within_screen_prose_v1"
+              }
+            ]
+          },
+          {
+            "kind": "option-string-equals",
+            "option_key": "screen_session_maximum_duration_disposition",
+            "value": "exclude_participant"
+          },
+          {
+            "kind": "option-string-equals",
+            "option_key": "locked_screen_audio_disposition",
+            "value": "exclude_from_phone_and_app_sessions"
+          }
+        ]
       },
       "can_bypass": true,
       "early_cutoff": false,
@@ -360,7 +443,9 @@
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/reconstruct_episodes/v1",
       "input_query_groups": [
         "app_policy",
-        "dedup_and_order"
+        "dedup_and_order",
+        "device_state_timeline",
+        "parse_events"
       ],
       "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/query-group-output/reconstruct_episodes",
       "knobs": [
@@ -371,6 +456,30 @@
         {
           "option_key": "use_background_apps_file",
           "edge": "gates"
+        },
+        {
+          "option_key": "locked_screen_audio_disposition",
+          "edge": "selects"
+        },
+        {
+          "option_key": "screen_session_maximum_duration_minutes",
+          "edge": "tunes"
+        },
+        {
+          "option_key": "screen_session_maximum_duration_disposition",
+          "edge": "selects"
+        },
+        {
+          "option_key": "event_retention_set",
+          "edge": "selects"
+        },
+        {
+          "option_key": "episode_reconstruction_strategy",
+          "edge": "selects"
+        },
+        {
+          "option_key": "opener_set",
+          "edge": "selects"
         },
         {
           "option_key": "allow_stop_event_reuse",
@@ -390,6 +499,38 @@
         },
         {
           "option_key": "minimum_usage_duration",
+          "edge": "tunes"
+        },
+        {
+          "option_key": "micro_use_classification_policy",
+          "edge": "selects"
+        },
+        {
+          "option_key": "minimum_duration_comparator",
+          "edge": "selects"
+        },
+        {
+          "option_key": "minimum_duration_disposition",
+          "edge": "selects"
+        },
+        {
+          "option_key": "maximum_duration_policy",
+          "edge": "selects"
+        },
+        {
+          "option_key": "maximum_duration_disposition",
+          "edge": "selects"
+        },
+        {
+          "option_key": "maximum_duration_threshold_source",
+          "edge": "selects"
+        },
+        {
+          "option_key": "maximum_duration_threshold_ns",
+          "edge": "tunes"
+        },
+        {
+          "option_key": "long_duration_threshold_hours_explicit",
           "edge": "tunes"
         },
         {
@@ -414,7 +555,8 @@
         }
       ],
       "support_roles": [
-        "background_apps_file"
+        "background_apps_file",
+        "input_capability_evidence_file"
       ],
       "applicability": {
         "kind": "option-true",
@@ -492,6 +634,22 @@
         {
           "option_key": "custom_app_engagement_duration",
           "edge": "tunes"
+        },
+        {
+          "option_key": "session_grouping_policy",
+          "edge": "selects"
+        },
+        {
+          "option_key": "session_gap_basis",
+          "edge": "selects"
+        },
+        {
+          "option_key": "session_boundary_scope",
+          "edge": "selects"
+        },
+        {
+          "option_key": "emit_session_break_lineage",
+          "edge": "gates"
         }
       ],
       "support_roles": [],
@@ -521,12 +679,36 @@
           "edge": "gates"
         },
         {
+          "option_key": "interval_quality_policy",
+          "edge": "selects"
+        },
+        {
+          "option_key": "session_grouping_policy",
+          "edge": "selects"
+        },
+        {
+          "option_key": "session_gap_basis",
+          "edge": "selects"
+        },
+        {
+          "option_key": "session_boundary_scope",
+          "edge": "selects"
+        },
+        {
+          "option_key": "emit_session_break_lineage",
+          "edge": "gates"
+        },
+        {
           "option_key": "use_filter_file",
           "edge": "tunes"
         },
         {
           "option_key": "interaction_types_to_remove",
           "edge": "tunes"
+        },
+        {
+          "option_key": "interaction_type_removal_mode",
+          "edge": "selects"
         },
         {
           "option_key": "long_data_time_gap_thresholds",
@@ -539,30 +721,8 @@
       ],
       "support_roles": [],
       "applicability": {
-        "kind": "all",
-        "terms": [
-          {
-            "kind": "option-true",
-            "option_key": "process_app_usage"
-          },
-          {
-            "kind": "any",
-            "terms": [
-              {
-                "kind": "option-true",
-                "option_key": "use_filter_file"
-              },
-              {
-                "kind": "array-nonempty",
-                "option_key": "interaction_types_to_remove"
-              },
-              {
-                "kind": "option-true",
-                "option_key": "filter_zero_duration_sessions"
-              }
-            ]
-          }
-        ]
+        "kind": "option-true",
+        "option_key": "process_app_usage"
       },
       "can_bypass": true,
       "early_cutoff": false,
@@ -577,6 +737,7 @@
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/effective_usage/v1",
       "input_query_groups": [
         "app_policy",
+        "device_state_timeline",
         "interval_cleaning"
       ],
       "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/query-group-output/effective_usage",
@@ -604,6 +765,10 @@
         {
           "option_key": "no_witness_min_day_apps",
           "edge": "tunes"
+        },
+        {
+          "option_key": "screen_gating_rule",
+          "edge": "selects"
         }
       ],
       "support_roles": [],
@@ -627,17 +792,126 @@
       "physical_execution_authority": false
     },
     {
+      "query_group_id": "notification_proxy",
+      "label": "Notification-derived proxy contacts",
+      "section": "analyze",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/notification_proxy/v1",
+      "input_query_groups": [
+        "app_policy",
+        "device_state_timeline",
+        "interval_cleaning"
+      ],
+      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/query-group-output/notification_proxy",
+      "knobs": [
+        {
+          "option_key": "process_app_usage",
+          "edge": "gates"
+        },
+        {
+          "option_key": "notification_proxy_rule",
+          "edge": "selects"
+        },
+        {
+          "option_key": "use_app_codebook",
+          "edge": "gates"
+        }
+      ],
+      "support_roles": [],
+      "applicability": {
+        "kind": "all",
+        "terms": [
+          {
+            "kind": "option-true",
+            "option_key": "process_app_usage"
+          },
+          {
+            "kind": "not",
+            "term": {
+              "kind": "option-string-equals",
+              "option_key": "notification_proxy_rule",
+              "value": "none"
+            }
+          }
+        ]
+      },
+      "can_bypass": true,
+      "early_cutoff": false,
+      "determinism": "semantic",
+      "implementation_status": "rust-wasm-query-group-projection",
+      "physical_execution_authority": false
+    },
+    {
+      "query_group_id": "polled_emulation",
+      "label": "Polled-method emulation",
+      "section": "analyze",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/polled_emulation/v1",
+      "input_query_groups": [
+        "interval_cleaning"
+      ],
+      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/query-group-output/polled_emulation",
+      "knobs": [
+        {
+          "option_key": "process_app_usage",
+          "edge": "gates"
+        },
+        {
+          "option_key": "polled_emulation_method",
+          "edge": "selects"
+        },
+        {
+          "option_key": "polled_emulation_interval_seconds",
+          "edge": "tunes"
+        },
+        {
+          "option_key": "polled_emulation_gap_seconds",
+          "edge": "tunes"
+        },
+        {
+          "option_key": "use_app_codebook",
+          "edge": "gates"
+        }
+      ],
+      "support_roles": [],
+      "applicability": {
+        "kind": "all",
+        "terms": [
+          {
+            "kind": "option-true",
+            "option_key": "process_app_usage"
+          },
+          {
+            "kind": "not",
+            "term": {
+              "kind": "option-string-equals",
+              "option_key": "polled_emulation_method",
+              "value": "none"
+            }
+          }
+        ]
+      },
+      "can_bypass": true,
+      "early_cutoff": false,
+      "determinism": "semantic",
+      "implementation_status": "rust-wasm-query-group-projection",
+      "physical_execution_authority": false
+    },
+    {
       "query_group_id": "observation_window",
       "label": "Observation-window assessment",
       "section": "analyze",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/observation_window/v1",
       "input_query_groups": [
+        "device_state_timeline",
         "interval_cleaning"
       ],
       "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/query-group-output/observation_window",
       "knobs": [
         {
           "option_key": "process_app_usage",
+          "edge": "gates"
+        },
+        {
+          "option_key": "process_screen_usage",
           "edge": "gates"
         },
         {
@@ -652,8 +926,17 @@
         "kind": "all",
         "terms": [
           {
-            "kind": "option-true",
-            "option_key": "process_app_usage"
+            "kind": "any",
+            "terms": [
+              {
+                "kind": "option-true",
+                "option_key": "process_app_usage"
+              },
+              {
+                "kind": "option-true",
+                "option_key": "process_screen_usage"
+              }
+            ]
           },
           {
             "kind": "option-true",
@@ -716,13 +999,19 @@
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/day_coverage/v1",
       "input_query_groups": [
         "app_policy",
-        "attribute_person"
+        "attribute_person",
+        "device_state_timeline",
+        "observation_window"
       ],
       "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/query-group-output/day_coverage",
       "knobs": [
         {
           "option_key": "process_app_usage",
           "edge": "gates"
+        },
+        {
+          "option_key": "day_boundary_attribution",
+          "edge": "selects"
         },
         {
           "option_key": "add_no_activity_placeholder_days",
@@ -827,13 +1116,19 @@
         "episode_annotations",
         "interval_cleaning",
         "normalize_timezones",
+        "notification_proxy",
         "observation_window",
         "parse_events",
+        "polled_emulation",
         "reconstruct_episodes",
         "score_compliance"
       ],
       "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/query-group-output/outputs",
       "knobs": [
+        {
+          "option_key": "datetime_of_preprocessing",
+          "edge": "tunes"
+        },
         {
           "option_key": "study_name",
           "edge": "tunes"
@@ -847,8 +1142,28 @@
           "edge": "tunes"
         },
         {
+          "option_key": "aggregate_top_apps_limit",
+          "edge": "tunes"
+        },
+        {
+          "option_key": "enable_participant_amount_summary",
+          "edge": "gates"
+        },
+        {
           "option_key": "include_category_column",
           "edge": "gates"
+        },
+        {
+          "option_key": "include_app_usage_end_reason",
+          "edge": "gates"
+        },
+        {
+          "option_key": "neutralize_spreadsheet_formulas",
+          "edge": "tunes"
+        },
+        {
+          "option_key": "interval_expansion_method",
+          "edge": "selects"
         },
         {
           "option_key": "enable_parquet_export",
@@ -963,28 +1278,6 @@
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
-      "query_id": "bind_processing_timestamp",
-      "query_group_id": "parse_events",
-      "label": "bind processing timestamp",
-      "description": "Internal runtime query.",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/bind_processing_timestamp/v1",
-      "input_queries": [],
-      "request_fields": [
-        "datetime_of_preprocessing"
-      ],
-      "source_role_bindings": [],
-      "applicability": {
-        "kind": "always"
-      },
-      "can_bypass": false,
-      "rust_executable_source": {
-        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "bind_processing_timestamp",
-        "tracking": "salsa-query"
-      },
-      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
-    },
-    {
       "query_id": "canonicalize_source_rows",
       "query_group_id": "parse_events",
       "label": "Decode record fields",
@@ -1019,7 +1312,9 @@
       "input_queries": [
         "canonicalize_source_rows"
       ],
-      "request_fields": [],
+      "request_fields": [
+        "drop_out_of_source_order_events"
+      ],
       "source_role_bindings": [],
       "applicability": {
         "kind": "always"
@@ -1251,6 +1546,9 @@
         "derive_time_gap_evidence"
       ],
       "request_fields": [
+        "application_label_exclusions",
+        "filter_match_field",
+        "package_exclusion_preset",
         "use_filter_file"
       ],
       "source_role_bindings": [
@@ -1288,8 +1586,28 @@
       "request_fields": [],
       "source_role_bindings": [],
       "applicability": {
-        "kind": "option-true",
-        "option_key": "process_screen_usage"
+        "kind": "all",
+        "terms": [
+          {
+            "kind": "any",
+            "terms": [
+              {
+                "kind": "option-true",
+                "option_key": "process_screen_usage"
+              },
+              {
+                "kind": "option-string-equals",
+                "option_key": "locked_screen_audio_disposition",
+                "value": "exclude_from_phone_and_app_sessions"
+              }
+            ]
+          },
+          {
+            "kind": "option-string-equals",
+            "option_key": "screen_session_construction_strategy",
+            "value": "chronicle_screen_interactive_v1"
+          }
+        ]
       },
       "can_bypass": true,
       "rust_executable_source": {
@@ -1311,13 +1629,128 @@
       "request_fields": [],
       "source_role_bindings": [],
       "applicability": {
-        "kind": "option-true",
-        "option_key": "process_screen_usage"
+        "kind": "all",
+        "terms": [
+          {
+            "kind": "option-string-equals",
+            "option_key": "screen_session_construction_strategy",
+            "value": "chronicle_screen_interactive_v1"
+          },
+          {
+            "kind": "any",
+            "terms": [
+              {
+                "kind": "option-true",
+                "option_key": "process_screen_usage"
+              },
+              {
+                "kind": "all",
+                "terms": [
+                  {
+                    "kind": "option-true",
+                    "option_key": "process_app_usage"
+                  },
+                  {
+                    "kind": "option-string-equals",
+                    "option_key": "episode_reconstruction_strategy",
+                    "value": "schoedel_2026_app_within_screen_prose_v1"
+                  }
+                ]
+              },
+              {
+                "kind": "option-string-equals",
+                "option_key": "screen_session_maximum_duration_disposition",
+                "value": "exclude_participant"
+              },
+              {
+                "kind": "option-string-equals",
+                "option_key": "locked_screen_audio_disposition",
+                "value": "exclude_from_phone_and_app_sessions"
+              }
+            ]
+          }
+        ]
       },
       "can_bypass": true,
       "rust_executable_source": {
         "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "infer_screen_session_skeletons",
+        "tracking": "salsa-query"
+      },
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
+    },
+    {
+      "query_id": "construct_screen_intervals",
+      "query_group_id": "device_state_timeline",
+      "label": "Construct selected screen intervals",
+      "description": "Resolve the selected B05 strategy and construct immutable participant-isolated screen intervals.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/construct_screen_intervals/v1",
+      "input_queries": [
+        "decode_source_records",
+        "derive_time_gap_evidence",
+        "infer_screen_session_skeletons"
+      ],
+      "request_fields": [
+        "screen_session_construction_strategy"
+      ],
+      "source_role_bindings": [
+        {
+          "role": "raw_chronicle_csv",
+          "when_all": []
+        },
+        {
+          "role": "input_capability_evidence_file",
+          "when_all": [
+            {
+              "operator": "string_one_of",
+              "request_field": "screen_session_construction_strategy",
+              "values": [
+                "parry_toth_2025_session_glance_v1",
+                "zhu_2018_unlock_lock_v1",
+                "unlock_to_lock_v1",
+                "unlock_to_off_or_lock_v1"
+              ]
+            }
+          ]
+        }
+      ],
+      "applicability": {
+        "kind": "any",
+        "terms": [
+          {
+            "kind": "option-true",
+            "option_key": "process_screen_usage"
+          },
+          {
+            "kind": "all",
+            "terms": [
+              {
+                "kind": "option-true",
+                "option_key": "process_app_usage"
+              },
+              {
+                "kind": "option-string-equals",
+                "option_key": "episode_reconstruction_strategy",
+                "value": "schoedel_2026_app_within_screen_prose_v1"
+              }
+            ]
+          },
+          {
+            "kind": "option-string-equals",
+            "option_key": "screen_session_maximum_duration_disposition",
+            "value": "exclude_participant"
+          },
+          {
+            "kind": "option-string-equals",
+            "option_key": "locked_screen_audio_disposition",
+            "value": "exclude_from_phone_and_app_sessions"
+          }
+        ]
+      },
+      "can_bypass": true,
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "construct_screen_intervals",
         "tracking": "salsa-query"
       },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
@@ -1330,10 +1763,18 @@
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/classify_screen_sessions/v1",
       "input_queries": [
         "derive_time_gap_evidence",
+        "decode_source_records",
         "infer_screen_session_skeletons",
-        "index_keyguard_events"
+        "index_keyguard_events",
+        "construct_screen_intervals"
       ],
       "request_fields": [
+        "screen_session_construction_strategy",
+        "screen_session_classification_policy",
+        "screen_session_maximum_duration_minutes",
+        "screen_session_maximum_duration_disposition",
+        "locked_screen_audio_disposition",
+        "timezone",
         "use_apps_forcing_screen_open",
         "screen_auto_lock_timeout_seconds",
         "screen_auto_lock_tolerance_seconds",
@@ -1353,8 +1794,18 @@
         }
       ],
       "applicability": {
-        "kind": "option-true",
-        "option_key": "process_screen_usage"
+        "kind": "any",
+        "terms": [
+          {
+            "kind": "option-true",
+            "option_key": "process_screen_usage"
+          },
+          {
+            "kind": "option-string-equals",
+            "option_key": "locked_screen_audio_disposition",
+            "value": "exclude_from_phone_and_app_sessions"
+          }
+        ]
       },
       "can_bypass": true,
       "rust_executable_source": {
@@ -1396,7 +1847,9 @@
       "input_queries": [
         "derive_time_gap_evidence"
       ],
-      "request_fields": [],
+      "request_fields": [
+        "event_retention_set"
+      ],
       "source_role_bindings": [],
       "applicability": {
         "kind": "option-true",
@@ -1456,16 +1909,47 @@
       "description": "Infer candidate usage episodes from indexed events.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/match_app_episodes/v1",
       "input_queries": [
-        "build_app_event_index"
+        "decode_source_records",
+        "build_app_event_index",
+        "mask_excluded_app_events",
+        "construct_screen_intervals"
       ],
       "request_fields": [
+        "episode_reconstruction_strategy",
+        "screen_session_construction_strategy",
+        "opener_set",
         "allow_stop_event_reuse",
         "use_activity_stopped_as_fallback",
         "apply_threshold_to_fallback",
         "long_duration_threshold_ns",
         "proximity_interval_ns"
       ],
-      "source_role_bindings": [],
+      "source_role_bindings": [
+        {
+          "role": "raw_chronicle_csv",
+          "when_all": [
+            {
+              "operator": "string_one_of",
+              "request_field": "episode_reconstruction_strategy",
+              "values": [
+                "schoedel_2026_app_within_screen_prose_v1"
+              ]
+            }
+          ]
+        },
+        {
+          "role": "input_capability_evidence_file",
+          "when_all": [
+            {
+              "operator": "string_one_of",
+              "request_field": "episode_reconstruction_strategy",
+              "values": [
+                "schoedel_2026_app_within_screen_prose_v1"
+              ]
+            }
+          ]
+        }
+      ],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_app_usage"
@@ -1489,7 +1973,9 @@
         "match_app_episodes",
         "resolve_excluded_packages"
       ],
-      "request_fields": [],
+      "request_fields": [
+        "event_retention_set"
+      ],
       "source_role_bindings": [],
       "applicability": {
         "kind": "option-true",
@@ -1510,13 +1996,33 @@
       "description": "Remove event-only rows after their structural information has been consumed.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/classify_episode_durations/v1",
       "input_queries": [
+        "match_app_episodes",
         "materialize_candidate_episodes",
         "resolve_excluded_packages"
       ],
       "request_fields": [
-        "minimum_usage_duration"
+        "maximum_duration_disposition",
+        "maximum_duration_policy",
+        "maximum_duration_threshold_ns",
+        "maximum_duration_threshold_source",
+        "micro_use_classification_policy",
+        "minimum_usage_duration",
+        "minimum_duration_comparator",
+        "minimum_duration_disposition",
+        "use_background_apps_file"
       ],
-      "source_role_bindings": [],
+      "source_role_bindings": [
+        {
+          "role": "background_apps_file",
+          "when_all": [
+            {
+              "operator": "boolean_equals",
+              "request_field": "use_background_apps_file",
+              "value": true
+            }
+          ]
+        }
+      ],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_app_usage"
@@ -1537,10 +2043,19 @@
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/apply_app_inclusion_policy/v1",
       "input_queries": [
         "classify_episode_durations",
+        "classify_screen_sessions",
+        "construct_screen_intervals",
         "resolve_excluded_packages"
       ],
       "request_fields": [
-        "use_background_apps_file"
+        "application_label_exclusions",
+        "filter_match_field",
+        "use_background_apps_file",
+        "locked_screen_audio_disposition",
+        "package_exclusion_preset",
+        "screen_session_maximum_duration_disposition",
+        "screen_session_maximum_duration_minutes",
+        "use_filter_file"
       ],
       "source_role_bindings": [
         {
@@ -1549,6 +2064,16 @@
             {
               "operator": "boolean_equals",
               "request_field": "use_background_apps_file",
+              "value": true
+            }
+          ]
+        },
+        {
+          "role": "filter_file",
+          "when_all": [
+            {
+              "operator": "boolean_equals",
+              "request_field": "use_filter_file",
               "value": true
             }
           ]
@@ -1600,6 +2125,7 @@
         "resolve_excluded_packages"
       ],
       "request_fields": [
+        "episode_reconstruction_strategy",
         "model_concurrent_usage",
         "minimum_usage_duration",
         "apply_minimum_usage_duration_to_concurrent_subintervals",
@@ -1770,13 +2296,15 @@
       "query_id": "suppress_excluded_timing",
       "query_group_id": "interval_cleaning",
       "label": "Suppress excluded timing",
-      "description": "Blank timing values excluded from measurement.",
+      "description": "Apply the selected interval-quality policy: blank timing values excluded from measurement, or trim, flag and log implausible intervals and collapse same-app rows that are one usage.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/suppress_excluded_timing/v1",
       "input_queries": [
         "apply_episode_flags",
         "resolve_excluded_packages"
       ],
-      "request_fields": [],
+      "request_fields": [
+        "interval_quality_policy"
+      ],
       "source_role_bindings": [],
       "applicability": {
         "kind": "option-true",
@@ -1801,6 +2329,7 @@
       ],
       "request_fields": [
         "interaction_types_to_remove",
+        "interaction_type_removal_mode",
         "long_data_time_gap_thresholds"
       ],
       "source_role_bindings": [],
@@ -1842,13 +2371,41 @@
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
+      "query_id": "assign_usage_session_ids",
+      "query_group_id": "interval_cleaning",
+      "label": "Number usage sessions",
+      "description": "Number consecutive episodes into usage sessions under the selected published gap definition.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/assign_usage_session_ids/v1",
+      "input_queries": [
+        "remove_zero_duration_rows"
+      ],
+      "request_fields": [
+        "session_grouping_policy",
+        "session_gap_basis",
+        "session_boundary_scope",
+        "emit_session_break_lineage"
+      ],
+      "source_role_bindings": [],
+      "applicability": {
+        "kind": "option-true",
+        "option_key": "process_app_usage"
+      },
+      "can_bypass": true,
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "assign_usage_session_ids",
+        "tracking": "salsa-query"
+      },
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
+    },
+    {
       "query_id": "identify_credit_eligible_sessions",
       "query_group_id": "effective_usage",
       "label": "Identify credit-eligible sessions",
       "description": "Partition reconstructed sessions by credit eligibility.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/identify_credit_eligible_sessions/v1",
       "input_queries": [
-        "remove_zero_duration_rows"
+        "assign_usage_session_ids"
       ],
       "request_fields": [],
       "source_role_bindings": [],
@@ -1880,9 +2437,13 @@
       "description": "Build device-activity witness intervals.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/build_activity_witness_indexes/v1",
       "input_queries": [
-        "mark_app_policy_matches"
+        "mark_app_policy_matches",
+        "construct_screen_intervals"
       ],
-      "request_fields": [],
+      "request_fields": [
+        "screen_session_maximum_duration_disposition",
+        "screen_session_maximum_duration_minutes"
+      ],
       "source_role_bindings": [],
       "applicability": {
         "kind": "all",
@@ -1985,7 +2546,8 @@
         "credited_session_cap_minutes",
         "device_liveness_gap_tolerance_minutes",
         "auto_lock_bridge_seconds",
-        "no_witness_min_day_apps"
+        "no_witness_min_day_apps",
+        "screen_gating_rule"
       ],
       "source_role_bindings": [],
       "applicability": {
@@ -2078,15 +2640,374 @@
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
+      "query_id": "select_notification_events",
+      "query_group_id": "notification_proxy",
+      "label": "select notification events",
+      "description": "Internal runtime query.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/select_notification_events/v1",
+      "input_queries": [
+        "mark_app_policy_matches",
+        "construct_screen_intervals"
+      ],
+      "request_fields": [
+        "notification_proxy_rule",
+        "screen_session_maximum_duration_disposition",
+        "screen_session_maximum_duration_minutes"
+      ],
+      "source_role_bindings": [],
+      "applicability": {
+        "kind": "all",
+        "terms": [
+          {
+            "kind": "option-true",
+            "option_key": "process_app_usage"
+          },
+          {
+            "kind": "not",
+            "term": {
+              "kind": "option-string-equals",
+              "option_key": "notification_proxy_rule",
+              "value": "none"
+            }
+          }
+        ]
+      },
+      "can_bypass": true,
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "select_notification_events",
+        "tracking": "salsa-query"
+      },
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
+    },
+    {
+      "query_id": "index_observed_usage_spans",
+      "query_group_id": "notification_proxy",
+      "label": "index observed usage spans",
+      "description": "Internal runtime query.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/index_observed_usage_spans/v1",
+      "input_queries": [
+        "assign_usage_session_ids"
+      ],
+      "request_fields": [
+        "notification_proxy_rule"
+      ],
+      "source_role_bindings": [],
+      "applicability": {
+        "kind": "all",
+        "terms": [
+          {
+            "kind": "option-true",
+            "option_key": "process_app_usage"
+          },
+          {
+            "kind": "not",
+            "term": {
+              "kind": "option-string-equals",
+              "option_key": "notification_proxy_rule",
+              "value": "none"
+            }
+          }
+        ]
+      },
+      "can_bypass": true,
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "index_observed_usage_spans",
+        "tracking": "salsa-query"
+      },
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
+    },
+    {
+      "query_id": "classify_notification_contacts",
+      "query_group_id": "notification_proxy",
+      "label": "classify notification contacts",
+      "description": "Internal runtime query.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/classify_notification_contacts/v1",
+      "input_queries": [
+        "select_notification_events",
+        "index_observed_usage_spans"
+      ],
+      "request_fields": [
+        "notification_proxy_rule"
+      ],
+      "source_role_bindings": [],
+      "applicability": {
+        "kind": "all",
+        "terms": [
+          {
+            "kind": "option-true",
+            "option_key": "process_app_usage"
+          },
+          {
+            "kind": "not",
+            "term": {
+              "kind": "option-string-equals",
+              "option_key": "notification_proxy_rule",
+              "value": "none"
+            }
+          }
+        ]
+      },
+      "can_bypass": true,
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "classify_notification_contacts",
+        "tracking": "salsa-query"
+      },
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
+    },
+    {
+      "query_id": "assemble_notification_contact_outputs",
+      "query_group_id": "notification_proxy",
+      "label": "assemble notification contact outputs",
+      "description": "Internal runtime query.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/assemble_notification_contact_outputs/v1",
+      "input_queries": [
+        "classify_notification_contacts"
+      ],
+      "request_fields": [
+        "notification_proxy_rule",
+        "use_app_codebook"
+      ],
+      "source_role_bindings": [
+        {
+          "role": "app_codebook_file",
+          "when_all": [
+            {
+              "operator": "boolean_equals",
+              "request_field": "use_app_codebook",
+              "value": true
+            },
+            {
+              "operator": "string_one_of",
+              "request_field": "notification_proxy_rule",
+              "values": [
+                "seen_contact_v1",
+                "interruption_contact_v1",
+                "any_notification_contact_v1"
+              ]
+            }
+          ]
+        }
+      ],
+      "applicability": {
+        "kind": "all",
+        "terms": [
+          {
+            "kind": "option-true",
+            "option_key": "process_app_usage"
+          },
+          {
+            "kind": "not",
+            "term": {
+              "kind": "option-string-equals",
+              "option_key": "notification_proxy_rule",
+              "value": "none"
+            }
+          }
+        ]
+      },
+      "can_bypass": true,
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "assemble_notification_contact_outputs",
+        "tracking": "salsa-query"
+      },
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
+    },
+    {
+      "query_id": "sample_polled_timeline",
+      "query_group_id": "polled_emulation",
+      "label": "sample polled timeline",
+      "description": "Internal runtime query.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/sample_polled_timeline/v1",
+      "input_queries": [
+        "assign_usage_session_ids"
+      ],
+      "request_fields": [
+        "polled_emulation_interval_seconds",
+        "polled_emulation_method"
+      ],
+      "source_role_bindings": [],
+      "applicability": {
+        "kind": "all",
+        "terms": [
+          {
+            "kind": "option-true",
+            "option_key": "process_app_usage"
+          },
+          {
+            "kind": "not",
+            "term": {
+              "kind": "option-string-equals",
+              "option_key": "polled_emulation_method",
+              "value": "none"
+            }
+          }
+        ]
+      },
+      "can_bypass": true,
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "sample_polled_timeline",
+        "tracking": "salsa-query"
+      },
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
+    },
+    {
+      "query_id": "group_polled_runs",
+      "query_group_id": "polled_emulation",
+      "label": "group polled runs",
+      "description": "Internal runtime query.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/group_polled_runs/v1",
+      "input_queries": [
+        "assign_usage_session_ids",
+        "sample_polled_timeline"
+      ],
+      "request_fields": [
+        "polled_emulation_gap_seconds",
+        "polled_emulation_interval_seconds",
+        "polled_emulation_method"
+      ],
+      "source_role_bindings": [],
+      "applicability": {
+        "kind": "all",
+        "terms": [
+          {
+            "kind": "option-true",
+            "option_key": "process_app_usage"
+          },
+          {
+            "kind": "not",
+            "term": {
+              "kind": "option-string-equals",
+              "option_key": "polled_emulation_method",
+              "value": "none"
+            }
+          }
+        ]
+      },
+      "can_bypass": true,
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "group_polled_runs",
+        "tracking": "salsa-query"
+      },
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
+    },
+    {
+      "query_id": "materialize_polled_rows",
+      "query_group_id": "polled_emulation",
+      "label": "materialize polled rows",
+      "description": "Internal runtime query.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/materialize_polled_rows/v1",
+      "input_queries": [
+        "assign_usage_session_ids",
+        "group_polled_runs"
+      ],
+      "request_fields": [
+        "polled_emulation_gap_seconds",
+        "polled_emulation_interval_seconds",
+        "polled_emulation_method"
+      ],
+      "source_role_bindings": [],
+      "applicability": {
+        "kind": "all",
+        "terms": [
+          {
+            "kind": "option-true",
+            "option_key": "process_app_usage"
+          },
+          {
+            "kind": "not",
+            "term": {
+              "kind": "option-string-equals",
+              "option_key": "polled_emulation_method",
+              "value": "none"
+            }
+          }
+        ]
+      },
+      "can_bypass": true,
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "materialize_polled_rows",
+        "tracking": "salsa-query"
+      },
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
+    },
+    {
+      "query_id": "assemble_polled_emulation_outputs",
+      "query_group_id": "polled_emulation",
+      "label": "assemble polled emulation outputs",
+      "description": "Internal runtime query.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/assemble_polled_emulation_outputs/v1",
+      "input_queries": [
+        "materialize_polled_rows"
+      ],
+      "request_fields": [
+        "polled_emulation_method",
+        "use_app_codebook"
+      ],
+      "source_role_bindings": [
+        {
+          "role": "app_codebook_file",
+          "when_all": [
+            {
+              "operator": "boolean_equals",
+              "request_field": "use_app_codebook",
+              "value": true
+            },
+            {
+              "operator": "string_one_of",
+              "request_field": "polled_emulation_method",
+              "values": [
+                "ross_2025_sampled_gap_v1",
+                "cerit_2025_sample_count_v1"
+              ]
+            }
+          ]
+        }
+      ],
+      "applicability": {
+        "kind": "all",
+        "terms": [
+          {
+            "kind": "option-true",
+            "option_key": "process_app_usage"
+          },
+          {
+            "kind": "not",
+            "term": {
+              "kind": "option-string-equals",
+              "option_key": "polled_emulation_method",
+              "value": "none"
+            }
+          }
+        ]
+      },
+      "can_bypass": true,
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "assemble_polled_emulation_outputs",
+        "tracking": "salsa-query"
+      },
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
+    },
+    {
       "query_id": "resolve_participant_windows",
       "query_group_id": "observation_window",
       "label": "Resolve participant windows",
       "description": "Resolve participant-specific observation windows.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/resolve_participant_windows/v1",
       "input_queries": [
-        "remove_zero_duration_rows"
+        "assign_usage_session_ids",
+        "classify_screen_sessions"
       ],
-      "request_fields": [],
+      "request_fields": [
+        "usage_session_mode"
+      ],
       "source_role_bindings": [
         {
           "role": "study_dates_file",
@@ -2094,8 +3015,17 @@
         }
       ],
       "applicability": {
-        "kind": "option-true",
-        "option_key": "process_app_usage"
+        "kind": "any",
+        "terms": [
+          {
+            "kind": "option-true",
+            "option_key": "process_app_usage"
+          },
+          {
+            "kind": "option-true",
+            "option_key": "process_screen_usage"
+          }
+        ]
       },
       "can_bypass": true,
       "rust_executable_source": {
@@ -2112,11 +3042,13 @@
       "description": "Retain rows inside each participant observation window.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/apply_participant_windows/v1",
       "input_queries": [
-        "remove_zero_duration_rows",
+        "assign_usage_session_ids",
+        "classify_screen_sessions",
         "resolve_participant_windows"
       ],
       "request_fields": [
-        "enable_study_window_filter"
+        "enable_study_window_filter",
+        "usage_session_mode"
       ],
       "source_role_bindings": [
         {
@@ -2131,8 +3063,17 @@
         }
       ],
       "applicability": {
-        "kind": "option-true",
-        "option_key": "process_app_usage"
+        "kind": "any",
+        "terms": [
+          {
+            "kind": "option-true",
+            "option_key": "process_app_usage"
+          },
+          {
+            "kind": "option-true",
+            "option_key": "process_screen_usage"
+          }
+        ]
       },
       "can_bypass": true,
       "rust_executable_source": {
@@ -2240,17 +3181,47 @@
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
+      "query_id": "divide_sessions_at_day_boundary",
+      "query_group_id": "day_coverage",
+      "label": "Divide sessions at the day boundary",
+      "description": "Divide a session that spans local midnight so each calendar day carries the part that fell inside it.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/divide_sessions_at_day_boundary/v1",
+      "input_queries": [
+        "classify_person_attribution"
+      ],
+      "request_fields": [
+        "day_boundary_attribution"
+      ],
+      "source_role_bindings": [],
+      "applicability": {
+        "kind": "option-true",
+        "option_key": "process_app_usage"
+      },
+      "can_bypass": true,
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "divide_sessions_at_day_boundary",
+        "tracking": "salsa-query"
+      },
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
+    },
+    {
       "query_id": "synthesize_placeholder_rows",
       "query_group_id": "day_coverage",
       "label": "Add missing-day placeholders",
       "description": "Create explicitly synthetic rows for missing participant days.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/synthesize_placeholder_rows/v1",
       "input_queries": [
-        "classify_person_attribution",
-        "mark_app_policy_matches"
+        "divide_sessions_at_day_boundary",
+        "mark_app_policy_matches",
+        "construct_screen_intervals",
+        "resolve_participant_windows"
       ],
       "request_fields": [
-        "add_no_activity_placeholder_days"
+        "add_no_activity_placeholder_days",
+        "enable_study_window_filter",
+        "screen_session_maximum_duration_disposition",
+        "screen_session_maximum_duration_minutes"
       ],
       "source_role_bindings": [],
       "applicability": {
@@ -2272,9 +3243,13 @@
       "description": "Index pre-window source dates used by coverage and placeholders.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/index_raw_dates/v1",
       "input_queries": [
-        "mark_app_policy_matches"
+        "mark_app_policy_matches",
+        "construct_screen_intervals"
       ],
-      "request_fields": [],
+      "request_fields": [
+        "screen_session_maximum_duration_disposition",
+        "screen_session_maximum_duration_minutes"
+      ],
       "source_role_bindings": [],
       "applicability": {
         "kind": "option-true",
@@ -2426,6 +3401,28 @@
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
+      "query_id": "bind_processing_timestamp",
+      "query_group_id": "outputs",
+      "label": "bind processing timestamp",
+      "description": "Internal runtime query.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/bind_processing_timestamp/v1",
+      "input_queries": [],
+      "request_fields": [
+        "datetime_of_preprocessing"
+      ],
+      "source_role_bindings": [],
+      "applicability": {
+        "kind": "always"
+      },
+      "can_bypass": false,
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "bind_processing_timestamp",
+        "tracking": "salsa-query"
+      },
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
+    },
+    {
       "query_id": "assemble_result_manifest",
       "query_group_id": "outputs",
       "label": "Build the app table",
@@ -2436,7 +3433,6 @@
         "decode_source_records",
         "remove_missing_timestamps",
         "attach_device_models",
-        "bind_processing_timestamp",
         "canonicalize_source_rows",
         "order_source_records",
         "collect_timezone_observations",
@@ -2451,6 +3447,7 @@
         "mark_app_policy_matches",
         "index_keyguard_events",
         "infer_screen_session_skeletons",
+        "construct_screen_intervals",
         "classify_screen_sessions",
         "resolve_excluded_packages",
         "mask_excluded_app_events",
@@ -2469,6 +3466,7 @@
         "suppress_excluded_timing",
         "remove_selected_interaction_types",
         "remove_zero_duration_rows",
+        "assign_usage_session_ids",
         "identify_credit_eligible_sessions",
         "build_activity_witness_indexes",
         "assess_screen_evidence_capability",
@@ -2476,39 +3474,116 @@
         "derive_credited_intervals",
         "materialize_credited_rows",
         "assemble_credit_outputs",
+        "select_notification_events",
+        "index_observed_usage_spans",
+        "classify_notification_contacts",
+        "assemble_notification_contact_outputs",
+        "sample_polled_timeline",
+        "group_polled_runs",
+        "materialize_polled_rows",
+        "assemble_polled_emulation_outputs",
         "resolve_participant_windows",
         "apply_participant_windows",
         "resolve_sharing_status",
         "index_survey_responses",
         "classify_person_attribution",
+        "divide_sessions_at_day_boundary",
         "synthesize_placeholder_rows",
         "index_raw_dates",
         "build_participant_day_coverage",
         "aggregate_attribution_minutes",
         "compute_attribution_completeness",
-        "classify_compliance_days"
+        "classify_compliance_days",
+        "bind_processing_timestamp"
       ],
       "request_fields": [
+        "add_no_activity_placeholder_days",
+        "aggregate_shape",
+        "aggregate_top_apps_limit",
+        "allow_stop_event_reuse",
+        "apply_minimum_usage_duration_to_concurrent_subintervals",
+        "apply_threshold_to_fallback",
+        "auto_lock_bridge_seconds",
+        "b06_legacy_threshold_hours_canonical",
+        "b06_legacy_threshold_ns_canonical",
+        "compliance_threshold_percent",
+        "correct_duplicate_event_timestamps",
+        "credited_session_cap_minutes",
+        "custom_app_engagement_duration",
+        "datetime_of_preprocessing",
+        "day_boundary_attribution",
+        "deduplicate_exact_rows",
+        "drop_out_of_source_order_events",
+        "device_liveness_gap_tolerance_minutes",
+        "emit_session_break_lineage",
+        "enable_aggregates",
+        "enable_compliance_scoring",
+        "enable_day_coverage",
+        "enable_participant_amount_summary",
+        "enable_person_attribution",
+        "enable_screen_gated_crediting",
+        "enable_study_window_filter",
+        "episode_reconstruction_strategy",
+        "event_retention_set",
+        "filter_match_field",
+        "filter_zero_duration_sessions",
+        "include_app_output",
+        "include_app_usage_end_reason",
+        "include_category_column",
+        "include_screen_output",
+        "application_label_exclusions",
+        "interaction_type_remap",
+        "interaction_type_removal_mode",
+        "interaction_types_to_remove",
+        "interval_expansion_method",
+        "interval_quality_policy",
+        "long_data_time_gap_thresholds",
+        "long_duration_threshold_explicit",
+        "long_duration_threshold_ns",
+        "long_usage_duration_thresholds",
+        "materialize_visualization_data",
+        "maximum_duration_disposition",
+        "maximum_duration_policy",
+        "maximum_duration_threshold_ns",
+        "maximum_duration_threshold_source",
+        "micro_use_classification_policy",
+        "minimum_duration_comparator",
+        "minimum_duration_disposition",
+        "minimum_usage_duration",
+        "model_concurrent_usage",
+        "neutralize_spreadsheet_formulas",
+        "no_witness_min_day_apps",
+        "notification_proxy_rule",
+        "polled_emulation_gap_seconds",
+        "polled_emulation_interval_seconds",
+        "polled_emulation_method",
+        "opener_set",
+        "other_stop_types",
+        "proximity_interval_ns",
+        "same_app_stop_types",
+        "screen_auto_lock_timeout_seconds",
+        "screen_auto_lock_tolerance_seconds",
+        "screen_gating_rule",
+        "screen_keyguard_near_stop_seconds",
+        "screen_manual_lock_max_tail_seconds",
+        "screen_session_construction_strategy",
+        "screen_session_classification_policy",
+        "screen_session_maximum_duration_minutes",
+        "screen_session_maximum_duration_disposition",
+        "locked_screen_audio_disposition",
+        "session_boundary_scope",
+        "session_gap_basis",
+        "session_grouping_policy",
         "study_name",
         "timezone",
         "timezone_handling",
         "usage_session_mode",
-        "include_app_output",
-        "include_screen_output",
-        "use_background_apps_file",
+        "use_activity_stopped_as_fallback",
         "use_app_codebook",
-        "include_category_column",
-        "deduplicate_exact_rows",
-        "correct_duplicate_event_timestamps",
-        "datetime_of_preprocessing",
-        "custom_app_engagement_duration",
-        "model_concurrent_usage",
-        "enable_screen_gated_crediting",
-        "enable_day_coverage",
-        "enable_compliance_scoring",
-        "enable_aggregates",
-        "aggregate_shape",
-        "materialize_visualization_data"
+        "use_apps_forcing_screen_open",
+        "use_background_apps_file",
+        "package_exclusion_preset",
+        "use_filter_file"
       ],
       "source_role_bindings": [
         {
@@ -2525,6 +3600,43 @@
             {
               "operator": "boolean_equals",
               "request_field": "enable_compliance_scoring",
+              "value": true
+            }
+          ]
+        },
+        {
+          "role": "raw_chronicle_csv",
+          "when_all": [
+            {
+              "operator": "string_one_of",
+              "request_field": "usage_session_mode",
+              "values": [
+                "app_usage",
+                "app_and_screen_usage"
+              ]
+            },
+            {
+              "operator": "string_one_of",
+              "request_field": "episode_reconstruction_strategy",
+              "values": [
+                "eyes_complement"
+              ]
+            }
+          ]
+        },
+        {
+          "role": "study_dates_file",
+          "when_all": [
+            {
+              "operator": "string_one_of",
+              "request_field": "usage_session_mode",
+              "values": [
+                "app_and_screen_usage"
+              ]
+            },
+            {
+              "operator": "boolean_equals",
+              "request_field": "enable_study_window_filter",
               "value": true
             }
           ]

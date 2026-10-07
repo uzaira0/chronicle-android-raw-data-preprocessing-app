@@ -108,11 +108,29 @@ pub struct RootRole {
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum Condition {
     Always,
-    OptionTrue { option_key: String },
-    ArrayNonempty { option_key: String },
-    All { terms: Vec<Condition> },
-    Any { terms: Vec<Condition> },
-    Not { term: Box<Condition> },
+    OptionTrue {
+        option_key: String,
+    },
+    /// A string-valued option axis, such as `interval_quality_policy`. The
+    /// plan gained this kind when `interval_cleaning` started selecting on a
+    /// policy name rather than on booleans; without it `embedded_plan()`
+    /// failed to deserialize and every runtime entry point trapped.
+    OptionStringEquals {
+        option_key: String,
+        value: String,
+    },
+    ArrayNonempty {
+        option_key: String,
+    },
+    All {
+        terms: Vec<Condition>,
+    },
+    Any {
+        terms: Vec<Condition>,
+    },
+    Not {
+        term: Box<Condition>,
+    },
 }
 
 impl Condition {
@@ -123,6 +141,12 @@ impl Condition {
                 .get(option_key)
                 .and_then(Value::as_bool)
                 .unwrap_or(false),
+            // Same rule as the runtime's `evaluate_workflow_applicability`: an
+            // absent or non-string option never equals a declared value.
+            Self::OptionStringEquals { option_key, value } => options
+                .get(option_key)
+                .and_then(Value::as_str)
+                .is_some_and(|actual| actual == value),
             Self::ArrayNonempty { option_key } => options
                 .get(option_key)
                 .and_then(Value::as_array)
@@ -140,7 +164,7 @@ mod tests {
 
     #[test]
     fn conditions_cover_boolean_array_composition_and_negation() {
-        let options = serde_json::json!({"on": true, "off": false, "values": [1]});
+        let options = serde_json::json!({"on": true, "off": false, "values": [1], "policy": "culverhouse_trim_and_log"});
         let on = Condition::OptionTrue {
             option_key: "on".into(),
         };
@@ -166,6 +190,44 @@ mod tests {
             term: Box::new(missing)
         }
         .evaluate(&options));
+
+        // The kind the plan gained with `interval_quality_policy`. It must
+        // round-trip through the tagged representation the plan file uses, or
+        // `embedded_plan()` panics and every runtime entry point traps.
+        let selected = Condition::OptionStringEquals {
+            option_key: "policy".into(),
+            value: "culverhouse_trim_and_log".into(),
+        };
+        let other = Condition::OptionStringEquals {
+            option_key: "policy".into(),
+            value: "none".into(),
+        };
+        let absent = Condition::OptionStringEquals {
+            option_key: "absent".into(),
+            value: "none".into(),
+        };
+        assert!(selected.evaluate(&options));
+        assert!(!other.evaluate(&options));
+        assert!(!absent.evaluate(&options));
+        // An absent key must not make `not(equals(..., "none"))` true, which is
+        // exactly how `interval_cleaning` declares itself applicable.
+        assert!(Condition::Not {
+            term: Box::new(absent)
+        }
+        .evaluate(&options));
+        let encoded = serde_json::to_value(&selected).unwrap();
+        assert_eq!(
+            encoded,
+            serde_json::json!({
+                "kind": "option-string-equals",
+                "option_key": "policy",
+                "value": "culverhouse_trim_and_log",
+            })
+        );
+        assert_eq!(
+            serde_json::from_value::<Condition>(encoded).unwrap(),
+            selected
+        );
     }
 }
 

@@ -1,0 +1,283 @@
+{
+  "schema_version": "chronicle-test-source-binding/v1",
+  "source_work_id": "doi:10.1016/j.chb.2023.107977",
+  "method_profile_id": "method-profile:doi:10.1016/j.chb.2023.107977",
+  "source_method_variant_id": "source-audit-configuration-space-8b14e63d69954819163df993",
+  "method_profile_version": "literature-sublation-v3-atomic+source-complete-v1+external-execution-v1",
+  "execution_boundary": {
+    "claim": "The released aggregate RDS inputs and ten released R analysis scripts execute 68 campaign-internal model cells under the pinned R 4.1.2 environment.",
+    "does_not_claim": "Reconstruction of the aggregate RDS inputs from private timestamped Android, PhoneStudy, ESM, call/SMS, sleep/wake, or timezone source data.",
+    "configuration_unit_kind": "campaign_internal_job_model_cell",
+    "binding_kind": "model"
+  },
+  "executor": {
+    "executor_id": "chronicle.external.r:schoedel-smartphoneusage-wellbeing@4.1.2",
+    "executor_version": "4.1.2",
+    "runtime": "R",
+    "container_image_digest": "sha256:6ae57bef96a03da4ce94c16d30458166213ec8423dd2eb820de7c818f9f825b1",
+    "fixture_id": "external-r.schoedel-smartphoneusage-wellbeing.released-models.v1",
+    "execution_command": "bash /runtime/run-core-models.sh",
+    "semantic_digest_sha256": "sha256:1ad97148c5fc9f02e8a30423ab40e2d0ed09d69f25478006ea43a8dca8ee2fc7",
+    "execution_receipt_sha256": "sha256:7319b4e8b418a8e054b3bec1e99c57147772944d8d2b2e537f6a1ce1578abcb9"
+  },
+  "source_evidence": {
+    "archive": {
+      "path": ".tmp-literature-review-private/corrective-packet-08-ranks277-329-20260831/artifacts/rank287/SmartphoneUsage_Wellbeing.zip",
+      "sha256": "sha256:ede3361b6003b6436799fd4e56376b81b581d9079026c2440cd63380293dc811"
+    },
+    "renv_lock": {
+      "path": ".tmp-literature-review-private/corrective-packet-08-ranks277-329-20260831/work/rank287-archive/SmartphoneUsage_Wellbeing/renv.lock",
+      "sha256": "sha256:35c4f8e9279c8f454a37d159c24562b055a7faac6b0ed388e8dd2303ffdf4329"
+    },
+    "source_audit": {
+      "path": ".tmp-literature-review-private/ontology-sublation-20260831/source-completeness-audits/doi-10.1016-j.chb.2023.107977.json",
+      "sha256": "sha256:e349cbeaa6e1a3ef6358bb017c0b503af3ccbe504d0f9e14cf4768b3f5702aa5"
+    },
+    "runner": {
+      "path": ".tmp-literature-review-private/profile-runs/chb-107977-runtime/run-core-models.sh",
+      "sha256": "sha256:3ebb340ee50c48ffb9bf6e6d62f8b5e992b2ff2c64f8a1add477d8f8e07ec8c1"
+    },
+    "model_wrapper": {
+      "path": ".tmp-literature-review-private/profile-runs/chb-107977-runtime/run-model-script.R",
+      "sha256": "sha256:9ecffb5071f03ec131715a73b902dac4198dd7bd40928d9235dc7669e1bb6606"
+    },
+    "validator": {
+      "path": ".tmp-literature-review-private/profile-runs/chb-107977-runtime/validate-core-receipts.R",
+      "sha256": "sha256:ed58d31d6df54d55bc8e6c428008d5f203ec6ded327f3c64dea12806497edc9f"
+    },
+    "validation_receipt": {
+      "path": ".tmp-literature-review-private/profile-runs/chb-107977-runtime/receipts/validation.json",
+      "sha256": "sha256:bce31751b014e99b3075873cd0c68bea02fddda7382435091ea18b5fe316f0df"
+    }
+  },
+  "released_inputs": [
+    {
+      "name": "macro_datasetA.rds",
+      "sha256": "sha256:90527003a0201f71a59e9dc9d02efb268678794539114fe65453b2218ae508c2"
+    },
+    {
+      "name": "macro_datasetB.rds",
+      "sha256": "sha256:a31790a3aa727324a4c7f36ab2718601a7f584faf4e03da3bd05952a76c7cb5c"
+    },
+    {
+      "name": "micro_datasetA_15min.rds",
+      "sha256": "sha256:e9bdf85e19073dd54e5ea9ab38a2e4836261dcdb78298d46c3f8172985aad45a"
+    },
+    {
+      "name": "micro_datasetA.rds",
+      "sha256": "sha256:2ae563036e2b902c0ca4b5ef63991ebe0174db2a530b0e552236739a4810caee"
+    },
+    {
+      "name": "micro_datasetB_15min.rds",
+      "sha256": "sha256:7f7882529c25278ac22e35c42026eff4ab40e6f002d86b18a35059bda3a7cc4d"
+    },
+    {
+      "name": "micro_datasetB.rds",
+      "sha256": "sha256:e445d63da5b4bdfaf2ab86b41811640a441ca506fe211190e226e314748caed2"
+    }
+  ],
+  "counts": {
+    "source_configurations": 72,
+    "executed_configurations": 68,
+    "blocked_source_configurations": 4,
+    "script_receipts": 10,
+    "model_objects": 68,
+    "unique_executable_settings": 42
+  },
+  "configuration_groups": [
+    {
+      "receipt_id": "macro-a",
+      "result_sha256": "sha256:7f6c611d9cadd1a1366ac2dee20b170ba4ffb831c18441b7924496cbeb545038",
+      "configuration_ids": [
+        "schoedel2023:macro-a-flourishing-basic",
+        "schoedel2023:macro-a-flourishing-frequency",
+        "schoedel2023:macro-a-flourishing-median",
+        "schoedel2023:macro-a-flourishing-quadratic",
+        "schoedel2023:macro-a-swls-basic",
+        "schoedel2023:macro-a-swls-frequency",
+        "schoedel2023:macro-a-swls-median",
+        "schoedel2023:macro-a-swls-quadratic",
+        "schoedel2023:macro-a-positive_activation-basic",
+        "schoedel2023:macro-a-positive_activation-frequency",
+        "schoedel2023:macro-a-positive_activation-median",
+        "schoedel2023:macro-a-positive_activation-quadratic",
+        "schoedel2023:macro-a-negative_activation-basic",
+        "schoedel2023:macro-a-negative_activation-frequency",
+        "schoedel2023:macro-a-negative_activation-median",
+        "schoedel2023:macro-a-negative_activation-quadratic",
+        "schoedel2023:macro-a-valence-basic",
+        "schoedel2023:macro-a-valence-frequency",
+        "schoedel2023:macro-a-valence-median",
+        "schoedel2023:macro-a-valence-quadratic"
+      ]
+    },
+    {
+      "receipt_id": "macro-b",
+      "result_sha256": "sha256:51351ba9a4830f08f1dd923d386ea79586f1b24a9bd8acea28ecdc5c78d986bf",
+      "configuration_ids": [
+        "schoedel2023:macro-b-flourishing-basic",
+        "schoedel2023:macro-b-flourishing-frequency",
+        "schoedel2023:macro-b-flourishing-median",
+        "schoedel2023:macro-b-flourishing-quadratic",
+        "schoedel2023:macro-b-positive_activation-basic",
+        "schoedel2023:macro-b-positive_activation-frequency",
+        "schoedel2023:macro-b-positive_activation-median",
+        "schoedel2023:macro-b-positive_activation-quadratic",
+        "schoedel2023:macro-b-negative_activation-basic",
+        "schoedel2023:macro-b-negative_activation-frequency",
+        "schoedel2023:macro-b-negative_activation-median",
+        "schoedel2023:macro-b-negative_activation-quadratic",
+        "schoedel2023:macro-b-valence-basic",
+        "schoedel2023:macro-b-valence-frequency",
+        "schoedel2023:macro-b-valence-median",
+        "schoedel2023:macro-b-valence-quadratic"
+      ]
+    },
+    {
+      "receipt_id": "micro-fixed-a",
+      "result_sha256": "sha256:775fbb139b1c2f89dea5efac2497ece2f5b9d36e0bad64871f88bc069abf3331",
+      "configuration_ids": [
+        "schoedel2023:micro-fixed-slope-a-basic",
+        "schoedel2023:micro-fixed-slope-a-frequency",
+        "schoedel2023:micro-fixed-slope-a-median",
+        "schoedel2023:micro-fixed-slope-a-quadratic"
+      ]
+    },
+    {
+      "receipt_id": "micro-fixed-b",
+      "result_sha256": "sha256:240296e0ddf682417b69a92c64bbe94dfb268e1cd45d244a44fdace1ae89c107",
+      "configuration_ids": [
+        "schoedel2023:micro-fixed-slope-b-basic",
+        "schoedel2023:micro-fixed-slope-b-frequency",
+        "schoedel2023:micro-fixed-slope-b-median",
+        "schoedel2023:micro-fixed-slope-b-quadratic"
+      ]
+    },
+    {
+      "receipt_id": "micro-random-a",
+      "result_sha256": "sha256:dbb06780ad1faa22a0d12bf12962298c0b405aae597e71b6d7e0f8650826f286",
+      "configuration_ids": [
+        "schoedel2023:micro-random-slope-a-basic",
+        "schoedel2023:micro-random-slope-a-frequency",
+        "schoedel2023:micro-random-slope-a-median",
+        "schoedel2023:micro-random-slope-a-quadratic"
+      ]
+    },
+    {
+      "receipt_id": "micro-random-b",
+      "result_sha256": "sha256:79e5f99d7ef668d613c29afdcf3c348e43f7800b5626553ee6284a21e9630d70",
+      "configuration_ids": [
+        "schoedel2023:micro-random-slope-b-basic",
+        "schoedel2023:micro-random-slope-b-frequency",
+        "schoedel2023:micro-random-slope-b-median",
+        "schoedel2023:micro-random-slope-b-quadratic"
+      ]
+    },
+    {
+      "receipt_id": "micro-social-a-nonsocial",
+      "result_sha256": "sha256:e24b1f83d356845d86a083449e2690a2141b41857fb057dc4502fe23742ea7dd",
+      "configuration_ids": [
+        "schoedel2023:micro-nonsocial-a-basic",
+        "schoedel2023:micro-nonsocial-a-frequency",
+        "schoedel2023:micro-nonsocial-a-median",
+        "schoedel2023:micro-nonsocial-a-quadratic"
+      ]
+    },
+    {
+      "receipt_id": "micro-social-a-social",
+      "result_sha256": "sha256:77e9d6e00a7f1b96bc2a9becb18f3bc69c074f40970529935d261b21c4422f61",
+      "configuration_ids": [
+        "schoedel2023:micro-social-a-basic",
+        "schoedel2023:micro-social-a-frequency",
+        "schoedel2023:micro-social-a-median",
+        "schoedel2023:micro-social-a-quadratic"
+      ]
+    },
+    {
+      "receipt_id": "micro-social-b-nonsocial",
+      "result_sha256": "sha256:d34eaebe72193bac809fedd50766cb92e79176939e921cd33c153785288026f3",
+      "configuration_ids": [
+        "schoedel2023:micro-nonsocial-b-basic",
+        "schoedel2023:micro-nonsocial-b-frequency",
+        "schoedel2023:micro-nonsocial-b-median",
+        "schoedel2023:micro-nonsocial-b-quadratic"
+      ]
+    },
+    {
+      "receipt_id": "micro-social-b-social",
+      "result_sha256": "sha256:16df043c6766bf0581f31954d8bac37709a05506e64cb382088d9d7fcdbf568e",
+      "configuration_ids": [
+        "schoedel2023:micro-social-b-basic",
+        "schoedel2023:micro-social-b-frequency",
+        "schoedel2023:micro-social-b-median",
+        "schoedel2023:micro-social-b-quadratic"
+      ]
+    }
+  ],
+  "executable_setting_ids": [
+    "method-setting-030ae1d2dbe9908f74aeb40a",
+    "method-setting-1597c70c0986e8cd4cd7d7c0",
+    "method-setting-177788813821ad8321469935",
+    "method-setting-33170b111992641f1a8273ce",
+    "method-setting-416bb3b09d8af697dd853bca",
+    "method-setting-44a9d019772ad4df11f49562",
+    "method-setting-4a20ed5b9f02cbd3dc1ae4e6",
+    "method-setting-4acb20c0f92bc52a8813b675",
+    "method-setting-51739df4e9751c30e54d3107",
+    "method-setting-68c8c46df8fb175f9feb0d9e",
+    "method-setting-6b86df4114cf5d98c46e9e15",
+    "method-setting-6ce2cdbb8baaa854501dc49b",
+    "method-setting-753577b100dd156758e70fc7",
+    "method-setting-75cc4ee76e6de1395b9c9104",
+    "method-setting-7a9fbb666efb30e54c8dfef1",
+    "method-setting-7c2c3046b6a2e69d0eda6d4c",
+    "method-setting-7e6e559d7e6702500cd279ab",
+    "method-setting-804b22b2cba4d53b3c07bbae",
+    "method-setting-805d7db7a1e1d447272d368f",
+    "method-setting-8741277e68026cf4da2bce23",
+    "method-setting-a02633bbb7b2ed483ff75eef",
+    "method-setting-ac5c7879a9c4cb33a21bebb1",
+    "method-setting-b458cdb1a941b8fa98a9313d",
+    "method-setting-ba6f0da8f6140e101d77d771",
+    "method-setting-bd0ea82e09e3cd3dbcd8f391",
+    "method-setting-c58328c41299f41141f1d7f6",
+    "method-setting-cca2fb4b0a068264b7c43ed2",
+    "method-setting-cd5fd42f73392ece0676f176",
+    "method-setting-d266848d47ed97cff0b62b26",
+    "method-setting-d3049dfc51ac9a9e9a7d8023",
+    "method-setting-d525a2d462ae72e1fc47cae4",
+    "method-setting-d749af93c9a90d02ed35ea6f",
+    "method-setting-dbb17df2543ae947c4a6c83d",
+    "method-setting-e0db6539a19e50ccf117afd3",
+    "method-setting-e5970e34d38653e05721ad7d",
+    "method-setting-ef83e695fd00a50f4ec4ca40",
+    "method-setting-f24c886f8483348bf9816971",
+    "method-setting-f3d1f009151adff31646a8f2",
+    "method-setting-f60ce0397e142abb1a61c486",
+    "method-setting-f9c1d0b34a5ac956e1f962dc",
+    "method-setting-fcea51d38da6d93b8d2385dc",
+    "method-setting-ff6ac8bf0ef80977fecb83c0"
+  ],
+  "blocked_source_configurations": [
+    {
+      "configuration_id": "schoedel2023:raw-feature-extraction-a-60min",
+      "source_locator": "scripts/featureExtraction/01_SOURCE_featureExtraction_DatasetA.R:1-5,39-193",
+      "reason": "Private raw timestamped source rows required by the released wrapper are unavailable."
+    },
+    {
+      "configuration_id": "schoedel2023:raw-feature-extraction-a-15min",
+      "source_locator": "scripts/featureExtraction/01b_SOURCE_featureExtraction_DatasetA_15min.R:1-5,39-211",
+      "reason": "Private raw timestamped source rows required by the released wrapper are unavailable."
+    },
+    {
+      "configuration_id": "schoedel2023:raw-feature-extraction-b-60min",
+      "source_locator": "scripts/featureExtraction/02_SOURCE_featureExtraction_DatasetB.R:1-5,39-193",
+      "reason": "Private raw timestamped source rows required by the released wrapper are unavailable."
+    },
+    {
+      "configuration_id": "schoedel2023:raw-feature-extraction-b-15min",
+      "source_locator": "scripts/featureExtraction/02b_SOURCE_featureExtraction_DatasetB_15min.R:1-5,39-211",
+      "reason": "Private raw timestamped source rows required by the released wrapper are unavailable."
+    }
+  ]
+}

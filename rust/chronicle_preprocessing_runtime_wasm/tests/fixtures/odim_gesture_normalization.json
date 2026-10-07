@@ -1,0 +1,1096 @@
+{
+  "schema": "chronicle-odim-post-sdk-source-hand-oracle/v1",
+  "oracle_status": "source_read_independent_hand_cases_not_author_execution",
+  "setting_id": "method-setting-f66abc05ac0fd771ca77667f",
+  "source_work_id": "doi:10.1145/3743726",
+  "parent_method_profile_id": "method-profile:doi:10.1145/3743726",
+  "source_method_variant_id": "source-audit-configuration-space-8785bc0f1a76bae15ec8a111",
+  "method_profile_version": "literature-sublation-v3-atomic+source-complete-v1",
+  "source_value": {
+    "definition": {
+      "repository_commit": "5237a464bbefd17dac1f200ff77e561b26a16f32",
+      "input": "supplied_signed32_API_returned_node_centers_viewport_extents_and_optional_scroll_deltas",
+      "coordinate_arithmetic": "int32_to_binary32_then_source_order_binary32_division",
+      "null_bounds_non_SystemUI": "four_minus_one_float_sentinels_className_supplied_viewId_null",
+      "null_bounds_SystemUI": {
+        "center_x": "(viewport_width_f32/2f)/viewport_width_f32",
+        "center_y": "(viewport_height_f32-30f)/viewport_height_f32"
+      },
+      "nonnull_bounds": {
+        "center_x": "source_center_x_i32.toFloat()/viewport_width_f32",
+        "center_y": "source_center_y_i32.toFloat()/viewport_height_f32"
+      },
+      "scroll": {
+        "present": "source_scroll_delta_i32.toFloat()/matching_viewport_f32",
+        "absent": "positive_zero_float"
+      },
+      "normalized_constructor": {
+        "className": null,
+        "viewId": "supplied_nullable",
+        "verified": false
+      },
+      "output": "finite_binary32_bits_and_IEEE_exceptional_classification_with_constructor_fields",
+      "Rect_center_viewport_acquisition_event_pairing_collectors_and_study_build_equivalence_excluded": true
+    },
+    "source_facing_role": "feature_engineering",
+    "source_facing_target": "derived_feature",
+    "source_evidence_status": "linked later2025 repository computation after Android SDK center and extent resolution at exact commit; evaluated-study build equivalence and raw SDK acquisition remain unproved",
+    "source_artifact_sha256": "f4415db28ca2b6e705c7bb4442c267e53d3a55a3c541275def1ce9e25d1222e5"
+  },
+  "source_commit": "5237a464bbefd17dac1f200ff77e561b26a16f32",
+  "source_locator": "CoreAccessibilityService.kt:382–412; caller274–281,314–336; Gesture.kt:3–20",
+  "source_artifact_original_json_locator": ".tmp-paper-runs/prepared-confidence-artifact-inspection/odim-5237a464/verified-source-blobs.json.files[*].original_utf8",
+  "float_output_boundary": "finite IEEE binary32 bits only; exceptional class without NaN payload or Kotlin Float.toString parity",
+  "case_count": 59,
+  "cases": [
+    {
+      "id": "ordinary_half",
+      "source_locator": "CoreAccessibilityService.kt:382–412; Gesture.kt:3–20",
+      "hand_derivation": "5/10=10/20=1/2; absent scroll initialized +0F",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,20,present,5,10,ignored,ignored,null,null,,\n",
+      "expected_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32,gesture_center_x_f32_bits,gesture_center_x_ieee_class,gesture_center_y_f32_bits,gesture_center_y_ieee_class,gesture_scroll_dx_f32_bits,gesture_scroll_dx_ieee_class,gesture_scroll_dy_f32_bits,gesture_scroll_dy_ieee_class,gesture_class_name_json,gesture_view_id_json,gesture_verified\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,20,present,5,10,ignored,ignored,null,null,,,3f000000,finite,3f000000,finite,00000000,finite,00000000,finite,null,null,false\n",
+      "source_rows": 1,
+      "emitted_rows": 1,
+      "expected_values": [
+        [
+          "3f000000",
+          "finite"
+        ],
+        [
+          "3f000000",
+          "finite"
+        ],
+        [
+          "00000000",
+          "finite"
+        ],
+        [
+          "00000000",
+          "finite"
+        ]
+      ],
+      "expected_class_name": null,
+      "expected_view_id": null
+    },
+    {
+      "id": "one_third_and_quarter",
+      "source_locator": "CoreAccessibilityService.kt:382–412; Gesture.kt:3–20",
+      "hand_derivation": "nearest-even binary32 of 1/3=0x3eaaaaab; 1/4 exact",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,3,4,present,1,1,ignored,ignored,null,null,,\n",
+      "expected_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32,gesture_center_x_f32_bits,gesture_center_x_ieee_class,gesture_center_y_f32_bits,gesture_center_y_ieee_class,gesture_scroll_dx_f32_bits,gesture_scroll_dx_ieee_class,gesture_scroll_dy_f32_bits,gesture_scroll_dy_ieee_class,gesture_class_name_json,gesture_view_id_json,gesture_verified\nr,p,d,s,v,odim_post_sdk_i32_pixels,3,4,present,1,1,ignored,ignored,null,null,,,3eaaaaab,finite,3e800000,finite,00000000,finite,00000000,finite,null,null,false\n",
+      "source_rows": 1,
+      "emitted_rows": 1,
+      "expected_values": [
+        [
+          "3eaaaaab",
+          "finite"
+        ],
+        [
+          "3e800000",
+          "finite"
+        ],
+        [
+          "00000000",
+          "finite"
+        ],
+        [
+          "00000000",
+          "finite"
+        ]
+      ],
+      "expected_class_name": null,
+      "expected_view_id": null
+    },
+    {
+      "id": "present_scroll",
+      "source_locator": "CoreAccessibilityService.kt:382–412; Gesture.kt:3–20",
+      "hand_derivation": "-5/10=-1/2;40/20=2; no clipping",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,20,present,5,10,ignored,ignored,null,present,-5,40\n",
+      "expected_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32,gesture_center_x_f32_bits,gesture_center_x_ieee_class,gesture_center_y_f32_bits,gesture_center_y_ieee_class,gesture_scroll_dx_f32_bits,gesture_scroll_dx_ieee_class,gesture_scroll_dy_f32_bits,gesture_scroll_dy_ieee_class,gesture_class_name_json,gesture_view_id_json,gesture_verified\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,20,present,5,10,ignored,ignored,null,present,-5,40,3f000000,finite,3f000000,finite,bf000000,finite,40000000,finite,null,null,false\n",
+      "source_rows": 1,
+      "emitted_rows": 1,
+      "expected_values": [
+        [
+          "3f000000",
+          "finite"
+        ],
+        [
+          "3f000000",
+          "finite"
+        ],
+        [
+          "bf000000",
+          "finite"
+        ],
+        [
+          "40000000",
+          "finite"
+        ]
+      ],
+      "expected_class_name": null,
+      "expected_view_id": null
+    },
+    {
+      "id": "unclipped_centers",
+      "source_locator": "CoreAccessibilityService.kt:382–412; Gesture.kt:3–20",
+      "hand_derivation": "-20/10=-2;50/20=2.5",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,20,present,-20,50,ignored,ignored,null,null,,\n",
+      "expected_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32,gesture_center_x_f32_bits,gesture_center_x_ieee_class,gesture_center_y_f32_bits,gesture_center_y_ieee_class,gesture_scroll_dx_f32_bits,gesture_scroll_dx_ieee_class,gesture_scroll_dy_f32_bits,gesture_scroll_dy_ieee_class,gesture_class_name_json,gesture_view_id_json,gesture_verified\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,20,present,-20,50,ignored,ignored,null,null,,,c0000000,finite,40200000,finite,00000000,finite,00000000,finite,null,null,false\n",
+      "source_rows": 1,
+      "emitted_rows": 1,
+      "expected_values": [
+        [
+          "c0000000",
+          "finite"
+        ],
+        [
+          "40200000",
+          "finite"
+        ],
+        [
+          "00000000",
+          "finite"
+        ],
+        [
+          "00000000",
+          "finite"
+        ]
+      ],
+      "expected_class_name": null,
+      "expected_view_id": null
+    },
+    {
+      "id": "negative_extents",
+      "source_locator": "CoreAccessibilityService.kt:382–412; Gesture.kt:3–20",
+      "hand_derivation": "signed extents retained; absent scroll is +0 rather than division by negative",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,-10,-20,present,5,10,ignored,ignored,null,null,,\n",
+      "expected_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32,gesture_center_x_f32_bits,gesture_center_x_ieee_class,gesture_center_y_f32_bits,gesture_center_y_ieee_class,gesture_scroll_dx_f32_bits,gesture_scroll_dx_ieee_class,gesture_scroll_dy_f32_bits,gesture_scroll_dy_ieee_class,gesture_class_name_json,gesture_view_id_json,gesture_verified\nr,p,d,s,v,odim_post_sdk_i32_pixels,-10,-20,present,5,10,ignored,ignored,null,null,,,bf000000,finite,bf000000,finite,00000000,finite,00000000,finite,null,null,false\n",
+      "source_rows": 1,
+      "emitted_rows": 1,
+      "expected_values": [
+        [
+          "bf000000",
+          "finite"
+        ],
+        [
+          "bf000000",
+          "finite"
+        ],
+        [
+          "00000000",
+          "finite"
+        ],
+        [
+          "00000000",
+          "finite"
+        ]
+      ],
+      "expected_class_name": null,
+      "expected_view_id": null
+    },
+    {
+      "id": "negative_extent_signed_zero",
+      "source_locator": "CoreAccessibilityService.kt:382–412; Gesture.kt:3–20",
+      "hand_derivation": "positive integer zero / negative finite = negative IEEE zero",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,-10,-20,present,0,0,ignored,ignored,null,present,0,0\n",
+      "expected_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32,gesture_center_x_f32_bits,gesture_center_x_ieee_class,gesture_center_y_f32_bits,gesture_center_y_ieee_class,gesture_scroll_dx_f32_bits,gesture_scroll_dx_ieee_class,gesture_scroll_dy_f32_bits,gesture_scroll_dy_ieee_class,gesture_class_name_json,gesture_view_id_json,gesture_verified\nr,p,d,s,v,odim_post_sdk_i32_pixels,-10,-20,present,0,0,ignored,ignored,null,present,0,0,80000000,finite,80000000,finite,80000000,finite,80000000,finite,null,null,false\n",
+      "source_rows": 1,
+      "emitted_rows": 1,
+      "expected_values": [
+        [
+          "80000000",
+          "finite"
+        ],
+        [
+          "80000000",
+          "finite"
+        ],
+        [
+          "80000000",
+          "finite"
+        ],
+        [
+          "80000000",
+          "finite"
+        ]
+      ],
+      "expected_class_name": null,
+      "expected_view_id": null
+    },
+    {
+      "id": "above_2pow24_cast_before_divide",
+      "source_locator": "CoreAccessibilityService.kt:382–412; Gesture.kt:3–20",
+      "hand_derivation": "16777217 casts ties-even to16777216; denominator16777218 exact; ratio rounds 2ULP below1. f64-first gives3f7fffff and is wrong",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,16777218,16777218,present,16777217,16777217,ignored,ignored,null,present,16777217,-16777217\n",
+      "expected_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32,gesture_center_x_f32_bits,gesture_center_x_ieee_class,gesture_center_y_f32_bits,gesture_center_y_ieee_class,gesture_scroll_dx_f32_bits,gesture_scroll_dx_ieee_class,gesture_scroll_dy_f32_bits,gesture_scroll_dy_ieee_class,gesture_class_name_json,gesture_view_id_json,gesture_verified\nr,p,d,s,v,odim_post_sdk_i32_pixels,16777218,16777218,present,16777217,16777217,ignored,ignored,null,present,16777217,-16777217,3f7ffffe,finite,3f7ffffe,finite,3f7ffffe,finite,bf7ffffe,finite,null,null,false\n",
+      "source_rows": 1,
+      "emitted_rows": 1,
+      "expected_values": [
+        [
+          "3f7ffffe",
+          "finite"
+        ],
+        [
+          "3f7ffffe",
+          "finite"
+        ],
+        [
+          "3f7ffffe",
+          "finite"
+        ],
+        [
+          "bf7ffffe",
+          "finite"
+        ]
+      ],
+      "expected_class_name": null,
+      "expected_view_id": null
+    },
+    {
+      "id": "int32_extreme_numerators",
+      "source_locator": "CoreAccessibilityService.kt:382–412; Gesture.kt:3–20",
+      "hand_derivation": "int32max rounds to2^31; min=-2^31 exact; division by1 retains",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,1,1,present,2147483647,-2147483648,ignored,ignored,null,present,-2147483648,2147483647\n",
+      "expected_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32,gesture_center_x_f32_bits,gesture_center_x_ieee_class,gesture_center_y_f32_bits,gesture_center_y_ieee_class,gesture_scroll_dx_f32_bits,gesture_scroll_dx_ieee_class,gesture_scroll_dy_f32_bits,gesture_scroll_dy_ieee_class,gesture_class_name_json,gesture_view_id_json,gesture_verified\nr,p,d,s,v,odim_post_sdk_i32_pixels,1,1,present,2147483647,-2147483648,ignored,ignored,null,present,-2147483648,2147483647,4f000000,finite,cf000000,finite,cf000000,finite,4f000000,finite,null,null,false\n",
+      "source_rows": 1,
+      "emitted_rows": 1,
+      "expected_values": [
+        [
+          "4f000000",
+          "finite"
+        ],
+        [
+          "cf000000",
+          "finite"
+        ],
+        [
+          "cf000000",
+          "finite"
+        ],
+        [
+          "4f000000",
+          "finite"
+        ]
+      ],
+      "expected_class_name": null,
+      "expected_view_id": null
+    },
+    {
+      "id": "int32_extreme_denominators",
+      "source_locator": "CoreAccessibilityService.kt:382–412; Gesture.kt:3–20",
+      "hand_derivation": "extents cast to +/-2^31;1/extents=+/-2^-31 exact",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,2147483647,-2147483648,present,1,1,ignored,ignored,null,null,,\n",
+      "expected_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32,gesture_center_x_f32_bits,gesture_center_x_ieee_class,gesture_center_y_f32_bits,gesture_center_y_ieee_class,gesture_scroll_dx_f32_bits,gesture_scroll_dx_ieee_class,gesture_scroll_dy_f32_bits,gesture_scroll_dy_ieee_class,gesture_class_name_json,gesture_view_id_json,gesture_verified\nr,p,d,s,v,odim_post_sdk_i32_pixels,2147483647,-2147483648,present,1,1,ignored,ignored,null,null,,,30000000,finite,b0000000,finite,00000000,finite,00000000,finite,null,null,false\n",
+      "source_rows": 1,
+      "emitted_rows": 1,
+      "expected_values": [
+        [
+          "30000000",
+          "finite"
+        ],
+        [
+          "b0000000",
+          "finite"
+        ],
+        [
+          "00000000",
+          "finite"
+        ],
+        [
+          "00000000",
+          "finite"
+        ]
+      ],
+      "expected_class_name": null,
+      "expected_view_id": null
+    },
+    {
+      "id": "nonnull_zero_extents",
+      "source_locator": "CoreAccessibilityService.kt:382–412; Gesture.kt:3–20",
+      "hand_derivation": "nonzero/positivezero has signed infinity;0/0 is NaN; no numeric nonfinite JSON",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,0,0,present,5,-1,ignored,ignored,null,present,0,1\n",
+      "expected_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32,gesture_center_x_f32_bits,gesture_center_x_ieee_class,gesture_center_y_f32_bits,gesture_center_y_ieee_class,gesture_scroll_dx_f32_bits,gesture_scroll_dx_ieee_class,gesture_scroll_dy_f32_bits,gesture_scroll_dy_ieee_class,gesture_class_name_json,gesture_view_id_json,gesture_verified\nr,p,d,s,v,odim_post_sdk_i32_pixels,0,0,present,5,-1,ignored,ignored,null,present,0,1,,positive_infinity,,negative_infinity,,nan,,positive_infinity,null,null,false\n",
+      "source_rows": 1,
+      "emitted_rows": 1,
+      "expected_values": [
+        [
+          "",
+          "positive_infinity"
+        ],
+        [
+          "",
+          "negative_infinity"
+        ],
+        [
+          "",
+          "nan"
+        ],
+        [
+          "",
+          "positive_infinity"
+        ]
+      ],
+      "expected_class_name": null,
+      "expected_view_id": null
+    },
+    {
+      "id": "nonnull_zero_centers_zero_extents",
+      "source_locator": "CoreAccessibilityService.kt:382–412; Gesture.kt:3–20",
+      "hand_derivation": "coordinates0/0 NaN but absent scroll remains positivezero",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,0,0,present,0,0,ignored,ignored,null,null,,\n",
+      "expected_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32,gesture_center_x_f32_bits,gesture_center_x_ieee_class,gesture_center_y_f32_bits,gesture_center_y_ieee_class,gesture_scroll_dx_f32_bits,gesture_scroll_dx_ieee_class,gesture_scroll_dy_f32_bits,gesture_scroll_dy_ieee_class,gesture_class_name_json,gesture_view_id_json,gesture_verified\nr,p,d,s,v,odim_post_sdk_i32_pixels,0,0,present,0,0,ignored,ignored,null,null,,,,nan,,nan,00000000,finite,00000000,finite,null,null,false\n",
+      "source_rows": 1,
+      "emitted_rows": 1,
+      "expected_values": [
+        [
+          "",
+          "nan"
+        ],
+        [
+          "",
+          "nan"
+        ],
+        [
+          "00000000",
+          "finite"
+        ],
+        [
+          "00000000",
+          "finite"
+        ]
+      ],
+      "expected_class_name": null,
+      "expected_view_id": null
+    },
+    {
+      "id": "null_non_systemui_sentinels",
+      "source_locator": "CoreAccessibilityService.kt:382–412; Gesture.kt:3–20",
+      "hand_derivation": "early secondary constructor returns4*-1F, exact supplied class string, nullview; ignores scroll",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,20,null,unavailable,ignored,false,\"\"\" android.Widget \"\"\",ignored,ignored,bad,bad\n",
+      "expected_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32,gesture_center_x_f32_bits,gesture_center_x_ieee_class,gesture_center_y_f32_bits,gesture_center_y_ieee_class,gesture_scroll_dx_f32_bits,gesture_scroll_dx_ieee_class,gesture_scroll_dy_f32_bits,gesture_scroll_dy_ieee_class,gesture_class_name_json,gesture_view_id_json,gesture_verified\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,20,null,unavailable,ignored,false,\"\"\" android.Widget \"\"\",ignored,ignored,bad,bad,bf800000,finite,bf800000,finite,bf800000,finite,bf800000,finite,\"\"\" android.Widget \"\"\",null,false\n",
+      "source_rows": 1,
+      "emitted_rows": 1,
+      "expected_values": [
+        [
+          "bf800000",
+          "finite"
+        ],
+        [
+          "bf800000",
+          "finite"
+        ],
+        [
+          "bf800000",
+          "finite"
+        ],
+        [
+          "bf800000",
+          "finite"
+        ]
+      ],
+      "expected_class_name": " android.Widget ",
+      "expected_view_id": null
+    },
+    {
+      "id": "early_branch_zero_viewport",
+      "source_locator": "CoreAccessibilityService.kt:382–412; Gesture.kt:3–20",
+      "hand_derivation": "viewport cast still consumed but no division before early return",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,0,0,null,unavailable,ignored,false,\"\"\" android.Widget \"\"\",ignored,ignored,bad,bad\n",
+      "expected_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32,gesture_center_x_f32_bits,gesture_center_x_ieee_class,gesture_center_y_f32_bits,gesture_center_y_ieee_class,gesture_scroll_dx_f32_bits,gesture_scroll_dx_ieee_class,gesture_scroll_dy_f32_bits,gesture_scroll_dy_ieee_class,gesture_class_name_json,gesture_view_id_json,gesture_verified\nr,p,d,s,v,odim_post_sdk_i32_pixels,0,0,null,unavailable,ignored,false,\"\"\" android.Widget \"\"\",ignored,ignored,bad,bad,bf800000,finite,bf800000,finite,bf800000,finite,bf800000,finite,\"\"\" android.Widget \"\"\",null,false\n",
+      "source_rows": 1,
+      "emitted_rows": 1,
+      "expected_values": [
+        [
+          "bf800000",
+          "finite"
+        ],
+        [
+          "bf800000",
+          "finite"
+        ],
+        [
+          "bf800000",
+          "finite"
+        ],
+        [
+          "bf800000",
+          "finite"
+        ]
+      ],
+      "expected_class_name": " android.Widget ",
+      "expected_view_id": null
+    },
+    {
+      "id": "early_empty_class",
+      "source_locator": "CoreAccessibilityService.kt:382–412; Gesture.kt:3–20",
+      "hand_derivation": "empty String is not null",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,20,null,unavailable,ignored,false,\"\"\"\"\"\",ignored,ignored,bad,bad\n",
+      "expected_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32,gesture_center_x_f32_bits,gesture_center_x_ieee_class,gesture_center_y_f32_bits,gesture_center_y_ieee_class,gesture_scroll_dx_f32_bits,gesture_scroll_dx_ieee_class,gesture_scroll_dy_f32_bits,gesture_scroll_dy_ieee_class,gesture_class_name_json,gesture_view_id_json,gesture_verified\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,20,null,unavailable,ignored,false,\"\"\"\"\"\",ignored,ignored,bad,bad,bf800000,finite,bf800000,finite,bf800000,finite,bf800000,finite,\"\"\"\"\"\",null,false\n",
+      "source_rows": 1,
+      "emitted_rows": 1,
+      "expected_values": [
+        [
+          "bf800000",
+          "finite"
+        ],
+        [
+          "bf800000",
+          "finite"
+        ],
+        [
+          "bf800000",
+          "finite"
+        ],
+        [
+          "bf800000",
+          "finite"
+        ]
+      ],
+      "expected_class_name": "",
+      "expected_view_id": null
+    },
+    {
+      "id": "early_literal_null_class",
+      "source_locator": "CoreAccessibilityService.kt:382–412; Gesture.kt:3–20",
+      "hand_derivation": "caller toString may supply literal null, retained as string not absentclass",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,20,null,unavailable,ignored,false,\"\"\"null\"\"\",ignored,ignored,bad,bad\n",
+      "expected_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32,gesture_center_x_f32_bits,gesture_center_x_ieee_class,gesture_center_y_f32_bits,gesture_center_y_ieee_class,gesture_scroll_dx_f32_bits,gesture_scroll_dx_ieee_class,gesture_scroll_dy_f32_bits,gesture_scroll_dy_ieee_class,gesture_class_name_json,gesture_view_id_json,gesture_verified\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,20,null,unavailable,ignored,false,\"\"\"null\"\"\",ignored,ignored,bad,bad,bf800000,finite,bf800000,finite,bf800000,finite,bf800000,finite,\"\"\"null\"\"\",null,false\n",
+      "source_rows": 1,
+      "emitted_rows": 1,
+      "expected_values": [
+        [
+          "bf800000",
+          "finite"
+        ],
+        [
+          "bf800000",
+          "finite"
+        ],
+        [
+          "bf800000",
+          "finite"
+        ],
+        [
+          "bf800000",
+          "finite"
+        ]
+      ],
+      "expected_class_name": "null",
+      "expected_view_id": null
+    },
+    {
+      "id": "system_ui_height_60",
+      "source_locator": "CoreAccessibilityService.kt:382–412; Gesture.kt:3–20",
+      "hand_derivation": "(width/2)/width=1/2; (60-30)/60=1/2; normalized constructor",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,60,null,ignored,ignored,true,ignored,null,null,,\n",
+      "expected_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32,gesture_center_x_f32_bits,gesture_center_x_ieee_class,gesture_center_y_f32_bits,gesture_center_y_ieee_class,gesture_scroll_dx_f32_bits,gesture_scroll_dx_ieee_class,gesture_scroll_dy_f32_bits,gesture_scroll_dy_ieee_class,gesture_class_name_json,gesture_view_id_json,gesture_verified\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,60,null,ignored,ignored,true,ignored,null,null,,,3f000000,finite,3f000000,finite,00000000,finite,00000000,finite,null,null,false\n",
+      "source_rows": 1,
+      "emitted_rows": 1,
+      "expected_values": [
+        [
+          "3f000000",
+          "finite"
+        ],
+        [
+          "3f000000",
+          "finite"
+        ],
+        [
+          "00000000",
+          "finite"
+        ],
+        [
+          "00000000",
+          "finite"
+        ]
+      ],
+      "expected_class_name": null,
+      "expected_view_id": null
+    },
+    {
+      "id": "system_ui_height_31",
+      "source_locator": "CoreAccessibilityService.kt:382–412; Gesture.kt:3–20",
+      "hand_derivation": "(31F-30F)/31F=1/31 rounded once; do not substitute1-30/31",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,31,null,ignored,ignored,true,ignored,null,null,,\n",
+      "expected_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32,gesture_center_x_f32_bits,gesture_center_x_ieee_class,gesture_center_y_f32_bits,gesture_center_y_ieee_class,gesture_scroll_dx_f32_bits,gesture_scroll_dx_ieee_class,gesture_scroll_dy_f32_bits,gesture_scroll_dy_ieee_class,gesture_class_name_json,gesture_view_id_json,gesture_verified\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,31,null,ignored,ignored,true,ignored,null,null,,,3f000000,finite,3d042108,finite,00000000,finite,00000000,finite,null,null,false\n",
+      "source_rows": 1,
+      "emitted_rows": 1,
+      "expected_values": [
+        [
+          "3f000000",
+          "finite"
+        ],
+        [
+          "3d042108",
+          "finite"
+        ],
+        [
+          "00000000",
+          "finite"
+        ],
+        [
+          "00000000",
+          "finite"
+        ]
+      ],
+      "expected_class_name": null,
+      "expected_view_id": null
+    },
+    {
+      "id": "system_ui_height_32",
+      "source_locator": "CoreAccessibilityService.kt:382–412; Gesture.kt:3–20",
+      "hand_derivation": "2/32=1/16 exact",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,32,null,ignored,ignored,true,ignored,null,null,,\n",
+      "expected_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32,gesture_center_x_f32_bits,gesture_center_x_ieee_class,gesture_center_y_f32_bits,gesture_center_y_ieee_class,gesture_scroll_dx_f32_bits,gesture_scroll_dx_ieee_class,gesture_scroll_dy_f32_bits,gesture_scroll_dy_ieee_class,gesture_class_name_json,gesture_view_id_json,gesture_verified\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,32,null,ignored,ignored,true,ignored,null,null,,,3f000000,finite,3d800000,finite,00000000,finite,00000000,finite,null,null,false\n",
+      "source_rows": 1,
+      "emitted_rows": 1,
+      "expected_values": [
+        [
+          "3f000000",
+          "finite"
+        ],
+        [
+          "3d800000",
+          "finite"
+        ],
+        [
+          "00000000",
+          "finite"
+        ],
+        [
+          "00000000",
+          "finite"
+        ]
+      ],
+      "expected_class_name": null,
+      "expected_view_id": null
+    },
+    {
+      "id": "system_ui_height_30",
+      "source_locator": "CoreAccessibilityService.kt:382–412; Gesture.kt:3–20",
+      "hand_derivation": "exact subtraction yields+0",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,30,null,ignored,ignored,true,ignored,null,null,,\n",
+      "expected_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32,gesture_center_x_f32_bits,gesture_center_x_ieee_class,gesture_center_y_f32_bits,gesture_center_y_ieee_class,gesture_scroll_dx_f32_bits,gesture_scroll_dx_ieee_class,gesture_scroll_dy_f32_bits,gesture_scroll_dy_ieee_class,gesture_class_name_json,gesture_view_id_json,gesture_verified\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,30,null,ignored,ignored,true,ignored,null,null,,,3f000000,finite,00000000,finite,00000000,finite,00000000,finite,null,null,false\n",
+      "source_rows": 1,
+      "emitted_rows": 1,
+      "expected_values": [
+        [
+          "3f000000",
+          "finite"
+        ],
+        [
+          "00000000",
+          "finite"
+        ],
+        [
+          "00000000",
+          "finite"
+        ],
+        [
+          "00000000",
+          "finite"
+        ]
+      ],
+      "expected_class_name": null,
+      "expected_view_id": null
+    },
+    {
+      "id": "system_ui_height_15",
+      "source_locator": "CoreAccessibilityService.kt:382–412; Gesture.kt:3–20",
+      "hand_derivation": "(15-30)/15=-1; no lower clipping",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,15,null,ignored,ignored,true,ignored,null,null,,\n",
+      "expected_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32,gesture_center_x_f32_bits,gesture_center_x_ieee_class,gesture_center_y_f32_bits,gesture_center_y_ieee_class,gesture_scroll_dx_f32_bits,gesture_scroll_dx_ieee_class,gesture_scroll_dy_f32_bits,gesture_scroll_dy_ieee_class,gesture_class_name_json,gesture_view_id_json,gesture_verified\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,15,null,ignored,ignored,true,ignored,null,null,,,3f000000,finite,bf800000,finite,00000000,finite,00000000,finite,null,null,false\n",
+      "source_rows": 1,
+      "emitted_rows": 1,
+      "expected_values": [
+        [
+          "3f000000",
+          "finite"
+        ],
+        [
+          "bf800000",
+          "finite"
+        ],
+        [
+          "00000000",
+          "finite"
+        ],
+        [
+          "00000000",
+          "finite"
+        ]
+      ],
+      "expected_class_name": null,
+      "expected_view_id": null
+    },
+    {
+      "id": "system_ui_negative_height",
+      "source_locator": "CoreAccessibilityService.kt:382–412; Gesture.kt:3–20",
+      "hand_derivation": "negative width still .5;(-15-30)/-15=3",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,-10,-15,null,ignored,ignored,true,ignored,null,null,,\n",
+      "expected_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32,gesture_center_x_f32_bits,gesture_center_x_ieee_class,gesture_center_y_f32_bits,gesture_center_y_ieee_class,gesture_scroll_dx_f32_bits,gesture_scroll_dx_ieee_class,gesture_scroll_dy_f32_bits,gesture_scroll_dy_ieee_class,gesture_class_name_json,gesture_view_id_json,gesture_verified\nr,p,d,s,v,odim_post_sdk_i32_pixels,-10,-15,null,ignored,ignored,true,ignored,null,null,,,3f000000,finite,40400000,finite,00000000,finite,00000000,finite,null,null,false\n",
+      "source_rows": 1,
+      "emitted_rows": 1,
+      "expected_values": [
+        [
+          "3f000000",
+          "finite"
+        ],
+        [
+          "40400000",
+          "finite"
+        ],
+        [
+          "00000000",
+          "finite"
+        ],
+        [
+          "00000000",
+          "finite"
+        ]
+      ],
+      "expected_class_name": null,
+      "expected_view_id": null
+    },
+    {
+      "id": "system_ui_zero_dimensions",
+      "source_locator": "CoreAccessibilityService.kt:382–412; Gesture.kt:3–20",
+      "hand_derivation": "width0/2/0 NaN, never folded to.5; (0-30)/0=-Inf",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,0,0,null,ignored,ignored,true,ignored,null,null,,\n",
+      "expected_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32,gesture_center_x_f32_bits,gesture_center_x_ieee_class,gesture_center_y_f32_bits,gesture_center_y_ieee_class,gesture_scroll_dx_f32_bits,gesture_scroll_dx_ieee_class,gesture_scroll_dy_f32_bits,gesture_scroll_dy_ieee_class,gesture_class_name_json,gesture_view_id_json,gesture_verified\nr,p,d,s,v,odim_post_sdk_i32_pixels,0,0,null,ignored,ignored,true,ignored,null,null,,,,nan,,negative_infinity,00000000,finite,00000000,finite,null,null,false\n",
+      "source_rows": 1,
+      "emitted_rows": 1,
+      "expected_values": [
+        [
+          "",
+          "nan"
+        ],
+        [
+          "",
+          "negative_infinity"
+        ],
+        [
+          "00000000",
+          "finite"
+        ],
+        [
+          "00000000",
+          "finite"
+        ]
+      ],
+      "expected_class_name": null,
+      "expected_view_id": null
+    },
+    {
+      "id": "system_ui_scroll",
+      "source_locator": "CoreAccessibilityService.kt:382–412; Gesture.kt:3–20",
+      "hand_derivation": "same scroll arithmetic after SystemUI branch; sourceview preserved",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,60,null,ignored,ignored,true,ignored,\"\"\" pkg:id/a \"\"\",present,10,-30\n",
+      "expected_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32,gesture_center_x_f32_bits,gesture_center_x_ieee_class,gesture_center_y_f32_bits,gesture_center_y_ieee_class,gesture_scroll_dx_f32_bits,gesture_scroll_dx_ieee_class,gesture_scroll_dy_f32_bits,gesture_scroll_dy_ieee_class,gesture_class_name_json,gesture_view_id_json,gesture_verified\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,60,null,ignored,ignored,true,ignored,\"\"\" pkg:id/a \"\"\",present,10,-30,3f000000,finite,3f000000,finite,3f800000,finite,bf000000,finite,null,\"\"\" pkg:id/a \"\"\",false\n",
+      "source_rows": 1,
+      "emitted_rows": 1,
+      "expected_values": [
+        [
+          "3f000000",
+          "finite"
+        ],
+        [
+          "3f000000",
+          "finite"
+        ],
+        [
+          "3f800000",
+          "finite"
+        ],
+        [
+          "bf000000",
+          "finite"
+        ]
+      ],
+      "expected_class_name": null,
+      "expected_view_id": " pkg:id/a "
+    },
+    {
+      "id": "system_ui_intmax_height",
+      "source_locator": "CoreAccessibilityService.kt:382–412; Gesture.kt:3–20",
+      "hand_derivation": "height rounds2^31; subtract30 rounds back2^31 (ULP256); ratio1",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,2147483647,null,ignored,ignored,true,ignored,null,null,,\n",
+      "expected_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32,gesture_center_x_f32_bits,gesture_center_x_ieee_class,gesture_center_y_f32_bits,gesture_center_y_ieee_class,gesture_scroll_dx_f32_bits,gesture_scroll_dx_ieee_class,gesture_scroll_dy_f32_bits,gesture_scroll_dy_ieee_class,gesture_class_name_json,gesture_view_id_json,gesture_verified\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,2147483647,null,ignored,ignored,true,ignored,null,null,,,3f000000,finite,3f800000,finite,00000000,finite,00000000,finite,null,null,false\n",
+      "source_rows": 1,
+      "emitted_rows": 1,
+      "expected_values": [
+        [
+          "3f000000",
+          "finite"
+        ],
+        [
+          "3f800000",
+          "finite"
+        ],
+        [
+          "00000000",
+          "finite"
+        ],
+        [
+          "00000000",
+          "finite"
+        ]
+      ],
+      "expected_class_name": null,
+      "expected_view_id": null
+    },
+    {
+      "id": "system_ui_intmin_height",
+      "source_locator": "CoreAccessibilityService.kt:382–412; Gesture.kt:3–20",
+      "hand_derivation": "-2^31-30 rounds back-2^31; ratio1",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,-2147483648,null,ignored,ignored,true,ignored,null,null,,\n",
+      "expected_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32,gesture_center_x_f32_bits,gesture_center_x_ieee_class,gesture_center_y_f32_bits,gesture_center_y_ieee_class,gesture_scroll_dx_f32_bits,gesture_scroll_dx_ieee_class,gesture_scroll_dy_f32_bits,gesture_scroll_dy_ieee_class,gesture_class_name_json,gesture_view_id_json,gesture_verified\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,-2147483648,null,ignored,ignored,true,ignored,null,null,,,3f000000,finite,3f800000,finite,00000000,finite,00000000,finite,null,null,false\n",
+      "source_rows": 1,
+      "emitted_rows": 1,
+      "expected_values": [
+        [
+          "3f000000",
+          "finite"
+        ],
+        [
+          "3f800000",
+          "finite"
+        ],
+        [
+          "00000000",
+          "finite"
+        ],
+        [
+          "00000000",
+          "finite"
+        ]
+      ],
+      "expected_class_name": null,
+      "expected_view_id": null
+    },
+    {
+      "id": "system_ui_large_height_source_order",
+      "source_locator": "CoreAccessibilityService.kt:382–412; Gesture.kt:3–20",
+      "hand_derivation": "height casts2^24; subtraction30 exact at this side;ratio=1-30/2^24",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,16777217,null,ignored,ignored,true,ignored,null,null,,\n",
+      "expected_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32,gesture_center_x_f32_bits,gesture_center_x_ieee_class,gesture_center_y_f32_bits,gesture_center_y_ieee_class,gesture_scroll_dx_f32_bits,gesture_scroll_dx_ieee_class,gesture_scroll_dy_f32_bits,gesture_scroll_dy_ieee_class,gesture_class_name_json,gesture_view_id_json,gesture_verified\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,16777217,null,ignored,ignored,true,ignored,null,null,,,3f000000,finite,3f7fffe2,finite,00000000,finite,00000000,finite,null,null,false\n",
+      "source_rows": 1,
+      "emitted_rows": 1,
+      "expected_values": [
+        [
+          "3f000000",
+          "finite"
+        ],
+        [
+          "3f7fffe2",
+          "finite"
+        ],
+        [
+          "00000000",
+          "finite"
+        ],
+        [
+          "00000000",
+          "finite"
+        ]
+      ],
+      "expected_class_name": null,
+      "expected_view_id": null
+    },
+    {
+      "id": "empty_view_string",
+      "source_locator": "CoreAccessibilityService.kt:382–412; Gesture.kt:3–20",
+      "hand_derivation": "nullable empty String differs fromnull",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,20,present,5,10,ignored,ignored,\"\"\"\"\"\",null,,\n",
+      "expected_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32,gesture_center_x_f32_bits,gesture_center_x_ieee_class,gesture_center_y_f32_bits,gesture_center_y_ieee_class,gesture_scroll_dx_f32_bits,gesture_scroll_dx_ieee_class,gesture_scroll_dy_f32_bits,gesture_scroll_dy_ieee_class,gesture_class_name_json,gesture_view_id_json,gesture_verified\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,20,present,5,10,ignored,ignored,\"\"\"\"\"\",null,,,3f000000,finite,3f000000,finite,00000000,finite,00000000,finite,null,\"\"\"\"\"\",false\n",
+      "source_rows": 1,
+      "emitted_rows": 1,
+      "expected_values": [
+        [
+          "3f000000",
+          "finite"
+        ],
+        [
+          "3f000000",
+          "finite"
+        ],
+        [
+          "00000000",
+          "finite"
+        ],
+        [
+          "00000000",
+          "finite"
+        ]
+      ],
+      "expected_class_name": null,
+      "expected_view_id": ""
+    },
+    {
+      "id": "literal_null_view_string",
+      "source_locator": "CoreAccessibilityService.kt:382–412; Gesture.kt:3–20",
+      "hand_derivation": "literal stringnull not Kotlinnull",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,20,present,5,10,ignored,ignored,\"\"\"null\"\"\",null,,\n",
+      "expected_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32,gesture_center_x_f32_bits,gesture_center_x_ieee_class,gesture_center_y_f32_bits,gesture_center_y_ieee_class,gesture_scroll_dx_f32_bits,gesture_scroll_dx_ieee_class,gesture_scroll_dy_f32_bits,gesture_scroll_dy_ieee_class,gesture_class_name_json,gesture_view_id_json,gesture_verified\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,20,present,5,10,ignored,ignored,\"\"\"null\"\"\",null,,,3f000000,finite,3f000000,finite,00000000,finite,00000000,finite,null,\"\"\"null\"\"\",false\n",
+      "source_rows": 1,
+      "emitted_rows": 1,
+      "expected_values": [
+        [
+          "3f000000",
+          "finite"
+        ],
+        [
+          "3f000000",
+          "finite"
+        ],
+        [
+          "00000000",
+          "finite"
+        ],
+        [
+          "00000000",
+          "finite"
+        ]
+      ],
+      "expected_class_name": null,
+      "expected_view_id": "null"
+    },
+    {
+      "id": "unicode_raw_strings",
+      "source_locator": "CoreAccessibilityService.kt:382–412; Gesture.kt:3–20",
+      "hand_derivation": "raw lexical carrier IDs and decoded class codepoints preserved; no normalization",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\n r , p , d , s , v ,odim_post_sdk_i32_pixels,10,20,null,unavailable,ignored,false,\"\"\" Á\\tΩ\\n\"\"\",ignored,ignored,bad,bad\n",
+      "expected_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32,gesture_center_x_f32_bits,gesture_center_x_ieee_class,gesture_center_y_f32_bits,gesture_center_y_ieee_class,gesture_scroll_dx_f32_bits,gesture_scroll_dx_ieee_class,gesture_scroll_dy_f32_bits,gesture_scroll_dy_ieee_class,gesture_class_name_json,gesture_view_id_json,gesture_verified\n r , p , d , s , v ,odim_post_sdk_i32_pixels,10,20,null,unavailable,ignored,false,\"\"\" Á\\tΩ\\n\"\"\",ignored,ignored,bad,bad,bf800000,finite,bf800000,finite,bf800000,finite,bf800000,finite,\"\"\" Á\\tΩ\\n\"\"\",null,false\n",
+      "source_rows": 1,
+      "emitted_rows": 1,
+      "expected_values": [
+        [
+          "bf800000",
+          "finite"
+        ],
+        [
+          "bf800000",
+          "finite"
+        ],
+        [
+          "bf800000",
+          "finite"
+        ],
+        [
+          "bf800000",
+          "finite"
+        ]
+      ],
+      "expected_class_name": " Á\tΩ\n",
+      "expected_view_id": null
+    },
+    {
+      "id": "numeric_engineering_whitespace",
+      "source_locator": "CoreAccessibilityService.kt:382–412; Gesture.kt:3–20",
+      "hand_derivation": "declared typeddecimal parser trims numeric cells; original cells retained, not authorrawbyteparser",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels, +0010 , 020 ,present, +5 , 0010 ,ignored,ignored,null,null,,\n",
+      "expected_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32,gesture_center_x_f32_bits,gesture_center_x_ieee_class,gesture_center_y_f32_bits,gesture_center_y_ieee_class,gesture_scroll_dx_f32_bits,gesture_scroll_dx_ieee_class,gesture_scroll_dy_f32_bits,gesture_scroll_dy_ieee_class,gesture_class_name_json,gesture_view_id_json,gesture_verified\nr,p,d,s,v,odim_post_sdk_i32_pixels, +0010 , 020 ,present, +5 , 0010 ,ignored,ignored,null,null,,,3f000000,finite,3f000000,finite,00000000,finite,00000000,finite,null,null,false\n",
+      "source_rows": 1,
+      "emitted_rows": 1,
+      "expected_values": [
+        [
+          "3f000000",
+          "finite"
+        ],
+        [
+          "3f000000",
+          "finite"
+        ],
+        [
+          "00000000",
+          "finite"
+        ],
+        [
+          "00000000",
+          "finite"
+        ]
+      ],
+      "expected_class_name": null,
+      "expected_view_id": null
+    },
+    {
+      "id": "duplicate_and_lexical_owner_rows_preserved",
+      "source_locator": "CoreAccessibilityService.kt:382–412; Gesture.kt:3–20",
+      "hand_derivation": "no grouping/dedup: each source row transformed independently in originalorder",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\n r , p , d , s , v ,odim_post_sdk_i32_pixels,10,20,present,5,10,ignored,ignored,null,null,,\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,20,present,5,10,ignored,ignored,null,null,,\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,20,present,5,10,ignored,ignored,null,null,,\n",
+      "expected_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32,gesture_center_x_f32_bits,gesture_center_x_ieee_class,gesture_center_y_f32_bits,gesture_center_y_ieee_class,gesture_scroll_dx_f32_bits,gesture_scroll_dx_ieee_class,gesture_scroll_dy_f32_bits,gesture_scroll_dy_ieee_class,gesture_class_name_json,gesture_view_id_json,gesture_verified\n r , p , d , s , v ,odim_post_sdk_i32_pixels,10,20,present,5,10,ignored,ignored,null,null,,,3f000000,finite,3f000000,finite,00000000,finite,00000000,finite,null,null,false\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,20,present,5,10,ignored,ignored,null,null,,,3f000000,finite,3f000000,finite,00000000,finite,00000000,finite,null,null,false\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,20,present,5,10,ignored,ignored,null,null,,,3f000000,finite,3f000000,finite,00000000,finite,00000000,finite,null,null,false\n",
+      "source_rows": 3,
+      "emitted_rows": 3
+    },
+    {
+      "id": "known_header_only",
+      "source_locator": "CoreAccessibilityService.kt:382–412; Gesture.kt:3–20",
+      "hand_derivation": "empty prepared carrier exports header only; no observation/cohort claim",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\n",
+      "expected_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32,gesture_center_x_f32_bits,gesture_center_x_ieee_class,gesture_center_y_f32_bits,gesture_center_y_ieee_class,gesture_scroll_dx_f32_bits,gesture_scroll_dx_ieee_class,gesture_scroll_dy_f32_bits,gesture_scroll_dy_ieee_class,gesture_class_name_json,gesture_view_id_json,gesture_verified\n",
+      "source_rows": 0,
+      "emitted_rows": 0
+    },
+    {
+      "id": "permuted_header_exact_names",
+      "source_locator": "CoreAccessibilityService.kt:382–412; Gesture.kt:3–20",
+      "hand_derivation": "field selection by exact name; original columnorder retained",
+      "input_csv": "scroll_delta_y_i32,scroll_delta_x_i32,scroll_state,view_id_json,class_name_json,is_system_ui_button_pressed,node_center_y_i32,node_center_x_i32,node_bounds_state,viewport_height_i32,viewport_width_i32,argument_domain,viewport_id,stream_id,device_id,participant_id,source_row_id\n,,null,null,ignored,ignored,10,5,present,20,10,odim_post_sdk_i32_pixels,v,s,d,p,r\n",
+      "expected_csv": "scroll_delta_y_i32,scroll_delta_x_i32,scroll_state,view_id_json,class_name_json,is_system_ui_button_pressed,node_center_y_i32,node_center_x_i32,node_bounds_state,viewport_height_i32,viewport_width_i32,argument_domain,viewport_id,stream_id,device_id,participant_id,source_row_id,gesture_center_x_f32_bits,gesture_center_x_ieee_class,gesture_center_y_f32_bits,gesture_center_y_ieee_class,gesture_scroll_dx_f32_bits,gesture_scroll_dx_ieee_class,gesture_scroll_dy_f32_bits,gesture_scroll_dy_ieee_class,gesture_class_name_json,gesture_view_id_json,gesture_verified\n,,null,null,ignored,ignored,10,5,present,20,10,odim_post_sdk_i32_pixels,v,s,d,p,r,3f000000,finite,3f000000,finite,00000000,finite,00000000,finite,null,null,false\n",
+      "source_rows": 1,
+      "emitted_rows": 1
+    },
+    {
+      "id": "missing_width",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,,20,present,5,10,ignored,ignored,null,null,,\n",
+      "expected_error_contains": "signed32 viewport_width_i32",
+      "source_limit": "engineering typed carrier refuses unavailable consumed argument; not source collector rule"
+    },
+    {
+      "id": "width_outside_i32",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,2147483648,20,present,5,10,ignored,ignored,null,null,,\n",
+      "expected_error_contains": "signed32 viewport_width_i32",
+      "source_limit": "engineering typed carrier refuses unavailable consumed argument; not source collector rule"
+    },
+    {
+      "id": "height_below_i32",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,-2147483649,present,5,10,ignored,ignored,null,null,,\n",
+      "expected_error_contains": "signed32 viewport_height_i32",
+      "source_limit": "engineering typed carrier refuses unavailable consumed argument; not source collector rule"
+    },
+    {
+      "id": "fractional_center",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,20,present,1.5,10,ignored,ignored,null,null,,\n",
+      "expected_error_contains": "signed32 node_center_x_i32",
+      "source_limit": "engineering typed carrier refuses unavailable consumed argument; not source collector rule"
+    },
+    {
+      "id": "exponent_not_integer_carrier",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,20,present,5,1e1,ignored,ignored,null,null,,\n",
+      "expected_error_contains": "signed32 node_center_y_i32",
+      "source_limit": "engineering typed carrier refuses unavailable consumed argument; not source collector rule"
+    },
+    {
+      "id": "nan_not_integer_carrier",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,NaN,present,5,10,ignored,ignored,null,null,,\n",
+      "expected_error_contains": "signed32 viewport_height_i32",
+      "source_limit": "engineering typed carrier refuses unavailable consumed argument; not source collector rule"
+    },
+    {
+      "id": "unknown_node_state",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,20,unknown,5,10,ignored,ignored,null,null,,\n",
+      "expected_error_contains": "node_bounds_state",
+      "source_limit": "engineering typed carrier refuses unavailable consumed argument; not source collector rule"
+    },
+    {
+      "id": "unknown_null_node_ui_flag",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,20,null,5,10,unknown,ignored,null,null,,\n",
+      "expected_error_contains": "Boolean",
+      "source_limit": "engineering typed carrier refuses unavailable consumed argument; not source collector rule"
+    },
+    {
+      "id": "missing_null_node_ui_flag",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,20,null,5,10,,ignored,null,null,,\n",
+      "expected_error_contains": "Boolean",
+      "source_limit": "engineering typed carrier refuses unavailable consumed argument; not source collector rule"
+    },
+    {
+      "id": "early_missing_class",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,20,null,unavailable,ignored,false,,ignored,ignored,bad,bad\n",
+      "expected_error_contains": "JSON string",
+      "source_limit": "engineering typed carrier refuses unavailable consumed argument; not source collector rule"
+    },
+    {
+      "id": "early_null_class",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,20,null,unavailable,ignored,false,null,ignored,ignored,bad,bad\n",
+      "expected_error_contains": "JSON string",
+      "source_limit": "engineering typed carrier refuses unavailable consumed argument; not source collector rule"
+    },
+    {
+      "id": "malformed_normalized_view",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,20,present,5,10,ignored,ignored,bad,null,,\n",
+      "expected_error_contains": "JSON string or null",
+      "source_limit": "engineering typed carrier refuses unavailable consumed argument; not source collector rule"
+    },
+    {
+      "id": "numeric_normalized_view",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,20,present,5,10,ignored,ignored,5,null,,\n",
+      "expected_error_contains": "JSON string or null",
+      "source_limit": "engineering typed carrier refuses unavailable consumed argument; not source collector rule"
+    },
+    {
+      "id": "missing_scroll_presence",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,20,present,5,10,ignored,ignored,null,,,\n",
+      "expected_error_contains": "scroll_state",
+      "source_limit": "engineering typed carrier refuses unavailable consumed argument; not source collector rule"
+    },
+    {
+      "id": "unknown_scroll_presence",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,20,present,5,10,ignored,ignored,null,unknown,,\n",
+      "expected_error_contains": "scroll_state",
+      "source_limit": "engineering typed carrier refuses unavailable consumed argument; not source collector rule"
+    },
+    {
+      "id": "present_missing_scroll_dx",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,20,present,5,10,ignored,ignored,null,present,,0\n",
+      "expected_error_contains": "signed32 scroll_delta_x_i32",
+      "source_limit": "engineering typed carrier refuses unavailable consumed argument; not source collector rule"
+    },
+    {
+      "id": "present_scroll_overflow",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,20,present,5,10,ignored,ignored,null,present,0,2147483648\n",
+      "expected_error_contains": "signed32 scroll_delta_y_i32",
+      "source_limit": "engineering typed carrier refuses unavailable consumed argument; not source collector rule"
+    },
+    {
+      "id": "missing_source_owner",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,  ,d,s,v,odim_post_sdk_i32_pixels,10,20,present,5,10,ignored,ignored,null,null,,\n",
+      "expected_error_contains": "requires participant_id",
+      "source_limit": "engineering typed carrier refuses unavailable consumed argument; not source collector rule"
+    },
+    {
+      "id": "missing_device_owner",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,,s,v,odim_post_sdk_i32_pixels,10,20,present,5,10,ignored,ignored,null,null,,\n",
+      "expected_error_contains": "requires device_id",
+      "source_limit": "engineering typed carrier refuses unavailable consumed argument; not source collector rule"
+    },
+    {
+      "id": "missing_stream_owner",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,,v,odim_post_sdk_i32_pixels,10,20,present,5,10,ignored,ignored,null,null,,\n",
+      "expected_error_contains": "requires stream_id",
+      "source_limit": "engineering typed carrier refuses unavailable consumed argument; not source collector rule"
+    },
+    {
+      "id": "missing_viewport_owner",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,,odim_post_sdk_i32_pixels,10,20,present,5,10,ignored,ignored,null,null,,\n",
+      "expected_error_contains": "requires viewport_id",
+      "source_limit": "engineering typed carrier refuses unavailable consumed argument; not source collector rule"
+    },
+    {
+      "id": "unqualified_raw_domain",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,raw_accessibility,10,20,present,5,10,ignored,ignored,null,null,,\n",
+      "expected_error_contains": "argument_domain",
+      "source_limit": "engineering typed carrier refuses unavailable consumed argument; not source collector rule"
+    },
+    {
+      "id": "duplicate_header",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,source_row_id\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,20,present,5,10,ignored,ignored,null,null,,\n",
+      "expected_error_contains": "exactly 17 unique"
+    },
+    {
+      "id": "precomputed_extra_column",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32,gesture_center_x_f32_bits\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,20,present,5,10,ignored,ignored,null,null,,,3f000000\n",
+      "expected_error_contains": "exactly 17 unique"
+    },
+    {
+      "id": "missing_named_header",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,other,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,20,present,5,10,ignored,ignored,null,null,,\n",
+      "expected_error_contains": "viewport_id"
+    },
+    {
+      "id": "malformed_width_row",
+      "input_csv": "source_row_id,participant_id,device_id,stream_id,viewport_id,argument_domain,viewport_width_i32,viewport_height_i32,node_bounds_state,node_center_x_i32,node_center_y_i32,is_system_ui_button_pressed,class_name_json,view_id_json,scroll_state,scroll_delta_x_i32,scroll_delta_y_i32\nr,p,d,s,v,odim_post_sdk_i32_pixels,10,20,present,5,10,ignored,ignored,null,null,\n",
+      "expected_error_contains": "row 1"
+    }
+  ]
+}

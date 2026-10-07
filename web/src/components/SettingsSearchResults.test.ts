@@ -11,5 +11,6 @@ describe("settings search routing", () => {
     // the overview. A new contract option will fail here until it's routed.
     const unrouted = BROWSER_PROCESSING_OPTION_KEYS.filter((key) => !(key in SECTION_BY_KEY));
     expect(unrouted).toEqual([]);
+    expect(SECTION_BY_KEY.openerSet).toBe("session");
   });
 });

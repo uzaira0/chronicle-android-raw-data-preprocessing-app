@@ -6,28 +6,46 @@ import {
 } from "@/lib/rustWorkerClient";
 import { downloadBlob } from "@/lib/download";
 import type { ProcessedFileResult } from "@/lib/types";
+import type { LiteratureComponentRuntimeExecution } from "@/lib/rustPipelineRuntime";
 
 type Props = {
   results: ProcessedFileResult[];
+  componentResult?: LiteratureComponentRuntimeExecution | null;
+  onImportStarted?: () => void;
+  onComponentRestored?: (result: LiteratureComponentRuntimeExecution) => Promise<void>;
+  /**
+   * False once the capability probe has found no usable origin-private storage
+   * (Safari private browsing, an exhausted quota). Import writes a workspace
+   * into that storage, so it is disabled rather than left to fail after the
+   * user picks a file. Export only reads an already-saved workspace and is
+   * offered per saved result instead.
+   */
+  durableStorageAvailable?: boolean;
 };
 
 function backupName(inputFileName: string): string {
   return `${inputFileName.replace(/\.csv$/i, "")}.chronicle-workspace`;
 }
 
-export function WorkspaceBackupControls({ results }: Props): ReactElement {
+export function WorkspaceBackupControls({ results, componentResult, onImportStarted, onComponentRestored, durableStorageAvailable = true }: Props): ReactElement {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const receipts = results.flatMap((result) =>
-    result.rustRuntimeReceipt
+  // Only a run whose workspace was committed to storage can be exported; an
+  // ephemeral run's receipt has no persisted generation and no closure to read.
+  const receipts: Array<{ inputFileName: string; receipt: { workspaceId: string; workspaceRootDigest: string } }> = results.flatMap((result) =>
+    result.rustRuntimeReceipt?.persistedGeneration !== undefined
       ? [{ inputFileName: result.inputFileName, receipt: result.rustRuntimeReceipt }]
       : [],
   );
+  if (componentResult?.artifacts.every((artifact) => artifact.persistedArtifact)) {
+    receipts.push({ inputFileName: componentResult.manifest.inputFileName, receipt: componentResult.manifest });
+  }
 
   const exportWorkspace = async (
     inputFileName: string,
     workspaceId: string,
+    workspaceRootDigest: string,
   ): Promise<void> => {
     setBusy(true);
     setMessage(null);
@@ -37,7 +55,7 @@ export function WorkspaceBackupControls({ results }: Props): ReactElement {
       // whole closure into this thread for no benefit.
       downloadBlob(
         backupName(inputFileName),
-        await exportVerifiedWorkspaceClosure(workspaceId),
+        await exportVerifiedWorkspaceClosure(workspaceId, workspaceRootDigest),
       );
       setMessage(`Verified workspace backup exported for ${inputFileName}.`);
     } catch (error) {
@@ -48,12 +66,22 @@ export function WorkspaceBackupControls({ results }: Props): ReactElement {
   };
 
   const importWorkspace = async (file: File): Promise<void> => {
+    onImportStarted?.();
     setBusy(true);
     setMessage(null);
     try {
       // The picked File is already a lazily-read handle onto the user's disk;
       // it is passed straight through so the archive is never read whole.
       const restored = await importVerifiedWorkspaceClosure(file);
+      if (onComponentRestored) {
+        const { reopenImportedLiteratureComponent } = await import("@/lib/rustPipelineRuntime");
+        const component = await reopenImportedLiteratureComponent(restored.workspaceId, restored.slot.workspaceRootDigest);
+        if (component) {
+          await onComponentRestored(component);
+          setMessage(`Verified component restored at generation ${restored.slot.generation}; both saved result tables are available without rerunning.`);
+          return;
+        }
+      }
       setMessage(
         `Verified workspace restored at generation ${restored.slot.generation}. Re-add its raw file to resume processing from this root.`,
       );
@@ -83,7 +111,7 @@ export function WorkspaceBackupControls({ results }: Props): ReactElement {
               data-testid="export-workspace-closure"
               disabled={busy}
               onClick={() => {
-                void exportWorkspace(inputFileName, receipt.workspaceId);
+                void exportWorkspace(inputFileName, receipt.workspaceId, receipt.workspaceRootDigest);
               }}
             >
               Export {inputFileName}
@@ -93,7 +121,7 @@ export function WorkspaceBackupControls({ results }: Props): ReactElement {
             type="button"
             className="btn btn--secondary"
             data-testid="import-workspace-closure"
-            disabled={busy}
+            disabled={busy || !durableStorageAvailable}
             onClick={() => inputRef.current?.click()}
           >
             Import backup
@@ -111,6 +139,12 @@ export function WorkspaceBackupControls({ results }: Props): ReactElement {
           />
         </div>
       </header>
+      {durableStorageAvailable ? null : (
+        <p className="warning-text" data-testid="workspace-backup-unavailable">
+          Importing a backup needs durable local storage, which this browser
+          is not providing right now.
+        </p>
+      )}
       {message ? (
         <p role="status" className="result-restored-note" data-testid="workspace-backup-status">
           {message}

@@ -10,15 +10,22 @@ name = "_rust_app_usage_matcher"
 crate-type = ["cdylib", "rlib"]
 
 [features]
+coverage-runtime = ["dep:minicov"]
 default = ["python"]
 python = ["dep:numpy", "dep:pyo3"]
 
 [dependencies]
+minicov = { version = "=0.3.8", optional = true }
 numpy = { version = "0.29.0", optional = true }
 pyo3 = { version = "0.29.0", optional = true }
+# For `EpisodeCloseReason` only. The kernel caches `MatcherOutput` in Salsa and
+# that type now carries close reasons, so the enum must serialize. serde was
+# already in this crate's lockfile through the kernel, so this adds no new
+# supply-chain surface.
+serde = { version = "1.0", features = ["derive"] }
 
 [dev-dependencies]
-criterion = { version = "0.5", features = ["html_reports"] }
+criterion = { version = "0.8", features = ["html_reports"] }
 
 [[bench]]
 name = "matcher_bench"

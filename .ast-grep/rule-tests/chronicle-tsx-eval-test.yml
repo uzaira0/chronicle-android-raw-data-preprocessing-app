@@ -1,0 +1,6 @@
+id: chronicle-tsx-eval
+valid:
+  - "const view = <pre>{JSON.stringify(value)}</pre>;"
+invalid:
+  - "const view = <pre>{eval(source)}</pre>;"
+  - "const fn = new Function(body);"

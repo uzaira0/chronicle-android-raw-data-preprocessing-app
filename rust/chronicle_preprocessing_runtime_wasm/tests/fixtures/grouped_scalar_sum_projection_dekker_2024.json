@@ -1,0 +1,82 @@
+{
+  "schemaVersion": "chronicle-grouped-scalar-sum-projection-source-fixture/v1",
+  "sourceWorkId": "doi:10.1080/15213269.2024.2334025",
+  "sourceCodeSha256": "2bd5bab0c9a917a64f347093972bff72e2b0b5cfd38539a1df229c65cdbd383b",
+  "sourceLocator": ".tmp-literature-review-private/corrective-packet-06-ranks174-223-20260831/artifacts/rank209-osf-45q72/osfstorage/Notification-disabling intervention study/Data & Analyses/(2) R script data cleaning [raw survey & tracking data].R:323-335",
+  "sourceGroupSha256": "61c0572cd92afe05d5c094ef751ec503cf65ca51d33d6105d5e38fbc0e3bd4e5",
+  "identityDisposition": "three_current_joint_pipeline_settings; no_aliases_or_tombstones",
+  "aliasTombstoneRegistrySha256": "018221f6036218887355a0a2dcd9d6d54a9e90eb93f380b4e1b81cc75c0f76b5",
+  "exactCanonicalSettings": [
+    {
+      "id": "method-setting-47a31487d53fcbbfb3599681",
+      "parameterKey": "daily_screen_time.variant.1",
+      "sourceValue": "sum APP_USAGE seconds by participant",
+      "sourceValueSha256": "12b5d84b86fab854680ffda61f7e0c29386b2809c6213e9ca9b457776ae4397e"
+    },
+    {
+      "id": "method-setting-c6d932d27437255c0c67f9ec",
+      "parameterKey": "daily_screen_time.variant.2",
+      "sourceValue": "date, convert to minutes",
+      "sourceValueSha256": "3d1b3b81b7bcc135ba1e50c7919504e88de3f3984a74108181810ea712c3b26a"
+    },
+    {
+      "id": "method-setting-af3dc29b102335bbb62f6e7f",
+      "parameterKey": "daily_screen_time.variant.3",
+      "sourceValue": "hours",
+      "sourceValueSha256": "4c1f72a6691d59d311cc09835b6a9ea6c94cbd58cab0f641a4cc45b38e8dd70c"
+    }
+  ],
+  "inputBoundary": "Already renamed and source-filtered APP_USAGE rows carrying ID, original raw time, sample, app_seconds, input order, and duplicates. The caller supplies the exact source-compatible as.Date projection.",
+  "configuration": {
+    "firstDivisor": 60.0,
+    "secondDivisor": 60.0
+  },
+  "projectionByRawTime": {
+    "2024-02-02 10:00:00": "2024-02-02",
+    "2024-02-01 08:00:00": "2024-02-01",
+    "2024-02-01 09:00:00": "2024-02-01",
+    "2024-02-03 12:00:00": "2024-02-03",
+    "2024-02-04 12:00:00": "2024-02-04",
+    "2024-02-05 12:00:00": "2024-02-05",
+    "2024-02-06 12:00:00": "2024-02-06",
+    "2024-02-07 12:00:00": "2024-02-07",
+    "2024-02-08 12:00:00": "2024-02-08"
+  },
+  "rows": [
+    { "id": "B", "rawTime": "2024-02-02 10:00:00", "sample": "lab", "appSeconds": "20" },
+    { "id": "B", "rawTime": "2024-02-02 10:00:00", "sample": "lab", "appSeconds": "20" },
+    { "id": "A", "rawTime": "2024-02-01 08:00:00", "sample": "lab", "appSeconds": "60" },
+    { "id": "A", "rawTime": "2024-02-01 09:00:00", "sample": "lab", "appSeconds": "30" },
+    { "id": "A", "rawTime": "2024-02-01 09:00:00", "sample": "lab", "appSeconds": "30" },
+    { "id": "Z", "rawTime": "2024-02-03 12:00:00", "sample": "lab", "appSeconds": "10" },
+    { "id": "Z", "rawTime": "2024-02-03 12:00:00", "sample": "prolific", "appSeconds": "20" },
+    { "id": "M", "rawTime": "2024-02-04 12:00:00", "sample": "lab", "appSeconds": "NA" },
+    { "id": "M", "rawTime": "2024-02-04 12:00:00", "sample": "lab", "appSeconds": "5" },
+    { "id": "N", "rawTime": "2024-02-05 12:00:00", "sample": "lab", "appSeconds": "NaN" },
+    { "id": "N", "rawTime": "2024-02-05 12:00:00", "sample": "lab", "appSeconds": "5" },
+    { "id": "P", "rawTime": "2024-02-06 12:00:00", "sample": "lab", "appSeconds": "+Inf" },
+    { "id": "P", "rawTime": "2024-02-06 12:00:00", "sample": "lab", "appSeconds": "5" },
+    { "id": "Q", "rawTime": "2024-02-07 12:00:00", "sample": "lab", "appSeconds": "-Inf" },
+    { "id": "Q", "rawTime": "2024-02-07 12:00:00", "sample": "lab", "appSeconds": "5" },
+    { "id": "R", "rawTime": "2024-02-08 12:00:00", "sample": "lab", "appSeconds": "+Inf" },
+    { "id": "R", "rawTime": "2024-02-08 12:00:00", "sample": "lab", "appSeconds": "-Inf" }
+  ],
+  "expected": [
+    { "id": "B", "sample": "lab", "date": "2024-02-02", "seconds": "40", "minutes": "0.6666666666666666", "hours": "0.01111111111111111" },
+    { "id": "A", "sample": "lab", "date": "2024-02-01", "seconds": "60", "minutes": "1", "hours": "0.016666666666666666" },
+    { "id": "Z", "sample": "lab", "date": "2024-02-03", "seconds": "30", "minutes": "0.5", "hours": "0.008333333333333333" },
+    { "id": "Z", "sample": "prolific", "date": "2024-02-03", "seconds": "30", "minutes": "0.5", "hours": "0.008333333333333333" },
+    { "id": "M", "sample": "lab", "date": "2024-02-04", "seconds": "NA", "minutes": "NA", "hours": "NA" },
+    { "id": "N", "sample": "lab", "date": "2024-02-05", "seconds": "NaN", "minutes": "NaN", "hours": "NaN" },
+    { "id": "P", "sample": "lab", "date": "2024-02-06", "seconds": "+Inf", "minutes": "+Inf", "hours": "+Inf" },
+    { "id": "Q", "sample": "lab", "date": "2024-02-07", "seconds": "-Inf", "minutes": "-Inf", "hours": "-Inf" },
+    { "id": "R", "sample": "lab", "date": "2024-02-08", "seconds": "NaN", "minutes": "NaN", "hours": "NaN" }
+  ],
+  "invalidProjectionRawTime": "not-a-date",
+  "limitations": [
+    "The deposited raw APP_USAGE files are absent, so this binding does not invent their date class, text format, locale, or timezone; exact as.Date behavior remains a caller-supplied projection boundary.",
+    "The source filters application names and one participant before this slice. Those filters and the preceding field renames are intentionally outside this arithmetic primitive.",
+    "The source script names R 4.3.2 but does not deposit a complete dependency lock; this fixture binds only the directly visible dplyr pipeline semantics.",
+    "No absent participant/day rows are synthesized, and source duplicates contribute to the sum before full-row unique removes repeated projected rows."
+  ]
+}

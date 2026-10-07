@@ -1,0 +1,353 @@
+{
+  "schemaVersion": "chronicle-screen-usage-within-source-oracle/v1",
+  "sourceWorkId": "doi:10.1016/j.chb.2023.107977",
+  "sourceMethodVariant": "released-60-minute-screen-usage-within",
+  "sourceLocators": ["Screen_usageSessions_Microlevel.R:25-123", "ema_labels.R:30-79", "helper_variables.R:43-48", "01_SOURCE_featureExtraction_DatasetA.R:150-170"],
+  "sourceSha256": {
+    "screenUsageWithin": "51b0f06c317c8473a07eb3a11cbc5f29529b9714a58a1b7e0fca92b75522e519",
+    "addTimeLimits": "1c2819cc55e604a644070a732a5227175e38dff3e673be87c0d773940aa94244",
+    "occurHelper": "61a921f5f8b8e2b0c6c60f24d3ae13de477a340f8967e21e74707daeebba873a"
+  },
+  "executionBoundary": {
+    "windowMinutes": 60,
+    "inputStage": "post_daytime_filter_post_questionnaire_membership_post_usage_nonusage_ids",
+    "outputStage": "pre_summary_usage_nonusage_sessions"
+  },
+  "limitations": ["Questionnaire membership and upstream usage/nonusage IDs are caller-supplied.", "Daytime labeling, downstream feature formulas, and the 15-minute sensitivity variant are excluded."],
+  "cases": [
+    {
+      "caseId": "all_usage",
+      "questionnaireId": "all-usage",
+      "startTimestampNs": 10000000000000,
+      "endTimestampNs": 13600000000000,
+      "inputRows": [
+        {
+          "sourceRowId": "all-u-before",
+          "timestampNs": 9999000000000,
+          "questionnaireId": null,
+          "usageId": 7,
+          "nonusageId": null
+        },
+        {
+          "sourceRowId": "all-u-1",
+          "timestampNs": 10600000000000,
+          "questionnaireId": "all-usage",
+          "usageId": 7,
+          "nonusageId": null
+        },
+        {
+          "sourceRowId": "all-u-2",
+          "timestampNs": 12400000000000,
+          "questionnaireId": "all-usage",
+          "usageId": 7,
+          "nonusageId": null
+        },
+        {
+          "sourceRowId": "all-u-after",
+          "timestampNs": 13601000000000,
+          "questionnaireId": null,
+          "usageId": 7,
+          "nonusageId": null
+        }
+      ],
+      "expectedInternalRows": [
+        {
+          "sourceRowId": null,
+          "timestampNs": 10000000000000,
+          "usageId": 7,
+          "nonusageId": null,
+          "rowKind": "start_boundary"
+        },
+        {
+          "sourceRowId": "all-u-1",
+          "timestampNs": 10600000000000,
+          "usageId": 7,
+          "nonusageId": null,
+          "rowKind": "source"
+        },
+        {
+          "sourceRowId": "all-u-2",
+          "timestampNs": 12400000000000,
+          "usageId": 7,
+          "nonusageId": null,
+          "rowKind": "source"
+        },
+        {
+          "sourceRowId": null,
+          "timestampNs": 13600000000000,
+          "usageId": 7,
+          "nonusageId": null,
+          "rowKind": "end_boundary"
+        }
+      ],
+      "expectedSessions": [
+        {
+          "kind": "usage",
+          "sessionId": 7,
+          "startTimestampNs": 10000000000000,
+          "endTimestampNs": 13600000000000
+        }
+      ]
+    },
+    {
+      "caseId": "all_nonusage",
+      "questionnaireId": "all-nonusage",
+      "startTimestampNs": 20000000000000,
+      "endTimestampNs": 23600000000000,
+      "inputRows": [
+        {
+          "sourceRowId": "all-n-before",
+          "timestampNs": 19999000000000,
+          "questionnaireId": null,
+          "usageId": null,
+          "nonusageId": 3
+        },
+        {
+          "sourceRowId": "all-n-1",
+          "timestampNs": 20600000000000,
+          "questionnaireId": "all-nonusage",
+          "usageId": null,
+          "nonusageId": 3
+        },
+        {
+          "sourceRowId": "all-n-2",
+          "timestampNs": 22400000000000,
+          "questionnaireId": "all-nonusage",
+          "usageId": null,
+          "nonusageId": 3
+        },
+        {
+          "sourceRowId": "all-n-after",
+          "timestampNs": 23601000000000,
+          "questionnaireId": null,
+          "usageId": null,
+          "nonusageId": 3
+        }
+      ],
+      "expectedInternalRows": [
+        {
+          "sourceRowId": null,
+          "timestampNs": 20000000000000,
+          "usageId": null,
+          "nonusageId": 3,
+          "rowKind": "start_boundary"
+        },
+        {
+          "sourceRowId": "all-n-1",
+          "timestampNs": 20600000000000,
+          "usageId": null,
+          "nonusageId": 3,
+          "rowKind": "source"
+        },
+        {
+          "sourceRowId": "all-n-2",
+          "timestampNs": 22400000000000,
+          "usageId": null,
+          "nonusageId": 3,
+          "rowKind": "source"
+        },
+        {
+          "sourceRowId": null,
+          "timestampNs": 23600000000000,
+          "usageId": null,
+          "nonusageId": 3,
+          "rowKind": "end_boundary"
+        }
+      ],
+      "expectedSessions": [
+        {
+          "kind": "nonusage",
+          "sessionId": 3,
+          "startTimestampNs": 20000000000000,
+          "endTimestampNs": 23600000000000
+        }
+      ]
+    },
+    {
+      "caseId": "mixed",
+      "questionnaireId": "mixed",
+      "startTimestampNs": 30000000000000,
+      "endTimestampNs": 33600000000000,
+      "inputRows": [
+        {
+          "sourceRowId": "mixed-before",
+          "timestampNs": 29999000000000,
+          "questionnaireId": null,
+          "usageId": null,
+          "nonusageId": 1
+        },
+        {
+          "sourceRowId": "mixed-n1",
+          "timestampNs": 30300000000000,
+          "questionnaireId": "mixed",
+          "usageId": null,
+          "nonusageId": 1
+        },
+        {
+          "sourceRowId": "mixed-u10-a",
+          "timestampNs": 30600000000000,
+          "questionnaireId": "mixed",
+          "usageId": 10,
+          "nonusageId": null
+        },
+        {
+          "sourceRowId": "mixed-u10-b",
+          "timestampNs": 31200000000000,
+          "questionnaireId": "mixed",
+          "usageId": 10,
+          "nonusageId": null
+        },
+        {
+          "sourceRowId": "mixed-u11-a",
+          "timestampNs": 31800000000000,
+          "questionnaireId": "mixed",
+          "usageId": 11,
+          "nonusageId": null
+        },
+        {
+          "sourceRowId": "mixed-u11-b",
+          "timestampNs": 32400000000000,
+          "questionnaireId": "mixed",
+          "usageId": 11,
+          "nonusageId": null
+        },
+        {
+          "sourceRowId": "mixed-n2",
+          "timestampNs": 32700000000000,
+          "questionnaireId": "mixed",
+          "usageId": null,
+          "nonusageId": 2
+        },
+        {
+          "sourceRowId": "mixed-u12-singleton",
+          "timestampNs": 33000000000000,
+          "questionnaireId": "mixed",
+          "usageId": 12,
+          "nonusageId": null
+        },
+        {
+          "sourceRowId": "mixed-after",
+          "timestampNs": 33601000000000,
+          "questionnaireId": null,
+          "usageId": null,
+          "nonusageId": 3
+        }
+      ],
+      "expectedInternalRows": [
+        {
+          "sourceRowId": null,
+          "timestampNs": 30000000000000,
+          "usageId": null,
+          "nonusageId": 1,
+          "rowKind": "start_boundary"
+        },
+        {
+          "sourceRowId": "mixed-n1",
+          "timestampNs": 30300000000000,
+          "usageId": null,
+          "nonusageId": 1,
+          "rowKind": "source"
+        },
+        {
+          "sourceRowId": "mixed-u10-a",
+          "timestampNs": 30600000000000,
+          "usageId": 10,
+          "nonusageId": null,
+          "rowKind": "source"
+        },
+        {
+          "sourceRowId": "mixed-u10-b",
+          "timestampNs": 31200000000000,
+          "usageId": 10,
+          "nonusageId": null,
+          "rowKind": "source"
+        },
+        {
+          "sourceRowId": null,
+          "timestampNs": 31200500000000,
+          "usageId": null,
+          "nonusageId": 1000010,
+          "rowKind": "ghost_nonusage"
+        },
+        {
+          "sourceRowId": "mixed-u11-a",
+          "timestampNs": 31800000000000,
+          "usageId": 11,
+          "nonusageId": null,
+          "rowKind": "source"
+        },
+        {
+          "sourceRowId": "mixed-u11-b",
+          "timestampNs": 32400000000000,
+          "usageId": 11,
+          "nonusageId": null,
+          "rowKind": "source"
+        },
+        {
+          "sourceRowId": "mixed-n2",
+          "timestampNs": 32700000000000,
+          "usageId": null,
+          "nonusageId": 2,
+          "rowKind": "source"
+        },
+        {
+          "sourceRowId": "mixed-u12-singleton",
+          "timestampNs": 33000000000000,
+          "usageId": 12,
+          "nonusageId": null,
+          "rowKind": "source"
+        },
+        {
+          "sourceRowId": null,
+          "timestampNs": 33600000000000,
+          "usageId": null,
+          "nonusageId": 3,
+          "rowKind": "end_boundary"
+        }
+      ],
+      "expectedSessions": [
+        {
+          "kind": "usage",
+          "sessionId": 10,
+          "startTimestampNs": 30600000000000,
+          "endTimestampNs": 31200000000000
+        },
+        {
+          "kind": "usage",
+          "sessionId": 11,
+          "startTimestampNs": 31800000000000,
+          "endTimestampNs": 32400000000000
+        },
+        {
+          "kind": "nonusage",
+          "sessionId": 1,
+          "startTimestampNs": 30000000000000,
+          "endTimestampNs": 30600000000000
+        },
+        {
+          "kind": "nonusage",
+          "sessionId": 1000010,
+          "startTimestampNs": 31200000000000,
+          "endTimestampNs": 31800000000000
+        },
+        {
+          "kind": "nonusage",
+          "sessionId": 2,
+          "startTimestampNs": 32400000000000,
+          "endTimestampNs": 33000000000000
+        },
+        {
+          "kind": "nonusage",
+          "sessionId": 3,
+          "startTimestampNs": 33000000000000,
+          "endTimestampNs": 33600000000000
+        }
+      ]
+    }
+  ],
+  "runtime": {
+    "rVersion": "R version 4.1.2 (2021-11-01)",
+    "dplyrVersion": "1.0.8",
+    "lubridateVersion": "1.8.0"
+  }
+}

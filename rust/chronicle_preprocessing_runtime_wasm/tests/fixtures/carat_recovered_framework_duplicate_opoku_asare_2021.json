@@ -1,0 +1,111 @@
+{
+  "schemaVersion": "chronicle-carat-recovered-framework-duplicate-source-fixture/v1",
+  "sourceWorkId": "doi:10.2196/26540",
+  "sourceVariantId": "recovered_carat_android_f4242acf_adjacent_upload",
+  "deployedStudyRevisionStatus": "unresolved",
+  "exactCanonicalSettingIds": ["method-setting-f1f151152a7cb4f59ba26374"],
+  "sourceValueSha256": "58d25df3b01e1854f5fddf89aacdb739012d67c7cd0c648801b3b5334b8a25b8",
+  "sourceArtifacts": {
+    "recoveredCommit": "f4242acf3fe8f7db9d2a47ac9af4940ac3eacd39",
+    "constantsSha256": "e2ac09b6fd0fb79178707e38d1b13fd901076bed2d923c50e99b1e62646ff2ca",
+    "samplerSha256": "8709a3a2a2dfb8bd7f837fb29493fa07440c27dca4b070c9126e988da5d3bde7",
+    "uploadCallerSha256": "dce8cb300e6ef8ed22ba6e2d1277dbe24b64ea373bc1fc179d65412df6a06b95"
+  },
+  "sourceLocator": ".tmp-literature-review-private/corrective-packet-04-ranks-074-123-20260831/code-data/100-carat-android/caratApp/src/main/java/edu/berkeley/cs/amplab/carat/android/Constants.java:16; sampling/Sampler.java:258-295; protocol/CommunicationManager.java:152-177",
+  "inputBoundary": "A current recovered-Carat sample and its immediately preceding source-order sample. All seven duplicate-key fields are present and non-null. The caller advances previous after every comparison, including a suppressed record.",
+  "outputBoundary": "Whether the current source sample is suppressed as an adjacent essential duplicate under the recovered framework variant.",
+  "limitations": [
+    "The exact Carat revision deployed for the March-August 2018 study is unresolved; this fixture proves only recovered framework commit f4242acf.",
+    "The pre-store check constructs a dummy sample without process records; install-state exceptions are observable in the later upload comparison, not that pre-store call.",
+    "The Java source assumes compared string and battery-detail fields are non-null; this typed boundary requires them rather than inventing null equality.",
+    "Battery temperature and voltage comparisons are commented out in the recovered source and therefore intentionally excluded.",
+    "The source compares raw double values exactly and does not disclose tolerance or rounding behavior."
+  ],
+  "comparisonCases": [
+    {
+      "caseId": "no-previous-retained",
+      "previous": null,
+      "current": {"timestampSeconds": 1000.0, "batteryLevel": 0.5, "batteryState": "Discharging", "timeZone": "America/Chicago", "batteryCapacity": 3000.0, "batteryTechnology": "Li-ion", "batteryCharger": "unplugged", "batteryHealth": "Good", "processImportances": []},
+      "expectedSuppressed": false
+    },
+    {
+      "caseId": "all-fields-match-under-five-minutes",
+      "previous": {"timestampSeconds": 1000.0, "batteryLevel": 0.5, "batteryState": "Discharging", "timeZone": "America/Chicago", "batteryCapacity": 3000.0, "batteryTechnology": "Li-ion", "batteryCharger": "unplugged", "batteryHealth": "Good", "processImportances": []},
+      "current": {"timestampSeconds": 1299.999, "batteryLevel": 0.5, "batteryState": "Discharging", "timeZone": "America/Chicago", "batteryCapacity": 3000.0, "batteryTechnology": "Li-ion", "batteryCharger": "unplugged", "batteryHealth": "Good", "processImportances": []},
+      "expectedSuppressed": true
+    },
+    {
+      "caseId": "exactly-five-minutes-retained",
+      "previous": {"timestampSeconds": 1000.0, "batteryLevel": 0.5, "batteryState": "Discharging", "timeZone": "America/Chicago", "batteryCapacity": 3000.0, "batteryTechnology": "Li-ion", "batteryCharger": "unplugged", "batteryHealth": "Good", "processImportances": []},
+      "current": {"timestampSeconds": 1300.0, "batteryLevel": 0.5, "batteryState": "Discharging", "timeZone": "America/Chicago", "batteryCapacity": 3000.0, "batteryTechnology": "Li-ion", "batteryCharger": "unplugged", "batteryHealth": "Good", "processImportances": []},
+      "expectedSuppressed": false
+    },
+    {
+      "caseId": "battery-level-change-retained",
+      "previous": {"timestampSeconds": 1000.0, "batteryLevel": 0.5, "batteryState": "Discharging", "timeZone": "America/Chicago", "batteryCapacity": 3000.0, "batteryTechnology": "Li-ion", "batteryCharger": "unplugged", "batteryHealth": "Good", "processImportances": []},
+      "current": {"timestampSeconds": 1001.0, "batteryLevel": 0.49, "batteryState": "Discharging", "timeZone": "America/Chicago", "batteryCapacity": 3000.0, "batteryTechnology": "Li-ion", "batteryCharger": "unplugged", "batteryHealth": "Good", "processImportances": []},
+      "expectedSuppressed": false
+    },
+    {
+      "caseId": "battery-state-change-retained",
+      "previous": {"timestampSeconds": 1000.0, "batteryLevel": 0.5, "batteryState": "Discharging", "timeZone": "America/Chicago", "batteryCapacity": 3000.0, "batteryTechnology": "Li-ion", "batteryCharger": "unplugged", "batteryHealth": "Good", "processImportances": []},
+      "current": {"timestampSeconds": 1001.0, "batteryLevel": 0.5, "batteryState": "Charging", "timeZone": "America/Chicago", "batteryCapacity": 3000.0, "batteryTechnology": "Li-ion", "batteryCharger": "unplugged", "batteryHealth": "Good", "processImportances": []},
+      "expectedSuppressed": false
+    },
+    {
+      "caseId": "timezone-change-retained",
+      "previous": {"timestampSeconds": 1000.0, "batteryLevel": 0.5, "batteryState": "Discharging", "timeZone": "America/Chicago", "batteryCapacity": 3000.0, "batteryTechnology": "Li-ion", "batteryCharger": "unplugged", "batteryHealth": "Good", "processImportances": []},
+      "current": {"timestampSeconds": 1001.0, "batteryLevel": 0.5, "batteryState": "Discharging", "timeZone": "America/New_York", "batteryCapacity": 3000.0, "batteryTechnology": "Li-ion", "batteryCharger": "unplugged", "batteryHealth": "Good", "processImportances": []},
+      "expectedSuppressed": false
+    },
+    {
+      "caseId": "capacity-change-retained",
+      "previous": {"timestampSeconds": 1000.0, "batteryLevel": 0.5, "batteryState": "Discharging", "timeZone": "America/Chicago", "batteryCapacity": 3000.0, "batteryTechnology": "Li-ion", "batteryCharger": "unplugged", "batteryHealth": "Good", "processImportances": []},
+      "current": {"timestampSeconds": 1001.0, "batteryLevel": 0.5, "batteryState": "Discharging", "timeZone": "America/Chicago", "batteryCapacity": 2999.0, "batteryTechnology": "Li-ion", "batteryCharger": "unplugged", "batteryHealth": "Good", "processImportances": []},
+      "expectedSuppressed": false
+    },
+    {
+      "caseId": "technology-change-retained",
+      "previous": {"timestampSeconds": 1000.0, "batteryLevel": 0.5, "batteryState": "Discharging", "timeZone": "America/Chicago", "batteryCapacity": 3000.0, "batteryTechnology": "Li-ion", "batteryCharger": "unplugged", "batteryHealth": "Good", "processImportances": []},
+      "current": {"timestampSeconds": 1001.0, "batteryLevel": 0.5, "batteryState": "Discharging", "timeZone": "America/Chicago", "batteryCapacity": 3000.0, "batteryTechnology": "Li-poly", "batteryCharger": "unplugged", "batteryHealth": "Good", "processImportances": []},
+      "expectedSuppressed": false
+    },
+    {
+      "caseId": "charger-change-retained",
+      "previous": {"timestampSeconds": 1000.0, "batteryLevel": 0.5, "batteryState": "Discharging", "timeZone": "America/Chicago", "batteryCapacity": 3000.0, "batteryTechnology": "Li-ion", "batteryCharger": "unplugged", "batteryHealth": "Good", "processImportances": []},
+      "current": {"timestampSeconds": 1001.0, "batteryLevel": 0.5, "batteryState": "Discharging", "timeZone": "America/Chicago", "batteryCapacity": 3000.0, "batteryTechnology": "Li-ion", "batteryCharger": "usb", "batteryHealth": "Good", "processImportances": []},
+      "expectedSuppressed": false
+    },
+    {
+      "caseId": "health-change-retained",
+      "previous": {"timestampSeconds": 1000.0, "batteryLevel": 0.5, "batteryState": "Discharging", "timeZone": "America/Chicago", "batteryCapacity": 3000.0, "batteryTechnology": "Li-ion", "batteryCharger": "unplugged", "batteryHealth": "Good", "processImportances": []},
+      "current": {"timestampSeconds": 1001.0, "batteryLevel": 0.5, "batteryState": "Discharging", "timeZone": "America/Chicago", "batteryCapacity": 3000.0, "batteryTechnology": "Li-ion", "batteryCharger": "unplugged", "batteryHealth": "Overheat", "processImportances": []},
+      "expectedSuppressed": false
+    },
+    {
+      "caseId": "current-install-state-exception-retained",
+      "previous": {"timestampSeconds": 1000.0, "batteryLevel": 0.5, "batteryState": "Discharging", "timeZone": "America/Chicago", "batteryCapacity": 3000.0, "batteryTechnology": "Li-ion", "batteryCharger": "unplugged", "batteryHealth": "Good", "processImportances": []},
+      "current": {"timestampSeconds": 1001.0, "batteryLevel": 0.5, "batteryState": "Discharging", "timeZone": "America/Chicago", "batteryCapacity": 3000.0, "batteryTechnology": "Li-ion", "batteryCharger": "unplugged", "batteryHealth": "Good", "processImportances": ["installed"]},
+      "expectedSuppressed": false
+    },
+    {
+      "caseId": "previous-install-state-does-not-exempt-current",
+      "previous": {"timestampSeconds": 1000.0, "batteryLevel": 0.5, "batteryState": "Discharging", "timeZone": "America/Chicago", "batteryCapacity": 3000.0, "batteryTechnology": "Li-ion", "batteryCharger": "unplugged", "batteryHealth": "Good", "processImportances": ["installed"]},
+      "current": {"timestampSeconds": 1001.0, "batteryLevel": 0.5, "batteryState": "Discharging", "timeZone": "America/Chicago", "batteryCapacity": 3000.0, "batteryTechnology": "Li-ion", "batteryCharger": "unplugged", "batteryHealth": "Good", "processImportances": []},
+      "expectedSuppressed": true
+    },
+    {
+      "caseId": "unrelated-process-importance-does-not-exempt",
+      "previous": {"timestampSeconds": 1000.0, "batteryLevel": 0.5, "batteryState": "Discharging", "timeZone": "America/Chicago", "batteryCapacity": 3000.0, "batteryTechnology": "Li-ion", "batteryCharger": "unplugged", "batteryHealth": "Good", "processImportances": []},
+      "current": {"timestampSeconds": 1001.0, "batteryLevel": 0.5, "batteryState": "Discharging", "timeZone": "America/Chicago", "batteryCapacity": 3000.0, "batteryTechnology": "Li-ion", "batteryCharger": "unplugged", "batteryHealth": "Good", "processImportances": ["foreground"]},
+      "expectedSuppressed": true
+    }
+  ],
+  "installStateExceptionValues": ["installed", "disabled", "replaced", "uninstalled"],
+  "adjacentSequence": [
+    {"timestampSeconds": 1000.0, "batteryLevel": 0.5, "batteryState": "Discharging", "timeZone": "America/Chicago", "batteryCapacity": 3000.0, "batteryTechnology": "Li-ion", "batteryCharger": "unplugged", "batteryHealth": "Good", "processImportances": []},
+    {"timestampSeconds": 1299.0, "batteryLevel": 0.5, "batteryState": "Discharging", "timeZone": "America/Chicago", "batteryCapacity": 3000.0, "batteryTechnology": "Li-ion", "batteryCharger": "unplugged", "batteryHealth": "Good", "processImportances": []},
+    {"timestampSeconds": 1598.0, "batteryLevel": 0.5, "batteryState": "Discharging", "timeZone": "America/Chicago", "batteryCapacity": 3000.0, "batteryTechnology": "Li-ion", "batteryCharger": "unplugged", "batteryHealth": "Good", "processImportances": []}
+  ],
+  "adjacentSequenceExpectedSuppressed": [false, true, true]
+}

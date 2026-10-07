@@ -1,0 +1,116 @@
+{
+  "schema_version": "chronicle-source-completeness-audit/v1-candidate",
+  "source_work_id": "doi:10.1145/3229434.3229436",
+  "title": "Snooze! Investigating the User-Defined Deferral of Mobile Notifications",
+  "authors": ["Dominik Weber", "Alexandra Voit", "Jonas Auda", "Stefan Schneegass", "Niels Henze"],
+  "publication": "MobileHCI 2018, DOI 10.1145/3229434.3229436",
+  "audited_at": "2026-09-25",
+  "audit_status": "isolated_new_source_candidate_not_canonical",
+  "scope_decision": {
+    "android_event_stream_eligible": true,
+    "qualification": "NHistory processes Android notification-listener observations and app interaction events. It is not a UsageStats foreground-app or app-session method; its five-second interval is a temporary UI affordance.",
+    "locator": "PDF pp. 3–4, Figure 2 and SYSTEM/NHistory/Snoozing Notifications"
+  },
+  "source_artifacts": [
+    {
+      "path": ".tmp-literature-review-private/open-index-exact-keyword-wave4/retrieved/pdf/10.1145_3229434.3229436.pdf",
+      "sha256": "b62eb1827c804822a7fd2db6aa05fa893b1a51c5e2be1535bce3a8af8c455a8a",
+      "bytes": 1607368,
+      "pages": 13,
+      "identity_verification": "PDF p. 1 prints the full title, five authors, MobileHCI '18 line, and DOI 10.1145/3229434.3229436.",
+      "inspection": "All thirteen pages inspected, with method and quantitative-result passages checked against layout text and Figures 1–5."
+    },
+    {
+      "path": ".tmp-literature-review-private/open-index-exact-keyword-wave4/retrieved/text/10.1145_3229434.3229436.txt",
+      "sha256": "da2ebdfac87f811eb05c18763a59bcd7a35b3b2a9a66394edf791d98a83b404e",
+      "inspection": "Searchable extraction; PDF page/section/figure locators, not extracted line positions, are authoritative."
+    }
+  ],
+  "source_method_variants": [
+    "One NHistory collector with two genuine user-selectable snooze methods, duration and point-in-time. Initial method is randomly assigned; users may change it in settings. Each method offers eight choices at a given moment, but point-in-time choices depend on time of day.",
+    "In-app long-press/button and notification-drawer dismissal followed by a temporary snooze-action notification are two interaction entry paths. Five seconds is the latter prompt's lifetime, not an event-grouping threshold.",
+    "In-the-wild and controlled-week studies use NHistory; they are separate study populations, not two asserted collector algorithms."
+  ],
+  "disclosed_atoms": [
+    {"key":"collector.notification_listener","role":"acquisition","target":"collector","value":"NHistory uses Android's Notification Listener API after explicit consent and notification-access permission.","locator":"PDF p. 4, NHistory","evidence_status":"explicit","mapping":"AcquisitionProtocol; do not cast callbacks as UsageEventRecord."},
+    {"key":"input.notification_history","role":"event_schema","target":"raw_record","value":"History displays active and dismissed notifications sorted by creation time; the server record includes notification package and creation timestamp.","locator":"PDF p. 4, NHistory and Data Collection","evidence_status":"explicit_partial","mapping":"Notification item/event distinction is required; exact callback fields and item key are undisclosed."},
+    {"key":"filter.ongoing_notification","role":"filter","target":"notification_event","value":"Ongoing notifications such as downloads are ignored by NHistory.","locator":"PDF p. 4, NHistory","evidence_status":"explicit","mapping":"Source-specific acquisition/history exclusion; exact Android flag test undisclosed."},
+    {"key":"collector.interactions","role":"acquisition","target":"collector","value":"Records major interactions including starring and snoozing notifications and blacklisting apps.","locator":"PDF p. 4, Data Collection","evidence_status":"explicit_partial","mapping":"Interaction events must not be collapsed into notification-arrival rows."},
+    {"key":"collector.no_text","role":"event_schema","target":"raw_record","value":"Does not record notification text or user-identifying information.","locator":"PDF p. 4, Data Collection","evidence_status":"explicit","mapping":"Absent text is a source limitation; do not infer content normalization."},
+    {"key":"collector.device_metadata","role":"acquisition","target":"collector","value":"Random installation identifier; periodic device type, Android version, and system-language upload; requests use a secure connection.","locator":"PDF p. 4, Data Collection","evidence_status":"explicit_partial","mapping":"Acquisition provenance, not an event-gap parameter."},
+    {"key":"transport.wifi_queue","role":"acquisition","target":"collector","value":"Recorded data is queued for sending until Wi-Fi is available.","locator":"PDF p. 4, Data Collection","evidence_status":"explicit","mapping":"Transport/upload condition; event-time ordering must not be equated to upload time."},
+    {"key":"history.capacity_and_blacklist","role":"filter","target":"notification_event","value":"Users may set a history-size limit and blacklist apps from appearing in history.","locator":"PDF p. 4, NHistory/Figure 3","evidence_status":"explicit_partial","mapping":"Visible-history controls; whether blacklist suppresses server-side raw records is not stated."},
+    {"key":"intervention.in_app_entry","role":"intervention","target":"notification_delivery","value":"Long-press a notification or expand it and press snooze; an active notification is dismissed from the drawer when snoozed.","locator":"PDF p. 4, Snoozing Notifications","evidence_status":"explicit","mapping":"App interaction path and delivery-state change."},
+    {"key":"intervention.drawer_entry","role":"intervention","target":"notification_delivery","value":"After a drawer dismissal, NHistory creates a temporary snooze-action notification; tapping it opens the snooze options for the dismissed item.","locator":"PDF pp. 3–4, Figure 2 and Snoozing Notifications","evidence_status":"explicit_partial","mapping":"Separate source path; exact notification-key matching is undisclosed."},
+    {"key":"intervention.drawer_prompt_lifetime","role":"intervention","target":"notification_delivery","value":{"seconds":5,"meaning":"temporary snooze-action notification shown after drawer dismissal"},"locator":"PDF p. 4, Snoozing Notifications; Figure 2 on p. 3","evidence_status":"explicit","mapping":"UI affordance lifetime, not response latency, notification grouping, or app-session gap."},
+    {"key":"configuration.snooze_method_assignment","role":"intervention","target":"notification_delivery","value":"Duration or point-in-time method is randomly assigned at first start; the user can later change methods in settings.","locator":"PDF p. 4, Snoozing Notifications","evidence_status":"explicit","mapping":"Two selectable deferral configurations; assignment and switch events are distinct from alert arrivals."},
+    {"key":"configuration.duration_options","role":"intervention","target":"notification_delivery","value":["custom duration","5 minutes","30 minutes","1 hour","3 hours","8 hours","1 day","3 days"],"locator":"PDF p. 4, Snoozing Notifications; Figure 4 on p. 6","evidence_status":"explicit","mapping":"Eight duration choices, not eight event-gap thresholds."},
+    {"key":"configuration.point_in_time_options","role":"intervention","target":"notification_delivery","value":"Eight choices shown at a time, including custom point-in-time; available choices depend on time of day. Figure 4 pools additional labels across times.","locator":"PDF p. 4, Snoozing Notifications; Figures 1 and 4 on pp. 1 and 6","evidence_status":"explicit_partial","mapping":"Do not treat all pooled Figure 4 labels as simultaneously available or invent the selection function."},
+    {"key":"operation.retrigger","role":"intervention","target":"notification_delivery","value":"NHistory reissues the dismissed notification after the selected duration or at the selected point in time.","locator":"PDF pp. 1, 3–4, Introduction/Figure 2/Snoozing Notifications","evidence_status":"explicit_partial","mapping":"Post, snooze, and re-trigger are separate event roles; exact scheduling and identity retention are undisclosed."},
+    {"key":"study.wild_interval","role":"analysis","target":"study_population","value":"In-the-wild installation window January 12, 2017 through January 12, 2018.","locator":"PDF p. 4, IN-THE-WILD STUDY/Method and Participants","evidence_status":"explicit","mapping":"Study inclusion window, not a notification reconstruction rule."},
+    {"key":"analysis.user_minimum_days","role":"filter","target":"study_population","value":"Exclude 581 users with less than two days of app use, leaving 295 users for the in-the-wild analysis.","locator":"PDF p. 4, IN-THE-WILD STUDY/Results","evidence_status":"explicit_partial","mapping":"Population inclusion threshold; exact duration boundary and missing-day handling not specified."},
+    {"key":"analysis.exclude_installation_day_snoozes","role":"filter","target":"analysis_record_set","value":"Exclude snooze events on the NHistory installation day, changing the 2,648-event set to 2,390 snooze events from 129 users and 185 apps.","locator":"PDF p. 5, Snoozed Notifications","evidence_status":"explicit","mapping":"Event analysis exclusion after user retention; not a deletion from the notification collector."},
+    {"key":"analysis.notification_vs_snooze_identity","role":"reconstruction","target":"notification_event","value":"The 2,390 eligible snooze events correspond to 1,191 individually first-snoozed notifications; 728 were snoozed once and 463 multiple times, with maximum 18 snoozes for one item.","locator":"PDF p. 5, Snoozed Notifications","evidence_status":"explicit_partial","mapping":"Requires distinct notification-item and snooze-event identities; exact linkage key unavailable."},
+    {"key":"analysis.app_categories","role":"classification","target":"derived_feature","value":"Two researchers independently assigned the 185 snoozed apps to 12 categories using Google Play listings and prior literature, resolving disagreements by discussion.","locator":"PDF p. 5, Snoozed Notifications/Table 1","evidence_status":"explicit_partial","mapping":"Manual categorical mapping; exact app-to-category table is unavailable."},
+    {"key":"analysis.initial_vs_repeat","role":"analysis","target":"analysis_record_set","value":"Initial snoozes and repeat snoozes are analyzed separately; Table 1 and Figure 4 use 1,191 initial snooze events.","locator":"PDF pp. 5–6, Snoozed Notifications/Table 1/Figure 4","evidence_status":"explicit","mapping":"Preserve denominator and event-vs-item unit for each statistic."},
+    {"key":"analysis.normalized_percentages","role":"analysis","target":"outcome","value":"Category and option distributions are normalized across users; the exact normalization formula is not given.","locator":"PDF pp. 5–6, Tables 1–2 and Figure 4","evidence_status":"explicit_partial","mapping":"Reported analysis form, not a fully executable formula."},
+    {"key":"analysis.wild_category_tests","role":"analysis","target":"outcome","value":"Friedman test compares normalized snoozed-notification categories; post-hoc Wilcoxon signed-rank tests use Holm-Bonferroni adjustment.","locator":"PDF p. 6, Snoozed Notifications/Table 2","evidence_status":"explicit_partial","mapping":"Statistical analysis after category coding, not a collector or event-reconstruction setting; exact normalized inputs are unavailable."},
+    {"key":"analysis.post_to_final_retrigger","role":"analysis","target":"outcome","value":"Deferral time is measured between the initial notification post and its eventual re-trigger, with repeated-snooze cases discussed separately.","locator":"PDF p. 6, Figure 5 and Snoozed Notifications","evidence_status":"explicit_partial","mapping":"Requires source item-to-retrigger linkage; reported mean 689 minutes is an output, not a selected duration default."},
+    {"key":"result.notification_replacement_flood","role":"reported_result","target":"outcome","value":"20,345,277 posted notification events include repeated silent replacements/updates; lack of logged text prevented filtering them.","locator":"PDF p. 5, Notifications and Apps","evidence_status":"explicit","mapping":"Result and measurement limit; do not invent text-based deduplication or count unique notifications as posted events."},
+    {"key":"result.separate_event_times","role":"reported_result","target":"outcome","value":"Figure 5 reports distributions for notification posting, snoozing, and re-triggering as different time points.","locator":"PDF p. 6, Figure 5","evidence_status":"explicit","mapping":"Result provenance, not a selectable collector method."},
+    {"key":"study.controlled_week","role":"analysis","target":"study_population","value":"A separate controlled study invited 17 participants, excluded one withdrawal, and evaluated 16 users after seven full post-installation days and interviews.","locator":"PDF pp. 7–8, CONTROLLED STUDY/Method/Participants/Results","evidence_status":"explicit","mapping":"Separate population and study window; not another NHistory method configuration."},
+    {"key":"study.controlled_same_collector","role":"acquisition","target":"collector","value":"The controlled-week study used the same NHistory version and collected the same app data as the in-the-wild study.","locator":"PDF p. 7, CONTROLLED STUDY/Method","evidence_status":"explicit","mapping":"Shared source collector, not evidence of a second backend protocol."},
+    {"key":"result.controlled_snooze_units","role":"reported_result","target":"outcome","value":"The controlled study logged 116 snooze events from 15 users; 109 individual notifications were initially snoozed and four notifications were snoozed repeatedly.","locator":"PDF p. 7, CONTROLLED STUDY/Snoozed Notifications","evidence_status":"explicit","mapping":"Separate controlled population and event/item denominators; do not pool with in-the-wild counts."},
+    {"key":"analysis.controlled_category_tests","role":"analysis","target":"outcome","value":"Controlled-study normalized app categories were compared with Friedman and Holm-Bonferroni-corrected post-hoc Wilcoxon signed-rank tests; no post-hoc category difference was significant.","locator":"PDF p. 7, CONTROLLED STUDY/Snoozed Notifications","evidence_status":"explicit_partial","mapping":"Same test family on a separate sample; exact normalized inputs and app map are unavailable."},
+    {"key":"analysis.interview_open_coding","role":"analysis","target":"qualitative_response","value":"Three researchers individually open-coded semi-structured interviews and discussed disagreements until agreement.","locator":"PDF p. 8, Interviews","evidence_status":"explicit","mapping":"Qualitative companion analysis, not an Android event-log transformation or profile variation."}
+  ],
+  "source_operation_partial_order": [
+    {"before":"collector.notification_listener","after":"filter.ongoing_notification","locator":"PDF p. 4, NHistory"},
+    {"before":"configuration.snooze_method_assignment","after":"intervention.in_app_entry","locator":"PDF p. 4, Snoozing Notifications"},
+    {"before":"configuration.snooze_method_assignment","after":"intervention.drawer_entry","locator":"PDF pp. 3–4, Figure 2/Snoozing Notifications"},
+    {"before":"intervention.in_app_entry","after":"operation.retrigger","locator":"PDF p. 4, Snoozing Notifications"},
+    {"before":"intervention.drawer_entry","after":"operation.retrigger","locator":"PDF pp. 3–4, Figure 2/Snoozing Notifications"},
+    {"before":"analysis.user_minimum_days","after":"analysis.exclude_installation_day_snoozes","locator":"PDF pp. 4–5, Results/Snoozed Notifications"},
+    {"before":"analysis.exclude_installation_day_snoozes","after":"analysis.initial_vs_repeat","locator":"PDF p. 5, Snoozed Notifications"}
+  ],
+  "analysis_outputs_and_population_warnings": [
+    "Five seconds controls visibility of a follow-up UI notification only. It is not a session, response, or deduplication gap.",
+    "The 20,345,277 posted-event count includes replacement/update floods and cannot be interpreted as unique notifications; no text was collected, so the paper expressly could not remove those floods by content.",
+    "The 2,648-to-2,390 exclusion concerns installation-day snooze events; 2,390 is not the number of distinct notifications. The 1,191 initial-item set and 463 repeat-snoozed items have different units.",
+    "Figure 4's full point-in-time label list is pooled across times of day; only eight choices are presented at one time. Future group/rule/location snoozing discussed later is not an implemented study variant."
+  ],
+  "artifact_sweep": {
+    "primary_pdf": "preexisting_verified_0600",
+    "full_text_extraction": "preexisting_verified_0600",
+    "study_app": "Google Play release mentioned without a verified version, package name, or retrievable study build",
+    "study_specific_code": "no code or GitHub URL named in the inspected paper; external absence not established",
+    "nearby_author_framework": "https://github.com/interactionlab/android-notification-log checked 2026-09-25: README documents a distinct Notification Log framework and lists other projects, but does not identify Snooze!/NHistory or a study-version code link; do not substitute this repository's current serializer or defaults",
+    "supplement": "none identified in the inspected primary PDF; external absence not established",
+    "raw_data": "not released in the inspected primary PDF"
+  },
+  "citation_frontier": "41 outgoing Crossref-bibliography links for this exact citing DOI are already preserved in .tmp-literature-review-private/open-index-exact-keyword-wave4/outgoing-reference-links.jsonl; each edge's checked flag is a citation-screening status, not this paper's method-audit status.",
+  "indispensable_unavailable_facts": [
+    "Exact notification-listener callback fields, posted/removed/update event semantics, notification item key, and linkage of initial/repeat snoozes and re-triggered copies.",
+    "Dynamic point-in-time option selection table, timezone/day-boundary and scheduling/rounding behavior, including when a displayed option has already passed.",
+    "User-chosen history limit, default limit, and whether blacklisting suppresses raw logging or only the visible history.",
+    "Exact two-day activity criterion, installation-day timezone, per-user normalized-percentage denominator, and the 185-app category lookup.",
+    "Version-pinned NHistory source/build and original interaction/notification rows for exact execution or numerical reproduction."
+  ],
+  "semantic_residues_vs_current_linkml": [
+    {
+      "status": "source_definition_preservable_instance_roundtrip_unproved",
+      "source_case": "One notification item may generate multiple snooze interactions and a re-triggered notification, while posts/replacements are not unique items.",
+      "existing_terms": "MethodSettingAssertion, AcquisitionProtocol, OperationDefinition and NotificationAttributionPolicy can document the source method; UsageEventRecord is UsageStats-shaped.",
+      "residue": "Test a source-shaped import and reload of item identity, post/update, snooze, and re-trigger links before adding a typed assertion or adapter. Do not coerce listener callbacks into UsageStats rows.",
+      "locator": "PDF pp. 4–6, Data Collection/Snoozed Notifications/Figure 5; web/schema/chronicle-research-ontology.linkml.yaml:855–866"
+    },
+    {
+      "status": "method_role_disambiguation",
+      "source_case": "A five-second temporary prompt, two snooze methods, and a two-day user inclusion rule have different targets and stages.",
+      "existing_terms": "Source-located MethodSettingAssertion and OperationDefinition can retain the distinct roles and ordered branches.",
+      "residue": "No new class justified solely by these three numeric/choice values; exact point-in-time implementation is source-undisclosed.",
+      "locator": "PDF pp. 3–5, Figure 2/Snoozing Notifications/Results"
+    }
+  ],
+  "completion_verdict": "Bounded full-text source draft for Android notification and interaction processing. It is not a canonical profile admission or proof of executable notification-instance processing; exact collector, join, scheduling, and analysis formulas remain unreleased or unspecified."
+}

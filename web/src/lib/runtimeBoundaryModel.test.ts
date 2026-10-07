@@ -39,14 +39,19 @@ function artifactMetadata(): Record<string, unknown> {
 
 describe("generated runtime boundary model", () => {
   it("covers both serialization roots the browser decodes", () => {
+    // v4: the B06 maximum-duration preflight decision joined the roots.
     expect(RUNTIME_BOUNDARY_MODEL.protocolVersion).toBe(
-      "chronicle-runtime-boundary-model/v1",
+      "chronicle-runtime-boundary-model/v4",
     );
     for (const name of Object.values(RUNTIME_BOUNDARY_MODEL.roots)) {
       expect(RUNTIME_BOUNDARY_MODEL.types[name]?.kind).toBe("struct");
     }
     expect(Object.values(RUNTIME_BOUNDARY_MODEL.roots)).toEqual(
-      expect.arrayContaining(["RuntimeManifest", "ReviewRuntimeManifest"]),
+      expect.arrayContaining([
+        "RuntimeManifest",
+        "ReviewRuntimeManifest",
+        "MaximumDurationPreflightDecision",
+      ]),
     );
   });
 
@@ -175,5 +180,94 @@ describe("generated runtime boundary model", () => {
         "counts",
       ),
     ).toThrow(/runtime boundary model has no struct named NotAThing/);
+  });
+});
+
+/**
+ * The numeric domains the generated model declares: `EyesOptions` carries the
+ * boundary's only float fields and `ConcurrentSubintervalFloorReceipt` its only
+ * signed integer, so both refusals are asserted against the real generated
+ * model rather than a hand-written one.
+ */
+describe("generated numeric domains", () => {
+  const eyesOptions = (overrides: Record<string, unknown> = {}) => ({
+    proximityIntervalSeconds: 2,
+    durationMode: "pause_bound",
+    EyesDurationMode: "pause_bound",
+    blockGlueSeconds: 5,
+    gapSilenceHours: 1.5,
+    gapRebootNeighborSeconds: 30,
+    gapReconcileSeconds: 30,
+    pickupMinimumSeconds: 1,
+    pickupActiveHoleSeconds: 1,
+    fauBlockMinimumSeconds: 1,
+    ...overrides,
+  });
+
+  it.each([
+    ["a string", "two"],
+    ["NaN", Number.NaN],
+    ["Infinity", Number.POSITIVE_INFINITY],
+  ])("refuses a float field holding %s", (_label, value) => {
+    expect(() =>
+      decodeBoundaryStruct(
+        RUNTIME_BOUNDARY_MODEL,
+        "EyesOptions",
+        eyesOptions({ proximityIntervalSeconds: value }),
+        "eyesOptions",
+      ),
+    ).toThrow(
+      "runtime manifest contract violation at eyesOptions.proximityIntervalSeconds: expected a finite number",
+    );
+  });
+
+  it("accepts a fractional float the source declares", () => {
+    expect(
+      decodeBoundaryStruct(
+        RUNTIME_BOUNDARY_MODEL,
+        "EyesOptions",
+        eyesOptions({ gapSilenceHours: 2.25 }),
+        "eyesOptions",
+      ),
+    ).toMatchObject({ gapSilenceHours: 2.25 });
+  });
+
+  const floorReceipt = (overrides: Record<string, unknown> = {}) => ({
+    protocolVersion: "chronicle-concurrent-subinterval-floor-receipt/v1",
+    requestedApplied: true,
+    effectiveApplied: true,
+    comparator: "strictly_greater",
+    thresholdNs: -1,
+    checkpoint: "post_reconstruction",
+    generatedSubintervalCount: 0,
+    blankedSubintervalCount: 0,
+    ...overrides,
+  });
+
+  it("accepts a negative signed integer where the boundary declares one", () => {
+    expect(
+      decodeBoundaryStruct(
+        RUNTIME_BOUNDARY_MODEL,
+        "ConcurrentSubintervalFloorReceipt",
+        floorReceipt(),
+        "floorReceipt",
+      ),
+    ).toMatchObject({ thresholdNs: -1 });
+  });
+
+  it.each([
+    ["a fractional value", 1.5],
+    ["a string", "-1"],
+  ])("refuses a signed integer field holding %s", (_label, value) => {
+    expect(() =>
+      decodeBoundaryStruct(
+        RUNTIME_BOUNDARY_MODEL,
+        "ConcurrentSubintervalFloorReceipt",
+        floorReceipt({ thresholdNs: value }),
+        "floorReceipt",
+      ),
+    ).toThrow(
+      "runtime manifest contract violation at floorReceipt.thresholdNs: expected a safe integer",
+    );
   });
 });

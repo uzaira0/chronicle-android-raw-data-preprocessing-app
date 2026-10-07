@@ -6,6 +6,36 @@ import { CATEGORY_COLORS } from "@/lib/plotGenerator";
 import type { DemoDisplayMasker } from "@/lib/demoDisplay";
 import type { ReviewDayMetrics, ReviewParticipantSummary, ReviewTopApp } from "@/lib/types";
 
+/**
+ * The keyboard way to focus a day from the per-day table: a real button in the
+ * date cell (the row's click handler stays for mouse users who click anywhere
+ * in the row). The click is stopped here so the row handler does not fire a
+ * second time for the same press.
+ */
+function DayFocusButton({
+  label,
+  focused,
+  onFocusDate,
+}: {
+  label: string;
+  focused: boolean;
+  onFocusDate: () => void;
+}): ReactElement {
+  return (
+    <button
+      type="button"
+      className="review-day-table__day"
+      aria-pressed={focused}
+      onClick={(event) => {
+        event.stopPropagation();
+        onFocusDate();
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
 /** One app's A→B change on a focused day: the per-app delta breakdown. */
 type AppDelta = {
   pkg: string;
@@ -299,7 +329,13 @@ export const ReviewMetricsPanel = memo(function ReviewMetricsPanel({
                     (focusedDate === date ? "is-focused " : "") + (isGap ? "is-gap" : "");
                   return (
                     <tr key={date} className={rowClass} onClick={() => onFocusDate(date)}>
-                      <td>{formatDayLabel(masker, date)}</td>
+                      <td>
+                        <DayFocusButton
+                          label={formatDayLabel(masker, date)}
+                          focused={focusedDate === date}
+                          onFocusDate={() => onFocusDate(date)}
+                        />
+                      </td>
                       <td>{fmtMin(aMin)}</td>
                       <td>{fmtMin(bMin)}</td>
                       <td className={deltaClass(delta)}>{fmtDelta(delta)}</td>
@@ -313,7 +349,13 @@ export const ReviewMetricsPanel = memo(function ReviewMetricsPanel({
                     (focusedDate === day.date ? "is-focused " : "") + (isGap ? "is-gap" : "");
                   return (
                     <tr key={day.date} className={rowClass} onClick={() => onFocusDate(day.date)}>
-                      <td>{formatDayLabel(masker, day.date)}</td>
+                      <td>
+                        <DayFocusButton
+                          label={formatDayLabel(masker, day.date)}
+                          focused={focusedDate === day.date}
+                          onFocusDate={() => onFocusDate(day.date)}
+                        />
+                      </td>
                       <td>{fmtMin(day.appUsageMinutes)}</td>
                       <td>{day.screenUsageMinutes > 0 ? fmtMin(day.screenUsageMinutes) : "—"}</td>
                       <td>{day.appSessionCount}</td>

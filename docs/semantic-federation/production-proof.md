@@ -7,7 +7,9 @@ The kernel proves minimal reuse for unchanged and output-only changes across
 the registered tracked Rust computations, plus complete parity in all usage
 modes. Browser reload and worker replacement, the configuration/support/binding
 intervention campaigns, and runtime provenance from actual query events are now
-implemented and checked on `main`. What it does **not** yet prove is listed in
+implemented and merged to private `main` (`01be6d2`, B02–B05); the B06
+maximum-duration axis is checked in the private feature branch
+`codex/b06-maximum-duration` based on `01be6d2` and is not yet merged. What this evidence does **not** yet prove is listed in
 "Remaining production blockers or bounded debt" in the
 [final review matrix](final-review-matrix.md); those items are open, not
 softened.
@@ -19,10 +21,10 @@ operations. Runtime computation and query reporting consume actual
 executed-query IDs. There is no second TypeScript scheduler: Rust projects query
 events into readable views after execution. The generated empirical evidence is no longer stale:
 all six implementation-bound dependency ledgers and the dependency certificate
-were regenerated with `make dependency-evidence` on this merged provenance
-wave, not on the `3c598ee` tree the earlier revision of this document cited,
+were regenerated with `make dependency-evidence` on the current private B06
+feature branch, not on the `3c598ee` tree the earlier revision of this document cited,
 and `cargo test --locked --manifest-path
-rust/chronicle_preprocessing_runtime_wasm/Cargo.toml` reports `69 passed;
+rust/chronicle_preprocessing_runtime_wasm/Cargo.toml` reports `100 passed;
 0 failed; 3 ignored`, with zero stale-receipt failures. The authoritative live status and remaining checks
 are in the [query-registry incremental Rust plan](incremental-runtime-plan.md).
 This document is still not a completed production claim, but the list of what is
@@ -190,13 +192,14 @@ other products.
 ## Configuration-change proof
 
 The real Rust runtime is exercised by a deterministic configuration-space
-campaign. The contract explicitly partitions 46 computational axes, one
-annotation axis, five view axes, and two execution-strategy axes. The 46-axis
-model covers all 97 declared values, 4,593 valid pairs, and 141,499 valid
+campaign. The contract explicitly partitions 52 computational axes, one
+annotation axis, five view axes, and two execution-strategy axes. The 52-axis
+model covers all 116 declared values, 6,583 valid pairs, and 243,618 valid
 triples; it also runs a 128-case fixed-seed high-order sample, five
 catalog-derived pathological raw corpora plus a dedicated influence-probe
-corpus, 500 cold Rust executions, 62
-incremental/cold comparisons, and 46 independent computational-option/cold
+corpus, 812 enumerated cold configurations: 749 Rust executions and 63 typed
+scientific refusals caught before execution. It also performs 105
+incremental/cold comparisons and 52 independent computational-option/cold
 comparisons. The seven view/execution axes have projection and executable
 preprocessing-invariance proofs; they still control rendering or scheduling in
 their own layers. `studyName` has a separate annotation proof showing that it
@@ -209,19 +212,28 @@ dependency.
 
 The stronger one-factor intervention ledger then holds all raw/support inputs
 and every other option constant while executing every ordered transition among
-all declared values. It performs 1,194 cold runs and 2,760 incremental runs
-(3,954 Rust/WASM executions total), rejects invalidation outside the declared
+all declared values. It performs 1,422 cold runs and 3,912 incremental runs
+(5,334 Rust/WASM executions total), rejects invalidation outside the declared
 DAG cone or stale direct binders, and requires a substantive branch witness for
-all 46 computational axes. The ledger records exact changed node input keys,
+all 52 computational axes. The ledger records exact changed node input keys,
 execution statuses, role/node states, obligations, counts, summaries, and
 artifact digests under the semantic implementation receipt. This turns the
 empirical result into a permanent anti-staleness contract rather than a manual
-observation. All 1,380 transitions compare all logical workflow checkpoints with an
-independent cold target and compare the observed invalidation set with the
-deterministically predicted semantic percolation cluster. Both mismatch counts
-are zero. This proves logical minimality for the recorded scope. The checked
+observation. All 1,956 transitions compare all logical workflow checkpoints with an
+independent cold target, and each transition additionally asserts the two
+observation-grounded drift properties defined in
+[the authority table](../architecture/authority-and-invalidation.md): every query
+that executed in the warm target must carry a justification — it was newly
+applicable there, or a request field it binds changed, or a source role it binds
+changed and that binding's predicates hold under the target options, or at least
+one declared input published a changed output digest — and no query may be badged
+`cached` while its own published `output_digest` moved from the warm source. Both
+counts are zero. What is deliberately *not* asserted is a per-arm prediction of
+the executed set: `WorkflowQueryDefinition::inputs` is a may-read mirror, Salsa
+alone owns invalidation, and an execution with no justification is an undeclared
+read — the missing-invalidation class this campaign exists to catch. The checked
 ledger was regenerated against the physical query executor with
-`make dependency-evidence` on this merged wave; it carries this tree's
+`make dependency-evidence` on the current private feature branch; it carries this tree's
 implementation receipt rather than a pre-cutover or lane-branch one. In the current
 implementation, actual Salsa `WillExecute` events, rather than a presentation-group cache
 projection, are the only source for physical `cached` versus `recomputed`
@@ -243,8 +255,8 @@ bytes.
 
 The model is tested as an executable hypothesis, not accepted because its JSON
 is internally consistent. A digest-bound mutation gate deletes and reverses all
-23 logical edges, deletes all 59 computational-option bindings, and deletes all
-11 raw/support role bindings. It kills all 116 mutants. Each kill is attributed
+133 logical edges, deletes all 87 computational-option bindings, and deletes all
+13 raw/support role bindings. It kills all 366 mutants. Each kill is attributed
 to either a checked empirical percolation mismatch, a structural cycle, a
 product applicability condition, or a required cross-unit typed step port. The
 last category is deliberately separate: two direct output ports are structurally
@@ -253,10 +265,11 @@ one-factor corpora.
 
 The checked dependency surface is also compiled into a proof-carrying cache
 certificate rather than left as an informal agreement between the schema and
-the scheduler. The certificate independently reconciles all 54 LinkML axes
-with the product plan: 46 computational axes plus the output-changing
-`studyName` annotation are cache-relevant; five view and two execution axes are
-explicitly excluded from preprocessing keys. It also binds all ten root roles
+the scheduler. The certificate independently reconciles all 61 LinkML slots
+with the product plan, including the runtime preprocessing timestamp: 53
+computational slots plus the output-changing `studyName` annotation are
+cache-relevant; five view and two execution slots are explicitly excluded from
+preprocessing keys. It also binds all ten root roles
 (the nine raw/support sources plus `processing_options`), every option/role
 binder, the exact plan digest, and a canonical digest of that complete binding
 surface. An unclassified or missing runtime option, a plan/certificate or
@@ -277,22 +290,25 @@ artifact closure, and semantic execution projection. The certificate lives
 outside the semantic profile closure so that evidence about a profile does not
 change the profile identity it is meant to prove.
 
-The value-level two-factor proof enumerates all 1,269 pairs of non-baseline
-declared equivalence classes. It executes all 1,222 valid pairs through warm
-and cold Rust/WASM, retains 47 invalid pairs with deterministic qualification
-reasons, and identifies non-additive and qualification-enabled interactions
-without collapsing multi-valued axes to booleans.
+The value-level two-factor proof enumerates all 1,999 pairs of non-baseline
+declared equivalence classes. It executes all 1,938 executable pairs through
+warm and cold Rust/WASM, retains 60 invalid pairs with deterministic
+qualification reasons, and records the one typed scientific refusal before
+execution. The campaign performs 5,878 Rust/WASM executions and identifies
+non-additive and qualification-enabled interactions without collapsing
+multi-valued axes to booleans.
 
 The mixed artifact×configuration proof closes the next stale-result gap. It
 selects one empirically branch-activating intervention for each of the nine
 raw/support source roles from the six existing deterministic corpora, then
-crosses that role intervention with all 50 valid alternate configuration
-values across the 46 computational axes. All 450 role/value pairs execute in
+crosses that role intervention with all 63 valid alternate configuration
+values across the 52 computational axes. All 567 role/value pairs execute in
 both orders—data then configuration and configuration then data—and both paths
 must equal an independent cold Rust/WASM target at every workflow checkpoint,
 output artifact, and canonical output cell. The nine process-recycled shards
-perform 3,620 executions, 2,700 warm/cold comparisons, and 900 exact cone
-comparisons. They identify 150 pairs where context introduces or masks a
+perform 4,556 executions, 3,402 warm/cold comparisons, and 1,134
+justified-execution comparisons (one per pair per transition order). They
+identify 212 pairs where context introduces or masks a
 checkpoint or cell effect. Those are the measured wide/narrow sections of the
 configuration–data funnel; they are retained as exact counterexamples rather
 than flattened into a binary dependency edge. One representative mutation per
@@ -306,15 +322,16 @@ addition/removal/duplication/reordering, one activated mutation for every
 support role, and byte-different representation controls. Across 32
 intervention kinds applied to all six synthetic corpora (192 cases and 768
 Rust/WASM executions), every warm stage and output equals an independent cold
-target and every observed input-key cluster equals the cluster predicted from
-plan-declared role ownership plus changed upstream checkpoints. The evidence
+target, every query observed to execute in a warm target is justified by
+plan-declared role ownership or a changed upstream checkpoint, and no query is
+badged `cached` while its published output digest moved. The evidence
 keeps context-dependent convergence separate from representation equivalence.
 A companion 162-case boundary campaign adds 648 executions around 21 adjacent-
 gap values and six calendar/DST joints; it also proved and fixed false coupling
 between row order, membership, and classification checkpoint components. See
 [the artifact dependency tomography proof](artifact-dependency-tomography.md).
 The two campaigns additionally compare canonical output cells on every warm
-and cold run. Digest-bound compressed sidecars retain 853,947 exact changed-cell
+and cold run. Digest-bound compressed sidecars retain 900,293 exact changed-cell
 addresses, yielding an empirical forward correspondence from each named
 raw/support mutation to affected CSV/JSON coordinates without turning large
 row/cell evidence into RDF or bloating the review ledger.
@@ -325,22 +342,28 @@ and canonical configuration JSON leaf a stable exact coordinate. Each record
 commits to the qualified role, source artifact digest, media and normalization
 boundary, one-based source record or JSON pointer, selector, and value digest.
 These are witness endpoints—not inferred contribution claims.
-On the checked 600-event fixture, the source index contains 4,885 coordinates
-in 37,866 bytes (0.62 times the 60,719 bytes of raw CSV plus canonical
-configuration JSON) and is guarded by a bounded-ratio regression.
-`result-cell-correspondence-arrow` assigns every canonical CSV cell and JSON
-leaf an exact address and value digest, records its terminal workflow query group, and
-joins row-addressed CSV cells exactly to `row-lineage-arrow`. The Arrow batch
+On the checked 600-event fixture, the source index contains 4,916 coordinates
+in 39,082 bytes, against a 58,609-byte raw CSV fixture, and is guarded by a
+bounded-ratio regression. All four figures are MEASURED by
+`bounds the exact source-coordinate sidecar on a 600-event fixture` in
+`web/src/lib/rustPipelineRuntimeContract.test.ts`, which pins the coordinate
+count and byte size exactly; the ratio is not separately published because no
+check computes it.
+`result-cell-correspondence-arrow` assigns every canonical CSV cell an exact
+address and value digest, records its terminal workflow query group, and
+joins row-addressed CSV cells exactly to `row-lineage-arrow`. The JSON view
+outputs are deliberately not leaf-indexed: they are deterministic views of the
+same tabular values and retain artifact-level content hashes instead. The Arrow batch
 uses dictionary encoding plus LZ4 frame compression. On the checked 600-event
-representative fixture it contains 9,902 cells in 45,810 bytes, 0.51 times
-the 89,709 canonical output bytes. The precision labels remain load-bearing:
+representative fixture it contains 10,202 cells in 46,514 bytes. The precision
+labels remain load-bearing:
 source and result coordinate identity and row-table joins are exact, raw-row
 contributor sets are conservative, and semantic dependencies are
 declared-transitive.
 
 `source-result-influence-arrow` makes those precision boundaries executable.
-Its protocol is now `chronicle-source-result-influence/v3` and it contains 985
-normalized witness rows in 65,210 bytes on the same fixture. The first
+Its protocol is now `chronicle-source-result-influence/v3` and it contains 1,376
+normalized witness rows in 79,802 bytes on the same fixture. The first
 Cartesian prototype (measured on the development fixture during design) emitted
 240,540 rows and 13,759,858 bytes; normalization reduces the bridge by two
 orders of magnitude while preserving lossless joins into the source-coordinate,
@@ -379,7 +402,11 @@ classes, and the two new coordinates `source_field` and
   any kind exists.
 
 The artifact is closure-bound, deterministic, researcher-exportable, and states
-that a missing row/cell edge is never evidence of non-influence. The version
+that a missing row/cell edge is never evidence of non-influence. One transport
+caveat is open: the wasm32 build of upstream `arrow-ipc` writes a 4-byte
+compressed-length prefix, so the three LZ4-compressed sidecars need the
+patched reader documented in `docs/validation/WASM32_ARROW_SIDECARS.md`
+(preview issue #8) until the upstream fix lands. The version
 has moved twice rather than adding a parallel artifact, each time because a
 reader of the older schema would silently mis-join the newer bytes. v1 to v2
 added two coordinate columns and four new `relation`/`precision` values. v2 to
@@ -388,8 +415,9 @@ v3 added the nullable `source_index_space` column and the
 rows from reading as raw-record ranges: under v2 those rows stated their
 scanned bounds in the same columns raw-record contributors use, so a consumer
 joining them to the source-coordinate index would have addressed raw records
-the kernel never claimed. No consumer holds v1 or v2 bytes — the deployed
-Pages build is a deliberate rollback and every checked ledger is regenerated
+the kernel never claimed. No consumer holds v1 or v2 bytes — the live
+production Pages build (`e16d4abb`, deployed 2026-08-05) already writes
+`chronicle-source-result-influence/v3`, and every checked ledger is regenerated
 from source by `make dependency-evidence`.
 
 The declared field-level reads and writes behind those classes are reconciled
@@ -413,16 +441,24 @@ omitted the grouping keys that decide which rows and participants exist.
 each supplied source column with configuration. Twenty columns each get one
 empirically branch-activating intervention crossed with every computational
 axis the field contract predicts can interact with that column plus a
-deterministic control sample of axes it predicts cannot — 729 predicted axis
-crossings, 65 control axes, and 1,682 Rust/WASM executions across twenty
+deterministic control sample of axes it predicts cannot — 869 predicted axis
+crossings, 65 control axes, and 1,962 Rust/WASM executions across twenty
 process-recycled shards. Under every executed configuration, every canonical
 cell the column moved belonged to a declared output-cell family of that column,
 and no control axis introduced a family the base configuration did not move.
-Two supplied columns are recorded as having no declared reach at all rather
-than being dropped: `filter_file.app_filter_category` and
-`filter_file.filter_bool` appear in the shipped filter file and in the review
-UI, but no kernel step reads either — the filter map is built from the package
-and label columns alone.
+Every supplied column that is recorded as having no declared reach is now
+confirmed unread by an isolated intervention rather than merely declared so:
+`raw_chronicle_csv.possible_device_model`, `raw_chronicle_csv.start_timestamp`
+and `raw_chronicle_csv.stop_timestamp`, each rewritten alone and each changing
+no output cell. Until the B10 package-exclusion axis landed, two further
+columns sat in that set on a weaker footing —
+`filter_file.app_filter_category` and `filter_file.filter_bool` appeared in the
+shipped filter file and in the review UI, but the filter map was built from the
+package and label columns alone, so every supplied row excluded whatever its
+category and a row marked `filter_bool` 0 was excluded anyway. The
+`package_exclusion_preset` axis reads both, and `mark_app_policy_matches`
+declares them, so no column now rests on a declared rather than an observed
+non-effect.
 
 The combined empirical and structural sweep found both kinds of ontology drift.
 Output assembly directly consumed attribution and observation-window products
@@ -499,7 +535,7 @@ The production Rust quality rails enforce at least 95% line, 94% region, and
 70% function coverage on each new semantic authority crate, with two
 established authorities ratcheted lower in
 `.semantic-federation/quality/rust-authority-manifests.txt`. Re-measured on
-**this merged provenance wave** — not the `3c598ee` tree the previous revision
+**the earlier merged provenance wave** — not the `3c598ee` tree the previous revision
 of this table cited — by `make coverage-rust`, which exits 0 and prints
 `rust_authority_quality=coverage manifests=5`:
 
@@ -548,9 +584,10 @@ coverage. The chrono-kernel mutation ledger is
 This work now lives on `main`: PR #81 (`121e7b5`) landed the query-registry Rust/WASM
 single-engine cutover and PR #88 (`3c598ee`) landed the source-result influence
 witness, both as squash merges. Landing on `main` is not a deployment.
-`web-pwa-deploy.yml` is `workflow_dispatch` only since PR #85 (`b315858`), the
-live GitHub Pages app still serves the manually dispatched
-`rollback/2026-06-27-build` artifact from 2026-07-29, and the `research-pipeline`
-consumer remains pinned to the `last-python-engine` tag. Production deployment,
+`web-pwa-deploy.yml` is `workflow_dispatch` only since PR #85 (`b315858`). The
+live production GitHub Pages app serves `e16d4abb` (public-repo `main`, PR #97),
+dispatched on 2026-08-05; it replaced the `rollback/2026-06-27-build` artifact
+that was live from 2026-07-29 to 2026-08-05. The `research-pipeline` consumer is
+pinned to the frozen `july16-production-engine` worktree (`431f326bc`; the tag is `b003bae6c` after the 2026-10-03 history rewrite, same tree). Production deployment,
 research-pipeline, GitOps, homelab provisioning and CI runner infrastructure are
 intentionally not part of this proof.

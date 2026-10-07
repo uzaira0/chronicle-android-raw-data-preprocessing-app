@@ -28,7 +28,7 @@ import {
  * `durableProfile` therefore swaps in a `launchPersistentContext`, which is the
  * only way to exercise the OPFS durability layer on WebKit under automation.
  *
- * Two measured WebKit facts shape the rest of this file:
+ * Three measured WebKit facts shape the rest of this file:
  *  - A fresh `userDataDir` does NOT get a fresh OPFS. Playwright's WebKit keeps
  *    origin-private storage outside the profile directory, so state leaks
  *    between persistent contexts. Every durable context is therefore wiped
@@ -36,6 +36,8 @@ import {
  *  - `context.browser()` is non-null for a persistent context, but a context
  *    made from that browser is ephemeral again — so `browser.newContext()` is
  *    not a usable "fresh origin" on WebKit. `freshOriginPage` is.
+ *  - Cache Storage drops every write in the persistent context, so the
+ *    service worker cannot install there (`cacheStorageRetainsWrites`).
  *
  * Traces, video and screenshots come from Playwright's own `context` fixture
  * and are not captured for the persistent branch.
@@ -66,17 +68,59 @@ async function persistentOpfsAvailable(page: Page): Promise<boolean> {
   return page.evaluate(async () => {
     try {
       const root = await navigator.storage.getDirectory();
-      const handle = await root.getFileHandle("chronicle-durable-profile-probe", {
+      // A fresh name every time: WebKit refuses createWritable on a file
+      // re-created under a name just removed in the same origin, and the
+      // origin's OPFS outlives the profile, so a fixed probe name (wiped by
+      // wipeOriginStorage, then re-created here) skipped every durable test.
+      const name = `chronicle-durable-profile-probe-${crypto.randomUUID()}`;
+      const handle = await root.getFileHandle(name, {
         create: true,
       });
       const writable = await handle.createWritable();
       await writable.write(new Uint8Array([1]));
       await writable.close();
-      const readable = await handle.getFile();
-      await root.removeEntry("chronicle-durable-profile-probe");
-      return readable.size === 1;
+      // WebKit can resolve close() before the bytes are visible to getFile()
+      // (measured: size 0 right after a successful write+close), so a single
+      // read raced and skipped the whole durable lane. Re-read briefly.
+      let size = 0;
+      for (let attempt = 0; attempt < 20 && size !== 1; attempt += 1) {
+        if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 50));
+        size = (await handle.getFile()).size;
+      }
+      await root.removeEntry(name);
+      return size === 1;
     } catch {
       return false;
+    }
+  });
+}
+
+/**
+ * Does Cache Storage keep what is written to it in this context?
+ *
+ * A third measured WebKit fact: Playwright's WebKit PERSISTENT context accepts
+ * every Cache Storage write and keeps none of them. `caches.open()` creates the
+ * name and `cache.put()` resolves, but `cache.match()` then returns undefined and
+ * `cache.keys()` is empty — for a synthetic `new Response("abc")` as much as for
+ * a fetched one. public/sw.js verifies every precached response and correctly
+ * fails its install on that, so the service worker never controls the page. The
+ * same sw.js installs, activates and claims the page in Playwright's ephemeral
+ * WebKit context, where Cache Storage works, so this is the automation profile,
+ * not the app.
+ */
+export async function cacheStorageRetainsWrites(page: Page): Promise<boolean> {
+  return page.evaluate(async () => {
+    const name = `chronicle-cache-storage-probe-${crypto.randomUUID()}`;
+    const url = new URL(`./${name}`, location.href).href;
+    try {
+      const cache = await caches.open(name);
+      await cache.put(url, new Response("1"));
+      const stored = await cache.match(url);
+      return stored !== undefined && (await stored.text()) === "1";
+    } catch {
+      return false;
+    } finally {
+      await caches.delete(name).catch(() => false);
     }
   });
 }
@@ -115,6 +159,17 @@ export async function wipeOriginStorage(page: Page): Promise<void> {
   }, [LAST_RUN_DB_NAME, PROJECTS_DB_NAME]);
 }
 
+async function wipeOnExit(context: BrowserContext): Promise<void> {
+  try {
+    const page = await context.newPage();
+    await gotoOriginWithoutBooting(page);
+    await wipeOriginStorage(page);
+  } catch {
+    // Teardown of a context the test already broke; the next durable context
+    // still wipes on entry.
+  }
+}
+
 export type DurabilityFixtures = {
   /** Set by the project. False keeps Playwright's own ephemeral context. */
   durableProfile: boolean;
@@ -151,6 +206,10 @@ export const test = base.extend<DurabilityFixtures>({
       );
       await use(persistent);
     } finally {
+      // Wipe on exit too: the origin's OPFS outlives this profile, so what a
+      // test leaves behind (the fault-injection tests deliberately corrupt the
+      // workspace) is otherwise what the next context on this origin meets.
+      await wipeOnExit(persistent);
       await persistent.close();
       await rm(profile, { recursive: true, force: true });
     }

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
 
 import {
   LAST_RUN_DB_NAME,
@@ -6,6 +6,7 @@ import {
   LAST_RUN_RECORD_ID,
   LAST_RUN_STORE_NAME,
 } from "../src/lib/lastRunStore";
+import { expect, test } from "./durabilityContext";
 import { APP_ONLY_RAW_CSV } from "./fixtures";
 import {
   gotoApp,
@@ -23,6 +24,11 @@ import {
  * We simulate the *environment* (a near-full disk) by overriding the browser's
  * own `navigator.storage.estimate()` — this is the storage condition itself,
  * not app state. App data is only ever read for verification.
+ *
+ * The cached last run these tests clear and evict is durable storage, so they
+ * use the durability context: on webkit-durable that is the persistent
+ * profile, because Playwright's default WebKit context is private browsing and
+ * the app correctly runs there without a cached run at all.
  */
 test.describe.configure({ mode: "serial" });
 
@@ -31,7 +37,18 @@ async function simulateQuota(page: Page, usage: number, quota: number): Promise<
     ({ usage, quota }) => {
       const nav = navigator as unknown as { storage?: { estimate?: () => Promise<unknown> } };
       const estimate = () => Promise.resolve({ usage, quota });
-      if (nav.storage) {
+      // On the prototype, not the instance: WebKit can collect the
+      // `navigator.storage` wrapper between this script and the app's first
+      // read and hand back a fresh one, which drops an own-property override
+      // (measured: the override was gone by the time the page asked).
+      const manager = (globalThis as { StorageManager?: { prototype: object } }).StorageManager;
+      if (manager) {
+        Object.defineProperty(manager.prototype, "estimate", {
+          configurable: true,
+          writable: true,
+          value: estimate,
+        });
+      } else if (nav.storage) {
         nav.storage.estimate = estimate;
       } else {
         Object.defineProperty(nav, "storage", { configurable: true, value: { estimate } });
@@ -53,13 +70,21 @@ async function readLastRun(page: Page): Promise<unknown> {
         };
         open.onerror = () => resolve(null);
         open.onsuccess = () => {
+          // Close the connection once read: a probe that stays open blocks the
+          // eviction below, and WebKit drops a blocked delete when the page
+          // that asked for it reloads, so the "evicted" run came back.
+          const db = open.result;
+          const finish = (value: unknown) => {
+            db.close();
+            resolve(value);
+          };
           try {
-            const tx = open.result.transaction(storeName, "readonly");
+            const tx = db.transaction(storeName, "readonly");
             const get = tx.objectStore(storeName).get(recordId);
-            get.onsuccess = () => resolve(get.result ?? null);
-            get.onerror = () => resolve(null);
+            get.onsuccess = () => finish(get.result ?? null);
+            get.onerror = () => finish(null);
           } catch {
-            resolve(null);
+            finish(null);
           }
         };
       }),
@@ -106,6 +131,7 @@ test("the in-banner clear frees the cached run", async ({ page }) => {
   await expect(page.getByTestId("storage-pressure")).toBeVisible();
 
   await page.getByTestId("storage-pressure-clear").click();
+  await page.getByTestId("clear-cached-run-dialog-confirm").click();
   await expect(page.getByText(/Cleared the cached last run/i)).toBeVisible();
   // The cached record is actually gone.
   await expect.poll(async () => await readLastRun(page)).toBeNull();
@@ -121,17 +147,19 @@ test("eviction of cached data leaves a usable app, not a blank page", async ({ p
   // Simulate the browser evicting this origin's IndexedDB under pressure.
   await page.evaluate(
     (databaseName) =>
-      new Promise<void>((resolve) => {
+      new Promise<void>((resolve, reject) => {
+        // Wait for the delete to finish: resolving on `blocked` reloaded the
+        // page with the delete still pending, and WebKit then never ran it.
         const del = indexedDB.deleteDatabase(databaseName);
         del.onsuccess = () => resolve();
-        del.onerror = () => resolve();
-        del.onblocked = () => resolve();
+        del.onerror = () => reject(del.error ?? new Error("deleteDatabase failed"));
       }),
     LAST_RUN_DB_NAME,
   );
 
-  await page.reload();
-  await installDeterministicRuntime(page);
+  // One navigation boots the app again (the init script from the top of the
+  // test still applies). A reload immediately followed by a second goto left
+  // WebKit's persistent context waiting on a "load" event that never fired.
   await gotoApp(page);
   // No restored results (the cache was evicted), but the app is fully usable.
   await expect(page.getByRole("heading", { name: "Chronicle Android Raw Data Preprocessor" })).toBeVisible();
@@ -173,15 +201,19 @@ test("requests persistent storage on boot so saved data isn't evicted", async ({
     persistCalled = true;
   });
   await page.addInitScript(() => {
-    const nav = navigator as unknown as {
-      storage?: { persist?: () => Promise<boolean>; persisted?: () => Promise<boolean> };
+    const persisted = () => Promise.resolve(false);
+    const persist = () => {
+      (window as unknown as { __recordPersist: () => void }).__recordPersist();
+      return Promise.resolve(true);
     };
-    if (nav.storage) {
-      nav.storage.persisted = () => Promise.resolve(false);
-      nav.storage.persist = () => {
-        (window as unknown as { __recordPersist: () => void }).__recordPersist();
-        return Promise.resolve(true);
-      };
+    // On the prototype for the same reason as simulateQuota: WebKit can hand
+    // the page a fresh `navigator.storage` wrapper without instance overrides.
+    const manager = (globalThis as { StorageManager?: { prototype: object } }).StorageManager;
+    const target = manager?.prototype ?? (navigator as unknown as { storage?: object }).storage;
+    if (target) {
+      for (const [name, value] of [["persisted", persisted], ["persist", persist]] as const) {
+        Object.defineProperty(target, name, { configurable: true, writable: true, value });
+      }
     }
   });
   await installDeterministicRuntime(page);

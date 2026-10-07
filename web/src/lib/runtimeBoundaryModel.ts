@@ -21,6 +21,8 @@ type BoundaryValueModel =
   | { kind: "looseString" }
   | { kind: "sha256Digest" }
   | { kind: "integer" }
+  | { kind: "signedInteger" }
+  | { kind: "number" }
   | { kind: "boolean" }
   | { kind: "nullable"; inner: BoundaryValueModel }
   | { kind: "array"; items: BoundaryValueModel }
@@ -83,9 +85,23 @@ function booleanAt(value: unknown, path: string): boolean {
   return value;
 }
 
+function numberAt(value: unknown, path: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    contractError(path, "expected a finite number");
+  }
+  return value;
+}
+
 export function integerAt(value: unknown, path: string): number {
   if (!Number.isSafeInteger(value) || (value as number) < 0) {
     contractError(path, "expected a non-negative safe integer");
+  }
+  return value as number;
+}
+
+function signedIntegerAt(value: unknown, path: string): number {
+  if (!Number.isSafeInteger(value)) {
+    contractError(path, "expected a safe integer");
   }
   return value as number;
 }
@@ -109,18 +125,20 @@ export function checkpointComponentDigestAt(
   return digest;
 }
 
-function typeModel(
+function typeModel<Kind extends BoundaryTypeModel["kind"]>(
   model: BoundaryModel,
   name: string,
-  kind: "struct" | "enum",
-): BoundaryTypeModel {
+  kind: Kind,
+): Extract<BoundaryTypeModel, { kind: Kind }> {
   const definition = model.types[name];
   // A missing or mistyped reference means the generated artifact itself is
-  // broken, which is a build fault rather than untrusted runtime input.
+  // broken, which is a build fault rather than untrusted runtime input. The
+  // check below is also what narrows the returned model to the asked-for kind,
+  // so callers need no second test of their own.
   if (definition === undefined || definition.kind !== kind) {
     throw new Error(`runtime boundary model has no ${kind} named ${name}`);
   }
-  return definition;
+  return definition as Extract<BoundaryTypeModel, { kind: Kind }>;
 }
 
 function decodeValue(
@@ -128,6 +146,7 @@ function decodeValue(
   spec: BoundaryValueModel,
   value: unknown,
   path: string,
+  rejectUnknownFields: boolean,
 ): unknown {
   switch (spec.kind) {
     case "string":
@@ -139,26 +158,49 @@ function decodeValue(
       return digestAt(value, path);
     case "integer":
       return integerAt(value, path);
+    case "signedInteger":
+      return signedIntegerAt(value, path);
+    case "number":
+      return numberAt(value, path);
     case "boolean":
       return booleanAt(value, path);
     case "nullable":
-      return value === null ? null : decodeValue(model, spec.inner, value, path);
+      return value === null
+        ? null
+        : decodeValue(model, spec.inner, value, path, rejectUnknownFields);
     case "array":
       return arrayAt(value, path).map((item, index) =>
-        decodeValue(model, spec.items, item, `${path}[${index}]`),
+        decodeValue(
+          model,
+          spec.items,
+          item,
+          `${path}[${index}]`,
+          rejectUnknownFields,
+        ),
       );
     case "map":
       return Object.fromEntries(
         Object.entries(objectAt(value, path)).map(([key, item]) => [
           key,
-          decodeValue(model, spec.values, item, `${path}.${key}`),
+          decodeValue(
+            model,
+            spec.values,
+            item,
+            `${path}.${key}`,
+            rejectUnknownFields,
+          ),
         ]),
       );
     case "struct":
-      return decodeStruct(model, spec.name, value, path);
+      return decodeStruct(
+        model,
+        spec.name,
+        value,
+        path,
+        rejectUnknownFields,
+      );
     case "enum": {
       const definition = typeModel(model, spec.name, "enum");
-      if (definition.kind !== "enum") throw new Error("unreachable");
       const variant = stringAt(value, path);
       if (!definition.variants.includes(variant)) {
         contractError(path, `unknown ${definition.label}`);
@@ -173,10 +215,19 @@ function decodeStruct(
   name: string,
   value: unknown,
   path: string,
+  rejectUnknownFields = false,
 ): JsonObject {
   const definition = typeModel(model, name, "struct");
-  if (definition.kind !== "struct") throw new Error("unreachable");
   const source = objectAt(value, path);
+  if (rejectUnknownFields) {
+    const expectedFields = new Set(definition.fields.map((field) => field.name));
+    const unknownField = Object.keys(source).find(
+      (field) => !expectedFields.has(field),
+    );
+    if (unknownField !== undefined) {
+      contractError(`${path}.${unknownField}`, "unexpected field");
+    }
+  }
   const decoded: JsonObject = {};
   for (const field of definition.fields) {
     const raw = source[field.name];
@@ -188,6 +239,7 @@ function decodeStruct(
       field.value,
       raw,
       `${path}.${field.name}`,
+      rejectUnknownFields,
     );
   }
   return decoded;
@@ -208,4 +260,19 @@ export function decodeBoundaryStruct<T>(
   path: string,
 ): T {
   return decodeStruct(model, name, value, path) as T;
+}
+
+/**
+ * Decode a generated boundary root while rejecting fields that the exact Rust
+ * serialization model does not declare, recursively. Use this for one-shot
+ * scientific decisions: accepting a forward-added field there could silently
+ * change whether execution is allowed even though an older browser ignored it.
+ */
+export function decodeBoundaryStructExact<T>(
+  model: BoundaryModel,
+  name: string,
+  value: unknown,
+  path: string,
+): T {
+  return decodeStruct(model, name, value, path, true) as T;
 }

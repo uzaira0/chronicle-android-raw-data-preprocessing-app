@@ -1,0 +1,385 @@
+{
+  "schemaVersion": "chronicle-screen-usage-summary-source-oracle/v1",
+  "sourceWorkId": "doi:10.1016/j.chb.2023.107977",
+  "sourceSha256": {
+    "screenUsageWithin": "51b0f06c317c8473a07eb3a11cbc5f29529b9714a58a1b7e0fca92b75522e519",
+    "aggregation": "219e057a39610002db1e5afd14b2a1364b0e0f8e9b065dcf6572f46e999196cb"
+  },
+  "sourceLocators": {
+    "summary": ".tmp-literature-review-private/corrective-packet-08-ranks277-329-20260831/work/rank287-archive/SmartphoneUsage_Wellbeing/scripts/featureExtraction/screen/Screen_usageSessions_Microlevel.R:130-193",
+    "aggregation": ".tmp-literature-review-private/corrective-packet-08-ranks277-329-20260831/work/rank287-archive/SmartphoneUsage_Wellbeing/scripts/featureExtraction/helper/aggregation.R:3-20"
+  },
+  "exactCanonicalSettingIds": ["method-setting-21b693ea5436305503be0fc9", "method-setting-41f40cf50e2210db84b80ce0", "method-setting-74c15d5497b1555a3d9012c6", "method-setting-79838bb0f52b46cffe29dc20", "method-setting-7d18b91f12fe2fb12a0f42d3", "method-setting-871bd5023df26c4a76acd52e", "method-setting-9b9c7f366541d4009cb9a92e", "method-setting-ab0497a3ed56ed90cbebebae", "method-setting-ae60c0a30acbf2cec8789654", "method-setting-d0b50ad57572c44a8f6008f2", "method-setting-e41b43bb033bdfb28de3f6f3", "method-setting-f3fc5ca3be3305fde9e47c94", "method-setting-f86a0ddaba70f5e4741674d3"],
+  "executionBoundary": {
+    "inputStage": "post_materialized_usage_nonusage_sessions",
+    "outputStage": "per_questionnaire_usage_nonusage_feature_table_pre_ema_join_pre_modeling",
+    "deliberatelyOutside": ["upstream usage/nonusage ID and questionnaire membership construction", "upstream session materialization", "downstream EMA payload join", "downstream screen logging exclusion and modeling", "five-second preprocessing join"]
+  },
+  "runtime": {
+    "rVersion": "R version 4.1.2 (2021-11-01)",
+    "dplyrVersion": "1.0.8",
+    "tidyrVersion": "1.2.0"
+  },
+  "cases": [
+    {
+      "caseId": "all_usage_zero_fill",
+      "questionnaireId": "q-all-usage",
+      "inputSessions": [
+        {
+          "questionnaireId": "q-all-usage",
+          "kind": "usage",
+          "startTimestampNs": 10000000000000,
+          "endTimestampNs": 10060000000000
+        },
+        {
+          "questionnaireId": "q-all-usage",
+          "kind": "usage",
+          "startTimestampNs": 20000000000000,
+          "endTimestampNs": 20300000000000
+        }
+      ],
+      "expected": {
+        "Usage_num_int_all": "2",
+        "Usage_sum_duration": "360",
+        "Usage_mean_duration": "180",
+        "Usage_sd_duration": "169.70562748477141",
+        "Usage_median_duration": "180",
+        "Usage_num_int_5": "2",
+        "Usage_num_int_530": "0",
+        "Usage_num_int_30": "0",
+        "Usage_quadratic": "0.72222222222222221",
+        "Usage_sum_squared_duration": "93600",
+        "Usage_squared_sum_duration": "129600",
+        "Nonusage_num_int_all": "0",
+        "Nonusage_sum_duration": "0",
+        "Nonusage_mean_duration": "0",
+        "Nonusage_sd_duration": "NA",
+        "Nonusage_median_duration": "0",
+        "Nonusage_num_int_5": "0",
+        "Nonusage_num_int_530": "0",
+        "Nonusage_num_int_30": "0",
+        "Nonusage_quadratic": "1",
+        "Nonusage_sum_squared_duration": "0",
+        "Nonusage_squared_sum_duration": "0"
+      }
+    },
+    {
+      "caseId": "all_nonusage_zero_fill",
+      "questionnaireId": "q-all-nonusage",
+      "inputSessions": [
+        {
+          "questionnaireId": "q-all-nonusage",
+          "kind": "nonusage",
+          "startTimestampNs": 10000000000000,
+          "endTimestampNs": 10301000000000
+        },
+        {
+          "questionnaireId": "q-all-nonusage",
+          "kind": "nonusage",
+          "startTimestampNs": 20000000000000,
+          "endTimestampNs": 21800000000000
+        }
+      ],
+      "expected": {
+        "Usage_num_int_all": "0",
+        "Usage_sum_duration": "0",
+        "Usage_mean_duration": "0",
+        "Usage_sd_duration": "NA",
+        "Usage_median_duration": "0",
+        "Usage_num_int_5": "0",
+        "Usage_num_int_530": "0",
+        "Usage_num_int_30": "0",
+        "Usage_quadratic": "1",
+        "Usage_sum_squared_duration": "0",
+        "Usage_squared_sum_duration": "0",
+        "Nonusage_num_int_all": "2",
+        "Nonusage_sum_duration": "2101",
+        "Nonusage_mean_duration": "1050.5",
+        "Nonusage_sd_duration": "1059.9530649986348",
+        "Nonusage_median_duration": "1050.5",
+        "Nonusage_num_int_5": "0",
+        "Nonusage_num_int_530": "2",
+        "Nonusage_num_int_30": "0",
+        "Nonusage_quadratic": "0.75451956084464666",
+        "Nonusage_sum_squared_duration": "3330601",
+        "Nonusage_squared_sum_duration": "4414201"
+      }
+    },
+    {
+      "caseId": "exact_bin_boundaries",
+      "questionnaireId": "q-boundaries",
+      "inputSessions": [
+        {
+          "questionnaireId": "q-boundaries",
+          "kind": "usage",
+          "startTimestampNs": 10000000000000,
+          "endTimestampNs": 10300000000000
+        },
+        {
+          "questionnaireId": "q-boundaries",
+          "kind": "usage",
+          "startTimestampNs": 20000000000000,
+          "endTimestampNs": 20301000000000
+        },
+        {
+          "questionnaireId": "q-boundaries",
+          "kind": "usage",
+          "startTimestampNs": 30000000000000,
+          "endTimestampNs": 31800000000000
+        },
+        {
+          "questionnaireId": "q-boundaries",
+          "kind": "usage",
+          "startTimestampNs": 40000000000000,
+          "endTimestampNs": 41801000000000
+        },
+        {
+          "questionnaireId": "q-boundaries",
+          "kind": "nonusage",
+          "startTimestampNs": 10000000000000,
+          "endTimestampNs": 10300000000000
+        },
+        {
+          "questionnaireId": "q-boundaries",
+          "kind": "nonusage",
+          "startTimestampNs": 20000000000000,
+          "endTimestampNs": 20301000000000
+        },
+        {
+          "questionnaireId": "q-boundaries",
+          "kind": "nonusage",
+          "startTimestampNs": 30000000000000,
+          "endTimestampNs": 31800000000000
+        },
+        {
+          "questionnaireId": "q-boundaries",
+          "kind": "nonusage",
+          "startTimestampNs": 40000000000000,
+          "endTimestampNs": 41801000000000
+        }
+      ],
+      "expected": {
+        "Usage_num_int_all": "4",
+        "Usage_sum_duration": "4202",
+        "Usage_mean_duration": "1050.5",
+        "Usage_sd_duration": "866.02559623450702",
+        "Usage_median_duration": "1050.5",
+        "Usage_num_int_5": "1",
+        "Usage_num_int_530": "2",
+        "Usage_num_int_30": "1",
+        "Usage_quadratic": "0.37742968659560361",
+        "Usage_sum_squared_duration": "6664202",
+        "Usage_squared_sum_duration": "17656804",
+        "Nonusage_num_int_all": "4",
+        "Nonusage_sum_duration": "4202",
+        "Nonusage_mean_duration": "1050.5",
+        "Nonusage_sd_duration": "866.02559623450702",
+        "Nonusage_median_duration": "1050.5",
+        "Nonusage_num_int_5": "1",
+        "Nonusage_num_int_530": "2",
+        "Nonusage_num_int_30": "1",
+        "Nonusage_quadratic": "0.37742968659560361",
+        "Nonusage_sum_squared_duration": "6664202",
+        "Nonusage_squared_sum_duration": "17656804"
+      }
+    },
+    {
+      "caseId": "singleton_sample_sd",
+      "questionnaireId": "q-singleton",
+      "inputSessions": [
+        {
+          "questionnaireId": "q-singleton",
+          "kind": "usage",
+          "startTimestampNs": 10000000000000,
+          "endTimestampNs": 10600000000000
+        },
+        {
+          "questionnaireId": "q-singleton",
+          "kind": "nonusage",
+          "startTimestampNs": 10000000000000,
+          "endTimestampNs": 10600000000000
+        }
+      ],
+      "expected": {
+        "Usage_num_int_all": "1",
+        "Usage_sum_duration": "600",
+        "Usage_mean_duration": "600",
+        "Usage_sd_duration": "NA",
+        "Usage_median_duration": "600",
+        "Usage_num_int_5": "0",
+        "Usage_num_int_530": "1",
+        "Usage_num_int_30": "0",
+        "Usage_quadratic": "1",
+        "Usage_sum_squared_duration": "360000",
+        "Usage_squared_sum_duration": "360000",
+        "Nonusage_num_int_all": "1",
+        "Nonusage_sum_duration": "600",
+        "Nonusage_mean_duration": "600",
+        "Nonusage_sd_duration": "NA",
+        "Nonusage_median_duration": "600",
+        "Nonusage_num_int_5": "0",
+        "Nonusage_num_int_530": "1",
+        "Nonusage_num_int_30": "0",
+        "Nonusage_quadratic": "1",
+        "Nonusage_sum_squared_duration": "360000",
+        "Nonusage_squared_sum_duration": "360000"
+      }
+    },
+    {
+      "caseId": "first_zero_quadratic_helper",
+      "questionnaireId": "q-zero-first",
+      "inputSessions": [
+        {
+          "questionnaireId": "q-zero-first",
+          "kind": "usage",
+          "startTimestampNs": 10000000000000,
+          "endTimestampNs": 10000000000000
+        },
+        {
+          "questionnaireId": "q-zero-first",
+          "kind": "usage",
+          "startTimestampNs": 20000000000000,
+          "endTimestampNs": 20060000000000
+        },
+        {
+          "questionnaireId": "q-zero-first",
+          "kind": "usage",
+          "startTimestampNs": 30000000000000,
+          "endTimestampNs": 30060000000000
+        },
+        {
+          "questionnaireId": "q-zero-first",
+          "kind": "nonusage",
+          "startTimestampNs": 10000000000000,
+          "endTimestampNs": 10060000000000
+        },
+        {
+          "questionnaireId": "q-zero-first",
+          "kind": "nonusage",
+          "startTimestampNs": 20000000000000,
+          "endTimestampNs": 20060000000000
+        }
+      ],
+      "expected": {
+        "Usage_num_int_all": "3",
+        "Usage_sum_duration": "120",
+        "Usage_mean_duration": "40",
+        "Usage_sd_duration": "34.641016151377549",
+        "Usage_median_duration": "60",
+        "Usage_num_int_5": "3",
+        "Usage_num_int_530": "0",
+        "Usage_num_int_30": "0",
+        "Usage_quadratic": "1",
+        "Usage_sum_squared_duration": "7200",
+        "Usage_squared_sum_duration": "14400",
+        "Nonusage_num_int_all": "2",
+        "Nonusage_sum_duration": "120",
+        "Nonusage_mean_duration": "60",
+        "Nonusage_sd_duration": "0",
+        "Nonusage_median_duration": "60",
+        "Nonusage_num_int_5": "2",
+        "Nonusage_num_int_530": "0",
+        "Nonusage_num_int_30": "0",
+        "Nonusage_quadratic": "0.5",
+        "Nonusage_sum_squared_duration": "7200",
+        "Nonusage_squared_sum_duration": "14400"
+      }
+    },
+    {
+      "caseId": "zero_denominator_nonzero_numerator",
+      "questionnaireId": "q-zero-denominator",
+      "inputSessions": [
+        {
+          "questionnaireId": "q-zero-denominator",
+          "kind": "usage",
+          "startTimestampNs": 10000000000000,
+          "endTimestampNs": 10060000000000
+        },
+        {
+          "questionnaireId": "q-zero-denominator",
+          "kind": "usage",
+          "startTimestampNs": 20000000000000,
+          "endTimestampNs": 19940000000000
+        },
+        {
+          "questionnaireId": "q-zero-denominator",
+          "kind": "nonusage",
+          "startTimestampNs": 10000000000000,
+          "endTimestampNs": 10060000000000
+        },
+        {
+          "questionnaireId": "q-zero-denominator",
+          "kind": "nonusage",
+          "startTimestampNs": 20000000000000,
+          "endTimestampNs": 19940000000000
+        }
+      ],
+      "expected": {
+        "Usage_num_int_all": "2",
+        "Usage_sum_duration": "0",
+        "Usage_mean_duration": "0",
+        "Usage_sd_duration": "84.852813742385706",
+        "Usage_median_duration": "0",
+        "Usage_num_int_5": "2",
+        "Usage_num_int_530": "0",
+        "Usage_num_int_30": "0",
+        "Usage_quadratic": "+Inf",
+        "Usage_sum_squared_duration": "7200",
+        "Usage_squared_sum_duration": "0",
+        "Nonusage_num_int_all": "2",
+        "Nonusage_sum_duration": "0",
+        "Nonusage_mean_duration": "0",
+        "Nonusage_sd_duration": "84.852813742385706",
+        "Nonusage_median_duration": "0",
+        "Nonusage_num_int_5": "2",
+        "Nonusage_num_int_530": "0",
+        "Nonusage_num_int_30": "0",
+        "Nonusage_quadratic": "+Inf",
+        "Nonusage_sum_squared_duration": "7200",
+        "Nonusage_squared_sum_duration": "0"
+      }
+    },
+    {
+      "caseId": "all_missing_duration_na_rm",
+      "questionnaireId": "q-missing-duration",
+      "inputSessions": [
+        {
+          "questionnaireId": "q-missing-duration",
+          "kind": "usage",
+          "startTimestampNs": 10000000000000,
+          "endTimestampNs": null
+        },
+        {
+          "questionnaireId": "q-missing-duration",
+          "kind": "nonusage",
+          "startTimestampNs": 10000000000000,
+          "endTimestampNs": null
+        }
+      ],
+      "expected": {
+        "Usage_num_int_all": "1",
+        "Usage_sum_duration": "0",
+        "Usage_mean_duration": "NaN",
+        "Usage_sd_duration": "NA",
+        "Usage_median_duration": "NA",
+        "Usage_num_int_5": "0",
+        "Usage_num_int_530": "0",
+        "Usage_num_int_30": "0",
+        "Usage_quadratic": "NA",
+        "Usage_sum_squared_duration": "NA",
+        "Usage_squared_sum_duration": "NA",
+        "Nonusage_num_int_all": "1",
+        "Nonusage_sum_duration": "0",
+        "Nonusage_mean_duration": "NaN",
+        "Nonusage_sd_duration": "NA",
+        "Nonusage_median_duration": "NA",
+        "Nonusage_num_int_5": "0",
+        "Nonusage_num_int_530": "0",
+        "Nonusage_num_int_30": "0",
+        "Nonusage_quadratic": "NA",
+        "Nonusage_sum_squared_duration": "NA",
+        "Nonusage_squared_sum_duration": "NA"
+      }
+    }
+  ]
+}

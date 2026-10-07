@@ -1,0 +1,80 @@
+id: chronicle-ts-empty-catch
+snapshots:
+  promise.catch(() => {});:
+    labels:
+    - source: '{}'
+      style: primary
+      start: 20
+      end: 22
+    - source: catch
+      style: secondary
+      start: 8
+      end: 13
+    - source: promise.catch
+      style: secondary
+      start: 0
+      end: 13
+    - source: promise.catch(() => {})
+      style: secondary
+      start: 0
+      end: 23
+    - source: (() => {})
+      style: secondary
+      start: 13
+      end: 23
+    - source: () => {}
+      style: secondary
+      start: 14
+      end: 22
+  promise.catch(function () {});:
+    labels:
+    - source: '{}'
+      style: primary
+      start: 26
+      end: 28
+    - source: catch
+      style: secondary
+      start: 8
+      end: 13
+    - source: promise.catch
+      style: secondary
+      start: 0
+      end: 13
+    - source: promise.catch(function () {})
+      style: secondary
+      start: 0
+      end: 29
+    - source: (function () {})
+      style: secondary
+      start: 13
+      end: 29
+    - source: function () {}
+      style: secondary
+      start: 14
+      end: 28
+  ? |-
+    try { load(); } catch (error) {
+    }
+  : labels:
+    - source: |-
+        {
+        }
+      style: primary
+      start: 30
+      end: 33
+    - source: |-
+        catch (error) {
+        }
+      style: secondary
+      start: 16
+      end: 33
+  try { load(); } catch {}:
+    labels:
+    - source: '{}'
+      style: primary
+      start: 22
+      end: 24
+    - source: catch {}
+      style: secondary
+      start: 16
+      end: 24

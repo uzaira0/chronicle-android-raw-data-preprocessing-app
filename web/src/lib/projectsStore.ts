@@ -9,7 +9,19 @@
  * into `File` objects so the rest of the app (which reads `.name`) keeps working.
  */
 
-import type { BrowserProcessingOptions } from "@/lib/types";
+import {
+  loadMethodReceiptValidation,
+  methodProfileReceiptMatchesOptions,
+  migrateSavedOptionSet,
+  sanitizeMethodProfileReceipt,
+  sanitizeOptions,
+  SETTINGS_SCHEMA_VERSION,
+} from "@/lib/settingsPersistence";
+import type {
+  BrowserProcessingOptions,
+  BrowserSupportFiles,
+  MethodProfileReceipt,
+} from "@/lib/types";
 
 export const PROJECTS_DB_NAME = "chronicle-projects";
 const DB_NAME = PROJECTS_DB_NAME;
@@ -18,22 +30,21 @@ const DB_VERSION = 1;
 
 export type StoredFile = { name: string; type?: string; lastModified?: number; blob: Blob };
 
-export type SupportFileSlot =
-  | "filterFile"
-  | "appsForcingScreenOpenFile"
-  | "backgroundAppsFile"
-  | "appCodebookFile"
-  | "studyDatesFile"
-  | "deviceSharingFile"
-  | "surveyAttributionFile"
-  | "enrolledDevicesFile";
+export type SupportFileSlot = keyof BrowserSupportFiles;
 
 export type ProjectRecord = {
   id: string;
   name: string;
   createdAt: string;
   updatedAt: string;
+  /**
+   * The settings schema version `options` were saved under. A record saved
+   * before projects carried one is migrated by its `updatedAt` instead
+   * (`migrateSavedOptionSet`).
+   */
+  schemaVersion: number;
   options: BrowserProcessingOptions;
+  methodProfileReceipt?: MethodProfileReceipt;
   /** True when the actual file bytes are bundled (not just names). */
   includesFiles: boolean;
   /** Raw input file names — always stored as metadata. */
@@ -80,16 +91,46 @@ function runStore<T>(
           db.close();
           reject(transaction.error instanceof Error ? transaction.error : new Error(String(transaction.error)));
         };
+        // A commit-phase quota failure aborts the transaction without a
+        // request error: without this the save neither resolved nor rejected.
+        transaction.onabort = () => {
+          db.close();
+          reject(transaction.error instanceof Error ? transaction.error : new Error("project transaction aborted"));
+        };
       }),
   );
 }
 
 export async function saveProject(record: ProjectRecord): Promise<void> {
-  await runStore("readwrite", (store) => store.put(record));
+  if (record.methodProfileReceipt !== undefined) await loadMethodReceiptValidation();
+  const options = sanitizeOptions(record.options);
+  const receipt = sanitizeMethodProfileReceipt(record.methodProfileReceipt);
+  await runStore("readwrite", (store) => store.put({
+    ...record,
+    schemaVersion: SETTINGS_SCHEMA_VERSION,
+    options,
+    ...(receipt && methodProfileReceiptMatchesOptions(receipt, options) ? { methodProfileReceipt: receipt } : { methodProfileReceipt: undefined }),
+  }));
 }
 
 export async function loadProject(id: string): Promise<ProjectRecord | undefined> {
-  return runStore<ProjectRecord | undefined>("readonly", (store) => store.get(id) as IDBRequest<ProjectRecord | undefined>);
+  const record = await runStore<ProjectRecord | undefined>(
+    "readonly",
+    (store) => store.get(id) as IDBRequest<ProjectRecord | undefined>,
+  );
+  if (!record) return undefined;
+  if (record.methodProfileReceipt !== undefined) await loadMethodReceiptValidation();
+  const options = migrateSavedOptionSet(record.options, {
+    ...(typeof record.schemaVersion === "number" ? { schemaVersion: record.schemaVersion } : {}),
+    savedAt: record.updatedAt,
+  });
+  const receipt = sanitizeMethodProfileReceipt(record.methodProfileReceipt);
+  return {
+    ...record,
+    schemaVersion: SETTINGS_SCHEMA_VERSION,
+    options,
+    ...(receipt && methodProfileReceiptMatchesOptions(receipt, options) ? { methodProfileReceipt: receipt } : { methodProfileReceipt: undefined }),
+  };
 }
 
 export async function deleteProject(id: string): Promise<void> {
@@ -116,11 +157,14 @@ export function buildProjectRecord(input: {
   name: string;
   now: string;
   options: BrowserProcessingOptions;
+  methodProfileReceipt?: MethodProfileReceipt | null;
   rawFiles: readonly File[];
   supportFiles: Partial<Record<SupportFileSlot, File | null>>;
   includeFiles: boolean;
 }): ProjectRecord {
-  const { id, name, now, options, rawFiles, supportFiles, includeFiles } = input;
+  const { id, name, now, options, methodProfileReceipt, rawFiles, supportFiles, includeFiles } = input;
+  const sanitizedOptions = sanitizeOptions(options);
+  const receipt = sanitizeMethodProfileReceipt(methodProfileReceipt);
   const support: Partial<Record<SupportFileSlot, StoredFile>> = {};
   if (includeFiles) {
     for (const [slot, file] of Object.entries(supportFiles) as [SupportFileSlot, File | null][]) {
@@ -133,7 +177,9 @@ export function buildProjectRecord(input: {
     name,
     createdAt: now,
     updatedAt: now,
-    options,
+    schemaVersion: SETTINGS_SCHEMA_VERSION,
+    options: sanitizedOptions,
+    ...(receipt && methodProfileReceiptMatchesOptions(receipt, sanitizedOptions) ? { methodProfileReceipt: receipt } : {}),
     includesFiles: includeFiles,
     rawFileNames: rawFiles.map((file) => file.name),
     rawFiles: includeFiles

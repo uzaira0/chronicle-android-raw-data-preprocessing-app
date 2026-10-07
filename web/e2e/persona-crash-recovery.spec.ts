@@ -17,6 +17,7 @@ import {
   processFiles,
   setInputFile,
   setRawFiles,
+  RESULT_PANEL_TIMEOUT_MS,
 } from "./helpers";
 
 /**
@@ -129,19 +130,34 @@ test("@durability a corrupt cached run never permanently wedges the boot; recove
   const heading = page.getByRole("heading", { name: "Chronicle Android Raw Data Preprocessor" });
   const bootError = page.getByTestId("boot-error");
 
-  // Whatever path the app takes, it must NOT be a permanent blank page.
+  // Whatever path the app takes, it must NOT be a permanent blank page. The
+  // result panel loads after the first screen, so the heading alone does not
+  // mean the restore settled: wait for the crash screen or the notice.
+  const lastRunNotice = page.locator('[data-testid="background-notice"][data-notice-key="last-run"]');
   await pollUntil(async () =>
-    (await heading.isVisible().catch(() => false)) || (await bootError.isVisible().catch(() => false)),
+    (await bootError.isVisible().catch(() => false)) || (await lastRunNotice.isVisible().catch(() => false)),
   );
 
   if (await bootError.isVisible().catch(() => false)) {
     // Lifeboat path: the user recovers without DevTools.
     await expect(page.getByTestId("boot-error-reset")).toBeVisible();
     await page.getByTestId("boot-error-reset").click();
+    await page.getByTestId("boot-error-reset-dialog-confirm").click();
     await expect(heading).toBeVisible({ timeout: 15_000 });
+    // The reset reloads the page itself, and the heading paints before that
+    // load finishes. Reloading again on top of it left WebKit's new document
+    // with its scripts aborted and no load event (measured, webkit-durable).
+    await page.waitForLoadState("networkidle");
   } else {
-    // Self-heal path: it booted normally instead of crashing.
+    // Self-heal path: it booted normally instead of crashing. The saved run is
+    // never deleted behind the user's back: it is reported, and cleared only
+    // through the notice's explicit "Clear cached run".
     await expect(heading).toBeVisible();
+    const notice = page.locator('[data-testid="background-notice"][data-notice-key="last-run"]');
+    await expect(notice).toBeVisible();
+    await notice.getByTestId("background-notice-clear-cached-run").click();
+    await page.getByTestId("clear-cached-run-dialog-confirm").click();
+    await expect(notice).toHaveCount(0);
   }
 
   // Either way the poison record is gone and a further reload is clean.
@@ -171,7 +187,7 @@ test("@durability work survives a tab kill as a restorable summary", async ({ co
   const tab2 = await context.newPage();
   await installDeterministicRuntime(tab2);
   await gotoApp(tab2);
-  await expect(tab2.getByTestId("result-panel")).toBeVisible({ timeout: 15_000 });
+  await expect(tab2.getByTestId("result-panel")).toBeVisible({ timeout: RESULT_PANEL_TIMEOUT_MS });
   await expect(tab2.getByTestId("result-panel")).toContainText("1 file processed");
   await expect(tab2.getByTestId("restored-lightweight-note")).toBeVisible();
   // Only the browser-only blobs and timeline geometry were dropped before

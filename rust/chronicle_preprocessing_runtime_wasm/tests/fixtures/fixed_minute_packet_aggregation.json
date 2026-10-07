@@ -1,0 +1,75 @@
+{
+  "schemaVersion": "chronicle-fixed-minute-packet-aggregation-fixture/v1",
+  "sourceWorkId": "doi:10.1016/j.smhl.2020.100137",
+  "sourceLocators": [
+    ".tmp-literature-review-private/corrective-packet-04-ranks-074-123-20260831/text/102.txt:360-369"
+  ],
+  "sourceDisclosedSemantics": [
+    "input records contain timestamp, source address, destination address, and payload size",
+    "packets going to and coming from the same external address are not differentiated",
+    "payload sizes are summed for each phone and external address",
+    "aggregation duration is one minute"
+  ],
+  "sourceBlocker": {
+    "kind": "minute_bin_anchor_timezone_and_boundary_undisclosed",
+    "detail": "The source does not disclose whether t is packet-relative or grid-aligned, the grid anchor or timezone if grid-aligned, or ownership of a packet exactly at t plus one minute."
+  },
+  "boundedFixturePolicy": {
+    "anchorTimestampNs": 0,
+    "interval": "half_open"
+  },
+  "packets": [
+    {
+      "phoneKey": "phone-a",
+      "phoneAddress": "10.0.0.2",
+      "timestampNs": 59500000000,
+      "sourceAddress": "203.0.113.5",
+      "destinationAddress": "10.0.0.2",
+      "payloadBytes": 2
+    },
+    {
+      "phoneKey": "phone-a",
+      "phoneAddress": "10.0.0.2",
+      "timestampNs": 59999999999,
+      "sourceAddress": "10.0.0.2",
+      "destinationAddress": "203.0.113.5",
+      "payloadBytes": 40
+    },
+    {
+      "phoneKey": "phone-a",
+      "phoneAddress": "10.0.0.2",
+      "timestampNs": 60000000000,
+      "sourceAddress": "203.0.113.5",
+      "destinationAddress": "10.0.0.2",
+      "payloadBytes": 5
+    },
+    {
+      "phoneKey": "phone-b",
+      "phoneAddress": "10.0.0.3",
+      "timestampNs": 59999999999,
+      "sourceAddress": "10.0.0.3",
+      "destinationAddress": "203.0.113.5",
+      "payloadBytes": 7
+    }
+  ],
+  "expected": [
+    {
+      "phoneKey": "phone-a",
+      "externalAddress": "203.0.113.5",
+      "binStartTimestampNs": 0,
+      "payloadBytes": 42
+    },
+    {
+      "phoneKey": "phone-a",
+      "externalAddress": "203.0.113.5",
+      "binStartTimestampNs": 60000000000,
+      "payloadBytes": 5
+    },
+    {
+      "phoneKey": "phone-b",
+      "externalAddress": "203.0.113.5",
+      "binStartTimestampNs": 0,
+      "payloadBytes": 7
+    }
+  ]
+}

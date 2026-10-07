@@ -1,0 +1,148 @@
+{
+  "schemaVersion": "chronicle-predictor-event-schema-canonical-source-fixture/v1",
+  "sourceWorkId": "doi:10.1007/s00530-018-0601-1",
+  "sourceVariant": "author-provided Springer e-offprint rendering",
+  "localPrimaryBytesAvailable": false,
+  "sourceArtifacts": [
+    {
+      "role": "author-rendering locator manifest",
+      "locator": ".tmp-literature-review-private/source-completeness-artifacts/doi-10.1007-s00530-018-0601-1/author-rendering-locator-manifest.json#section:event-schema",
+      "sourceLocator": "author rendering PDF page 5, indexed PDF lines 312-349; Table 1 and Table 2",
+      "sha256": "145ed74fac5e19402a4b5661b9008a4454781b98b746f31fb164ba4dbebe0e4e"
+    },
+    {
+      "role": "canonical source-completeness audit",
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/source-completeness-audits/doi-10.1007-s00530-018-0601-1.json",
+      "sha256": "d742168db63926916cfc9f1ae122d2a7b406b49f241cba2ba9c3f710f9ca4e40"
+    },
+    {
+      "role": "canonical alias and tombstone ledger",
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/method-setting-alias-tombstones.json",
+      "sha256": "018221f6036218887355a0a2dcd9d6d54a9e90eb93f380b4e1b81cc75c0f76b5"
+    }
+  ],
+  "canonicalSettings": [
+    {
+      "settingId": "method-setting-7ece46fcbf67cfd7c2fb8c5e",
+      "parameterKey": "event.timestamp",
+      "sourceValue": "Timestamp in the illustrated event sequence",
+      "sourceObservedSetting": "event.timestamp: Timestamp in the illustrated event sequence",
+      "sourceValueSha256": "2e5d38475d8dda8a311452c7c8568978190ead75c9e5ae9706457acfec51ff42",
+      "supersededAlias": "atomic-9d14abd749f3ef5c0a00be20",
+      "aliasResolution": "superseded_by"
+    },
+    {
+      "settingId": "method-setting-2749a0339e3c4bb4c3b0ba7e",
+      "parameterKey": "event.type.AppOpenEvent",
+      "sourceValue": "AppOpenEvent",
+      "sourceObservedSetting": "event.type.AppOpenEvent: AppOpenEvent",
+      "sourceValueSha256": "e4951d31dcea641fbc0b49e2e10c55f616c33e4efea82184aea018fc81af079c",
+      "supersededAlias": "atomic-092ad85131a08132d9d87b6a",
+      "aliasResolution": "superseded_by"
+    }
+  ],
+  "existingOwners": [
+    {
+      "canonicalSettingId": "method-setting-7ece46fcbf67cfd7c2fb8c5e",
+      "ownerAliasAtAudit": "atomic-9d14abd749f3ef5c0a00be20",
+      "adapterId": "chronicle.source-field-schema",
+      "adapterVersion": "v1",
+      "kind": "field_alias",
+      "sourceField": "timestamp",
+      "sourceMatchValue": null,
+      "canonicalField": "event_timestamp",
+      "canonicalValue": null,
+      "requiresPackage": false
+    },
+    {
+      "canonicalSettingId": "method-setting-2749a0339e3c4bb4c3b0ba7e",
+      "ownerAliasAtAudit": "atomic-092ad85131a08132d9d87b6a",
+      "adapterId": "chronicle.source-event-schema",
+      "adapterVersion": "v1",
+      "kind": "event_type",
+      "sourceField": "source_event_type",
+      "sourceMatchValue": "AppOpenEvent",
+      "canonicalField": "interaction_type",
+      "canonicalValue": "Activity Resumed",
+      "requiresPackage": true
+    }
+  ],
+  "acceptanceClaim": "At a caller-supplied typed row boundary, Chronicle can preserve a nonempty timestamp field as an opaque scalar and can recognize the exact AppOpenEvent type token while retaining that token. This does not claim the unavailable dataset or the paper's full method is executable.",
+  "sharedIntegrationRequirement": "Replace the two live tombstoned alias registrations with their canonical setting IDs and canonical source-value hashes in the shared input-adapter contract and conformance manifest; this isolated fixture does not perform that shared edit.",
+  "timestampCases": [
+    {
+      "caseId": "opaque_timestamp_is_preserved_verbatim",
+      "sourceTimestamp": "opaque-clock-value; unit-and-format-undisclosed",
+      "existingEventTimestamp": null,
+      "expectedEventTimestamp": "opaque-clock-value; unit-and-format-undisclosed",
+      "expectedError": null
+    },
+    {
+      "caseId": "identical_existing_value_is_accepted",
+      "sourceTimestamp": "same-opaque-value",
+      "existingEventTimestamp": "same-opaque-value",
+      "expectedEventTimestamp": "same-opaque-value",
+      "expectedError": null
+    },
+    {
+      "caseId": "missing_timestamp_fails_closed",
+      "sourceTimestamp": "",
+      "existingEventTimestamp": null,
+      "expectedEventTimestamp": null,
+      "expectedError": "nonempty_event_timestamp_required"
+    },
+    {
+      "caseId": "conflicting_timestamp_alias_fails_closed",
+      "sourceTimestamp": "source-opaque-value",
+      "existingEventTimestamp": "different-opaque-value",
+      "expectedEventTimestamp": null,
+      "expectedError": "conflicting_event_timestamp_alias"
+    }
+  ],
+  "appOpenEventCases": [
+    {
+      "caseId": "exact_token_with_opaque_timestamp_and_package_is_accepted",
+      "sourceEventType": "AppOpenEvent",
+      "eventTimestamp": "opaque-clock-value; unit-and-format-undisclosed",
+      "appPackageName": "com.example.predictor",
+      "expectedSourceEventType": "AppOpenEvent",
+      "expectedChronicleInteractionType": "Activity Resumed",
+      "expectedError": null
+    },
+    {
+      "caseId": "case_changed_token_fails_closed",
+      "sourceEventType": "appopenevent",
+      "eventTimestamp": "opaque-clock-value",
+      "appPackageName": "com.example.predictor",
+      "expectedSourceEventType": null,
+      "expectedChronicleInteractionType": null,
+      "expectedError": "source_event_type_outside_closed_set"
+    },
+    {
+      "caseId": "missing_timestamp_fails_closed",
+      "sourceEventType": "AppOpenEvent",
+      "eventTimestamp": "",
+      "appPackageName": "com.example.predictor",
+      "expectedSourceEventType": null,
+      "expectedChronicleInteractionType": null,
+      "expectedError": "nonempty_event_timestamp_required"
+    },
+    {
+      "caseId": "missing_package_fails_closed",
+      "sourceEventType": "AppOpenEvent",
+      "eventTimestamp": "opaque-clock-value",
+      "appPackageName": "",
+      "expectedSourceEventType": null,
+      "expectedChronicleInteractionType": null,
+      "expectedError": "nonempty_app_package_name_required"
+    }
+  ],
+  "limitations": [
+    "The author rendering is represented by a locator manifest because the primary PDF bytes and full dataset are unavailable locally.",
+    "The source does not disclose timestamp unit, format, epoch, precision, timezone, or parsing rules; this fixture therefore treats the supplied timestamp as opaque and does not parse or order it.",
+    "The source names AppOpenEvent but does not disclose an AppOpenEvent payload schema or payload semantics; this fixture validates only the exact type token and the separately disclosed package label.",
+    "Activity Resumed is the current Chronicle target category of the reusable adapter, not a claimed reconstruction of an undisclosed AppOpenEvent payload.",
+    "The fixture does not infer participant identifiers, dataset row order, event completeness, session construction, feature extraction, model parameters, or output oracles.",
+    "The tombstoned aliases are retained only as owner-resolution evidence and are not canonical live setting identities in this fixture."
+  ]
+}

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, KeyboardEvent as ReactKeyboardEvent, ReactElement } from "react";
 
 import type { Primitive, Scene, SceneRegion, WaterfallSceneMeta } from "@/lib/plotScene";
-import { sceneToSvgBlob } from "@/lib/plotScene";
+import { findNearestSceneRegion, sceneToSvgBlob, textPaintX } from "@/lib/plotScene";
 import { downloadBlob } from "@/lib/download";
 import type { TimelineParticipantView } from "@/lib/types";
 import type { DemoDisplayMasker } from "@/lib/demoDisplay";
@@ -11,6 +11,7 @@ type RowTransform = { zoom: number; offset: number };
 type RowTransforms = Record<number, RowTransform>;
 
 const MAX_ROW_ZOOM = 24;
+const HOVER_HIT_RADIUS_CSS_PX = 2;
 const HIGHLIGHT_STROKE = "#f5a623";
 
 function rowAtY(meta: WaterfallSceneMeta | undefined, y: number): number | null {
@@ -56,6 +57,12 @@ function dataRowForPrimitive(meta: WaterfallSceneMeta | undefined, p: Primitive)
     if (maxX < meta.gutter - 16) return null;
     return rowAtY(meta, avgY);
   }
+  if (p.type === "text") {
+    // Only row-anchored text (a DST row's clock labels, which carry `dx`)
+    // follows its row's zoom; every other label stays where the scene puts it.
+    if (p.dx === undefined) return null;
+    return rowAtY(meta, p.y);
+  }
   return null;
 }
 
@@ -95,7 +102,7 @@ function paintPrimitive(
     ctx.font = p.font;
     ctx.textAlign = p.anchor === "start" ? "left" : p.anchor === "middle" ? "center" : "right";
     ctx.textBaseline = p.baseline === "top" ? "top" : p.baseline === "middle" ? "middle" : "alphabetic";
-    ctx.fillText(p.text, p.x, p.y);
+    ctx.fillText(p.text, textPaintX(p, meta && rowTransform ? tx : undefined), p.y);
   } else if (p.type === "line") {
     ctx.strokeStyle = p.stroke;
     ctx.lineWidth = p.strokeWidth ?? 1;
@@ -422,7 +429,13 @@ export function InteractiveScene({
     const row = rowAtY(meta, sy);
     const rowTransform = row !== null ? rowTransforms[row] : undefined;
     const hitX = meta && rowTransform ? inverseTransformX(sx, meta, rowTransform) : sx;
-    const region = view.regions.find((r) => hitX >= r.x && hitX <= r.x + r.w && sy >= r.y && sy <= r.y + r.h);
+    const horizontalScale = scale * (rowTransform?.zoom ?? 1);
+    const region = findNearestSceneRegion(
+      view.regions,
+      hitX,
+      sy,
+      HOVER_HIT_RADIUS_CSS_PX / Math.max(horizontalScale, Number.EPSILON),
+    );
     setHover(region ? { left: x + 14, top: y + 14, title: region.title, lines: region.lines } : null);
   };
 

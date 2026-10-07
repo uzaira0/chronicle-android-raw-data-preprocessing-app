@@ -1,0 +1,14 @@
+id: chronicle-tsx-eval
+snapshots:
+  const fn = new Function(body);:
+    labels:
+    - source: new Function(body)
+      style: primary
+      start: 11
+      end: 29
+  const view = <pre>{eval(source)}</pre>;:
+    labels:
+    - source: eval(source)
+      style: primary
+      start: 19
+      end: 31

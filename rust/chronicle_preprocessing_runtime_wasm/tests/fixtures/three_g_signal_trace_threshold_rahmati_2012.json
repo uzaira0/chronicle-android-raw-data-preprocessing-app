@@ -1,0 +1,51 @@
+{
+  "schemaVersion": "chronicle-three-g-signal-trace-threshold-source-fixture/v1",
+  "sourceWorkId": "doi:10.1145/2465529.2466586",
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-0f2b73dee364dc49f4044772",
+    "parameterKey": "trace.threshold.3g",
+    "sourceObservedSetting": "trace.threshold.3g: {\"technology\":\"3G\",\"poor_when\":\"RSSI < -91.7 dBm\",\"good_when\":\"RSSI >= -91.7 dBm\",\"basis\":\"Ofcom\"}",
+    "sourceValueSha256": "da151a721df5dfd96d23ee792de4065facbeba28f06d6aeafa62108b231e06ba"
+  },
+  "sourceArtifacts": [
+    {
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/work/114-raw.txt:358-390",
+      "sha256": "8dc10be1c73d1017b1c528e3a24646057bf288c60fce852ea0fe0738e5e2e17e"
+    },
+    {
+      "locator": ".tmp-literature-review-private/corrective-packet-04-ranks-074-123-20260831/fulltext/114-primary.pdf#audit-locator=114-raw.txt:358-390",
+      "sha256": "9022b28ab8725ae23e7766edda71b295d32e7e7fbe75a7e762d62db8e18ff164"
+    }
+  ],
+  "inputBoundary": "One caller-supplied finite 3G received-signal-strength value expressed in dBm from the study trace; technology selection and raw-field decoding occur before this threshold.",
+  "outputBoundary": "Classify a 3G trace value as poor only when it is strictly below -91.7 dBm; classify equality and higher values as good.",
+  "limitations": [
+    "This binding does not parse collector records, identify the Android signal field/API, select 3G rows, calibrate devices, impute missing or censored measurements, or verify the external Ofcom basis.",
+    "This binding does not calculate time fractions or participant aggregates and does not apply the paper's separate screen-on active-use selection.",
+    "The paper later uses a distinct -100 dBm 3G validation threshold; that variant is not substituted for this trace-analysis -91.7 dBm setting.",
+    "No measurement quantization, rounding, or tolerance around -91.7 dBm is inferred."
+  ],
+  "pivotDbm": -91.7,
+  "categories": {
+    "below": "poor",
+    "equal": "good",
+    "above": "good"
+  },
+  "observations": [
+    {
+      "caseId": "immediately-below-threshold",
+      "rssiDbm": -91.8,
+      "expectedClass": "poor"
+    },
+    {
+      "caseId": "exact-threshold",
+      "rssiDbm": -91.7,
+      "expectedClass": "good"
+    },
+    {
+      "caseId": "immediately-above-threshold",
+      "rssiDbm": -91.6,
+      "expectedClass": "good"
+    }
+  ]
+}

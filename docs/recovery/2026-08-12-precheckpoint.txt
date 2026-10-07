@@ -1,0 +1,178 @@
+ M .gitignore
+ M .semantic-federation/scripts/check-chronicle.py
+ M .semantic-federation/semantic/resources/chronicle-views.schema.json
+ M .semantic-federation/semantic/resources/registered-queries.json
+ M .semantic-federation/views/view-registry.json
+ M Makefile
+ M docs/METHODS.md
+ M docs/paper/b03-b05-foundational-semantics-proof-matrix.md
+ M docs/paper/b03-b05-foundational-semantics-research-decision.md
+ M rust/chronicle_chrono_kernel_wasm/Cargo.lock
+ M rust/chronicle_chrono_kernel_wasm/Cargo.toml
+ M rust/chronicle_chrono_kernel_wasm/examples/profile_pipeline_v2.rs
+ M rust/chronicle_chrono_kernel_wasm/src/eyes_complement.rs
+ M rust/chronicle_chrono_kernel_wasm/src/lib.rs
+ M rust/chronicle_chrono_kernel_wasm/src/pipeline_v2.rs
+ M rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs
+ M rust/chronicle_chrono_kernel_wasm/src/workflow_contract.rs
+ M rust/chronicle_chrono_kernel_wasm/src/workflow_contract/field_use_scan.rs
+ M rust/chronicle_preprocessing_runtime_wasm/Cargo.lock
+ M rust/chronicle_preprocessing_runtime_wasm/Cargo.toml
+ M rust/chronicle_preprocessing_runtime_wasm/examples/boundary_model.rs
+ M rust/chronicle_preprocessing_runtime_wasm/examples/profile_execute_workspace_native.rs
+ M rust/chronicle_preprocessing_runtime_wasm/src/binary_exports.rs
+ M rust/chronicle_preprocessing_runtime_wasm/src/lib.rs
+ M rust/chronicle_preprocessing_semantic_adapter/src/model.rs
+ M rust/chronicle_semantic_index_wasm/Cargo.lock
+ M rust/chronicle_semantic_index_wasm/Cargo.toml
+ M rust/chronicle_semantic_index_wasm/build.rs
+ M rust/chronicle_semantic_index_wasm/src/lib.rs
+ M rust/chronicle_semantic_index_wasm/src/perf_measurement.rs
+ M web/e2e/app.spec.ts
+ M web/openapi/chronicle-local-api.yaml
+ M web/package.json
+ M web/schema/chronicle-local-contract.linkml.yaml
+ M web/schema/chronicle-research-ontology.linkml.yaml
+ M web/schema/tools/generate_methods_doc.py
+ M web/scripts/benchmark_runtime_wasm.mts
+ M web/scripts/check_contract_consistency.mts
+ M web/scripts/check_wasm_exports.mjs
+ M web/scripts/generate_contract_artifacts.mts
+ M web/scripts/measure_binding_multiverse.mts
+ M web/scripts/measure_perf_debt.mts
+ M web/scripts/refresh_dependency_evidence.mjs
+ M web/scripts/run_field_mixed_tomography.mjs
+ M web/scripts/run_mixed_influence.mjs
+ M web/src/App.tsx
+ M web/src/components/ProcessPanel.tsx
+ M web/src/components/ProgressList.tsx
+ M web/src/components/ProjectsCard.tsx
+ M web/src/components/RawFilesCard.tsx
+ M web/src/components/ScreenDetectionCard.tsx
+ M web/src/components/SessionDetectionCard.test.ts
+ M web/src/components/SessionDetectionCard.tsx
+ M web/src/components/SettingsSearchResults.tsx
+ M web/src/components/StudyInputsCard.tsx
+ M web/src/components/ViewPanel.tsx
+ M web/src/components/review/CompareConfigDrawer.tsx
+ M web/src/lib/comparisonSupportKey.test.ts
+ M web/src/lib/comparisonSupportKey.ts
+ M web/src/lib/fileInspection.test.ts
+ M web/src/lib/fileInspection.ts
+ M web/src/lib/generatedContract.ts
+ M web/src/lib/generatedRuntimeBoundary.ts
+ M web/src/lib/lastRunStore.test.ts
+ M web/src/lib/opfsArtifactStore.test.ts
+ M web/src/lib/opfsArtifactStore.ts
+ M web/src/lib/pipelineGraph/golden/artifactInterventionCampaign.test.ts
+ M web/src/lib/pipelineGraph/golden/configurationSpaceCampaign.test.ts
+ M web/src/lib/pipelineGraph/golden/fieldMixedTomography.test.ts
+ M web/src/lib/pipelineGraph/golden/interactionTomography.test.ts
+ M web/src/lib/pipelineGraph/golden/mixedArtifactConfigurationTomography.test.ts
+ M web/src/lib/pipelineGraph/golden/rawBoundaryTomography.test.ts
+ M web/src/lib/processingUiContract.test.ts
+ M web/src/lib/processingUiContract.ts
+ M web/src/lib/progressReducer.test.ts
+ M web/src/lib/progressReducer.ts
+ M web/src/lib/projectsStore.test.ts
+ M web/src/lib/projectsStore.ts
+ M web/src/lib/runtimeBoundaryModel.test.ts
+ M web/src/lib/runtimeBoundaryModel.ts
+ M web/src/lib/rustPipelineAuthority.test.ts
+ M web/src/lib/rustPipelineAuthority.ts
+ M web/src/lib/rustPipelineRuntime.persistence.test.ts
+ M web/src/lib/rustPipelineRuntime.ts
+ M web/src/lib/rustPipelineRuntimeContract.test.ts
+ M web/src/lib/rustWorkerClient.test.ts
+ M web/src/lib/rustWorkerClient.ts
+ M web/src/lib/semanticIndex.test.ts
+ M web/src/lib/semanticIndex.ts
+ M web/src/lib/settingsPersistence.test.ts
+ M web/src/lib/settingsPersistence.ts
+ M web/src/lib/types.ts
+ M web/src/lib/workflowExplorerSupport.test.ts
+ M web/src/lib/workflowExplorerSupport.ts
+ M web/src/testSupport/artifactInterventions.ts
+ M web/src/testSupport/configurationEquivalenceClasses.ts
+ M web/src/workers/chronicle-worker.ts
+ M web/vitest.config.ts
+?? docs/paper/b06-maximum-duration-grep-weights.md
+?? docs/paper/b06-maximum-duration-proof-matrix.md
+?? docs/paper/b06-maximum-duration-research-decision.md
+?? docs/recovery/
+?? rust/chronicle_chrono_kernel_wasm/src/b05_foundational_semantics.rs
+?? rust/chronicle_chrono_kernel_wasm/tests/detached_b03_b05_oracle.rs
+?? rust/chronicle_chrono_kernel_wasm/tests/oracles/
+?? rust/chronicle_preprocessing_runtime_wasm/examples/b06_exact_options.rs
+?? rust/chronicle_preprocessing_runtime_wasm/examples/b06_json_projection.rs
+?? rust/chronicle_preprocessing_runtime_wasm/tests/b06_exact_options.rs
+?? rust/chronicle_preprocessing_runtime_wasm/tests/b06_json_projection.rs
+?? rust/chronicle_preprocessing_runtime_wasm/tests/support/
+?? rust/chronicle_semantic_index_wasm/fixtures/
+?? web/scripts/generate_b03_b05_scientific_proof_report.mts
+?? web/scripts/generate_b06_omission_fixtures.mts
+?? web/scripts/generated_path_transaction.d.mts
+?? web/scripts/generated_path_transaction.mjs
+?? web/scripts/process_tree_supervisor.d.mts
+?? web/scripts/process_tree_supervisor.mjs
+?? web/scripts/wasm_declaration_surface.d.mts
+?? web/scripts/wasm_declaration_surface.mjs
+?? web/src/components/ProgressList.test.tsx
+?? web/src/components/ProjectsCard.test.ts
+?? web/src/components/ScreenDetectionCard.test.ts
+?? web/src/components/StudyInputsCard.test.ts
+?? web/src/components/review/CompareConfigDrawer.test.tsx
+?? web/src/lib/comparisonFailures.test.ts
+?? web/src/lib/comparisonFailures.ts
+?? web/src/lib/disposableSemanticRebuild.test.ts
+?? web/src/lib/disposableSemanticRebuild.ts
+?? web/src/lib/inputCapabilityEvidence.test.ts
+?? web/src/lib/inputCapabilityEvidence.ts
+?? web/src/lib/participantPartitionLane.test.ts
+?? web/src/lib/participantPartitionLane.ts
+?? web/src/lib/projectApplication.test.ts
+?? web/src/lib/projectApplication.ts
+?? web/src/lib/rawInspectionReadiness.test.ts
+?? web/src/lib/rawInspectionReadiness.ts
+?? web/src/lib/retryExecutionBinding.test.ts
+?? web/src/lib/retryExecutionBinding.ts
+?? web/src/lib/scientificPreflightBoundary.ts
+?? web/src/lib/scientificPreflightTransport.test.ts
+?? web/src/lib/scientificPreflightTransport.ts
+?? web/src/testSupport/artifactInterventions.test.ts
+?? web/src/testSupport/b06OmissionFixtureMaterializer.ts
+?? web/src/testSupport/b06OmissionFixtures.test.ts
+?? web/src/testSupport/b06OmissionOracle.test.ts
+?? web/src/testSupport/b06OmissionOracle.ts
+?? web/src/testSupport/configurationEquivalenceClasses.test.ts
+?? web/src/testSupport/fixtures/b03-b04-duration-boundaries.csv
+?? web/src/testSupport/fixtures/b03-b05-fixture-manifest.json
+?? web/src/testSupport/fixtures/b03-b05-scientific-proof-expectations.json
+?? web/src/testSupport/fixtures/b05-input-capability-evidence.csv
+?? web/src/testSupport/fixtures/b05-screen-construction.csv
+?? web/src/testSupport/fixtures/b06-all-outputs-intersection-app-codebook.csv
+?? web/src/testSupport/fixtures/b06-all-outputs-intersection-apps-forcing-screen-open.csv
+?? web/src/testSupport/fixtures/b06-all-outputs-intersection-apps-to-filter.csv
+?? web/src/testSupport/fixtures/b06-all-outputs-intersection-background-apps.csv
+?? web/src/testSupport/fixtures/b06-all-outputs-intersection-device-sharing.csv
+?? web/src/testSupport/fixtures/b06-all-outputs-intersection-enrolled-devices.csv
+?? web/src/testSupport/fixtures/b06-all-outputs-intersection-study-dates.csv
+?? web/src/testSupport/fixtures/b06-all-outputs-intersection-survey-attribution.csv
+?? web/src/testSupport/fixtures/b06-all-outputs-intersection.csv
+?? web/src/testSupport/fixtures/b06-app-strategy-separating-input-capability-evidence.csv
+?? web/src/testSupport/fixtures/b06-app-strategy-separating-rows.csv
+?? web/src/testSupport/fixtures/b06-schoedel-b05-input-capability-evidence.csv
+?? web/src/testSupport/fixtures/eyes-fau-close-provenance.csv
+?? web/src/testSupport/fixtures/schoedel-input-capability-evidence.csv
+?? web/src/testSupport/fixtures/schoedel-prose-reconstruction.csv
+?? web/src/testSupport/generatedPathTransaction.test.ts
+?? web/src/testSupport/memoryFileSystem.ts
+?? web/src/testSupport/processTreeSupervisor.test.ts
+?? web/src/testSupport/runtimeScientificPreflightFixture.ts
+?? web/src/testSupport/scientificCampaignExecution.test.ts
+?? web/src/testSupport/scientificCampaignExecution.ts
+?? web/src/testSupport/scientificFixtureManifest.test.ts
+?? web/src/testSupport/scientificProofReportContract.test.ts
+?? web/src/testSupport/wasmDeclarationSurface.test.ts
+?? web/src/workers/semantic-rebuild-worker.ts
+7093e7bf20a568fdb970fc485d219ca3334384c9

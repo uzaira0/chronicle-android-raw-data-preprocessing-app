@@ -2,28 +2,58 @@
 # Microsoft PICT model of the browser processing-option contract.
 processAppUsage: true, false
 processScreenUsage: true, false
+eventRetentionSet: none, parrytoth7, usagelogger5, tothtrifonova, fgbgonly
+openerSet: strategydefined, resumedonly, gesisappstarts
+episodeReconstructionStrategy: fused, forward, eyes, gesis, schoedelprose
+microUseClassificationPolicy: none, okoshilt5s
 allowStopEventReuse: true, false
 useActivityStoppedAsFallback: true, false
 applyThresholdToFallback: true, false
 longDurationThresholdHours: h12, h1
+longDurationThresholdHoursExplicit: unset, true
+maximumDurationPolicy: unset, strategynative, chroniclerejection, postreconstrictmax
+maximumDurationDisposition: unset, notapplicable, flagretain, retainexclude, truncate, droprow
+maximumDurationThresholdSource: unset, strategynative, legacyconfig, fixedparameter
+maximumDurationThresholdNs: unset, ns1, ns1h, ns12h
 correctDuplicateEventTimestamps: true, false
 deduplicateExactRows: true, false
+dropOutOfSourceOrderEvents: true, false
 selectedTimezone: none, america_chicago, america_new_york
 timezoneHandling: selected_filter, selected_convert, primary_filter, primary_convert
+dayBoundaryAttribution: startday, splitmidnight
 useFilterFile: true, false
+filterMatchField: app_package_name, application_label
+applicationLabelExclusions: none, unknown_app
+packageExclusionPreset: allsuppliedrows, honorfilterflag, systemscopeonly
 useAppsForcingScreenOpenFile: true, false
 useBackgroundAppsFile: true, false
 useAppCodebook: true, false
 includeCategoryColumn: true, false
+includeAppUsageEndReason: true, false
 enableAggregates: true, false
 aggregateShape: wide, long
+aggregateTopAppsLimit: all, top5
+enableParticipantAmountSummary: true, false
 enableParquetExport: true, false
 enableSpssExport: true, false
+neutralizeSpreadsheetFormulas: true, false
 minimumUsageDuration: s0, s60
+minimumDurationComparator: strictlt, inclusivele
+minimumDurationDisposition: blankkeeprow, retaincredit, retainexclude, droprow
 filterZeroDurationSessions: true, false
+intervalQualityPolicy: none, culverhouse
+sessionGroupingPolicy: none, zerrer60s, smartphonewellbeinglt5s, ross15s, pengzhumedian
+sessionGapBasis: prevstop, runningmaxstop
+sessionBoundaryScope: participantonly, participantstudy, participantstudyperson
+emitSessionBreakLineage: true, false
 customAppEngagementDuration: s300, s0
 longUsageDurationThresholds: default, empty
 longDataTimeGapThresholds: default, empty
+screenSessionConstructionStrategy: chroniclescreenv1, parrytothscreen, zhuscreen, unlocklock, unlockofflock
+screenSessionClassificationPolicy: none, phone_check_inclusive_15s, null_no_app_strict_gt15s_vs_app
+screenSessionMaximumDurationMinutes: disabled, m60
+screenSessionMaximumDurationDisposition: none, truncate, exclude_participant
+lockedScreenAudioDisposition: include, exclude_from_phone_and_app_sessions
 screenUsageAutoLockTimeoutSeconds: s120, s0
 screenUsageAutoLockToleranceSeconds: s30, s0
 screenUsageManualLockMaxTailGapSeconds: s30, s0
@@ -33,14 +63,21 @@ otherInteractionTypesToStopUsageAt: default, empty
 modelConcurrentUsage: true, false
 applyMinimumUsageDurationToConcurrentSubintervals: true, false
 interactionTypesToRemove: none, usage_stat
+interactionTypeRemovalMode: gap_preserving, unconditional
 interactionTypeRemap: none, custom
 proximityIntervalSeconds: s2, s0, s60
 addNoActivityPlaceholderDays: true, false
 enableScreenGatedCrediting: true, false
+screenGatingRule: screenandliveness, screenonly, strictvisualonly, livenessonly
 creditedSessionCapMinutes: m360, m0
 deviceLivenessGapToleranceMinutes: m120, m0
 autoLockBridgeSeconds: s120, s0
 noWitnessMinDayApps: n2, n0
+notificationProxyRule: none, seencontact, interruptioncontact, anynotificationcontact
+polledEmulationMethod: none, rosssampledgap, ceritsamplecount
+polledEmulationIntervalSeconds: cadence10s, cadence5s, cadence60s
+polledEmulationGapSeconds: gap15s, gap0s, gap120s
+intervalExpansionMethod: none, behapp_start_anchored_half_open_1s_v1
 enableStudyWindowFilter: true, false
 enablePersonAttribution: true, false
 enableComplianceScoring: true, false
@@ -49,3 +86,9 @@ enableDayCoverage: true, false
 
 IF [timezoneHandling] IN {"selected_filter", "selected_convert"} THEN [selectedTimezone] <> "none";
 IF [timezoneHandling] IN {"primary_filter", "primary_convert"} THEN [selectedTimezone] = "none";
+IF [maximumDurationPolicy] = "unset" THEN [maximumDurationDisposition] = "unset" AND [maximumDurationThresholdSource] = "unset" AND [maximumDurationThresholdNs] = "unset";
+IF [maximumDurationPolicy] = "strategynative" THEN [maximumDurationDisposition] = "notapplicable" AND [maximumDurationThresholdSource] = "strategynative" AND [maximumDurationThresholdNs] = "unset";
+IF [maximumDurationPolicy] = "chroniclerejection" THEN [maximumDurationDisposition] = "notapplicable" AND [maximumDurationThresholdSource] = "legacyconfig" AND [maximumDurationThresholdNs] = "unset" AND [episodeReconstructionStrategy] = "fused";
+IF [maximumDurationPolicy] = "postreconstrictmax" THEN [maximumDurationDisposition] IN {"flagretain", "retainexclude", "truncate", "droprow"} AND [maximumDurationThresholdSource] = "fixedparameter" AND [maximumDurationThresholdNs] <> "unset";
+IF [screenSessionMaximumDurationDisposition] = "none" THEN [screenSessionMaximumDurationMinutes] = "disabled";
+IF [screenSessionMaximumDurationDisposition] IN {"truncate", "exclude_participant"} THEN [screenSessionMaximumDurationMinutes] <> "disabled";

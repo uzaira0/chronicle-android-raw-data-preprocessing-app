@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "chronicle-integer-screen-state-vocabulary-source-fixture/v1",
+  "sourceWorkId": "doi:10.2196/13209",
+  "canonicalSetting": {
+    "settingId": "method-setting-a0e0d56bd1a6f08372f0c3e9",
+    "parameterKey": "schema.screen_status_events",
+    "methodValue": ["on", "off", "lock", "unlock"],
+    "sourceObservedSetting": "schema.screen_status_events: [\"on\",\"off\",\"lock\",\"unlock\"]",
+    "sourceValueSha256": "d30cdf80eb3323e0c95ec0167eba324753091e8a3726fc612ca8a34ad90894ef"
+  },
+  "supersededAliases": [
+    "atomic-0d7f64c3ac2eae32f45da984",
+    "atomic-579b809536b93e15fbf889ed",
+    "atomic-6e401bbaf8941dae8ccc05a0",
+    "atomic-8cc870118b31bd07681377a9"
+  ],
+  "claimedBoundary": "parsed_event_vocabulary_only",
+  "sourceArtifacts": [
+    {
+      "role": "primary_fulltext",
+      "locator": ".tmp-literature-review-private/strict-screen-native-ranks37-73-20260831T0415Z/text/59-loneliness.txt:270-274",
+      "sha256": "4a7cb9208c6a732dba9581c2e8cf6967606a11e879882eff9522ecf8ba87874d"
+    },
+    {
+      "role": "supplement",
+      "locator": ".tmp-literature-review-private/strict-screen-native-ranks37-73-20260831T0415Z/artifacts/59-loneliness-supplement-app1.pdf",
+      "sha256": "ce277239589993af768268d53c368dbfa57ee662ddf0d3b4b344e2e941fefd1d"
+    },
+    {
+      "role": "pinned_source_archive",
+      "locator": ".tmp-literature-review-private/priority-queue-b-direct-recovery-20260831T035622Z/artifacts/aware-legacy-client-paper-era-da453af4076b.zip",
+      "sha256": "7f070a32174da049f5d864a8d0c7cf2fa096897fc4ccd905fb8638d165b4e3a5"
+    },
+    {
+      "role": "screen_collector_source",
+      "locator": "aware-core/src/main/java/com/aware/Screen.java:28-69",
+      "sha256": "a909f3d3737b6a5023861e29057d5efc3e45d891d1be41995ad10540582943f0"
+    },
+    {
+      "role": "screen_provider_source",
+      "locator": "aware-core/src/main/java/com/aware/providers/Screen_Provider.java:45-72",
+      "sha256": "dffb69fc38fad656dc22ccb72a9cf13c47cb5efe77668181a10b8c1e6e517e5e"
+    }
+  ],
+  "rawCsvLines": [
+    "_id,timestamp,device_id,screen_status",
+    "1,1470000000000.0,device-vocabulary,1",
+    "2,1470000000100.0,device-vocabulary,0",
+    "3,1470000000200.0,device-vocabulary,2",
+    "4,1470000000300.0,device-vocabulary,3"
+  ],
+  "expectedEvents": [
+    {
+      "sourceDataRow": 1,
+      "timestampNs": 1470000000000000000,
+      "deviceId": "device-vocabulary",
+      "sourceStatus": "1",
+      "methodLabel": "on",
+      "canonicalSignal": "screen_interactive"
+    },
+    {
+      "sourceDataRow": 2,
+      "timestampNs": 1470000000100000000,
+      "deviceId": "device-vocabulary",
+      "sourceStatus": "0",
+      "methodLabel": "off",
+      "canonicalSignal": "screen_non_interactive"
+    },
+    {
+      "sourceDataRow": 3,
+      "timestampNs": 1470000000200000000,
+      "deviceId": "device-vocabulary",
+      "sourceStatus": "2",
+      "methodLabel": "lock",
+      "canonicalSignal": "keyguard_shown"
+    },
+    {
+      "sourceDataRow": 4,
+      "timestampNs": 1470000000300000000,
+      "deviceId": "device-vocabulary",
+      "sourceStatus": "3",
+      "methodLabel": "unlock",
+      "canonicalSignal": "keyguard_hidden"
+    }
+  ],
+  "excludedClaims": [
+    "session_construction",
+    "interaction_duration",
+    "event_aggregation",
+    "study_specific_android_only_filtering"
+  ]
+}

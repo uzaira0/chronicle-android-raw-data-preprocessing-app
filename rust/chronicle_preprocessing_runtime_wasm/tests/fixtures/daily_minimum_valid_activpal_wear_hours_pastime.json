@@ -1,0 +1,77 @@
+{
+  "schemaVersion": "chronicle-daily-minimum-scalar-source-fixture/v1",
+  "sourceWorkId": "doi:10.1007/s10865-024-00499-x",
+  "exactCanonicalSettings": [
+    {
+      "settingId": "method-setting-atomic-6fcfc3398fe5c79806b1",
+      "parameterKey": "activpal.minimum_valid_wear_hours_day",
+      "sourceObservedSetting": "activpal.minimum_valid_wear_hours_day: 20",
+      "sourceValueSha256": "bc73c1acf61fd4bcb1ac7b3f728d8da9439c20b464f8fd185ee2dd23c2de900f"
+    },
+    {
+      "settingId": "method-setting-atomic-ac4e69c5efb7f5b6321f",
+      "parameterKey": "activpal.insufficient_wear_disposition",
+      "sourceObservedSetting": "activpal.insufficient_wear_disposition: Exclude day",
+      "sourceValueSha256": "0e541d1960a679350a5c679a39fcf836255395efd2a369067b847ddf9e938cc9"
+    }
+  ],
+  "sourceArtifact": {
+    "locator": ".tmp-literature-review-private/strict-screen-native-ranks37-73-20260831T0415Z/text/60-pastime.txt:176-177",
+    "sha256": "b1dc48785f5c0db64bb3b19349ed7304a315ea8c0abb50d9a8a5a073471bbd53"
+  },
+  "inputBoundary": "One already-derived finite, nonnegative PALanalysis-valid activPAL wear duration in hours per participant-day.",
+  "outputBoundary": "Exclude a participant-day only when valid activPAL wear is strictly below 20 hours; retain equality and larger durations.",
+  "limitations": [
+    "This binding does not reproduce PALanalysis v8.11.4.61 wear classification.",
+    "This binding does not assign activPAL observations to days or sum valid wear duration.",
+    "Android PASTime screen duration is not substituted for activPAL valid wear duration.",
+    "Missing, nonfinite, or negative wear duration fails closed rather than being interpreted as zero.",
+    "The reported two excluded days are descriptive evidence, not asserted as a fixture oracle without participant data."
+  ],
+  "minimumRetainedHours": 20.0,
+  "dispositions": ["exclude_day", "retain_day"],
+  "participantDays": [
+    {
+      "participantDayId": "zero-hours",
+      "validWearHours": 0.0,
+      "expectedDisposition": "exclude_day"
+    },
+    {
+      "participantDayId": "immediately-below",
+      "validWearHours": 19.999,
+      "expectedDisposition": "exclude_day"
+    },
+    {
+      "participantDayId": "at-boundary",
+      "validWearHours": 20.0,
+      "expectedDisposition": "retain_day"
+    },
+    {
+      "participantDayId": "above-boundary",
+      "validWearHours": 20.001,
+      "expectedDisposition": "retain_day"
+    }
+  ],
+  "rejectedParticipantDays": [
+    {
+      "participantDayId": "missing-hours",
+      "validWearHours": null,
+      "expectedError": "valid_activpal_wear_hours_required"
+    },
+    {
+      "participantDayId": "negative-hours",
+      "validWearHours": "-1",
+      "expectedError": "valid_activpal_wear_hours_must_be_finite_and_nonnegative"
+    },
+    {
+      "participantDayId": "nan-hours",
+      "validWearHours": "NaN",
+      "expectedError": "valid_activpal_wear_hours_must_be_finite_and_nonnegative"
+    },
+    {
+      "participantDayId": "infinite-hours",
+      "validWearHours": "+inf",
+      "expectedError": "valid_activpal_wear_hours_must_be_finite_and_nonnegative"
+    }
+  ]
+}

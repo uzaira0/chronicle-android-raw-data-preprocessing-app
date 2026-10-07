@@ -3,28 +3,58 @@
 [Parameter]
 processAppUsage (boolean): true,false
 processScreenUsage (boolean): true,false
+eventRetentionSet (enum): none,parrytoth7,usagelogger5,tothtrifonova,fgbgonly
+openerSet (enum): strategydefined,resumedonly,gesisappstarts
+episodeReconstructionStrategy (enum): fused,forward,eyes,gesis,schoedelprose
+microUseClassificationPolicy (enum): none,okoshilt5s
 allowStopEventReuse (boolean): true,false
 useActivityStoppedAsFallback (boolean): true,false
 applyThresholdToFallback (boolean): true,false
 longDurationThresholdHours (enum): h12,h1
+longDurationThresholdHoursExplicit (enum): unset,true
+maximumDurationPolicy (enum): unset,strategynative,chroniclerejection,postreconstrictmax
+maximumDurationDisposition (enum): unset,notapplicable,flagretain,retainexclude,truncate,droprow
+maximumDurationThresholdSource (enum): unset,strategynative,legacyconfig,fixedparameter
+maximumDurationThresholdNs (enum): unset,ns1,ns1h,ns12h
 correctDuplicateEventTimestamps (boolean): true,false
 deduplicateExactRows (boolean): true,false
+dropOutOfSourceOrderEvents (boolean): true,false
 selectedTimezone (enum): none,america_chicago,america_new_york
 timezoneHandling (enum): selected_filter,selected_convert,primary_filter,primary_convert
+dayBoundaryAttribution (enum): startday,splitmidnight
 useFilterFile (boolean): true,false
+filterMatchField (enum): app_package_name,application_label
+applicationLabelExclusions (enum): none,unknown_app
+packageExclusionPreset (enum): allsuppliedrows,honorfilterflag,systemscopeonly
 useAppsForcingScreenOpenFile (boolean): true,false
 useBackgroundAppsFile (boolean): true,false
 useAppCodebook (boolean): true,false
 includeCategoryColumn (boolean): true,false
+includeAppUsageEndReason (boolean): true,false
 enableAggregates (boolean): true,false
 aggregateShape (enum): wide,long
+aggregateTopAppsLimit (enum): all,top5
+enableParticipantAmountSummary (boolean): true,false
 enableParquetExport (boolean): true,false
 enableSpssExport (boolean): true,false
+neutralizeSpreadsheetFormulas (boolean): true,false
 minimumUsageDuration (enum): s0,s60
+minimumDurationComparator (enum): strictlt,inclusivele
+minimumDurationDisposition (enum): blankkeeprow,retaincredit,retainexclude,droprow
 filterZeroDurationSessions (boolean): true,false
+intervalQualityPolicy (enum): none,culverhouse
+sessionGroupingPolicy (enum): none,zerrer60s,smartphonewellbeinglt5s,ross15s,pengzhumedian
+sessionGapBasis (enum): prevstop,runningmaxstop
+sessionBoundaryScope (enum): participantonly,participantstudy,participantstudyperson
+emitSessionBreakLineage (boolean): true,false
 customAppEngagementDuration (enum): s300,s0
 longUsageDurationThresholds (enum): default,empty
 longDataTimeGapThresholds (enum): default,empty
+screenSessionConstructionStrategy (enum): chroniclescreenv1,parrytothscreen,zhuscreen,unlocklock,unlockofflock
+screenSessionClassificationPolicy (enum): none,phone_check_inclusive_15s,null_no_app_strict_gt15s_vs_app
+screenSessionMaximumDurationMinutes (enum): disabled,m60
+screenSessionMaximumDurationDisposition (enum): none,truncate,exclude_participant
+lockedScreenAudioDisposition (enum): include,exclude_from_phone_and_app_sessions
 screenUsageAutoLockTimeoutSeconds (enum): s120,s0
 screenUsageAutoLockToleranceSeconds (enum): s30,s0
 screenUsageManualLockMaxTailGapSeconds (enum): s30,s0
@@ -34,14 +64,21 @@ otherInteractionTypesToStopUsageAt (enum): default,empty
 modelConcurrentUsage (boolean): true,false
 applyMinimumUsageDurationToConcurrentSubintervals (boolean): true,false
 interactionTypesToRemove (enum): none,usage_stat
+interactionTypeRemovalMode (enum): gap_preserving,unconditional
 interactionTypeRemap (enum): none,custom
 proximityIntervalSeconds (enum): s2,s0,s60
 addNoActivityPlaceholderDays (boolean): true,false
 enableScreenGatedCrediting (boolean): true,false
+screenGatingRule (enum): screenandliveness,screenonly,strictvisualonly,livenessonly
 creditedSessionCapMinutes (enum): m360,m0
 deviceLivenessGapToleranceMinutes (enum): m120,m0
 autoLockBridgeSeconds (enum): s120,s0
 noWitnessMinDayApps (enum): n2,n0
+notificationProxyRule (enum): none,seencontact,interruptioncontact,anynotificationcontact
+polledEmulationMethod (enum): none,rosssampledgap,ceritsamplecount
+polledEmulationIntervalSeconds (enum): cadence10s,cadence5s,cadence60s
+polledEmulationGapSeconds (enum): gap15s,gap0s,gap120s
+intervalExpansionMethod (enum): none,behapp_start_anchored_half_open_1s_v1
 enableStudyWindowFilter (boolean): true,false
 enablePersonAttribution (boolean): true,false
 enableComplianceScoring (boolean): true,false
@@ -51,3 +88,9 @@ enableDayCoverage (boolean): true,false
 [Constraint]
 (timezoneHandling = "selected_filter" || timezoneHandling = "selected_convert") => selectedTimezone != "none"
 (timezoneHandling = "primary_filter" || timezoneHandling = "primary_convert") => selectedTimezone = "none"
+maximumDurationPolicy = "unset" => (maximumDurationDisposition = "unset" && maximumDurationThresholdSource = "unset" && maximumDurationThresholdNs = "unset")
+maximumDurationPolicy = "strategynative" => (maximumDurationDisposition = "notapplicable" && maximumDurationThresholdSource = "strategynative" && maximumDurationThresholdNs = "unset")
+maximumDurationPolicy = "chroniclerejection" => (maximumDurationDisposition = "notapplicable" && maximumDurationThresholdSource = "legacyconfig" && maximumDurationThresholdNs = "unset" && episodeReconstructionStrategy = "fused")
+maximumDurationPolicy = "postreconstrictmax" => ((maximumDurationDisposition = "flagretain" || maximumDurationDisposition = "retainexclude" || maximumDurationDisposition = "truncate" || maximumDurationDisposition = "droprow") && maximumDurationThresholdSource = "fixedparameter" && maximumDurationThresholdNs != "unset")
+screenSessionMaximumDurationDisposition = "none" => screenSessionMaximumDurationMinutes = "disabled"
+(screenSessionMaximumDurationDisposition = "truncate" || screenSessionMaximumDurationDisposition = "exclude_participant") => screenSessionMaximumDurationMinutes != "disabled"

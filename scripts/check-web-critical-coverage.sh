@@ -39,6 +39,20 @@ if [ ! -d "$WEB_DIR/node_modules" ]; then
   exit 1
 fi
 
+# The thresholds are measured with the machine-local private literature corpus
+# present. Without it the corpus-backed tests skip (web/src/testSupport/
+# privateCorpus.ts) and most of src/lib/methodProfiles.ts goes unexercised:
+# coverage falls to about 56% and the run would end in a bare threshold miss.
+# Name the cause instead.
+CORPUS_DIR="$REPO_ROOT/.tmp-literature-review-private"
+if [ ! -d "$CORPUS_DIR" ]; then
+  echo "web coverage gate: the private literature corpus is absent ($CORPUS_DIR)." >&2
+  echo "The coverage thresholds assume it is present; without it the corpus-backed" >&2
+  echo "tests skip and coverage falls below them. Run this gate where the corpus" >&2
+  echo "exists, or link it into the repository root." >&2
+  exit 1
+fi
+
 # GNU coreutils `timeout` is `gtimeout` under Homebrew on macOS. If neither is
 # present, run unbounded rather than skipping the gate, but say so — a silent
 # unbounded run is exactly the failure this backstop exists to prevent.

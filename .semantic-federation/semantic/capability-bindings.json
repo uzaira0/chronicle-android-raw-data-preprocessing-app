@@ -2,7 +2,7 @@
   "protocol_version": "0.1",
   "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1",
   "product_profile_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing",
-  "product_contract_digest": "sha256:ce4f7d309cea44fd24fcb85fb81f3cd0639ec9c6c77eb8041b6ca071659a7562",
+  "product_contract_digest": "sha256:81e857feb3c24afaf0b3bbbef63081e884a498cfaa8398a76fabfe23c8c5c61b",
   "bindings": [
     {
       "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-product-runtime",
@@ -17,6 +17,8 @@
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/episode_annotations/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/interval_cleaning/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/effective_usage/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/notification_proxy/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/polled_emulation/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/observation_window/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/attribute_person/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/day_coverage/v1",
@@ -53,7 +55,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_preprocessing_runtime_wasm",
         "entrypoint": "execute_workspace",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "projection",
       "status": "active",
@@ -76,7 +78,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "validate_remap_rules",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -99,7 +101,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "decode_source_records",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -122,7 +124,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "remove_missing_timestamps",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -145,30 +147,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "attach_device_models",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
-      },
-      "relationship": "one-to-one",
-      "status": "active",
-      "authority": true,
-      "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
-        "loss": "lossless",
-        "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
-      },
-      "notes": "Production computation authority for one exact Chronicle preprocessing query."
-    },
-    {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/bind_processing_timestamp",
-      "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/bind_processing_timestamp/v1"
-      ],
-      "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/bind_processing_timestamp",
-        "language": "rust",
-        "target": "wasm32-unknown-unknown",
-        "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-        "entrypoint": "bind_processing_timestamp",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -191,7 +170,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "canonicalize_source_rows",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -214,7 +193,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "order_source_records",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -237,7 +216,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "collect_timezone_observations",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -260,7 +239,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "estimate_dominant_timezone",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -283,7 +262,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "resolve_timezone_strategy",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -306,7 +285,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "standardize_event_clock",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -329,7 +308,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "summarize_row_selection",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -352,7 +331,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "coalesce_duplicate_event_keys",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -375,7 +354,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "summarize_duplicate_groups",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -398,7 +377,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "disambiguate_duplicate_timestamps",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -421,7 +400,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "derive_time_gap_evidence",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -444,7 +423,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "mark_app_policy_matches",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -467,7 +446,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "index_keyguard_events",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -490,7 +469,30 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "infer_screen_session_skeletons",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
+      },
+      "relationship": "one-to-one",
+      "status": "active",
+      "authority": true,
+      "evidence_projection": {
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
+        "loss": "lossless",
+        "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
+      },
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
+    },
+    {
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/construct_screen_intervals",
+      "capability_ids": [
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/construct_screen_intervals/v1"
+      ],
+      "implementation": {
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/construct_screen_intervals",
+        "language": "rust",
+        "target": "wasm32-unknown-unknown",
+        "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "construct_screen_intervals",
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -513,7 +515,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "classify_screen_sessions",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -536,7 +538,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "resolve_excluded_packages",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -559,7 +561,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "mask_excluded_app_events",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -582,7 +584,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "build_app_event_index",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -605,7 +607,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "match_app_episodes",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -628,7 +630,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "materialize_candidate_episodes",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -651,7 +653,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "classify_episode_durations",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -674,7 +676,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "apply_app_inclusion_policy",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -697,7 +699,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "order_app_episodes",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -720,7 +722,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "segment_concurrent_usage",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -743,7 +745,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "join_app_codebook",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -766,7 +768,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "derive_broad_category",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -789,7 +791,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "collapse_app_genre",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -812,7 +814,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "derive_engagement_basis",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -835,7 +837,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "apply_episode_flags",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -858,7 +860,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "suppress_excluded_timing",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -881,7 +883,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "remove_selected_interaction_types",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -904,7 +906,30 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "remove_zero_duration_rows",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
+      },
+      "relationship": "one-to-one",
+      "status": "active",
+      "authority": true,
+      "evidence_projection": {
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
+        "loss": "lossless",
+        "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
+      },
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
+    },
+    {
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/assign_usage_session_ids",
+      "capability_ids": [
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/assign_usage_session_ids/v1"
+      ],
+      "implementation": {
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/assign_usage_session_ids",
+        "language": "rust",
+        "target": "wasm32-unknown-unknown",
+        "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "assign_usage_session_ids",
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -927,7 +952,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "identify_credit_eligible_sessions",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -950,7 +975,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "build_activity_witness_indexes",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -973,7 +998,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "assess_screen_evidence_capability",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -996,7 +1021,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "summarize_daily_apps",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -1019,7 +1044,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "derive_credited_intervals",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -1042,7 +1067,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "materialize_credited_rows",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -1065,7 +1090,191 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "assemble_credit_outputs",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
+      },
+      "relationship": "one-to-one",
+      "status": "active",
+      "authority": true,
+      "evidence_projection": {
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
+        "loss": "lossless",
+        "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
+      },
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
+    },
+    {
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/select_notification_events",
+      "capability_ids": [
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/select_notification_events/v1"
+      ],
+      "implementation": {
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/select_notification_events",
+        "language": "rust",
+        "target": "wasm32-unknown-unknown",
+        "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "select_notification_events",
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
+      },
+      "relationship": "one-to-one",
+      "status": "active",
+      "authority": true,
+      "evidence_projection": {
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
+        "loss": "lossless",
+        "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
+      },
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
+    },
+    {
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/index_observed_usage_spans",
+      "capability_ids": [
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/index_observed_usage_spans/v1"
+      ],
+      "implementation": {
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/index_observed_usage_spans",
+        "language": "rust",
+        "target": "wasm32-unknown-unknown",
+        "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "index_observed_usage_spans",
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
+      },
+      "relationship": "one-to-one",
+      "status": "active",
+      "authority": true,
+      "evidence_projection": {
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
+        "loss": "lossless",
+        "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
+      },
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
+    },
+    {
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/classify_notification_contacts",
+      "capability_ids": [
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/classify_notification_contacts/v1"
+      ],
+      "implementation": {
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/classify_notification_contacts",
+        "language": "rust",
+        "target": "wasm32-unknown-unknown",
+        "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "classify_notification_contacts",
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
+      },
+      "relationship": "one-to-one",
+      "status": "active",
+      "authority": true,
+      "evidence_projection": {
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
+        "loss": "lossless",
+        "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
+      },
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
+    },
+    {
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/assemble_notification_contact_outputs",
+      "capability_ids": [
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/assemble_notification_contact_outputs/v1"
+      ],
+      "implementation": {
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/assemble_notification_contact_outputs",
+        "language": "rust",
+        "target": "wasm32-unknown-unknown",
+        "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "assemble_notification_contact_outputs",
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
+      },
+      "relationship": "one-to-one",
+      "status": "active",
+      "authority": true,
+      "evidence_projection": {
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
+        "loss": "lossless",
+        "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
+      },
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
+    },
+    {
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/sample_polled_timeline",
+      "capability_ids": [
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/sample_polled_timeline/v1"
+      ],
+      "implementation": {
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/sample_polled_timeline",
+        "language": "rust",
+        "target": "wasm32-unknown-unknown",
+        "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "sample_polled_timeline",
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
+      },
+      "relationship": "one-to-one",
+      "status": "active",
+      "authority": true,
+      "evidence_projection": {
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
+        "loss": "lossless",
+        "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
+      },
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
+    },
+    {
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/group_polled_runs",
+      "capability_ids": [
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/group_polled_runs/v1"
+      ],
+      "implementation": {
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/group_polled_runs",
+        "language": "rust",
+        "target": "wasm32-unknown-unknown",
+        "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "group_polled_runs",
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
+      },
+      "relationship": "one-to-one",
+      "status": "active",
+      "authority": true,
+      "evidence_projection": {
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
+        "loss": "lossless",
+        "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
+      },
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
+    },
+    {
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/materialize_polled_rows",
+      "capability_ids": [
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/materialize_polled_rows/v1"
+      ],
+      "implementation": {
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/materialize_polled_rows",
+        "language": "rust",
+        "target": "wasm32-unknown-unknown",
+        "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "materialize_polled_rows",
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
+      },
+      "relationship": "one-to-one",
+      "status": "active",
+      "authority": true,
+      "evidence_projection": {
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
+        "loss": "lossless",
+        "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
+      },
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
+    },
+    {
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/assemble_polled_emulation_outputs",
+      "capability_ids": [
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/assemble_polled_emulation_outputs/v1"
+      ],
+      "implementation": {
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/assemble_polled_emulation_outputs",
+        "language": "rust",
+        "target": "wasm32-unknown-unknown",
+        "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "assemble_polled_emulation_outputs",
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -1088,7 +1297,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "resolve_participant_windows",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -1111,7 +1320,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "apply_participant_windows",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -1134,7 +1343,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "resolve_sharing_status",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -1157,7 +1366,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "index_survey_responses",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -1180,7 +1389,30 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "classify_person_attribution",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
+      },
+      "relationship": "one-to-one",
+      "status": "active",
+      "authority": true,
+      "evidence_projection": {
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
+        "loss": "lossless",
+        "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
+      },
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
+    },
+    {
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/divide_sessions_at_day_boundary",
+      "capability_ids": [
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/divide_sessions_at_day_boundary/v1"
+      ],
+      "implementation": {
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/divide_sessions_at_day_boundary",
+        "language": "rust",
+        "target": "wasm32-unknown-unknown",
+        "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "divide_sessions_at_day_boundary",
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -1203,7 +1435,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "synthesize_placeholder_rows",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -1226,7 +1458,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "index_raw_dates",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -1249,7 +1481,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "build_participant_day_coverage",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -1272,7 +1504,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "aggregate_attribution_minutes",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -1295,7 +1527,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "compute_attribution_completeness",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -1318,7 +1550,30 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "classify_compliance_days",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
+      },
+      "relationship": "one-to-one",
+      "status": "active",
+      "authority": true,
+      "evidence_projection": {
+        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-query/v1",
+        "loss": "lossless",
+        "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused."
+      },
+      "notes": "Production computation authority for one exact Chronicle preprocessing query."
+    },
+    {
+      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-query/bind_processing_timestamp",
+      "capability_ids": [
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/bind_processing_timestamp/v1"
+      ],
+      "implementation": {
+        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-query/bind_processing_timestamp",
+        "language": "rust",
+        "target": "wasm32-unknown-unknown",
+        "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "bind_processing_timestamp",
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -1341,7 +1596,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "assemble_result_manifest",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -1366,6 +1621,8 @@
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/episode_annotations/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/interval_cleaning/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/effective_usage/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/notification_proxy/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/polled_emulation/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/observation_window/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/attribute_person/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/day_coverage/v1",
@@ -1375,7 +1632,6 @@
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/decode_source_records/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/remove_missing_timestamps/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/attach_device_models/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/bind_processing_timestamp/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/canonicalize_source_rows/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/order_source_records/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/collect_timezone_observations/v1",
@@ -1390,6 +1646,7 @@
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/mark_app_policy_matches/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/index_keyguard_events/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/infer_screen_session_skeletons/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/construct_screen_intervals/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/classify_screen_sessions/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/resolve_excluded_packages/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/mask_excluded_app_events/v1",
@@ -1408,6 +1665,7 @@
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/suppress_excluded_timing/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/remove_selected_interaction_types/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/remove_zero_duration_rows/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/assign_usage_session_ids/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/identify_credit_eligible_sessions/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/build_activity_witness_indexes/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/assess_screen_evidence_capability/v1",
@@ -1415,17 +1673,27 @@
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/derive_credited_intervals/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/materialize_credited_rows/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/assemble_credit_outputs/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/select_notification_events/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/index_observed_usage_spans/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/classify_notification_contacts/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/assemble_notification_contact_outputs/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/sample_polled_timeline/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/group_polled_runs/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/materialize_polled_rows/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/assemble_polled_emulation_outputs/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/resolve_participant_windows/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/apply_participant_windows/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/resolve_sharing_status/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/index_survey_responses/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/classify_person_attribution/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/divide_sessions_at_day_boundary/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/synthesize_placeholder_rows/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/index_raw_dates/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/build_participant_day_coverage/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/aggregate_attribution_minutes/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/compute_attribution_completeness/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/classify_compliance_days/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/bind_processing_timestamp/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/assemble_result_manifest/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/tracked-physical-pipeline/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/query-group-projection/v1",
@@ -1458,7 +1726,7 @@
         "target": "native-test",
         "source": "rust/chronicle_preprocessing_runtime_wasm",
         "entrypoint": "execute_workspace_native",
-        "build_digest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb"
+        "build_digest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43"
       },
       "relationship": "one-to-one",
       "status": "active",

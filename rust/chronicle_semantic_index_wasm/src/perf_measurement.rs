@@ -15,6 +15,7 @@
 //! (cd web && npm run measure:perf-debt -- \
 //!    --dump-semantic-source ../.tmp-perf-lane/semantic-source.json)
 //! CHRONICLE_SEMANTIC_INDEX_SOURCE=.tmp-perf-lane/semantic-source.json \
+//! CHRONICLE_SEMANTIC_ARTIFACT_BUNDLE=.tmp-perf-lane/semantic-bundle.bin \
 //!   cargo test --release --manifest-path rust/chronicle_semantic_index_wasm/Cargo.toml \
 //!   perf_measurement -- --ignored --nocapture
 //! ```
@@ -70,11 +71,20 @@ fn store_reconstruction_share_of_each_registered_query() {
         );
         return;
     };
+    let Ok(bundle_path) = std::env::var("CHRONICLE_SEMANTIC_ARTIFACT_BUNDLE") else {
+        eprintln!(
+            "semantic-index-perf skipped: set CHRONICLE_SEMANTIC_ARTIFACT_BUNDLE to the \
+             ordered transient validation substrate"
+        );
+        return;
+    };
     let source = std::fs::read(&path).unwrap_or_else(|error| panic!("read {path}: {error}"));
-    let index = rebuild_semantic_index_native(&source).expect("index source rebuilds");
+    let bundle =
+        std::fs::read(&bundle_path).unwrap_or_else(|error| panic!("read {bundle_path}: {error}"));
+    let index = rebuild_semantic_index_native(&source, &bundle).expect("index source rebuilds");
 
     let rebuild = samples(ITERATIONS, || {
-        let rebuilt = rebuild_semantic_index_native(&source).expect("rebuild");
+        let rebuilt = rebuild_semantic_index_native(&source, &bundle).expect("rebuild");
         std::hint::black_box(&rebuilt);
     });
     let reconstruct = samples(ITERATIONS, || {

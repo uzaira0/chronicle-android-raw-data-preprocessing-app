@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "chronicle-prepared-liwc-daily-display-hand/v1",
+  "sourceWorkId": "doi:10.2196/55999",
+  "primaryLocator": ".tmp-literature-review-private/ontology-sublation-20260831/work/e55999.txt:205-207,553-554,570-571",
+  "retainedTextSha256": "324357547dc2684c16854d03ea665ec562e3f489475915cb321c2e438755eee0",
+  "evidenceBoundary": "Constructed already-supplied daily component values and independent hand arithmetic; not clinical scoring, raw OCR or original study rows.",
+  "inputDailyValues": [
+    {
+      "day_id": " later ",
+      "input_unit": "supplied score unit",
+      "value": "2"
+    },
+    {
+      "day_id": "earlier",
+      "input_unit": "supplied score unit",
+      "value": "6"
+    }
+  ],
+  "expectedTotal": 8,
+  "expectedRatios": [
+    0.25,
+    0.75
+  ],
+  "formula": "daily component value / sum of same participant-component daily values across complete supplied study-day membership; dimensionless fraction, no100 or day-count denominator"
+}

@@ -1,0 +1,2365 @@
+{
+  "schema_version": "chronicle-source-artifact-provenance-closed-registry/v2",
+  "source_packet": {
+    "batch_id": "source-artifact-provenance-receipt-batch-1",
+    "canonical_ledger_row_count": 1806,
+    "selected_immutable_source_projection_sha256": "sha256:acc53ad3dc930ed7e3d7a3c620e7a42c7132b36f34c8966dbe4efce4ffebe297",
+    "packet_manifest_sha256": "sha256:54fe6f58398f34e66377950dfc53ba37f1225f3b7ee6255f48c22f69fdc1c10e",
+    "imported_candidate_count": 19,
+    "receipt_ready_count": 18,
+    "blocked_method_setting_ids": [
+      "method-setting-ba42e53a2bb684a034aa67e0"
+    ]
+  },
+  "profile_identities": [
+    {
+      "method_profile_id": "method-profile:doi:10.1016/j.chb.2023.107977",
+      "source_work_id": "doi:10.1016/j.chb.2023.107977",
+      "source_method_variant_id": "source-configuration-space-8b14e63d69954819163df993",
+      "method_profile_version": "literature-sublation-v3-atomic"
+    },
+    {
+      "method_profile_id": "method-profile:doi:10.1080/15213269.2020.1768122",
+      "source_work_id": "doi:10.1080/15213269.2020.1768122",
+      "source_method_variant_id": "source-configuration-space-9a5dfdec15e1a632fd9a13f4",
+      "method_profile_version": "literature-sublation-v3-atomic"
+    },
+    {
+      "method_profile_id": "method-profile:doi:10.1177/00936502241276793",
+      "source_work_id": "doi:10.1177/00936502241276793",
+      "source_method_variant_id": "source-configuration-space-e9ce7cff19d18e050e47a180",
+      "method_profile_version": "literature-sublation-v3-atomic"
+    }
+  ],
+  "rows": [
+    {
+      "method_setting_id": "method-setting-0d4c2d71ec4c6dea11ac19b0",
+      "source_work_id": "doi:10.1016/j.chb.2023.107977",
+      "source_extraction_id": "extraction-klref-missing-006",
+      "source_value_sha256": "7a4643c388629c82b98f87948f924c8c3c908230530082c95f4f36573861cb1e",
+      "source_artifact_provenance": {
+        "source_artifact_provenance_id": "source-artifact-provenance:method-setting-0d4c2d71ec4c6dea11ac19b0",
+        "artifact_role": "r_project_bundle",
+        "artifact_label": "R project bundle",
+        "artifact_locator": "https://osf.io/ckwge/",
+        "locally_validated_artifact_digest": "sha256:ede3361b6003b6436799fd4e56376b81b581d9079026c2440cd63380293dc811",
+        "digest_scope": "parent_bundle_bytes",
+        "member_selector": {
+          "selector_type": "entire_project_archive",
+          "project_root": "SmartphoneUsage_Wellbeing/",
+          "r_project_descriptor_member": "SmartphoneUsage_Wellbeing/SmartphoneUsage_Wellbeing.Rproj"
+        },
+        "artifact_availability": "retrieved_locally_as_content_addressed_project_bundle",
+        "source_locators": [
+          ".tmp-literature-review-private/final-exact-primary-http-wave-20260830T214500Z/artifact-manifest.jsonl#lines=3-5"
+        ]
+      },
+      "source_artifact_provenance_object_digest": "sha256:65adeeeadd92813fe87adb167d23f536ce49152087b9ea410a1c3ca3692f3708",
+      "provenance_keys": [
+        "artifact_availability",
+        "artifact_label",
+        "artifact_locator",
+        "artifact_role",
+        "digest_scope",
+        "locally_validated_artifact_digest",
+        "member_selector",
+        "source_artifact_provenance_id",
+        "source_locators"
+      ],
+      "candidate_status": "ready_for_typed_registry"
+    },
+    {
+      "method_setting_id": "method-setting-1ce84459a202125a3df07aef",
+      "source_work_id": "doi:10.1016/j.chb.2023.107977",
+      "source_extraction_id": "extraction-klref-missing-006",
+      "source_value_sha256": "7a4643c388629c82b98f87948f924c8c3c908230530082c95f4f36573861cb1e",
+      "source_artifact_provenance": {
+        "source_artifact_provenance_id": "source-artifact-provenance:method-setting-1ce84459a202125a3df07aef",
+        "artifact_role": "supplement",
+        "artifact_label": "supplement",
+        "artifact_locator": "https://osf.io/ckwge/",
+        "locally_validated_artifact_digest": "sha256:12a11e0640040e9f6fe92eca6ed29c94b9a404b3f2cb4087fbd25b819ee725b6",
+        "digest_scope": "exact_file_bytes",
+        "member_selector": {
+          "selector_type": "entire_file",
+          "artifact_evidence_path": ".tmp-literature-review-private/authenticated-cookie-recovery-wave-20260830/retrieved/keep-on-scrolling-2024/artifacts/Online_Supplemental_Material.pdf"
+        },
+        "artifact_availability": "retrieved_locally",
+        "source_locators": [
+          ".tmp-literature-review-private/final-exact-primary-http-wave-20260830T214500Z/artifact-manifest.jsonl#lines=3-5"
+        ]
+      },
+      "source_artifact_provenance_object_digest": "sha256:19dcbda6458ac20062093636f16a5b755d2e6451266e7a850f0d6f852152146f",
+      "provenance_keys": [
+        "artifact_availability",
+        "artifact_label",
+        "artifact_locator",
+        "artifact_role",
+        "digest_scope",
+        "locally_validated_artifact_digest",
+        "member_selector",
+        "source_artifact_provenance_id",
+        "source_locators"
+      ],
+      "candidate_status": "ready_for_typed_registry"
+    },
+    {
+      "method_setting_id": "method-setting-7191ddb64f3e91420f823906",
+      "source_work_id": "doi:10.1016/j.chb.2023.107977",
+      "source_extraction_id": "extraction-klref-missing-006",
+      "source_value_sha256": "7a4643c388629c82b98f87948f924c8c3c908230530082c95f4f36573861cb1e",
+      "source_artifact_provenance": {
+        "source_artifact_provenance_id": "source-artifact-provenance:method-setting-7191ddb64f3e91420f823906",
+        "artifact_role": "environment_lockfile",
+        "artifact_label": "environment lockfile",
+        "artifact_locator": "https://osf.io/ckwge/",
+        "locally_validated_artifact_digest": "sha256:35c4f8e9279c8f454a37d159c24562b055a7faac6b0ed388e8dd2303ffdf4329",
+        "digest_scope": "exact_zip_member_bytes",
+        "member_selector": {
+          "selector_type": "exact_zip_member",
+          "container_digest": "sha256:ede3361b6003b6436799fd4e56376b81b581d9079026c2440cd63380293dc811",
+          "member_path": "SmartphoneUsage_Wellbeing/renv.lock"
+        },
+        "artifact_availability": "retrieved_locally",
+        "source_locators": [
+          ".tmp-literature-review-private/final-exact-primary-http-wave-20260830T214500Z/artifact-manifest.jsonl#lines=3-5"
+        ]
+      },
+      "source_artifact_provenance_object_digest": "sha256:636fa36caeb02e66fdd72783d0e04b44c6aee30d4a67a197aaf5cc8beaf16482",
+      "provenance_keys": [
+        "artifact_availability",
+        "artifact_label",
+        "artifact_locator",
+        "artifact_role",
+        "digest_scope",
+        "locally_validated_artifact_digest",
+        "member_selector",
+        "source_artifact_provenance_id",
+        "source_locators"
+      ],
+      "candidate_status": "ready_for_typed_registry"
+    },
+    {
+      "method_setting_id": "method-setting-8784cdd628a262e0ef3721b6",
+      "source_work_id": "doi:10.1016/j.chb.2023.107977",
+      "source_extraction_id": "extraction-klref-missing-006",
+      "source_value_sha256": "7a4643c388629c82b98f87948f924c8c3c908230530082c95f4f36573861cb1e",
+      "source_artifact_provenance": {
+        "source_artifact_provenance_id": "source-artifact-provenance:method-setting-8784cdd628a262e0ef3721b6",
+        "artifact_role": "codebook",
+        "artifact_label": "codebook",
+        "artifact_locator": "https://osf.io/ckwge/",
+        "locally_validated_artifact_digest": "sha256:c17f677d7f8d8b0a03e7c8b9c42fa1bf6aaa8ecae44470ea7e366ce68fa5b6d8",
+        "digest_scope": "exact_file_bytes",
+        "member_selector": {
+          "selector_type": "entire_file",
+          "artifact_evidence_path": ".tmp-literature-review-private/authenticated-cookie-recovery-wave-20260830/retrieved/keep-on-scrolling-2024/artifacts/Codebook.html"
+        },
+        "artifact_availability": "retrieved_locally",
+        "source_locators": [
+          ".tmp-literature-review-private/final-exact-primary-http-wave-20260830T214500Z/artifact-manifest.jsonl#lines=3-5"
+        ]
+      },
+      "source_artifact_provenance_object_digest": "sha256:c4f7f9fd83de6acc70cefd41f8237f72a2d8fbb96126888450d8eb56be1cf24d",
+      "provenance_keys": [
+        "artifact_availability",
+        "artifact_label",
+        "artifact_locator",
+        "artifact_role",
+        "digest_scope",
+        "locally_validated_artifact_digest",
+        "member_selector",
+        "source_artifact_provenance_id",
+        "source_locators"
+      ],
+      "candidate_status": "ready_for_typed_registry"
+    },
+    {
+      "method_setting_id": "method-setting-9ad33f2c2ab0d4c453511616",
+      "source_work_id": "doi:10.1016/j.chb.2023.107977",
+      "source_extraction_id": "extraction-klref-missing-006",
+      "source_value_sha256": "7a4643c388629c82b98f87948f924c8c3c908230530082c95f4f36573861cb1e",
+      "source_artifact_provenance": {
+        "source_artifact_provenance_id": "source-artifact-provenance:method-setting-9ad33f2c2ab0d4c453511616",
+        "artifact_role": "aggregated_dataset",
+        "artifact_label": "aggregated RDS data",
+        "artifact_locator": "https://osf.io/ckwge/",
+        "locally_validated_artifact_digest": "sha256:079dd99dd15d8e34a54bf5b3dd0a9e61fad6ee18f6f062e5d5da4b742266f288",
+        "digest_scope": "canonical_member_collection",
+        "member_selector": {
+          "selector_type": "canonical_collection_manifest",
+          "collection_manifest_id": "collection:schoedel-aggregated-rds",
+          "member_count": 6
+        },
+        "artifact_availability": "retrieved_as_validated_file_collection",
+        "source_locators": [
+          ".tmp-literature-review-private/final-exact-primary-http-wave-20260830T214500Z/artifact-manifest.jsonl#lines=3-5"
+        ]
+      },
+      "source_artifact_provenance_object_digest": "sha256:204893b79e276e7b5385b66a7596549dc6a5648f924b6c4d6cdc715295307c7d",
+      "provenance_keys": [
+        "artifact_availability",
+        "artifact_label",
+        "artifact_locator",
+        "artifact_role",
+        "digest_scope",
+        "locally_validated_artifact_digest",
+        "member_selector",
+        "source_artifact_provenance_id",
+        "source_locators"
+      ],
+      "candidate_status": "ready_for_typed_registry"
+    },
+    {
+      "method_setting_id": "method-setting-b8725165fc97aa16c5370d0c",
+      "source_work_id": "doi:10.1016/j.chb.2023.107977",
+      "source_extraction_id": "extraction-klref-missing-006",
+      "source_value_sha256": "7a4643c388629c82b98f87948f924c8c3c908230530082c95f4f36573861cb1e",
+      "source_artifact_provenance": {
+        "source_artifact_provenance_id": "source-artifact-provenance:method-setting-b8725165fc97aa16c5370d0c",
+        "artifact_role": "preprocessing_script",
+        "artifact_label": "screen-session preprocessing",
+        "artifact_locator": "https://osf.io/ckwge/",
+        "locally_validated_artifact_digest": "sha256:ca5d3052b4a30e9a62ae046e57c890196fff1f84157b02ea324b4b0ae1c2b797",
+        "digest_scope": "exact_zip_member_bytes",
+        "member_selector": {
+          "selector_type": "exact_zip_member",
+          "container_digest": "sha256:ede3361b6003b6436799fd4e56376b81b581d9079026c2440cd63380293dc811",
+          "member_path": "SmartphoneUsage_Wellbeing/scripts/featureExtraction/screen/Screen_preprocessing.R"
+        },
+        "artifact_availability": "retrieved_locally",
+        "source_locators": [
+          ".tmp-literature-review-private/final-exact-primary-http-wave-20260830T214500Z/artifact-manifest.jsonl#lines=3-5"
+        ]
+      },
+      "source_artifact_provenance_object_digest": "sha256:5663d8868d629e7b7c4e846c4c254e2fd7705e2c59b47e166093672b134592fd",
+      "provenance_keys": [
+        "artifact_availability",
+        "artifact_label",
+        "artifact_locator",
+        "artifact_role",
+        "digest_scope",
+        "locally_validated_artifact_digest",
+        "member_selector",
+        "source_artifact_provenance_id",
+        "source_locators"
+      ],
+      "candidate_status": "ready_for_typed_registry"
+    },
+    {
+      "method_setting_id": "method-setting-ecf5969e73f0624e3a83647f",
+      "source_work_id": "doi:10.1016/j.chb.2023.107977",
+      "source_extraction_id": "extraction-klref-missing-006",
+      "source_value_sha256": "7a4643c388629c82b98f87948f924c8c3c908230530082c95f4f36573861cb1e",
+      "source_artifact_provenance": {
+        "source_artifact_provenance_id": "source-artifact-provenance:method-setting-ecf5969e73f0624e3a83647f",
+        "artifact_role": "analysis_script_collection",
+        "artifact_label": "analyses",
+        "artifact_locator": "https://osf.io/ckwge/",
+        "locally_validated_artifact_digest": "sha256:d5c46f04ba238b62185c85304ff1b7fff812bb8f4a26cf6f9cec1f58cd7737ae",
+        "digest_scope": "canonical_member_collection",
+        "member_selector": {
+          "selector_type": "canonical_collection_manifest",
+          "collection_manifest_id": "collection:schoedel-analysis-r-scripts",
+          "member_count": 27
+        },
+        "artifact_availability": "retrieved_as_validated_file_collection",
+        "source_locators": [
+          ".tmp-literature-review-private/final-exact-primary-http-wave-20260830T214500Z/artifact-manifest.jsonl#lines=3-5"
+        ]
+      },
+      "source_artifact_provenance_object_digest": "sha256:d25ad1f7439e9e69a8030403426874242b3be38634e136d6a7efdcb2a54c219d",
+      "provenance_keys": [
+        "artifact_availability",
+        "artifact_label",
+        "artifact_locator",
+        "artifact_role",
+        "digest_scope",
+        "locally_validated_artifact_digest",
+        "member_selector",
+        "source_artifact_provenance_id",
+        "source_locators"
+      ],
+      "candidate_status": "ready_for_typed_registry"
+    },
+    {
+      "method_setting_id": "method-setting-fd0ed097f31a4ca52ef32dac",
+      "source_work_id": "doi:10.1016/j.chb.2023.107977",
+      "source_extraction_id": "extraction-klref-missing-006",
+      "source_value_sha256": "7a4643c388629c82b98f87948f924c8c3c908230530082c95f4f36573861cb1e",
+      "source_artifact_provenance": {
+        "source_artifact_provenance_id": "source-artifact-provenance:method-setting-fd0ed097f31a4ca52ef32dac",
+        "artifact_role": "feature_extraction_script_collection",
+        "artifact_label": "feature-extraction scripts",
+        "artifact_locator": "https://osf.io/ckwge/",
+        "locally_validated_artifact_digest": "sha256:091747da9a6c4e8a84d3eeac5e54dab227c42d8ec30be27e1ec0562da5490cf9",
+        "digest_scope": "canonical_member_collection",
+        "member_selector": {
+          "selector_type": "canonical_collection_manifest",
+          "collection_manifest_id": "collection:schoedel-feature-extraction-r-scripts",
+          "member_count": 22
+        },
+        "artifact_availability": "retrieved_as_validated_file_collection",
+        "source_locators": [
+          ".tmp-literature-review-private/final-exact-primary-http-wave-20260830T214500Z/artifact-manifest.jsonl#lines=3-5"
+        ]
+      },
+      "source_artifact_provenance_object_digest": "sha256:a6e0386b6249b2e97c05cd4aa69e80680077b34f56eb38f86dec5cf139880c7d",
+      "provenance_keys": [
+        "artifact_availability",
+        "artifact_label",
+        "artifact_locator",
+        "artifact_role",
+        "digest_scope",
+        "locally_validated_artifact_digest",
+        "member_selector",
+        "source_artifact_provenance_id",
+        "source_locators"
+      ],
+      "candidate_status": "ready_for_typed_registry"
+    },
+    {
+      "method_setting_id": "method-setting-193fe7441ca9f260300a2077",
+      "source_work_id": "doi:10.1080/15213269.2020.1768122",
+      "source_extraction_id": "extraction-klref-missing-010",
+      "source_value_sha256": "5d0ec0e9f38ffa2c37056fb0ba8333b6c94a88a67e7ada0f8515f9d75d1687b0",
+      "source_artifact_provenance": {
+        "source_artifact_provenance_id": "source-artifact-provenance:method-setting-193fe7441ca9f260300a2077",
+        "artifact_role": "study_materials",
+        "artifact_label": "materials",
+        "artifact_locator": "https://osf.io/n6d8k/",
+        "artifact_availability": "reported_remote_contents_unavailable",
+        "source_locators": [
+          ".tmp-literature-review-private/screened-include-oa-recovery-wave/texts/208-WYR8XW2N-the-relationship-between-online-vigilance-and-affective-well-being-in-ev.txt#lines=378-381,402-406"
+        ]
+      },
+      "source_artifact_provenance_object_digest": "sha256:e78b317bfb97a593352f75d3d5e371c770d3adeea32da3e3ecf8792f1ad93031",
+      "provenance_keys": [
+        "artifact_availability",
+        "artifact_label",
+        "artifact_locator",
+        "artifact_role",
+        "source_artifact_provenance_id",
+        "source_locators"
+      ],
+      "candidate_status": "ready_for_typed_registry"
+    },
+    {
+      "method_setting_id": "method-setting-5b8dbff278b99efcac28644c",
+      "source_work_id": "doi:10.1080/15213269.2020.1768122",
+      "source_extraction_id": "extraction-klref-missing-010",
+      "source_value_sha256": "5d0ec0e9f38ffa2c37056fb0ba8333b6c94a88a67e7ada0f8515f9d75d1687b0",
+      "source_artifact_provenance": {
+        "source_artifact_provenance_id": "source-artifact-provenance:method-setting-5b8dbff278b99efcac28644c",
+        "artifact_role": "preregistration",
+        "artifact_label": "preregistration",
+        "artifact_locator": "https://osf.io/n6d8k/",
+        "artifact_availability": "reported_remote_contents_unavailable",
+        "source_locators": [
+          ".tmp-literature-review-private/screened-include-oa-recovery-wave/texts/208-WYR8XW2N-the-relationship-between-online-vigilance-and-affective-well-being-in-ev.txt#lines=378-381,402-406"
+        ]
+      },
+      "source_artifact_provenance_object_digest": "sha256:0194daf7c032a929657f860e0730a01040222db0ef65dfce88ad306b41b5e091",
+      "provenance_keys": [
+        "artifact_availability",
+        "artifact_label",
+        "artifact_locator",
+        "artifact_role",
+        "source_artifact_provenance_id",
+        "source_locators"
+      ],
+      "candidate_status": "ready_for_typed_registry"
+    },
+    {
+      "method_setting_id": "method-setting-805ed1a8c3e1f23ca53c03c4",
+      "source_work_id": "doi:10.1080/15213269.2020.1768122",
+      "source_extraction_id": "extraction-klref-missing-010",
+      "source_value_sha256": "5d0ec0e9f38ffa2c37056fb0ba8333b6c94a88a67e7ada0f8515f9d75d1687b0",
+      "source_artifact_provenance": {
+        "source_artifact_provenance_id": "source-artifact-provenance:method-setting-805ed1a8c3e1f23ca53c03c4",
+        "artifact_role": "supplementary_decision_record",
+        "artifact_label": "supplementary decisions",
+        "artifact_locator": "https://osf.io/n6d8k/",
+        "artifact_availability": "reported_remote_contents_unavailable",
+        "source_locators": [
+          ".tmp-literature-review-private/screened-include-oa-recovery-wave/texts/208-WYR8XW2N-the-relationship-between-online-vigilance-and-affective-well-being-in-ev.txt#lines=378-381,402-406"
+        ]
+      },
+      "source_artifact_provenance_object_digest": "sha256:be3647b275c594e616d02f13ec4cd6df881cb1217b2c314c0cf80effb5d9541c",
+      "provenance_keys": [
+        "artifact_availability",
+        "artifact_label",
+        "artifact_locator",
+        "artifact_role",
+        "source_artifact_provenance_id",
+        "source_locators"
+      ],
+      "candidate_status": "ready_for_typed_registry"
+    },
+    {
+      "method_setting_id": "method-setting-b8dfec0b479a14fe48ec1286",
+      "source_work_id": "doi:10.1080/15213269.2020.1768122",
+      "source_extraction_id": "extraction-klref-missing-010",
+      "source_value_sha256": "5d0ec0e9f38ffa2c37056fb0ba8333b6c94a88a67e7ada0f8515f9d75d1687b0",
+      "source_artifact_provenance": {
+        "source_artifact_provenance_id": "source-artifact-provenance:method-setting-b8dfec0b479a14fe48ec1286",
+        "artifact_role": "research_data",
+        "artifact_label": "data",
+        "artifact_locator": "https://osf.io/n6d8k/",
+        "artifact_availability": "reported_remote_contents_unavailable",
+        "source_locators": [
+          ".tmp-literature-review-private/screened-include-oa-recovery-wave/texts/208-WYR8XW2N-the-relationship-between-online-vigilance-and-affective-well-being-in-ev.txt#lines=378-381,402-406"
+        ]
+      },
+      "source_artifact_provenance_object_digest": "sha256:49984c961307d29e60a0fd6d2d4a84a088912b41321ededfd5adca07bea8a77c",
+      "provenance_keys": [
+        "artifact_availability",
+        "artifact_label",
+        "artifact_locator",
+        "artifact_role",
+        "source_artifact_provenance_id",
+        "source_locators"
+      ],
+      "candidate_status": "ready_for_typed_registry"
+    },
+    {
+      "method_setting_id": "method-setting-cf498455098ca710aeb4e05c",
+      "source_work_id": "doi:10.1080/15213269.2020.1768122",
+      "source_extraction_id": "extraction-klref-missing-010",
+      "source_value_sha256": "5d0ec0e9f38ffa2c37056fb0ba8333b6c94a88a67e7ada0f8515f9d75d1687b0",
+      "source_artifact_provenance": {
+        "source_artifact_provenance_id": "source-artifact-provenance:method-setting-cf498455098ca710aeb4e05c",
+        "artifact_role": "analysis_script_collection",
+        "artifact_label": "analysis scripts",
+        "artifact_locator": "https://osf.io/n6d8k/",
+        "artifact_availability": "reported_remote_contents_unavailable",
+        "source_locators": [
+          ".tmp-literature-review-private/screened-include-oa-recovery-wave/texts/208-WYR8XW2N-the-relationship-between-online-vigilance-and-affective-well-being-in-ev.txt#lines=378-381,402-406"
+        ]
+      },
+      "source_artifact_provenance_object_digest": "sha256:385a700199da2193f212ee7894e0348f1d1b9068724fbebb20e3f96eebc618b3",
+      "provenance_keys": [
+        "artifact_availability",
+        "artifact_label",
+        "artifact_locator",
+        "artifact_role",
+        "source_artifact_provenance_id",
+        "source_locators"
+      ],
+      "candidate_status": "ready_for_typed_registry"
+    },
+    {
+      "method_setting_id": "method-setting-34f8536e3b57d70774705d4a",
+      "source_work_id": "doi:10.1177/00936502241276793",
+      "source_extraction_id": "extraction-klref-missing-004",
+      "source_value_sha256": "48257729bce0d59061501da2016099d052f53cf83afd200ae3a2e73f29371afe",
+      "source_artifact_provenance": {
+        "source_artifact_provenance_id": "source-artifact-provenance:method-setting-34f8536e3b57d70774705d4a",
+        "artifact_role": "r_syntax_collection",
+        "artifact_label": "R syntaxes",
+        "artifact_locator": "https://osf.io/tpj98/",
+        "locally_validated_artifact_digest": "sha256:580466785b9114836d2f285339ae270157eec1599d89a0b78d82846f30ee0514",
+        "digest_scope": "canonical_member_collection",
+        "member_selector": {
+          "selector_type": "canonical_collection_manifest",
+          "collection_manifest_id": "collection:siebers-osf-r-syntaxes",
+          "member_count": 10
+        },
+        "artifact_availability": "retrieved_as_validated_file_collection",
+        "source_locators": [
+          ".tmp-literature-review-private/same-chronicle-objective-log-recovery-wave-20260830T200649Z/evidence/adolescents-digital-nightlife-2024/fulltext.txt#lines=509-515; .tmp-literature-review-private/same-chronicle-objective-log-recovery-wave-20260830T200649Z/artifact-routes.jsonl#lines=26-28"
+        ]
+      },
+      "source_artifact_provenance_object_digest": "sha256:874f78a7e7d2d3d5ab2b959275f8dd02417477c4e3290751fc17b7cf3021b742",
+      "provenance_keys": [
+        "artifact_availability",
+        "artifact_label",
+        "artifact_locator",
+        "artifact_role",
+        "digest_scope",
+        "locally_validated_artifact_digest",
+        "member_selector",
+        "source_artifact_provenance_id",
+        "source_locators"
+      ],
+      "candidate_status": "ready_for_typed_registry"
+    },
+    {
+      "method_setting_id": "method-setting-50bd8fc18948c9e9c00f2e3c",
+      "source_work_id": "doi:10.1177/00936502241276793",
+      "source_extraction_id": "extraction-klref-missing-004",
+      "source_value_sha256": "48257729bce0d59061501da2016099d052f53cf83afd200ae3a2e73f29371afe",
+      "source_artifact_provenance": {
+        "source_artifact_provenance_id": "source-artifact-provenance:method-setting-50bd8fc18948c9e9c00f2e3c",
+        "artifact_role": "mplus_syntax_collection",
+        "artifact_label": "Mplus syntaxes",
+        "artifact_locator": "https://osf.io/tpj98/",
+        "locally_validated_artifact_digest": "sha256:c3801237398911deeb6201c7869f675ec34cc3a189bfd053b00c592b4dbbf326",
+        "digest_scope": "canonical_member_collection",
+        "member_selector": {
+          "selector_type": "canonical_collection_manifest",
+          "collection_manifest_id": "collection:siebers-osf-mplus-input-syntaxes",
+          "member_count": 28
+        },
+        "artifact_availability": "retrieved_as_validated_file_collection",
+        "artifact_relationship": {
+          "relationship_type": "osf_mounted_github_provider_direct_member_acquisition",
+          "osf_node_id": "tpj98",
+          "osf_provider": "github",
+          "relationship_evidence_scope": "All 28 Mplus members acquired and hashed from OSF provider download links; the separate GitHub branch snapshot is not used as content-verification evidence for this assertion",
+          "osf_provider_member_paths_acquired": 28,
+          "repository_and_commit_identity_status": "unresolved_in_preserved_osf_provider_metadata"
+        },
+        "source_locators": [
+          ".tmp-literature-review-private/same-chronicle-objective-log-recovery-wave-20260830T200649Z/evidence/adolescents-digital-nightlife-2024/fulltext.txt#lines=509-515; .tmp-literature-review-private/same-chronicle-objective-log-recovery-wave-20260830T200649Z/artifact-routes.jsonl#lines=26-28"
+        ]
+      },
+      "source_artifact_provenance_object_digest": "sha256:24a9244f3de8fcd654f08b106ee22e5356f471b316037f724acbcf8c3a6bcecb",
+      "provenance_keys": [
+        "artifact_availability",
+        "artifact_label",
+        "artifact_locator",
+        "artifact_relationship",
+        "artifact_role",
+        "digest_scope",
+        "locally_validated_artifact_digest",
+        "member_selector",
+        "source_artifact_provenance_id",
+        "source_locators"
+      ],
+      "candidate_status": "ready_for_typed_registry"
+    },
+    {
+      "method_setting_id": "method-setting-5b818543f0912f925ede6377",
+      "source_work_id": "doi:10.1177/00936502241276793",
+      "source_extraction_id": "extraction-klref-missing-004",
+      "source_value_sha256": "48257729bce0d59061501da2016099d052f53cf83afd200ae3a2e73f29371afe",
+      "source_artifact_provenance": {
+        "source_artifact_provenance_id": "source-artifact-provenance:method-setting-5b818543f0912f925ede6377",
+        "artifact_role": "anonymized_dataset",
+        "artifact_label": "anonymized dataset",
+        "artifact_locator": "https://doi.org/10.21942/uva.26395903.v2",
+        "artifact_version": "2",
+        "locally_validated_artifact_digest": "sha256:f8794b53d1ddaa1937aba8f96efa8492a310cd3273fb532749b1553e5ff8ec0c",
+        "digest_scope": "canonical_member_collection",
+        "member_selector": {
+          "selector_type": "canonical_collection_manifest",
+          "collection_manifest_id": "collection:siebers-figshare-analysis-csv",
+          "member_count": 5
+        },
+        "artifact_availability": "retrieved_as_validated_file_collection",
+        "artifact_relationship": {
+          "relationship_type": "figshare_versioned_dataset",
+          "figshare_article_locator": "https://figshare.com/articles/dataset/Adolescents_Digital_Nightlife/26395903",
+          "version_doi": "10.21942/uva.26395903.v2",
+          "file_inventory_count": 5
+        },
+        "source_locators": [
+          ".tmp-literature-review-private/same-chronicle-objective-log-recovery-wave-20260830T200649Z/evidence/adolescents-digital-nightlife-2024/fulltext.txt#lines=509-515; .tmp-literature-review-private/same-chronicle-objective-log-recovery-wave-20260830T200649Z/artifact-routes.jsonl#lines=26-28"
+        ]
+      },
+      "source_artifact_provenance_object_digest": "sha256:d69b928d4433ab0140fdc3322260bcd3bce16d63674087dffdd55fd5e6b034bc",
+      "provenance_keys": [
+        "artifact_availability",
+        "artifact_label",
+        "artifact_locator",
+        "artifact_relationship",
+        "artifact_role",
+        "artifact_version",
+        "digest_scope",
+        "locally_validated_artifact_digest",
+        "member_selector",
+        "source_artifact_provenance_id",
+        "source_locators"
+      ],
+      "candidate_status": "ready_for_typed_registry"
+    },
+    {
+      "method_setting_id": "method-setting-6461e3e0ac917a0bd7d12b02",
+      "source_work_id": "doi:10.1177/00936502241276793",
+      "source_extraction_id": "extraction-klref-missing-004",
+      "source_value_sha256": "48257729bce0d59061501da2016099d052f53cf83afd200ae3a2e73f29371afe",
+      "source_artifact_provenance": {
+        "source_artifact_provenance_id": "source-artifact-provenance:method-setting-6461e3e0ac917a0bd7d12b02",
+        "artifact_role": "dataset_repository",
+        "artifact_label": "Figshare",
+        "artifact_locator": "https://doi.org/10.21942/uva.26395903.v2",
+        "artifact_version": "2",
+        "locally_validated_artifact_digest": "sha256:f8794b53d1ddaa1937aba8f96efa8492a310cd3273fb532749b1553e5ff8ec0c",
+        "digest_scope": "canonical_member_collection",
+        "member_selector": {
+          "selector_type": "canonical_collection_manifest",
+          "collection_manifest_id": "collection:siebers-figshare-analysis-csv",
+          "member_count": 5
+        },
+        "artifact_availability": "retrieved_as_validated_file_collection",
+        "artifact_relationship": {
+          "relationship_type": "figshare_versioned_dataset",
+          "figshare_article_locator": "https://figshare.com/articles/dataset/Adolescents_Digital_Nightlife/26395903",
+          "version_doi": "10.21942/uva.26395903.v2",
+          "file_inventory_count": 5
+        },
+        "source_locators": [
+          ".tmp-literature-review-private/same-chronicle-objective-log-recovery-wave-20260830T200649Z/evidence/adolescents-digital-nightlife-2024/fulltext.txt#lines=509-515; .tmp-literature-review-private/same-chronicle-objective-log-recovery-wave-20260830T200649Z/artifact-routes.jsonl#lines=26-28"
+        ]
+      },
+      "source_artifact_provenance_object_digest": "sha256:01ed10bcfeceb3cf4ce59e7fc63ea8568b9625531c001367538ff3fa49c66cf7",
+      "provenance_keys": [
+        "artifact_availability",
+        "artifact_label",
+        "artifact_locator",
+        "artifact_relationship",
+        "artifact_role",
+        "artifact_version",
+        "digest_scope",
+        "locally_validated_artifact_digest",
+        "member_selector",
+        "source_artifact_provenance_id",
+        "source_locators"
+      ],
+      "candidate_status": "ready_for_typed_registry"
+    },
+    {
+      "method_setting_id": "method-setting-9735d942bd2a5dc924a00eaf",
+      "source_work_id": "doi:10.1177/00936502241276793",
+      "source_extraction_id": "extraction-klref-missing-004",
+      "source_value_sha256": "48257729bce0d59061501da2016099d052f53cf83afd200ae3a2e73f29371afe",
+      "source_artifact_provenance": {
+        "source_artifact_provenance_id": "source-artifact-provenance:method-setting-9735d942bd2a5dc924a00eaf",
+        "artifact_role": "source_code_repository_snapshot",
+        "artifact_label": "GitHub main-branch snapshot",
+        "artifact_locator": "https://github.com/TeunSiebers/study-sleep",
+        "locally_validated_artifact_digest": "sha256:5799a15a4d5d58891049dadfdcec354806af58c4c8044c610954e8a4d941e5c4",
+        "digest_scope": "parent_bundle_bytes",
+        "member_selector": {
+          "selector_type": "entire_archive",
+          "source_ref": "refs/heads/main",
+          "acquired_at_utc": "2026-08-30T20:00:00Z"
+        },
+        "artifact_availability": "retrieved_locally_as_content_addressed_branch_snapshot",
+        "source_locators": [
+          ".tmp-literature-review-private/same-chronicle-objective-log-recovery-wave-20260830T200649Z/evidence/adolescents-digital-nightlife-2024/fulltext.txt#lines=509-515; .tmp-literature-review-private/same-chronicle-objective-log-recovery-wave-20260830T200649Z/artifact-routes.jsonl#lines=26-28"
+        ]
+      },
+      "source_artifact_provenance_object_digest": "sha256:d2bf3efb2130193faebc54e289c3e897cffb0a4549fc4c83d893877b4a977094",
+      "provenance_keys": [
+        "artifact_availability",
+        "artifact_label",
+        "artifact_locator",
+        "artifact_role",
+        "digest_scope",
+        "locally_validated_artifact_digest",
+        "member_selector",
+        "source_artifact_provenance_id",
+        "source_locators"
+      ],
+      "candidate_status": "ready_for_typed_registry"
+    },
+    {
+      "method_setting_id": "method-setting-ba42e53a2bb684a034aa67e0",
+      "source_work_id": "doi:10.1177/00936502241276793",
+      "source_extraction_id": "extraction-klref-missing-004",
+      "source_value_sha256": "48257729bce0d59061501da2016099d052f53cf83afd200ae3a2e73f29371afe",
+      "source_artifact_provenance": {
+        "source_artifact_provenance_id": "source-artifact-provenance:method-setting-ba42e53a2bb684a034aa67e0",
+        "artifact_role": "source_code_repository_route",
+        "artifact_label": "OSF-mounted GitHub repository route",
+        "artifact_locator": "https://osf.io/tpj98/",
+        "artifact_availability": "mounted_provider_metadata_retrieved_exact_repository_version_unresolved",
+        "artifact_relationship": {
+          "relationship_type": "osf_mounted_provider",
+          "osf_node_id": "tpj98",
+          "osf_provider": "github",
+          "provider_root_member_names": [
+            ".gitignore",
+            "mplus",
+            "README.md",
+            "scripts",
+            "study-sleep.Rproj"
+          ],
+          "exact_repository_and_commit_link_status": "unresolved_in_preserved_evidence"
+        },
+        "source_locators": [
+          ".tmp-literature-review-private/same-chronicle-objective-log-recovery-wave-20260830T200649Z/evidence/adolescents-digital-nightlife-2024/fulltext.txt#lines=509-515; .tmp-literature-review-private/same-chronicle-objective-log-recovery-wave-20260830T200649Z/artifact-routes.jsonl#lines=26-28"
+        ]
+      },
+      "source_artifact_provenance_object_digest": "sha256:b1e757ec5fcf35118cfada2b65975873ebbe9fb44b8ed40dfb53e143a9279883",
+      "provenance_keys": [
+        "artifact_availability",
+        "artifact_label",
+        "artifact_locator",
+        "artifact_relationship",
+        "artifact_role",
+        "source_artifact_provenance_id",
+        "source_locators"
+      ],
+      "candidate_status": "blocked_missing_exact_mounted_provider_version_link"
+    }
+  ],
+  "positive_fixtures": [
+    {
+      "schema_version": "chronicle-source-artifact-provenance-registry-conformance-fixture/v2",
+      "fixture_id": "source-artifact-provenance.method-setting-0d4c2d71ec4c6dea11ac19b0.v2",
+      "method_setting_id": "method-setting-0d4c2d71ec4c6dea11ac19b0",
+      "executor": {
+        "reference_executor": "packet-closed-setting-registry/v1",
+        "executed": true,
+        "native_implementation_status": "candidate_not_native_rust_or_browser"
+      },
+      "input": {
+        "operation": "register_source_artifact_provenance",
+        "public_contract_version": "source-artifact-provenance-registry/v1",
+        "method_setting_id": "method-setting-0d4c2d71ec4c6dea11ac19b0",
+        "source_work_id": "doi:10.1016/j.chb.2023.107977",
+        "source_extraction_id": "extraction-klref-missing-006",
+        "source_value_sha256": "7a4643c388629c82b98f87948f924c8c3c908230530082c95f4f36573861cb1e",
+        "source_artifact_provenance": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-0d4c2d71ec4c6dea11ac19b0",
+          "artifact_role": "r_project_bundle",
+          "artifact_label": "R project bundle",
+          "artifact_locator": "https://osf.io/ckwge/",
+          "locally_validated_artifact_digest": "sha256:ede3361b6003b6436799fd4e56376b81b581d9079026c2440cd63380293dc811",
+          "digest_scope": "parent_bundle_bytes",
+          "member_selector": {
+            "selector_type": "entire_project_archive",
+            "project_root": "SmartphoneUsage_Wellbeing/",
+            "r_project_descriptor_member": "SmartphoneUsage_Wellbeing/SmartphoneUsage_Wellbeing.Rproj"
+          },
+          "artifact_availability": "retrieved_locally_as_content_addressed_project_bundle",
+          "source_locators": [
+            ".tmp-literature-review-private/final-exact-primary-http-wave-20260830T214500Z/artifact-manifest.jsonl#lines=3-5"
+          ]
+        },
+        "source_artifact_provenance_object_digest": "sha256:65adeeeadd92813fe87adb167d23f536ce49152087b9ea410a1c3ca3692f3708"
+      },
+      "case_digest": "sha256:87ba34d2a6aa2ba9f7c33515c07eab4f99b3f8e8811b94afd69ca8d6e7ad40b7",
+      "expected_result": {
+        "accepted": true,
+        "registryStatus": "registered_documentary_provenance",
+        "methodSettingId": "method-setting-0d4c2d71ec4c6dea11ac19b0",
+        "sourceArtifactProvenanceId": "source-artifact-provenance:method-setting-0d4c2d71ec4c6dea11ac19b0",
+        "assertionDigest": "sha256:65adeeeadd92813fe87adb167d23f536ce49152087b9ea410a1c3ca3692f3708",
+        "artifactContentsAvailable": true,
+        "contentDigestVerified": true,
+        "executionEligible": false,
+        "browserRoundtripAssertion": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-0d4c2d71ec4c6dea11ac19b0",
+          "artifact_role": "r_project_bundle",
+          "artifact_label": "R project bundle",
+          "artifact_locator": "https://osf.io/ckwge/",
+          "locally_validated_artifact_digest": "sha256:ede3361b6003b6436799fd4e56376b81b581d9079026c2440cd63380293dc811",
+          "digest_scope": "parent_bundle_bytes",
+          "member_selector": {
+            "selector_type": "entire_project_archive",
+            "project_root": "SmartphoneUsage_Wellbeing/",
+            "r_project_descriptor_member": "SmartphoneUsage_Wellbeing/SmartphoneUsage_Wellbeing.Rproj"
+          },
+          "artifact_availability": "retrieved_locally_as_content_addressed_project_bundle",
+          "source_locators": [
+            ".tmp-literature-review-private/final-exact-primary-http-wave-20260830T214500Z/artifact-manifest.jsonl#lines=3-5"
+          ]
+        }
+      },
+      "result_digest": "sha256:cd8291b3a946a75484b2be8a6f7fd11a6e81f186f079aece691507bfaa99591b"
+    },
+    {
+      "schema_version": "chronicle-source-artifact-provenance-registry-conformance-fixture/v2",
+      "fixture_id": "source-artifact-provenance.method-setting-1ce84459a202125a3df07aef.v2",
+      "method_setting_id": "method-setting-1ce84459a202125a3df07aef",
+      "executor": {
+        "reference_executor": "packet-closed-setting-registry/v1",
+        "executed": true,
+        "native_implementation_status": "candidate_not_native_rust_or_browser"
+      },
+      "input": {
+        "operation": "register_source_artifact_provenance",
+        "public_contract_version": "source-artifact-provenance-registry/v1",
+        "method_setting_id": "method-setting-1ce84459a202125a3df07aef",
+        "source_work_id": "doi:10.1016/j.chb.2023.107977",
+        "source_extraction_id": "extraction-klref-missing-006",
+        "source_value_sha256": "7a4643c388629c82b98f87948f924c8c3c908230530082c95f4f36573861cb1e",
+        "source_artifact_provenance": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-1ce84459a202125a3df07aef",
+          "artifact_role": "supplement",
+          "artifact_label": "supplement",
+          "artifact_locator": "https://osf.io/ckwge/",
+          "locally_validated_artifact_digest": "sha256:12a11e0640040e9f6fe92eca6ed29c94b9a404b3f2cb4087fbd25b819ee725b6",
+          "digest_scope": "exact_file_bytes",
+          "member_selector": {
+            "selector_type": "entire_file",
+            "artifact_evidence_path": ".tmp-literature-review-private/authenticated-cookie-recovery-wave-20260830/retrieved/keep-on-scrolling-2024/artifacts/Online_Supplemental_Material.pdf"
+          },
+          "artifact_availability": "retrieved_locally",
+          "source_locators": [
+            ".tmp-literature-review-private/final-exact-primary-http-wave-20260830T214500Z/artifact-manifest.jsonl#lines=3-5"
+          ]
+        },
+        "source_artifact_provenance_object_digest": "sha256:19dcbda6458ac20062093636f16a5b755d2e6451266e7a850f0d6f852152146f"
+      },
+      "case_digest": "sha256:a8bbbc08fd3414d9e6147b875f41d73f1d0d4b9f1723931c4ec7eaee0c0c90e0",
+      "expected_result": {
+        "accepted": true,
+        "registryStatus": "registered_documentary_provenance",
+        "methodSettingId": "method-setting-1ce84459a202125a3df07aef",
+        "sourceArtifactProvenanceId": "source-artifact-provenance:method-setting-1ce84459a202125a3df07aef",
+        "assertionDigest": "sha256:19dcbda6458ac20062093636f16a5b755d2e6451266e7a850f0d6f852152146f",
+        "artifactContentsAvailable": true,
+        "contentDigestVerified": true,
+        "executionEligible": false,
+        "browserRoundtripAssertion": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-1ce84459a202125a3df07aef",
+          "artifact_role": "supplement",
+          "artifact_label": "supplement",
+          "artifact_locator": "https://osf.io/ckwge/",
+          "locally_validated_artifact_digest": "sha256:12a11e0640040e9f6fe92eca6ed29c94b9a404b3f2cb4087fbd25b819ee725b6",
+          "digest_scope": "exact_file_bytes",
+          "member_selector": {
+            "selector_type": "entire_file",
+            "artifact_evidence_path": ".tmp-literature-review-private/authenticated-cookie-recovery-wave-20260830/retrieved/keep-on-scrolling-2024/artifacts/Online_Supplemental_Material.pdf"
+          },
+          "artifact_availability": "retrieved_locally",
+          "source_locators": [
+            ".tmp-literature-review-private/final-exact-primary-http-wave-20260830T214500Z/artifact-manifest.jsonl#lines=3-5"
+          ]
+        }
+      },
+      "result_digest": "sha256:4d36a19184932a1cdfd5127ae6ea0aa1670d759fd2b12da2d265001468c933f9"
+    },
+    {
+      "schema_version": "chronicle-source-artifact-provenance-registry-conformance-fixture/v2",
+      "fixture_id": "source-artifact-provenance.method-setting-7191ddb64f3e91420f823906.v2",
+      "method_setting_id": "method-setting-7191ddb64f3e91420f823906",
+      "executor": {
+        "reference_executor": "packet-closed-setting-registry/v1",
+        "executed": true,
+        "native_implementation_status": "candidate_not_native_rust_or_browser"
+      },
+      "input": {
+        "operation": "register_source_artifact_provenance",
+        "public_contract_version": "source-artifact-provenance-registry/v1",
+        "method_setting_id": "method-setting-7191ddb64f3e91420f823906",
+        "source_work_id": "doi:10.1016/j.chb.2023.107977",
+        "source_extraction_id": "extraction-klref-missing-006",
+        "source_value_sha256": "7a4643c388629c82b98f87948f924c8c3c908230530082c95f4f36573861cb1e",
+        "source_artifact_provenance": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-7191ddb64f3e91420f823906",
+          "artifact_role": "environment_lockfile",
+          "artifact_label": "environment lockfile",
+          "artifact_locator": "https://osf.io/ckwge/",
+          "locally_validated_artifact_digest": "sha256:35c4f8e9279c8f454a37d159c24562b055a7faac6b0ed388e8dd2303ffdf4329",
+          "digest_scope": "exact_zip_member_bytes",
+          "member_selector": {
+            "selector_type": "exact_zip_member",
+            "container_digest": "sha256:ede3361b6003b6436799fd4e56376b81b581d9079026c2440cd63380293dc811",
+            "member_path": "SmartphoneUsage_Wellbeing/renv.lock"
+          },
+          "artifact_availability": "retrieved_locally",
+          "source_locators": [
+            ".tmp-literature-review-private/final-exact-primary-http-wave-20260830T214500Z/artifact-manifest.jsonl#lines=3-5"
+          ]
+        },
+        "source_artifact_provenance_object_digest": "sha256:636fa36caeb02e66fdd72783d0e04b44c6aee30d4a67a197aaf5cc8beaf16482"
+      },
+      "case_digest": "sha256:977033961e3f9ecd4f3289af3d0ac99cdabca12f7344d18c8cc3e7b7684524dc",
+      "expected_result": {
+        "accepted": true,
+        "registryStatus": "registered_documentary_provenance",
+        "methodSettingId": "method-setting-7191ddb64f3e91420f823906",
+        "sourceArtifactProvenanceId": "source-artifact-provenance:method-setting-7191ddb64f3e91420f823906",
+        "assertionDigest": "sha256:636fa36caeb02e66fdd72783d0e04b44c6aee30d4a67a197aaf5cc8beaf16482",
+        "artifactContentsAvailable": true,
+        "contentDigestVerified": true,
+        "executionEligible": false,
+        "browserRoundtripAssertion": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-7191ddb64f3e91420f823906",
+          "artifact_role": "environment_lockfile",
+          "artifact_label": "environment lockfile",
+          "artifact_locator": "https://osf.io/ckwge/",
+          "locally_validated_artifact_digest": "sha256:35c4f8e9279c8f454a37d159c24562b055a7faac6b0ed388e8dd2303ffdf4329",
+          "digest_scope": "exact_zip_member_bytes",
+          "member_selector": {
+            "selector_type": "exact_zip_member",
+            "container_digest": "sha256:ede3361b6003b6436799fd4e56376b81b581d9079026c2440cd63380293dc811",
+            "member_path": "SmartphoneUsage_Wellbeing/renv.lock"
+          },
+          "artifact_availability": "retrieved_locally",
+          "source_locators": [
+            ".tmp-literature-review-private/final-exact-primary-http-wave-20260830T214500Z/artifact-manifest.jsonl#lines=3-5"
+          ]
+        }
+      },
+      "result_digest": "sha256:99cfc6d56384916511df4156cc0e9b955f943854007b89725bc89d8590bd6ff1"
+    },
+    {
+      "schema_version": "chronicle-source-artifact-provenance-registry-conformance-fixture/v2",
+      "fixture_id": "source-artifact-provenance.method-setting-8784cdd628a262e0ef3721b6.v2",
+      "method_setting_id": "method-setting-8784cdd628a262e0ef3721b6",
+      "executor": {
+        "reference_executor": "packet-closed-setting-registry/v1",
+        "executed": true,
+        "native_implementation_status": "candidate_not_native_rust_or_browser"
+      },
+      "input": {
+        "operation": "register_source_artifact_provenance",
+        "public_contract_version": "source-artifact-provenance-registry/v1",
+        "method_setting_id": "method-setting-8784cdd628a262e0ef3721b6",
+        "source_work_id": "doi:10.1016/j.chb.2023.107977",
+        "source_extraction_id": "extraction-klref-missing-006",
+        "source_value_sha256": "7a4643c388629c82b98f87948f924c8c3c908230530082c95f4f36573861cb1e",
+        "source_artifact_provenance": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-8784cdd628a262e0ef3721b6",
+          "artifact_role": "codebook",
+          "artifact_label": "codebook",
+          "artifact_locator": "https://osf.io/ckwge/",
+          "locally_validated_artifact_digest": "sha256:c17f677d7f8d8b0a03e7c8b9c42fa1bf6aaa8ecae44470ea7e366ce68fa5b6d8",
+          "digest_scope": "exact_file_bytes",
+          "member_selector": {
+            "selector_type": "entire_file",
+            "artifact_evidence_path": ".tmp-literature-review-private/authenticated-cookie-recovery-wave-20260830/retrieved/keep-on-scrolling-2024/artifacts/Codebook.html"
+          },
+          "artifact_availability": "retrieved_locally",
+          "source_locators": [
+            ".tmp-literature-review-private/final-exact-primary-http-wave-20260830T214500Z/artifact-manifest.jsonl#lines=3-5"
+          ]
+        },
+        "source_artifact_provenance_object_digest": "sha256:c4f7f9fd83de6acc70cefd41f8237f72a2d8fbb96126888450d8eb56be1cf24d"
+      },
+      "case_digest": "sha256:e8decc26ddfa42303db48a84bc27a53d5df5e8150e872191ef018f22994790e4",
+      "expected_result": {
+        "accepted": true,
+        "registryStatus": "registered_documentary_provenance",
+        "methodSettingId": "method-setting-8784cdd628a262e0ef3721b6",
+        "sourceArtifactProvenanceId": "source-artifact-provenance:method-setting-8784cdd628a262e0ef3721b6",
+        "assertionDigest": "sha256:c4f7f9fd83de6acc70cefd41f8237f72a2d8fbb96126888450d8eb56be1cf24d",
+        "artifactContentsAvailable": true,
+        "contentDigestVerified": true,
+        "executionEligible": false,
+        "browserRoundtripAssertion": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-8784cdd628a262e0ef3721b6",
+          "artifact_role": "codebook",
+          "artifact_label": "codebook",
+          "artifact_locator": "https://osf.io/ckwge/",
+          "locally_validated_artifact_digest": "sha256:c17f677d7f8d8b0a03e7c8b9c42fa1bf6aaa8ecae44470ea7e366ce68fa5b6d8",
+          "digest_scope": "exact_file_bytes",
+          "member_selector": {
+            "selector_type": "entire_file",
+            "artifact_evidence_path": ".tmp-literature-review-private/authenticated-cookie-recovery-wave-20260830/retrieved/keep-on-scrolling-2024/artifacts/Codebook.html"
+          },
+          "artifact_availability": "retrieved_locally",
+          "source_locators": [
+            ".tmp-literature-review-private/final-exact-primary-http-wave-20260830T214500Z/artifact-manifest.jsonl#lines=3-5"
+          ]
+        }
+      },
+      "result_digest": "sha256:94cc25829cc1e8b4854d5969f19ca0280a4a3de8afc8e55ed49e232395abe743"
+    },
+    {
+      "schema_version": "chronicle-source-artifact-provenance-registry-conformance-fixture/v2",
+      "fixture_id": "source-artifact-provenance.method-setting-9ad33f2c2ab0d4c453511616.v2",
+      "method_setting_id": "method-setting-9ad33f2c2ab0d4c453511616",
+      "executor": {
+        "reference_executor": "packet-closed-setting-registry/v1",
+        "executed": true,
+        "native_implementation_status": "candidate_not_native_rust_or_browser"
+      },
+      "input": {
+        "operation": "register_source_artifact_provenance",
+        "public_contract_version": "source-artifact-provenance-registry/v1",
+        "method_setting_id": "method-setting-9ad33f2c2ab0d4c453511616",
+        "source_work_id": "doi:10.1016/j.chb.2023.107977",
+        "source_extraction_id": "extraction-klref-missing-006",
+        "source_value_sha256": "7a4643c388629c82b98f87948f924c8c3c908230530082c95f4f36573861cb1e",
+        "source_artifact_provenance": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-9ad33f2c2ab0d4c453511616",
+          "artifact_role": "aggregated_dataset",
+          "artifact_label": "aggregated RDS data",
+          "artifact_locator": "https://osf.io/ckwge/",
+          "locally_validated_artifact_digest": "sha256:079dd99dd15d8e34a54bf5b3dd0a9e61fad6ee18f6f062e5d5da4b742266f288",
+          "digest_scope": "canonical_member_collection",
+          "member_selector": {
+            "selector_type": "canonical_collection_manifest",
+            "collection_manifest_id": "collection:schoedel-aggregated-rds",
+            "member_count": 6
+          },
+          "artifact_availability": "retrieved_as_validated_file_collection",
+          "source_locators": [
+            ".tmp-literature-review-private/final-exact-primary-http-wave-20260830T214500Z/artifact-manifest.jsonl#lines=3-5"
+          ]
+        },
+        "source_artifact_provenance_object_digest": "sha256:204893b79e276e7b5385b66a7596549dc6a5648f924b6c4d6cdc715295307c7d"
+      },
+      "case_digest": "sha256:19d65032db0fd3e6f9539062763f21b07c0967b475da1640799bee1d399a0d23",
+      "expected_result": {
+        "accepted": true,
+        "registryStatus": "registered_documentary_provenance",
+        "methodSettingId": "method-setting-9ad33f2c2ab0d4c453511616",
+        "sourceArtifactProvenanceId": "source-artifact-provenance:method-setting-9ad33f2c2ab0d4c453511616",
+        "assertionDigest": "sha256:204893b79e276e7b5385b66a7596549dc6a5648f924b6c4d6cdc715295307c7d",
+        "artifactContentsAvailable": true,
+        "contentDigestVerified": true,
+        "executionEligible": false,
+        "browserRoundtripAssertion": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-9ad33f2c2ab0d4c453511616",
+          "artifact_role": "aggregated_dataset",
+          "artifact_label": "aggregated RDS data",
+          "artifact_locator": "https://osf.io/ckwge/",
+          "locally_validated_artifact_digest": "sha256:079dd99dd15d8e34a54bf5b3dd0a9e61fad6ee18f6f062e5d5da4b742266f288",
+          "digest_scope": "canonical_member_collection",
+          "member_selector": {
+            "selector_type": "canonical_collection_manifest",
+            "collection_manifest_id": "collection:schoedel-aggregated-rds",
+            "member_count": 6
+          },
+          "artifact_availability": "retrieved_as_validated_file_collection",
+          "source_locators": [
+            ".tmp-literature-review-private/final-exact-primary-http-wave-20260830T214500Z/artifact-manifest.jsonl#lines=3-5"
+          ]
+        }
+      },
+      "result_digest": "sha256:88f990a1925c1de8871972fa040b77842bfa69bce5ab0caf0279a549fd339647"
+    },
+    {
+      "schema_version": "chronicle-source-artifact-provenance-registry-conformance-fixture/v2",
+      "fixture_id": "source-artifact-provenance.method-setting-b8725165fc97aa16c5370d0c.v2",
+      "method_setting_id": "method-setting-b8725165fc97aa16c5370d0c",
+      "executor": {
+        "reference_executor": "packet-closed-setting-registry/v1",
+        "executed": true,
+        "native_implementation_status": "candidate_not_native_rust_or_browser"
+      },
+      "input": {
+        "operation": "register_source_artifact_provenance",
+        "public_contract_version": "source-artifact-provenance-registry/v1",
+        "method_setting_id": "method-setting-b8725165fc97aa16c5370d0c",
+        "source_work_id": "doi:10.1016/j.chb.2023.107977",
+        "source_extraction_id": "extraction-klref-missing-006",
+        "source_value_sha256": "7a4643c388629c82b98f87948f924c8c3c908230530082c95f4f36573861cb1e",
+        "source_artifact_provenance": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-b8725165fc97aa16c5370d0c",
+          "artifact_role": "preprocessing_script",
+          "artifact_label": "screen-session preprocessing",
+          "artifact_locator": "https://osf.io/ckwge/",
+          "locally_validated_artifact_digest": "sha256:ca5d3052b4a30e9a62ae046e57c890196fff1f84157b02ea324b4b0ae1c2b797",
+          "digest_scope": "exact_zip_member_bytes",
+          "member_selector": {
+            "selector_type": "exact_zip_member",
+            "container_digest": "sha256:ede3361b6003b6436799fd4e56376b81b581d9079026c2440cd63380293dc811",
+            "member_path": "SmartphoneUsage_Wellbeing/scripts/featureExtraction/screen/Screen_preprocessing.R"
+          },
+          "artifact_availability": "retrieved_locally",
+          "source_locators": [
+            ".tmp-literature-review-private/final-exact-primary-http-wave-20260830T214500Z/artifact-manifest.jsonl#lines=3-5"
+          ]
+        },
+        "source_artifact_provenance_object_digest": "sha256:5663d8868d629e7b7c4e846c4c254e2fd7705e2c59b47e166093672b134592fd"
+      },
+      "case_digest": "sha256:67256617968fe15eafa75d4d56e4b7e424464791ef291a880c9d93af36877ce5",
+      "expected_result": {
+        "accepted": true,
+        "registryStatus": "registered_documentary_provenance",
+        "methodSettingId": "method-setting-b8725165fc97aa16c5370d0c",
+        "sourceArtifactProvenanceId": "source-artifact-provenance:method-setting-b8725165fc97aa16c5370d0c",
+        "assertionDigest": "sha256:5663d8868d629e7b7c4e846c4c254e2fd7705e2c59b47e166093672b134592fd",
+        "artifactContentsAvailable": true,
+        "contentDigestVerified": true,
+        "executionEligible": false,
+        "browserRoundtripAssertion": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-b8725165fc97aa16c5370d0c",
+          "artifact_role": "preprocessing_script",
+          "artifact_label": "screen-session preprocessing",
+          "artifact_locator": "https://osf.io/ckwge/",
+          "locally_validated_artifact_digest": "sha256:ca5d3052b4a30e9a62ae046e57c890196fff1f84157b02ea324b4b0ae1c2b797",
+          "digest_scope": "exact_zip_member_bytes",
+          "member_selector": {
+            "selector_type": "exact_zip_member",
+            "container_digest": "sha256:ede3361b6003b6436799fd4e56376b81b581d9079026c2440cd63380293dc811",
+            "member_path": "SmartphoneUsage_Wellbeing/scripts/featureExtraction/screen/Screen_preprocessing.R"
+          },
+          "artifact_availability": "retrieved_locally",
+          "source_locators": [
+            ".tmp-literature-review-private/final-exact-primary-http-wave-20260830T214500Z/artifact-manifest.jsonl#lines=3-5"
+          ]
+        }
+      },
+      "result_digest": "sha256:17518b8f19323ce6e6939f992f8696ac229ab589a68eb765488c237b1a0b958e"
+    },
+    {
+      "schema_version": "chronicle-source-artifact-provenance-registry-conformance-fixture/v2",
+      "fixture_id": "source-artifact-provenance.method-setting-ecf5969e73f0624e3a83647f.v2",
+      "method_setting_id": "method-setting-ecf5969e73f0624e3a83647f",
+      "executor": {
+        "reference_executor": "packet-closed-setting-registry/v1",
+        "executed": true,
+        "native_implementation_status": "candidate_not_native_rust_or_browser"
+      },
+      "input": {
+        "operation": "register_source_artifact_provenance",
+        "public_contract_version": "source-artifact-provenance-registry/v1",
+        "method_setting_id": "method-setting-ecf5969e73f0624e3a83647f",
+        "source_work_id": "doi:10.1016/j.chb.2023.107977",
+        "source_extraction_id": "extraction-klref-missing-006",
+        "source_value_sha256": "7a4643c388629c82b98f87948f924c8c3c908230530082c95f4f36573861cb1e",
+        "source_artifact_provenance": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-ecf5969e73f0624e3a83647f",
+          "artifact_role": "analysis_script_collection",
+          "artifact_label": "analyses",
+          "artifact_locator": "https://osf.io/ckwge/",
+          "locally_validated_artifact_digest": "sha256:d5c46f04ba238b62185c85304ff1b7fff812bb8f4a26cf6f9cec1f58cd7737ae",
+          "digest_scope": "canonical_member_collection",
+          "member_selector": {
+            "selector_type": "canonical_collection_manifest",
+            "collection_manifest_id": "collection:schoedel-analysis-r-scripts",
+            "member_count": 27
+          },
+          "artifact_availability": "retrieved_as_validated_file_collection",
+          "source_locators": [
+            ".tmp-literature-review-private/final-exact-primary-http-wave-20260830T214500Z/artifact-manifest.jsonl#lines=3-5"
+          ]
+        },
+        "source_artifact_provenance_object_digest": "sha256:d25ad1f7439e9e69a8030403426874242b3be38634e136d6a7efdcb2a54c219d"
+      },
+      "case_digest": "sha256:114ce883da40efc01043b91e8c8028a6afe2461d12de8bd4da18c793cde39316",
+      "expected_result": {
+        "accepted": true,
+        "registryStatus": "registered_documentary_provenance",
+        "methodSettingId": "method-setting-ecf5969e73f0624e3a83647f",
+        "sourceArtifactProvenanceId": "source-artifact-provenance:method-setting-ecf5969e73f0624e3a83647f",
+        "assertionDigest": "sha256:d25ad1f7439e9e69a8030403426874242b3be38634e136d6a7efdcb2a54c219d",
+        "artifactContentsAvailable": true,
+        "contentDigestVerified": true,
+        "executionEligible": false,
+        "browserRoundtripAssertion": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-ecf5969e73f0624e3a83647f",
+          "artifact_role": "analysis_script_collection",
+          "artifact_label": "analyses",
+          "artifact_locator": "https://osf.io/ckwge/",
+          "locally_validated_artifact_digest": "sha256:d5c46f04ba238b62185c85304ff1b7fff812bb8f4a26cf6f9cec1f58cd7737ae",
+          "digest_scope": "canonical_member_collection",
+          "member_selector": {
+            "selector_type": "canonical_collection_manifest",
+            "collection_manifest_id": "collection:schoedel-analysis-r-scripts",
+            "member_count": 27
+          },
+          "artifact_availability": "retrieved_as_validated_file_collection",
+          "source_locators": [
+            ".tmp-literature-review-private/final-exact-primary-http-wave-20260830T214500Z/artifact-manifest.jsonl#lines=3-5"
+          ]
+        }
+      },
+      "result_digest": "sha256:6b2faee77284e9ebb6c35d22c59e50b016027d6fc49c0ddde41984cc1e28558a"
+    },
+    {
+      "schema_version": "chronicle-source-artifact-provenance-registry-conformance-fixture/v2",
+      "fixture_id": "source-artifact-provenance.method-setting-fd0ed097f31a4ca52ef32dac.v2",
+      "method_setting_id": "method-setting-fd0ed097f31a4ca52ef32dac",
+      "executor": {
+        "reference_executor": "packet-closed-setting-registry/v1",
+        "executed": true,
+        "native_implementation_status": "candidate_not_native_rust_or_browser"
+      },
+      "input": {
+        "operation": "register_source_artifact_provenance",
+        "public_contract_version": "source-artifact-provenance-registry/v1",
+        "method_setting_id": "method-setting-fd0ed097f31a4ca52ef32dac",
+        "source_work_id": "doi:10.1016/j.chb.2023.107977",
+        "source_extraction_id": "extraction-klref-missing-006",
+        "source_value_sha256": "7a4643c388629c82b98f87948f924c8c3c908230530082c95f4f36573861cb1e",
+        "source_artifact_provenance": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-fd0ed097f31a4ca52ef32dac",
+          "artifact_role": "feature_extraction_script_collection",
+          "artifact_label": "feature-extraction scripts",
+          "artifact_locator": "https://osf.io/ckwge/",
+          "locally_validated_artifact_digest": "sha256:091747da9a6c4e8a84d3eeac5e54dab227c42d8ec30be27e1ec0562da5490cf9",
+          "digest_scope": "canonical_member_collection",
+          "member_selector": {
+            "selector_type": "canonical_collection_manifest",
+            "collection_manifest_id": "collection:schoedel-feature-extraction-r-scripts",
+            "member_count": 22
+          },
+          "artifact_availability": "retrieved_as_validated_file_collection",
+          "source_locators": [
+            ".tmp-literature-review-private/final-exact-primary-http-wave-20260830T214500Z/artifact-manifest.jsonl#lines=3-5"
+          ]
+        },
+        "source_artifact_provenance_object_digest": "sha256:a6e0386b6249b2e97c05cd4aa69e80680077b34f56eb38f86dec5cf139880c7d"
+      },
+      "case_digest": "sha256:69d8cbb7f86e854e0f3dd06cb0a1e14b0c99c400ce9a00a3f37a3736568084f3",
+      "expected_result": {
+        "accepted": true,
+        "registryStatus": "registered_documentary_provenance",
+        "methodSettingId": "method-setting-fd0ed097f31a4ca52ef32dac",
+        "sourceArtifactProvenanceId": "source-artifact-provenance:method-setting-fd0ed097f31a4ca52ef32dac",
+        "assertionDigest": "sha256:a6e0386b6249b2e97c05cd4aa69e80680077b34f56eb38f86dec5cf139880c7d",
+        "artifactContentsAvailable": true,
+        "contentDigestVerified": true,
+        "executionEligible": false,
+        "browserRoundtripAssertion": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-fd0ed097f31a4ca52ef32dac",
+          "artifact_role": "feature_extraction_script_collection",
+          "artifact_label": "feature-extraction scripts",
+          "artifact_locator": "https://osf.io/ckwge/",
+          "locally_validated_artifact_digest": "sha256:091747da9a6c4e8a84d3eeac5e54dab227c42d8ec30be27e1ec0562da5490cf9",
+          "digest_scope": "canonical_member_collection",
+          "member_selector": {
+            "selector_type": "canonical_collection_manifest",
+            "collection_manifest_id": "collection:schoedel-feature-extraction-r-scripts",
+            "member_count": 22
+          },
+          "artifact_availability": "retrieved_as_validated_file_collection",
+          "source_locators": [
+            ".tmp-literature-review-private/final-exact-primary-http-wave-20260830T214500Z/artifact-manifest.jsonl#lines=3-5"
+          ]
+        }
+      },
+      "result_digest": "sha256:bc44a4b2d0fe63dd994cbeecb0bc209614ffd903690beab811c7399c12e46a24"
+    },
+    {
+      "schema_version": "chronicle-source-artifact-provenance-registry-conformance-fixture/v2",
+      "fixture_id": "source-artifact-provenance.method-setting-193fe7441ca9f260300a2077.v2",
+      "method_setting_id": "method-setting-193fe7441ca9f260300a2077",
+      "executor": {
+        "reference_executor": "packet-closed-setting-registry/v1",
+        "executed": true,
+        "native_implementation_status": "candidate_not_native_rust_or_browser"
+      },
+      "input": {
+        "operation": "register_source_artifact_provenance",
+        "public_contract_version": "source-artifact-provenance-registry/v1",
+        "method_setting_id": "method-setting-193fe7441ca9f260300a2077",
+        "source_work_id": "doi:10.1080/15213269.2020.1768122",
+        "source_extraction_id": "extraction-klref-missing-010",
+        "source_value_sha256": "5d0ec0e9f38ffa2c37056fb0ba8333b6c94a88a67e7ada0f8515f9d75d1687b0",
+        "source_artifact_provenance": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-193fe7441ca9f260300a2077",
+          "artifact_role": "study_materials",
+          "artifact_label": "materials",
+          "artifact_locator": "https://osf.io/n6d8k/",
+          "artifact_availability": "reported_remote_contents_unavailable",
+          "source_locators": [
+            ".tmp-literature-review-private/screened-include-oa-recovery-wave/texts/208-WYR8XW2N-the-relationship-between-online-vigilance-and-affective-well-being-in-ev.txt#lines=378-381,402-406"
+          ]
+        },
+        "source_artifact_provenance_object_digest": "sha256:e78b317bfb97a593352f75d3d5e371c770d3adeea32da3e3ecf8792f1ad93031"
+      },
+      "case_digest": "sha256:3e495d53c8742d8145703f579922daf3a5a2fbc3a40927080956fc89c7108230",
+      "expected_result": {
+        "accepted": true,
+        "registryStatus": "registered_documentary_provenance",
+        "methodSettingId": "method-setting-193fe7441ca9f260300a2077",
+        "sourceArtifactProvenanceId": "source-artifact-provenance:method-setting-193fe7441ca9f260300a2077",
+        "assertionDigest": "sha256:e78b317bfb97a593352f75d3d5e371c770d3adeea32da3e3ecf8792f1ad93031",
+        "artifactContentsAvailable": false,
+        "contentDigestVerified": false,
+        "executionEligible": false,
+        "browserRoundtripAssertion": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-193fe7441ca9f260300a2077",
+          "artifact_role": "study_materials",
+          "artifact_label": "materials",
+          "artifact_locator": "https://osf.io/n6d8k/",
+          "artifact_availability": "reported_remote_contents_unavailable",
+          "source_locators": [
+            ".tmp-literature-review-private/screened-include-oa-recovery-wave/texts/208-WYR8XW2N-the-relationship-between-online-vigilance-and-affective-well-being-in-ev.txt#lines=378-381,402-406"
+          ]
+        }
+      },
+      "result_digest": "sha256:f4249eefd46208c30b80a6b17ba0980df04ea5badd595d6f8759c27e0f8f67ff"
+    },
+    {
+      "schema_version": "chronicle-source-artifact-provenance-registry-conformance-fixture/v2",
+      "fixture_id": "source-artifact-provenance.method-setting-5b8dbff278b99efcac28644c.v2",
+      "method_setting_id": "method-setting-5b8dbff278b99efcac28644c",
+      "executor": {
+        "reference_executor": "packet-closed-setting-registry/v1",
+        "executed": true,
+        "native_implementation_status": "candidate_not_native_rust_or_browser"
+      },
+      "input": {
+        "operation": "register_source_artifact_provenance",
+        "public_contract_version": "source-artifact-provenance-registry/v1",
+        "method_setting_id": "method-setting-5b8dbff278b99efcac28644c",
+        "source_work_id": "doi:10.1080/15213269.2020.1768122",
+        "source_extraction_id": "extraction-klref-missing-010",
+        "source_value_sha256": "5d0ec0e9f38ffa2c37056fb0ba8333b6c94a88a67e7ada0f8515f9d75d1687b0",
+        "source_artifact_provenance": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-5b8dbff278b99efcac28644c",
+          "artifact_role": "preregistration",
+          "artifact_label": "preregistration",
+          "artifact_locator": "https://osf.io/n6d8k/",
+          "artifact_availability": "reported_remote_contents_unavailable",
+          "source_locators": [
+            ".tmp-literature-review-private/screened-include-oa-recovery-wave/texts/208-WYR8XW2N-the-relationship-between-online-vigilance-and-affective-well-being-in-ev.txt#lines=378-381,402-406"
+          ]
+        },
+        "source_artifact_provenance_object_digest": "sha256:0194daf7c032a929657f860e0730a01040222db0ef65dfce88ad306b41b5e091"
+      },
+      "case_digest": "sha256:6d966e6af3500bbad68ba5b7f0428dac139e65ca4bb2734f0506becd8eb82902",
+      "expected_result": {
+        "accepted": true,
+        "registryStatus": "registered_documentary_provenance",
+        "methodSettingId": "method-setting-5b8dbff278b99efcac28644c",
+        "sourceArtifactProvenanceId": "source-artifact-provenance:method-setting-5b8dbff278b99efcac28644c",
+        "assertionDigest": "sha256:0194daf7c032a929657f860e0730a01040222db0ef65dfce88ad306b41b5e091",
+        "artifactContentsAvailable": false,
+        "contentDigestVerified": false,
+        "executionEligible": false,
+        "browserRoundtripAssertion": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-5b8dbff278b99efcac28644c",
+          "artifact_role": "preregistration",
+          "artifact_label": "preregistration",
+          "artifact_locator": "https://osf.io/n6d8k/",
+          "artifact_availability": "reported_remote_contents_unavailable",
+          "source_locators": [
+            ".tmp-literature-review-private/screened-include-oa-recovery-wave/texts/208-WYR8XW2N-the-relationship-between-online-vigilance-and-affective-well-being-in-ev.txt#lines=378-381,402-406"
+          ]
+        }
+      },
+      "result_digest": "sha256:d1c9102dd576fe0a142a18be3726904e6e0e62a0ec0772674906174642404c2c"
+    },
+    {
+      "schema_version": "chronicle-source-artifact-provenance-registry-conformance-fixture/v2",
+      "fixture_id": "source-artifact-provenance.method-setting-805ed1a8c3e1f23ca53c03c4.v2",
+      "method_setting_id": "method-setting-805ed1a8c3e1f23ca53c03c4",
+      "executor": {
+        "reference_executor": "packet-closed-setting-registry/v1",
+        "executed": true,
+        "native_implementation_status": "candidate_not_native_rust_or_browser"
+      },
+      "input": {
+        "operation": "register_source_artifact_provenance",
+        "public_contract_version": "source-artifact-provenance-registry/v1",
+        "method_setting_id": "method-setting-805ed1a8c3e1f23ca53c03c4",
+        "source_work_id": "doi:10.1080/15213269.2020.1768122",
+        "source_extraction_id": "extraction-klref-missing-010",
+        "source_value_sha256": "5d0ec0e9f38ffa2c37056fb0ba8333b6c94a88a67e7ada0f8515f9d75d1687b0",
+        "source_artifact_provenance": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-805ed1a8c3e1f23ca53c03c4",
+          "artifact_role": "supplementary_decision_record",
+          "artifact_label": "supplementary decisions",
+          "artifact_locator": "https://osf.io/n6d8k/",
+          "artifact_availability": "reported_remote_contents_unavailable",
+          "source_locators": [
+            ".tmp-literature-review-private/screened-include-oa-recovery-wave/texts/208-WYR8XW2N-the-relationship-between-online-vigilance-and-affective-well-being-in-ev.txt#lines=378-381,402-406"
+          ]
+        },
+        "source_artifact_provenance_object_digest": "sha256:be3647b275c594e616d02f13ec4cd6df881cb1217b2c314c0cf80effb5d9541c"
+      },
+      "case_digest": "sha256:35ad51d162f2b405dd49787f49ad2263cedff35ea0aded2eddf3e45907ee5714",
+      "expected_result": {
+        "accepted": true,
+        "registryStatus": "registered_documentary_provenance",
+        "methodSettingId": "method-setting-805ed1a8c3e1f23ca53c03c4",
+        "sourceArtifactProvenanceId": "source-artifact-provenance:method-setting-805ed1a8c3e1f23ca53c03c4",
+        "assertionDigest": "sha256:be3647b275c594e616d02f13ec4cd6df881cb1217b2c314c0cf80effb5d9541c",
+        "artifactContentsAvailable": false,
+        "contentDigestVerified": false,
+        "executionEligible": false,
+        "browserRoundtripAssertion": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-805ed1a8c3e1f23ca53c03c4",
+          "artifact_role": "supplementary_decision_record",
+          "artifact_label": "supplementary decisions",
+          "artifact_locator": "https://osf.io/n6d8k/",
+          "artifact_availability": "reported_remote_contents_unavailable",
+          "source_locators": [
+            ".tmp-literature-review-private/screened-include-oa-recovery-wave/texts/208-WYR8XW2N-the-relationship-between-online-vigilance-and-affective-well-being-in-ev.txt#lines=378-381,402-406"
+          ]
+        }
+      },
+      "result_digest": "sha256:05e15b128b1875dc7ac54cc370b02c10ee03d279bda7d57ad50d7c07aaa88ece"
+    },
+    {
+      "schema_version": "chronicle-source-artifact-provenance-registry-conformance-fixture/v2",
+      "fixture_id": "source-artifact-provenance.method-setting-b8dfec0b479a14fe48ec1286.v2",
+      "method_setting_id": "method-setting-b8dfec0b479a14fe48ec1286",
+      "executor": {
+        "reference_executor": "packet-closed-setting-registry/v1",
+        "executed": true,
+        "native_implementation_status": "candidate_not_native_rust_or_browser"
+      },
+      "input": {
+        "operation": "register_source_artifact_provenance",
+        "public_contract_version": "source-artifact-provenance-registry/v1",
+        "method_setting_id": "method-setting-b8dfec0b479a14fe48ec1286",
+        "source_work_id": "doi:10.1080/15213269.2020.1768122",
+        "source_extraction_id": "extraction-klref-missing-010",
+        "source_value_sha256": "5d0ec0e9f38ffa2c37056fb0ba8333b6c94a88a67e7ada0f8515f9d75d1687b0",
+        "source_artifact_provenance": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-b8dfec0b479a14fe48ec1286",
+          "artifact_role": "research_data",
+          "artifact_label": "data",
+          "artifact_locator": "https://osf.io/n6d8k/",
+          "artifact_availability": "reported_remote_contents_unavailable",
+          "source_locators": [
+            ".tmp-literature-review-private/screened-include-oa-recovery-wave/texts/208-WYR8XW2N-the-relationship-between-online-vigilance-and-affective-well-being-in-ev.txt#lines=378-381,402-406"
+          ]
+        },
+        "source_artifact_provenance_object_digest": "sha256:49984c961307d29e60a0fd6d2d4a84a088912b41321ededfd5adca07bea8a77c"
+      },
+      "case_digest": "sha256:cd6ee6d9ce8d8383ca5556d5078d8c550cc8154bae4fec4853c60d6828a92ccf",
+      "expected_result": {
+        "accepted": true,
+        "registryStatus": "registered_documentary_provenance",
+        "methodSettingId": "method-setting-b8dfec0b479a14fe48ec1286",
+        "sourceArtifactProvenanceId": "source-artifact-provenance:method-setting-b8dfec0b479a14fe48ec1286",
+        "assertionDigest": "sha256:49984c961307d29e60a0fd6d2d4a84a088912b41321ededfd5adca07bea8a77c",
+        "artifactContentsAvailable": false,
+        "contentDigestVerified": false,
+        "executionEligible": false,
+        "browserRoundtripAssertion": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-b8dfec0b479a14fe48ec1286",
+          "artifact_role": "research_data",
+          "artifact_label": "data",
+          "artifact_locator": "https://osf.io/n6d8k/",
+          "artifact_availability": "reported_remote_contents_unavailable",
+          "source_locators": [
+            ".tmp-literature-review-private/screened-include-oa-recovery-wave/texts/208-WYR8XW2N-the-relationship-between-online-vigilance-and-affective-well-being-in-ev.txt#lines=378-381,402-406"
+          ]
+        }
+      },
+      "result_digest": "sha256:8bb6a6bd0c70c40df0667b08fecd6e6622ec0544da61e7b336e44f56301bd661"
+    },
+    {
+      "schema_version": "chronicle-source-artifact-provenance-registry-conformance-fixture/v2",
+      "fixture_id": "source-artifact-provenance.method-setting-cf498455098ca710aeb4e05c.v2",
+      "method_setting_id": "method-setting-cf498455098ca710aeb4e05c",
+      "executor": {
+        "reference_executor": "packet-closed-setting-registry/v1",
+        "executed": true,
+        "native_implementation_status": "candidate_not_native_rust_or_browser"
+      },
+      "input": {
+        "operation": "register_source_artifact_provenance",
+        "public_contract_version": "source-artifact-provenance-registry/v1",
+        "method_setting_id": "method-setting-cf498455098ca710aeb4e05c",
+        "source_work_id": "doi:10.1080/15213269.2020.1768122",
+        "source_extraction_id": "extraction-klref-missing-010",
+        "source_value_sha256": "5d0ec0e9f38ffa2c37056fb0ba8333b6c94a88a67e7ada0f8515f9d75d1687b0",
+        "source_artifact_provenance": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-cf498455098ca710aeb4e05c",
+          "artifact_role": "analysis_script_collection",
+          "artifact_label": "analysis scripts",
+          "artifact_locator": "https://osf.io/n6d8k/",
+          "artifact_availability": "reported_remote_contents_unavailable",
+          "source_locators": [
+            ".tmp-literature-review-private/screened-include-oa-recovery-wave/texts/208-WYR8XW2N-the-relationship-between-online-vigilance-and-affective-well-being-in-ev.txt#lines=378-381,402-406"
+          ]
+        },
+        "source_artifact_provenance_object_digest": "sha256:385a700199da2193f212ee7894e0348f1d1b9068724fbebb20e3f96eebc618b3"
+      },
+      "case_digest": "sha256:706f39ce2b48f191dd27ed6d8c29de55fb99fe69ea5e55186d9914f76f025648",
+      "expected_result": {
+        "accepted": true,
+        "registryStatus": "registered_documentary_provenance",
+        "methodSettingId": "method-setting-cf498455098ca710aeb4e05c",
+        "sourceArtifactProvenanceId": "source-artifact-provenance:method-setting-cf498455098ca710aeb4e05c",
+        "assertionDigest": "sha256:385a700199da2193f212ee7894e0348f1d1b9068724fbebb20e3f96eebc618b3",
+        "artifactContentsAvailable": false,
+        "contentDigestVerified": false,
+        "executionEligible": false,
+        "browserRoundtripAssertion": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-cf498455098ca710aeb4e05c",
+          "artifact_role": "analysis_script_collection",
+          "artifact_label": "analysis scripts",
+          "artifact_locator": "https://osf.io/n6d8k/",
+          "artifact_availability": "reported_remote_contents_unavailable",
+          "source_locators": [
+            ".tmp-literature-review-private/screened-include-oa-recovery-wave/texts/208-WYR8XW2N-the-relationship-between-online-vigilance-and-affective-well-being-in-ev.txt#lines=378-381,402-406"
+          ]
+        }
+      },
+      "result_digest": "sha256:0033ed62eea6041ad3998b2aad21b95e297602b7cab90387b3587f270f314798"
+    },
+    {
+      "schema_version": "chronicle-source-artifact-provenance-registry-conformance-fixture/v2",
+      "fixture_id": "source-artifact-provenance.method-setting-34f8536e3b57d70774705d4a.v2",
+      "method_setting_id": "method-setting-34f8536e3b57d70774705d4a",
+      "executor": {
+        "reference_executor": "packet-closed-setting-registry/v1",
+        "executed": true,
+        "native_implementation_status": "candidate_not_native_rust_or_browser"
+      },
+      "input": {
+        "operation": "register_source_artifact_provenance",
+        "public_contract_version": "source-artifact-provenance-registry/v1",
+        "method_setting_id": "method-setting-34f8536e3b57d70774705d4a",
+        "source_work_id": "doi:10.1177/00936502241276793",
+        "source_extraction_id": "extraction-klref-missing-004",
+        "source_value_sha256": "48257729bce0d59061501da2016099d052f53cf83afd200ae3a2e73f29371afe",
+        "source_artifact_provenance": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-34f8536e3b57d70774705d4a",
+          "artifact_role": "r_syntax_collection",
+          "artifact_label": "R syntaxes",
+          "artifact_locator": "https://osf.io/tpj98/",
+          "locally_validated_artifact_digest": "sha256:580466785b9114836d2f285339ae270157eec1599d89a0b78d82846f30ee0514",
+          "digest_scope": "canonical_member_collection",
+          "member_selector": {
+            "selector_type": "canonical_collection_manifest",
+            "collection_manifest_id": "collection:siebers-osf-r-syntaxes",
+            "member_count": 10
+          },
+          "artifact_availability": "retrieved_as_validated_file_collection",
+          "source_locators": [
+            ".tmp-literature-review-private/same-chronicle-objective-log-recovery-wave-20260830T200649Z/evidence/adolescents-digital-nightlife-2024/fulltext.txt#lines=509-515; .tmp-literature-review-private/same-chronicle-objective-log-recovery-wave-20260830T200649Z/artifact-routes.jsonl#lines=26-28"
+          ]
+        },
+        "source_artifact_provenance_object_digest": "sha256:874f78a7e7d2d3d5ab2b959275f8dd02417477c4e3290751fc17b7cf3021b742"
+      },
+      "case_digest": "sha256:d6d1fc339bb0c1af7cceae4a84ec46f98a9f87b727de5c012fe01037cd8df479",
+      "expected_result": {
+        "accepted": true,
+        "registryStatus": "registered_documentary_provenance",
+        "methodSettingId": "method-setting-34f8536e3b57d70774705d4a",
+        "sourceArtifactProvenanceId": "source-artifact-provenance:method-setting-34f8536e3b57d70774705d4a",
+        "assertionDigest": "sha256:874f78a7e7d2d3d5ab2b959275f8dd02417477c4e3290751fc17b7cf3021b742",
+        "artifactContentsAvailable": true,
+        "contentDigestVerified": true,
+        "executionEligible": false,
+        "browserRoundtripAssertion": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-34f8536e3b57d70774705d4a",
+          "artifact_role": "r_syntax_collection",
+          "artifact_label": "R syntaxes",
+          "artifact_locator": "https://osf.io/tpj98/",
+          "locally_validated_artifact_digest": "sha256:580466785b9114836d2f285339ae270157eec1599d89a0b78d82846f30ee0514",
+          "digest_scope": "canonical_member_collection",
+          "member_selector": {
+            "selector_type": "canonical_collection_manifest",
+            "collection_manifest_id": "collection:siebers-osf-r-syntaxes",
+            "member_count": 10
+          },
+          "artifact_availability": "retrieved_as_validated_file_collection",
+          "source_locators": [
+            ".tmp-literature-review-private/same-chronicle-objective-log-recovery-wave-20260830T200649Z/evidence/adolescents-digital-nightlife-2024/fulltext.txt#lines=509-515; .tmp-literature-review-private/same-chronicle-objective-log-recovery-wave-20260830T200649Z/artifact-routes.jsonl#lines=26-28"
+          ]
+        }
+      },
+      "result_digest": "sha256:933fb128f28cf0b7e33d4100a27c40abd770c2d008cfa6a749a62cbd19c06885"
+    },
+    {
+      "schema_version": "chronicle-source-artifact-provenance-registry-conformance-fixture/v2",
+      "fixture_id": "source-artifact-provenance.method-setting-50bd8fc18948c9e9c00f2e3c.v2",
+      "method_setting_id": "method-setting-50bd8fc18948c9e9c00f2e3c",
+      "executor": {
+        "reference_executor": "packet-closed-setting-registry/v1",
+        "executed": true,
+        "native_implementation_status": "candidate_not_native_rust_or_browser"
+      },
+      "input": {
+        "operation": "register_source_artifact_provenance",
+        "public_contract_version": "source-artifact-provenance-registry/v1",
+        "method_setting_id": "method-setting-50bd8fc18948c9e9c00f2e3c",
+        "source_work_id": "doi:10.1177/00936502241276793",
+        "source_extraction_id": "extraction-klref-missing-004",
+        "source_value_sha256": "48257729bce0d59061501da2016099d052f53cf83afd200ae3a2e73f29371afe",
+        "source_artifact_provenance": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-50bd8fc18948c9e9c00f2e3c",
+          "artifact_role": "mplus_syntax_collection",
+          "artifact_label": "Mplus syntaxes",
+          "artifact_locator": "https://osf.io/tpj98/",
+          "locally_validated_artifact_digest": "sha256:c3801237398911deeb6201c7869f675ec34cc3a189bfd053b00c592b4dbbf326",
+          "digest_scope": "canonical_member_collection",
+          "member_selector": {
+            "selector_type": "canonical_collection_manifest",
+            "collection_manifest_id": "collection:siebers-osf-mplus-input-syntaxes",
+            "member_count": 28
+          },
+          "artifact_availability": "retrieved_as_validated_file_collection",
+          "artifact_relationship": {
+            "relationship_type": "osf_mounted_github_provider_direct_member_acquisition",
+            "osf_node_id": "tpj98",
+            "osf_provider": "github",
+            "relationship_evidence_scope": "All 28 Mplus members acquired and hashed from OSF provider download links; the separate GitHub branch snapshot is not used as content-verification evidence for this assertion",
+            "osf_provider_member_paths_acquired": 28,
+            "repository_and_commit_identity_status": "unresolved_in_preserved_osf_provider_metadata"
+          },
+          "source_locators": [
+            ".tmp-literature-review-private/same-chronicle-objective-log-recovery-wave-20260830T200649Z/evidence/adolescents-digital-nightlife-2024/fulltext.txt#lines=509-515; .tmp-literature-review-private/same-chronicle-objective-log-recovery-wave-20260830T200649Z/artifact-routes.jsonl#lines=26-28"
+          ]
+        },
+        "source_artifact_provenance_object_digest": "sha256:24a9244f3de8fcd654f08b106ee22e5356f471b316037f724acbcf8c3a6bcecb"
+      },
+      "case_digest": "sha256:a6a65024344d9b740988ba1d39c18af2c1e46633dff26723dc3d4ea432f71a9f",
+      "expected_result": {
+        "accepted": true,
+        "registryStatus": "registered_documentary_provenance",
+        "methodSettingId": "method-setting-50bd8fc18948c9e9c00f2e3c",
+        "sourceArtifactProvenanceId": "source-artifact-provenance:method-setting-50bd8fc18948c9e9c00f2e3c",
+        "assertionDigest": "sha256:24a9244f3de8fcd654f08b106ee22e5356f471b316037f724acbcf8c3a6bcecb",
+        "artifactContentsAvailable": true,
+        "contentDigestVerified": true,
+        "executionEligible": false,
+        "browserRoundtripAssertion": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-50bd8fc18948c9e9c00f2e3c",
+          "artifact_role": "mplus_syntax_collection",
+          "artifact_label": "Mplus syntaxes",
+          "artifact_locator": "https://osf.io/tpj98/",
+          "locally_validated_artifact_digest": "sha256:c3801237398911deeb6201c7869f675ec34cc3a189bfd053b00c592b4dbbf326",
+          "digest_scope": "canonical_member_collection",
+          "member_selector": {
+            "selector_type": "canonical_collection_manifest",
+            "collection_manifest_id": "collection:siebers-osf-mplus-input-syntaxes",
+            "member_count": 28
+          },
+          "artifact_availability": "retrieved_as_validated_file_collection",
+          "artifact_relationship": {
+            "relationship_type": "osf_mounted_github_provider_direct_member_acquisition",
+            "osf_node_id": "tpj98",
+            "osf_provider": "github",
+            "relationship_evidence_scope": "All 28 Mplus members acquired and hashed from OSF provider download links; the separate GitHub branch snapshot is not used as content-verification evidence for this assertion",
+            "osf_provider_member_paths_acquired": 28,
+            "repository_and_commit_identity_status": "unresolved_in_preserved_osf_provider_metadata"
+          },
+          "source_locators": [
+            ".tmp-literature-review-private/same-chronicle-objective-log-recovery-wave-20260830T200649Z/evidence/adolescents-digital-nightlife-2024/fulltext.txt#lines=509-515; .tmp-literature-review-private/same-chronicle-objective-log-recovery-wave-20260830T200649Z/artifact-routes.jsonl#lines=26-28"
+          ]
+        }
+      },
+      "result_digest": "sha256:c6b44d4848aad4a44acad38c87164aaa99e204fb3e009b68d3a8219f999b1081"
+    },
+    {
+      "schema_version": "chronicle-source-artifact-provenance-registry-conformance-fixture/v2",
+      "fixture_id": "source-artifact-provenance.method-setting-5b818543f0912f925ede6377.v2",
+      "method_setting_id": "method-setting-5b818543f0912f925ede6377",
+      "executor": {
+        "reference_executor": "packet-closed-setting-registry/v1",
+        "executed": true,
+        "native_implementation_status": "candidate_not_native_rust_or_browser"
+      },
+      "input": {
+        "operation": "register_source_artifact_provenance",
+        "public_contract_version": "source-artifact-provenance-registry/v1",
+        "method_setting_id": "method-setting-5b818543f0912f925ede6377",
+        "source_work_id": "doi:10.1177/00936502241276793",
+        "source_extraction_id": "extraction-klref-missing-004",
+        "source_value_sha256": "48257729bce0d59061501da2016099d052f53cf83afd200ae3a2e73f29371afe",
+        "source_artifact_provenance": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-5b818543f0912f925ede6377",
+          "artifact_role": "anonymized_dataset",
+          "artifact_label": "anonymized dataset",
+          "artifact_locator": "https://doi.org/10.21942/uva.26395903.v2",
+          "artifact_version": "2",
+          "locally_validated_artifact_digest": "sha256:f8794b53d1ddaa1937aba8f96efa8492a310cd3273fb532749b1553e5ff8ec0c",
+          "digest_scope": "canonical_member_collection",
+          "member_selector": {
+            "selector_type": "canonical_collection_manifest",
+            "collection_manifest_id": "collection:siebers-figshare-analysis-csv",
+            "member_count": 5
+          },
+          "artifact_availability": "retrieved_as_validated_file_collection",
+          "artifact_relationship": {
+            "relationship_type": "figshare_versioned_dataset",
+            "figshare_article_locator": "https://figshare.com/articles/dataset/Adolescents_Digital_Nightlife/26395903",
+            "version_doi": "10.21942/uva.26395903.v2",
+            "file_inventory_count": 5
+          },
+          "source_locators": [
+            ".tmp-literature-review-private/same-chronicle-objective-log-recovery-wave-20260830T200649Z/evidence/adolescents-digital-nightlife-2024/fulltext.txt#lines=509-515; .tmp-literature-review-private/same-chronicle-objective-log-recovery-wave-20260830T200649Z/artifact-routes.jsonl#lines=26-28"
+          ]
+        },
+        "source_artifact_provenance_object_digest": "sha256:d69b928d4433ab0140fdc3322260bcd3bce16d63674087dffdd55fd5e6b034bc"
+      },
+      "case_digest": "sha256:2c0c55dbac27f534a6d456aeff52db321942eb00ddbe13cbe4a2270914dd7218",
+      "expected_result": {
+        "accepted": true,
+        "registryStatus": "registered_documentary_provenance",
+        "methodSettingId": "method-setting-5b818543f0912f925ede6377",
+        "sourceArtifactProvenanceId": "source-artifact-provenance:method-setting-5b818543f0912f925ede6377",
+        "assertionDigest": "sha256:d69b928d4433ab0140fdc3322260bcd3bce16d63674087dffdd55fd5e6b034bc",
+        "artifactContentsAvailable": true,
+        "contentDigestVerified": true,
+        "executionEligible": false,
+        "browserRoundtripAssertion": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-5b818543f0912f925ede6377",
+          "artifact_role": "anonymized_dataset",
+          "artifact_label": "anonymized dataset",
+          "artifact_locator": "https://doi.org/10.21942/uva.26395903.v2",
+          "artifact_version": "2",
+          "locally_validated_artifact_digest": "sha256:f8794b53d1ddaa1937aba8f96efa8492a310cd3273fb532749b1553e5ff8ec0c",
+          "digest_scope": "canonical_member_collection",
+          "member_selector": {
+            "selector_type": "canonical_collection_manifest",
+            "collection_manifest_id": "collection:siebers-figshare-analysis-csv",
+            "member_count": 5
+          },
+          "artifact_availability": "retrieved_as_validated_file_collection",
+          "artifact_relationship": {
+            "relationship_type": "figshare_versioned_dataset",
+            "figshare_article_locator": "https://figshare.com/articles/dataset/Adolescents_Digital_Nightlife/26395903",
+            "version_doi": "10.21942/uva.26395903.v2",
+            "file_inventory_count": 5
+          },
+          "source_locators": [
+            ".tmp-literature-review-private/same-chronicle-objective-log-recovery-wave-20260830T200649Z/evidence/adolescents-digital-nightlife-2024/fulltext.txt#lines=509-515; .tmp-literature-review-private/same-chronicle-objective-log-recovery-wave-20260830T200649Z/artifact-routes.jsonl#lines=26-28"
+          ]
+        }
+      },
+      "result_digest": "sha256:f9be267ad88bcc4c028740076c2d48c86497b7205dc6beed7812c75cd4851d19"
+    },
+    {
+      "schema_version": "chronicle-source-artifact-provenance-registry-conformance-fixture/v2",
+      "fixture_id": "source-artifact-provenance.method-setting-6461e3e0ac917a0bd7d12b02.v2",
+      "method_setting_id": "method-setting-6461e3e0ac917a0bd7d12b02",
+      "executor": {
+        "reference_executor": "packet-closed-setting-registry/v1",
+        "executed": true,
+        "native_implementation_status": "candidate_not_native_rust_or_browser"
+      },
+      "input": {
+        "operation": "register_source_artifact_provenance",
+        "public_contract_version": "source-artifact-provenance-registry/v1",
+        "method_setting_id": "method-setting-6461e3e0ac917a0bd7d12b02",
+        "source_work_id": "doi:10.1177/00936502241276793",
+        "source_extraction_id": "extraction-klref-missing-004",
+        "source_value_sha256": "48257729bce0d59061501da2016099d052f53cf83afd200ae3a2e73f29371afe",
+        "source_artifact_provenance": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-6461e3e0ac917a0bd7d12b02",
+          "artifact_role": "dataset_repository",
+          "artifact_label": "Figshare",
+          "artifact_locator": "https://doi.org/10.21942/uva.26395903.v2",
+          "artifact_version": "2",
+          "locally_validated_artifact_digest": "sha256:f8794b53d1ddaa1937aba8f96efa8492a310cd3273fb532749b1553e5ff8ec0c",
+          "digest_scope": "canonical_member_collection",
+          "member_selector": {
+            "selector_type": "canonical_collection_manifest",
+            "collection_manifest_id": "collection:siebers-figshare-analysis-csv",
+            "member_count": 5
+          },
+          "artifact_availability": "retrieved_as_validated_file_collection",
+          "artifact_relationship": {
+            "relationship_type": "figshare_versioned_dataset",
+            "figshare_article_locator": "https://figshare.com/articles/dataset/Adolescents_Digital_Nightlife/26395903",
+            "version_doi": "10.21942/uva.26395903.v2",
+            "file_inventory_count": 5
+          },
+          "source_locators": [
+            ".tmp-literature-review-private/same-chronicle-objective-log-recovery-wave-20260830T200649Z/evidence/adolescents-digital-nightlife-2024/fulltext.txt#lines=509-515; .tmp-literature-review-private/same-chronicle-objective-log-recovery-wave-20260830T200649Z/artifact-routes.jsonl#lines=26-28"
+          ]
+        },
+        "source_artifact_provenance_object_digest": "sha256:01ed10bcfeceb3cf4ce59e7fc63ea8568b9625531c001367538ff3fa49c66cf7"
+      },
+      "case_digest": "sha256:d9501f1f8eba90c251427dd117a3d159fa0b3cda7bc926a9c2d2ce105ca3ba50",
+      "expected_result": {
+        "accepted": true,
+        "registryStatus": "registered_documentary_provenance",
+        "methodSettingId": "method-setting-6461e3e0ac917a0bd7d12b02",
+        "sourceArtifactProvenanceId": "source-artifact-provenance:method-setting-6461e3e0ac917a0bd7d12b02",
+        "assertionDigest": "sha256:01ed10bcfeceb3cf4ce59e7fc63ea8568b9625531c001367538ff3fa49c66cf7",
+        "artifactContentsAvailable": true,
+        "contentDigestVerified": true,
+        "executionEligible": false,
+        "browserRoundtripAssertion": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-6461e3e0ac917a0bd7d12b02",
+          "artifact_role": "dataset_repository",
+          "artifact_label": "Figshare",
+          "artifact_locator": "https://doi.org/10.21942/uva.26395903.v2",
+          "artifact_version": "2",
+          "locally_validated_artifact_digest": "sha256:f8794b53d1ddaa1937aba8f96efa8492a310cd3273fb532749b1553e5ff8ec0c",
+          "digest_scope": "canonical_member_collection",
+          "member_selector": {
+            "selector_type": "canonical_collection_manifest",
+            "collection_manifest_id": "collection:siebers-figshare-analysis-csv",
+            "member_count": 5
+          },
+          "artifact_availability": "retrieved_as_validated_file_collection",
+          "artifact_relationship": {
+            "relationship_type": "figshare_versioned_dataset",
+            "figshare_article_locator": "https://figshare.com/articles/dataset/Adolescents_Digital_Nightlife/26395903",
+            "version_doi": "10.21942/uva.26395903.v2",
+            "file_inventory_count": 5
+          },
+          "source_locators": [
+            ".tmp-literature-review-private/same-chronicle-objective-log-recovery-wave-20260830T200649Z/evidence/adolescents-digital-nightlife-2024/fulltext.txt#lines=509-515; .tmp-literature-review-private/same-chronicle-objective-log-recovery-wave-20260830T200649Z/artifact-routes.jsonl#lines=26-28"
+          ]
+        }
+      },
+      "result_digest": "sha256:a9727133e6fc045ec2f886f0897df299f1e1b3db6ec92d55537ffc739973180c"
+    },
+    {
+      "schema_version": "chronicle-source-artifact-provenance-registry-conformance-fixture/v2",
+      "fixture_id": "source-artifact-provenance.method-setting-9735d942bd2a5dc924a00eaf.v2",
+      "method_setting_id": "method-setting-9735d942bd2a5dc924a00eaf",
+      "executor": {
+        "reference_executor": "packet-closed-setting-registry/v1",
+        "executed": true,
+        "native_implementation_status": "candidate_not_native_rust_or_browser"
+      },
+      "input": {
+        "operation": "register_source_artifact_provenance",
+        "public_contract_version": "source-artifact-provenance-registry/v1",
+        "method_setting_id": "method-setting-9735d942bd2a5dc924a00eaf",
+        "source_work_id": "doi:10.1177/00936502241276793",
+        "source_extraction_id": "extraction-klref-missing-004",
+        "source_value_sha256": "48257729bce0d59061501da2016099d052f53cf83afd200ae3a2e73f29371afe",
+        "source_artifact_provenance": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-9735d942bd2a5dc924a00eaf",
+          "artifact_role": "source_code_repository_snapshot",
+          "artifact_label": "GitHub main-branch snapshot",
+          "artifact_locator": "https://github.com/TeunSiebers/study-sleep",
+          "locally_validated_artifact_digest": "sha256:5799a15a4d5d58891049dadfdcec354806af58c4c8044c610954e8a4d941e5c4",
+          "digest_scope": "parent_bundle_bytes",
+          "member_selector": {
+            "selector_type": "entire_archive",
+            "source_ref": "refs/heads/main",
+            "acquired_at_utc": "2026-08-30T20:00:00Z"
+          },
+          "artifact_availability": "retrieved_locally_as_content_addressed_branch_snapshot",
+          "source_locators": [
+            ".tmp-literature-review-private/same-chronicle-objective-log-recovery-wave-20260830T200649Z/evidence/adolescents-digital-nightlife-2024/fulltext.txt#lines=509-515; .tmp-literature-review-private/same-chronicle-objective-log-recovery-wave-20260830T200649Z/artifact-routes.jsonl#lines=26-28"
+          ]
+        },
+        "source_artifact_provenance_object_digest": "sha256:d2bf3efb2130193faebc54e289c3e897cffb0a4549fc4c83d893877b4a977094"
+      },
+      "case_digest": "sha256:0e7f7e5d4bfd090d69a94fb0d9d89ad868d408786fb7240f4574a17d9d6eb7e5",
+      "expected_result": {
+        "accepted": true,
+        "registryStatus": "registered_documentary_provenance",
+        "methodSettingId": "method-setting-9735d942bd2a5dc924a00eaf",
+        "sourceArtifactProvenanceId": "source-artifact-provenance:method-setting-9735d942bd2a5dc924a00eaf",
+        "assertionDigest": "sha256:d2bf3efb2130193faebc54e289c3e897cffb0a4549fc4c83d893877b4a977094",
+        "artifactContentsAvailable": true,
+        "contentDigestVerified": true,
+        "executionEligible": false,
+        "browserRoundtripAssertion": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-9735d942bd2a5dc924a00eaf",
+          "artifact_role": "source_code_repository_snapshot",
+          "artifact_label": "GitHub main-branch snapshot",
+          "artifact_locator": "https://github.com/TeunSiebers/study-sleep",
+          "locally_validated_artifact_digest": "sha256:5799a15a4d5d58891049dadfdcec354806af58c4c8044c610954e8a4d941e5c4",
+          "digest_scope": "parent_bundle_bytes",
+          "member_selector": {
+            "selector_type": "entire_archive",
+            "source_ref": "refs/heads/main",
+            "acquired_at_utc": "2026-08-30T20:00:00Z"
+          },
+          "artifact_availability": "retrieved_locally_as_content_addressed_branch_snapshot",
+          "source_locators": [
+            ".tmp-literature-review-private/same-chronicle-objective-log-recovery-wave-20260830T200649Z/evidence/adolescents-digital-nightlife-2024/fulltext.txt#lines=509-515; .tmp-literature-review-private/same-chronicle-objective-log-recovery-wave-20260830T200649Z/artifact-routes.jsonl#lines=26-28"
+          ]
+        }
+      },
+      "result_digest": "sha256:812f08d967f5314da1c7ca3f3f7f5d7c74434f156802f916cb15139b548d692d"
+    },
+    {
+      "schema_version": "chronicle-source-artifact-provenance-registry-conformance-fixture/v2",
+      "fixture_id": "source-artifact-provenance.method-setting-ba42e53a2bb684a034aa67e0.v2",
+      "method_setting_id": "method-setting-ba42e53a2bb684a034aa67e0",
+      "executor": {
+        "reference_executor": "packet-closed-setting-registry/v1",
+        "executed": true,
+        "native_implementation_status": "candidate_not_native_rust_or_browser"
+      },
+      "input": {
+        "operation": "register_source_artifact_provenance",
+        "public_contract_version": "source-artifact-provenance-registry/v1",
+        "method_setting_id": "method-setting-ba42e53a2bb684a034aa67e0",
+        "source_work_id": "doi:10.1177/00936502241276793",
+        "source_extraction_id": "extraction-klref-missing-004",
+        "source_value_sha256": "48257729bce0d59061501da2016099d052f53cf83afd200ae3a2e73f29371afe",
+        "source_artifact_provenance": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-ba42e53a2bb684a034aa67e0",
+          "artifact_role": "source_code_repository_route",
+          "artifact_label": "OSF-mounted GitHub repository route",
+          "artifact_locator": "https://osf.io/tpj98/",
+          "artifact_availability": "mounted_provider_metadata_retrieved_exact_repository_version_unresolved",
+          "artifact_relationship": {
+            "relationship_type": "osf_mounted_provider",
+            "osf_node_id": "tpj98",
+            "osf_provider": "github",
+            "provider_root_member_names": [
+              ".gitignore",
+              "mplus",
+              "README.md",
+              "scripts",
+              "study-sleep.Rproj"
+            ],
+            "exact_repository_and_commit_link_status": "unresolved_in_preserved_evidence"
+          },
+          "source_locators": [
+            ".tmp-literature-review-private/same-chronicle-objective-log-recovery-wave-20260830T200649Z/evidence/adolescents-digital-nightlife-2024/fulltext.txt#lines=509-515; .tmp-literature-review-private/same-chronicle-objective-log-recovery-wave-20260830T200649Z/artifact-routes.jsonl#lines=26-28"
+          ]
+        },
+        "source_artifact_provenance_object_digest": "sha256:b1e757ec5fcf35118cfada2b65975873ebbe9fb44b8ed40dfb53e143a9279883"
+      },
+      "case_digest": "sha256:7e35b6ab373bf4edb09ee8f5d5ab5e200dffa6e9fde725f718aa59202e686d46",
+      "expected_result": {
+        "accepted": false,
+        "registryStatus": "rejected",
+        "errorCode": "blocked_missing_exact_mounted_provider_version_link",
+        "artifactContentsAvailable": false,
+        "contentDigestVerified": false,
+        "executionEligible": false
+      },
+      "result_digest": "sha256:25d2216c1091e5514fa14035e30f97eeebcba6c768bb84ac5c9a0421e0184828"
+    }
+  ],
+  "negative_fixtures": [
+    {
+      "schema_version": "chronicle-source-artifact-provenance-registry-negative-conformance-fixture/v2",
+      "fixture_id": "source-artifact-provenance.negative.forged-setting-id.v2",
+      "mutation": "forged-setting-id",
+      "input": {
+        "operation": "register_source_artifact_provenance",
+        "public_contract_version": "source-artifact-provenance-registry/v1",
+        "method_setting_id": "method-setting-forged0000000000000000",
+        "source_work_id": "doi:10.1016/j.chb.2023.107977",
+        "source_extraction_id": "extraction-klref-missing-006",
+        "source_value_sha256": "7a4643c388629c82b98f87948f924c8c3c908230530082c95f4f36573861cb1e",
+        "source_artifact_provenance": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-0d4c2d71ec4c6dea11ac19b0",
+          "artifact_role": "r_project_bundle",
+          "artifact_label": "R project bundle",
+          "artifact_locator": "https://osf.io/ckwge/",
+          "locally_validated_artifact_digest": "sha256:ede3361b6003b6436799fd4e56376b81b581d9079026c2440cd63380293dc811",
+          "digest_scope": "parent_bundle_bytes",
+          "member_selector": {
+            "selector_type": "entire_project_archive",
+            "project_root": "SmartphoneUsage_Wellbeing/",
+            "r_project_descriptor_member": "SmartphoneUsage_Wellbeing/SmartphoneUsage_Wellbeing.Rproj"
+          },
+          "artifact_availability": "retrieved_locally_as_content_addressed_project_bundle",
+          "source_locators": [
+            ".tmp-literature-review-private/final-exact-primary-http-wave-20260830T214500Z/artifact-manifest.jsonl#lines=3-5"
+          ]
+        },
+        "source_artifact_provenance_object_digest": "sha256:65adeeeadd92813fe87adb167d23f536ce49152087b9ea410a1c3ca3692f3708"
+      },
+      "case_digest": "sha256:ca2792deceb6de5d478b6866198016db70ed1f73c3576fe6deab84424e7877ad",
+      "expected_result": {
+        "accepted": false,
+        "registryStatus": "rejected",
+        "errorCode": "unknown_setting_id",
+        "artifactContentsAvailable": false,
+        "contentDigestVerified": false,
+        "executionEligible": false
+      },
+      "result_digest": "sha256:7c5a14b31b2e268d80f60a678604e9ee087840ccbec599d1f4d81ee74ea0918c"
+    },
+    {
+      "schema_version": "chronicle-source-artifact-provenance-registry-negative-conformance-fixture/v2",
+      "fixture_id": "source-artifact-provenance.negative.forged-work-id.v2",
+      "mutation": "forged-work-id",
+      "input": {
+        "operation": "register_source_artifact_provenance",
+        "public_contract_version": "source-artifact-provenance-registry/v1",
+        "method_setting_id": "method-setting-0d4c2d71ec4c6dea11ac19b0",
+        "source_work_id": "doi:10.0000/forged",
+        "source_extraction_id": "extraction-klref-missing-006",
+        "source_value_sha256": "7a4643c388629c82b98f87948f924c8c3c908230530082c95f4f36573861cb1e",
+        "source_artifact_provenance": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-0d4c2d71ec4c6dea11ac19b0",
+          "artifact_role": "r_project_bundle",
+          "artifact_label": "R project bundle",
+          "artifact_locator": "https://osf.io/ckwge/",
+          "locally_validated_artifact_digest": "sha256:ede3361b6003b6436799fd4e56376b81b581d9079026c2440cd63380293dc811",
+          "digest_scope": "parent_bundle_bytes",
+          "member_selector": {
+            "selector_type": "entire_project_archive",
+            "project_root": "SmartphoneUsage_Wellbeing/",
+            "r_project_descriptor_member": "SmartphoneUsage_Wellbeing/SmartphoneUsage_Wellbeing.Rproj"
+          },
+          "artifact_availability": "retrieved_locally_as_content_addressed_project_bundle",
+          "source_locators": [
+            ".tmp-literature-review-private/final-exact-primary-http-wave-20260830T214500Z/artifact-manifest.jsonl#lines=3-5"
+          ]
+        },
+        "source_artifact_provenance_object_digest": "sha256:65adeeeadd92813fe87adb167d23f536ce49152087b9ea410a1c3ca3692f3708"
+      },
+      "case_digest": "sha256:043223cded446991446303221b24d8f7fec0680e8dcb95bbd5aca13045b0dce8",
+      "expected_result": {
+        "accepted": false,
+        "registryStatus": "rejected",
+        "errorCode": "source_work_identity_mismatch",
+        "artifactContentsAvailable": false,
+        "contentDigestVerified": false,
+        "executionEligible": false
+      },
+      "result_digest": "sha256:c2f90e608e8c8d2531b93174485009cb5fbcaedbcfe58658f993e6256fda2771"
+    },
+    {
+      "schema_version": "chronicle-source-artifact-provenance-registry-negative-conformance-fixture/v2",
+      "fixture_id": "source-artifact-provenance.negative.forged-extraction-id.v2",
+      "mutation": "forged-extraction-id",
+      "input": {
+        "operation": "register_source_artifact_provenance",
+        "public_contract_version": "source-artifact-provenance-registry/v1",
+        "method_setting_id": "method-setting-0d4c2d71ec4c6dea11ac19b0",
+        "source_work_id": "doi:10.1016/j.chb.2023.107977",
+        "source_extraction_id": "extraction-forged",
+        "source_value_sha256": "7a4643c388629c82b98f87948f924c8c3c908230530082c95f4f36573861cb1e",
+        "source_artifact_provenance": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-0d4c2d71ec4c6dea11ac19b0",
+          "artifact_role": "r_project_bundle",
+          "artifact_label": "R project bundle",
+          "artifact_locator": "https://osf.io/ckwge/",
+          "locally_validated_artifact_digest": "sha256:ede3361b6003b6436799fd4e56376b81b581d9079026c2440cd63380293dc811",
+          "digest_scope": "parent_bundle_bytes",
+          "member_selector": {
+            "selector_type": "entire_project_archive",
+            "project_root": "SmartphoneUsage_Wellbeing/",
+            "r_project_descriptor_member": "SmartphoneUsage_Wellbeing/SmartphoneUsage_Wellbeing.Rproj"
+          },
+          "artifact_availability": "retrieved_locally_as_content_addressed_project_bundle",
+          "source_locators": [
+            ".tmp-literature-review-private/final-exact-primary-http-wave-20260830T214500Z/artifact-manifest.jsonl#lines=3-5"
+          ]
+        },
+        "source_artifact_provenance_object_digest": "sha256:65adeeeadd92813fe87adb167d23f536ce49152087b9ea410a1c3ca3692f3708"
+      },
+      "case_digest": "sha256:4aaf8189f8d092d67790a13c7f71236f0ff6f503744a640c9d4a68d3450ac420",
+      "expected_result": {
+        "accepted": false,
+        "registryStatus": "rejected",
+        "errorCode": "source_extraction_identity_mismatch",
+        "artifactContentsAvailable": false,
+        "contentDigestVerified": false,
+        "executionEligible": false
+      },
+      "result_digest": "sha256:9a7775fac2dc6c5b15521a5556cd669a90310d4e74a7fb8f7bcb0f6368a70962"
+    },
+    {
+      "schema_version": "chronicle-source-artifact-provenance-registry-negative-conformance-fixture/v2",
+      "fixture_id": "source-artifact-provenance.negative.forged-source-value-digest.v2",
+      "mutation": "forged-source-value-digest",
+      "input": {
+        "operation": "register_source_artifact_provenance",
+        "public_contract_version": "source-artifact-provenance-registry/v1",
+        "method_setting_id": "method-setting-0d4c2d71ec4c6dea11ac19b0",
+        "source_work_id": "doi:10.1016/j.chb.2023.107977",
+        "source_extraction_id": "extraction-klref-missing-006",
+        "source_value_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "source_artifact_provenance": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-0d4c2d71ec4c6dea11ac19b0",
+          "artifact_role": "r_project_bundle",
+          "artifact_label": "R project bundle",
+          "artifact_locator": "https://osf.io/ckwge/",
+          "locally_validated_artifact_digest": "sha256:ede3361b6003b6436799fd4e56376b81b581d9079026c2440cd63380293dc811",
+          "digest_scope": "parent_bundle_bytes",
+          "member_selector": {
+            "selector_type": "entire_project_archive",
+            "project_root": "SmartphoneUsage_Wellbeing/",
+            "r_project_descriptor_member": "SmartphoneUsage_Wellbeing/SmartphoneUsage_Wellbeing.Rproj"
+          },
+          "artifact_availability": "retrieved_locally_as_content_addressed_project_bundle",
+          "source_locators": [
+            ".tmp-literature-review-private/final-exact-primary-http-wave-20260830T214500Z/artifact-manifest.jsonl#lines=3-5"
+          ]
+        },
+        "source_artifact_provenance_object_digest": "sha256:65adeeeadd92813fe87adb167d23f536ce49152087b9ea410a1c3ca3692f3708"
+      },
+      "case_digest": "sha256:e010b3bb7138f3a11bd84386d62633a04e2363e0b08e986bffdfb77bc5390ef2",
+      "expected_result": {
+        "accepted": false,
+        "registryStatus": "rejected",
+        "errorCode": "source_value_digest_mismatch",
+        "artifactContentsAvailable": false,
+        "contentDigestVerified": false,
+        "executionEligible": false
+      },
+      "result_digest": "sha256:45a78e56d6221a784fc8084b1ca230e223b9bcdae4a137caa1c979cb4077ebb6"
+    },
+    {
+      "schema_version": "chronicle-source-artifact-provenance-registry-negative-conformance-fixture/v2",
+      "fixture_id": "source-artifact-provenance.negative.forged-provenance-digest.v2",
+      "mutation": "forged-provenance-digest",
+      "input": {
+        "operation": "register_source_artifact_provenance",
+        "public_contract_version": "source-artifact-provenance-registry/v1",
+        "method_setting_id": "method-setting-0d4c2d71ec4c6dea11ac19b0",
+        "source_work_id": "doi:10.1016/j.chb.2023.107977",
+        "source_extraction_id": "extraction-klref-missing-006",
+        "source_value_sha256": "7a4643c388629c82b98f87948f924c8c3c908230530082c95f4f36573861cb1e",
+        "source_artifact_provenance": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-0d4c2d71ec4c6dea11ac19b0",
+          "artifact_role": "r_project_bundle",
+          "artifact_label": "R project bundle",
+          "artifact_locator": "https://osf.io/ckwge/",
+          "locally_validated_artifact_digest": "sha256:ede3361b6003b6436799fd4e56376b81b581d9079026c2440cd63380293dc811",
+          "digest_scope": "parent_bundle_bytes",
+          "member_selector": {
+            "selector_type": "entire_project_archive",
+            "project_root": "SmartphoneUsage_Wellbeing/",
+            "r_project_descriptor_member": "SmartphoneUsage_Wellbeing/SmartphoneUsage_Wellbeing.Rproj"
+          },
+          "artifact_availability": "retrieved_locally_as_content_addressed_project_bundle",
+          "source_locators": [
+            ".tmp-literature-review-private/final-exact-primary-http-wave-20260830T214500Z/artifact-manifest.jsonl#lines=3-5"
+          ]
+        },
+        "source_artifact_provenance_object_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "case_digest": "sha256:22ea3d48b4d1e4bfeffa070ae2f16e5348e9d672a322a9b86f4915c4da8f990c",
+      "expected_result": {
+        "accepted": false,
+        "registryStatus": "rejected",
+        "errorCode": "provenance_digest_mismatch",
+        "artifactContentsAvailable": false,
+        "contentDigestVerified": false,
+        "executionEligible": false
+      },
+      "result_digest": "sha256:a8c600449fc69d20978aadadb3d04045b3236a5c36ac0f3e21c70bae894c7c5b"
+    },
+    {
+      "schema_version": "chronicle-source-artifact-provenance-registry-negative-conformance-fixture/v2",
+      "fixture_id": "source-artifact-provenance.negative.forged-selector-rehashed.v2",
+      "mutation": "forged-selector-rehashed",
+      "input": {
+        "operation": "register_source_artifact_provenance",
+        "public_contract_version": "source-artifact-provenance-registry/v1",
+        "method_setting_id": "method-setting-0d4c2d71ec4c6dea11ac19b0",
+        "source_work_id": "doi:10.1016/j.chb.2023.107977",
+        "source_extraction_id": "extraction-klref-missing-006",
+        "source_value_sha256": "7a4643c388629c82b98f87948f924c8c3c908230530082c95f4f36573861cb1e",
+        "source_artifact_provenance": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-0d4c2d71ec4c6dea11ac19b0",
+          "artifact_role": "r_project_bundle",
+          "artifact_label": "R project bundle",
+          "artifact_locator": "https://osf.io/ckwge/",
+          "locally_validated_artifact_digest": "sha256:ede3361b6003b6436799fd4e56376b81b581d9079026c2440cd63380293dc811",
+          "digest_scope": "parent_bundle_bytes",
+          "member_selector": {
+            "selector_type": "entire_project_archive",
+            "project_root": "forged/",
+            "r_project_descriptor_member": "SmartphoneUsage_Wellbeing/SmartphoneUsage_Wellbeing.Rproj"
+          },
+          "artifact_availability": "retrieved_locally_as_content_addressed_project_bundle",
+          "source_locators": [
+            ".tmp-literature-review-private/final-exact-primary-http-wave-20260830T214500Z/artifact-manifest.jsonl#lines=3-5"
+          ]
+        },
+        "source_artifact_provenance_object_digest": "sha256:69bc94afb47af4b6c921812efa1116b646db7c19cf7293c0070ab8d47718c123"
+      },
+      "case_digest": "sha256:b69d3a121db64da950f6dd5787e644e9d06e70f7868cd57fbac442c7d0be4609",
+      "expected_result": {
+        "accepted": false,
+        "registryStatus": "rejected",
+        "errorCode": "unregistered_provenance_object",
+        "artifactContentsAvailable": false,
+        "contentDigestVerified": false,
+        "executionEligible": false
+      },
+      "result_digest": "sha256:a5309a0675a3dacd15166767ce483090a95a5db41e4aa82bc3c97201bb73a3f9"
+    },
+    {
+      "schema_version": "chronicle-source-artifact-provenance-registry-negative-conformance-fixture/v2",
+      "fixture_id": "source-artifact-provenance.negative.forged-version-rehashed.v2",
+      "mutation": "forged-version-rehashed",
+      "input": {
+        "operation": "register_source_artifact_provenance",
+        "public_contract_version": "source-artifact-provenance-registry/v1",
+        "method_setting_id": "method-setting-5b818543f0912f925ede6377",
+        "source_work_id": "doi:10.1177/00936502241276793",
+        "source_extraction_id": "extraction-klref-missing-004",
+        "source_value_sha256": "48257729bce0d59061501da2016099d052f53cf83afd200ae3a2e73f29371afe",
+        "source_artifact_provenance": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-5b818543f0912f925ede6377",
+          "artifact_role": "anonymized_dataset",
+          "artifact_label": "anonymized dataset",
+          "artifact_locator": "https://doi.org/10.21942/uva.26395903.v2",
+          "artifact_version": "3",
+          "locally_validated_artifact_digest": "sha256:f8794b53d1ddaa1937aba8f96efa8492a310cd3273fb532749b1553e5ff8ec0c",
+          "digest_scope": "canonical_member_collection",
+          "member_selector": {
+            "selector_type": "canonical_collection_manifest",
+            "collection_manifest_id": "collection:siebers-figshare-analysis-csv",
+            "member_count": 5
+          },
+          "artifact_availability": "retrieved_as_validated_file_collection",
+          "artifact_relationship": {
+            "relationship_type": "figshare_versioned_dataset",
+            "figshare_article_locator": "https://figshare.com/articles/dataset/Adolescents_Digital_Nightlife/26395903",
+            "version_doi": "10.21942/uva.26395903.v2",
+            "file_inventory_count": 5
+          },
+          "source_locators": [
+            ".tmp-literature-review-private/same-chronicle-objective-log-recovery-wave-20260830T200649Z/evidence/adolescents-digital-nightlife-2024/fulltext.txt#lines=509-515; .tmp-literature-review-private/same-chronicle-objective-log-recovery-wave-20260830T200649Z/artifact-routes.jsonl#lines=26-28"
+          ]
+        },
+        "source_artifact_provenance_object_digest": "sha256:3a8319f2801822832f30a89d439c4251d2adb655cd72048403d466a285430d07"
+      },
+      "case_digest": "sha256:6daa90320a388af69e16c4f22db5277c21addbdcf3f452880c8b39d934d6addf",
+      "expected_result": {
+        "accepted": false,
+        "registryStatus": "rejected",
+        "errorCode": "unregistered_provenance_object",
+        "artifactContentsAvailable": false,
+        "contentDigestVerified": false,
+        "executionEligible": false
+      },
+      "result_digest": "sha256:a5309a0675a3dacd15166767ce483090a95a5db41e4aa82bc3c97201bb73a3f9"
+    },
+    {
+      "schema_version": "chronicle-source-artifact-provenance-registry-negative-conformance-fixture/v2",
+      "fixture_id": "source-artifact-provenance.negative.unknown-input-key.v2",
+      "mutation": "unknown-input-key",
+      "input": {
+        "operation": "register_source_artifact_provenance",
+        "public_contract_version": "source-artifact-provenance-registry/v1",
+        "method_setting_id": "method-setting-0d4c2d71ec4c6dea11ac19b0",
+        "source_work_id": "doi:10.1016/j.chb.2023.107977",
+        "source_extraction_id": "extraction-klref-missing-006",
+        "source_value_sha256": "7a4643c388629c82b98f87948f924c8c3c908230530082c95f4f36573861cb1e",
+        "source_artifact_provenance": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-0d4c2d71ec4c6dea11ac19b0",
+          "artifact_role": "r_project_bundle",
+          "artifact_label": "R project bundle",
+          "artifact_locator": "https://osf.io/ckwge/",
+          "locally_validated_artifact_digest": "sha256:ede3361b6003b6436799fd4e56376b81b581d9079026c2440cd63380293dc811",
+          "digest_scope": "parent_bundle_bytes",
+          "member_selector": {
+            "selector_type": "entire_project_archive",
+            "project_root": "SmartphoneUsage_Wellbeing/",
+            "r_project_descriptor_member": "SmartphoneUsage_Wellbeing/SmartphoneUsage_Wellbeing.Rproj"
+          },
+          "artifact_availability": "retrieved_locally_as_content_addressed_project_bundle",
+          "source_locators": [
+            ".tmp-literature-review-private/final-exact-primary-http-wave-20260830T214500Z/artifact-manifest.jsonl#lines=3-5"
+          ]
+        },
+        "source_artifact_provenance_object_digest": "sha256:65adeeeadd92813fe87adb167d23f536ce49152087b9ea410a1c3ca3692f3708",
+        "unregistered_input_key": true
+      },
+      "case_digest": "sha256:c9ccb40091646faaa4291f5607e2a248bb80ef02f039e8c4f918b7e0cdda863d",
+      "expected_result": {
+        "accepted": false,
+        "registryStatus": "rejected",
+        "errorCode": "invalid_input_keys",
+        "artifactContentsAvailable": false,
+        "contentDigestVerified": false,
+        "executionEligible": false
+      },
+      "result_digest": "sha256:a87ced6a8646e40e943affb47e147b63ad6a90e1f2efec3e9e129206cfe55379"
+    },
+    {
+      "schema_version": "chronicle-source-artifact-provenance-registry-negative-conformance-fixture/v2",
+      "fixture_id": "source-artifact-provenance.negative.unknown-provenance-key.v2",
+      "mutation": "unknown-provenance-key",
+      "input": {
+        "operation": "register_source_artifact_provenance",
+        "public_contract_version": "source-artifact-provenance-registry/v1",
+        "method_setting_id": "method-setting-0d4c2d71ec4c6dea11ac19b0",
+        "source_work_id": "doi:10.1016/j.chb.2023.107977",
+        "source_extraction_id": "extraction-klref-missing-006",
+        "source_value_sha256": "7a4643c388629c82b98f87948f924c8c3c908230530082c95f4f36573861cb1e",
+        "source_artifact_provenance": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-0d4c2d71ec4c6dea11ac19b0",
+          "artifact_role": "r_project_bundle",
+          "artifact_label": "R project bundle",
+          "artifact_locator": "https://osf.io/ckwge/",
+          "locally_validated_artifact_digest": "sha256:ede3361b6003b6436799fd4e56376b81b581d9079026c2440cd63380293dc811",
+          "digest_scope": "parent_bundle_bytes",
+          "member_selector": {
+            "selector_type": "entire_project_archive",
+            "project_root": "SmartphoneUsage_Wellbeing/",
+            "r_project_descriptor_member": "SmartphoneUsage_Wellbeing/SmartphoneUsage_Wellbeing.Rproj"
+          },
+          "artifact_availability": "retrieved_locally_as_content_addressed_project_bundle",
+          "source_locators": [
+            ".tmp-literature-review-private/final-exact-primary-http-wave-20260830T214500Z/artifact-manifest.jsonl#lines=3-5"
+          ],
+          "unregistered_provenance_key": true
+        },
+        "source_artifact_provenance_object_digest": "sha256:9dc32055452007867ea585b7f6d9a17c46534099c25c327c3143bc355922eb01"
+      },
+      "case_digest": "sha256:e40339820f394bcc49b302371c665ba7b2cf8eafc95ce7272b2d4feda8718284",
+      "expected_result": {
+        "accepted": false,
+        "registryStatus": "rejected",
+        "errorCode": "invalid_provenance_keys",
+        "artifactContentsAvailable": false,
+        "contentDigestVerified": false,
+        "executionEligible": false
+      },
+      "result_digest": "sha256:b7eb2ea9fe4f0cf14d93eadae166d8f5c413af231ec2fc9a800b1de496618796"
+    },
+    {
+      "schema_version": "chronicle-source-artifact-provenance-registry-negative-conformance-fixture/v2",
+      "fixture_id": "source-artifact-provenance.negative.unknown-selector-key-rehashed.v2",
+      "mutation": "unknown-selector-key-rehashed",
+      "input": {
+        "operation": "register_source_artifact_provenance",
+        "public_contract_version": "source-artifact-provenance-registry/v1",
+        "method_setting_id": "method-setting-0d4c2d71ec4c6dea11ac19b0",
+        "source_work_id": "doi:10.1016/j.chb.2023.107977",
+        "source_extraction_id": "extraction-klref-missing-006",
+        "source_value_sha256": "7a4643c388629c82b98f87948f924c8c3c908230530082c95f4f36573861cb1e",
+        "source_artifact_provenance": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-0d4c2d71ec4c6dea11ac19b0",
+          "artifact_role": "r_project_bundle",
+          "artifact_label": "R project bundle",
+          "artifact_locator": "https://osf.io/ckwge/",
+          "locally_validated_artifact_digest": "sha256:ede3361b6003b6436799fd4e56376b81b581d9079026c2440cd63380293dc811",
+          "digest_scope": "parent_bundle_bytes",
+          "member_selector": {
+            "selector_type": "entire_project_archive",
+            "project_root": "SmartphoneUsage_Wellbeing/",
+            "r_project_descriptor_member": "SmartphoneUsage_Wellbeing/SmartphoneUsage_Wellbeing.Rproj",
+            "unregistered_selector_key": true
+          },
+          "artifact_availability": "retrieved_locally_as_content_addressed_project_bundle",
+          "source_locators": [
+            ".tmp-literature-review-private/final-exact-primary-http-wave-20260830T214500Z/artifact-manifest.jsonl#lines=3-5"
+          ]
+        },
+        "source_artifact_provenance_object_digest": "sha256:d8cd48a042c9a23b889ae8e081ffbbdd89834168563636e39ebfa1602b27716a"
+      },
+      "case_digest": "sha256:fd8cf176d3834b9ea696d0cdcf9499eb2764e3cd5747a3eefdd78550148c5b62",
+      "expected_result": {
+        "accepted": false,
+        "registryStatus": "rejected",
+        "errorCode": "unregistered_provenance_object",
+        "artifactContentsAvailable": false,
+        "contentDigestVerified": false,
+        "executionEligible": false
+      },
+      "result_digest": "sha256:a5309a0675a3dacd15166767ce483090a95a5db41e4aa82bc3c97201bb73a3f9"
+    },
+    {
+      "schema_version": "chronicle-source-artifact-provenance-registry-negative-conformance-fixture/v2",
+      "fixture_id": "source-artifact-provenance.negative.unknown-relationship-key-rehashed.v2",
+      "mutation": "unknown-relationship-key-rehashed",
+      "input": {
+        "operation": "register_source_artifact_provenance",
+        "public_contract_version": "source-artifact-provenance-registry/v1",
+        "method_setting_id": "method-setting-5b818543f0912f925ede6377",
+        "source_work_id": "doi:10.1177/00936502241276793",
+        "source_extraction_id": "extraction-klref-missing-004",
+        "source_value_sha256": "48257729bce0d59061501da2016099d052f53cf83afd200ae3a2e73f29371afe",
+        "source_artifact_provenance": {
+          "source_artifact_provenance_id": "source-artifact-provenance:method-setting-5b818543f0912f925ede6377",
+          "artifact_role": "anonymized_dataset",
+          "artifact_label": "anonymized dataset",
+          "artifact_locator": "https://doi.org/10.21942/uva.26395903.v2",
+          "artifact_version": "2",
+          "locally_validated_artifact_digest": "sha256:f8794b53d1ddaa1937aba8f96efa8492a310cd3273fb532749b1553e5ff8ec0c",
+          "digest_scope": "canonical_member_collection",
+          "member_selector": {
+            "selector_type": "canonical_collection_manifest",
+            "collection_manifest_id": "collection:siebers-figshare-analysis-csv",
+            "member_count": 5
+          },
+          "artifact_availability": "retrieved_as_validated_file_collection",
+          "artifact_relationship": {
+            "relationship_type": "figshare_versioned_dataset",
+            "figshare_article_locator": "https://figshare.com/articles/dataset/Adolescents_Digital_Nightlife/26395903",
+            "version_doi": "10.21942/uva.26395903.v2",
+            "file_inventory_count": 5,
+            "unregistered_relationship_key": true
+          },
+          "source_locators": [
+            ".tmp-literature-review-private/same-chronicle-objective-log-recovery-wave-20260830T200649Z/evidence/adolescents-digital-nightlife-2024/fulltext.txt#lines=509-515; .tmp-literature-review-private/same-chronicle-objective-log-recovery-wave-20260830T200649Z/artifact-routes.jsonl#lines=26-28"
+          ]
+        },
+        "source_artifact_provenance_object_digest": "sha256:f7a15e21ceae45101d73c5e8e414488393f258bc1e2817ecc32bf6252ebcdaf6"
+      },
+      "case_digest": "sha256:6a4d69e9944af7d156da62f81680dd85f1e1228156ca22a2f4f3736056cae02b",
+      "expected_result": {
+        "accepted": false,
+        "registryStatus": "rejected",
+        "errorCode": "unregistered_provenance_object",
+        "artifactContentsAvailable": false,
+        "contentDigestVerified": false,
+        "executionEligible": false
+      },
+      "result_digest": "sha256:a5309a0675a3dacd15166767ce483090a95a5db41e4aa82bc3c97201bb73a3f9"
+    }
+  ],
+  "content_digest": "sha256:1d3c9026471eefca32dfb3932e958dd06fa6d585664f467cd48c0be28e81c6a3"
+}

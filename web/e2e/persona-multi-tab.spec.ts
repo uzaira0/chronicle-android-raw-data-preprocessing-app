@@ -12,16 +12,18 @@ import {
   gotoApp,
   installDeterministicRuntime,
   setInputFile,
+  RESULT_PANEL_TIMEOUT_MS,
 } from "./helpers";
 
 /**
  * Persona 8 — Multi-tab sleuth.
  *
- * The app open in two tabs at once. It uses localStorage (settings) and a single
- * keyed IndexedDB record (last run) — there is no BroadcastChannel/storage-event
- * live sync, so the contract is: concurrent writes are last-write-wins and
- * reconcile on reload, never corrupt; the shared cached run is a single record,
- * never duplicated or torn; each tab's in-memory run is independently correct.
+ * The app open in two tabs at once. Settings and presets live in localStorage
+ * and each tab listens for the other's `storage` events: a settings write
+ * merges into the other tab only the options it changed, and a preset save
+ * reads the stored library first, so neither tab silently undoes the other's
+ * edit. The last run is a single keyed IndexedDB record, never duplicated or
+ * torn; each tab's in-memory run is independently correct.
  */
 test.describe.configure({ mode: "serial" });
 
@@ -56,7 +58,7 @@ async function readLastRun(page: Page): Promise<{ results?: unknown[] } | null> 
   );
 }
 
-test("concurrent settings edits in two tabs reconcile to a valid value, never corrupt", async ({
+test("a settings edit in one tab reaches the other tab and neither tab undoes the other's", async ({
   context,
 }) => {
   const tab1 = await context.newPage();
@@ -69,17 +71,55 @@ test("concurrent settings edits in two tabs reconcile to a valid value, never co
   const errors: string[] = [];
   for (const tab of [tab1, tab2]) tab.on("pageerror", (e) => errors.push(String(e)));
 
+  await expect(tab2.getByTestId("toggle-enableAggregates")).not.toBeChecked();
   await tab1.getByTestId("study-name-input").fill("TAB-A-STUDY");
-  await tab2.getByTestId("study-name-input").fill("TAB-B-STUDY");
-  // Let both persistence writes settle.
-  await tab1.waitForTimeout(200);
+  // Tab 2 sees tab 1's edit without a reload.
+  await expect(tab2.getByTestId("study-name-input")).toHaveValue("TAB-A-STUDY");
 
-  await tab1.reload();
+  // Tab 2 changes a different option; its write carries tab 1's study name
+  // instead of the stale copy it booted with, and tab 1 picks the change up.
+  await tab2.getByTestId("toggle-enableAggregates").check();
+  await expect(tab1.getByTestId("toggle-enableAggregates")).toBeChecked();
+  await expect(tab1.getByTestId("study-name-input")).toHaveValue("TAB-A-STUDY");
+
+  // gotoApp navigates, so it is the reload: a reload followed by a second
+  // navigation aborts the first boot's bundled-asset fetches mid-flight.
+  for (const tab of [tab1, tab2]) {
+    await gotoApp(tab);
+    await expect(tab.getByTestId("study-name-input")).toHaveValue("TAB-A-STUDY");
+    await expect(tab.getByTestId("toggle-enableAggregates")).toBeChecked();
+  }
+  expect(errors).toEqual([]);
+
+  await tab1.close();
+  await tab2.close();
+});
+
+test("presets saved in two tabs both survive", async ({ context }) => {
+  const tab1 = await context.newPage();
   await installDeterministicRuntime(tab1);
   await gotoApp(tab1);
-  const restored = await tab1.getByTestId("study-name-input").inputValue();
-  // Last-write-wins: it's one of the two real values, not blank or garbled.
-  expect(["TAB-A-STUDY", "TAB-B-STUDY"]).toContain(restored);
+  const tab2 = await context.newPage();
+  await installDeterministicRuntime(tab2);
+  await gotoApp(tab2);
+
+  const errors: string[] = [];
+  for (const tab of [tab1, tab2]) tab.on("pageerror", (e) => errors.push(String(e)));
+
+  await tab1.getByTestId("preset-name-input").fill("Preset from tab A");
+  await tab1.getByTestId("save-preset-button").click();
+  await expect(tab1.getByTestId("preset-list")).toContainText("Preset from tab A");
+  // Tab 2 booted with an empty library; its save must not replace tab 1's.
+  await tab2.getByTestId("preset-name-input").fill("Preset from tab B");
+  await tab2.getByTestId("save-preset-button").click();
+
+  for (const tab of [tab1, tab2]) {
+    await expect(tab.getByTestId("preset-list")).toContainText("Preset from tab A");
+    await expect(tab.getByTestId("preset-list")).toContainText("Preset from tab B");
+  }
+  await gotoApp(tab1);
+  await expect(tab1.getByTestId("preset-list")).toContainText("Preset from tab A");
+  await expect(tab1.getByTestId("preset-list")).toContainText("Preset from tab B");
   expect(errors).toEqual([]);
 
   await tab1.close();
@@ -115,8 +155,8 @@ test("@durability two tabs processing at once leave a single, valid cached run",
     })(),
   ]);
 
-  await expect(tab1.getByTestId("result-panel").first()).toBeVisible({ timeout: 20_000 });
-  await expect(tab2.getByTestId("result-panel").first()).toBeVisible({ timeout: 20_000 });
+  await expect(tab1.getByTestId("result-panel").first()).toBeVisible({ timeout: RESULT_PANEL_TIMEOUT_MS });
+  await expect(tab2.getByTestId("result-panel").first()).toBeVisible({ timeout: RESULT_PANEL_TIMEOUT_MS });
   await expect(tab1.getByTestId("result-panel")).toContainText("1 file processed");
   await expect(tab2.getByTestId("result-panel")).toContainText("1 file processed");
 

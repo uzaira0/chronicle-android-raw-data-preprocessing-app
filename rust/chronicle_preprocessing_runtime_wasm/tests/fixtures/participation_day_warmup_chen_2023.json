@@ -1,0 +1,77 @@
+{
+  "schemaVersion": "chronicle-participation-day-warmup-source-fixture/v1",
+  "sourceWorkId": "doi:10.1145/3544548.3580689",
+  "sourceSha256": "ac549455d86f7572e6f3e0b2b0ba012ab6f47d175836bf92f51a5d83f1b5b931",
+  "sourceLocator": ".tmp-literature-review-private/corrective-packet-06-ranks174-223-20260831/text/223-1-ac549455d86f.txt:403-416",
+  "releasedCodeSha256": "61a6776961867487c90f0e71d81cd39f3a3135c17b464b15f541f359b334032c",
+  "exactCanonicalSettingIds": [
+    "method-setting-50d746b62ee05404bbbfaac8"
+  ],
+  "sourceScheduleMetadata": {
+    "defaultStart": "10:00",
+    "defaultEnd": "22:00",
+    "startAndEndUserAdjustable": true,
+    "operationalUse": "provenance_only_not_a_boundary_inference_rule"
+  },
+  "inputBoundary": "Each record is already assigned to a source participation-day ID, and an actual participant/day start timestamp is supplied separately.",
+  "outputBoundary": "Records in the first 3600000000000 ns are removed; surviving records retain input order, duplicates, and payloads.",
+  "limitations": [
+    "The paper and released code do not disclose how raw events were assigned to participation days.",
+    "The operator does not substitute midnight, the default 10:00 start, a timezone, or the first observed event for the missing actual boundary.",
+    "The released code consumes already-prepared rows and does not implement the first-hour exclusion."
+  ],
+  "boundaries": [
+    {
+      "participantId": "P1",
+      "sourceDayId": "day-adjusted",
+      "startTimestampNs": 100000000000000
+    },
+    {
+      "participantId": "P1",
+      "sourceDayId": "day-default",
+      "startTimestampNs": 200000000000000
+    },
+    {
+      "participantId": "P2",
+      "sourceDayId": "day-default",
+      "startTimestampNs": 300000000000000
+    }
+  ],
+  "records": [
+    {
+      "participantId": "P1",
+      "sourceDayId": "day-adjusted",
+      "eventTimestampNs": 100000000000000,
+      "payload": "excluded-at-start"
+    },
+    {
+      "participantId": "P1",
+      "sourceDayId": "day-default",
+      "eventTimestampNs": 203600000000000,
+      "payload": "kept-at-one-hour"
+    },
+    {
+      "participantId": "P1",
+      "sourceDayId": "day-adjusted",
+      "eventTimestampNs": 103599999999999,
+      "payload": "excluded-before-one-hour"
+    },
+    {
+      "participantId": "P2",
+      "sourceDayId": "day-default",
+      "eventTimestampNs": 303600000000001,
+      "payload": "kept-after-one-hour"
+    },
+    {
+      "participantId": "P2",
+      "sourceDayId": "day-default",
+      "eventTimestampNs": 303600000000001,
+      "payload": "kept-after-one-hour"
+    }
+  ],
+  "expectedPayloads": [
+    "kept-at-one-hour",
+    "kept-after-one-hour",
+    "kept-after-one-hour"
+  ]
+}

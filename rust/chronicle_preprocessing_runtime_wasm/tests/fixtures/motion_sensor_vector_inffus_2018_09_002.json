@@ -1,0 +1,72 @@
+{
+  "schemaVersion": "chronicle-motion-sensor-vector-source-fixture/v1",
+  "sourceWorkId": "doi:10.1016/j.inffus.2018.09.002",
+  "sourceSha256": "18776767465d1a1f9fa482f4194a29f2598cf2b8ac6817a3aa68910fc9760f55",
+  "sourceLocator": ".tmp-literature-review-private/source-completeness-artifacts/doi-10.1016-j.inffus-2018-09-002/huang-phd-proposal-slides.txt:510-660",
+  "exactCanonicalSettingIds": [
+    "method-setting-cf5961c49b8d305a459526ee",
+    "method-setting-9a8ba59dc00b30423cf610e8",
+    "method-setting-1d31b1e737addc50136f27ed"
+  ],
+  "sourceSemantics": {
+    "recordShape": "one inseparable three-axis X/Y/Z acceleration vector",
+    "sourceRepresentation": "smartphone accelerometer data represented as Y(3xT)",
+    "carrierBoundary": "CSV rows are a synthetic Chronicle carrier, not a claim about the source file serialization",
+    "undisclosed": [
+      "accelerometer units",
+      "device coordinate frame and orientation",
+      "sampling cadence",
+      "calibration",
+      "gravity handling",
+      "missing-row policy",
+      "timestamp representation, clock, and timezone",
+      "participant and source-row serialization",
+      "any scalar or magnitude transformation"
+    ]
+  },
+  "validCsvLines": [
+    "participant_id,event_timestamp,source_row_id,acceleration_x,acceleration_y,acceleration_z,opaque_extra",
+    "participant-01,opaque-time-a,row-a,0,1.25,-9.5,preserve-no-claim",
+    "participant-02,opaque-time-b,row-b,-0.125,0,42,preserve-no-claim"
+  ],
+  "expectedRecords": [
+    {
+      "sourceRecordIndex": 1,
+      "participantId": "participant-01",
+      "eventTimestamp": "opaque-time-a",
+      "sourceRowId": "row-a",
+      "accelerationX": 0,
+      "accelerationY": 1.25,
+      "accelerationZ": -9.5
+    },
+    {
+      "sourceRecordIndex": 2,
+      "participantId": "participant-02",
+      "eventTimestamp": "opaque-time-b",
+      "sourceRowId": "row-b",
+      "accelerationX": -0.125,
+      "accelerationY": 0,
+      "accelerationZ": 42
+    }
+  ],
+  "invalidNumericCases": [
+    {
+      "caseId": "nan_x",
+      "field": "acceleration_x",
+      "value": "NaN",
+      "expectedReason": "not a finite number"
+    },
+    {
+      "caseId": "positive_infinity_y",
+      "field": "acceleration_y",
+      "value": "inf",
+      "expectedReason": "not a finite number"
+    },
+    {
+      "caseId": "negative_infinity_z",
+      "field": "acceleration_z",
+      "value": "-inf",
+      "expectedReason": "not a finite number"
+    }
+  ]
+}

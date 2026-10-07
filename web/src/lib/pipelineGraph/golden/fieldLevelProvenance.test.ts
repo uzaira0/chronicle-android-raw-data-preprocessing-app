@@ -3,9 +3,14 @@ import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gunzipSync } from "node:zlib";
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { SUPPORT_ROLE_IDS } from "@/testSupport/artifactInterventions";
-import { dependencyCampaignRuntimeBytes } from "@/testSupport/dependencyCampaignRuntime";
+import {
+  CAMPAIGN_RUNTIME_INIT_TIMEOUT_MS,
+  dependencyCampaignRuntimeBytes,
+  captureCampaignFootprint,
+  CAMPAIGN_FOOTPRINT_CAPTURE_TIMEOUT_MS,
+} from "@/testSupport/dependencyCampaignRuntime";
 import {
   outputCellDependencies,
   outputColumnMatches,
@@ -13,6 +18,14 @@ import {
   type RustWorkflowContract,
 } from "@/testSupport/workflowContract";
 import * as runtime from "@/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm.js";
+
+// Footprint selection: record which production source files this campaign
+// actually executed (no-op unless the evidence refresh sets the profraw dir).
+afterAll(
+  () => captureCampaignFootprint(runtime),
+  CAMPAIGN_FOOTPRINT_CAPTURE_TIMEOUT_MS,
+);
+import { CAMPAIGN_TEST_TIMEOUT_MS } from "@/testSupport/campaignTimeout";
 
 const FAMILY_DIR = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -97,7 +110,7 @@ describe("field-level provenance reconciliation", () => {
       ...contract.semantic.rootRoles.map(({ roleId }) => roleId),
       ...SUPPORT_ROLE_IDS,
     ]);
-  });
+  }, CAMPAIGN_RUNTIME_INIT_TIMEOUT_MS);
 
   /**
    * Forward reachability over the declared per-step field edges. A field is
@@ -304,11 +317,11 @@ describe("field-level provenance reconciliation", () => {
       },
       // Every intervened column no step declares as read. The subset an
       // intervention rewrote *alone* is the empirically confirmed half: those
-      // cases changed no output cell, which the gate above asserts. The rest
-      // were rewritten alongside read columns, so their non-effect is a
-      // declaration, not an observation — `filter_file.filter_bool` and
-      // `filter_file.app_filter_category` are the checked examples, present in
-      // the shipped filter file and the review UI but read by no kernel step.
+      // cases changed no output cell, which the gate above asserts. A column
+      // rewritten only alongside read columns would rest on a declaration
+      // rather than an observation; since the B10 package-exclusion axis made
+      // `filter_file.app_filter_category` and `filter_file.filter_bool` read
+      // columns, no such column remains and both lists agree.
       unreadInterventionColumns: [...unreadColumns]
         .sort(([left], [right]) => left.localeCompare(right))
         .map(([sourceField, cases]) => ({
@@ -345,10 +358,11 @@ describe("field-level provenance reconciliation", () => {
     // after the six parallel WASM campaigns and took the entire regeneration
     // down with it. The work is bounded and deterministic; how long it takes
     // depends on what else is running, which must not decide whether it passes.
-  }, 600_000);
+  }, CAMPAIGN_TEST_TIMEOUT_MS);
 
   it("keeps the three unread raw columns out of the declared field graph", () => {
-    // `RawRow` carries eight of the eleven raw columns. The parser never reads
+    // `RawRow` carries eight of the eleven public raw columns plus the private
+    // `literature_source_data_row` lineage column. The parser never reads
     // `possible_device_model`, `start_timestamp`, or `stop_timestamp`; the app
     // CSV's identically named columns are computed, not copied. The campaigns
     // intervene on all three and observe no changed cell, so this is a checked
@@ -367,6 +381,6 @@ describe("field-level provenance reconciliation", () => {
       [...declaredFields].filter((field) =>
         field.startsWith("raw_chronicle_csv."),
       ).length,
-    ).toBe(8);
+    ).toBe(9);
   });
 });

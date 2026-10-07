@@ -1,0 +1,168 @@
+{
+  "generated_at": "2026-08-30T00:21:01.624Z",
+  "status": "mechanical_inventory_not_a_completed_full_text_audit",
+  "source_record_count": 573,
+  "expected_source_record_count": 573,
+  "per_slice": {
+    "A": 123,
+    "B": 95,
+    "C": 66,
+    "D": 105,
+    "E": 94,
+    "F": 90
+  },
+  "provisional_work_key_count": 553,
+  "repeated_provisional_work_keys": [
+    {
+      "key": "doi:10.1038/s41390-019-0452-2",
+      "members": [
+        "A:11",
+        "A:A19"
+      ]
+    },
+    {
+      "key": "doi:10.3758/s13428-021-01585-7",
+      "members": [
+        "A:14",
+        "A:A04"
+      ]
+    },
+    {
+      "key": "doi:10.1016/j.chbr.2021.100164",
+      "members": [
+        "A:A13",
+        "B:54"
+      ]
+    },
+    {
+      "key": "doi:10.1037/tmb0000022",
+      "members": [
+        "A:A16",
+        "B:51"
+      ]
+    },
+    {
+      "key": "doi:10.1177/20501579231193941",
+      "members": [
+        "A:A38",
+        "B:66"
+      ]
+    },
+    {
+      "key": "doi:10.2196/42935",
+      "members": [
+        "A:A115",
+        "D:D96"
+      ]
+    },
+    {
+      "key": "doi:10.1145/3706598.3713638",
+      "members": [
+        "A:A116",
+        "F:F85"
+      ]
+    },
+    {
+      "key": "title:before you scroll again predicting regretful social media sessions from in the wild contextual and wearable sensing",
+      "members": [
+        "A:A117",
+        "F:F86"
+      ]
+    },
+    {
+      "key": "doi:10.1145/3706598.3713187",
+      "members": [
+        "A:A118",
+        "D:D98"
+      ]
+    },
+    {
+      "key": "doi:10.1145/3831979",
+      "members": [
+        "A:A119",
+        "D:D99"
+      ]
+    },
+    {
+      "key": "doi:10.3758/s13428-026-03065-2",
+      "members": [
+        "B:1",
+        "B:68"
+      ]
+    },
+    {
+      "key": "doi:10.1080/1369118x.2025.2570738",
+      "members": [
+        "B:56",
+        "F:F67"
+      ]
+    },
+    {
+      "key": "doi:10.1007/978-3-031-08848-3_6",
+      "members": [
+        "C:34",
+        "E:E34"
+      ]
+    },
+    {
+      "key": "doi:10.1007/s41066-020-00226-2",
+      "members": [
+        "C:36",
+        "E:E32"
+      ]
+    },
+    {
+      "key": "doi:10.2196/15417",
+      "members": [
+        "D:D25",
+        "F:F52"
+      ]
+    },
+    {
+      "key": "doi:10.1038/s41598-021-94516-7",
+      "members": [
+        "D:D26",
+        "F:F54"
+      ]
+    },
+    {
+      "key": "doi:10.1038/s41386-020-0771-3",
+      "members": [
+        "D:D27",
+        "F:F53"
+      ]
+    },
+    {
+      "key": "doi:10.3758/s13428-023-02252-9",
+      "members": [
+        "D:D100",
+        "F:F87"
+      ]
+    },
+    {
+      "key": "doi:10.31235/osf.io/xt24p_v3",
+      "members": [
+        "D:D101",
+        "F:F88"
+      ]
+    },
+    {
+      "key": "doi:10.31234/osf.io/bqfne_v3",
+      "members": [
+        "D:D102",
+        "F:F89"
+      ]
+    }
+  ],
+  "inherited_access_claim_counts": {
+    "not_explicitly_classified": 541,
+    "full_text_or_source_claimed": 25,
+    "abstract_only_claimed": 7
+  },
+  "cautions": [
+    "A source record is a retained ledger entry, not necessarily a unique paper.",
+    "The first DOI in a record is only a provisional work key because sections can cite ancestors, datasets, or software.",
+    "Access and reconstruction labels are inherited claims from the Markdown ledgers and require paper-level re-verification.",
+    "The complete original Markdown section is preserved in every JSONL row so no recorded field is discarded."
+  ]
+}

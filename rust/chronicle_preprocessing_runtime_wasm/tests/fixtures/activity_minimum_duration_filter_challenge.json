@@ -1,0 +1,59 @@
+{
+  "schemaVersion": "chronicle-activity-duration-filter-source-fixture/v1",
+  "sourceWorkId": "doi:10.1186/s13673-016-0072-3",
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-12675df881758501e89e89b8",
+    "parameterKey": "activity.duration_filter",
+    "sourceObservedSetting": "activity.duration_filter: {\"comparator\":\">\",\"value\":3,\"unit\":\"minutes\",\"wording_status\":\"question section says example; evaluation applies it\"}",
+    "sourceValueSha256": "7217b6922d71184c5f09f96ea386d877463c510b9c5d53f9e81842320c2490ba"
+  },
+  "sourceArtifact": {
+    "locators": [
+      ".tmp-literature-review-private/ontology-sublation-20260831/work/s13673-fulltext-layout.txt:250-256",
+      ".tmp-literature-review-private/ontology-sublation-20260831/work/s13673-fulltext-layout.txt:362-370",
+      ".tmp-literature-review-private/ontology-sublation-20260831/work/s13673-fulltext-layout.txt:1015-1024"
+    ],
+    "sha256": "dc076e537744bea22bb6f50f28cb4f635dadcdc90378e5e299a6200b13b1a190"
+  },
+  "inputBoundary": "One already-segmented physical-activity log occurrence with a finite nonnegative duration expressed in minutes.",
+  "outputBoundary": "Exclude the occurrence at or below three minutes and retain it only when duration is strictly greater than three minutes; equality is excluded.",
+  "limitations": [
+    "This binding does not collect or parse the source physical-activity log.",
+    "This binding does not segment activity observations into occurrences or derive occurrence duration.",
+    "This binding does not infer activity type or interpret the logged confidence level.",
+    "This binding does not construct the last-24-hour challenge-question answer set or choose distractors.",
+    "This binding does not aggregate retained occurrences into daily evaluation statistics or authentication features.",
+    "A missing, non-finite, or negative occurrence duration fails closed rather than being interpreted as zero."
+  ],
+  "durationPivotMinutes": 3.0,
+  "dispositions": ["excluded", "excluded", "retained"],
+  "activityOccurrences": [
+    {
+      "observationId": "immediately-below",
+      "durationMinutes": 2.999,
+      "expectedDisposition": "excluded"
+    },
+    {
+      "observationId": "at-boundary",
+      "durationMinutes": 3.0,
+      "expectedDisposition": "excluded"
+    },
+    {
+      "observationId": "immediately-above",
+      "durationMinutes": 3.001,
+      "expectedDisposition": "retained"
+    }
+  ],
+  "invalidInputCases": [
+    {
+      "observationId": "missing-duration",
+      "durationMinutes": null,
+      "expectedError": "activity_occurrence_duration_required"
+    },
+    {
+      "observationId": "negative-duration",
+      "durationMinutes": -0.001,
+      "expectedError": "activity_occurrence_duration_must_be_nonnegative"
+    }
+  ]
+}

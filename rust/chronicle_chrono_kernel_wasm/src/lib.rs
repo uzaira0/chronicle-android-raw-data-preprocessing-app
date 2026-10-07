@@ -4,9 +4,19 @@
 //! This crate is not a browser API. The only production JavaScript boundary
 //! is `chronicle_preprocessing_runtime_wasm`.
 
-use chrono::{DateTime, NaiveDateTime, TimeZone};
+// Without `incremental-v2` (how `chronicle_semantic_index_wasm` builds this
+// crate) the helpers only the Salsa engine calls are unused. They are not dead:
+// the feature build, which every gate lints with -D warnings, uses them.
+#![cfg_attr(not(feature = "incremental-v2"), allow(dead_code, unused_imports))]
+
+use chrono::{DateTime, Datelike, NaiveDate, NaiveDateTime, TimeZone};
 use chrono_tz::Tz;
 
+pub mod b05_foundational_semantics;
+pub mod b06_maximum_duration;
+pub mod eyes_complement;
+pub mod jcs;
+pub mod payload_store;
 pub mod pipeline_v2;
 pub mod workflow_contract;
 
@@ -60,6 +70,26 @@ pub(crate) fn weekday_chronicle(weekday: chrono::Weekday) -> u8 {
         chrono::Weekday::Fri => 6,
         chrono::Weekday::Sat => 7,
     }
+}
+
+/// Weekday of a supplied local calendar date, using Chronicle's existing
+/// Sunday=1 through Saturday=7 mapping. This does not construct a timestamp,
+/// choose a timezone, or restrict dates to the i64-nanosecond epoch range.
+pub fn source_local_calendar_weekday(value: &str) -> Option<u8> {
+    let bytes = value.as_bytes();
+    if bytes.len() != 10
+        || bytes[4] != b'-'
+        || bytes[7] != b'-'
+        || bytes
+            .iter()
+            .enumerate()
+            .any(|(i, byte)| i != 4 && i != 7 && !byte.is_ascii_digit())
+    {
+        return None;
+    }
+    NaiveDate::parse_from_str(value, "%Y-%m-%d")
+        .ok()
+        .map(|date| weekday_chronicle(date.weekday()))
 }
 
 /// Canonical interaction types accepted by the pipeline after normalization.
@@ -131,7 +161,7 @@ pub fn normalize_interaction_type(value: &str) -> &str {
         "Unknown importance: 13" => "Slice Pinned Priv",
         "Unknown importance: 14" => "Slice Pinned App",
         "Unknown importance: 15" => "Screen Interactive",
-        "Unknown importance: 16" => "Screen Non-Interactive",
+        "Unknown importance: 16" | "Screen Non-interactive" => "Screen Non-Interactive",
         "Unknown importance: 17" => "Keyguard Shown",
         "Unknown importance: 18" => "Keyguard Hidden",
         "Unknown importance: 19" => "Foreground Service Start",
@@ -162,6 +192,16 @@ pub fn is_valid_chronicle_timezone(value: &str) -> bool {
 }
 
 pub fn parse_chronicle_timestamp_ns(value: &str) -> Option<i64> {
+    parse_chronicle_timestamp(value).and_then(|timestamp| timestamp.timestamp_nanos_opt())
+}
+
+/// Same accepted timestamp spellings, rejecting coordinates outside i64 nanoseconds.
+/// Source-bound adapters use the same strict parser contract.
+pub fn parse_chronicle_timestamp_ns_checked(value: &str) -> Option<i64> {
+    parse_chronicle_timestamp_ns(value)
+}
+
+fn parse_chronicle_timestamp(value: &str) -> Option<DateTime<chrono::FixedOffset>> {
     if value.is_empty() {
         return None;
     }
@@ -183,7 +223,20 @@ pub fn parse_chronicle_timestamp_ns(value: &str) -> Option<i64> {
             .ok()
             .and_then(|timestamp| utc.from_local_datetime(&timestamp).single())
     };
-    parsed.map(|timestamp| timestamp.timestamp_nanos_opt().unwrap_or(0))
+    parsed
+}
+
+/// Canonical UTC spelling used by registered raw-input adapters when a source
+/// supplies start + duration instead of an explicit stop timestamp.
+pub fn format_chronicle_timestamp_ns(value: i64) -> Option<String> {
+    let seconds = value.div_euclid(1_000_000_000);
+    let nanos = value.rem_euclid(1_000_000_000) as u32;
+    let timestamp = DateTime::from_timestamp(seconds, nanos)?;
+    Some(if nanos == 0 {
+        timestamp.format("%Y-%m-%d %H:%M:%S").to_string()
+    } else {
+        timestamp.format("%Y-%m-%d %H:%M:%S%.9f").to_string()
+    })
 }
 
 fn needs_csv_quoting(bytes: &[u8]) -> bool {
@@ -232,6 +285,12 @@ mod tests {
         assert!(!is_recognized_interaction_type(
             "Researcher-specific marker"
         ));
+    }
+
+    #[test]
+    fn actual_android_screen_off_spelling_is_recognized() {
+        assert_eq!(normalize_interaction_type("Screen Non-interactive"), "Screen Non-Interactive");
+        assert!(is_recognized_interaction_type("Screen Non-interactive"));
     }
 
     #[test]
@@ -323,6 +382,10 @@ mod tests {
             "2026-03-07",
             "2026-13-07 10:00:00",
             "03/07/2026 10:00:00",
+            // Parseable dates with no i64 nanosecond value: the common null
+            // sentinels must not become an event at the Unix epoch.
+            "1600-01-01 00:00:00",
+            "9999-12-31 23:59:59",
         ] {
             assert_eq!(
                 parse_chronicle_timestamp_ns(rejected),

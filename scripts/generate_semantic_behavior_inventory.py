@@ -51,6 +51,18 @@ DEPENDENCY_PROOF_LEDGERS = [
     "semantic-model-mutation-ledger.json",
 ]
 
+# The certificate records each ledger's protocolVersion; an unknown or missing
+# version means the campaign wrote a shape this generator has not reviewed, so
+# fail closed instead of embedding it.
+DEPENDENCY_PROOF_LEDGER_PROTOCOLS = {
+    "configuration-influence-ledger.json": "chronicle-configuration-influence-ledger/v1",
+    "artifact-influence-ledger.json": "chronicle-artifact-influence-ledger/v1",
+    "raw-boundary-influence-ledger.json": "chronicle-raw-boundary-influence-ledger/v1",
+    "interaction-influence-ledger.json": "chronicle-interaction-influence-ledger/v2",
+    "mixed-artifact-configuration-ledger.json": "chronicle-mixed-artifact-configuration-aggregate/v1",
+    "semantic-model-mutation-ledger.json": "chronicle-semantic-model-mutation-ledger/v1",
+}
+
 BASE_REF = "5f8e64527edd33f90901cd553602063daadf0014"
 FEATURE_REF = "b857be0382777892d4fa8c8a3a48934b07e6ad0c"
 
@@ -95,7 +107,7 @@ RUNTIME_SURFACES = [
         **rust_surface(
             "query_group_projection",
             "semantic-projection",
-            "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",
+            "rust/chronicle_preprocessing_runtime_wasm/src/execution/dispatch.rs",
             "project_query_groups",
         ),
         "does_not_schedule_physical_queries": True,
@@ -121,7 +133,7 @@ RUNTIME_SURFACES = [
     rust_surface(
         "typed_workflow_checkpoints",
         "evidence-authority",
-        "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2.rs",
+        "rust/chronicle_chrono_kernel_wasm/src/pipeline/checkpoint.rs",
         "workflow_checkpoint",
     ),
     rust_surface(
@@ -175,7 +187,7 @@ RUNTIME_SURFACES = [
     rust_surface(
         "review_metrics",
         "semantic-computation",
-        "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2.rs",
+        "rust/chronicle_chrono_kernel_wasm/src/pipeline/output.rs",
         "build_review_summary",
     ),
     rust_surface(
@@ -425,6 +437,13 @@ def build_dependency_certificate(plan: dict) -> dict:
         receipt = ledger.get("implementationReceipt")
         if not isinstance(receipt, dict):
             raise RuntimeError(f"proof ledger lacks implementation receipt: {path}")
+        expected_protocol = DEPENDENCY_PROOF_LEDGER_PROTOCOLS[name]
+        if ledger.get("protocolVersion") != expected_protocol:
+            raise RuntimeError(
+                f"proof ledger {path} has protocolVersion "
+                f"{ledger.get('protocolVersion')!r}; this generator only embeds "
+                f"{expected_protocol!r}"
+            )
         receipts.append(receipt)
         ledgers.append(
             {
@@ -486,7 +505,10 @@ def independently_callable_rust_queries(query_ids: list[str]) -> list[str]:
     source = PIPELINE_INCREMENTAL.read_text(encoding="utf-8")
     tracked_functions = set(
         re.findall(
-            r"#\[salsa::tracked\([^\]]*\)\]\s*fn\s+([a-z0-9_]+)\s*\(",
+            # Bare #[salsa::tracked] (no parens) and pub/pub(crate) fns are
+            # tracked queries too -- a narrower pattern silently drops them
+            # from the independently-callable set.
+            r"#\[salsa::tracked(?:\([^\]]*\))?\]\s*(?:pub(?:\([^)]*\))?\s+)?fn\s+([a-z0-9_]+)\s*\(",
             source,
         )
     )
@@ -539,6 +561,29 @@ def capability(kind: str, identifier: str) -> str:
     return f"urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/{kind}/{identifier}/v1"
 
 
+def module_source_paths(root: Path) -> list[Path]:
+    paths = [root]
+    for source in paths:
+        text = source.read_text(encoding="utf-8")
+        for relative, delimiter in re.findall(
+            r'#\[path\s*=\s*"([^"]+)"\]\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+\w+\s*([;{])', text
+        ):
+            child = source.parent / relative
+            children = sorted(child.rglob("*.rs")) if delimiter == "{" else [child]
+            for child in children:
+                if child not in paths:
+                    paths.append(child)
+    return sorted(paths)
+
+
+def pipeline_source_paths() -> list[Path]:
+    return module_source_paths(PIPELINE_V2)
+
+
+def runtime_source_paths() -> list[Path]:
+    return module_source_paths(ROOT / "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs")
+
+
 def load_and_verify() -> dict:
     projection = yaml.safe_load(GRAPH_YAML.read_text(encoding="utf-8"))
     phases = projection["workflow_phases"]
@@ -548,13 +593,15 @@ def load_and_verify() -> dict:
     if not phases or not operations or not artifacts or not queries:
         raise RuntimeError("workflow projection registries must be non-empty")
 
-    rust_source = PIPELINE_V2.read_text(encoding="utf-8")
+    rust_source = "\n".join(
+        path.read_text(encoding="utf-8") for path in pipeline_source_paths()
+    )
     for function in (
         "parse_raw_rows",
         "dedupe_exact_rows",
         "derive_time_gap_evidence",
         "derive_screen_usage_sessions_full",
-        "run_app_usage_algorithm",
+        "process_usage_rows",
         "join_codebook",
         "run_pipeline_v2",
     ):
@@ -873,16 +920,17 @@ def build_inventory(projection: dict, plan: dict, dependency_certificate: dict) 
                 "path": str(PIPELINE_V2.relative_to(ROOT)),
                 "included_paths": [
                     str(path.relative_to(ROOT))
-                    for path in [PIPELINE_V2, PIPELINE_INCREMENTAL, WORKFLOW_CONTRACT]
+                    for path in [*pipeline_source_paths(), WORKFLOW_CONTRACT]
                 ],
                 "digest": closure_digest(
-                    [PIPELINE_V2, PIPELINE_INCREMENTAL, WORKFLOW_CONTRACT]
+                    [*pipeline_source_paths(), WORKFLOW_CONTRACT]
                 ),
                 "coverage": "active-query-registry-plus-fused-cold-test-oracle",
             },
             "rust_product_runtime": {
                 "path": "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",
-                "digest": digest(ROOT / "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs"),
+                "included_paths": [str(path.relative_to(ROOT)) for path in runtime_source_paths()],
+                "digest": closure_digest(runtime_source_paths()),
                 "coverage": "production-worker-authority",
             },
         },
@@ -1024,9 +1072,23 @@ def main() -> int:
             "dependency-evidence campaign"
         ),
     )
+    parser.add_argument(
+        "--inventory-only",
+        action="store_true",
+        help="update/check the source inventory using the existing dependency certificate",
+    )
     args = parser.parse_args()
     projection = load_and_verify()
     plan = build_plan(projection)
+    if args.inventory_only:
+        dependency_certificate = json.loads(
+            DEPENDENCY_CERTIFICATE_OUTPUT.read_text(encoding="utf-8")
+        )
+        inventory = build_inventory(projection, plan, dependency_certificate)
+        write_or_check(INVENTORY_OUTPUT, inventory, args.check)
+        mode = "checked" if args.check else "generated"
+        print(f"semantic_behavior_inventory={mode}")
+        return 0
     if args.certificate_only:
         dependency_certificate = build_dependency_certificate(plan)
         write_or_check(

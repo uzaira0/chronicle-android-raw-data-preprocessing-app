@@ -36,6 +36,30 @@ describe("browser support-file boundary", () => {
       name: "devices.csv",
       bytes: new ArrayBuffer(0),
     };
+    const inputCapabilityEvidenceFile = {
+      name: "capabilities.csv",
+      bytes: new TextEncoder().encode("schema_version").buffer,
+    };
+    const analysisFeatureMatrixFile = {
+      name: "analysis-feature-matrix.csv",
+      bytes: new TextEncoder().encode("participant_id,feature_id").buffer,
+    };
+    const callSmsEligibilityFile = {
+      name: "call-sms-eligibility.csv",
+      bytes: new TextEncoder().encode("participant_id,modality_scope").buffer,
+    };
+    const phoneStudyPsCommunicationFile = {
+      name: "ps_communication.csv",
+      bytes: new TextEncoder().encode("id,contact_hash").buffer,
+    };
+    const phoneStudyEsFile = {
+      name: "es.csv",
+      bytes: new TextEncoder().encode("user_id,es_questionnaire_id").buffer,
+    };
+    const anchorEventsFile = {
+      name: "anchors.csv",
+      bytes: new TextEncoder().encode("participant_id,anchor_timestamp").buffer,
+    };
     const options: BrowserProcessingOptions = {
       ...contract.DEFAULT_BROWSER_OPTIONS,
       useFilterFile: true,
@@ -49,6 +73,12 @@ describe("browser support-file boundary", () => {
       deviceSharingFile,
       surveyAttributionFile,
       enrolledDevicesFile,
+      inputCapabilityEvidenceFile,
+      analysisFeatureMatrixFile,
+      callSmsEligibilityFile,
+      phoneStudyPsCommunicationFile,
+      phoneStudyEsFile,
+      anchorEventsFile,
     };
 
     const first = await contract.resolveDefaultSupportFiles(options, uploads);
@@ -65,12 +95,32 @@ describe("browser support-file boundary", () => {
     expect(first.deviceSharingFile).toBe(deviceSharingFile);
     expect(first.surveyAttributionFile).toBe(surveyAttributionFile);
     expect(first.enrolledDevicesFile).toBe(enrolledDevicesFile);
+    expect(first.inputCapabilityEvidenceFile).toBeUndefined();
+    expect(first.analysisFeatureMatrixFile).toBe(analysisFeatureMatrixFile);
+    expect(first.callSmsEligibilityFile).toBe(callSmsEligibilityFile);
+    expect(first.phoneStudyPsCommunicationFile).toBe(
+      phoneStudyPsCommunicationFile,
+    );
+    expect(first.phoneStudyEsFile).toBe(phoneStudyEsFile);
+    expect(first.anchorEventsFile).toBe(anchorEventsFile);
     expect(first.appsForcingScreenOpenFile?.name).toMatch(/screen_open.*\.csv$/);
     expect(first.appCodebookFile?.name).toMatch(/codebook.*\.csv$/);
     expect(second.appsForcingScreenOpenFile?.bytes).toBe(
       first.appsForcingScreenOpenFile?.bytes,
     );
     expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    const sourceSensitive = await contract.resolveDefaultSupportFiles(
+      {
+        ...options,
+        screenSessionConstructionStrategy:
+          "parry_toth_2025_session_glance_v1",
+      },
+      uploads,
+    );
+    expect(sourceSensitive.inputCapabilityEvidenceFile).toBe(
+      inputCapabilityEvidenceFile,
+    );
   });
 
   it("evicts a failed bundled fetch so a later attempt can recover", async () => {

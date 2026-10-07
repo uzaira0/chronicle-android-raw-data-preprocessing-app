@@ -167,10 +167,12 @@ try {
         shards,
         "warmColdQueryCheckpointComparisons",
       ),
-      exactClusterComparisons: sumProof(shards, "exactClusterComparisons"),
       staleCheckpointCases: sumProof(shards, "staleCheckpointCases"),
-      clusterMismatchCases: sumProof(shards, "clusterMismatchCases"),
-      queryClusterMismatchCases: sumProof(shards, "queryClusterMismatchCases"),
+      unjustifiedExecutionCases: sumProof(shards, "unjustifiedExecutionCases"),
+      selfContradictingBadgeCases: sumProof(
+        shards,
+        "selfContradictingBadgeCases",
+      ),
     },
     physicalExecutionBoundary: sameAcross(shards, "physicalExecutionBoundary"),
     axesWithSubstantiveObservedEffects: [...axesWith].sort(),
@@ -179,6 +181,14 @@ try {
     optionInfluence,
     caseSetDigest,
   };
+  // Mirror the single-process campaign's axes-witness gate: sharding must not
+  // launder an axis that lost its observed effect (each shard alone can only
+  // see its own slice, so the union is the first place this is decidable).
+  if (evidence.axesWithoutSubstantiveObservedEffects.length > 0) {
+    throw new Error(
+      `computational axes lack a substantive observed effect: ${evidence.axesWithoutSubstantiveObservedEffects.join(",")}`,
+    );
+  }
   const serialized = `${JSON.stringify(evidence, null, 2)}\n`;
   if (process.env.UPDATE_CONFIGURATION_SPACE === "1") {
     writeFileSync(expectedFile, serialized, "utf8");

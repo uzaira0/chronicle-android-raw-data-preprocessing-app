@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "chronicle-iterative-sparse-group-filter-source-fixture/v1",
+  "sourceWorkId": "doi:10.1177/0956797620956613",
+  "sourceCodeSha256": "b2c12ecb356742dd05c23abb9c7ca78013125a87f24bf279c0b38f778e16302c",
+  "sourceLocator": ".tmp-literature-review-private/ontology-sublation-20260831/bjerre-sparse-panel-support-oracle/source/load_data.R:31-57",
+  "sourceOracleReceipt": ".tmp-literature-review-private/ontology-sublation-20260831/bjerre-sparse-panel-support-oracle/receipts/execution.json",
+  "exactCanonicalSettingIds": [
+    "method-setting-d6ec2c28ae4396099857ded7"
+  ],
+  "callerThreshold": 2,
+  "inputBoundary": "The post-selection course_ind_df table immediately before load_data.R line 57, including user_idx, course_num_sem, and all caller-owned payload columns.",
+  "outputBoundary": "The input-order-preserving row subset returned by filter_sparse_groups(2); later participant aggregation is excluded.",
+  "sourceOracleIterationTrace": [
+    { "before": 16, "afterCourse": 16, "afterUser": 15 },
+    { "before": 15, "afterCourse": 14, "afterUser": 13 },
+    { "before": 13, "afterCourse": 12, "afterUser": 12 },
+    { "before": 12, "afterCourse": 12, "afterUser": 12 }
+  ],
+  "rows": [
+    { "rowId": 1, "userIdx": "U1", "courseNumSem": "C1", "study": "A", "payload": "stable-1" },
+    { "rowId": 2, "userIdx": "U1", "courseNumSem": "C3", "study": "A", "payload": "cascade-1" },
+    { "rowId": 3, "userIdx": "UD", "courseNumSem": "CD", "study": "A", "payload": "duplicate-1" },
+    { "rowId": 4, "userIdx": null, "courseNumSem": "CN", "study": "A", "payload": "na-user-1" },
+    { "rowId": 5, "userIdx": "U2", "courseNumSem": "C1", "study": "A", "payload": "stable-2" },
+    { "rowId": 6, "userIdx": "UN", "courseNumSem": null, "study": "A", "payload": "na-course-1" },
+    { "rowId": 7, "userIdx": "U3", "courseNumSem": "C3", "study": "A", "payload": "cascade-2" },
+    { "rowId": 8, "userIdx": "SX", "courseNumSem": "CX", "study": "S1", "payload": "cross-study-1" },
+    { "rowId": 9, "userIdx": "U1", "courseNumSem": "C2", "study": "A", "payload": "stable-3" },
+    { "rowId": 10, "userIdx": "U3", "courseNumSem": "C4", "study": "A", "payload": "cascade-3" },
+    { "rowId": 11, "userIdx": "UD", "courseNumSem": "CD", "study": "A", "payload": "duplicate-2" },
+    { "rowId": 12, "userIdx": null, "courseNumSem": "CN", "study": "A", "payload": "na-user-2" },
+    { "rowId": 13, "userIdx": "U2", "courseNumSem": "C2", "study": "A", "payload": "stable-4" },
+    { "rowId": 14, "userIdx": "U4", "courseNumSem": "C4", "study": "A", "payload": "cascade-4" },
+    { "rowId": 15, "userIdx": "UN", "courseNumSem": null, "study": "A", "payload": "na-course-2" },
+    { "rowId": 16, "userIdx": "SX", "courseNumSem": "CX", "study": "S2", "payload": "cross-study-2" }
+  ],
+  "expectedRetainedRowIds": [1, 3, 4, 5, 6, 8, 9, 11, 12, 13, 15, 16],
+  "limitations": [
+    "This fixture binds only the released fixed-threshold sparse-panel operator, not the separate attendance exclusion, participant aggregation, model fitting, or reported exclusion counts.",
+    "The source oracle ran the unchanged released expression under frozen R 4.3.0/dplyr 1.1.2 because the authors did not disclose their original package versions."
+  ]
+}

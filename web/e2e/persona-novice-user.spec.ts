@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { APP_ONLY_RAW_CSV, MALFORMED_RAW_CSV } from "./fixtures";
+import { APP_AND_SCREEN_RAW_CSV, APP_ONLY_RAW_CSV, MALFORMED_RAW_CSV } from "./fixtures";
 import {
   assertNoExternalRequests,
   downloadCsv,
@@ -11,6 +11,7 @@ import {
   setInputFile,
   setRawFiles,
   trackExternalRequests,
+  RESULT_PANEL_TIMEOUT_MS,
 } from "./helpers";
 
 /**
@@ -73,7 +74,8 @@ test("a wrong file type is flagged for review rather than accepted silently", as
   await setInputFile(page, "raw-file-input", "Notes.txt", "just some notes, not a chronicle export", "text/plain");
   await page.getByRole("tab", { name: /Files/i }).click();
   const filesPanel = page.getByRole("tabpanel", { name: /Files/i });
-  await expect(filesPanel.getByText(/Warning: Review/i)).toBeVisible();
+  // Refused with the reasons spelled out: wrong extension and no required columns.
+  await expect(filesPanel.getByText("Error: Missing columns")).toBeVisible();
   await expect(filesPanel.getByText(/File extension is not \.csv\./i)).toBeVisible();
   assertNoExternalRequests(requestTracker);
 });
@@ -180,14 +182,16 @@ test("a failed file in a batch offers a Retry that re-runs only that file (#12)"
   // (The queue is replaced per pick, so both must be selected together.)
   await setRawFiles(page, [
     { name: "Good.csv", content: APP_ONLY_RAW_CSV },
-    { name: "Bad.csv", content: MALFORMED_RAW_CSV },
+    // A different participant: two files of one participant are a split export,
+    // which screen usage (on by default) refuses for both (next test).
+    { name: "Bad.csv", content: MALFORMED_RAW_CSV.replace(",P01,", ",P02,") },
   ]);
   await page.getByRole("tab", { name: /Process/i }).click();
   await page.getByTestId("process-files-button").click();
 
   // The good file produced its result; the bad file is isolated as an error row
   // with a Retry control — it doesn't sink the whole batch.
-  await expect(page.getByTestId("result-panel").first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("result-panel").first()).toBeVisible({ timeout: RESULT_PANEL_TIMEOUT_MS });
   await expect(page.getByTestId("result-row")).toHaveCount(1); // only the good file
   const retry = page.getByTestId("retry-file-button");
   await expect(retry).toBeVisible();
@@ -202,5 +206,19 @@ test("a failed file in a batch offers a Retry that re-runs only that file (#12)"
   await expect(page.getByTestId("retry-file-button")).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole("button", { name: /Invalid event_timestamp/i })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId("result-row")).toHaveCount(1);
+  assertNoExternalRequests(requestTracker);
+});
+
+test("one participant split across two files is explained in words, not a refusal code", async ({
+  page,
+}) => {
+  await setRawFiles(page, [
+    { name: "P01 part 1.csv", content: APP_ONLY_RAW_CSV },
+    { name: "P01 part 2.csv", content: APP_AND_SCREEN_RAW_CSV },
+  ]);
+  await page.getByRole("tab", { name: /Process/i }).click();
+  await page.getByTestId("process-files-button").click();
+  await expect(page.getByRole("button", { name: /also appears in another file of this batch/ }))
+    .toHaveCount(2, { timeout: RESULT_PANEL_TIMEOUT_MS });
   assertNoExternalRequests(requestTracker);
 });

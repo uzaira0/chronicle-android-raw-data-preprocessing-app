@@ -1,0 +1,107 @@
+{
+  "schemaVersion": "chronicle-call-contact-distinct-counts-source-fixture/v1",
+  "sourceWorkId": "doi:10.1002/per.2309",
+  "canonicalSettingsInSourceExecutionOrder": [
+    {
+      "methodSettingId": "method-setting-3b19005f5f32678199cf2d77",
+      "parameterKey": "feature.stachl_number_of_call_contacts",
+      "outputName": "Stachl_number_of_call_contacts",
+      "sourceValue": {"feature":"Stachl_number_of_call_contacts","source_sensor":"calls","source_sensor_short":"cl","expected_associations":"OCEN","level":"state","submission_id":null,"revision2_id":30,"status":"included"},
+      "sourceValueSha256": "2356e0ffe1c1830bf9a12d27af75c7a027789a6a949343a3a331752c3d793a72"
+    },
+    {
+      "methodSettingId": "method-setting-c12c5da24d254ed6174b3f5c",
+      "parameterKey": "feature.stachl_number_of_call_contacts_incoming",
+      "outputName": "Stachl_number_of_call_contacts_incoming",
+      "sourceValue": {"feature":"Stachl_number_of_call_contacts_incoming","source_sensor":"calls","source_sensor_short":"cl","expected_associations":"OEAN","level":"state","submission_id":null,"revision2_id":31,"status":"included"},
+      "sourceValueSha256": "6d6ccb6150bc7c78fb24669c5ea11211c5f4d9d9f8fd6503d3f2d3c113b3fef5"
+    },
+    {
+      "methodSettingId": "method-setting-2f3f7b71ccbf11cbd2e214bf",
+      "parameterKey": "feature.stachl_number_of_call_contacts_outgoing",
+      "outputName": "Stachl_number_of_call_contacts_outgoing",
+      "sourceValue": {"feature":"Stachl_number_of_call_contacts_outgoing","source_sensor":"calls","source_sensor_short":"cl","expected_associations":"OCEN","level":"state","submission_id":null,"revision2_id":33,"status":"included"},
+      "sourceValueSha256": "7ea98c7b44a8571620c0701f8bae373a21dd5dbe7ffd46f4415f90c29cead4a8"
+    },
+    {
+      "methodSettingId": "method-setting-531e05e0b94cbed7f2cdce95",
+      "parameterKey": "feature.stachl_number_of_call_contacts_missed",
+      "outputName": "Stachl_number_of_call_contacts_missed",
+      "sourceValue": {"feature":"Stachl_number_of_call_contacts_missed","source_sensor":"calls","source_sensor_short":"cl","expected_associations":"OCEN","level":"state","submission_id":null,"revision2_id":32,"status":"included"},
+      "sourceValueSha256": "c87333bf86da5433b472c6e69e969d8ee51f8e66cbad39e949dcbe98449b3ae6"
+    },
+    {
+      "methodSettingId": "method-setting-5efeddccbdfe825e34d7da63",
+      "parameterKey": "feature.stachl_number_of_call_contacts_weekday",
+      "outputName": "Stachl_number_of_call_contacts_weekday",
+      "sourceValue": {"feature":"Stachl_number_of_call_contacts_weekday","source_sensor":"calls","source_sensor_short":"cl","expected_associations":"OCEAN","level":"state","submission_id":null,"revision2_id":34,"status":"included"},
+      "sourceValueSha256": "68ae0cf37656084a1dfb40a84c0fb3386fd4ff05353c197593680c80da3c256c"
+    },
+    {
+      "methodSettingId": "method-setting-97063ad355df039b405c0a7a",
+      "parameterKey": "feature.stachl_number_of_call_contacts_weekend",
+      "outputName": "Stachl_number_of_call_contacts_weekend",
+      "sourceValue": {"feature":"Stachl_number_of_call_contacts_weekend","source_sensor":"calls","source_sensor_short":"cl","expected_associations":"OEN","level":"state","submission_id":null,"revision2_id":35,"status":"included"},
+      "sourceValueSha256": "dad02f4e4b256f449e79d4b3e18a74dd680e94b51637b011a2106eadd3ceab68"
+    }
+  ],
+  "sourceArtifacts": [
+    {
+      "locator": ".tmp-literature-review-private/corrective-packet-06-ranks174-223-20260831/text/183-1-b3facb592d62.txt:338-340,465-481,755-775",
+      "sha256": "990b3f3289030e18c5ed2abf6b0766af6616787a020f529545f2fb9f4d9c780b"
+    },
+    {
+      "locator": ".tmp-literature-review-private/corrective-packet-06-ranks174-223-20260831/artifacts/rank183-osf-j93bs/osfstorage/processing/feature_extraction/state.py:22-80,121-221",
+      "sha256": "74de549e3b9c068339d4a68d94dae623b63e2a8120f06886427ce491a1175532"
+    },
+    {
+      "locator": ".tmp-literature-review-private/corrective-packet-06-ranks174-223-20260831/artifacts/rank183-osf-j93bs/osfstorage/processing/feature_extraction/test_state.py:18-127",
+      "sha256": "8257552c5fa29eb72ede03b884be65e4cb4a091212f477509928a81a5d7907c6"
+    },
+    {
+      "locator": ".tmp-literature-review-private/corrective-packet-06-ranks174-223-20260831/artifacts/rank183-osf-j93bs/osfstorage/data/feature_metadata.csv:31-36",
+      "sha256": "145925c5780646c3501487658c2f6b292e3b5541bdac6f673485dc1803d1711e"
+    }
+  ],
+  "sourcePipelineOrder": [
+    "validate source call data for the requested interval",
+    "for nonempty data replace the interval slice with data_with_neighbors and derive the source auxiliary daytime-weekend and night flags",
+    "match source call labels and attach response_of_user_label and response_to_user_label to every row",
+    "derive call overlap and retain positive-overlap calls or zero-duration calls whose timestamp is inclusively inside the interval",
+    "derive exact call-type slices incoming, outgoing, and missed",
+    "inside calculate_stachl derive the Zurich-local day label weekday or weekend before filtering",
+    "count unique number values with Python len(set(values_)) in overall, incoming, outgoing, missed, weekday, weekend execution order"
+  ],
+  "inputBoundary": "A single already validated and interval-selected state-assessment window. Every row already has the source call type, the already-derived Zurich-local day class, and the opaque connected-number identity consumed by len(set(values_)).",
+  "outputBoundary": "Six integer counts in released-code execution order: all distinct contacts, incoming, outgoing, missed, weekday, and weekend. Each output is zero when its already-categorized input slice is empty.",
+  "limitations": [
+    "The reusable distinct-count operator does not validate call logs, select data_with_neighbors, compute interval overlap, or anchor the 30-minute assessment window.",
+    "The binding does not derive Zurich-local weekday/weekend labels from timestamps or timezone offsets; callers must provide exactly weekday or weekend after applying the released source rule.",
+    "Only the released exact call-type matches incoming, outgoing, and missed enter the corresponding type output; any other supplied type remains part of the overall and day outputs only.",
+    "Opaque contact identities are restricted at this typed boundary to strings, signed integers, or null. Repeated null is one Python-None-like distinct identity; integer 7 and string 7 remain distinct. Floating-point, Boolean, nonfinite, and container identities fail closed rather than guessing Python dynamic hashing behavior not evidenced by the released test data.",
+    "The six counts do not reproduce call labeling, the paper's downstream missing-window representation, feature selection, or model fitting."
+  ],
+  "cases": [
+    {
+      "caseId": "duplicates-missing-numeric-and-unrecognized-type",
+      "rows": [
+        {"sourceRowIndex":1,"contactIdentity":"A","callType":"incoming","dayClass":"weekday"},
+        {"sourceRowIndex":2,"contactIdentity":"A","callType":"incoming","dayClass":"weekday"},
+        {"sourceRowIndex":3,"contactIdentity":"B","callType":"outgoing","dayClass":"weekday"},
+        {"sourceRowIndex":4,"contactIdentity":7,"callType":"outgoing","dayClass":"weekend"},
+        {"sourceRowIndex":5,"contactIdentity":"7","callType":"outgoing","dayClass":"weekend"},
+        {"sourceRowIndex":6,"contactIdentity":null,"callType":"missed","dayClass":"weekend"},
+        {"sourceRowIndex":7,"contactIdentity":null,"callType":"missed","dayClass":"weekend"},
+        {"sourceRowIndex":8,"contactIdentity":"C","callType":"missed","dayClass":"weekday"},
+        {"sourceRowIndex":9,"contactIdentity":"A","callType":"source-other","dayClass":"weekday"}
+      ],
+      "expectedCountsInSourceExecutionOrder": [6,1,3,2,3,3]
+    },
+    {
+      "caseId": "empty-valid-window",
+      "rows": [],
+      "expectedCountsInSourceExecutionOrder": [0,0,0,0,0,0]
+    }
+  ],
+  "failClosedContactIdentityExamples": [true,7.5,[],{}]
+}

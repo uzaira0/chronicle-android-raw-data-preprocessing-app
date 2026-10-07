@@ -1,0 +1,19 @@
+{
+  "protocol_version": "0.1",
+  "view_id": "chronicle.scientific-source-bindings.v1",
+  "family": "incremental-dataflow",
+  "schema_id": "urn:chronicle:view:scientific-source-bindings:v1",
+  "revision": 11,
+  "root_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "payload": {
+    "source_bindings": [
+      {
+        "graph_id": "urn:chronicle:derived:eyes-partial-replay",
+        "artifact_id": "urn:artifact:eyes",
+        "artifact_kind": "eyes-tagged-fau-evidence-json",
+        "assignment_id": "urn:assignment:raw",
+        "role_id": "raw_chronicle_csv"
+      }
+    ]
+  }
+}

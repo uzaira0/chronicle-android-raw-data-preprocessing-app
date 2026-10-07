@@ -1,0 +1,147 @@
+{
+  "schemaVersion": "chronicle-cgpa-high-low-boundaries-canonical-source-fixture/v1",
+  "reusedOwner": {
+    "component": "FiniteScalarPivotClassifier",
+    "sourcePath": "rust/chronicle_preprocessing_runtime_wasm/src/finite_scalar_pivot_classifier.rs",
+    "sourceSha256": "66036694c5eb34ecaa9c812f6a109772ba2abd6a975112efdd981d9cdcff050d",
+    "semanticBoundary": "A caller-supplied finite scalar is classified as below, equal to, or above a caller-supplied pivot without a tolerance."
+  },
+  "sourceWorkId": "doi:10.1145/3429360.3468192",
+  "sourceArtifacts": [
+    {
+      "role": "primary paper text",
+      "locator": ".tmp-literature-review-private/corrective-packet-09-ranks330-381-20260831/text/360.txt:125-133,148-156",
+      "sha256": "9300cc3091f69f5a6b07c54995b783672c5fcfe16f7bb90c01b8db97317025ff"
+    },
+    {
+      "role": "primary paper PDF",
+      "locator": ".tmp-literature-review-private/corrective-packet-09-ranks330-381-20260831/pdfs/360-primary.pdf",
+      "sha256": "f714a8cdcf5911c105217acf800a2ec5ad47023dad0c43085d41631a03554b0e"
+    },
+    {
+      "role": "canonical source-completeness audit",
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/source-completeness-audits/doi-10.1145-3429360.3468192.json",
+      "sha256": "03e335522e628862b3b05eef97e99aac1c0517af27f21bbf73c833f43f933225"
+    }
+  ],
+  "inputMeasure": "caller-supplied finite numeric CGPA",
+  "inputBoundary": "One finite JSON number already established as the participant's CGPA. The source does not disclose a numeric scale validator, rounding rule, precision rule, or transformation from institutional records.",
+  "settings": [
+    {
+      "canonicalSetting": {
+        "settingId": "method-setting-b47a396b2c20b57cb06a9836",
+        "parameterKey": "cohort.low_rule",
+        "sourceObservedSetting": "cohort.low_rule: CGPA < 3.0",
+        "sourceValueSha256": "b3d4ab1f0792f8d6f30f858e308837b6a31504897191bae8bc424ae606febed6"
+      },
+      "supersededAliases": [],
+      "pivot": 3.0,
+      "predicate": "below",
+      "outputBoundary": "Report only whether the supplied CGPA is strictly below 3.0. Equality does not satisfy the low rule.",
+      "cases": [
+        {
+          "caseId": "below",
+          "cgpa": 2.99,
+          "expectedDisposition": "matches_source_rule"
+        },
+        {
+          "caseId": "equality_excluded",
+          "cgpa": 3.0,
+          "expectedDisposition": "does_not_match_source_rule"
+        },
+        {
+          "caseId": "gap_value",
+          "cgpa": 3.25,
+          "expectedDisposition": "does_not_match_source_rule"
+        },
+        {
+          "caseId": "high_boundary",
+          "cgpa": 3.5,
+          "expectedDisposition": "does_not_match_source_rule"
+        }
+      ]
+    },
+    {
+      "canonicalSetting": {
+        "settingId": "method-setting-a1c7539b39b1734039f95e9a",
+        "parameterKey": "cohort.high_rule",
+        "sourceObservedSetting": "cohort.high_rule: CGPA >= 3.5",
+        "sourceValueSha256": "83ef24684e029420d6861f4f6362853f79bf7db9f3debb6e7f8c1be3445a0a43"
+      },
+      "supersededAliases": [],
+      "pivot": 3.5,
+      "predicate": "equal_or_above",
+      "outputBoundary": "Report only whether the supplied CGPA is at least 3.5. Equality satisfies the high rule.",
+      "cases": [
+        {
+          "caseId": "low_boundary",
+          "cgpa": 3.0,
+          "expectedDisposition": "does_not_match_source_rule"
+        },
+        {
+          "caseId": "gap_value",
+          "cgpa": 3.25,
+          "expectedDisposition": "does_not_match_source_rule"
+        },
+        {
+          "caseId": "equality_included",
+          "cgpa": 3.5,
+          "expectedDisposition": "matches_source_rule"
+        },
+        {
+          "caseId": "above",
+          "cgpa": 3.75,
+          "expectedDisposition": "matches_source_rule"
+        }
+      ]
+    }
+  ],
+  "jointCases": [
+    {
+      "caseId": "low_only",
+      "cgpa": 2.99,
+      "expectedLow": true,
+      "expectedHigh": false
+    },
+    {
+      "caseId": "low_equality_is_gap",
+      "cgpa": 3.0,
+      "expectedLow": false,
+      "expectedHigh": false
+    },
+    {
+      "caseId": "interior_gap",
+      "cgpa": 3.25,
+      "expectedLow": false,
+      "expectedHigh": false
+    },
+    {
+      "caseId": "high_equality",
+      "cgpa": 3.5,
+      "expectedLow": false,
+      "expectedHigh": true
+    }
+  ],
+  "invalidCgpaInputs": [
+    {
+      "caseId": "numeric_string",
+      "cgpa": "3.5"
+    },
+    {
+      "caseId": "missing",
+      "cgpa": null
+    },
+    {
+      "caseId": "boolean",
+      "cgpa": true
+    }
+  ],
+  "invalidCgpaError": "finite_numeric_cgpa_required",
+  "limitations": [
+    "The fixture does not derive CGPA from institutional records or validate its scale, rounding, or precision.",
+    "The two predicates report rule matches only; they do not assign participants to cohorts or reconstruct the reported cohort counts.",
+    "The separate canonical middle-excluded setting is not promoted by this fixture.",
+    "Values from 3.0 inclusive to below 3.5 match neither claimed rule and are not silently assigned.",
+    "The source has no released study app, data, or analysis code, so the binding proves only the two disclosed scalar predicates."
+  ]
+}

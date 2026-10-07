@@ -13,6 +13,8 @@ export async function fetchBundledAssetBytes(url: string): Promise<ArrayBuffer> 
     }
     return response.arrayBuffer();
   });
+  // Forget a failed fetch so the next caller retries it; the caller of this
+  // one still receives the rejection through `pending`.
   pending.catch(() => {
     bundledAssetCache.delete(url);
   });

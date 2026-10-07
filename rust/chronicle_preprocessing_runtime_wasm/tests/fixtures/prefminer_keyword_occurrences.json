@@ -1,0 +1,645 @@
+{
+  "source_work_id": "doi:10.1145/2971648.2971747",
+  "source_method_variant_id": "source-audit-configuration-space-90e5da2020880c582e1f159b",
+  "method_profile_version": "literature-sublation-v3-atomic+source-complete-v1",
+  "setting_id": "method-setting-0b4999f8dadb8fce0f24847c",
+  "source_value": {
+    "definition": {
+      "repository_commit": "d62dab5cca6d668689275d0ad0d46c44932d7988",
+      "input": "supplied_filtered_title_strings_within_caller_qualified_group",
+      "title_deduplication": "exact_string_set",
+      "tokenization": "Java_String_split_single_ASCII_space_limit_zero",
+      "counting": "token_occurrences_across_unique_titles",
+      "frequency_arithmetic": "Java signed 32-bit wrapping increments",
+      "unique_title_count_domain": "Java nonnegative signed 32-bit Set.size domain",
+      "threshold": "floor_unique_title_count_divided_by_2",
+      "comparator": "greater_than_or_equal",
+      "output": "keyword_set",
+      "study_build_equivalence": "unavailable",
+      "title_filtering_cluster_context_rule_admission_NLP_and_training_construction_excluded": true
+    },
+    "source_facing_role": "feature_engineering",
+    "source_facing_target": "derived_feature",
+    "source_evidence_status": "linked later2016 repository arithmetic at exact commit; evaluated-study build equivalence and broader keyword presentation remain unproved",
+    "source_artifact_sha256": "db48c96d621b08adcd985cb58394736b82340c75324377912f7dba9097b2c915"
+  },
+  "schema": "prefminer-unique-title-keyword-occurrences-hand-oracle/v1",
+  "oracle_status": "source_read_independent_hand_cases_not_author_execution",
+  "source_repository": "https://github.com/AbhinavMehrotra/PrefMiner",
+  "source_commit": "d62dab5cca6d668689275d0ad0d46c44932d7988",
+  "source_artifact_sha256": "db48c96d621b08adcd985cb58394736b82340c75324377912f7dba9097b2c915",
+  "source_locator": "RuleMiner.java:211–215,226–253; active callers47–50,68–73,88–93,112–115,129–132,151–154,168–171",
+  "study_build_equivalence": "unavailable_later_2016_09_30_linked_artifact_not_publication_2016_09_12_build",
+  "case_count": 38,
+  "cases": [
+    {
+      "id": "six_unique_title_occurrences_not_title_support",
+      "titles": [
+        "x x x",
+        "a",
+        "b",
+        "c",
+        "d",
+        "e"
+      ],
+      "expected_keywords": [
+        "x"
+      ],
+      "unique_title_count": 6,
+      "threshold": 3,
+      "input_csv": "source_row_id,group_id,record_type,filtered_title\ninventory,g,inventory,\nr0,g,title,x x x\nr1,g,title,a\nr2,g,title,b\nr3,g,title,c\nr4,g,title,d\nr5,g,title,e\n",
+      "expected_csv": "group_id,unique_title_count,keyword_threshold,keywords_json\ng,6,3,\"[\"\"x\"\"]\"\n",
+      "source_rows": 7,
+      "emitted_rows": 1,
+      "locator": "RuleMiner.java:211–215,226–253"
+    },
+    {
+      "id": "repeated_title_dedup_before_occurrence_count",
+      "titles": [
+        "x x x",
+        "x x x",
+        "x x x",
+        "a",
+        "b",
+        "c",
+        "d",
+        "e"
+      ],
+      "expected_keywords": [
+        "x"
+      ],
+      "unique_title_count": 6,
+      "threshold": 3,
+      "input_csv": "source_row_id,group_id,record_type,filtered_title\ninventory,g,inventory,\nr0,g,title,x x x\nr1,g,title,x x x\nr2,g,title,x x x\nr3,g,title,a\nr4,g,title,b\nr5,g,title,c\nr6,g,title,d\nr7,g,title,e\n",
+      "expected_csv": "group_id,unique_title_count,keyword_threshold,keywords_json\ng,6,3,\"[\"\"x\"\"]\"\n",
+      "source_rows": 9,
+      "emitted_rows": 1,
+      "locator": "RuleMiner.java:211–215,226–253"
+    },
+    {
+      "id": "odd_five_unique_floor_half",
+      "titles": [
+        "x x",
+        "a",
+        "b",
+        "c",
+        "d"
+      ],
+      "expected_keywords": [
+        "x"
+      ],
+      "unique_title_count": 5,
+      "threshold": 2,
+      "input_csv": "source_row_id,group_id,record_type,filtered_title\ninventory,g,inventory,\nr0,g,title,x x\nr1,g,title,a\nr2,g,title,b\nr3,g,title,c\nr4,g,title,d\n",
+      "expected_csv": "group_id,unique_title_count,keyword_threshold,keywords_json\ng,5,2,\"[\"\"x\"\"]\"\n",
+      "source_rows": 6,
+      "emitted_rows": 1,
+      "locator": "RuleMiner.java:211–215,226–253"
+    },
+    {
+      "id": "four_unique_below_and_above_counts",
+      "titles": [
+        "x",
+        "x a",
+        "x b",
+        "c"
+      ],
+      "expected_keywords": [
+        "x"
+      ],
+      "unique_title_count": 4,
+      "threshold": 2,
+      "input_csv": "source_row_id,group_id,record_type,filtered_title\ninventory,g,inventory,\nr0,g,title,x\nr1,g,title,x a\nr2,g,title,x b\nr3,g,title,c\n",
+      "expected_csv": "group_id,unique_title_count,keyword_threshold,keywords_json\ng,4,2,\"[\"\"x\"\"]\"\n",
+      "source_rows": 5,
+      "emitted_rows": 1,
+      "locator": "RuleMiner.java:211–215,226–253"
+    },
+    {
+      "id": "one_title_zero_threshold",
+      "titles": [
+        "a b"
+      ],
+      "expected_keywords": [
+        "a",
+        "b"
+      ],
+      "unique_title_count": 1,
+      "threshold": 0,
+      "input_csv": "source_row_id,group_id,record_type,filtered_title\ninventory,g,inventory,\nr0,g,title,a b\n",
+      "expected_csv": "group_id,unique_title_count,keyword_threshold,keywords_json\ng,1,0,\"[\"\"a\"\",\"\"b\"\"]\"\n",
+      "source_rows": 2,
+      "emitted_rows": 1,
+      "locator": "RuleMiner.java:211–215,226–253"
+    },
+    {
+      "id": "repeated_only_one_title",
+      "titles": [
+        "a",
+        "a",
+        "a"
+      ],
+      "expected_keywords": [
+        "a"
+      ],
+      "unique_title_count": 1,
+      "threshold": 0,
+      "input_csv": "source_row_id,group_id,record_type,filtered_title\ninventory,g,inventory,\nr0,g,title,a\nr1,g,title,a\nr2,g,title,a\n",
+      "expected_csv": "group_id,unique_title_count,keyword_threshold,keywords_json\ng,1,0,\"[\"\"a\"\"]\"\n",
+      "source_rows": 4,
+      "emitted_rows": 1,
+      "locator": "RuleMiner.java:211–215,226–253"
+    },
+    {
+      "id": "explicit_empty_group",
+      "titles": [],
+      "expected_keywords": [],
+      "unique_title_count": 0,
+      "threshold": 0,
+      "input_csv": "source_row_id,group_id,record_type,filtered_title\ninventory,g,inventory,\n",
+      "expected_csv": "group_id,unique_title_count,keyword_threshold,keywords_json\ng,0,0,[]\n",
+      "source_rows": 1,
+      "emitted_rows": 1,
+      "locator": "RuleMiner.java:211–215,226–253"
+    },
+    {
+      "id": "empty_string_is_one_empty_token",
+      "titles": [
+        ""
+      ],
+      "expected_keywords": [
+        ""
+      ],
+      "unique_title_count": 1,
+      "threshold": 0,
+      "input_csv": "source_row_id,group_id,record_type,filtered_title\ninventory,g,inventory,\nr0,g,title,\n",
+      "expected_csv": "group_id,unique_title_count,keyword_threshold,keywords_json\ng,1,0,\"[\"\"\"\"]\"\n",
+      "source_rows": 2,
+      "emitted_rows": 1,
+      "locator": "RuleMiner.java:211–215,226–253"
+    },
+    {
+      "id": "all_ascii_spaces_have_no_tokens",
+      "titles": [
+        "   "
+      ],
+      "expected_keywords": [],
+      "unique_title_count": 1,
+      "threshold": 0,
+      "input_csv": "source_row_id,group_id,record_type,filtered_title\ninventory,g,inventory,\nr0,g,title,   \n",
+      "expected_csv": "group_id,unique_title_count,keyword_threshold,keywords_json\ng,1,0,[]\n",
+      "source_rows": 2,
+      "emitted_rows": 1,
+      "locator": "RuleMiner.java:211–215,226–253"
+    },
+    {
+      "id": "leading_empty_token_retained",
+      "titles": [
+        " a"
+      ],
+      "expected_keywords": [
+        "",
+        "a"
+      ],
+      "unique_title_count": 1,
+      "threshold": 0,
+      "input_csv": "source_row_id,group_id,record_type,filtered_title\ninventory,g,inventory,\nr0,g,title, a\n",
+      "expected_csv": "group_id,unique_title_count,keyword_threshold,keywords_json\ng,1,0,\"[\"\"\"\",\"\"a\"\"]\"\n",
+      "source_rows": 2,
+      "emitted_rows": 1,
+      "locator": "RuleMiner.java:211–215,226–253"
+    },
+    {
+      "id": "interior_empty_token_retained",
+      "titles": [
+        "a  b"
+      ],
+      "expected_keywords": [
+        "",
+        "a",
+        "b"
+      ],
+      "unique_title_count": 1,
+      "threshold": 0,
+      "input_csv": "source_row_id,group_id,record_type,filtered_title\ninventory,g,inventory,\nr0,g,title,a  b\n",
+      "expected_csv": "group_id,unique_title_count,keyword_threshold,keywords_json\ng,1,0,\"[\"\"\"\",\"\"a\"\",\"\"b\"\"]\"\n",
+      "source_rows": 2,
+      "emitted_rows": 1,
+      "locator": "RuleMiner.java:211–215,226–253"
+    },
+    {
+      "id": "trailing_empty_token_removed",
+      "titles": [
+        "a "
+      ],
+      "expected_keywords": [
+        "a"
+      ],
+      "unique_title_count": 1,
+      "threshold": 0,
+      "input_csv": "source_row_id,group_id,record_type,filtered_title\ninventory,g,inventory,\nr0,g,title,a \n",
+      "expected_csv": "group_id,unique_title_count,keyword_threshold,keywords_json\ng,1,0,\"[\"\"a\"\"]\"\n",
+      "source_rows": 2,
+      "emitted_rows": 1,
+      "locator": "RuleMiner.java:211–215,226–253"
+    },
+    {
+      "id": "multiple_leading_interior_trailing_spaces",
+      "titles": [
+        " a  b   "
+      ],
+      "expected_keywords": [
+        "",
+        "a",
+        "b"
+      ],
+      "unique_title_count": 1,
+      "threshold": 0,
+      "input_csv": "source_row_id,group_id,record_type,filtered_title\ninventory,g,inventory,\nr0,g,title, a  b   \n",
+      "expected_csv": "group_id,unique_title_count,keyword_threshold,keywords_json\ng,1,0,\"[\"\"\"\",\"\"a\"\",\"\"b\"\"]\"\n",
+      "source_rows": 2,
+      "emitted_rows": 1,
+      "locator": "RuleMiner.java:211–215,226–253"
+    },
+    {
+      "id": "case_sensitive_title_and_token_membership",
+      "titles": [
+        "X",
+        "x",
+        "X x",
+        "other"
+      ],
+      "expected_keywords": [
+        "X",
+        "x"
+      ],
+      "unique_title_count": 4,
+      "threshold": 2,
+      "input_csv": "source_row_id,group_id,record_type,filtered_title\ninventory,g,inventory,\nr0,g,title,X\nr1,g,title,x\nr2,g,title,X x\nr3,g,title,other\n",
+      "expected_csv": "group_id,unique_title_count,keyword_threshold,keywords_json\ng,4,2,\"[\"\"X\"\",\"\"x\"\"]\"\n",
+      "source_rows": 5,
+      "emitted_rows": 1,
+      "locator": "RuleMiner.java:211–215,226–253"
+    },
+    {
+      "id": "tab_not_a_delimiter",
+      "titles": [
+        "a\tb"
+      ],
+      "expected_keywords": [
+        "a\tb"
+      ],
+      "unique_title_count": 1,
+      "threshold": 0,
+      "input_csv": "source_row_id,group_id,record_type,filtered_title\ninventory,g,inventory,\nr0,g,title,a\tb\n",
+      "expected_csv": "group_id,unique_title_count,keyword_threshold,keywords_json\ng,1,0,\"[\"\"a\\tb\"\"]\"\n",
+      "source_rows": 2,
+      "emitted_rows": 1,
+      "locator": "RuleMiner.java:211–215,226–253"
+    },
+    {
+      "id": "nonbreaking_space_not_a_delimiter",
+      "titles": [
+        "a b"
+      ],
+      "expected_keywords": [
+        "a b"
+      ],
+      "unique_title_count": 1,
+      "threshold": 0,
+      "input_csv": "source_row_id,group_id,record_type,filtered_title\ninventory,g,inventory,\nr0,g,title,a b\n",
+      "expected_csv": "group_id,unique_title_count,keyword_threshold,keywords_json\ng,1,0,\"[\"\"a b\"\"]\"\n",
+      "source_rows": 2,
+      "emitted_rows": 1,
+      "locator": "RuleMiner.java:211–215,226–253"
+    },
+    {
+      "id": "newline_not_a_delimiter",
+      "titles": [
+        "a\nb"
+      ],
+      "expected_keywords": [
+        "a\nb"
+      ],
+      "unique_title_count": 1,
+      "threshold": 0,
+      "input_csv": "source_row_id,group_id,record_type,filtered_title\ninventory,g,inventory,\nr0,g,title,\"a\nb\"\n",
+      "expected_csv": "group_id,unique_title_count,keyword_threshold,keywords_json\ng,1,0,\"[\"\"a\\nb\"\"]\"\n",
+      "source_rows": 2,
+      "emitted_rows": 1,
+      "locator": "RuleMiner.java:211–215,226–253"
+    },
+    {
+      "id": "literal_NA_null_unknown_are_strings",
+      "titles": [
+        "null",
+        "NA",
+        "unknown"
+      ],
+      "expected_keywords": [
+        "NA",
+        "null",
+        "unknown"
+      ],
+      "unique_title_count": 3,
+      "threshold": 1,
+      "input_csv": "source_row_id,group_id,record_type,filtered_title\ninventory,g,inventory,\nr0,g,title,null\nr1,g,title,NA\nr2,g,title,unknown\n",
+      "expected_csv": "group_id,unique_title_count,keyword_threshold,keywords_json\ng,3,1,\"[\"\"NA\"\",\"\"null\"\",\"\"unknown\"\"]\"\n",
+      "source_rows": 4,
+      "emitted_rows": 1,
+      "locator": "RuleMiner.java:211–215,226–253"
+    },
+    {
+      "id": "empty_vs_all_space_titles_remain_distinct",
+      "titles": [
+        "",
+        " ",
+        "  "
+      ],
+      "expected_keywords": [
+        ""
+      ],
+      "unique_title_count": 3,
+      "threshold": 1,
+      "input_csv": "source_row_id,group_id,record_type,filtered_title\ninventory,g,inventory,\nr0,g,title,\nr1,g,title, \nr2,g,title,  \n",
+      "expected_csv": "group_id,unique_title_count,keyword_threshold,keywords_json\ng,3,1,\"[\"\"\"\"]\"\n",
+      "source_rows": 4,
+      "emitted_rows": 1,
+      "locator": "RuleMiner.java:211–215,226–253"
+    },
+    {
+      "id": "raw_space_distinct_titles_share_token",
+      "titles": [
+        "x",
+        "x ",
+        " x",
+        "x  "
+      ],
+      "expected_keywords": [
+        "x"
+      ],
+      "unique_title_count": 4,
+      "threshold": 2,
+      "input_csv": "source_row_id,group_id,record_type,filtered_title\ninventory,g,inventory,\nr0,g,title,x\nr1,g,title,x \nr2,g,title, x\nr3,g,title,x  \n",
+      "expected_csv": "group_id,unique_title_count,keyword_threshold,keywords_json\ng,4,2,\"[\"\"x\"\"]\"\n",
+      "source_rows": 5,
+      "emitted_rows": 1,
+      "locator": "RuleMiner.java:211–215,226–253"
+    },
+    {
+      "id": "comma_and_quote_are_not_delimiters",
+      "titles": [
+        "a,b",
+        "a\"b"
+      ],
+      "expected_keywords": [
+        "a\"b",
+        "a,b"
+      ],
+      "unique_title_count": 2,
+      "threshold": 1,
+      "input_csv": "source_row_id,group_id,record_type,filtered_title\ninventory,g,inventory,\nr0,g,title,\"a,b\"\nr1,g,title,\"a\"\"b\"\n",
+      "expected_csv": "group_id,unique_title_count,keyword_threshold,keywords_json\ng,2,1,\"[\"\"a\\\"\"b\"\",\"\"a,b\"\"]\"\n",
+      "source_rows": 3,
+      "emitted_rows": 1,
+      "locator": "RuleMiner.java:211–215,226–253"
+    },
+    {
+      "id": "unicode_normalization_not_inferred",
+      "titles": [
+        "é",
+        "é"
+      ],
+      "expected_keywords": [
+        "é",
+        "é"
+      ],
+      "unique_title_count": 2,
+      "threshold": 1,
+      "input_csv": "source_row_id,group_id,record_type,filtered_title\ni,g,inventory,\nt1,g,title,é\nt2,g,title,é\n",
+      "expected_csv": "group_id,unique_title_count,keyword_threshold,keywords_json\ng,2,1,\"[\"\"é\"\",\"\"é\"\"]\"\n",
+      "source_rows": 3,
+      "emitted_rows": 1,
+      "locator": "RuleMiner.java:211–215,226–253"
+    },
+    {
+      "id": "duplicate_source_ids_do_not_collapse_distinct_titles",
+      "titles": [
+        "a",
+        "b"
+      ],
+      "expected_keywords": [
+        "a",
+        "b"
+      ],
+      "unique_title_count": 2,
+      "threshold": 1,
+      "input_csv": "source_row_id,group_id,record_type,filtered_title\ni,g,inventory,\nsame,g,title,a\nsame,g,title,b\n",
+      "expected_csv": "group_id,unique_title_count,keyword_threshold,keywords_json\ng,2,1,\"[\"\"a\"\",\"\"b\"\"]\"\n",
+      "source_rows": 3,
+      "emitted_rows": 1,
+      "locator": "RuleMiner.java:211–215,226–253"
+    },
+    {
+      "id": "empty_carrier_no_groups_inferred",
+      "input_csv": "source_row_id,group_id,record_type,filtered_title\n",
+      "expected_csv": "group_id,unique_title_count,keyword_threshold,keywords_json\n",
+      "source_rows": 0,
+      "emitted_rows": 0
+    },
+    {
+      "id": "raw_lexical_group_and_row_ids_partition",
+      "input_csv": "source_row_id,group_id,record_type,filtered_title\na,g,inventory,\nb, g ,inventory,\nc,G,inventory,\nid,g,title,x\n id , g ,title,y\nID,G,title,z\n",
+      "expected_csv": "group_id,unique_title_count,keyword_threshold,keywords_json\n g ,1,0,\"[\"\"y\"\"]\"\nG,1,0,\"[\"\"z\"\"]\"\ng,1,0,\"[\"\"x\"\"]\"\n",
+      "source_rows": 6,
+      "emitted_rows": 3
+    },
+    {
+      "id": "titles_may_precede_qualified_inventory",
+      "input_csv": "source_row_id,group_id,record_type,filtered_title\nt,g,title,x\ni,g,inventory,\n",
+      "expected_csv": "group_id,unique_title_count,keyword_threshold,keywords_json\ng,1,0,\"[\"\"x\"\"]\"\n",
+      "source_rows": 2,
+      "emitted_rows": 1
+    },
+    {
+      "id": "undeclared_group",
+      "input_csv": "source_row_id,group_id,record_type,filtered_title\nr,g,title,x\n",
+      "expected_error_contains": "has no supplied group inventory"
+    },
+    {
+      "id": "duplicate_inventory",
+      "input_csv": "source_row_id,group_id,record_type,filtered_title\nr,g,inventory,\nr2,g,inventory,\n",
+      "expected_error_contains": "duplicate group inventory"
+    },
+    {
+      "id": "inventory_has_title_payload",
+      "input_csv": "source_row_id,group_id,record_type,filtered_title\nr,g,inventory,x\n",
+      "expected_error_contains": "inventory must have empty filtered_title"
+    },
+    {
+      "id": "whitespace_inventory_payload_not_empty",
+      "input_csv": "source_row_id,group_id,record_type,filtered_title\nr,g,inventory, \n",
+      "expected_error_contains": "inventory must have empty filtered_title"
+    },
+    {
+      "id": "missing_title_state_unavailable",
+      "input_csv": "source_row_id,group_id,record_type,filtered_title\nr,g,missing_title,\n",
+      "expected_error_contains": "record_type must be inventory or title"
+    },
+    {
+      "id": "blank_group_id",
+      "input_csv": "source_row_id,group_id,record_type,filtered_title\nr,  ,inventory,\n",
+      "expected_error_contains": "requires group_id"
+    },
+    {
+      "id": "blank_source_row_id",
+      "input_csv": "source_row_id,group_id,record_type,filtered_title\n,g,inventory,\n",
+      "expected_error_contains": "requires source_row_id"
+    },
+    {
+      "id": "missing_title_column",
+      "input_csv": "source_row_id,group_id,record_type\nr,g,title\n",
+      "expected_error_contains": "requires exactly four unique carrier columns"
+    },
+    {
+      "id": "duplicate_header",
+      "input_csv": "source_row_id,group_id,record_type,group_id\nr,g,title,x\n",
+      "expected_error_contains": "requires exactly four unique carrier columns"
+    },
+    {
+      "id": "extra_header",
+      "input_csv": "source_row_id,group_id,record_type,filtered_title,other\nr,g,title,x,z\n",
+      "expected_error_contains": "requires exactly four unique carrier columns"
+    },
+    {
+      "id": "ragged_title_row",
+      "input_csv": "source_row_id,group_id,record_type,filtered_title\nr,g,title\n",
+      "expected_error_contains": "CSV"
+    },
+    {
+      "id": "empty_record_type",
+      "input_csv": "source_row_id,group_id,record_type,filtered_title\nr,g,,\n",
+      "expected_error_contains": "record_type must be inventory or title"
+    }
+  ],
+  "split_cases": [
+    [
+      "",
+      [
+        ""
+      ]
+    ],
+    [
+      " ",
+      []
+    ],
+    [
+      "   ",
+      []
+    ],
+    [
+      " a",
+      [
+        "",
+        "a"
+      ]
+    ],
+    [
+      "a  b",
+      [
+        "a",
+        "",
+        "b"
+      ]
+    ],
+    [
+      "a ",
+      [
+        "a"
+      ]
+    ],
+    [
+      " a  b   ",
+      [
+        "",
+        "a",
+        "",
+        "b"
+      ]
+    ],
+    [
+      "a\tb",
+      [
+        "a\tb"
+      ]
+    ],
+    [
+      "a\nb",
+      [
+        "a\nb"
+      ]
+    ],
+    [
+      "a b",
+      [
+        "a b"
+      ]
+    ]
+  ],
+  "integer_projection_cases": [
+    [
+      0,
+      0
+    ],
+    [
+      1,
+      1
+    ],
+    [
+      2147483647,
+      2147483647
+    ],
+    [
+      2147483648,
+      -2147483648
+    ],
+    [
+      4294967295,
+      -1
+    ],
+    [
+      4294967296,
+      0
+    ],
+    [
+      4294967297,
+      1
+    ]
+  ],
+  "threshold_cases": [
+    [
+      0,
+      0
+    ],
+    [
+      1,
+      0
+    ],
+    [
+      2,
+      1
+    ],
+    [
+      5,
+      2
+    ],
+    [
+      6,
+      3
+    ],
+    [
+      2147483647,
+      1073741823
+    ]
+  ]
+}

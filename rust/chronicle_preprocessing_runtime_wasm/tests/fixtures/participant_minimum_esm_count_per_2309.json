@@ -1,0 +1,46 @@
+{
+  "schemaVersion": "chronicle-participant-minimum-count-source-fixture/v1",
+  "sourceWorkId": "doi:10.1002/per.2309",
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-f0b202a476f3b87b72455d14",
+    "parameterKey": "cohort.require_one_esm",
+    "sourceObservedSetting": "cohort.require_one_esm: Android participant must provide at least one experience-sampling response",
+    "sourceValueSha256": "7a07567e8a932efff2c45fa62f60d99ca60e1f95af00dea772d860aa03d62cfd"
+  },
+  "sourceArtifact": {
+    "locator": ".tmp-literature-review-private/corrective-packet-06-ranks174-223-20260831/text/183-1-b3facb592d62.txt:208-219",
+    "sha256": "990b3f3289030e18c5ed2abf6b0766af6616787a020f529545f2fb9f4d9c780b"
+  },
+  "inputBoundary": "One already-derived nonnegative integer experience-sampling response count per Android participant.",
+  "outputBoundary": "Exclude a participant with zero responses and retain a participant with at least one response.",
+  "limitations": [
+    "This binding does not identify or deduplicate qualifying experience-sampling responses.",
+    "This binding does not group responses or derive participant-level counts.",
+    "Android-platform eligibility is a separate upstream source condition, not inferred from the response count.",
+    "A missing participant count fails closed rather than being interpreted as zero."
+  ],
+  "minimumRetainedCount": 1,
+  "dispositions": ["exclude", "retain"],
+  "participants": [
+    {
+      "participantId": "zero-responses",
+      "responseCount": 0,
+      "expectedDisposition": "exclude"
+    },
+    {
+      "participantId": "at-boundary",
+      "responseCount": 1,
+      "expectedDisposition": "retain"
+    },
+    {
+      "participantId": "above-boundary",
+      "responseCount": 2,
+      "expectedDisposition": "retain"
+    }
+  ],
+  "missingCountCase": {
+    "participantId": "missing-count",
+    "responseCount": null,
+    "expectedError": "participant_esm_response_count_required"
+  }
+}

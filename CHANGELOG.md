@@ -2,8 +2,8 @@
 
 All notable changes to the Chronicle Android Raw Data Preprocessing App.
 
-Versioning policy: the app version (`pyproject.toml` / `web/package.json`)
-tracks releases; the **processing contract version**
+Versioning policy: the app version (`web/package.json` → `version`, mirrored in
+`CITATION.cff`) tracks releases; the **processing contract version**
 (`web/schema/contract-baseline.json` → `contractVersion`) tracks the
 research-facing option/output contract. Any BREAKING contract change
 (removed/renamed option keys, type or default changes, removed output columns
@@ -13,7 +13,68 @@ migration in `web/src/lib/settingsPersistence.ts`. Cite the contract version
 alongside the app version in methods sections — both are recorded in every
 run's processing report and provenance sidecar.
 
-## [Unreleased] — contract version 2
+## [Unreleased] — contract version 5
+
+### Removed (BREAKING, workflow contract v5)
+
+- **One session-grouping policy is no longer offered.** The 30-second
+  `session_grouping_policy` arm was ported from a published analysis notebook
+  that carries no licence, so it is not distributed with this repository. The
+  remaining policies are unchanged.
+- No `SETTINGS_SCHEMA_VERSION` migration: `session_grouping_policy` is a closed
+  research-axis vocabulary, and loading any settings, preset, project or
+  imported configuration already returns a value outside it to the default
+  `none`. A saved selection of the removed arm therefore loads as no session
+  grouping, and the kernel refuses the value in a request.
+
+### Changed (BREAKING, workflow contract v4)
+
+- **`timezone_handling` now defaults to `selected-convert`** (was
+  `selected-filter`). Rows whose timezone differs from the selected one are
+  converted to it instead of dropped, so no row is lost for carrying a
+  different timezone and all day attribution is on one clock. This is what
+  the studies' locked configuration runs and matches the kernel's absent-key
+  default. Set `selected-filter` to restore the old behavior.
+- Requires `SETTINGS_SCHEMA_VERSION` 13. No migration entry: since v12 a save
+  holds an option key only when the researcher chose it, so an untouched save
+  adopts the new default and a saved explicit `selected-filter` is kept.
+
+### Fixed (settings and export metadata 2026-08-24)
+
+- Saved settings pinned the defaults that were current when they were first
+  written, so a browser that had opened the app before 2026-07-15 kept showing
+  **Use filter file** switched on (plus `minimum_usage_duration = 0` and
+  `proximity_interval_seconds = 0`) even though the shipped defaults had
+  changed. `persistOptions` now stores only the diff from the shipped
+  defaults, so untouched options always follow the current contract, and
+  `SETTINGS_SCHEMA_VERSION` 11 → 12 migrates existing stores by dropping
+  values that are identical to the superseded default. Values the user
+  actually chose are preserved. This generalizes the standing migration rule:
+  an absent key already took the current default, and a key the app itself
+  wrote when that value *was* the default now behaves the same way.
+- ZIP downloads wrote zeroed MS-DOS last-modified fields, so every extracted
+  file claimed **1979-11-30**. `createZipBlob` now writes a real DOS
+  date/time (clamped to the 1980 epoch) into both the local and central
+  headers. The `preprocessor_version` / `datetime_of_preprocessing` columns
+  inside the files were always correct.
+
+### Changed (BREAKING, workflow contract v3)
+
+- **`include_app_usage_end_reason` now defaults to on.** The app-usage output
+  carries an `app_usage_end_reason` column recording why each episode ended.
+  Distinguishing an observed end from a repaired or inferred one is the point
+  of running the reconstruction rules at all, and the two are indistinguishable
+  in the duration column, so this is reported by default rather than on
+  request. Turn the option off to restore the narrower column set.
+- Cell values name what happened to the device — `Same-App Stop Event`,
+  `Another App Opened`, `Screen Turned Off`, `Inactivity Timeout`,
+  `Device State Change`, `End of Data`, `No Observed End` — never the rule that
+  inferred it. The selected reconstruction rule is already recorded separately
+  and determines which values can appear.
+- Requires `SETTINGS_SCHEMA_VERSION` 3. A stored envelope below that version is
+  rewritten through the live sanitizer on read: an option key absent from the
+  save takes the current default, so an existing save adopts the column, while
+  a saved explicit choice is kept.
 
 ### Changed (workflow contract v2)
 
@@ -47,10 +108,11 @@ run's processing report and provenance sidecar.
   `docs/validation/CORPUS_SOAK.md` (124-file byte-parity, zero mismatches) and
   `docs/perf/BASELINE.md`. The parent of this commit is the last ref carrying
   the desktop tree.
-- ⚠ The `research-pipeline` monorepo installs this repo as an editable path
-  dependency and imports `chronicle_preprocessing_app` from the working tree;
-  it must be repointed (vendored copy or pinned pre-removal ref) before this
-  removal is checked out or merged on the production machine.
+- The `research-pipeline` monorepo, which imported `chronicle_preprocessing_app`
+  as an editable path dependency, was repointed on 2026-08-25 to a frozen
+  worktree at tag `july16-production-engine` (`431f326bc`; `b003bae6c` after the 2026-10-03 history rewrite, same tree).
+- The leftover Python packaging stubs `MANIFEST.in` (which still packaged
+  `src/*.py` and `pyproject.toml`) and the root `__init__.py` were removed.
 - `rust/chronicle_app_usage_matcher` is retained: the web WASM crates depend
   on it as a library (`default-features = false`).
 

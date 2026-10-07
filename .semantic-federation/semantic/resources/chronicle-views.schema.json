@@ -8,13 +8,16 @@
     {"$ref": "#/$defs/obligationView"},
     {"$ref": "#/$defs/temporalSubjectView"},
     {"$ref": "#/$defs/explanationView"},
-    {"$ref": "#/$defs/assuranceView"}
+    {"$ref": "#/$defs/assuranceView"},
+    {"$ref": "#/$defs/scientificEvidenceView"},
+    {"$ref": "#/$defs/scientificSourceBindingsView"}
   ],
   "$defs": {
     "envelope": {
       "type": "object",
-      "required": ["view_id", "family", "schema_id", "revision", "root_digest", "payload"],
+      "required": ["protocol_version", "view_id", "family", "schema_id", "revision", "root_digest", "payload"],
       "properties": {
+        "protocol_version": {"const": "0.1"},
         "view_id": {"type": "string"},
         "family": {"const": "incremental-dataflow"},
         "schema_id": {"type": "string"},
@@ -99,6 +102,74 @@
       "allOf": [
         {"$ref": "#/$defs/envelope"},
         {"properties": {"view_id": {"const": "chronicle.assurance.v1"}, "schema_id": {"const": "urn:chronicle:view:assurance:v1"}, "payload": {"type": "object", "required": ["profile_lock_digest", "closure_digest", "conforms"], "properties": {"profile_lock_digest": {"type": "string"}, "closure_digest": {"type": "string"}, "conforms": {"type": "boolean"}, "failed_check_ids": {"type": "array", "items": {"type": "string"}}}, "additionalProperties": false}}}
+      ]
+    },
+    "scientificEvidenceView": {
+      "allOf": [
+        {"$ref": "#/$defs/envelope"},
+        {
+          "properties": {
+            "view_id": {"const": "chronicle.scientific-evidence.v1"},
+            "schema_id": {"const": "urn:chronicle:view:scientific-evidence:v1"},
+            "payload": {
+              "type": "object",
+              "required": ["evidence_bindings"],
+              "properties": {
+                "evidence_bindings": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["axis", "receipt_id", "artifact_id"],
+                    "properties": {
+                      "axis": {"enum": ["b03_micro_use", "b04_minimum_duration", "concurrency_floor", "zero_duration_cleanup", "b05_screen_construction", "schoedel_reconstruction", "scientific_attestation", "eyes_tagged_fau"]},
+                      "receipt_id": {"type": "string"},
+                      "status": {"type": ["string", "boolean", "null"]},
+                      "artifact_id": {"type": "string"},
+                      "lineage_artifact_id": {"type": ["string", "null"]},
+                      "dependency_id": {"type": ["string", "null"]},
+                      "lineage_dependency_id": {"type": ["string", "null"]}
+                    },
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
+      ]
+    },
+    "scientificSourceBindingsView": {
+      "allOf": [
+        {"$ref": "#/$defs/envelope"},
+        {
+          "properties": {
+            "view_id": {"const": "chronicle.scientific-source-bindings.v1"},
+            "schema_id": {"const": "urn:chronicle:view:scientific-source-bindings:v1"},
+            "payload": {
+              "type": "object",
+              "required": ["source_bindings"],
+              "properties": {
+                "source_bindings": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["graph_id", "artifact_id", "artifact_kind", "assignment_id", "role_id"],
+                    "properties": {
+                      "graph_id": {"type": "string"},
+                      "artifact_id": {"type": "string"},
+                      "artifact_kind": {"type": "string"},
+                      "assignment_id": {"type": "string"},
+                      "role_id": {"type": "string"}
+                    },
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
       ]
     }
   }

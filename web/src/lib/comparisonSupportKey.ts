@@ -9,6 +9,12 @@ const SUPPORT_FILE_ROLE_FLAGS = {
   deviceSharingFile: true,
   surveyAttributionFile: true,
   enrolledDevicesFile: true,
+  inputCapabilityEvidenceFile: true,
+  analysisFeatureMatrixFile: true,
+  callSmsEligibilityFile: true,
+  phoneStudyPsCommunicationFile: true,
+  phoneStudyEsFile: true,
+  anchorEventsFile: true,
 } as const satisfies Record<keyof BrowserSupportFiles, true>;
 
 /**

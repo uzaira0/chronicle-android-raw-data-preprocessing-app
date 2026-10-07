@@ -1,0 +1,148 @@
+{
+  "schemaVersion": "chronicle-dekker-tracking-row-count-thresholds-canonical-source-fixture/v1",
+  "reusedOwner": {
+    "component": "OrderedThresholdBucketizer",
+    "sourcePath": "rust/chronicle_preprocessing_runtime_wasm/src/categorical_threshold_bucketizer.rs",
+    "sourceSha256": "8d1346fcdea163de16585d45c6661c2634c3203bc7b1a8a5370615450e464c7d",
+    "semanticBoundary": "A caller-supplied finite scalar is assigned to lower-inclusive ordered buckets; this fixture first requires the scalar to be a nonnegative JSON integer count of already-constructed tr_daily rows within one already-established participant ID group."
+  },
+  "settings": [
+    {
+      "sourceWorkId": "doi:10.1080/15213269.2024.2334025",
+      "canonicalSetting": {
+        "settingId": "method-setting-3cf495b8511d8c26e267fd60",
+        "parameterKey": "clean.include.baseline_tracking",
+        "sourceObservedSetting": "clean.include.baseline_tracking: within tr_daily retain IDs with n() >= 8, then intersect installed IDs",
+        "sourceValueSha256": "e74b3470b0b3e348f95dc9febc52988298eff736b83c6683d6405d8194e4206e"
+      },
+      "supersededAliases": [],
+      "sourceArtifacts": [
+        {
+          "role": "released R cleaning script",
+          "locator": ".tmp-literature-review-private/corrective-packet-06-ranks174-223-20260831/artifacts/rank209-osf-45q72/osfstorage/Notification-disabling intervention study/Data & Analyses/(2) R script data cleaning [raw survey & tracking data].R:444-456",
+          "sha256": "2bd5bab0c9a917a64f347093972bff72e2b0b5cfd38539a1df229c65cdbd383b"
+        },
+        {
+          "role": "canonical source-completeness audit",
+          "locator": ".tmp-literature-review-private/ontology-sublation-20260831/source-completeness-audits/doi-10.1080-15213269.2024.2334025.json",
+          "sha256": "ee986e5c3f85f39bdc33d17a0198505510536a15f5ef316846588d6565dbeb3d"
+        },
+        {
+          "role": "canonical method-setting assertions",
+          "locator": ".tmp-literature-review-private/ontology-sublation-20260831/adjudicated-method-setting-assertions.jsonl",
+          "sha256": "a3d676d9282b28f1f71687b1366ebf073796ae0e4c5c8bc0757096e173a1fcf5"
+        },
+        {
+          "role": "alias and tombstone ledger",
+          "locator": ".tmp-literature-review-private/ontology-sublation-20260831/method-setting-alias-tombstones.json",
+          "sha256": "018221f6036218887355a0a2dcd9d6d54a9e90eb93f380b4e1b81cc75c0f76b5"
+        }
+      ],
+      "inputMeasure": "caller-derived tr_daily row count within one already-established participant ID group",
+      "inputBoundary": "One caller-supplied nonnegative integer count of rows in the already-constructed tr_daily table for one participant ID. Chronicle does not reconstruct tr_daily or group and count its rows in this binding.",
+      "outputBoundary": "Report only whether the supplied grouped row count is at least 8. Equality at 8 satisfies the source predicate; the later intersection with the installed-ID list is not performed.",
+      "minimumInclusiveRows": 8,
+      "cases": [
+        {
+          "caseId": "below",
+          "trackingRowCount": 7,
+          "expectedDisposition": "does_not_meet_source_boundary"
+        },
+        {
+          "caseId": "inclusive_source_boundary",
+          "trackingRowCount": 8,
+          "expectedDisposition": "meets_source_boundary"
+        },
+        {
+          "caseId": "above",
+          "trackingRowCount": 9,
+          "expectedDisposition": "meets_source_boundary"
+        }
+      ],
+      "limitations": [
+        "The binding does not construct, deduplicate, order, or impute tr_daily rows and does not define a row as a completed tracking day.",
+        "The binding does not group tr_daily by ID or derive the per-ID n() value; the caller owns both operations.",
+        "The binding does not create the installed-ID list from T0 and tr_daily or apply the subsequent inner_join with that list.",
+        "A passing threshold is not final participant inclusion, eligibility, or cohort membership."
+      ]
+    },
+    {
+      "sourceWorkId": "doi:10.1080/15213269.2024.2334025",
+      "canonicalSetting": {
+        "settingId": "method-setting-7e8f2af3a154b7a2ac3a308a",
+        "parameterKey": "clean.include.intervention_tracking",
+        "sourceObservedSetting": "clean.include.intervention_tracking: within tr_daily retain IDs with n() >= 15, then intersect T1-complete IDs",
+        "sourceValueSha256": "221f77a173b2f2f84bf70b92e18d1d5861a7e77b6d8a914d9725066acff2be56"
+      },
+      "supersededAliases": [],
+      "sourceArtifacts": [
+        {
+          "role": "released R cleaning script",
+          "locator": ".tmp-literature-review-private/corrective-packet-06-ranks174-223-20260831/artifacts/rank209-osf-45q72/osfstorage/Notification-disabling intervention study/Data & Analyses/(2) R script data cleaning [raw survey & tracking data].R:471-485",
+          "sha256": "2bd5bab0c9a917a64f347093972bff72e2b0b5cfd38539a1df229c65cdbd383b"
+        },
+        {
+          "role": "canonical source-completeness audit",
+          "locator": ".tmp-literature-review-private/ontology-sublation-20260831/source-completeness-audits/doi-10.1080-15213269.2024.2334025.json",
+          "sha256": "ee986e5c3f85f39bdc33d17a0198505510536a15f5ef316846588d6565dbeb3d"
+        },
+        {
+          "role": "canonical method-setting assertions",
+          "locator": ".tmp-literature-review-private/ontology-sublation-20260831/adjudicated-method-setting-assertions.jsonl",
+          "sha256": "a3d676d9282b28f1f71687b1366ebf073796ae0e4c5c8bc0757096e173a1fcf5"
+        },
+        {
+          "role": "alias and tombstone ledger",
+          "locator": ".tmp-literature-review-private/ontology-sublation-20260831/method-setting-alias-tombstones.json",
+          "sha256": "018221f6036218887355a0a2dcd9d6d54a9e90eb93f380b4e1b81cc75c0f76b5"
+        }
+      ],
+      "inputMeasure": "caller-derived tr_daily row count within one already-established participant ID group",
+      "inputBoundary": "One caller-supplied nonnegative integer count of rows in the already-constructed tr_daily table for one participant ID. Chronicle does not reconstruct tr_daily or group and count its rows in this binding.",
+      "outputBoundary": "Report only whether the supplied grouped row count is at least 15. Equality at 15 satisfies the source predicate; the later intersection with the T1-complete ID list is not performed.",
+      "minimumInclusiveRows": 15,
+      "cases": [
+        {
+          "caseId": "below",
+          "trackingRowCount": 14,
+          "expectedDisposition": "does_not_meet_source_boundary"
+        },
+        {
+          "caseId": "inclusive_source_boundary",
+          "trackingRowCount": 15,
+          "expectedDisposition": "meets_source_boundary"
+        },
+        {
+          "caseId": "above",
+          "trackingRowCount": 16,
+          "expectedDisposition": "meets_source_boundary"
+        }
+      ],
+      "limitations": [
+        "The binding does not construct, deduplicate, order, or impute tr_daily rows and does not define a row as a completed tracking day.",
+        "The binding does not group tr_daily by ID or derive the per-ID n() value; the caller owns both operations.",
+        "The binding does not create the T1-complete ID list or apply the subsequent inner_join with that list.",
+        "A passing threshold is not final participant inclusion, eligibility, or cohort membership."
+      ]
+    }
+  ],
+  "invalidTrackingRowCounts": [
+    {
+      "caseId": "negative",
+      "trackingRowCount": -1
+    },
+    {
+      "caseId": "fractional",
+      "trackingRowCount": 8.5
+    },
+    {
+      "caseId": "numeric_string",
+      "trackingRowCount": "8"
+    },
+    {
+      "caseId": "missing",
+      "trackingRowCount": null
+    }
+  ],
+  "invalidCountError": "nonnegative_integer_tracking_row_count_required"
+}

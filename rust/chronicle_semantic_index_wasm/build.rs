@@ -23,15 +23,27 @@ fn main() {
     let mut arms = String::new();
     for query in queries {
         let query_id = query["query_id"].as_str().expect("query_id string");
+        let view_id = query["view_id"].as_str().expect("view_id string");
         let sparql = query["sparql"].as_str().expect("sparql string");
-        arms.push_str(&format!("        {:?} => Some({:?}),\n", query_id, sparql));
+        arms.push_str(&format!(
+            "        {:?} => Some(RegisteredQueryDescriptor {{ view_id: {:?}, sparql: {:?} }}),\n",
+            query_id, view_id, sparql
+        ));
     }
     let generated = format!(
         "pub const REGISTERED_QUERY_RESOURCE_JSON: &str = include_str!({:?});\n\
-         fn registered_query(query_id: &str) -> Option<&'static str> {{\n\
+         #[derive(Clone, Copy)]\n\
+         struct RegisteredQueryDescriptor {{\n\
+             view_id: &'static str,\n\
+             sparql: &'static str,\n\
+         }}\n\
+         fn registered_query_descriptor(query_id: &str) -> Option<RegisteredQueryDescriptor> {{\n\
              match query_id {{\n{}\
                  _ => None,\n\
              }}\n\
+         }}\n\
+         fn registered_query(query_id: &str) -> Option<&'static str> {{\n\
+             registered_query_descriptor(query_id).map(|descriptor| descriptor.sparql)\n\
          }}\n",
         registry.canonicalize().expect("canonical registry path"),
         arms,

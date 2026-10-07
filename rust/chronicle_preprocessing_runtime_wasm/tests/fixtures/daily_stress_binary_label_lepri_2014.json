@@ -1,0 +1,103 @@
+{
+  "schemaVersion": "chronicle-daily-stress-binary-label-source-fixture/v1",
+  "sourceWorkId": "doi:10.1145/2647868.2654933",
+  "canonicalIdentityResolution": {
+    "canonicalSettingId": "method-setting-08dbec13e6499e2df3d79733",
+    "aliasSettingId": "method-setting-96198e8493f540e031319156",
+    "sourceExtractionId": "extraction-a3036fc657c9177e7aa0",
+    "resolution": "superseded_by",
+    "tombstoneRegistrySha256": "018221f6036218887355a0a2dcd9d6d54a9e90eb93f380b4e1b81cc75c0f76b5"
+  },
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-08dbec13e6499e2df3d79733",
+    "parameterKey": "outcome.binary_label",
+    "sourceObservedSetting": "outcome.binary_label: {\"labels\":{\"0\":\"not stressed\",\"1\":\"stressed\"},\"rules\":{\"not_stressed\":\"score <= 4\",\"stressed\":\"score > 4\"},\"neutral_score_assigned_to\":0}",
+    "sourceValueSha256": "59c81d5e7344e465a1e1b0de372aa04d0e72dc62ab8b0ea6637b2778c2398f1d"
+  },
+  "sourceArtifacts": [
+    {
+      "locator": ".tmp-literature-review-private/source-completeness-artifacts/doi-10.1145-2647868.2654933/arxiv-1410.5816v1-source.tar#member=fp266-lepri.tex;lines=588-598",
+      "sha256": "9ebfdf1dd12d842b8943672d7f94cfe6f984a73ff14261a267c88285c0c0b213"
+    },
+    {
+      "locator": ".tmp-literature-review-private/corrective-packet-04-ranks-074-123-20260831/fulltext/080-primary.pdf#pages=5-6;audit-locator=fp266-lepri.tex:588-598",
+      "sha256": "cec0119cecc151a885b1da2a4562f9604e374e3c01cdc566f325f666495a61d2"
+    },
+    {
+      "locator": ".tmp-literature-review-private/corrective-packet-04-ranks-074-123-20260831/text/080.txt#audit-locator=fp266-lepri.tex:588-598",
+      "sha256": "ca9fd45f81f94a040de49d29bd334c24b30c0372d5c8a5ab607194b3a04c2252"
+    },
+    {
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/source-completeness-audits/doi-10.1145-2647868.2654933.json#key=outcome.binary_label",
+      "sha256": "ab79e10840323b1401ea0ee7907164af03e603ed09d07bd88785ab605280785e"
+    },
+    {
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/method-setting-alias-tombstones.json#alias=method-setting-96198e8493f540e031319156",
+      "sha256": "018221f6036218887355a0a2dcd9d6d54a9e90eb93f380b4e1b81cc75c0f76b5"
+    }
+  ],
+  "inputBoundary": "One caller-supplied finite daily self-perceived stress score within the source-disclosed closed anchor range 1 through 7. Survey response parsing, score serialization, participant identity, and day attribution occur upstream.",
+  "outputBoundary": "Emit source label 0 (not stressed) when score is below or equal to 4, including the neutral anchor 4, and source label 1 (stressed) when score is above 4.",
+  "limitations": [
+    "The publication says a 'seven items scale' and provides anchors 1, 4, and 7, but does not provide item text or establish whether this means seven items or seven response points; this binding therefore accepts an already-derived numeric score and does not infer questionnaire construction.",
+    "The source does not disclose raw response serialization or an integer-only storage type, so this binding validates the closed source anchor range without imposing integer-only input.",
+    "A missing, nonfinite, below-anchor, or above-anchor score fails closed before classification.",
+    "Participant identity joins, evening-survey delivery, day attribution, missing-response handling, and the consecutive-data cohort gate are outside this outcome-label boundary.",
+    "Feature engineering, normalization, participant-disjoint train/test splitting, leave-one-subject-out evaluation, model fitting, and reported cohort percentages are downstream and are not reproduced by this binding.",
+    "The captured arXiv archive is publication source, not released target-analysis code or data, so this fixture proves the disclosed label transformation but not the paper's complete model outputs."
+  ],
+  "scoreRange": {
+    "minimumInclusive": 1.0,
+    "maximumInclusive": 7.0
+  },
+  "pivotScore": 4.0,
+  "cases": [
+    {
+      "caseId": "minimum-anchor",
+      "dailyStressScore": 1.0,
+      "expectedCode": 0,
+      "expectedName": "not stressed"
+    },
+    {
+      "caseId": "below-neutral-anchor",
+      "dailyStressScore": 3.0,
+      "expectedCode": 0,
+      "expectedName": "not stressed"
+    },
+    {
+      "caseId": "neutral-anchor-equality",
+      "dailyStressScore": 4.0,
+      "expectedCode": 0,
+      "expectedName": "not stressed"
+    },
+    {
+      "caseId": "above-neutral-anchor",
+      "dailyStressScore": 5.0,
+      "expectedCode": 1,
+      "expectedName": "stressed"
+    },
+    {
+      "caseId": "maximum-anchor",
+      "dailyStressScore": 7.0,
+      "expectedCode": 1,
+      "expectedName": "stressed"
+    }
+  ],
+  "invalidCases": [
+    {
+      "caseId": "missing-score",
+      "dailyStressScore": null,
+      "expectedError": "daily_stress_score_required"
+    },
+    {
+      "caseId": "below-source-anchor-range",
+      "dailyStressScore": 0.0,
+      "expectedError": "daily_stress_score_must_be_finite_within_source_anchors"
+    },
+    {
+      "caseId": "above-source-anchor-range",
+      "dailyStressScore": 8.0,
+      "expectedError": "daily_stress_score_must_be_finite_within_source_anchors"
+    }
+  ]
+}

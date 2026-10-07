@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "chronicle-location-accuracy-filter-source-fixture/v1",
+  "sourceWorkId": "doi:10.1002/per.2309",
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-bda663746ffd6ebe747788f4",
+    "parameterKey": "preparation.location_accuracy",
+    "sourceObservedSetting": "preparation.location_accuracy: drop location points with error radius greater than 100 meters",
+    "sourceValueSha256": "3d6ff4ea857cdbd6e583099d0c1b9a0aa7e68e72fb2e1c5a82af8a389278d8b7"
+  },
+  "sourceArtifact": {
+    "locator": ".tmp-literature-review-private/corrective-packet-06-ranks174-223-20260831/text/183-1-b3facb592d62.txt:1514-1527",
+    "sha256": "990b3f3289030e18c5ed2abf6b0766af6616787a020f529545f2fb9f4d9c780b"
+  },
+  "inputBoundary": "Already-decoded location observations with a finite, nonnegative 95%-confidence error radius in meters.",
+  "outputBoundary": "A disposition for each observation: retain at and below 100 meters, drop only above 100 meters.",
+  "limitations": [
+    "This binding does not parse provider-specific raw location records or derive the 95%-confidence error radius.",
+    "The source does not disclose behavior for missing, nonfinite, or negative radii; those values fail closed.",
+    "This binding does not implement the subsequent 500-second spacing or place clustering steps."
+  ],
+  "maximumRetainedRadiusMeters": 100.0,
+  "dispositions": {
+    "below": "retain",
+    "equal": "retain",
+    "above": "drop"
+  },
+  "observations": [
+    {
+      "caseId": "below-boundary",
+      "errorRadiusMeters": 99.999,
+      "expectedDisposition": "retain"
+    },
+    {
+      "caseId": "at-boundary",
+      "errorRadiusMeters": 100.0,
+      "expectedDisposition": "retain"
+    },
+    {
+      "caseId": "above-boundary",
+      "errorRadiusMeters": 100.001,
+      "expectedDisposition": "drop"
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "caseId": "negative-radius",
+      "errorRadiusMeters": "-1",
+      "expectedError": "error_radius_meters_must_be_finite_and_nonnegative"
+    },
+    {
+      "caseId": "missing-radius",
+      "errorRadiusMeters": null,
+      "expectedError": "error_radius_meters_required"
+    },
+    {
+      "caseId": "nan-radius",
+      "errorRadiusMeters": "NaN",
+      "expectedError": "error_radius_meters_must_be_finite_and_nonnegative"
+    },
+    {
+      "caseId": "positive-infinity-radius",
+      "errorRadiusMeters": "+inf",
+      "expectedError": "error_radius_meters_must_be_finite_and_nonnegative"
+    }
+  ]
+}

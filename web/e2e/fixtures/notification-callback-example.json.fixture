@@ -1,0 +1,36 @@
+{
+  "notification_callback_groups": [
+    {
+      "callback_group_id": "example:posted-group",
+      "method_profile_id": "method-profile:doi:10.1145/3229434.3229445",
+      "source_work_id": "doi:10.1145/3229434.3229445",
+      "participant_id": "example:participant",
+      "device_id": null,
+      "history_record_origin": "analyst_constructed_example",
+      "notification_evidence": [
+        {
+          "evidence_record_id": "callback-a",
+          "evidence_kind": "posted_callback",
+          "evidence_role": "recorded",
+          "evidence_instant": "equal-supplied-time-token",
+          "evidence_value_json": "{\"example_title\":\"example title\",\"example_package\":null}",
+          "evidence_basis": "Constructed normalized callback; these are not recovered raw field names or participant values.",
+          "evidence_references": [],
+          "source_locators": ["Dismissed! printed pp.3:3–3:4, Data Collection/Filtering Notification-Posted Event Bursts; primary SHA256 f839a5caed8527105f98be9cb7875a02e987c5326d442b79b428e243ad3185ee"]
+        },
+        {
+          "evidence_record_id": "callback-b",
+          "evidence_kind": "posted_callback",
+          "evidence_role": "recorded",
+          "evidence_instant": "equal-supplied-time-token",
+          "evidence_value_json": "{\"example_title\":\"example title\",\"example_package\":null}",
+          "evidence_basis": null,
+          "evidence_references": null,
+          "source_locators": ["Dismissed! printed pp.3:3–3:4, Data Collection/Filtering Notification-Posted Event Bursts; primary SHA256 f839a5caed8527105f98be9cb7875a02e987c5326d442b79b428e243ad3185ee"]
+        }
+      ],
+      "analytic_alert_proxy_reference": "callback-b",
+      "source_locators": ["Dismissed! printed pp.3:3–3:4, Data Collection/Filtering Notification-Posted Event Bursts; primary SHA256 f839a5caed8527105f98be9cb7875a02e987c5326d442b79b428e243ad3185ee"]
+    }
+  ]
+}

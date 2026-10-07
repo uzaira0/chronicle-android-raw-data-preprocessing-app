@@ -19,6 +19,19 @@ const workerCount = Math.min(12, requestedWorkers);
 const testFile = "src/lib/pipelineGraph/golden/interactionTomography.test.ts";
 const testName =
   "exhausts all computational-axis pairs and proves every warm two-factor cone";
+const protocolVersion = "chronicle-interaction-influence-ledger/v2";
+// Configuration-only typed refusals the census must reach: the EYES/GESIS
+// opener crossing (B02) and the B06 chronicle-rejection policy — selected
+// directly or via its legacy-config threshold source — under each of the four
+// non-fused reconstruction strategies. Mirrors EXPECTED_TYPED_REFUSAL_PAIRS
+// in interactionTomography.test.ts.
+const expectedTypedRefusalPairIds = [
+  "openerSet=gesisappstarts+episodeReconstructionStrategy=eyes",
+  ...["forward", "eyes", "gesis", "schoedelprose"].flatMap((strategy) => [
+    `episodeReconstructionStrategy=${strategy}+maximumDurationPolicy=chroniclerejection`,
+    `episodeReconstructionStrategy=${strategy}+maximumDurationThresholdSource=legacyconfig`,
+  ]),
+].sort();
 const expectedFile = path.resolve(
   "src/lib/pipelineGraph/golden/family-expected/interaction-influence-ledger.json",
 );
@@ -146,6 +159,7 @@ try {
       .sort((left, right) => rankPair(left) - rankPair(right));
 
   const invalidPairs = mergedPairs("invalidPairs");
+  const pairRefusalReceipts = mergedPairs("pairRefusalReceipts");
   const qualificationEnabledPairs = mergedPairs("qualificationEnabledPairs");
   const nonAdditivePairs = mergedPairs("nonAdditivePairs");
   const pairCases = shards.flatMap((shard) => shard.pairCases).sort();
@@ -155,9 +169,24 @@ try {
   const firstShard = shards[0];
   if (!firstShard) throw new Error("no shard results to aggregate");
   const firstCoverage = firstShard.evidence.coverage;
+  const singleRefusalReceipts = sameAcross(shards, "singleRefusalReceipts");
   const validPairContrasts = sumCoverage(shards, "validPairContrasts");
   const invalidPairContrasts = sumCoverage(shards, "invalidPairContrasts");
-  const enumeratedPairContrasts = validPairContrasts + invalidPairContrasts;
+  const refusedPairContrasts = sumCoverage(shards, "refusedPairContrasts");
+  const enumeratedSingleContrasts =
+    firstCoverage.validSingleContrasts +
+    firstCoverage.invalidSingleContrasts +
+    firstCoverage.refusedSingleContrasts;
+  if (
+    enumeratedSingleContrasts !== firstCoverage.enumeratedSingleContrasts ||
+    enumeratedSingleContrasts !== firstCoverage.declaredAlternates
+  ) {
+    throw new Error(
+      `interaction shards reported an incomplete single-contrast census (${enumeratedSingleContrasts}/${firstCoverage.declaredAlternates})`,
+    );
+  }
+  const enumeratedPairContrasts =
+    validPairContrasts + invalidPairContrasts + refusedPairContrasts;
   if (enumeratedPairContrasts !== pairOrder.length) {
     throw new Error(
       `interaction shards reported ${enumeratedPairContrasts} contrasts but ordered ${pairOrder.length}`,
@@ -173,21 +202,69 @@ try {
       `interaction shards produced ${invalidPairs.length}/${invalidPairContrasts} invalid pair records`,
     );
   }
+  if (pairRefusalReceipts.length !== refusedPairContrasts) {
+    throw new Error(
+      `interaction shards produced ${pairRefusalReceipts.length}/${refusedPairContrasts} typed refusal receipts`,
+    );
+  }
+  const emittedTypedRefusalPairIds = pairRefusalReceipts
+    .map((receipt) => receipt.pairId)
+    .sort();
+  if (
+    JSON.stringify(emittedTypedRefusalPairIds) !==
+    JSON.stringify(expectedTypedRefusalPairIds)
+  ) {
+    throw new Error(
+      `interaction shards emitted typed refusal receipts ${JSON.stringify(emittedTypedRefusalPairIds)}; expected ${JSON.stringify(expectedTypedRefusalPairIds)}`,
+    );
+  }
+  if (singleRefusalReceipts.length !== firstCoverage.refusedSingleContrasts) {
+    throw new Error(
+      `interaction shards produced ${singleRefusalReceipts.length}/${firstCoverage.refusedSingleContrasts} typed single-refusal receipts`,
+    );
+  }
 
+  const shardProtocolVersion = sameAcross(shards, "protocolVersion");
+  if (shardProtocolVersion !== protocolVersion) {
+    throw new Error(
+      `interaction influence shards emitted ${shardProtocolVersion}; expected ${protocolVersion}`,
+    );
+  }
+  // Declared once. The message used to repeat the three numbers as literal
+  // text, so updating the check without updating the prose left the failure
+  // naming values that were no longer expected anywhere.
+  const EXPECTED_CENSUS = { axes: 83, axisPairs: 3_403, pairContrasts: 7_560 };
+  if (
+    firstCoverage.axes !== EXPECTED_CENSUS.axes ||
+    firstCoverage.axisPairs !== EXPECTED_CENSUS.axisPairs ||
+    enumeratedPairContrasts !== EXPECTED_CENSUS.pairContrasts
+  ) {
+    throw new Error(
+      `interaction influence census drifted from ${EXPECTED_CENSUS.axes} axes, ` +
+        `${EXPECTED_CENSUS.axisPairs} axis pairs, and ${EXPECTED_CENSUS.pairContrasts} ` +
+        `value contrasts: got ${firstCoverage.axes} axes, ` +
+        `${firstCoverage.axisPairs} axis pairs, ` +
+        `${enumeratedPairContrasts} value contrasts`,
+    );
+  }
   const evidence = {
-    protocolVersion: sameAcross(shards, "protocolVersion"),
+    protocolVersion,
     claimBoundary: sameAcross(shards, "claimBoundary"),
     plan: sameAcross(shards, "plan"),
     implementationReceipt: sameAcross(shards, "implementationReceipt"),
     fixture: sameAcross(shards, "fixture"),
     coverage: {
       axes: firstCoverage.axes,
+      axisPairs: firstCoverage.axisPairs,
       declaredAlternates: firstCoverage.declaredAlternates,
+      enumeratedSingleContrasts,
       validSingleContrasts: firstCoverage.validSingleContrasts,
       invalidSingleContrasts: firstCoverage.invalidSingleContrasts,
+      refusedSingleContrasts: firstCoverage.refusedSingleContrasts,
       enumeratedPairContrasts,
       validPairContrasts,
       invalidPairContrasts,
+      refusedPairContrasts,
       coldExecutions:
         1 + firstCoverage.validSingleContrasts + validPairContrasts,
       incrementalExecutions: validPairContrasts * 2,
@@ -198,11 +275,6 @@ try {
         shards,
         "warmColdQueryCheckpointComparisons",
       ),
-      exactClusterComparisons: sumCoverage(shards, "exactClusterComparisons"),
-      exactQueryClusterComparisons: sumCoverage(
-        shards,
-        "exactQueryClusterComparisons",
-      ),
       workflowQueryGroupCount: firstCoverage.workflowQueryGroupCount,
       workflowQueryCount: firstCoverage.workflowQueryCount,
       nonAdditivePairs: nonAdditivePairs.length,
@@ -210,6 +282,8 @@ try {
     },
     invalidSingles: sameAcross(shards, "invalidSingles"),
     invalidPairs,
+    singleRefusalReceipts,
+    pairRefusalReceipts,
     qualificationEnabledPairs,
     nonAdditivePairs,
     pairCaseDigest,

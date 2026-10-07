@@ -1,0 +1,13 @@
+run_marker=[codex-pro-run:f093cc3b-123a-43b4-ba30-476adc363f8e]
+screened=84
+retained=32
+rejected=39
+known_duplicates=14
+near_misses=25
+unresolved=13
+primary_A=24
+primary_B=5
+primary_D=2
+primary_F=1
+known_heading_lines_mechanical=428
+known_doi_strings=496

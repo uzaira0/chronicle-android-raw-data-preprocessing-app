@@ -5,6 +5,11 @@
 //! qualification/materialization rules, evidence records, and typed views. It
 //! does not contain a second scheduler or preprocessing engine.
 
+// The minicov profile runtime backs coverage-instrumented builds; the
+// explicit extern keeps its C runtime in this cdylib's link.
+#[cfg(feature = "coverage-runtime")]
+extern crate minicov;
+
 pub mod capabilities;
 pub mod dependency_cache;
 pub mod journal;

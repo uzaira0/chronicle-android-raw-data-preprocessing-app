@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "chronicle-music-duration-descriptive-filter-source-fixture/v1",
+  "sourceWorkId": "doi:10.1186/s13673-016-0072-3",
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-59fda2b48095a571041dd10c",
+    "parameterKey": "music.descriptive_filter",
+    "sourceObservedSetting": "music.descriptive_filter: {\"predicate\":\"duration > 30 seconds\",\"scope\":\"descriptive music counts\"}",
+    "sourceValueSha256": "16b2c3ad3064c9a9980a9d125f12e642266b770964ac670864a9cacb531ef3f9"
+  },
+  "sourceArtifact": {
+    "locators": [
+      ".tmp-literature-review-private/ontology-sublation-20260831/work/s13673-fulltext-layout.txt:250-256",
+      ".tmp-literature-review-private/ontology-sublation-20260831/work/s13673-fulltext-layout.txt:342-360",
+      ".tmp-literature-review-private/ontology-sublation-20260831/work/s13673-fulltext-layout.txt:1015-1024"
+    ],
+    "sha256": "dc076e537744bea22bb6f50f28cb4f635dadcdc90378e5e299a6200b13b1a190"
+  },
+  "inputBoundary": "One already-derived music-playback log record with track metadata, time, and a finite nonnegative listened duration expressed in seconds.",
+  "outputBoundary": "For the Figure 3d descriptive music-count input only, exclude the playback record at or below 30 seconds and retain it only when listened duration is strictly greater than 30 seconds; equality is excluded.",
+  "limitations": [
+    "This binding does not collect or parse music-player broadcast events or playlist history.",
+    "This binding does not infer playback segmentation, merge repeated or resumed track plays, deduplicate records, or derive listened duration.",
+    "This binding does not construct last-24-hour challenge-question answers, sample correct tracks, or choose distractors.",
+    "This binding does not group retained playback records by participant/day or calculate the Figure 3d song-count distribution.",
+    "A missing, non-finite, or negative listened duration fails closed rather than being interpreted as zero."
+  ],
+  "durationPivotSeconds": 30.0,
+  "dispositions": ["excluded", "excluded", "retained"],
+  "playbackRecords": [
+    {
+      "recordId": "immediately-below",
+      "listenedDurationSeconds": 29.999,
+      "expectedDisposition": "excluded"
+    },
+    {
+      "recordId": "at-boundary",
+      "listenedDurationSeconds": 30.0,
+      "expectedDisposition": "excluded"
+    },
+    {
+      "recordId": "immediately-above",
+      "listenedDurationSeconds": 30.001,
+      "expectedDisposition": "retained"
+    }
+  ],
+  "invalidInputCases": [
+    {
+      "recordId": "missing-duration",
+      "listenedDurationSeconds": null,
+      "expectedError": "music_playback_listened_duration_required"
+    },
+    {
+      "recordId": "negative-duration",
+      "listenedDurationSeconds": -0.001,
+      "expectedError": "music_playback_listened_duration_must_be_nonnegative"
+    }
+  ]
+}

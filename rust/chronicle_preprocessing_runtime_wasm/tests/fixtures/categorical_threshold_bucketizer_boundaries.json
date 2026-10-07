@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "chronicle-categorical-threshold-boundary-fixture/v1",
+  "sourceWorkId": "doi:10.1016/j.jbi.2019.103151",
+  "sourceLocators": [
+    ".tmp-literature-review-private/strict-screen-native-ranks37-73-20260831T0415Z/text/66-fukazawa-2019-anxiety-passive-sensing.txt:120-157",
+    ".tmp-literature-review-private/strict-screen-native-ranks37-73-20260831T0415Z/text/66-fukazawa-2019-anxiety-passive-sensing.txt:158-182",
+    ".tmp-literature-review-private/strict-screen-native-ranks37-73-20260831T0415Z/text/66-fukazawa-2019-anxiety-passive-sensing.txt:183-200"
+  ],
+  "configurations": [
+    {
+      "configurationId": "illuminance",
+      "unit": "lux",
+      "thresholds": [300.0, 1000.0],
+      "categories": ["dark", "medium", "bright"],
+      "observations": [
+        {"value": 299.999, "expectedCategory": "dark"},
+        {"value": 300.0, "expectedCategory": "medium"},
+        {"value": 999.999, "expectedCategory": "medium"},
+        {"value": 1000.0, "expectedCategory": "bright"}
+      ]
+    },
+    {
+      "configurationId": "acceleration_magnitude",
+      "unit": "m/s^2",
+      "thresholds": [2.0, 5.0],
+      "categories": ["still_or_constant_speed", "gentle", "intense"],
+      "observations": [
+        {"value": 1.999, "expectedCategory": "still_or_constant_speed"},
+        {"value": 2.0, "expectedCategory": "gentle"},
+        {"value": 4.999, "expectedCategory": "gentle"},
+        {"value": 5.0, "expectedCategory": "intense"}
+      ]
+    },
+    {
+      "configurationId": "rotation_x",
+      "unit": "degrees",
+      "thresholds": [30.0, 60.0],
+      "categories": ["parallel", "diagonal", "perpendicular"],
+      "observations": [
+        {"value": 29.999, "expectedCategory": "parallel"},
+        {"value": 30.0, "expectedCategory": "diagonal"},
+        {"value": 59.999, "expectedCategory": "diagonal"},
+        {"value": 60.0, "expectedCategory": "perpendicular"}
+      ]
+    }
+  ],
+  "rejectedObservations": ["NaN", "+Infinity", "-Infinity"]
+}

@@ -7,7 +7,7 @@ import { ToggleField } from "@/components/ToggleField";
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import { TOOLTIPS } from "@/lib/tooltipText";
 import { anyOptionModified, isOptionDefault, type OptionKey } from "@/lib/optionDefaults";
-import { rangeError } from "@/lib/validation";
+import { optionRangeError } from "@/lib/validation";
 import type { BrowserProcessingOptions } from "@/lib/types";
 
 const KEYS: readonly OptionKey[] = ["parallelProcessing", "parallelMaxWorkers"];
@@ -15,9 +15,17 @@ const KEYS: readonly OptionKey[] = ["parallelProcessing", "parallelMaxWorkers"];
 type Props = {
   options: BrowserProcessingOptions;
   setOptions: Dispatch<SetStateAction<BrowserProcessingOptions>>;
+  /** Local (not contract) setting: build optional provenance evidence files. */
+  provenanceEvidence: boolean;
+  onProvenanceEvidenceChange: (next: boolean) => void;
 };
 
-export function PerformanceCard({ options, setOptions }: Props): ReactElement {
+export function PerformanceCard({
+  options,
+  setOptions,
+  provenanceEvidence,
+  onProvenanceEvidenceChange,
+}: Props): ReactElement {
   const update = <K extends OptionKey>(key: K, value: BrowserProcessingOptions[K]) => {
     setOptions((current) => ({ ...current, [key]: value }));
   };
@@ -32,7 +40,9 @@ export function PerformanceCard({ options, setOptions }: Props): ReactElement {
       title="Performance"
       accent="performance"
       defaultExpanded={false}
-      modified={anyOptionModified(options, KEYS)}
+      modified={
+        anyOptionModified(options, KEYS) || provenanceEvidence
+      }
     >
       <p className="u-card-intro">
         Use this for batches with more than one raw file. Parallel processing can finish a batch
@@ -55,7 +65,7 @@ export function PerformanceCard({ options, setOptions }: Props): ReactElement {
         onReset={() => reset("parallelMaxWorkers")}
         error={
           options.parallelProcessing
-            ? rangeError(options.parallelMaxWorkers ?? 0, 0, 32)
+            ? optionRangeError("parallelMaxWorkers", options.parallelMaxWorkers ?? 0)
             : undefined
         }
         hint="0 lets the app choose a safe limit based on your files and browser."
@@ -74,6 +84,19 @@ export function PerformanceCard({ options, setOptions }: Props): ReactElement {
           disabled={!options.parallelProcessing}
         />
       </SettingsField>
+      <ToggleField
+        label="Build provenance evidence"
+        tooltip={{
+          title: "Provenance evidence files",
+          body:
+            "Also builds three provenance files alongside Row Lineage: the Source Coordinate Index (an address for every cell of your input files), the Result Cell Correspondence (every output cell linked back to its output row) and the Source-Result Influence Witness (which inputs could affect which output cells). Nothing in the app reads them; they exist for provenance audits and the evidence campaigns. Off: those steps are skipped, so each run is faster. Your CSV outputs are identical either way.",
+        }}
+        checked={provenanceEvidence}
+        onChange={onProvenanceEvidenceChange}
+        testId="toggle-provenanceEvidence"
+        modified={provenanceEvidence}
+        onReset={() => onProvenanceEvidenceChange(false)}
+      />
     </SectionCard>
   );
 }

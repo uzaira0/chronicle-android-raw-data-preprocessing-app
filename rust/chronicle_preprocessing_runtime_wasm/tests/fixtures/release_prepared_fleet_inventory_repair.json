@@ -1,0 +1,85 @@
+{
+  "schema": "release-prepared-fleet-inventory-repair-hand-cases-v1",
+  "qualification": "Supplemental transport-qualification regressions only; original 69-case source oracle and all 12 source values remain unchanged.",
+  "source": {
+    "sticky": "09_non_clearable_notifications.ipynb cell6/9–10/13–18: worker maps each supplied valid UUID once; valid.Count remains independent supplied denominator",
+    "rank": "07_category_ranking.ipynb cells8/16–21/25: one complete UUID inventory normalized before UUID-by-position grid",
+    "limit": "Same manifest participant/device cannot have alternate complete row inventories; different devices may use different supplied clocks. No clock selection, inventory merge, or inferred admission."
+  },
+  "cases": [
+    {
+      "id": "rank-same-device-two-clocks-A-versus-B-refused",
+      "adapter": "chronicle.clear-all-supplied-rank-grid",
+      "rawCsvLines": [
+        "source_row_id,participant_id,device_id,scope_id,clock_id,input_stage,payload",
+        "rA,p,d,scope,clock-A,source-qualified-complete-supplied-inventory,\"{\"\"snapshots\"\":[{\"\"snapshot_id\"\":\"\"s0\"\",\"\"Active\"\":[{\"\"packageName\"\":\"\"a\"\",\"\"isGroupSummaryCompat\"\":false,\"\"isClearable\"\":true}]}],\"\"category_map\"\":{\"\"a\"\":\"\"A\"\",\"\"b\"\":\"\"B\"\",\"\"_NONE_\"\":\"\"NONE\"\"},\"\"category_inventory\"\":[\"\"A\"\",\"\"B\"\",\"\"NONE\"\"],\"\"device_inventory\"\":[[\"\"p\"\",\"\"d\"\"]]}\"",
+        "rB,p,d,scope,clock-B,source-qualified-complete-supplied-inventory,\"{\"\"snapshots\"\":[{\"\"snapshot_id\"\":\"\"s0\"\",\"\"Active\"\":[{\"\"packageName\"\":\"\"b\"\",\"\"isGroupSummaryCompat\"\":false,\"\"isClearable\"\":true}]}],\"\"category_map\"\":{\"\"a\"\":\"\"A\"\",\"\"b\"\":\"\"B\"\",\"\"_NONE_\"\":\"\"NONE\"\"},\"\"category_inventory\"\":[\"\"A\"\",\"\"B\"\",\"\"NONE\"\"],\"\"device_inventory\"\":[[\"\"p\"\",\"\"d\"\"]]}\""
+      ],
+      "expected": {
+        "errorContains": "rank rows must exactly cover"
+      }
+    },
+    {
+      "id": "sticky-same-device-two-clocks-valid-count-double-count-refused",
+      "adapter": "chronicle.clear-all-supplied-sticky-reductions",
+      "rawCsvLines": [
+        "source_row_id,participant_id,device_id,scope_id,clock_id,input_stage,payload",
+        "rA,p,d,scope,clock-A,source-qualified-complete-supplied-inventory,\"{\"\"snapshots\"\":[{\"\"snapshot_id\"\":\"\"s0\"\",\"\"Active\"\":[{\"\"isClearable\"\":false}]}],\"\"valid_count\"\":2,\"\"device_inventory\"\":[[\"\"p\"\",\"\"d\"\"]]}\"",
+        "rB,p,d,scope,clock-B,source-qualified-complete-supplied-inventory,\"{\"\"snapshots\"\":[{\"\"snapshot_id\"\":\"\"s0\"\",\"\"Active\"\":[{\"\"isClearable\"\":false}]}],\"\"valid_count\"\":3,\"\"device_inventory\"\":[[\"\"p\"\",\"\"d\"\"]]}\""
+      ],
+      "expected": {
+        "errorContains": "requires exact nonempty complete supplied valid-device inventory"
+      }
+    },
+    {
+      "id": "rank-same-device-two-clocks-repeated-category-overwrite-refused",
+      "adapter": "chronicle.clear-all-supplied-rank-grid",
+      "rawCsvLines": [
+        "source_row_id,participant_id,device_id,scope_id,clock_id,input_stage,payload",
+        "rA,p,d,scope,clock-A,source-qualified-complete-supplied-inventory,\"{\"\"snapshots\"\":[{\"\"snapshot_id\"\":\"\"s0\"\",\"\"Active\"\":[{\"\"packageName\"\":\"\"a\"\",\"\"isGroupSummaryCompat\"\":false,\"\"isClearable\"\":true}]},{\"\"snapshot_id\"\":\"\"s1\"\",\"\"Active\"\":[{\"\"packageName\"\":\"\"b\"\",\"\"isGroupSummaryCompat\"\":false,\"\"isClearable\"\":true}]}],\"\"category_map\"\":{\"\"a\"\":\"\"A\"\",\"\"b\"\":\"\"B\"\",\"\"_NONE_\"\":\"\"NONE\"\"},\"\"category_inventory\"\":[\"\"A\"\",\"\"B\"\",\"\"NONE\"\"],\"\"device_inventory\"\":[[\"\"p\"\",\"\"d\"\"]]}\"",
+        "rB,p,d,scope,clock-B,source-qualified-complete-supplied-inventory,\"{\"\"snapshots\"\":[{\"\"snapshot_id\"\":\"\"s0\"\",\"\"Active\"\":[{\"\"packageName\"\":\"\"a\"\",\"\"isGroupSummaryCompat\"\":false,\"\"isClearable\"\":true}]}],\"\"category_map\"\":{\"\"a\"\":\"\"A\"\",\"\"b\"\":\"\"B\"\",\"\"_NONE_\"\":\"\"NONE\"\"},\"\"category_inventory\"\":[\"\"A\"\",\"\"B\"\",\"\"NONE\"\"],\"\"device_inventory\"\":[[\"\"p\"\",\"\"d\"\"]]}\""
+      ],
+      "expected": {
+        "errorContains": "rank rows must exactly cover"
+      }
+    },
+    {
+      "id": "sticky-distinct-devices-different-clocks-retained",
+      "adapter": "chronicle.clear-all-supplied-sticky-reductions",
+      "rawCsvLines": [
+        "source_row_id,participant_id,device_id,scope_id,clock_id,input_stage,payload",
+        "rA,p,d,scope,clock-A,source-qualified-complete-supplied-inventory,\"{\"\"snapshots\"\":[{\"\"snapshot_id\"\":\"\"s0\"\",\"\"Active\"\":[{\"\"isClearable\"\":false}]}],\"\"valid_count\"\":2,\"\"device_inventory\"\":[[\"\"p\"\",\"\"d\"\"],[\"\"q\"\",\"\"e\"\"]]}\"",
+        "rB,q,e,scope,clock-B,source-qualified-complete-supplied-inventory,\"{\"\"snapshots\"\":[{\"\"snapshot_id\"\":\"\"s0\"\",\"\"Active\"\":[{\"\"isClearable\"\":true}]}],\"\"valid_count\"\":3,\"\"device_inventory\"\":[[\"\"p\"\",\"\"d\"\"],[\"\"q\"\",\"\"e\"\"]]}\""
+      ],
+      "expected": {
+        "outputRowCount": 15,
+        "checks": [
+          {
+            "kind": "fleet_sticky_snapshot_count",
+            "value": "1",
+            "member": "",
+            "position": "",
+            "status": "computed",
+            "members": ""
+          },
+          {
+            "kind": "fleet_supplied_valid_count",
+            "value": "5",
+            "member": "",
+            "position": "",
+            "status": "computed",
+            "members": ""
+          },
+          {
+            "kind": "fleet_sticky_snapshot_fraction",
+            "value": "0.2",
+            "member": "",
+            "position": "",
+            "status": "computed",
+            "members": ""
+          }
+        ]
+      }
+    }
+  ]
+}

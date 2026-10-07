@@ -1,0 +1,63 @@
+{
+  "schemaVersion": "chronicle-gps-place-distance-threshold-source-fixture/v1",
+  "sourceWorkId": "doi:10.1007/978-3-642-37210-0_6",
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-7f3cb5bc3ef6e02c130d9d97",
+    "parameterKey": "feature.place_distance_threshold",
+    "sourceObservedSetting": "feature.place_distance_threshold: {\"comparison\":\"less than\",\"threshold_meters\":50}",
+    "sourceValueSha256": "67a4f32f34f96bf05ff1a8244d1c8a543a0e5718a38f4844a9f749658cb92901"
+  },
+  "sourceArtifacts": [
+    {
+      "locator": ".tmp-literature-review-private/source-completeness-artifacts/doi-10.1007-978-3-642-37210-0_6/de-montjoye-2013-author.txt:228-234",
+      "sha256": "e7695acc8e8cbcd32bf9421deb18f2e14719f59116a4dcc33a08c79b8d348f1a"
+    },
+    {
+      "locator": ".tmp-literature-review-private/source-completeness-artifacts/doi-10.1007-978-3-642-37210-0_6/de-montjoye-2013-author.pdf#audit-locator=de-montjoye-2013-author.txt:228-234",
+      "sha256": "239a23caebc02f3d81d16442c5dbb28984a1594a99bce820028f7038481ff8d2"
+    }
+  ],
+  "inputBoundary": "One caller-computed finite nonnegative distance in meters between two GPS points from the same participant; coordinate parsing and distance calculation occur before this setting boundary.",
+  "outputBoundary": "Mark the point pair as satisfying the paper's place-distance relation exactly when its distance is strictly less than 50 meters; equality is not admitted by the source wording.",
+  "limitations": [
+    "This binding does not parse GPS records, choose a geodesic or planar distance formula, or infer coordinate accuracy handling.",
+    "This binding proves only the disclosed pairwise threshold decision; it does not infer clustering linkage, transitivity, ordering, or place assignment.",
+    "This binding does not calculate the center of mass or implement the separate more-than-15-minutes-in-a-row dwell gate.",
+    "No rounding or tolerance around 50 meters is inferred."
+  ],
+  "pivotMeters": 50,
+  "categories": {
+    "below": "satisfies_place_distance_relation",
+    "equal": "does_not_satisfy_place_distance_relation",
+    "above": "does_not_satisfy_place_distance_relation"
+  },
+  "observations": [
+    {
+      "caseId": "coincident-points",
+      "distanceMeters": 0,
+      "expectedDisposition": "satisfies_place_distance_relation"
+    },
+    {
+      "caseId": "immediately-below-threshold",
+      "distanceMeters": 49.999,
+      "expectedDisposition": "satisfies_place_distance_relation"
+    },
+    {
+      "caseId": "exact-threshold",
+      "distanceMeters": 50,
+      "expectedDisposition": "does_not_satisfy_place_distance_relation"
+    },
+    {
+      "caseId": "immediately-above-threshold",
+      "distanceMeters": 50.001,
+      "expectedDisposition": "does_not_satisfy_place_distance_relation"
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "caseId": "negative-distance",
+      "distanceMeters": -0.001,
+      "reason": "source_requires_nonnegative_distance"
+    }
+  ]
+}
