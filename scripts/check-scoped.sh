@@ -56,6 +56,11 @@ if has '(^|/)(Cargo\.lock|package-lock\.json|bun\.lock)$'; then
   make --no-print-directory cargo-audit cargo-deny trivy
 fi
 
+if has '^(web/package(-lock)?\.json|web/\.node-version|scripts/check-npm-lockfile\.sh)$'; then
+  step "npm lockfile against the deploy runner's npm"
+  scripts/check-npm-lockfile.sh
+fi
+
 # Static analysis, each tool only when files it reads changed (launch audit
 # 2026-10-03, analysis S13). Editing a gate's own script or config re-runs it.
 packs=()

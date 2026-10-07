@@ -9,6 +9,10 @@ FAIL=0
 # ---------------------------------------------------------------------------
 # npm — npm audit
 # ---------------------------------------------------------------------------
+echo "=== npm lockfile (deploy runner's npm) ==="
+"$REPO_ROOT/scripts/check-npm-lockfile.sh" || FAIL=1
+echo
+
 echo "=== npm dependency audit ==="
 if [ -d "$REPO_ROOT/web/node_modules" ]; then
   # `|| FAIL=1` must sit OUTSIDE the subshell. Assigning FAIL inside `( ... )`
