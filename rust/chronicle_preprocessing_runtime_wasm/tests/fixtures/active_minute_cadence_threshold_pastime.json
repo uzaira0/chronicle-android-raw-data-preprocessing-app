@@ -1,0 +1,60 @@
+{
+  "schemaVersion": "chronicle-active-minute-cadence-threshold-source-fixture/v1",
+  "sourceWorkId": "doi:10.1007/s10865-024-00499-x",
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-1b02c4e7cc0b9197d171d7d6",
+    "parameterKey": "activpal.mvpa_rule",
+    "sourceObservedSetting": "activpal.mvpa_rule: Minutes with cadence >=100 steps/min",
+    "sourceValueSha256": "a84f41e14ca9c6e4447002ecc8f2e7da3db3db83c7dd7ffb4d6574f76cc27908"
+  },
+  "sourceArtifacts": [
+    {
+      "locator": ".tmp-literature-review-private/strict-screen-native-ranks37-73-20260831T0415Z/text/60-pastime.txt:158-165",
+      "sha256": "b1dc48785f5c0db64bb3b19349ed7304a315ea8c0abb50d9a8a5a073471bbd53"
+    },
+    {
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/source-completeness-audits/doi-10.1007-s10865-024-00499-x.json",
+      "sha256": "d738093ba4c17e471b5c368bccc2f464c5bbf07dcd2192927000cba4333d4e15"
+    }
+  ],
+  "inputBoundary": "One caller-supplied finite nonnegative cadence in steps per minute for an already-constructed activPAL minute.",
+  "outputBoundary": "Classify a minute as MVPA at cadence equal to or above 100 steps per minute and as below MVPA below that boundary.",
+  "limitations": [
+    "The proprietary activPAL algorithm, raw 20 Hz acceleration processing, minute construction, cadence derivation, and wear-time classification occur upstream.",
+    "This binding classifies one already-constructed minute; summing classified minutes into daily MVPA duration occurs downstream.",
+    "No cadence rounding, step-event definition, partial-minute handling, or imputation behavior is inferred.",
+    "The setting is shared physical-activity preprocessing for a mixed-platform analysis and does not imply Android-derived activPAL measurements.",
+    "Missing, negative, or nonfinite cadence fails closed rather than being interpreted as sedentary or zero."
+  ],
+  "minimumMvpaCadence": 100,
+  "categories": ["below_mvpa", "mvpa"],
+  "minutes": [
+    {
+      "caseId": "immediately-below",
+      "cadenceStepsPerMinute": 99.999,
+      "expectedCategory": "below_mvpa"
+    },
+    {
+      "caseId": "at-boundary",
+      "cadenceStepsPerMinute": 100,
+      "expectedCategory": "mvpa"
+    },
+    {
+      "caseId": "immediately-above",
+      "cadenceStepsPerMinute": 100.001,
+      "expectedCategory": "mvpa"
+    }
+  ],
+  "invalidCadenceCases": [
+    {
+      "caseId": "missing-cadence",
+      "cadenceStepsPerMinute": null,
+      "expectedError": "minute_cadence_required"
+    },
+    {
+      "caseId": "negative-cadence",
+      "cadenceStepsPerMinute": -0.001,
+      "expectedError": "minute_cadence_must_be_nonnegative_finite"
+    }
+  ]
+}

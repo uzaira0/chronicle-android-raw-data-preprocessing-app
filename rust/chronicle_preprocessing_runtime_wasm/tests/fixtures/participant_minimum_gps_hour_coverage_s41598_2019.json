@@ -1,0 +1,47 @@
+{
+  "schemaVersion": "chronicle-participant-minimum-percentage-source-fixture/v1",
+  "sourceWorkId": "doi:10.1038/s41598-019-47493-x",
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-c0af8e44de56c0abaabcc7ff",
+    "parameterKey": "gps.coverage_gate",
+    "sourceObservedSetting": "gps.coverage_gate: {\"hours_available_percent\":80,\"comparator\":\"at_least\"}",
+    "sourceValueSha256": "58d150f5ae0f03312a6c09fdc6ad8cf34bf373bd9295f7d78e9987c35582ac4f"
+  },
+  "sourceArtifact": {
+    "locator": ".tmp-literature-review-private/corrective-queue-a-20260831/evidence/rank11.txt:81-94,398-402",
+    "sha256": "d720426185ece4744a2cec4dcf47ac6e5b73f6dfda46bcd6b3b786bccdf530de"
+  },
+  "inputBoundary": "One already-derived finite percentage of a user's observation hours for which GPS locations are available.",
+  "outputBoundary": "Filter a user below 80% GPS-hour availability and retain the user at or above 80%; equality is retained.",
+  "limitations": [
+    "This binding does not select accepted location observations from actual GPS measurements or operating-system Wi-Fi lookups.",
+    "This binding does not group observations by user, construct covered-hour counts, or define the observation-hour denominator.",
+    "The requirement for application-usage data over the entire period is a separate user-level source gate.",
+    "Stop-event extraction, spatial and temporal thresholds, and DBSCAN location construction are separate downstream source operations.",
+    "A missing GPS-hour coverage percentage fails closed rather than being interpreted as zero."
+  ],
+  "minimumRetainedPercent": 80.0,
+  "dispositions": ["filter_user", "retain_user"],
+  "participants": [
+    {
+      "participantId": "immediately-below",
+      "gpsHoursAvailablePercent": 79.999,
+      "expectedDisposition": "filter_user"
+    },
+    {
+      "participantId": "at-boundary",
+      "gpsHoursAvailablePercent": 80.0,
+      "expectedDisposition": "retain_user"
+    },
+    {
+      "participantId": "above-boundary",
+      "gpsHoursAvailablePercent": 80.001,
+      "expectedDisposition": "retain_user"
+    }
+  ],
+  "missingCoverageCase": {
+    "participantId": "missing-coverage",
+    "gpsHoursAvailablePercent": null,
+    "expectedError": "participant_gps_hour_coverage_percent_required"
+  }
+}

@@ -1,0 +1,96 @@
+{
+  "schemaVersion": "chronicle-screenomics-text-image-hand-oracle/v1",
+  "sourceWorkId": "doi:10.1016/j.chb.2020.106570",
+  "primary": {
+    "path": ".tmp-literature-review-private/corrective-packet-04-ranks-074-123-20260831/text/096.txt",
+    "sha256": "381843c86a2703627c94cde70701e54516d01d4bbc74241cb358d144fc17ebaf",
+    "locators": [
+      "174-176",
+      "178",
+      "180-184",
+      "220-224"
+    ]
+  },
+  "delegatedFramework": {
+    "textSha256": "2d9344b9b37774f01a950548b28bcdfac7921adfb1684323e33b224b15aa6a22",
+    "locator": "825-860",
+    "claim": "Unicode files per screenshot; exact OCR/tokenizer/clock implementation is not recovered"
+  },
+  "formulas": [
+    "n supplied nonempty literal-space tokens, preserving repeated occurrences",
+    "cardinality(unique current words minus unique prior-five-second words)",
+    "H=-sum over256 nonzero bins of(count/total)*log2(count/total), in bits",
+    "abs(Hcurrent-HimmediatelyPrior)"
+  ],
+  "handDerivation": [
+    "Current [A,new,new,New,é,e-combining-accent,punct!,tab-bearing-string] has8 occurrences; six distinct CURRENT words are absent from prior [old,A,old]. Case, punctuation, Unicode normalization and tab semantics are unchanged.",
+    "One occupied gray bin has p=1,H=0. Two equally occupied bins have H=1. Four equally occupied bins have H=2. All integer histogram zeros use Shannon's limiting contribution0; a zero-total histogram is not assigned H=0.",
+    "The repeated supplied CSV row contributes another current capture occurrence; no row/source-ID deduplication or grouping is performed."
+  ],
+  "inputBoundary": "Caller supplies exact lexical word arrays and/or ordered256-bin grayscale pixel counts, explicit current/prior ownership and caller-qualified capture relation. Timestamp/unit/precision tokens are retained opaque; no temporal sorting, gap comparison, OCR or RGB conversion.",
+  "notClaimed": [
+    "Raw tokenizer empty/repeated-space normalization",
+    "Unreported missing or first-capture policy",
+    "150caps",
+    "Session/day/hour aggregation",
+    "Collector/model/cohort"
+  ],
+  "cases": [
+    {
+      "caseId": "lexical-words-directed-set-and-hand-histograms",
+      "rawCsvLines": [
+        "source_row_id,participant_id,device_id,source_stream_id,capture_id,clock_id,time_unit,time_precision,capture_timestamp,prior_participant_id,prior_device_id,prior_source_stream_id,prior_capture_id,prior_clock_id,prior_time_unit,prior_time_precision,prior_capture_timestamp,prior_relation,words_json,prior_words_json,grayscale_histogram_json,prior_grayscale_histogram_json",
+        "occurrence0,P ,phone,screenome,capture0,clock ,source-opaque-unit,7,raw-zero,,,,,,,,,no_prior_capture_supplied,\"[\"\"old\"\",\"\"A\"\",\"\"old\"\"]\",,\"[4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]\",",
+        "repeated-id,P ,phone,screenome,capture1,clock ,source-opaque-unit,11,raw-current,P ,phone,screenome,capture0,clock ,source-opaque-unit,13,raw-prior,immediately_prior_five_second_capture,\"[\"\"A\"\",\"\"new\"\",\"\"new\"\",\"\"New\"\",\"\"é\"\",\"\"é\"\",\"\"punct!\"\",\"\"a\\tb\"\"]\",\"[\"\"old\"\",\"\"A\"\",\"\"old\"\"]\",\"[2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]\",\"[4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]\"",
+        "repeated-id,P ,phone,screenome,capture1,clock ,source-opaque-unit,11,raw-current,P ,phone,screenome,capture0,clock ,source-opaque-unit,13,raw-prior,immediately_prior_five_second_capture,\"[\"\"A\"\",\"\"new\"\",\"\"new\"\",\"\"New\"\",\"\"é\"\",\"\"é\"\",\"\"punct!\"\",\"\"a\\tb\"\"]\",\"[\"\"old\"\",\"\"A\"\",\"\"old\"\"]\",\"[2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]\",\"[4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]\"",
+        "occurrence-Q,Q,phone2,screenome,capture-Q,other clock,unreported,unreported,unknown,,,,,,,,,no_prior_capture_supplied,[],,\"[1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]\","
+      ],
+      "expectedAppendedRows": [
+        [
+          "3",
+          "computed_supplied_statistics",
+          "",
+          "unavailable:prior_capture_not_supplied_source_behavior_undisclosed",
+          "0",
+          "computed_supplied_statistics",
+          "",
+          "unavailable:prior_capture_not_supplied_source_behavior_undisclosed",
+          "supplied_statistics_only_not_ocr_pair_constructor_caps_or_models"
+        ],
+        [
+          "8",
+          "computed_supplied_statistics",
+          "6",
+          "computed_supplied_statistics",
+          "1",
+          "computed_supplied_statistics",
+          "1",
+          "computed_supplied_statistics",
+          "supplied_statistics_only_not_ocr_pair_constructor_caps_or_models"
+        ],
+        [
+          "8",
+          "computed_supplied_statistics",
+          "6",
+          "computed_supplied_statistics",
+          "1",
+          "computed_supplied_statistics",
+          "1",
+          "computed_supplied_statistics",
+          "supplied_statistics_only_not_ocr_pair_constructor_caps_or_models"
+        ],
+        [
+          "0",
+          "computed_supplied_statistics",
+          "",
+          "unavailable:prior_capture_not_supplied_source_behavior_undisclosed",
+          "2",
+          "computed_supplied_statistics",
+          "",
+          "unavailable:prior_capture_not_supplied_source_behavior_undisclosed",
+          "supplied_statistics_only_not_ocr_pair_constructor_caps_or_models"
+        ]
+      ]
+    }
+  ]
+}

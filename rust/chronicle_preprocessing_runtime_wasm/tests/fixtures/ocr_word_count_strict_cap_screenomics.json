@@ -1,0 +1,87 @@
+{
+  "schemaVersion": "chronicle-ocr-word-count-strict-cap-source-fixture/v1",
+  "sourceWorkId": "doi:10.1016/j.chb.2020.106570",
+  "sourceArtifact": {
+    "locator": ".tmp-literature-review-private/corrective-packet-04-ranks-074-123-20260831/text/096.txt:174-176",
+    "sha256": "381843c86a2703627c94cde70701e54516d01d4bbc74241cb358d144fc17ebaf"
+  },
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-b9e7628e706265b033e571a8",
+    "parameterKey": "text.word_count_cap",
+    "sourceObservedSetting": "text.word_count_cap: {\"above\":150,\"recode_to\":150,\"reason\":\"inflated values including horizontal orientation\"}",
+    "sourceValueSha256": "dc46f20dfa0115135f5d1a180562fbedf4870b5c3aa95c69d1d7a9773257b4d8"
+  },
+  "productionBindingStatus": "missing_ocr_word_count_strict_cap_binding",
+  "inputBoundary": "One caller-supplied, already OCR-derived nonnegative integer word count for one identified screenshot. OCR, tokenization, and screenshot identity derivation occur upstream.",
+  "outputBoundary": "Retain every valid screenshot row, preserve its original word count, emit a capped word count, and mark recoded=true only when the original count is strictly greater than 150.",
+  "comparison": "strictly_greater_than",
+  "capValue": 150,
+  "limitations": [
+    "This test-only source-neutral reference does not implement OCR, the paper's space-separated word definition, or screenshot extraction.",
+    "The caller must supply screenshot identity and an already-derived word count; this reference does not infer grouping or ordering.",
+    "Missing, negative, fractional, or out-of-range word counts fail closed rather than being rounded, clamped, or dropped.",
+    "The fixture proves the isolated recode predicate and row-preserving output only; no production Chronicle binding exists."
+  ],
+  "validCases": [
+    {
+      "caseId": "zero-unchanged",
+      "screenshotId": "shot-000",
+      "wordCount": 0,
+      "expectedOriginalWordCount": 0,
+      "expectedCappedWordCount": 0,
+      "expectedRecoded": false
+    },
+    {
+      "caseId": "below-unchanged",
+      "screenshotId": "shot-149",
+      "wordCount": 149,
+      "expectedOriginalWordCount": 149,
+      "expectedCappedWordCount": 149,
+      "expectedRecoded": false
+    },
+    {
+      "caseId": "equality-unchanged",
+      "screenshotId": "shot-150",
+      "wordCount": 150,
+      "expectedOriginalWordCount": 150,
+      "expectedCappedWordCount": 150,
+      "expectedRecoded": false
+    },
+    {
+      "caseId": "immediately-above-recoded",
+      "screenshotId": "shot-151",
+      "wordCount": 151,
+      "expectedOriginalWordCount": 151,
+      "expectedCappedWordCount": 150,
+      "expectedRecoded": true
+    },
+    {
+      "caseId": "reported-inflated-example-recoded",
+      "screenshotId": "shot-500",
+      "wordCount": 500,
+      "expectedOriginalWordCount": 500,
+      "expectedCappedWordCount": 150,
+      "expectedRecoded": true
+    }
+  ],
+  "invalidCases": [
+    {
+      "caseId": "missing",
+      "screenshotId": "shot-missing",
+      "wordCount": null,
+      "expectedError": "word_count_required"
+    },
+    {
+      "caseId": "negative",
+      "screenshotId": "shot-negative",
+      "wordCount": -1,
+      "expectedError": "nonnegative_integer_word_count_required"
+    },
+    {
+      "caseId": "fractional",
+      "screenshotId": "shot-fractional",
+      "wordCount": 150.5,
+      "expectedError": "nonnegative_integer_word_count_required"
+    }
+  ]
+}

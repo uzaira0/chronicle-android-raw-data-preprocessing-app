@@ -19,6 +19,7 @@
   DATA.screen = DATA.screen || [];
 
   var MAX_ROW_ZOOM = 24;
+  var HOVER_HIT_RADIUS_CSS_PX = 2;
 
   function rowAtY(meta, y) {
     if (!meta) return null;
@@ -42,6 +43,25 @@
 
   function inverseTransformX(x, meta, transform) {
     return meta.gutter + (x - meta.gutter - transform.offset) / transform.zoom;
+  }
+
+  function findNearestRegion(regions, x, y, maxHorizontalDistance) {
+    var tolerance = Math.max(0, maxHorizontalDistance);
+    var nearest = null;
+    var nearestDistance = Infinity;
+    for (var i = 0; i < regions.length; i++) {
+      var region = regions[i];
+      if (y < region.y || y > region.y + region.h) continue;
+      var left = Math.min(region.x, region.x + region.w);
+      var right = Math.max(region.x, region.x + region.w);
+      var distance = x < left ? left - x : x > right ? x - right : 0;
+      if (distance === 0) return region;
+      if (distance <= tolerance && distance < nearestDistance) {
+        nearest = region;
+        nearestDistance = distance;
+      }
+    }
+    return nearest;
   }
 
   function dataRowForPrimitive(meta, p) {
@@ -68,6 +88,12 @@
       }
       if (maxX < meta.gutter - 16) return null;
       return rowAtY(meta, sumY / Math.max(1, p.points.length));
+    }
+    if (p.type === "text") {
+      // Only row-anchored text (a DST row's clock labels, which carry `dx`)
+      // follows its row's zoom; every other label stays where the scene puts it.
+      if (p.dx === undefined) return null;
+      return rowAtY(meta, p.y);
     }
     return null;
   }
@@ -109,7 +135,8 @@
       ctx.font = p.font;
       ctx.textAlign = p.anchor === "start" ? "left" : p.anchor === "middle" ? "center" : "right";
       ctx.textBaseline = p.baseline === "top" ? "top" : p.baseline === "middle" ? "middle" : "alphabetic";
-      ctx.fillText(p.text, p.x, p.y);
+      // Mirrors textPaintX in plotScene.ts: the anchor zooms, the pad does not.
+      ctx.fillText(p.text, p.dx === undefined ? p.x : tx(p.x) + p.dx, p.y);
     } else if (p.type === "line") {
       ctx.strokeStyle = p.stroke;
       ctx.lineWidth = p.strokeWidth == null ? 1 : p.strokeWidth;
@@ -289,14 +316,13 @@
       var row = rowAtY(meta, sy);
       var rowTransform = row !== null ? state.transforms[row] : null;
       var hitX = meta && rowTransform ? inverseTransformX(sx, meta, rowTransform) : sx;
-      var hit = null;
-      for (var i = 0; i < regions.length; i++) {
-        var r = regions[i];
-        if (hitX >= r.x && hitX <= r.x + r.w && sy >= r.y && sy <= r.y + r.h) {
-          hit = r;
-          break;
-        }
-      }
+      var horizontalScale = state.scale * (rowTransform ? rowTransform.zoom : 1);
+      var hit = findNearestRegion(
+        regions,
+        hitX,
+        sy,
+        HOVER_HIT_RADIUS_CSS_PX / Math.max(horizontalScale, 1e-9),
+      );
       if (hit) showTip(x + 14, y + 14, hit);
       else hideTip();
     });

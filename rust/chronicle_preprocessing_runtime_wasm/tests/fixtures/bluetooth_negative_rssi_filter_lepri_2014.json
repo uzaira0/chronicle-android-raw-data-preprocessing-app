@@ -1,0 +1,61 @@
+{
+  "schemaVersion": "chronicle-bluetooth-negative-rssi-filter-source-fixture/v1",
+  "sourceWorkId": "doi:10.1145/2647868.2654933",
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-691e82b28c4c61f0dc0c33b3",
+    "parameterKey": "feature.bluetooth_rssi_filter",
+    "sourceObservedSetting": "feature.bluetooth_rssi_filter: {\"exclude_when\":\"RSSI < 0\",\"retain_when\":\"RSSI >= 0\",\"units_and_device_semantics\":null,\"source_value_preserved_without_sign_correction\":true}",
+    "sourceValueSha256": "f78f6ce95878fbb9471b4e066196201acfbf42d599a6f3257122572175eff9f6"
+  },
+  "sourceArtifacts": [
+    {
+      "locator": ".tmp-literature-review-private/source-completeness-artifacts/doi-10.1145-2647868.2654933/arxiv-1410.5816v1-source.tar",
+      "sha256": "9ebfdf1dd12d842b8943672d7f94cfe6f984a73ff14261a267c88285c0c0b213"
+    },
+    {
+      "locator": ".tmp-literature-review-private/source-completeness-artifacts/doi-10.1145-2647868.2654933/arxiv-1410.5816v1-source.tar#member=fp266-lepri.tex;lines=548-553",
+      "sha256": "98f061c214a98fdb35421c85d12f7b3f57d2e612949954d112fcd447d0cac70d"
+    }
+  ],
+  "inputBoundary": "One caller-parsed finite numeric RSSI value from a Bluetooth-hit record, preserved exactly as stored by the study input before this filter.",
+  "outputBoundary": "Exclude exactly RSSI values below zero and retain zero or positive values before constructing the paper's Bluetooth proximity features.",
+  "limitations": [
+    "The source does not disclose RSSI units, Android field type, integer width, signed-storage interpretation, device calibration, or physical-distance meaning; none is inferred or corrected.",
+    "This binding does not parse raw Bluetooth records, select scans, identify devices or contacts, group hits, deduplicate records, or reconstruct missing values.",
+    "This binding proves only the disclosed RSSI filter and does not implement the downstream Bluetooth count, distribution, diversity, or regularity features.",
+    "No tolerance around zero is inferred; finite fractional values demonstrate that integer-only semantics from another paper are not transferred."
+  ],
+  "pivot": 0,
+  "categories": {
+    "below": "exclude",
+    "equal": "retain",
+    "above": "retain"
+  },
+  "observations": [
+    {
+      "caseId": "negative-integer",
+      "rssi": -1,
+      "expectedDisposition": "exclude"
+    },
+    {
+      "caseId": "negative-fractional",
+      "rssi": -0.001,
+      "expectedDisposition": "exclude"
+    },
+    {
+      "caseId": "exact-zero",
+      "rssi": 0,
+      "expectedDisposition": "retain"
+    },
+    {
+      "caseId": "positive-fractional",
+      "rssi": 0.001,
+      "expectedDisposition": "retain"
+    },
+    {
+      "caseId": "positive-integer",
+      "rssi": 1,
+      "expectedDisposition": "retain"
+    }
+  ]
+}

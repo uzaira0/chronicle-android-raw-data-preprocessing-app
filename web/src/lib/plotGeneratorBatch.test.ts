@@ -347,10 +347,10 @@ describe("buildTimelineScene edge cases", () => {
     expect(plotBar("#555555")).toBe(true); // "Unknown", for the null category
   });
 
-  it("drops session day-slices with no mapped row and non-positive-width bars", () => {
+  it("seeds the spanned days of a multi-day session and drops non-positive-width bars", () => {
     const rows = [
-      // Spans 03-20 22:00 → 03-22 02:00 but only 03-20 is a dated row: the
-      // post-midnight slices land on unmapped days and are dropped.
+      // Spans 03-20 22:00 → 03-22 02:00 with only 03-20 as a dated row: the
+      // post-midnight days are seeded from the session itself, so every slice draws.
       {
         date: "2026-03-20",
         start_timestamp_ns: atDay(20, 22),
@@ -378,9 +378,9 @@ describe("buildTimelineScene edge cases", () => {
     const gamesBars = scene.primitives.filter(
       (p) => p.type === "rect" && (p as { fill?: string }).fill === "#e6194b" && (p as { x: number }).x < 1540,
     );
-    // Only the start-day slice of the spanning row survives; the reversed
-    // same-day session (non-positive width) contributes no bar.
-    expect(gamesBars).toHaveLength(1);
+    // Start, middle and stop slices of the spanning row; the reversed same-day
+    // session (non-positive width) contributes no bar.
+    expect(gamesBars).toHaveLength(3);
   });
 
   it("filtered ticks fall back to the row date, label blanks, and drop unmapped rows", () => {
@@ -706,5 +706,44 @@ describe("Intl empty-parts fallbacks (no throw)", () => {
 
     const m = computeHourDayMatrix(rows, "UTC");
     expect(m.dates.length).toBeGreaterThan(0);
+  });
+});
+
+describe("review round two: palette aliases and spanned-date seeding", () => {
+  const plotBars = (scene: { primitives: Array<{ type: string }> }, fill: string) =>
+    scene.primitives.filter(
+      (p) =>
+        p.type === "rect" &&
+        (p as { fill?: string }).fill === fill &&
+        (p as unknown as { x: number }).x < 1540,
+    );
+
+  it("colours codebook spellings (GAMING, System/OEM) with the palette, not Uncategorised", () => {
+    const rows = [
+      { ...usage("2026-03-07", atDay(7, 10), atDay(7, 11)), broad_app_category: "GAMING" },
+      { ...usage("2026-03-07", atDay(7, 12), atDay(7, 13)), broad_app_category: "System/OEM" },
+    ] as unknown as Parameters<typeof buildTimelineScene>[1];
+    const scene = buildTimelineScene("P01", rows, "UTC", OPTS, "1.0.0", "d");
+    expect(plotBars(scene, "#e6194b").length).toBe(1); // Games
+    expect(plotBars(scene, "#a9a9a9").length).toBe(1); // System / OEM
+    expect(plotBars(scene, "#222222").length).toBe(0); // nothing fell through to Uncategorised
+  });
+
+  it("draws the second-day slice of a cross-midnight session even with no row dated that day", () => {
+    // Only one dated row (03-07); the session runs into 03-08 which no row names.
+    const rows = [usage("2026-03-07", atDay(7, 23), atDay(8, 1))] as unknown as Parameters<
+      typeof buildTimelineScene
+    >[1];
+    const scene = buildTimelineScene("P01", rows, "UTC", OPTS, "1.0.0", "d");
+    expect(plotBars(scene, "#e6194b").length).toBe(2);
+    expect(sceneTexts(scene).some((t) => t.includes("Mar 08"))).toBe(true);
+    const screen = buildScreenScene(
+      "P01",
+      [{ ...rows[0], interaction_type: "Screen Usage" }] as unknown as Parameters<typeof buildScreenScene>[1],
+      "UTC",
+      "1.0.0",
+      "d",
+    );
+    expect(plotBars(screen, "#9E9E9E").length).toBe(2); // "unknown" end reason
   });
 });

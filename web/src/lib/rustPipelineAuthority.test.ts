@@ -79,8 +79,8 @@ import {
   processPersistedReviewWithRustAuthority,
   processRawCsvReviewWithRustAuthority,
   processRawCsvWithRustAuthority,
-  relabelDuplicateContentResult,
 } from "@/lib/rustPipelineAuthority";
+import { relabelDuplicateContentResult } from "@/lib/duplicateContentResult";
 
 const enc = new TextEncoder();
 const json = (value: unknown) => enc.encode(JSON.stringify(value));
@@ -124,14 +124,116 @@ function manifest(artifacts: RuntimeManifest["artifacts"]): RuntimeManifest {
       },
     ]),
   );
+  const evidenceDigest = `sha256:${"c".repeat(64)}`;
+  const eyesEvidence: RuntimeManifest["eyesEvidence"] = {
+    protocolVersion: "chronicle-eyes-runtime-summary/v2",
+    status: "not_applicable",
+    episodeReconstructionStrategy: "fused_matcher",
+    taggedFauArtifactDigest: null,
+    validationReceipt: null,
+    validationReceiptArtifactDigest: null,
+  };
+  const scientificEvidence: RuntimeManifest["scientificEvidence"] = {
+    protocolVersion: "chronicle-runtime-scientific-evidence-summary/v2",
+    foundationalSemanticsArtifactDigest: evidenceDigest,
+    microUseReceipt: {
+      protocolVersion: "chronicle-micro-use-receipt/v1",
+      requestedPolicy: "none",
+      effectivePolicy: "none",
+      relation: "not_applicable",
+      sourceId: null,
+      comparator: null,
+      thresholdNs: null,
+      checkpoint: "not_applicable",
+      classCounts: { not_classifiable: 0 },
+    },
+    minimumDurationReceipt: {
+      protocolVersion: "chronicle-minimum-duration-receipt/v1",
+      relation: "not_applicable",
+      requestedComparator: "strict_lt",
+      effectiveComparator: "strict_lt",
+      thresholdNs: 0,
+      requestedDisposition: "chronicle_blank_keep_row",
+      effectiveDisposition: "chronicle_blank_keep_row",
+      checkpoint: "not_applicable",
+      boundedEpisodeCount: 0,
+      unboundedEpisodeCount: 0,
+      qualifyingCount: 0,
+      retainedCreditedCount: 0,
+      retainedExcludedCount: 0,
+      droppedCount: 0,
+    },
+    concurrentSubintervalFloorReceipt: {
+      protocolVersion: "chronicle-concurrent-subinterval-floor-receipt/v1",
+      requestedApplied: false,
+      effectiveApplied: false,
+      comparator: "strict_lt",
+      thresholdNs: 0,
+      checkpoint: "not_applicable",
+      generatedSubintervalCount: 0,
+      blankedSubintervalCount: 0,
+    },
+    zeroDurationCleanupReceipt: {
+      protocolVersion: "chronicle-zero-duration-cleanup-receipt/v1",
+      requestedApplied: false,
+      effectiveApplied: false,
+      checkpoint: "not_applicable",
+      zeroEpisodeCandidateCount: 0,
+      removedRowCount: 0,
+    },
+    minimumDurationExcludedLineageArtifactDigest: null,
+    zeroDurationCleanupEvidenceArtifactDigest: null,
+    zeroDurationRemovedLineageArtifactDigest: null,
+    finalizedB05Schoedel: {
+      protocolVersion: "chronicle-b05-schoedel-preflight/v1",
+      disposition: "not_applicable",
+      optionsDigest: evidenceDigest,
+      componentOptionsDigest: evidenceDigest,
+      screenComponentOptionsDigest: evidenceDigest,
+      schoedelComponentOptionsDigest: evidenceDigest,
+      optionsDigestOrigin: "verified_request_jcs",
+      requestedScreenStrategyId: "chronicle_screen_interactive_v1",
+      effectiveScreenStrategyId: "chronicle_screen_interactive_v1",
+      requestedEpisodeStrategyId: "fused_matcher",
+      effectiveEpisodeStrategyId: null,
+      screenConstructionPhase: "not_applicable",
+      schoedelReconstructionPhase: "not_applicable",
+      screenApplicability: null,
+      schoedelApplicability: null,
+    },
+    b05ScreenConstructionReceipt: null,
+    b05ScreenConstructionArtifactDigest: null,
+    schoedelReconstructionReceipt: null,
+    schoedelReconstructionArtifactDigest: null,
+    eyesInputPartition: null,
+    eyesTaggedFauValidationReceipt: null,
+    eyesTaggedFauValidationReceiptArtifactDigest: null,
+    b05SchoedelValidationReceipt: {
+      protocolVersion: "chronicle-b05-schoedel-validation-receipt/v1",
+      status: "not_applicable",
+      decodedInputRowCount: 4,
+      foundationalEpisodeCount: 0,
+      foundationalBoundedEpisodeCount: 0,
+      foundationalUnboundedEpisodeCount: 0,
+      minimumDurationExcludedEpisodeCount: 0,
+      concurrentGeneratedSubintervalCount: 0,
+      zeroDurationRemovedRowCount: 0,
+      selectedB05StrategyId: "chronicle_screen_interactive_v1",
+      trustedSchoedelRetainedEventCount: null,
+      schoedelDecisiveParticipantCount: 0,
+    },
+    b05SchoedelValidationReceiptArtifactDigest: evidenceDigest,
+  };
   return {
-    protocolVersion: "chronicle-preprocessing-runtime/v1",
+    protocolVersion: "chronicle-preprocessing-runtime/v2",
     preprocessorVersion: "1.0.0",
     requestId: "execute-test",
     command: "ExecuteWorkspace",
     implementation: "test-runtime/0.1.0",
     scope: "selected-runtime-csv-artifacts",
     counts: { original: 4, processed: 3, app: 2, screen: 1 },
+    eyesEvidence,
+    scientificEvidence,
     input: {
       artifact_id: "artifact:raw",
       digest: `sha256:${"1".repeat(64)}`,
@@ -142,6 +244,7 @@ function manifest(artifacts: RuntimeManifest["artifacts"]): RuntimeManifest {
     },
     workspaceRootDigest: `sha256:${"2".repeat(64)}`,
     workspaceId: `sha256:${"3".repeat(64)}`,
+    optionsDigest: `sha256:${"a".repeat(64)}`,
     implementationDigest: `sha256:${"0".repeat(64)}`,
     buildEnvironmentDigest: `sha256:${"f".repeat(64)}`,
     planDigest: `sha256:${"4".repeat(64)}`,
@@ -218,6 +321,19 @@ function manifest(artifacts: RuntimeManifest["artifacts"]): RuntimeManifest {
       workflowQueryCheckpoints,
       publishedOutputsDigest: `sha256:${"c".repeat(64)}`,
       provenanceDigest: `sha256:${"d".repeat(64)}`,
+      openerSetReceipt: {
+        applicability: {
+          requested: "strategy_defined",
+          effective: "strategy_defined",
+          relation: "baseline_native",
+          refusalReason: null,
+        },
+        suppressedDeviceOpenerCount: 0,
+        selectedOpenerTypeCounts: { "Activity Resumed": 1 },
+        materializedOpenerTypeCounts: { "Activity Resumed": 1 },
+      },
+      eyesEvidence,
+      scientificEvidence,
       duplicateTimestampsCorrected: 2,
       exactDuplicateRowsRemoved: 1,
     },
@@ -237,6 +353,10 @@ function fullExecution(): RustRuntimeExecution {
     "aggregate-top-apps-csv",
     "aggregate-category-time-budget-csv",
     "aggregate-app-co-usage-csv",
+    "notification-contact-csv",
+    "polled-emulation-csv",
+    "interval-expansion-csv",
+    "aggregate-participant-amount-summary-csv",
   ]) {
     artifacts.set(kind, csv());
   }
@@ -394,6 +514,17 @@ function reviewExecution(): RustReviewExecution {
     profileLockDigest: `sha256:${"9".repeat(64)}`,
     productContractDigest: `sha256:${"a".repeat(64)}`,
     dependencyCertificateDigest: `sha256:${"b".repeat(64)}`,
+    openerSetReceipt: {
+      applicability: {
+        requested: "strategy_defined",
+        effective: "strategy_defined",
+        relation: "baseline_native",
+        refusalReason: null,
+      },
+      suppressedDeviceOpenerCount: 0,
+      selectedOpenerTypeCounts: { "Activity Resumed": 1 },
+      materializedOpenerTypeCounts: { "Activity Resumed": 1 },
+    },
     comparisonDigest: `sha256:${"c".repeat(64)}`,
     reviewSummaryDigest: `sha256:${"d".repeat(64)}`,
     counts: { original: 4, processed: 3, app: 2, screen: 1 },
@@ -462,6 +593,7 @@ describe("fast Rust review authority", () => {
       "1".repeat(64),
       undefined,
       undefined,
+      undefined,
     );
     expect(result).toMatchObject({
       reviewOnly: true,
@@ -509,6 +641,51 @@ describe("configuration-axis authority", () => {
     expect([...partition].sort()).toEqual(
       [...BROWSER_PROCESSING_OPTION_KEYS].sort(),
     );
+  });
+
+  it("projects a non-default opener set under the exact Rust snake-case field", () => {
+    const projected = buildRustV2Options(
+      {
+        ...DEFAULT_BROWSER_OPTIONS,
+        selectedTimezone: "UTC",
+        openerSet: "gesis_app_scoped_starts",
+      },
+      { datetimeOfPreprocessing: "2026-08-11 00:00:00 UTC" },
+    );
+
+    expect(projected.opener_set).toBe("gesis_app_scoped_starts");
+    expect(projected).not.toHaveProperty("openerSet");
+  });
+
+  it("projects the frozen B03/B04/B05 axes under exact Rust snake-case fields", () => {
+    const projected = buildRustV2Options(
+      {
+        ...DEFAULT_BROWSER_OPTIONS,
+        selectedTimezone: "UTC",
+        microUseClassificationPolicy: "okoshi_lt_5s",
+        minimumUsageDuration: 5,
+        minimumDurationComparator: "inclusive_le",
+        minimumDurationDisposition: "retain_but_exclude",
+        screenSessionConstructionStrategy: "zhu_2018_unlock_lock_v1",
+      },
+      { datetimeOfPreprocessing: "2026-08-11 00:00:00 UTC" },
+    );
+
+    expect(projected).toMatchObject({
+      micro_use_classification_policy: "okoshi_lt_5s",
+      minimum_usage_duration: 5,
+      minimum_duration_comparator: "inclusive_le",
+      minimum_duration_disposition: "retain_but_exclude",
+      screen_session_construction_strategy: "zhu_2018_unlock_lock_v1",
+    });
+    for (const camelCaseKey of [
+      "microUseClassificationPolicy",
+      "minimumDurationComparator",
+      "minimumDurationDisposition",
+      "screenSessionConstructionStrategy",
+    ]) {
+      expect(projected).not.toHaveProperty(camelCaseKey);
+    }
   });
 
   it("records view axes in the exact Rust receipt while excluding worker controls", () => {
@@ -600,6 +777,66 @@ describe("configuration-axis authority", () => {
 });
 
 describe("Rust authority browser projection", () => {
+  it("exposes preserved source fields without interpreting them, both inline and as a restored output reference", async () => {
+    const bytes = csv("participant_id,notification_database_timestamp,notification_generating_app,notification_display_time,literature_source_data_row\nP1,stored-later,opaque-app,,1\n");
+    for (const persisted of [false, true]) {
+      const execution = fullExecution();
+      execution.artifacts.set("literature-input-adapted-csv", bytes);
+      execution.manifest.artifacts.push({
+        artifactId: "artifact:source-fields", kind: "literature-input-adapted-csv", mediaType: "text/csv",
+        digest: `sha256:${"a".repeat(64)}`, size: bytes.byteLength, derivedFrom: [],
+      });
+      if (!persisted) execution.persistedWorkspace = undefined;
+      mocks.executeRustRuntime.mockResolvedValueOnce(execution);
+      const result = await processRawCsvWithRustAuthority("Raw.CSV", enc.encode("raw"),
+        DEFAULT_BROWSER_OPTIONS, undefined, { datetimeOfPreprocessing: "2026-07-21 00:00:00 UTC" });
+      const output = result.outputs.find(({ outputFileName }) => outputFileName === "Raw Preserved Source Fields.csv");
+      expect(output).toBeDefined();
+      expect(output?.kind).toBe("lineage");
+      if (persisted) {
+        expect(output?.blob).toBeNull();
+        expect(output?.persistedArtifact).toEqual({ workspaceId: execution.workspaceId,
+          workspaceRootDigest: execution.manifest.workspaceRootDigest,
+          kind: "literature-input-adapted-csv", mediaType: "text/csv;charset=utf-8", size: bytes.byteLength });
+        const { toLightweightResults } = await import("@/lib/lastRunStore");
+        expect(toLightweightResults([result])[0]?.outputs).toContainEqual(output);
+      } else {
+        expect(await output?.blob?.text()).toBe(new TextDecoder().decode(bytes));
+        expect(output?.persistedArtifact).toBeUndefined();
+      }
+    }
+  });
+
+  it("projects the side-by-side CSVs each research axis turns on", async () => {
+    // Each of these four axes is off by default, and the kernel emits its own
+    // artifact only when the axis is selected — the notification-contact,
+    // polled-emulation and interval-expansion app CSVs, and the aggregate
+    // participant-amount summary, which additionally needs app usage.
+    const result = await processRawCsvWithRustAuthority(
+      "Raw P01.CSV",
+      enc.encode("raw"),
+      {
+        ...DEFAULT_BROWSER_OPTIONS,
+        processAppUsage: true,
+        notificationProxyRule: "seen_contact_v1",
+        polledEmulationMethod: "ross_2025_sampled_gap_v1",
+        intervalExpansionMethod: "behapp_start_anchored_half_open_1s_v1",
+        enableParticipantAmountSummary: true,
+      },
+      undefined,
+      { datetimeOfPreprocessing: "2026-07-21 00:00:00 UTC" },
+    );
+
+    expect(result.outputs.map(({ outputFileName }) => outputFileName)).toEqual(
+      expect.arrayContaining([
+        "Raw P01 Notification Contact.csv",
+        "Raw P01 Polled Emulation.csv",
+        "Raw P01 Interval Expansion.csv",
+        "Raw P01 Participant Amount Summary.csv",
+      ]),
+    );
+  });
+
   it("projects every Rust-owned output and every optional visualization branch", async () => {
     const options: BrowserProcessingOptions = {
       ...DEFAULT_BROWSER_OPTIONS,
@@ -640,6 +877,7 @@ describe("Rust authority browser projection", () => {
       options,
       undefined,
       expect.objectContaining({ persistRustWorkspace: true }),
+      undefined,
       undefined,
     );
     expect(result.outputs.map(({ outputFileName }) => outputFileName)).toEqual(
@@ -749,6 +987,65 @@ describe("Rust authority browser projection", () => {
     expect(progress).toEqual(["parse:0"]);
   });
 
+  it("omits the participant amount summary gracefully when app usage is off", async () => {
+    // The kernel applicability requires app mode, so the manifest carries no
+    // aggregate-participant-amount-summary-csv artifact; the projection must
+    // skip the file rather than abort the whole run on missing metadata.
+    const options: BrowserProcessingOptions = {
+      ...DEFAULT_BROWSER_OPTIONS,
+      selectedTimezone: "America/Chicago",
+      processAppUsage: false,
+      processScreenUsage: true,
+      enableParticipantAmountSummary: true,
+    };
+    const result = await processRawCsvWithRustAuthority(
+      "Raw P01.CSV",
+      enc.encode("raw"),
+      options,
+      undefined,
+      { datetimeOfPreprocessing: "2026-07-21 00:00:00 UTC" },
+      () => {},
+    );
+    expect(
+      result.outputs.some(({ outputFileName }) =>
+        outputFileName.includes("Participant Amount Summary"),
+      ),
+    ).toBe(false);
+  });
+
+  it("does not request app-only outputs on a screen-only run", async () => {
+    // Rust omits an empty artifact, so asking for these on a screen-only run
+    // failed the whole file on "omitted CSV display metadata".
+    const result = await processRawCsvWithRustAuthority(
+      "Raw P01.CSV",
+      enc.encode("raw"),
+      {
+        ...DEFAULT_BROWSER_OPTIONS,
+        selectedTimezone: "America/Chicago",
+        processAppUsage: false,
+        processScreenUsage: true,
+        enableDayCoverage: true,
+        enableComplianceScoring: true,
+        enableScreenGatedCrediting: true,
+        notificationProxyRule: "seen_contact_v1",
+        polledEmulationMethod: "ross_2025_sampled_gap_v1",
+      },
+      undefined,
+      { datetimeOfPreprocessing: "2026-07-21 00:00:00 UTC" },
+      () => {},
+    );
+    const names = result.outputs.map(({ outputFileName }) => outputFileName);
+    for (const suffix of [
+      "Day Coverage.csv",
+      "Compliance Report.csv",
+      "Credited App Usage.csv",
+      "Notification Contact.csv",
+      "Polled Emulation.csv",
+    ]) {
+      expect(names.some((name) => name.endsWith(suffix))).toBe(false);
+    }
+  });
+
   it("still renders plots immediately for an ephemeral run", async () => {
     const execution = fullExecution();
     execution.persistedWorkspace = undefined;
@@ -774,6 +1071,64 @@ describe("Rust authority browser projection", () => {
         outputFileName.endsWith("App Usage Plot.png"),
       )?.blob,
     ).toBeInstanceOf(Blob);
+  });
+
+  it("leaves out a plot kind it cannot draw, reports why, and keeps every other output", async () => {
+    const run = async () => {
+      const execution = fullExecution();
+      execution.persistedWorkspace = undefined;
+      mocks.executeRustRuntime.mockResolvedValueOnce(execution);
+      return processRawCsvWithRustAuthority(
+        "Raw.csv",
+        enc.encode("raw"),
+        {
+          ...DEFAULT_BROWSER_OPTIONS,
+          selectedTimezone: "UTC",
+          processScreenUsage: false,
+          enableInteractiveTimeline: false,
+          exportPlotsAsSvg: true,
+        },
+        {},
+        { persistRustWorkspace: false },
+      );
+    };
+    const names = (result: Awaited<ReturnType<typeof run>>) =>
+      result.outputs.map(({ outputFileName }) => outputFileName);
+
+    const baseline = await run();
+    expect(baseline.skippedOutputs).toBeUndefined();
+    expect(names(baseline)).toContain("Raw P01 App Usage Plot.png");
+
+    // A multi-year file exceeds the browser canvas: only the PNG kind fails.
+    mocks.generateAllPlots.mockRejectedValueOnce(
+      new Error("canvas 40000 px exceeds the browser limit"),
+    );
+    const withoutPng = await run();
+    expect(withoutPng.skippedOutputs).toEqual([
+      {
+        outputFileName: "Raw App Usage Plot.png",
+        reason: "canvas 40000 px exceeds the browser limit",
+      },
+    ]);
+    expect(names(withoutPng)).toEqual(
+      names(baseline).filter((name) => name !== "Raw P01 App Usage Plot.png"),
+    );
+    expect(names(withoutPng)).toContain("Raw P01 App Usage Plot.svg");
+
+    // A non-Error failure crossing a worker boundary is reported verbatim.
+    mocks.generateAllPlotSvgs.mockImplementationOnce(() => {
+      // eslint-disable-next-line @typescript-eslint/only-throw-error
+      throw "svg serializer unavailable";
+    });
+    const withoutSvg = await run();
+    expect(withoutSvg.skippedOutputs).toEqual([
+      {
+        outputFileName: "Raw App Usage Plot.svg",
+        reason: "svg serializer unavailable",
+      },
+    ]);
+    expect(names(withoutSvg)).toContain("Raw P01 App Usage Plot.png");
+    expect(names(withoutSvg)).not.toContain("Raw P01 App Usage Plot.svg");
   });
 
   it("requires CSV artifact/row-count metadata without retaining unused previews", async () => {
@@ -867,6 +1222,42 @@ describe("Rust authority browser projection", () => {
     ).rejects.toThrow(/omitted required artifact: row-lineage-arrow/);
   });
 
+  it("allows optional provenance evidence to be absent while keeping row lineage", async () => {
+    const withoutEvidence = fullExecution();
+    const optionalKinds = [
+      "source-coordinate-index-arrow",
+      "result-cell-correspondence-arrow",
+      "source-result-influence-arrow",
+    ];
+    withoutEvidence.manifest.artifacts = withoutEvidence.manifest.artifacts.filter(
+      ({ kind }) => !optionalKinds.includes(kind),
+    );
+    for (const kind of optionalKinds) withoutEvidence.artifacts.delete(kind);
+    mocks.executeRustRuntime.mockResolvedValueOnce(withoutEvidence);
+
+    const result = await processRawCsvWithRustAuthority(
+      "Raw.csv",
+      enc.encode("raw"),
+      {
+        ...DEFAULT_BROWSER_OPTIONS,
+        selectedTimezone: "UTC",
+        processScreenUsage: false,
+        enablePlotting: false,
+        enableInteractiveTimeline: false,
+      },
+      {},
+      { persistRustWorkspace: false },
+    );
+    const lineageOutputs = result.outputs
+      .map(({ outputFileName }) => outputFileName)
+      .filter((name) =>
+        /Row Lineage|Source Coordinate Index|Result Cell Correspondence|Source-Result Influence Witness/.test(
+          name,
+        ),
+      );
+    expect(lineageOutputs).toEqual(["Raw Row Lineage.arrow"]);
+  });
+
   it("rejects duplicate-content relabeling when an output does not derive from the source label", () => {
     expect(() =>
       relabelDuplicateContentResult(
@@ -904,7 +1295,39 @@ describe("Rust authority browser projection", () => {
     await expect(
       materializePersistedTimeline(persistedTimelineRequest()),
     ).rejects.toThrow(
-      "Rust visualization data does not match the v2 row schema",
+      "Rust visualization data does not match a known row schema",
+    );
+  });
+
+  it("reads the v3 (foundational) and v4 (micro-use) visualization protocols", async () => {
+    const base = [
+      "participantId", "date", "startTimestampNs", "stopTimestampNs", "eventTimestampNs",
+      "interactionType", "broadAppCategory", "appPackageName", "applicationLabel",
+      "username", "screenUsageEndReason",
+    ];
+    const row = ["P01", "2026-03-07", "1", "2", "1", "App Usage", "Social", "com.example",
+      "Example", "Target Child", null];
+    for (const [protocolVersion, columns, appRow, extra] of [
+      ["chronicle-visualization-data/v3", base, row, { foundationalProvenance: { strategy: "x" } }],
+      ["chronicle-visualization-data/v4", [...base, "microUseClassification"], [...row, "micro_use"], {}],
+    ] as const) {
+      mocks.buildAppTimelineViews.mockClear();
+      mocks.readPersistedRustArtifact.mockResolvedValueOnce(json({
+        protocolVersion, columns, appRows: [appRow], screenRows: [],
+        eventTimestampsByParticipant: { P01: ["1"] }, ...extra,
+      }));
+      await materializePersistedTimeline(persistedTimelineRequest());
+      const rows = mocks.buildAppTimelineViews.mock.calls[0]?.[0] as Array<{ app_package_name: string }>;
+      expect(rows[0]?.app_package_name, protocolVersion).toBe("com.example");
+    }
+
+    // A protocol's column list is fixed: v4 rows without their extra column are rejected.
+    mocks.readPersistedRustArtifact.mockResolvedValueOnce(json({
+      protocolVersion: "chronicle-visualization-data/v4", columns: base, appRows: [],
+      screenRows: [], eventTimestampsByParticipant: {},
+    }));
+    await expect(materializePersistedTimeline(persistedTimelineRequest())).rejects.toThrow(
+      "Rust visualization data does not match a known row schema",
     );
   });
 

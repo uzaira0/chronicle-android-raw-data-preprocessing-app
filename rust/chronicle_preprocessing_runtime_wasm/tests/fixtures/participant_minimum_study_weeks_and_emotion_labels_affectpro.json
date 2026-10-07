@@ -1,0 +1,94 @@
+{
+  "schemaVersion": "chronicle-participant-joint-minimum-thresholds-source-fixture/v1",
+  "sourceWorkId": "doi:10.1145/3536221.3556603",
+  "exactCanonicalSettings": [
+    {
+      "settingId": "method-setting-ba08885d883adcfb1bfe74c7",
+      "parameterKey": "cohort.exclude_duration",
+      "sourceObservedSetting": "cohort.exclude_duration: {\"operator\":\"<\",\"duration\":\"6 weeks\"}",
+      "sourceValueSha256": "b26fc48014c0634569362e725385efa03bfcf95a151b2372e94c814d852bd035"
+    },
+    {
+      "settingId": "method-setting-f683844ad043f61b6a851a02",
+      "parameterKey": "cohort.exclude_label_count",
+      "sourceObservedSetting": "cohort.exclude_label_count: {\"operator\":\"<\",\"emotion_labels\":50,\"evaluation_window\":\"6 weeks\"}",
+      "sourceValueSha256": "e4ac57d84dc76db9134533d32eba33cab57bd0abbad6daaee7e86c559341f159"
+    }
+  ],
+  "sourceArtifacts": [
+    {
+      "locator": ".tmp-literature-review-private/corrective-packet-09-ranks330-381-20260831/text/362.txt:160-169",
+      "sha256": "656794ab000f545b4130b0f5fff17223eb93b653ef7c5bda6ed47eee534e54c5"
+    },
+    {
+      "locator": ".tmp-literature-review-private/corrective-packet-09-ranks330-381-20260831/pdfs/362-primary.pdf:pages 1-7#audit-locator=362.txt:160-169",
+      "sha256": "432e12be1573da8ba9bbd46df3ca00e3214fd228b41b4ab364d2e8994fcf4f09"
+    },
+    {
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/source-completeness-audits/doi-10.1145-3536221.3556603.json:756-807",
+      "sha256": "7e6f7d3626d9cdeb1a8052d37b9d687e62ebef0623995d77ed56bb5e20767c3a"
+    }
+  ],
+  "inputBoundary": "For one participant, a caller supplies a finite source-defined data-collection duration expressed in weeks and an integer count of emotion labels entered during the six-week study window.",
+  "outputBoundary": "Exclude the participant when either supplied value is strictly below its source threshold; retain only when collection duration is at least six weeks and the six-week emotion-label count is at least fifty.",
+  "limitations": [
+    "The source reports mandatory six-week collection but does not define whether weeks are calendar or elapsed units, duration precision, continuity, daily completeness, or missing-day tolerance; the caller must adjudicate the duration before this gate.",
+    "The source does not disclose label validity, duplicate handling, response identity, timestamp attribution, or how labels are counted at the study-window boundary; the caller must supply the source-window count.",
+    "The source's two duration exclusions and two label-count exclusions are descriptive cohort results, not expected outputs for an arbitrary fixture.",
+    "A missing input or nonfinite duration fails closed; this binding does not synthesize either value from the nominal study schedule.",
+    "Raw Android keyboard/session parsing, No Response removal, participant linkage, affective-profile construction, and statistical-result reproduction are outside this cohort-gate boundary.",
+    "No released source dataset, analysis code, or machine-readable source oracle was found; this fixture proves the disclosed threshold logic against the reusable component, not end-to-end numerical reproduction."
+  ],
+  "minimumRetainedWeeks": 6.0,
+  "minimumRetainedEmotionLabels": 50,
+  "thresholdDispositions": [
+    "exclude",
+    "retain"
+  ],
+  "participants": [
+    {
+      "participantId": "below-both-thresholds",
+      "sourceDefinedCollectionWeeks": 5.0,
+      "emotionLabelCountDuringSixWeeks": 49,
+      "expectedDisposition": "exclude_participant"
+    },
+    {
+      "participantId": "duration-below-labels-equal",
+      "sourceDefinedCollectionWeeks": 5.0,
+      "emotionLabelCountDuringSixWeeks": 50,
+      "expectedDisposition": "exclude_participant"
+    },
+    {
+      "participantId": "duration-equal-labels-below",
+      "sourceDefinedCollectionWeeks": 6.0,
+      "emotionLabelCountDuringSixWeeks": 49,
+      "expectedDisposition": "exclude_participant"
+    },
+    {
+      "participantId": "equal-both-thresholds",
+      "sourceDefinedCollectionWeeks": 6.0,
+      "emotionLabelCountDuringSixWeeks": 50,
+      "expectedDisposition": "retain_participant"
+    },
+    {
+      "participantId": "above-both-thresholds",
+      "sourceDefinedCollectionWeeks": 7.0,
+      "emotionLabelCountDuringSixWeeks": 51,
+      "expectedDisposition": "retain_participant"
+    }
+  ],
+  "missingInputCases": [
+    {
+      "participantId": "missing-duration",
+      "sourceDefinedCollectionWeeks": null,
+      "emotionLabelCountDuringSixWeeks": 50,
+      "expectedError": "participant_collection_duration_required"
+    },
+    {
+      "participantId": "missing-label-count",
+      "sourceDefinedCollectionWeeks": 6.0,
+      "emotionLabelCountDuringSixWeeks": null,
+      "expectedError": "participant_emotion_label_count_required"
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "chronicle-study-area-dwell-threshold-source-fixture/v1",
+  "sourceWorkId": "doi:10.1007/978-3-319-51394-2_2",
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-be84861190f78be728129e6d",
+    "parameterKey": "gpa.study_period_minimum_minutes",
+    "sourceObservedSetting": "gpa.study_period_minimum_minutes: 20",
+    "sourceValueSha256": "4b38b08cfa015fb82eff955b8ef6891ac3bea40f10d57a02ffec430d22965736"
+  },
+  "sourceArtifact": {
+    "locator": ".tmp-literature-review-private/corrective-packet-08-ranks277-329-20260831/fulltext/rank280-primary.txt:835-837",
+    "sha256": "377f08b265cbf3da8b6200fc478ae3f0c335a3924f7aa52900510ad196d85276"
+  },
+  "inputBoundary": "One already-derived finite dwell duration in minutes for one visit to a source-defined study area.",
+  "outputBoundary": "Classify the visit as not a study period below 20 minutes and as a study period at or above 20 minutes; equality is retained.",
+  "limitations": [
+    "This binding does not define or identify a study area such as a library, lab, study room, or cafe.",
+    "This binding does not map location observations to a study area.",
+    "This binding does not reconstruct visits or derive their dwell durations.",
+    "This binding does not apply the adjacent activity or audio focus heuristics.",
+    "This binding does not infer grades, GPA, or another academic outcome.",
+    "A missing or non-finite study-area dwell duration fails closed rather than being interpreted as zero."
+  ],
+  "minimumStudyPeriodMinutes": 20.0,
+  "dispositions": ["not_study_period", "study_period"],
+  "studyAreaDwells": [
+    {
+      "observationId": "immediately-below",
+      "dwellMinutes": 19.999,
+      "expectedDisposition": "not_study_period"
+    },
+    {
+      "observationId": "at-boundary",
+      "dwellMinutes": 20.0,
+      "expectedDisposition": "study_period"
+    },
+    {
+      "observationId": "above-boundary",
+      "dwellMinutes": 20.001,
+      "expectedDisposition": "study_period"
+    }
+  ],
+  "missingDwellCase": {
+    "observationId": "missing-dwell-duration",
+    "dwellMinutes": null,
+    "expectedError": "study_area_dwell_minutes_required"
+  }
+}

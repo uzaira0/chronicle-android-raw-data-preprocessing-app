@@ -2,8 +2,20 @@
 
 Captured: 2026-07-23.
 
+> **HISTORICAL — not reproducible at any current commit.** Every number below
+> was measured against the deleted trial crate; neither it nor a
+> `salsa-benchmark` / `salsa-browser-test` target exists in the Makefile today,
+> so nothing regenerates these tables and they are deliberately left at their
+> 2026-07-23 values. In particular the `4,762,609`-byte "current production
+> runtime" row is the runtime WASM *as it stood on 2026-07-23*; the live figure
+> has since grown and is the one carried in `BASELINE.md`, checked on every run
+> by `scripts/check_published_figures.py`. Do not reconcile the two — they
+> describe different builds, and rewriting this row would falsify the
+> comparison it exists to record.
+
 This file preserves the results of the deleted bounded dependency trial. The
-decision is no longer open: upstream Salsa `0.28.1` is selected and all registered
+decision is no longer open: upstream Salsa is selected (trialled at `0.28.1`, now `0.28.5` for
+RUSTSEC-2026-0308) and all registered
 transformations are real tracked computations in the production kernel. The
 trial crate, local Salsa patch, and snapshot code were removed after profiling
 showed snapshot restore was slower and much larger than cold recalculation. The

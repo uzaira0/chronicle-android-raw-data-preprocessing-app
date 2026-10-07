@@ -1,0 +1,139 @@
+# TypeScript safety rules (launch audit 2026-10-03, analysis S2).
+#
+# ast-grep parses .ts and .tsx with different grammars and a rule has exactly
+# one language, so each check is written twice: `chronicle-ts-*` for .ts/.mts
+# and `chronicle-tsx-*` for .tsx. Keep each pair identical apart from
+# `language`, `id` and `files`.
+#
+# Empty catch: WARNING while the existing blocks in web/src are triaged on a
+# separate branch; raise to error once `sg scan` reports none. A catch whose
+# body holds only a comment is accepted — the comment is the explanation.
+# innerHTML/outerHTML assignment and eval/new Function: ERROR. They had zero
+# hits in web/ when the rules landed, so any hit is new.
+id: chronicle-ts-empty-catch
+language: typescript
+severity: warning
+message: "Empty catch swallows the error. Handle it, rethrow it, or put a comment in the block saying why ignoring it is correct."
+files:
+  - web/src/**/*.ts
+  - web/scripts/**/*.ts
+  - web/scripts/**/*.mts
+  - web/e2e/**/*.ts
+rule:
+  kind: statement_block
+  regex: '^\{\s*\}$'
+  any:
+    - inside:
+        kind: catch_clause
+        field: body
+    - inside:
+        any:
+          - kind: arrow_function
+          - kind: function_expression
+        field: body
+        inside:
+          kind: arguments
+          inside:
+            kind: call_expression
+            has:
+              field: function
+              kind: member_expression
+              has:
+                field: property
+                regex: '^catch$'
+---
+id: chronicle-tsx-empty-catch
+language: tsx
+severity: warning
+message: "Empty catch swallows the error. Handle it, rethrow it, or put a comment in the block saying why ignoring it is correct."
+files:
+  - web/src/**/*.tsx
+  - web/e2e/**/*.tsx
+rule:
+  kind: statement_block
+  regex: '^\{\s*\}$'
+  any:
+    - inside:
+        kind: catch_clause
+        field: body
+    - inside:
+        any:
+          - kind: arrow_function
+          - kind: function_expression
+        field: body
+        inside:
+          kind: arguments
+          inside:
+            kind: call_expression
+            has:
+              field: function
+              kind: member_expression
+              has:
+                field: property
+                regex: '^catch$'
+---
+id: chronicle-ts-inner-html
+language: typescript
+severity: error
+message: "Assigning HTML markup parses it as DOM and is an XSS sink. Build nodes with createElement/textContent, or render through React."
+files:
+  - web/src/**/*.ts
+  - web/scripts/**/*.ts
+  - web/scripts/**/*.mts
+  - web/e2e/**/*.ts
+rule:
+  kind: member_expression
+  has:
+    field: property
+    regex: '^(innerHTML|outerHTML)$'
+  inside:
+    any:
+      - kind: assignment_expression
+      - kind: augmented_assignment_expression
+    field: left
+---
+id: chronicle-tsx-inner-html
+language: tsx
+severity: error
+message: "Assigning HTML markup parses it as DOM and is an XSS sink. Build nodes with createElement/textContent, or render through React."
+files:
+  - web/src/**/*.tsx
+  - web/e2e/**/*.tsx
+rule:
+  kind: member_expression
+  has:
+    field: property
+    regex: '^(innerHTML|outerHTML)$'
+  inside:
+    any:
+      - kind: assignment_expression
+      - kind: augmented_assignment_expression
+    field: left
+---
+id: chronicle-ts-eval
+language: typescript
+severity: error
+message: "eval / new Function compile a string as code; the CSP forbids it ('unsafe-eval' is not granted) and it is an injection sink."
+files:
+  - web/src/**/*.ts
+  - web/scripts/**/*.ts
+  - web/scripts/**/*.mts
+  - web/e2e/**/*.ts
+rule:
+  any:
+    - pattern: eval($$$ARGS)
+    - pattern: new Function($$$ARGS)
+    - pattern: Function($$$ARGS)
+---
+id: chronicle-tsx-eval
+language: tsx
+severity: error
+message: "eval / new Function compile a string as code; the CSP forbids it ('unsafe-eval' is not granted) and it is an injection sink."
+files:
+  - web/src/**/*.tsx
+  - web/e2e/**/*.tsx
+rule:
+  any:
+    - pattern: eval($$$ARGS)
+    - pattern: new Function($$$ARGS)
+    - pattern: Function($$$ARGS)

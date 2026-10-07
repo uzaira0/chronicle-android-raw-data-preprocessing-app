@@ -1,0 +1,10 @@
+{
+  "generated_at": "2026-08-30T00:37:29.764Z",
+  "attempted": 38,
+  "status_counts": {
+    "retrieved_and_extracted": 14,
+    "no_pmc_fulltext_record": 12,
+    "retrieval_failed": 1,
+    "cached": 11
+  }
+}

@@ -9,6 +9,9 @@ type Props = {
   options: BrowserProcessingOptions;
   result: ProcessedFileResult;
   masker: DemoDisplayMasker;
+  /** Arm B's options while a comparison is shown; the A block is then
+   * labelled and B's changed settings are listed beside it. */
+  compareOptions?: BrowserProcessingOptions | null;
 };
 
 function formatValue(value: unknown): string {
@@ -32,10 +35,18 @@ const KIND_LABEL: Record<OutputKind, string> = {
 /** "This is what you ran": the options changed from default plus the output
  * files this run produced. Intentionally overlaps ResultPanel — framed as a
  * review confirmation rather than a download surface. */
-export function ReviewSettingsSummary({ options, result, masker }: Props): ReactElement {
-  const changed = (BROWSER_PROCESSING_OPTION_KEYS as readonly OptionKey[]).filter(
-    (key) => !isOptionDefault(key, options[key]),
-  );
+export function ReviewSettingsSummary({
+  options,
+  result,
+  masker,
+  compareOptions = null,
+}: Props): ReactElement {
+  const changedKeys = (source: BrowserProcessingOptions): OptionKey[] =>
+    (BROWSER_PROCESSING_OPTION_KEYS as readonly OptionKey[]).filter(
+      (key) => !isOptionDefault(key, source[key]),
+    );
+  const changed = changedKeys(options);
+  const changedB = compareOptions ? changedKeys(compareOptions) : null;
 
   const byKind = new Map<OutputKind, { count: number; rows: number }>();
   for (const output of result.outputs) {
@@ -48,7 +59,7 @@ export function ReviewSettingsSummary({ options, result, masker }: Props): React
   return (
     <section className="review-summary" data-testid="review-settings-summary">
       <div className="review-summary__block">
-        <h4>Settings used</h4>
+        <h4>{changedB ? "Settings used — A (current run)" : "Settings used"}</h4>
         {changed.length === 0 ? (
           <p className="review-summary__muted">All settings at their defaults.</p>
         ) : (
@@ -62,6 +73,23 @@ export function ReviewSettingsSummary({ options, result, masker }: Props): React
           </ul>
         )}
       </div>
+      {changedB && compareOptions ? (
+        <div className="review-summary__block" data-testid="review-settings-summary-b">
+          <h4>Settings used — B (comparison)</h4>
+          {changedB.length === 0 ? (
+            <p className="review-summary__muted">All settings at their defaults.</p>
+          ) : (
+            <ul className="review-summary__list">
+              {changedB.map((key) => (
+                <li key={key}>
+                  <span className="review-summary__key">{key}</span>
+                  <span className="review-summary__val">{formatValue(compareOptions[key])}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : null}
       <div className="review-summary__block">
         <h4>Outputs ({masker.fileName(result.inputFileName)})</h4>
         {byKind.size === 0 ? (

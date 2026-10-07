@@ -1,0 +1,91 @@
+Code and material ported into this application from other projects
+
+==============================================================================
+How to work with Android App Logging Data (Zerrer, Wieland & de Alwis)
+==============================================================================
+
+Used in: the GESIS episode reconstruction rule (`red_start_stop` port) in
+rust/chronicle_app_usage_matcher/src/lib.rs, compiled into the WebAssembly
+runtime.
+Source: https://github.com/patrickzerrer/How-to-work-with-Android-App-Logging-Data
+        doi:10.71627/How-to-work-with-Android-App-Logging-Data.1
+License: MIT
+
+MIT License
+
+Copyright (c) 2025 patrickzerrer
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+==============================================================================
+SleepDiaries (circadia.bio)
+==============================================================================
+
+Used in: the sleep-diary catalog bridge, web/schema/sleep-diary-catalog.bridge.json
+(question and storage definitions from data/questions.js and storage/storage.js).
+Source: https://github.com/circadia-bio/SleepDiaries
+        at commit 5cf890ba231e806dc3d93e994f1941a4472dcc83
+License: MIT
+
+MIT License
+
+Copyright (c) 2026 circadia.bio
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+==============================================================================
+MiNap Go (University of Michigan Depression Center)
+==============================================================================
+
+Used in: the sleep-diary catalog bridge, web/schema/sleep-diary-catalog.bridge.json
+(event definitions from src/Code.gs and src/JavaScript.html).
+Source: https://github.com/DepressionCenter/MiNap-Go
+        at commit da6421397fe2754ba306d9e9a3a359d8aabfc7af
+License: GPL-3.0-or-later. This application is distributed under GPL-3.0-only;
+see LICENSE in the source repository for the full GPL version 3 text.
+
+Copyright © 2026 The Regents of the University of Michigan
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see https://www.gnu.org/licenses/gpl-3.0-standalone.html.

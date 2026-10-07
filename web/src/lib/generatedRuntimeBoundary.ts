@@ -20,6 +20,25 @@ export type ArtifactRef = {
   qualifiers: Record<string, string>;
 };
 
+export type B05ComputationPhase = "not_applicable" | "deferred_canonical_baseline" | "prepared_raw_source_arm" | "deferred_retained_app_stream" | "finalized";
+
+export type B05OptionsDigestOrigin = "verified_request_jcs" | "kernel_router_component";
+
+export type B05RefusalReason = "input_capability_evidence_absent" | "capability_evidence_not_bound_to_input" | "participant_scope_undetermined" | "multiple_device_streams_aliased" | "device_stream_scope_unknown" | "combined_event_representation" | "source_stream_incomplete" | "source_stream_completeness_unknown" | "source_order_not_preserved" | "source_order_unknown" | "unsupported_input_chunk" | "input_chunk_status_unknown" | "missing_required_signal" | "required_signal_capability_unknown" | "unorderable_full_stream_row" | "non_monotonic_source_timestamps" | "ambiguous_equal_timestamp";
+
+export type B05SchoedelValidationStatus = "invalid_unvalidated" | "not_applicable" | "screen_validated" | "screen_and_schoedel_validated";
+
+export type ConcurrentSubintervalFloorReceipt = {
+  protocolVersion: string;
+  requestedApplied: boolean;
+  effectiveApplied: boolean;
+  comparator: string;
+  thresholdNs: number;
+  checkpoint: string;
+  generatedSubintervalCount: number;
+  blankedSubintervalCount: number;
+};
+
 export type DependencyCacheDecision = {
   mode: DependencyCacheMode;
   certificate_digest: string | null;
@@ -32,7 +51,146 @@ export type DependencyCacheMode = "certified_narrow" | "conservative_full";
 
 export type ExecutionStatus = "cached" | "recomputed" | "error" | "skipped" | "bypassed";
 
+export type EyesDurationMode = "triplet_structured" | "pause_bound";
+
+export type EyesHeadlineProjection = "active_only";
+
+export type EyesInputPartitionOptionsDigestOrigin = "verified_request_jcs" | "kernel_component";
+
+export type EyesInputPartitionPreflightResult = {
+  protocolVersion: string;
+  disposition: ScientificPreflightDisposition;
+  inputDigest: string;
+  optionsDigest: string;
+  optionsDigestOrigin: EyesInputPartitionOptionsDigestOrigin;
+  requestedEpisodeStrategyId: string;
+  effectiveEpisodeStrategyId: string | null;
+  relation: ScientificRelation | null;
+  refusalReason: EyesInputPartitionRefusalReason | null;
+  refusalDetail: string | null;
+  fragmentedParticipantCount: number;
+  resolutionDigest: string;
+};
+
+export type EyesInputPartitionRefusalReason = "unsupported_input_chunk";
+
+export type EyesOptions = {
+  proximityIntervalSeconds: number;
+  durationMode: EyesDurationMode;
+  blockGlueSeconds: number;
+  gapSilenceHours: number;
+  gapRebootNeighborSeconds: number;
+  gapReconcileSeconds: number;
+  pickupMinimumSeconds: number;
+  pickupActiveHoleSeconds: number;
+  fauBlockMinimumSeconds: number;
+};
+
+export type EyesPartialReplayLimitation = "reference_primary_secondary_concurrency_unported" | "pickup_export_unavailable_on_product_surface" | "headline_projects_active_fragments_only";
+
+export type EyesTaggedFauValidationReceipt = {
+  protocolVersion: string;
+  status: EyesTaggedFauValidationStatus;
+  verifiedRawInputDigest: string;
+  decodedInputRowCount: number;
+  requestOptionsDigest: string;
+  optionsDigestOrigin: EyesInputPartitionOptionsDigestOrigin;
+  effectiveOptions: EyesOptions;
+  sourceVersion: string;
+  sourceCommit: string;
+  sourceLicenseStatus: string;
+  referenceDefectRepairIds: string[];
+  headlineProjection: EyesHeadlineProjection;
+  referencePrimarySecondaryConcurrencyPorted: boolean;
+  pickupExportExposed: boolean;
+  limitations: EyesPartialReplayLimitation[];
+  finalPartitionResolutionDigest: string;
+  participantCount: number;
+  deviceStateBlockCount: number;
+  episodeCount: number;
+  appUsageChunkCount: number;
+  fragmentCount: number;
+  creditedFragmentCount: number;
+  chunkEndpointCount: number;
+  pickupExportRowCount: number;
+  taggedFauArtifactJcsDigest: string;
+  validationDigest: string;
+};
+
+export type EyesTaggedFauValidationStatus = "invalid_unvalidated" | "validated";
+
 export type MaterializationState = "open" | "ready" | "satisfied" | "blocked" | "invalid" | "not_applicable";
+
+export type MaximumDurationApplicability = {
+  protocolVersion: string;
+  shape: MaximumDurationSelectionShape;
+  requestedPolicy: MaximumDurationPolicy;
+  effectivePolicy: MaximumDurationPolicy | null;
+  disposition: MaximumDurationDisposition;
+  thresholdSource: MaximumDurationThresholdSource;
+  thresholdNs: string | null;
+  relation: MaximumDurationRelation;
+  refusalReason: MaximumDurationRefusalReason | null;
+  b06EffectiveStage: string;
+  reconstructionNativeStage: string;
+  checkedI128Preflight: string | null;
+  legacyThresholdHoursCanonical: string | null;
+  legacyThresholdNsCanonical: string | null;
+  legacyOrigin: string;
+};
+
+export type MaximumDurationDisposition = "not_applicable" | "flag_and_retain" | "retain_but_exclude" | "truncate_to_threshold" | "drop_row";
+
+export type MaximumDurationPolicy = "strategy_native" | "chronicle_observed_close_rejection_v1" | "post_reconstruction_strict_max_v1";
+
+export type MaximumDurationPreflightDecision = {
+  status: OpenerSetPreflightStatus;
+  applicability: MaximumDurationApplicability;
+  reasonCode: string | null;
+  optionsDigest: string;
+};
+
+export type MaximumDurationReceipt = {
+  protocolVersion: string;
+  applicability: MaximumDurationApplicability;
+  checkpoint: string;
+  boundedEpisodeCount: number;
+  unboundedEpisodeCount: number;
+  qualifyingCount: number;
+  outcomeCounts: Record<string, number>;
+  rawDurationTotalNs: string;
+  effectiveDurationTotalNs: string;
+  trimmedTotalNs: string;
+  droppedRawTotalNs: string;
+  headlineCreditedTotalNs: string;
+  excludedLineageDigest: string;
+};
+
+export type MaximumDurationRefusalReason = "request_shape_invalid" | "threshold_malformed" | "policy_incompatible_with_reconstruction_strategy" | "adaptive_maximum_threshold_provider_unavailable" | "legacy_threshold_nonpositive" | "legacy_threshold_not_integer_ns" | "legacy_threshold_overflow" | "legacy_threshold_binary64_mapping_mismatch" | "legacy_threshold_canonicalization_mismatch" | "raw_duration_unrepresentable" | "effective_endpoint_unrepresentable" | "duplicate_timestamp_adjustment_unrepresentable";
+
+export type MaximumDurationRelation = "baseline_native" | "baseline_equivalent" | "controlled_derivative" | "refused";
+
+export type MaximumDurationSelectionShape = "omitted_legacy" | "explicit_strategy_native" | "explicit_chronicle_rejection" | "explicit_generic_fixed" | "explicit_generic_adaptive";
+
+export type MaximumDurationThresholdSource = "strategy_native" | "chronicle_legacy_config" | "fixed_parameter" | "b12_adaptive_participant";
+
+export type MicroUseClassificationPolicy = "none" | "okoshi_lt5s";
+
+export type MicroUseReceipt = {
+  protocolVersion: string;
+  requestedPolicy: MicroUseClassificationPolicy;
+  effectivePolicy: MicroUseClassificationPolicy;
+  relation: string;
+  sourceId: string | null;
+  comparator: string | null;
+  thresholdNs: number | null;
+  checkpoint: string;
+  classCounts: Record<string, number>;
+};
+
+export type MinimumDurationComparator = "strict_lt" | "inclusive_le";
+
+export type MinimumDurationDisposition = "chronicle_blank_keep_row" | "retain_and_credit" | "retain_but_exclude" | "drop_row";
 
 export type OpenObligation = {
   obligation_id: string;
@@ -41,6 +199,38 @@ export type OpenObligation = {
   state: MaterializationState;
   reason_id: string;
 };
+
+export type OpenerSet = "strategy_defined" | "activity_resumed_only" | "gesis_app_scoped_starts";
+
+export type OpenerSetApplicability = {
+  requested: OpenerSet;
+  effective: OpenerSet | null;
+  relation: OpenerStrategyRelation;
+  refusalReason: OpenerSetRefusalReason | null;
+};
+
+export type OpenerSetEvidence = {
+  applicability: OpenerSetApplicability;
+  suppressedDeviceOpenerCount: number;
+  selectedOpenerTypeCounts: Record<string, number>;
+  materializedOpenerTypeCounts: Record<string, number>;
+};
+
+export type OpenerSetPreflightDecision = {
+  status: OpenerSetPreflightStatus;
+  requestedOpenerSetId: string;
+  resolvedOpenerSetId: string;
+  effectiveOpenerSetId: string | null;
+  relation: OpenerStrategyRelation;
+  reasonCode: string | null;
+  optionsDigest: string;
+};
+
+export type OpenerSetPreflightStatus = "executable" | "refused";
+
+export type OpenerSetRefusalReason = "eyes_requires_lifecycle_triplets";
+
+export type OpenerStrategyRelation = "baseline_native" | "baseline_equivalent" | "source_equivalent" | "source_aligned_adapter" | "controlled_derivative" | "refused";
 
 export type QualificationDecision = "accepted" | "rejected" | "ambiguous";
 
@@ -73,6 +263,27 @@ export type QueryGroupExecution = {
   reason_id: string;
 };
 
+export type RawFileInspection = {
+  fileName: string;
+  sizeBytes: number;
+  rowCount: number;
+  participantCount: number;
+  participantPartitionBatchId: string | null;
+  participantTokens: string[];
+  columns: string[];
+  timezones: string[];
+  hasRequiredColumns: boolean;
+  invalidTimestampCount: number;
+  missingTimestampCount: number;
+  missingTimezoneCount: number;
+  duplicateTimestampCount: number;
+  outOfOrderTimestampCount: number;
+  firstOutOfOrderRow: number | null;
+  unrecognizedInteractionTypes: string[];
+  screenStartEventCount: number;
+  warnings: string[];
+};
+
 export type ReviewRuntimeManifest = {
   protocolVersion: string;
   preprocessorVersion: string;
@@ -82,6 +293,7 @@ export type ReviewRuntimeManifest = {
   previousWorkspaceRootDigest: string | null;
   inputDigest: string;
   optionsDigest: string;
+  computationOptionsDigest: string;
   implementationDigest: string;
   buildEnvironmentDigest: string;
   planDigest: string;
@@ -90,6 +302,12 @@ export type ReviewRuntimeManifest = {
   productContractDigest: string;
   dependencyCertificateDigest: string;
   dependencyCacheDecision: DependencyCacheDecision;
+  roleAssignments: RoleAssignment[];
+  artifacts: RuntimeArtifactMetadata[];
+  openerSetReceipt: OpenerSetEvidence;
+  maximumDurationReceipt?: MaximumDurationReceipt;
+  eyesEvidence: RuntimeEyesEvidenceSummary;
+  scientificEvidence: RuntimeScientificEvidenceSummary;
   counts: RuntimeCounts;
   availableTimezones: string[];
   timezone: string;
@@ -128,6 +346,11 @@ export type RoleRequirementTrace = {
   reason_id: string;
 };
 
+export type RuntimeActiveIngressRoleIdentity = {
+  artifactDigest: string;
+  assignmentId: string;
+};
+
 export type RuntimeArtifactMetadata = {
   artifactId: string;
   kind: string;
@@ -135,8 +358,52 @@ export type RuntimeArtifactMetadata = {
   digest: string;
   size: number;
   derivedFrom: string[];
+  scientificSourceBindings?: RuntimeScientificSourceBinding[];
   rowCount?: number;
   previewRows?: string[][];
+};
+
+export type RuntimeB05ApplicabilityProjection = {
+  protocolVersion: string;
+  relation: ScientificRelation;
+  executable: boolean;
+  refusalReason: B05RefusalReason | null;
+  refusalDetail: RuntimeB05RefusalDetail | null;
+};
+
+export type RuntimeB05RefusalDetail = "capability_evidence_absent" | "capability_evidence_not_bound_to_input" | "participant_scope_undetermined" | "multiple_device_streams_aliased" | "device_stream_scope_unknown" | "combined_event_representation" | "source_stream_incomplete" | "source_stream_completeness_unknown" | "source_order_not_preserved" | "source_order_unknown" | "participant_stream_fragmented" | "input_chunk_status_unknown" | "missing_required_signal" | "required_signal_capability_unknown" | "unorderable_full_stream_row" | "non_monotonic_source_timestamps" | "ambiguous_equal_timestamp";
+
+export type RuntimeB05SchoedelPreflightReceipt = {
+  protocolVersion: string;
+  disposition: ScientificPreflightDisposition;
+  optionsDigest: string;
+  componentOptionsDigest: string;
+  screenComponentOptionsDigest: string;
+  schoedelComponentOptionsDigest: string;
+  optionsDigestOrigin: B05OptionsDigestOrigin;
+  requestedScreenStrategyId: ScreenSessionConstructionStrategyId;
+  effectiveScreenStrategyId: ScreenSessionConstructionStrategyId;
+  requestedEpisodeStrategyId: string;
+  effectiveEpisodeStrategyId: string | null;
+  screenConstructionPhase: B05ComputationPhase;
+  schoedelReconstructionPhase: B05ComputationPhase;
+  screenApplicability: RuntimeB05ApplicabilityProjection | null;
+  schoedelApplicability: RuntimeSchoedelApplicabilityProjection | null;
+};
+
+export type RuntimeB05SchoedelValidationReceipt = {
+  protocolVersion: string;
+  status: B05SchoedelValidationStatus;
+  decodedInputRowCount: number;
+  foundationalEpisodeCount: number;
+  foundationalBoundedEpisodeCount: number;
+  foundationalUnboundedEpisodeCount: number;
+  minimumDurationExcludedEpisodeCount: number;
+  concurrentGeneratedSubintervalCount: number;
+  zeroDurationRemovedRowCount: number;
+  selectedB05StrategyId: ScreenSessionConstructionStrategyId;
+  trustedSchoedelRetainedEventCount: number | null;
+  schoedelDecisiveParticipantCount: number;
 };
 
 export type RuntimeCounts = {
@@ -144,6 +411,17 @@ export type RuntimeCounts = {
   processed: number;
   app: number;
   screen: number;
+};
+
+export type RuntimeEyesEvidenceStatus = "partial_replay" | "not_applicable";
+
+export type RuntimeEyesEvidenceSummary = {
+  protocolVersion: string;
+  status: RuntimeEyesEvidenceStatus;
+  episodeReconstructionStrategy: string;
+  taggedFauArtifactDigest: string | null;
+  validationReceipt: EyesTaggedFauValidationReceipt | null;
+  validationReceiptArtifactDigest: string | null;
 };
 
 export type RuntimeManifest = {
@@ -165,6 +443,7 @@ export type RuntimeManifest = {
   previousWorkspaceRootDigest: string | null;
   workspaceId: string;
   workspaceRootDigest: string;
+  optionsDigest: string;
   input: ArtifactRef;
   roleAssignments: RoleAssignment[];
   qualificationTraces: QualificationTrace[];
@@ -175,8 +454,27 @@ export type RuntimeManifest = {
   queryExecutions: RuntimeQueryExecution[];
   artifacts: RuntimeArtifactMetadata[];
   counts: RuntimeCounts;
+  eyesEvidence: RuntimeEyesEvidenceSummary;
+  scientificEvidence: RuntimeScientificEvidenceSummary;
   processingSummary: RuntimeProcessingSummary;
   journalDigest: string;
+};
+
+export type RuntimeMinimumDurationReceipt = {
+  protocolVersion: string;
+  relation: string;
+  requestedComparator: MinimumDurationComparator;
+  effectiveComparator: MinimumDurationComparator;
+  thresholdNs: number;
+  requestedDisposition: MinimumDurationDisposition;
+  effectiveDisposition: MinimumDurationDisposition;
+  checkpoint: string;
+  boundedEpisodeCount: number;
+  unboundedEpisodeCount: number;
+  qualifyingCount: number;
+  retainedCreditedCount: number;
+  retainedExcludedCount: number;
+  droppedCount: number;
 };
 
 export type RuntimeProcessingSummary = {
@@ -194,6 +492,10 @@ export type RuntimeProcessingSummary = {
   workflowQueryCheckpoints: Record<string, WorkflowCheckpoint>;
   publishedOutputsDigest: string;
   provenanceDigest: string;
+  openerSetReceipt: OpenerSetEvidence;
+  maximumDurationReceipt?: MaximumDurationReceipt;
+  eyesEvidence: RuntimeEyesEvidenceSummary;
+  scientificEvidence: RuntimeScientificEvidenceSummary;
   duplicateTimestampsCorrected: number;
   exactDuplicateRowsRemoved: number;
 };
@@ -206,6 +508,117 @@ export type RuntimeQueryExecution = {
   output_digest: string;
   reason_id: string;
 };
+
+export type RuntimeSchoedelApplicabilityProjection = {
+  protocolVersion: string;
+  relation: ScientificRelation;
+  executable: boolean;
+  refusalReason: SchoedelRefusalReason | null;
+  refusalDetail: RuntimeSchoedelRefusalDetail | null;
+};
+
+export type RuntimeSchoedelReconstructionReceipt = {
+  protocolVersion: string;
+  strategyId: string;
+  relation: ScientificRelation;
+  sourceIdentity: string;
+  sourceVersion: string;
+  sourceLicenseStatus: string;
+  sourceScopeId: string;
+  adapterId: string;
+  completionRuleIds: string[];
+  inputScreenIntervalCount: number;
+  inputEventCount: number;
+  episodeCount: number;
+  boundedEpisodeCount: number;
+  singletonZeroLengthCount: number;
+  rightCensoredEvidenceCount: number;
+  issueCounts: Record<string, number>;
+};
+
+export type RuntimeSchoedelRefusalDetail = "ambiguous_equal_timestamp" | "unorderable_full_stream_row" | "invalid_screen_interval_dependency" | "full_osf_prerequisites_unavailable" | "capability_evidence_not_bound_to_input";
+
+export type RuntimeScientificEvidenceSummary = {
+  protocolVersion: string;
+  foundationalSemanticsArtifactDigest: string;
+  microUseReceipt: MicroUseReceipt;
+  minimumDurationReceipt: RuntimeMinimumDurationReceipt;
+  concurrentSubintervalFloorReceipt: ConcurrentSubintervalFloorReceipt;
+  zeroDurationCleanupReceipt: RuntimeZeroDurationCleanupReceipt;
+  minimumDurationExcludedLineageArtifactDigest: string | null;
+  zeroDurationCleanupEvidenceArtifactDigest: string | null;
+  zeroDurationRemovedLineageArtifactDigest: string | null;
+  finalizedB05Schoedel: RuntimeB05SchoedelPreflightReceipt;
+  b05ScreenConstructionReceipt: RuntimeScreenConstructionReceipt | null;
+  b05ScreenConstructionArtifactDigest: string | null;
+  schoedelReconstructionReceipt: RuntimeSchoedelReconstructionReceipt | null;
+  schoedelReconstructionArtifactDigest: string | null;
+  eyesInputPartition: EyesInputPartitionPreflightResult | null;
+  eyesTaggedFauValidationReceipt: EyesTaggedFauValidationReceipt | null;
+  eyesTaggedFauValidationReceiptArtifactDigest: string | null;
+  b05SchoedelValidationReceipt: RuntimeB05SchoedelValidationReceipt;
+  b05SchoedelValidationReceiptArtifactDigest: string;
+};
+
+export type RuntimeScientificPreflightKey = {
+  protocolVersion: string;
+  optionsDigest: string;
+  inputDigest: string;
+  inputSizeBytes: number;
+  activeIngressRoles: Record<string, RuntimeActiveIngressRoleIdentity>;
+  fragmentedParticipantCount: number;
+  fragmentedParticipantTokenScopeDigest: string;
+};
+
+export type RuntimeScientificPreflightReceipt = {
+  protocolVersion: string;
+  key: RuntimeScientificPreflightKey;
+  keyDigest: string;
+  b05Schoedel: RuntimeB05SchoedelPreflightReceipt;
+  b05SchoedelDigest: string;
+  eyesInputPartition: EyesInputPartitionPreflightResult;
+  eyesInputPartitionDigest: string;
+  commitDigest: string;
+};
+
+export type RuntimeScientificSourceBinding = {
+  roleId: string;
+  artifactDigest: string;
+  assignmentId: string;
+};
+
+export type RuntimeScreenConstructionReceipt = {
+  protocolVersion: string;
+  strategyId: ScreenSessionConstructionStrategyId;
+  relation: ScientificRelation;
+  sourceIdentity: string;
+  sourceArtifactSha256: string | null;
+  sourceLicenseStatus: string;
+  inputRowCount: number;
+  participantCount: number;
+  intervalCount: number;
+  sessionCount: number;
+  glanceCount: number;
+  rightCensoredCount: number;
+  issueCounts: Record<string, number>;
+};
+
+export type RuntimeZeroDurationCleanupReceipt = {
+  protocolVersion: string;
+  requestedApplied: boolean;
+  effectiveApplied: boolean;
+  checkpoint: string;
+  zeroEpisodeCandidateCount: number;
+  removedRowCount: number;
+};
+
+export type SchoedelRefusalReason = "ambiguous_equal_timestamp" | "unorderable_full_stream_row" | "invalid_screen_interval_dependency" | "schoedel_full_osf_missing_prerequisites" | "capability_evidence_not_bound_to_input";
+
+export type ScientificPreflightDisposition = "not_applicable" | "executable" | "refused";
+
+export type ScientificRelation = "baseline_native" | "baseline_equivalent" | "source_native" | "source_equivalent" | "source_aligned_adapter" | "controlled_derivative" | "partial_replay" | "refused";
+
+export type ScreenSessionConstructionStrategyId = "chronicle_screen_interactive_v1" | "parry_toth_2025_session_glance_v1" | "zhu_2018_unlock_lock_v1" | "unlock_to_lock_v1" | "unlock_to_off_or_lock_v1";
 
 export type StateReason = {
   reason_id: string;
@@ -228,10 +641,14 @@ export type WorkflowCheckpoint = {
 };
 
 export const RUNTIME_BOUNDARY_MODEL: BoundaryModel = {
-  "protocolVersion": "chronicle-runtime-boundary-model/v1",
+  "protocolVersion": "chronicle-runtime-boundary-model/v4",
   "roots": {
+    "maximumDurationPreflightDecision": "MaximumDurationPreflightDecision",
+    "openerSetPreflightDecision": "OpenerSetPreflightDecision",
+    "rawFileInspection": "RawFileInspection",
     "reviewRuntimeManifest": "ReviewRuntimeManifest",
-    "runtimeManifest": "RuntimeManifest"
+    "runtimeManifest": "RuntimeManifest",
+    "scientificPreflightReceipt": "RuntimeScientificPreflightReceipt"
   },
   "types": {
     "ArtifactRef": {
@@ -282,6 +699,119 @@ export const RUNTIME_BOUNDARY_MODEL: BoundaryModel = {
             "values": {
               "kind": "string"
             }
+          }
+        }
+      ],
+      "kind": "struct"
+    },
+    "B05ComputationPhase": {
+      "kind": "enum",
+      "label": "b05 computation phase",
+      "variants": [
+        "not_applicable",
+        "deferred_canonical_baseline",
+        "prepared_raw_source_arm",
+        "deferred_retained_app_stream",
+        "finalized"
+      ]
+    },
+    "B05OptionsDigestOrigin": {
+      "kind": "enum",
+      "label": "b05 options digest origin",
+      "variants": [
+        "verified_request_jcs",
+        "kernel_router_component"
+      ]
+    },
+    "B05RefusalReason": {
+      "kind": "enum",
+      "label": "b05 refusal reason",
+      "variants": [
+        "input_capability_evidence_absent",
+        "capability_evidence_not_bound_to_input",
+        "participant_scope_undetermined",
+        "multiple_device_streams_aliased",
+        "device_stream_scope_unknown",
+        "combined_event_representation",
+        "source_stream_incomplete",
+        "source_stream_completeness_unknown",
+        "source_order_not_preserved",
+        "source_order_unknown",
+        "unsupported_input_chunk",
+        "input_chunk_status_unknown",
+        "missing_required_signal",
+        "required_signal_capability_unknown",
+        "unorderable_full_stream_row",
+        "non_monotonic_source_timestamps",
+        "ambiguous_equal_timestamp"
+      ]
+    },
+    "B05SchoedelValidationStatus": {
+      "kind": "enum",
+      "label": "b05 schoedel validation status",
+      "variants": [
+        "invalid_unvalidated",
+        "not_applicable",
+        "screen_validated",
+        "screen_and_schoedel_validated"
+      ]
+    },
+    "ConcurrentSubintervalFloorReceipt": {
+      "fields": [
+        {
+          "name": "protocolVersion",
+          "rustName": "protocol_version",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "requestedApplied",
+          "rustName": "requested_applied",
+          "value": {
+            "kind": "boolean"
+          }
+        },
+        {
+          "name": "effectiveApplied",
+          "rustName": "effective_applied",
+          "value": {
+            "kind": "boolean"
+          }
+        },
+        {
+          "name": "comparator",
+          "rustName": "comparator",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "thresholdNs",
+          "rustName": "threshold_ns",
+          "value": {
+            "kind": "signedInteger"
+          }
+        },
+        {
+          "name": "checkpoint",
+          "rustName": "checkpoint",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "generatedSubintervalCount",
+          "rustName": "generated_subinterval_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "blankedSubintervalCount",
+          "rustName": "blanked_subinterval_count",
+          "value": {
+            "kind": "integer"
           }
         }
       ],
@@ -356,6 +886,425 @@ export const RUNTIME_BOUNDARY_MODEL: BoundaryModel = {
         "bypassed"
       ]
     },
+    "EyesDurationMode": {
+      "kind": "enum",
+      "label": "eyes duration mode",
+      "variants": [
+        "triplet_structured",
+        "pause_bound"
+      ]
+    },
+    "EyesHeadlineProjection": {
+      "kind": "enum",
+      "label": "eyes headline projection",
+      "variants": [
+        "active_only"
+      ]
+    },
+    "EyesInputPartitionOptionsDigestOrigin": {
+      "kind": "enum",
+      "label": "eyes input partition options digest origin",
+      "variants": [
+        "verified_request_jcs",
+        "kernel_component"
+      ]
+    },
+    "EyesInputPartitionPreflightResult": {
+      "fields": [
+        {
+          "name": "protocolVersion",
+          "rustName": "protocol_version",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "disposition",
+          "rustName": "disposition",
+          "value": {
+            "kind": "enum",
+            "name": "ScientificPreflightDisposition"
+          }
+        },
+        {
+          "name": "inputDigest",
+          "rustName": "input_digest",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "optionsDigest",
+          "rustName": "options_digest",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "optionsDigestOrigin",
+          "rustName": "options_digest_origin",
+          "value": {
+            "kind": "enum",
+            "name": "EyesInputPartitionOptionsDigestOrigin"
+          }
+        },
+        {
+          "name": "requestedEpisodeStrategyId",
+          "rustName": "requested_episode_strategy_id",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "effectiveEpisodeStrategyId",
+          "rustName": "effective_episode_strategy_id",
+          "value": {
+            "inner": {
+              "kind": "string"
+            },
+            "kind": "nullable"
+          }
+        },
+        {
+          "name": "relation",
+          "rustName": "relation",
+          "value": {
+            "inner": {
+              "kind": "enum",
+              "name": "ScientificRelation"
+            },
+            "kind": "nullable"
+          }
+        },
+        {
+          "name": "refusalReason",
+          "rustName": "refusal_reason",
+          "value": {
+            "inner": {
+              "kind": "enum",
+              "name": "EyesInputPartitionRefusalReason"
+            },
+            "kind": "nullable"
+          }
+        },
+        {
+          "name": "refusalDetail",
+          "rustName": "refusal_detail",
+          "value": {
+            "inner": {
+              "kind": "string"
+            },
+            "kind": "nullable"
+          }
+        },
+        {
+          "name": "fragmentedParticipantCount",
+          "rustName": "fragmented_participant_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "resolutionDigest",
+          "rustName": "resolution_digest",
+          "value": {
+            "kind": "string"
+          }
+        }
+      ],
+      "kind": "struct"
+    },
+    "EyesInputPartitionRefusalReason": {
+      "kind": "enum",
+      "label": "eyes input partition refusal reason",
+      "variants": [
+        "unsupported_input_chunk"
+      ]
+    },
+    "EyesOptions": {
+      "fields": [
+        {
+          "name": "proximityIntervalSeconds",
+          "rustName": "proximity_interval_seconds",
+          "value": {
+            "kind": "number"
+          }
+        },
+        {
+          "name": "durationMode",
+          "rustName": "duration_mode",
+          "value": {
+            "kind": "enum",
+            "name": "EyesDurationMode"
+          }
+        },
+        {
+          "name": "blockGlueSeconds",
+          "rustName": "block_glue_seconds",
+          "value": {
+            "kind": "number"
+          }
+        },
+        {
+          "name": "gapSilenceHours",
+          "rustName": "gap_silence_hours",
+          "value": {
+            "kind": "number"
+          }
+        },
+        {
+          "name": "gapRebootNeighborSeconds",
+          "rustName": "gap_reboot_neighbor_seconds",
+          "value": {
+            "kind": "number"
+          }
+        },
+        {
+          "name": "gapReconcileSeconds",
+          "rustName": "gap_reconcile_seconds",
+          "value": {
+            "kind": "number"
+          }
+        },
+        {
+          "name": "pickupMinimumSeconds",
+          "rustName": "pickup_minimum_seconds",
+          "value": {
+            "kind": "number"
+          }
+        },
+        {
+          "name": "pickupActiveHoleSeconds",
+          "rustName": "pickup_active_hole_seconds",
+          "value": {
+            "kind": "number"
+          }
+        },
+        {
+          "name": "fauBlockMinimumSeconds",
+          "rustName": "fau_block_minimum_seconds",
+          "value": {
+            "kind": "number"
+          }
+        }
+      ],
+      "kind": "struct"
+    },
+    "EyesPartialReplayLimitation": {
+      "kind": "enum",
+      "label": "eyes partial replay limitation",
+      "variants": [
+        "reference_primary_secondary_concurrency_unported",
+        "pickup_export_unavailable_on_product_surface",
+        "headline_projects_active_fragments_only"
+      ]
+    },
+    "EyesTaggedFauValidationReceipt": {
+      "fields": [
+        {
+          "name": "protocolVersion",
+          "rustName": "protocol_version",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "status",
+          "rustName": "status",
+          "value": {
+            "kind": "enum",
+            "name": "EyesTaggedFauValidationStatus"
+          }
+        },
+        {
+          "name": "verifiedRawInputDigest",
+          "rustName": "verified_raw_input_digest",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "decodedInputRowCount",
+          "rustName": "decoded_input_row_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "requestOptionsDigest",
+          "rustName": "request_options_digest",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "optionsDigestOrigin",
+          "rustName": "options_digest_origin",
+          "value": {
+            "kind": "enum",
+            "name": "EyesInputPartitionOptionsDigestOrigin"
+          }
+        },
+        {
+          "name": "effectiveOptions",
+          "rustName": "effective_options",
+          "value": {
+            "kind": "struct",
+            "name": "EyesOptions"
+          }
+        },
+        {
+          "name": "sourceVersion",
+          "rustName": "source_version",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "sourceCommit",
+          "rustName": "source_commit",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "sourceLicenseStatus",
+          "rustName": "source_license_status",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "referenceDefectRepairIds",
+          "rustName": "reference_defect_repair_ids",
+          "value": {
+            "items": {
+              "kind": "string"
+            },
+            "kind": "array"
+          }
+        },
+        {
+          "name": "headlineProjection",
+          "rustName": "headline_projection",
+          "value": {
+            "kind": "enum",
+            "name": "EyesHeadlineProjection"
+          }
+        },
+        {
+          "name": "referencePrimarySecondaryConcurrencyPorted",
+          "rustName": "reference_primary_secondary_concurrency_ported",
+          "value": {
+            "kind": "boolean"
+          }
+        },
+        {
+          "name": "pickupExportExposed",
+          "rustName": "pickup_export_exposed",
+          "value": {
+            "kind": "boolean"
+          }
+        },
+        {
+          "name": "limitations",
+          "rustName": "limitations",
+          "value": {
+            "items": {
+              "kind": "enum",
+              "name": "EyesPartialReplayLimitation"
+            },
+            "kind": "array"
+          }
+        },
+        {
+          "name": "finalPartitionResolutionDigest",
+          "rustName": "final_partition_resolution_digest",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "participantCount",
+          "rustName": "participant_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "deviceStateBlockCount",
+          "rustName": "device_state_block_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "episodeCount",
+          "rustName": "episode_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "appUsageChunkCount",
+          "rustName": "app_usage_chunk_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "fragmentCount",
+          "rustName": "fragment_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "creditedFragmentCount",
+          "rustName": "credited_fragment_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "chunkEndpointCount",
+          "rustName": "chunk_endpoint_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "pickupExportRowCount",
+          "rustName": "pickup_export_row_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "taggedFauArtifactJcsDigest",
+          "rustName": "tagged_fau_artifact_jcs_digest",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "validationDigest",
+          "rustName": "validation_digest",
+          "value": {
+            "kind": "string"
+          }
+        }
+      ],
+      "kind": "struct"
+    },
+    "EyesTaggedFauValidationStatus": {
+      "kind": "enum",
+      "label": "eyes tagged fau validation status",
+      "variants": [
+        "invalid_unvalidated",
+        "validated"
+      ]
+    },
     "MaterializationState": {
       "kind": "enum",
       "label": "materialization state",
@@ -366,6 +1315,456 @@ export const RUNTIME_BOUNDARY_MODEL: BoundaryModel = {
         "blocked",
         "invalid",
         "not_applicable"
+      ]
+    },
+    "MaximumDurationApplicability": {
+      "fields": [
+        {
+          "name": "protocolVersion",
+          "rustName": "protocol_version",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "shape",
+          "rustName": "shape",
+          "value": {
+            "kind": "enum",
+            "name": "MaximumDurationSelectionShape"
+          }
+        },
+        {
+          "name": "requestedPolicy",
+          "rustName": "requested_policy",
+          "value": {
+            "kind": "enum",
+            "name": "MaximumDurationPolicy"
+          }
+        },
+        {
+          "name": "effectivePolicy",
+          "rustName": "effective_policy",
+          "value": {
+            "inner": {
+              "kind": "enum",
+              "name": "MaximumDurationPolicy"
+            },
+            "kind": "nullable"
+          }
+        },
+        {
+          "name": "disposition",
+          "rustName": "disposition",
+          "value": {
+            "kind": "enum",
+            "name": "MaximumDurationDisposition"
+          }
+        },
+        {
+          "name": "thresholdSource",
+          "rustName": "threshold_source",
+          "value": {
+            "kind": "enum",
+            "name": "MaximumDurationThresholdSource"
+          }
+        },
+        {
+          "name": "thresholdNs",
+          "rustName": "threshold_ns",
+          "value": {
+            "inner": {
+              "kind": "string"
+            },
+            "kind": "nullable"
+          }
+        },
+        {
+          "name": "relation",
+          "rustName": "relation",
+          "value": {
+            "kind": "enum",
+            "name": "MaximumDurationRelation"
+          }
+        },
+        {
+          "name": "refusalReason",
+          "rustName": "refusal_reason",
+          "value": {
+            "inner": {
+              "kind": "enum",
+              "name": "MaximumDurationRefusalReason"
+            },
+            "kind": "nullable"
+          }
+        },
+        {
+          "name": "b06EffectiveStage",
+          "rustName": "b06_effective_stage",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "reconstructionNativeStage",
+          "rustName": "reconstruction_native_stage",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "checkedI128Preflight",
+          "rustName": "checked_i128_preflight",
+          "value": {
+            "inner": {
+              "kind": "string"
+            },
+            "kind": "nullable"
+          }
+        },
+        {
+          "name": "legacyThresholdHoursCanonical",
+          "rustName": "legacy_threshold_hours_canonical",
+          "value": {
+            "inner": {
+              "kind": "string"
+            },
+            "kind": "nullable"
+          }
+        },
+        {
+          "name": "legacyThresholdNsCanonical",
+          "rustName": "legacy_threshold_ns_canonical",
+          "value": {
+            "inner": {
+              "kind": "string"
+            },
+            "kind": "nullable"
+          }
+        },
+        {
+          "name": "legacyOrigin",
+          "rustName": "legacy_origin",
+          "value": {
+            "kind": "string"
+          }
+        }
+      ],
+      "kind": "struct"
+    },
+    "MaximumDurationDisposition": {
+      "kind": "enum",
+      "label": "maximum duration disposition",
+      "variants": [
+        "not_applicable",
+        "flag_and_retain",
+        "retain_but_exclude",
+        "truncate_to_threshold",
+        "drop_row"
+      ]
+    },
+    "MaximumDurationPolicy": {
+      "kind": "enum",
+      "label": "maximum duration policy",
+      "variants": [
+        "strategy_native",
+        "chronicle_observed_close_rejection_v1",
+        "post_reconstruction_strict_max_v1"
+      ]
+    },
+    "MaximumDurationPreflightDecision": {
+      "fields": [
+        {
+          "name": "status",
+          "rustName": "status",
+          "value": {
+            "kind": "enum",
+            "name": "OpenerSetPreflightStatus"
+          }
+        },
+        {
+          "name": "applicability",
+          "rustName": "applicability",
+          "value": {
+            "kind": "struct",
+            "name": "MaximumDurationApplicability"
+          }
+        },
+        {
+          "name": "reasonCode",
+          "rustName": "reason_code",
+          "value": {
+            "inner": {
+              "kind": "string"
+            },
+            "kind": "nullable"
+          }
+        },
+        {
+          "name": "optionsDigest",
+          "rustName": "options_digest",
+          "value": {
+            "kind": "sha256Digest"
+          }
+        }
+      ],
+      "kind": "struct"
+    },
+    "MaximumDurationReceipt": {
+      "fields": [
+        {
+          "name": "protocolVersion",
+          "rustName": "protocol_version",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "applicability",
+          "rustName": "applicability",
+          "value": {
+            "kind": "struct",
+            "name": "MaximumDurationApplicability"
+          }
+        },
+        {
+          "name": "checkpoint",
+          "rustName": "checkpoint",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "boundedEpisodeCount",
+          "rustName": "bounded_episode_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "unboundedEpisodeCount",
+          "rustName": "unbounded_episode_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "qualifyingCount",
+          "rustName": "qualifying_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "outcomeCounts",
+          "rustName": "outcome_counts",
+          "value": {
+            "kind": "map",
+            "values": {
+              "kind": "integer"
+            }
+          }
+        },
+        {
+          "name": "rawDurationTotalNs",
+          "rustName": "raw_duration_total_ns",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "effectiveDurationTotalNs",
+          "rustName": "effective_duration_total_ns",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "trimmedTotalNs",
+          "rustName": "trimmed_total_ns",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "droppedRawTotalNs",
+          "rustName": "dropped_raw_total_ns",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "headlineCreditedTotalNs",
+          "rustName": "headline_credited_total_ns",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "excludedLineageDigest",
+          "rustName": "excluded_lineage_digest",
+          "value": {
+            "kind": "string"
+          }
+        }
+      ],
+      "kind": "struct"
+    },
+    "MaximumDurationRefusalReason": {
+      "kind": "enum",
+      "label": "maximum duration refusal reason",
+      "variants": [
+        "request_shape_invalid",
+        "threshold_malformed",
+        "policy_incompatible_with_reconstruction_strategy",
+        "adaptive_maximum_threshold_provider_unavailable",
+        "legacy_threshold_nonpositive",
+        "legacy_threshold_not_integer_ns",
+        "legacy_threshold_overflow",
+        "legacy_threshold_binary64_mapping_mismatch",
+        "legacy_threshold_canonicalization_mismatch",
+        "raw_duration_unrepresentable",
+        "effective_endpoint_unrepresentable",
+        "duplicate_timestamp_adjustment_unrepresentable"
+      ]
+    },
+    "MaximumDurationRelation": {
+      "kind": "enum",
+      "label": "maximum duration relation",
+      "variants": [
+        "baseline_native",
+        "baseline_equivalent",
+        "controlled_derivative",
+        "refused"
+      ]
+    },
+    "MaximumDurationSelectionShape": {
+      "kind": "enum",
+      "label": "maximum duration selection shape",
+      "variants": [
+        "omitted_legacy",
+        "explicit_strategy_native",
+        "explicit_chronicle_rejection",
+        "explicit_generic_fixed",
+        "explicit_generic_adaptive"
+      ]
+    },
+    "MaximumDurationThresholdSource": {
+      "kind": "enum",
+      "label": "maximum duration threshold source",
+      "variants": [
+        "strategy_native",
+        "chronicle_legacy_config",
+        "fixed_parameter",
+        "b12_adaptive_participant"
+      ]
+    },
+    "MicroUseClassificationPolicy": {
+      "kind": "enum",
+      "label": "micro use classification policy",
+      "variants": [
+        "none",
+        "okoshi_lt5s"
+      ]
+    },
+    "MicroUseReceipt": {
+      "fields": [
+        {
+          "name": "protocolVersion",
+          "rustName": "protocol_version",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "requestedPolicy",
+          "rustName": "requested_policy",
+          "value": {
+            "kind": "enum",
+            "name": "MicroUseClassificationPolicy"
+          }
+        },
+        {
+          "name": "effectivePolicy",
+          "rustName": "effective_policy",
+          "value": {
+            "kind": "enum",
+            "name": "MicroUseClassificationPolicy"
+          }
+        },
+        {
+          "name": "relation",
+          "rustName": "relation",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "sourceId",
+          "rustName": "source_id",
+          "value": {
+            "inner": {
+              "kind": "string"
+            },
+            "kind": "nullable"
+          }
+        },
+        {
+          "name": "comparator",
+          "rustName": "comparator",
+          "value": {
+            "inner": {
+              "kind": "string"
+            },
+            "kind": "nullable"
+          }
+        },
+        {
+          "name": "thresholdNs",
+          "rustName": "threshold_ns",
+          "value": {
+            "inner": {
+              "kind": "signedInteger"
+            },
+            "kind": "nullable"
+          }
+        },
+        {
+          "name": "checkpoint",
+          "rustName": "checkpoint",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "classCounts",
+          "rustName": "class_counts",
+          "value": {
+            "kind": "map",
+            "values": {
+              "kind": "integer"
+            }
+          }
+        }
+      ],
+      "kind": "struct"
+    },
+    "MinimumDurationComparator": {
+      "kind": "enum",
+      "label": "minimum duration comparator",
+      "variants": [
+        "strict_lt",
+        "inclusive_le"
+      ]
+    },
+    "MinimumDurationDisposition": {
+      "kind": "enum",
+      "label": "minimum duration disposition",
+      "variants": [
+        "chronicle_blank_keep_row",
+        "retain_and_credit",
+        "retain_but_exclude",
+        "drop_row"
       ]
     },
     "OpenObligation": {
@@ -411,6 +1810,187 @@ export const RUNTIME_BOUNDARY_MODEL: BoundaryModel = {
         }
       ],
       "kind": "struct"
+    },
+    "OpenerSet": {
+      "kind": "enum",
+      "label": "opener set",
+      "variants": [
+        "strategy_defined",
+        "activity_resumed_only",
+        "gesis_app_scoped_starts"
+      ]
+    },
+    "OpenerSetApplicability": {
+      "fields": [
+        {
+          "name": "requested",
+          "rustName": "requested",
+          "value": {
+            "kind": "enum",
+            "name": "OpenerSet"
+          }
+        },
+        {
+          "name": "effective",
+          "rustName": "effective",
+          "value": {
+            "inner": {
+              "kind": "enum",
+              "name": "OpenerSet"
+            },
+            "kind": "nullable"
+          }
+        },
+        {
+          "name": "relation",
+          "rustName": "relation",
+          "value": {
+            "kind": "enum",
+            "name": "OpenerStrategyRelation"
+          }
+        },
+        {
+          "name": "refusalReason",
+          "rustName": "refusal_reason",
+          "value": {
+            "inner": {
+              "kind": "enum",
+              "name": "OpenerSetRefusalReason"
+            },
+            "kind": "nullable"
+          }
+        }
+      ],
+      "kind": "struct"
+    },
+    "OpenerSetEvidence": {
+      "fields": [
+        {
+          "name": "applicability",
+          "rustName": "applicability",
+          "value": {
+            "kind": "struct",
+            "name": "OpenerSetApplicability"
+          }
+        },
+        {
+          "name": "suppressedDeviceOpenerCount",
+          "rustName": "suppressed_device_opener_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "selectedOpenerTypeCounts",
+          "rustName": "selected_opener_type_counts",
+          "value": {
+            "kind": "map",
+            "values": {
+              "kind": "integer"
+            }
+          }
+        },
+        {
+          "name": "materializedOpenerTypeCounts",
+          "rustName": "materialized_opener_type_counts",
+          "value": {
+            "kind": "map",
+            "values": {
+              "kind": "integer"
+            }
+          }
+        }
+      ],
+      "kind": "struct"
+    },
+    "OpenerSetPreflightDecision": {
+      "fields": [
+        {
+          "name": "status",
+          "rustName": "status",
+          "value": {
+            "kind": "enum",
+            "name": "OpenerSetPreflightStatus"
+          }
+        },
+        {
+          "name": "requestedOpenerSetId",
+          "rustName": "requested_opener_set_id",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "resolvedOpenerSetId",
+          "rustName": "resolved_opener_set_id",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "effectiveOpenerSetId",
+          "rustName": "effective_opener_set_id",
+          "value": {
+            "inner": {
+              "kind": "string"
+            },
+            "kind": "nullable"
+          }
+        },
+        {
+          "name": "relation",
+          "rustName": "relation",
+          "value": {
+            "kind": "enum",
+            "name": "OpenerStrategyRelation"
+          }
+        },
+        {
+          "name": "reasonCode",
+          "rustName": "reason_code",
+          "value": {
+            "inner": {
+              "kind": "string"
+            },
+            "kind": "nullable"
+          }
+        },
+        {
+          "name": "optionsDigest",
+          "rustName": "options_digest",
+          "value": {
+            "kind": "sha256Digest"
+          }
+        }
+      ],
+      "kind": "struct"
+    },
+    "OpenerSetPreflightStatus": {
+      "kind": "enum",
+      "label": "opener set preflight status",
+      "variants": [
+        "executable",
+        "refused"
+      ]
+    },
+    "OpenerSetRefusalReason": {
+      "kind": "enum",
+      "label": "opener set refusal reason",
+      "variants": [
+        "eyes_requires_lifecycle_triplets"
+      ]
+    },
+    "OpenerStrategyRelation": {
+      "kind": "enum",
+      "label": "opener strategy relation",
+      "variants": [
+        "baseline_native",
+        "baseline_equivalent",
+        "source_equivalent",
+        "source_aligned_adapter",
+        "controlled_derivative",
+        "refused"
+      ]
     },
     "QualificationDecision": {
       "kind": "enum",
@@ -592,6 +2172,158 @@ export const RUNTIME_BOUNDARY_MODEL: BoundaryModel = {
       ],
       "kind": "struct"
     },
+    "RawFileInspection": {
+      "fields": [
+        {
+          "name": "fileName",
+          "rustName": "file_name",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "sizeBytes",
+          "rustName": "size_bytes",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "rowCount",
+          "rustName": "row_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "participantCount",
+          "rustName": "participant_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "participantPartitionBatchId",
+          "rustName": "participant_partition_batch_id",
+          "value": {
+            "inner": {
+              "kind": "sha256Digest"
+            },
+            "kind": "nullable"
+          }
+        },
+        {
+          "name": "participantTokens",
+          "rustName": "participant_tokens",
+          "value": {
+            "items": {
+              "kind": "sha256Digest"
+            },
+            "kind": "array"
+          }
+        },
+        {
+          "name": "columns",
+          "rustName": "columns",
+          "value": {
+            "items": {
+              "kind": "string"
+            },
+            "kind": "array"
+          }
+        },
+        {
+          "name": "timezones",
+          "rustName": "timezones",
+          "value": {
+            "items": {
+              "kind": "string"
+            },
+            "kind": "array"
+          }
+        },
+        {
+          "name": "hasRequiredColumns",
+          "rustName": "has_required_columns",
+          "value": {
+            "kind": "boolean"
+          }
+        },
+        {
+          "name": "invalidTimestampCount",
+          "rustName": "invalid_timestamp_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "missingTimestampCount",
+          "rustName": "missing_timestamp_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "missingTimezoneCount",
+          "rustName": "missing_timezone_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "duplicateTimestampCount",
+          "rustName": "duplicate_timestamp_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "outOfOrderTimestampCount",
+          "rustName": "out_of_order_timestamp_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "firstOutOfOrderRow",
+          "rustName": "first_out_of_order_row",
+          "value": {
+            "inner": {
+              "kind": "integer"
+            },
+            "kind": "nullable"
+          }
+        },
+        {
+          "name": "unrecognizedInteractionTypes",
+          "rustName": "unrecognized_interaction_types",
+          "value": {
+            "items": {
+              "kind": "string"
+            },
+            "kind": "array"
+          }
+        },
+        {
+          "name": "screenStartEventCount",
+          "rustName": "screen_start_event_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "warnings",
+          "rustName": "warnings",
+          "value": {
+            "items": {
+              "kind": "string"
+            },
+            "kind": "array"
+          }
+        }
+      ],
+      "kind": "struct"
+    },
     "ReviewRuntimeManifest": {
       "fields": [
         {
@@ -654,6 +2386,13 @@ export const RUNTIME_BOUNDARY_MODEL: BoundaryModel = {
           }
         },
         {
+          "name": "computationOptionsDigest",
+          "rustName": "computation_options_digest",
+          "value": {
+            "kind": "sha256Digest"
+          }
+        },
+        {
           "name": "implementationDigest",
           "rustName": "implementation_digest",
           "value": {
@@ -708,6 +2447,61 @@ export const RUNTIME_BOUNDARY_MODEL: BoundaryModel = {
           "value": {
             "kind": "struct",
             "name": "DependencyCacheDecision"
+          }
+        },
+        {
+          "name": "roleAssignments",
+          "rustName": "role_assignments",
+          "value": {
+            "items": {
+              "kind": "struct",
+              "name": "RoleAssignment"
+            },
+            "kind": "array"
+          }
+        },
+        {
+          "name": "artifacts",
+          "rustName": "artifacts",
+          "value": {
+            "items": {
+              "kind": "struct",
+              "name": "RuntimeArtifactMetadata"
+            },
+            "kind": "array"
+          }
+        },
+        {
+          "name": "openerSetReceipt",
+          "rustName": "opener_set_receipt",
+          "value": {
+            "kind": "struct",
+            "name": "OpenerSetEvidence"
+          }
+        },
+        {
+          "name": "maximumDurationReceipt",
+          "optional": true,
+          "rustName": "maximum_duration_receipt",
+          "value": {
+            "kind": "struct",
+            "name": "MaximumDurationReceipt"
+          }
+        },
+        {
+          "name": "eyesEvidence",
+          "rustName": "eyes_evidence",
+          "value": {
+            "kind": "struct",
+            "name": "RuntimeEyesEvidenceSummary"
+          }
+        },
+        {
+          "name": "scientificEvidence",
+          "rustName": "scientific_evidence",
+          "value": {
+            "kind": "struct",
+            "name": "RuntimeScientificEvidenceSummary"
           }
         },
         {
@@ -965,6 +2759,25 @@ export const RUNTIME_BOUNDARY_MODEL: BoundaryModel = {
       ],
       "kind": "struct"
     },
+    "RuntimeActiveIngressRoleIdentity": {
+      "fields": [
+        {
+          "name": "artifactDigest",
+          "rustName": "artifact_digest",
+          "value": {
+            "kind": "sha256Digest"
+          }
+        },
+        {
+          "name": "assignmentId",
+          "rustName": "assignment_id",
+          "value": {
+            "kind": "sha256Digest"
+          }
+        }
+      ],
+      "kind": "struct"
+    },
     "RuntimeArtifactMetadata": {
       "fields": [
         {
@@ -1013,6 +2826,18 @@ export const RUNTIME_BOUNDARY_MODEL: BoundaryModel = {
           }
         },
         {
+          "name": "scientificSourceBindings",
+          "optional": true,
+          "rustName": "scientific_source_bindings",
+          "value": {
+            "items": {
+              "kind": "struct",
+              "name": "RuntimeScientificSourceBinding"
+            },
+            "kind": "array"
+          }
+        },
+        {
           "name": "rowCount",
           "optional": true,
           "rustName": "row_count",
@@ -1032,6 +2857,299 @@ export const RUNTIME_BOUNDARY_MODEL: BoundaryModel = {
               "kind": "array"
             },
             "kind": "array"
+          }
+        }
+      ],
+      "kind": "struct"
+    },
+    "RuntimeB05ApplicabilityProjection": {
+      "fields": [
+        {
+          "name": "protocolVersion",
+          "rustName": "protocol_version",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "relation",
+          "rustName": "relation",
+          "value": {
+            "kind": "enum",
+            "name": "ScientificRelation"
+          }
+        },
+        {
+          "name": "executable",
+          "rustName": "executable",
+          "value": {
+            "kind": "boolean"
+          }
+        },
+        {
+          "name": "refusalReason",
+          "rustName": "refusal_reason",
+          "value": {
+            "inner": {
+              "kind": "enum",
+              "name": "B05RefusalReason"
+            },
+            "kind": "nullable"
+          }
+        },
+        {
+          "name": "refusalDetail",
+          "rustName": "refusal_detail",
+          "value": {
+            "inner": {
+              "kind": "enum",
+              "name": "RuntimeB05RefusalDetail"
+            },
+            "kind": "nullable"
+          }
+        }
+      ],
+      "kind": "struct"
+    },
+    "RuntimeB05RefusalDetail": {
+      "kind": "enum",
+      "label": "runtime b05 refusal detail",
+      "variants": [
+        "capability_evidence_absent",
+        "capability_evidence_not_bound_to_input",
+        "participant_scope_undetermined",
+        "multiple_device_streams_aliased",
+        "device_stream_scope_unknown",
+        "combined_event_representation",
+        "source_stream_incomplete",
+        "source_stream_completeness_unknown",
+        "source_order_not_preserved",
+        "source_order_unknown",
+        "participant_stream_fragmented",
+        "input_chunk_status_unknown",
+        "missing_required_signal",
+        "required_signal_capability_unknown",
+        "unorderable_full_stream_row",
+        "non_monotonic_source_timestamps",
+        "ambiguous_equal_timestamp"
+      ]
+    },
+    "RuntimeB05SchoedelPreflightReceipt": {
+      "fields": [
+        {
+          "name": "protocolVersion",
+          "rustName": "protocol_version",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "disposition",
+          "rustName": "disposition",
+          "value": {
+            "kind": "enum",
+            "name": "ScientificPreflightDisposition"
+          }
+        },
+        {
+          "name": "optionsDigest",
+          "rustName": "options_digest",
+          "value": {
+            "kind": "sha256Digest"
+          }
+        },
+        {
+          "name": "componentOptionsDigest",
+          "rustName": "component_options_digest",
+          "value": {
+            "kind": "sha256Digest"
+          }
+        },
+        {
+          "name": "screenComponentOptionsDigest",
+          "rustName": "screen_component_options_digest",
+          "value": {
+            "kind": "sha256Digest"
+          }
+        },
+        {
+          "name": "schoedelComponentOptionsDigest",
+          "rustName": "schoedel_component_options_digest",
+          "value": {
+            "kind": "sha256Digest"
+          }
+        },
+        {
+          "name": "optionsDigestOrigin",
+          "rustName": "options_digest_origin",
+          "value": {
+            "kind": "enum",
+            "name": "B05OptionsDigestOrigin"
+          }
+        },
+        {
+          "name": "requestedScreenStrategyId",
+          "rustName": "requested_screen_strategy_id",
+          "value": {
+            "kind": "enum",
+            "name": "ScreenSessionConstructionStrategyId"
+          }
+        },
+        {
+          "name": "effectiveScreenStrategyId",
+          "rustName": "effective_screen_strategy_id",
+          "value": {
+            "kind": "enum",
+            "name": "ScreenSessionConstructionStrategyId"
+          }
+        },
+        {
+          "name": "requestedEpisodeStrategyId",
+          "rustName": "requested_episode_strategy_id",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "effectiveEpisodeStrategyId",
+          "rustName": "effective_episode_strategy_id",
+          "value": {
+            "inner": {
+              "kind": "string"
+            },
+            "kind": "nullable"
+          }
+        },
+        {
+          "name": "screenConstructionPhase",
+          "rustName": "screen_construction_phase",
+          "value": {
+            "kind": "enum",
+            "name": "B05ComputationPhase"
+          }
+        },
+        {
+          "name": "schoedelReconstructionPhase",
+          "rustName": "schoedel_reconstruction_phase",
+          "value": {
+            "kind": "enum",
+            "name": "B05ComputationPhase"
+          }
+        },
+        {
+          "name": "screenApplicability",
+          "rustName": "screen_applicability",
+          "value": {
+            "inner": {
+              "kind": "struct",
+              "name": "RuntimeB05ApplicabilityProjection"
+            },
+            "kind": "nullable"
+          }
+        },
+        {
+          "name": "schoedelApplicability",
+          "rustName": "schoedel_applicability",
+          "value": {
+            "inner": {
+              "kind": "struct",
+              "name": "RuntimeSchoedelApplicabilityProjection"
+            },
+            "kind": "nullable"
+          }
+        }
+      ],
+      "kind": "struct"
+    },
+    "RuntimeB05SchoedelValidationReceipt": {
+      "fields": [
+        {
+          "name": "protocolVersion",
+          "rustName": "protocol_version",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "status",
+          "rustName": "status",
+          "value": {
+            "kind": "enum",
+            "name": "B05SchoedelValidationStatus"
+          }
+        },
+        {
+          "name": "decodedInputRowCount",
+          "rustName": "decoded_input_row_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "foundationalEpisodeCount",
+          "rustName": "foundational_episode_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "foundationalBoundedEpisodeCount",
+          "rustName": "foundational_bounded_episode_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "foundationalUnboundedEpisodeCount",
+          "rustName": "foundational_unbounded_episode_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "minimumDurationExcludedEpisodeCount",
+          "rustName": "minimum_duration_excluded_episode_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "concurrentGeneratedSubintervalCount",
+          "rustName": "concurrent_generated_subinterval_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "zeroDurationRemovedRowCount",
+          "rustName": "zero_duration_removed_row_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "selectedB05StrategyId",
+          "rustName": "selected_b05_strategy_id",
+          "value": {
+            "kind": "enum",
+            "name": "ScreenSessionConstructionStrategyId"
+          }
+        },
+        {
+          "name": "trustedSchoedelRetainedEventCount",
+          "rustName": "trusted_schoedel_retained_event_count",
+          "value": {
+            "inner": {
+              "kind": "integer"
+            },
+            "kind": "nullable"
+          }
+        },
+        {
+          "name": "schoedelDecisiveParticipantCount",
+          "rustName": "schoedel_decisive_participant_count",
+          "value": {
+            "kind": "integer"
           }
         }
       ],
@@ -1065,6 +3183,72 @@ export const RUNTIME_BOUNDARY_MODEL: BoundaryModel = {
           "rustName": "screen",
           "value": {
             "kind": "integer"
+          }
+        }
+      ],
+      "kind": "struct"
+    },
+    "RuntimeEyesEvidenceStatus": {
+      "kind": "enum",
+      "label": "runtime eyes evidence status",
+      "variants": [
+        "partial_replay",
+        "not_applicable"
+      ]
+    },
+    "RuntimeEyesEvidenceSummary": {
+      "fields": [
+        {
+          "name": "protocolVersion",
+          "rustName": "protocol_version",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "status",
+          "rustName": "status",
+          "value": {
+            "kind": "enum",
+            "name": "RuntimeEyesEvidenceStatus"
+          }
+        },
+        {
+          "name": "episodeReconstructionStrategy",
+          "rustName": "episode_reconstruction_strategy",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "taggedFauArtifactDigest",
+          "rustName": "tagged_fau_artifact_digest",
+          "value": {
+            "inner": {
+              "kind": "sha256Digest"
+            },
+            "kind": "nullable"
+          }
+        },
+        {
+          "name": "validationReceipt",
+          "rustName": "validation_receipt",
+          "value": {
+            "inner": {
+              "kind": "struct",
+              "name": "EyesTaggedFauValidationReceipt"
+            },
+            "kind": "nullable"
+          }
+        },
+        {
+          "name": "validationReceiptArtifactDigest",
+          "rustName": "validation_receipt_artifact_digest",
+          "value": {
+            "inner": {
+              "kind": "sha256Digest"
+            },
+            "kind": "nullable"
           }
         }
       ],
@@ -1203,6 +3387,13 @@ export const RUNTIME_BOUNDARY_MODEL: BoundaryModel = {
           }
         },
         {
+          "name": "optionsDigest",
+          "rustName": "options_digest",
+          "value": {
+            "kind": "sha256Digest"
+          }
+        },
+        {
           "name": "input",
           "rustName": "input",
           "value": {
@@ -1307,6 +3498,22 @@ export const RUNTIME_BOUNDARY_MODEL: BoundaryModel = {
           }
         },
         {
+          "name": "eyesEvidence",
+          "rustName": "eyes_evidence",
+          "value": {
+            "kind": "struct",
+            "name": "RuntimeEyesEvidenceSummary"
+          }
+        },
+        {
+          "name": "scientificEvidence",
+          "rustName": "scientific_evidence",
+          "value": {
+            "kind": "struct",
+            "name": "RuntimeScientificEvidenceSummary"
+          }
+        },
+        {
           "name": "processingSummary",
           "rustName": "processing_summary",
           "value": {
@@ -1319,6 +3526,113 @@ export const RUNTIME_BOUNDARY_MODEL: BoundaryModel = {
           "rustName": "journal_digest",
           "value": {
             "kind": "sha256Digest"
+          }
+        }
+      ],
+      "kind": "struct"
+    },
+    "RuntimeMinimumDurationReceipt": {
+      "fields": [
+        {
+          "name": "protocolVersion",
+          "rustName": "protocol_version",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "relation",
+          "rustName": "relation",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "requestedComparator",
+          "rustName": "requested_comparator",
+          "value": {
+            "kind": "enum",
+            "name": "MinimumDurationComparator"
+          }
+        },
+        {
+          "name": "effectiveComparator",
+          "rustName": "effective_comparator",
+          "value": {
+            "kind": "enum",
+            "name": "MinimumDurationComparator"
+          }
+        },
+        {
+          "name": "thresholdNs",
+          "rustName": "threshold_ns",
+          "value": {
+            "kind": "signedInteger"
+          }
+        },
+        {
+          "name": "requestedDisposition",
+          "rustName": "requested_disposition",
+          "value": {
+            "kind": "enum",
+            "name": "MinimumDurationDisposition"
+          }
+        },
+        {
+          "name": "effectiveDisposition",
+          "rustName": "effective_disposition",
+          "value": {
+            "kind": "enum",
+            "name": "MinimumDurationDisposition"
+          }
+        },
+        {
+          "name": "checkpoint",
+          "rustName": "checkpoint",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "boundedEpisodeCount",
+          "rustName": "bounded_episode_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "unboundedEpisodeCount",
+          "rustName": "unbounded_episode_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "qualifyingCount",
+          "rustName": "qualifying_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "retainedCreditedCount",
+          "rustName": "retained_credited_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "retainedExcludedCount",
+          "rustName": "retained_excluded_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "droppedCount",
+          "rustName": "dropped_count",
+          "value": {
+            "kind": "integer"
           }
         }
       ],
@@ -1442,6 +3756,39 @@ export const RUNTIME_BOUNDARY_MODEL: BoundaryModel = {
           }
         },
         {
+          "name": "openerSetReceipt",
+          "rustName": "opener_set_receipt",
+          "value": {
+            "kind": "struct",
+            "name": "OpenerSetEvidence"
+          }
+        },
+        {
+          "name": "maximumDurationReceipt",
+          "optional": true,
+          "rustName": "maximum_duration_receipt",
+          "value": {
+            "kind": "struct",
+            "name": "MaximumDurationReceipt"
+          }
+        },
+        {
+          "name": "eyesEvidence",
+          "rustName": "eyes_evidence",
+          "value": {
+            "kind": "struct",
+            "name": "RuntimeEyesEvidenceSummary"
+          }
+        },
+        {
+          "name": "scientificEvidence",
+          "rustName": "scientific_evidence",
+          "value": {
+            "kind": "struct",
+            "name": "RuntimeScientificEvidenceSummary"
+          }
+        },
+        {
           "name": "duplicateTimestampsCorrected",
           "rustName": "duplicate_timestamps_corrected",
           "value": {
@@ -1505,6 +3852,712 @@ export const RUNTIME_BOUNDARY_MODEL: BoundaryModel = {
         }
       ],
       "kind": "struct"
+    },
+    "RuntimeSchoedelApplicabilityProjection": {
+      "fields": [
+        {
+          "name": "protocolVersion",
+          "rustName": "protocol_version",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "relation",
+          "rustName": "relation",
+          "value": {
+            "kind": "enum",
+            "name": "ScientificRelation"
+          }
+        },
+        {
+          "name": "executable",
+          "rustName": "executable",
+          "value": {
+            "kind": "boolean"
+          }
+        },
+        {
+          "name": "refusalReason",
+          "rustName": "refusal_reason",
+          "value": {
+            "inner": {
+              "kind": "enum",
+              "name": "SchoedelRefusalReason"
+            },
+            "kind": "nullable"
+          }
+        },
+        {
+          "name": "refusalDetail",
+          "rustName": "refusal_detail",
+          "value": {
+            "inner": {
+              "kind": "enum",
+              "name": "RuntimeSchoedelRefusalDetail"
+            },
+            "kind": "nullable"
+          }
+        }
+      ],
+      "kind": "struct"
+    },
+    "RuntimeSchoedelReconstructionReceipt": {
+      "fields": [
+        {
+          "name": "protocolVersion",
+          "rustName": "protocol_version",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "strategyId",
+          "rustName": "strategy_id",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "relation",
+          "rustName": "relation",
+          "value": {
+            "kind": "enum",
+            "name": "ScientificRelation"
+          }
+        },
+        {
+          "name": "sourceIdentity",
+          "rustName": "source_identity",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "sourceVersion",
+          "rustName": "source_version",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "sourceLicenseStatus",
+          "rustName": "source_license_status",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "sourceScopeId",
+          "rustName": "source_scope_id",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "adapterId",
+          "rustName": "adapter_id",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "completionRuleIds",
+          "rustName": "completion_rule_ids",
+          "value": {
+            "items": {
+              "kind": "string"
+            },
+            "kind": "array"
+          }
+        },
+        {
+          "name": "inputScreenIntervalCount",
+          "rustName": "input_screen_interval_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "inputEventCount",
+          "rustName": "input_event_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "episodeCount",
+          "rustName": "episode_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "boundedEpisodeCount",
+          "rustName": "bounded_episode_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "singletonZeroLengthCount",
+          "rustName": "singleton_zero_length_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "rightCensoredEvidenceCount",
+          "rustName": "right_censored_evidence_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "issueCounts",
+          "rustName": "issue_counts",
+          "value": {
+            "kind": "map",
+            "values": {
+              "kind": "integer"
+            }
+          }
+        }
+      ],
+      "kind": "struct"
+    },
+    "RuntimeSchoedelRefusalDetail": {
+      "kind": "enum",
+      "label": "runtime schoedel refusal detail",
+      "variants": [
+        "ambiguous_equal_timestamp",
+        "unorderable_full_stream_row",
+        "invalid_screen_interval_dependency",
+        "full_osf_prerequisites_unavailable",
+        "capability_evidence_not_bound_to_input"
+      ]
+    },
+    "RuntimeScientificEvidenceSummary": {
+      "fields": [
+        {
+          "name": "protocolVersion",
+          "rustName": "protocol_version",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "foundationalSemanticsArtifactDigest",
+          "rustName": "foundational_semantics_artifact_digest",
+          "value": {
+            "kind": "sha256Digest"
+          }
+        },
+        {
+          "name": "microUseReceipt",
+          "rustName": "micro_use_receipt",
+          "value": {
+            "kind": "struct",
+            "name": "MicroUseReceipt"
+          }
+        },
+        {
+          "name": "minimumDurationReceipt",
+          "rustName": "minimum_duration_receipt",
+          "value": {
+            "kind": "struct",
+            "name": "RuntimeMinimumDurationReceipt"
+          }
+        },
+        {
+          "name": "concurrentSubintervalFloorReceipt",
+          "rustName": "concurrent_subinterval_floor_receipt",
+          "value": {
+            "kind": "struct",
+            "name": "ConcurrentSubintervalFloorReceipt"
+          }
+        },
+        {
+          "name": "zeroDurationCleanupReceipt",
+          "rustName": "zero_duration_cleanup_receipt",
+          "value": {
+            "kind": "struct",
+            "name": "RuntimeZeroDurationCleanupReceipt"
+          }
+        },
+        {
+          "name": "minimumDurationExcludedLineageArtifactDigest",
+          "rustName": "minimum_duration_excluded_lineage_artifact_digest",
+          "value": {
+            "inner": {
+              "kind": "sha256Digest"
+            },
+            "kind": "nullable"
+          }
+        },
+        {
+          "name": "zeroDurationCleanupEvidenceArtifactDigest",
+          "rustName": "zero_duration_cleanup_evidence_artifact_digest",
+          "value": {
+            "inner": {
+              "kind": "sha256Digest"
+            },
+            "kind": "nullable"
+          }
+        },
+        {
+          "name": "zeroDurationRemovedLineageArtifactDigest",
+          "rustName": "zero_duration_removed_lineage_artifact_digest",
+          "value": {
+            "inner": {
+              "kind": "sha256Digest"
+            },
+            "kind": "nullable"
+          }
+        },
+        {
+          "name": "finalizedB05Schoedel",
+          "rustName": "finalized_b05_schoedel",
+          "value": {
+            "kind": "struct",
+            "name": "RuntimeB05SchoedelPreflightReceipt"
+          }
+        },
+        {
+          "name": "b05ScreenConstructionReceipt",
+          "rustName": "b05_screen_construction_receipt",
+          "value": {
+            "inner": {
+              "kind": "struct",
+              "name": "RuntimeScreenConstructionReceipt"
+            },
+            "kind": "nullable"
+          }
+        },
+        {
+          "name": "b05ScreenConstructionArtifactDigest",
+          "rustName": "b05_screen_construction_artifact_digest",
+          "value": {
+            "inner": {
+              "kind": "sha256Digest"
+            },
+            "kind": "nullable"
+          }
+        },
+        {
+          "name": "schoedelReconstructionReceipt",
+          "rustName": "schoedel_reconstruction_receipt",
+          "value": {
+            "inner": {
+              "kind": "struct",
+              "name": "RuntimeSchoedelReconstructionReceipt"
+            },
+            "kind": "nullable"
+          }
+        },
+        {
+          "name": "schoedelReconstructionArtifactDigest",
+          "rustName": "schoedel_reconstruction_artifact_digest",
+          "value": {
+            "inner": {
+              "kind": "sha256Digest"
+            },
+            "kind": "nullable"
+          }
+        },
+        {
+          "name": "eyesInputPartition",
+          "rustName": "eyes_input_partition",
+          "value": {
+            "inner": {
+              "kind": "struct",
+              "name": "EyesInputPartitionPreflightResult"
+            },
+            "kind": "nullable"
+          }
+        },
+        {
+          "name": "eyesTaggedFauValidationReceipt",
+          "rustName": "eyes_tagged_fau_validation_receipt",
+          "value": {
+            "inner": {
+              "kind": "struct",
+              "name": "EyesTaggedFauValidationReceipt"
+            },
+            "kind": "nullable"
+          }
+        },
+        {
+          "name": "eyesTaggedFauValidationReceiptArtifactDigest",
+          "rustName": "eyes_tagged_fau_validation_receipt_artifact_digest",
+          "value": {
+            "inner": {
+              "kind": "sha256Digest"
+            },
+            "kind": "nullable"
+          }
+        },
+        {
+          "name": "b05SchoedelValidationReceipt",
+          "rustName": "b05_schoedel_validation_receipt",
+          "value": {
+            "kind": "struct",
+            "name": "RuntimeB05SchoedelValidationReceipt"
+          }
+        },
+        {
+          "name": "b05SchoedelValidationReceiptArtifactDigest",
+          "rustName": "b05_schoedel_validation_receipt_artifact_digest",
+          "value": {
+            "kind": "sha256Digest"
+          }
+        }
+      ],
+      "kind": "struct"
+    },
+    "RuntimeScientificPreflightKey": {
+      "fields": [
+        {
+          "name": "protocolVersion",
+          "rustName": "protocol_version",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "optionsDigest",
+          "rustName": "options_digest",
+          "value": {
+            "kind": "sha256Digest"
+          }
+        },
+        {
+          "name": "inputDigest",
+          "rustName": "input_digest",
+          "value": {
+            "kind": "sha256Digest"
+          }
+        },
+        {
+          "name": "inputSizeBytes",
+          "rustName": "input_size_bytes",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "activeIngressRoles",
+          "rustName": "active_ingress_roles",
+          "value": {
+            "kind": "map",
+            "values": {
+              "kind": "struct",
+              "name": "RuntimeActiveIngressRoleIdentity"
+            }
+          }
+        },
+        {
+          "name": "fragmentedParticipantCount",
+          "rustName": "fragmented_participant_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "fragmentedParticipantTokenScopeDigest",
+          "rustName": "fragmented_participant_token_scope_digest",
+          "value": {
+            "kind": "sha256Digest"
+          }
+        }
+      ],
+      "kind": "struct"
+    },
+    "RuntimeScientificPreflightReceipt": {
+      "fields": [
+        {
+          "name": "protocolVersion",
+          "rustName": "protocol_version",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "key",
+          "rustName": "key",
+          "value": {
+            "kind": "struct",
+            "name": "RuntimeScientificPreflightKey"
+          }
+        },
+        {
+          "name": "keyDigest",
+          "rustName": "key_digest",
+          "value": {
+            "kind": "sha256Digest"
+          }
+        },
+        {
+          "name": "b05Schoedel",
+          "rustName": "b05_schoedel",
+          "value": {
+            "kind": "struct",
+            "name": "RuntimeB05SchoedelPreflightReceipt"
+          }
+        },
+        {
+          "name": "b05SchoedelDigest",
+          "rustName": "b05_schoedel_digest",
+          "value": {
+            "kind": "sha256Digest"
+          }
+        },
+        {
+          "name": "eyesInputPartition",
+          "rustName": "eyes_input_partition",
+          "value": {
+            "kind": "struct",
+            "name": "EyesInputPartitionPreflightResult"
+          }
+        },
+        {
+          "name": "eyesInputPartitionDigest",
+          "rustName": "eyes_input_partition_digest",
+          "value": {
+            "kind": "sha256Digest"
+          }
+        },
+        {
+          "name": "commitDigest",
+          "rustName": "commit_digest",
+          "value": {
+            "kind": "sha256Digest"
+          }
+        }
+      ],
+      "kind": "struct"
+    },
+    "RuntimeScientificSourceBinding": {
+      "fields": [
+        {
+          "name": "roleId",
+          "rustName": "role_id",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "artifactDigest",
+          "rustName": "artifact_digest",
+          "value": {
+            "kind": "sha256Digest"
+          }
+        },
+        {
+          "name": "assignmentId",
+          "rustName": "assignment_id",
+          "value": {
+            "kind": "sha256Digest"
+          }
+        }
+      ],
+      "kind": "struct"
+    },
+    "RuntimeScreenConstructionReceipt": {
+      "fields": [
+        {
+          "name": "protocolVersion",
+          "rustName": "protocol_version",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "strategyId",
+          "rustName": "strategy_id",
+          "value": {
+            "kind": "enum",
+            "name": "ScreenSessionConstructionStrategyId"
+          }
+        },
+        {
+          "name": "relation",
+          "rustName": "relation",
+          "value": {
+            "kind": "enum",
+            "name": "ScientificRelation"
+          }
+        },
+        {
+          "name": "sourceIdentity",
+          "rustName": "source_identity",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "sourceArtifactSha256",
+          "rustName": "source_artifact_sha256",
+          "value": {
+            "inner": {
+              "kind": "sha256Digest"
+            },
+            "kind": "nullable"
+          }
+        },
+        {
+          "name": "sourceLicenseStatus",
+          "rustName": "source_license_status",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "inputRowCount",
+          "rustName": "input_row_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "participantCount",
+          "rustName": "participant_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "intervalCount",
+          "rustName": "interval_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "sessionCount",
+          "rustName": "session_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "glanceCount",
+          "rustName": "glance_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "rightCensoredCount",
+          "rustName": "right_censored_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "issueCounts",
+          "rustName": "issue_counts",
+          "value": {
+            "kind": "map",
+            "values": {
+              "kind": "integer"
+            }
+          }
+        }
+      ],
+      "kind": "struct"
+    },
+    "RuntimeZeroDurationCleanupReceipt": {
+      "fields": [
+        {
+          "name": "protocolVersion",
+          "rustName": "protocol_version",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "requestedApplied",
+          "rustName": "requested_applied",
+          "value": {
+            "kind": "boolean"
+          }
+        },
+        {
+          "name": "effectiveApplied",
+          "rustName": "effective_applied",
+          "value": {
+            "kind": "boolean"
+          }
+        },
+        {
+          "name": "checkpoint",
+          "rustName": "checkpoint",
+          "value": {
+            "kind": "string"
+          }
+        },
+        {
+          "name": "zeroEpisodeCandidateCount",
+          "rustName": "zero_episode_candidate_count",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "removedRowCount",
+          "rustName": "removed_row_count",
+          "value": {
+            "kind": "integer"
+          }
+        }
+      ],
+      "kind": "struct"
+    },
+    "SchoedelRefusalReason": {
+      "kind": "enum",
+      "label": "schoedel refusal reason",
+      "variants": [
+        "ambiguous_equal_timestamp",
+        "unorderable_full_stream_row",
+        "invalid_screen_interval_dependency",
+        "schoedel_full_osf_missing_prerequisites",
+        "capability_evidence_not_bound_to_input"
+      ]
+    },
+    "ScientificPreflightDisposition": {
+      "kind": "enum",
+      "label": "scientific preflight disposition",
+      "variants": [
+        "not_applicable",
+        "executable",
+        "refused"
+      ]
+    },
+    "ScientificRelation": {
+      "kind": "enum",
+      "label": "scientific relation",
+      "variants": [
+        "baseline_native",
+        "baseline_equivalent",
+        "source_native",
+        "source_equivalent",
+        "source_aligned_adapter",
+        "controlled_derivative",
+        "partial_replay",
+        "refused"
+      ]
+    },
+    "ScreenSessionConstructionStrategyId": {
+      "kind": "enum",
+      "label": "screen session construction strategy id",
+      "variants": [
+        "chronicle_screen_interactive_v1",
+        "parry_toth_2025_session_glance_v1",
+        "zhu_2018_unlock_lock_v1",
+        "unlock_to_lock_v1",
+        "unlock_to_off_or_lock_v1"
+      ]
     },
     "StateReason": {
       "fields": [

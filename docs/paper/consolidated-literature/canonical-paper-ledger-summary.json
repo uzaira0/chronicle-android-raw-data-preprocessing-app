@@ -1,0 +1,17 @@
+{
+  "generated_at": "2026-08-30T01:06:05.792Z",
+  "canonical_and_provisional_work_rows": 1119,
+  "retention_state_counts": {
+    "retained_existing_six_slice_corpus": 553,
+    "provisional_review_included_primary_candidate": 498,
+    "retained_review_level_work": 42,
+    "provisional_direct_primary_candidate": 26
+  },
+  "retained_work_rows_now": 595,
+  "provisional_candidate_rows": 524,
+  "fulltext_retrieved_rows": 222,
+  "manual_version_aliases_applied": {
+    "10.48550/arxiv.1910.03970": "10.1038/s41746-021-00514-4"
+  },
+  "warning": "This is the live canonicalization ledger, not the final corpus. Provisional review-included and direct-expansion candidates require scope screening; missing audit fields remain explicit rather than inferred."
+}

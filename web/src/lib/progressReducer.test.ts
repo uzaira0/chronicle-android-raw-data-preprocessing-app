@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { runtimeScientificRefusalFixture } from "@/testSupport/runtimeScientificPreflightFixture";
 
 import { applyProgressEvent } from "@/lib/progressReducer";
 import type { FileProgress } from "@/components/ProgressList";
@@ -73,5 +74,25 @@ describe("applyProgressEvent", () => {
     ]);
     expect(state["a"]?.status).toBe("complete");
     expect(state["b"]?.status).toBe("running");
+  });
+
+  it("retains the exact typed scientific refusal and clears it on retry", () => {
+    const fileName = "fragmented.csv";
+    const receipt = runtimeScientificRefusalFixture();
+    const refused = run([
+      {
+        type: "file-complete",
+        fileName,
+        error: "typed refusal",
+        scientificPreflightRefusal: receipt,
+      },
+    ]);
+    expect(refused[fileName]?.scientificPreflightRefusal).toBe(receipt);
+    const retried = applyProgressEvent(refused, {
+      type: "file-complete",
+      fileName,
+    });
+    expect(retried[fileName]?.scientificPreflightRefusal).toBeUndefined();
+    expect(retried[fileName]?.error).toBeUndefined();
   });
 });

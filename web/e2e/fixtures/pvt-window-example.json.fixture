@@ -1,0 +1,103 @@
+{
+  "task_occurrences": [
+    {
+      "task_occurrence_id": "example:diary-completion",
+      "method_profile_id": "method-profile:doi:10.1145/2935334.2935383",
+      "source_work_id": "doi:10.1145/2935334.2935383",
+      "participant_id": "example:participant",
+      "record_origin": "analyst_constructed_example",
+      "task_label": "Independent previous-night diary completion; no inferred join to period records",
+      "task_questionnaire_responses": [
+        {"questionnaire_response_id":"example:diary-duration","questionnaire_setting_reference":"method-setting-e92f2c21e6f7810af2b0343a","observed_property":"total sleep duration","response_value_json":"7.00","source_locators":["Murnane2016 PDFp3 Sleep and Chronotype; hypothetical supplied value, not recovered answer coding"]},
+        {"questionnaire_response_id":"example:diary-interruptions","questionnaire_setting_reference":"method-setting-e92f2c21e6f7810af2b0343a","observed_property":"sleep disruptions","response_value_json":"1","source_locators":["Murnane2016 PDFp3 Sleep and Chronotype; hypothetical supplied value"]}
+      ],
+      "source_locators": ["Murnane2016 PDF SHA256 103fed161868c1fd6e39583c27dba440b78bdaa6f5c23988edfad13e753fafc4; PDFp3"]
+    },
+    {
+      "task_occurrence_id": "example:pvt-assessment",
+      "method_profile_id": "method-profile:doi:10.1145/2935334.2935383",
+      "source_work_id": "doi:10.1145/2935334.2935383",
+      "participant_id": "example:participant",
+      "record_origin": "analyst_constructed_example",
+      "task_label": "PVT-Touch assessment; supplied summary, not individual trial timing",
+      "denotes_interval": {"duration_seconds":180},
+      "task_actions": [
+        {"task_action_id":"example:measurement","action_label":"Alertness measurement","source_locators":["Murnane2016 PDFp4 PVT-Touch; method-setting-1faf79744042dcbcdbc41d26; no original trial or clock identity inferred"]}
+      ],
+      "criterion_assessments": [
+        {"criterion_assessment_id":"example:baseline-deviation","criterion_setting_reference":"method-setting-8cd1272f338147c84a96e957","criterion_label":"Supplied deviation from participant baseline; percent-scale convention not recovered","assessment_value_json":"0.25","support_task_action_references":["example:measurement"],"source_locators":["Murnane2016 PDFp4; hypothetical supplied result, no outlier exclusion, baseline or scoring executed"]}
+      ],
+      "task_observation_windows": [
+        {
+          "observation_window_id":"example:surrounding-hour",
+          "window_setting_references":["method-setting-26cc9852415d7b1f26acb5f5","method-setting-e716db410fae9cd509db8e06","method-setting-7472bd775cdce537636d4c17","method-setting-9ed237df2ae3713bb6e78758"],
+          "anchor_task_action_reference":"example:measurement",
+          "denotes_interval":{"duration_seconds":3600},
+          "quantities":[
+            {"observed_property":"mean seconds per usage session during T","evidence_value_json":"30.00","evidence_unit":"seconds"},
+            {"observed_property":"distinct apps used during T","evidence_value_json":"2"},
+            {"observed_property":"app switches during T","evidence_value_json":"1"}
+          ],
+          "source_locators":["Murnane2016 PDFp7 Gauging Alertness Level from App Use Features; supplied summaries; surrounding does not establish centered offsets, session closer, event completeness or partial-session allocation"]
+        }
+      ],
+      "source_locators":["Murnane2016 PDFpp4,7; constructed assessment, not a phone-use session or diary day"]
+    }
+  ],
+  "participant_day_observations": [
+    {
+      "day_observation_id":"example:sleep-duration",
+      "method_profile_id":"method-profile:doi:10.1145/2935334.2935383",
+      "source_work_id":"doi:10.1145/2935334.2935383",
+      "participant_id":"example:participant",
+      "referenced_night_token":"example:night-A",
+      "day_record_origin":"analyst_constructed_example",
+      "day_observation_kind":"subjective_response",
+      "observed_property":"prior-night sleep duration",
+      "day_observation_value_json":"7.00",
+      "evidence_unit":"hours",
+      "cross_period_aggregate_references":[
+        {"day_observation_id":"example:productivity-use","referenced_day_token":"example:following-day-B","relationship_label":"prior-night sleep duration compared with following-day app use","source_locators":["Murnane2016 PDFp7; method-setting-20b15a9e6eeca8ba5fd87ae6; supplied relationship, no adjacency computed"]}
+      ],
+      "source_locators":["Murnane2016 PDFpp3,7; supplied night identity, not a calendar day or original source serializer"]
+    },
+    {
+      "day_observation_id":"example:productivity-use",
+      "method_profile_id":"method-profile:doi:10.1145/2935334.2935383",
+      "source_work_id":"doi:10.1145/2935334.2935383",
+      "participant_id":"example:participant",
+      "referenced_day_token":"example:following-day-B",
+      "day_record_origin":"analyst_constructed_example",
+      "day_observation_kind":"objective_aggregate",
+      "observed_property":"following-day app use",
+      "observation_category":"Productivity",
+      "day_observation_value_json":null,
+      "source_locators":["Murnane2016 PDFp7; supplied independent aggregate; value/unit unresolved, not zero or a reported cohort effect"]
+    },
+    {
+      "day_observation_id":"example:night-event-count",
+      "method_profile_id":"method-profile:doi:10.1145/2935334.2935383",
+      "source_work_id":"doi:10.1145/2935334.2935383",
+      "participant_id":"example:participant",
+      "referenced_night_token":"example:night-A",
+      "day_record_origin":"analyst_constructed_example",
+      "day_observation_kind":"objective_aggregate",
+      "observed_property":"app-use events between diary-reported sleep onset and waking",
+      "day_observation_value_json":"2",
+      "source_locators":["Murnane2016 PDFp8; method-setting-02ffb483a26daa3c69fef96e; hypothetical supplied count, no endpoints or counts reconstructed"]
+    },
+    {
+      "day_observation_id":"example:reported-interruptions",
+      "method_profile_id":"method-profile:doi:10.1145/2935334.2935383",
+      "source_work_id":"doi:10.1145/2935334.2935383",
+      "participant_id":"example:participant",
+      "referenced_night_token":"example:night-A",
+      "day_record_origin":"analyst_constructed_example",
+      "day_observation_kind":"subjective_response",
+      "observed_property":"reported sleep interruptions",
+      "day_observation_value_json":"1",
+      "aggregate_observation_references":["example:night-event-count"],
+      "source_locators":["Murnane2016 PDFp8; supplied comparison membership, not causal attribution or count equality"]
+    }
+  ]
+}

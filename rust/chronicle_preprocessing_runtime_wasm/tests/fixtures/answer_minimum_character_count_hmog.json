@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "chronicle-answer-character-count-threshold-source-fixture/v1",
+  "sourceWorkId": "doi:10.1109/tifs.2015.2506542",
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-f40dd0d3ae5d9d47c9738214",
+    "parameterKey": "study.minimum_characters_per_answer",
+    "sourceObservedSetting": "study.minimum_characters_per_answer: 250",
+    "sourceValueSha256": "8a977db916d05518c18d2ee5fb169162ac0a0260f3ff758d82c735ee4430cdc7"
+  },
+  "sourceArtifact": {
+    "locator": ".tmp-literature-review-private/corrective-packet-04-ranks-074-123-20260831/text/112.txt:249-250",
+    "sha256": "769cd3fcfeacc85e78a0dd7b1a11c75f615ac115ac93c1ece6d28c3cd7bf44fc"
+  },
+  "inputBoundary": "One already-derived nonnegative source-aligned character count for one answer.",
+  "outputBoundary": "Classify the answer as below the described requirement under 250 characters and meeting it at or above 250 characters; equality meets the requirement.",
+  "limitations": [
+    "This binding does not choose how a character is counted; byte, code-point, grapheme, and normalization semantics remain an upstream source-profile input.",
+    "This binding does not clean answer text or derive its character count.",
+    "This binding does not construct questions, prompts, or typing sessions.",
+    "This binding does not determine completion across the source protocol's three answers per session or eight sessions.",
+    "This binding does not extract touch or keystroke features or run an authentication model.",
+    "A missing answer character count fails closed rather than being interpreted as zero."
+  ],
+  "minimumCharacters": 250,
+  "dispositions": ["below_requirement", "meets_requirement"],
+  "answers": [
+    {
+      "observationId": "immediately-below",
+      "characterCount": 249,
+      "expectedDisposition": "below_requirement"
+    },
+    {
+      "observationId": "at-boundary",
+      "characterCount": 250,
+      "expectedDisposition": "meets_requirement"
+    },
+    {
+      "observationId": "above-boundary",
+      "characterCount": 251,
+      "expectedDisposition": "meets_requirement"
+    }
+  ],
+  "missingCountCase": {
+    "observationId": "missing-character-count",
+    "characterCount": null,
+    "expectedError": "answer_character_count_required"
+  }
+}

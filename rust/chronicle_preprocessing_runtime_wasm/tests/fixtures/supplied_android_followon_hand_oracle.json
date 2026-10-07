@@ -1,0 +1,534 @@
+{
+  "schema": "source-android-followon-hand-oracle/v1",
+  "numeric_comparison": "independent decimal hand expectations, finite binary64 tolerance1e-13; literal identities, counts, statuses and predicates exact",
+  "cases": [
+    {
+      "component": "chronicle.prefminer-supplied-term-frequency/v1",
+      "stage": "PrefTerm",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,term_id,participation_days,selected_N,notifications_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-complete-paper-notification-term-presence,app,word,2,2,\"[{\"\"item_id\"\":\"\"n1\"\",\"\"source_order\"\":0,\"\"value\"\":true},{\"\"item_id\"\":\"\"n2\"\",\"\"source_order\"\":1,\"\"value\"\":false}]\""
+      ],
+      "expected_result_json": {
+        "total_notifications": 2,
+        "notifications_containing_term": 1,
+        "term_frequency": 0.5,
+        "participation_days": 2,
+        "selected_N": 2,
+        "alternatives": [
+          {
+            "N": 1,
+            "threshold": 1,
+            "remove_strict_lower": true
+          },
+          {
+            "N": 2,
+            "threshold": 0.5,
+            "remove_strict_lower": false
+          },
+          {
+            "N": 3,
+            "threshold": 0.3333333333333333,
+            "remove_strict_lower": false
+          },
+          {
+            "N": 4,
+            "threshold": 0.25,
+            "remove_strict_lower": false
+          },
+          {
+            "N": 5,
+            "threshold": 0.2,
+            "remove_strict_lower": false
+          },
+          {
+            "N": 6,
+            "threshold": 0.16666666666666666,
+            "remove_strict_lower": false
+          },
+          {
+            "N": 7,
+            "threshold": 0.14285714285714285,
+            "remove_strict_lower": false
+          }
+        ],
+        "status": "computed_paper_presence_TF"
+      },
+      "expected_source_row_count": 1,
+      "method_setting_ids": [
+        "method-setting-a19145fb84a61eb5274e1b7e"
+      ],
+      "hand_math": "TF1/2, threshold2/(N*2), strict lower removes only N1 and retains N2 equality"
+    },
+    {
+      "component": "chronicle.prefminer-supplied-app-click-rate/v1",
+      "stage": "PrefReminder",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,notifications_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-complete-paper-app-accepted-notifications,app,\"[{\"\"item_id\"\":\"\"n1\"\",\"\"source_order\"\":0,\"\"value\"\":false},{\"\"item_id\"\":\"\"n2\"\",\"\"source_order\"\":1,\"\"value\"\":false}]\""
+      ],
+      "expected_result_json": {
+        "total": 2,
+        "true_count": 0,
+        "value": 0,
+        "zero_click_reminder": true,
+        "status": "computed_supplied_inventory"
+      },
+      "expected_source_row_count": 1,
+      "method_setting_ids": [
+        "method-setting-7ac05b6298bf3b882526597d"
+      ],
+      "hand_math": "0/2*100=0, known nonempty zero application click rate"
+    },
+    {
+      "component": "chronicle.dingler-supplied-attendance-delay/v1",
+      "stage": "DinglerAttendance",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,coordinate_unit,timestamp_precision,notification_id,start_anchor_json,end_anchor_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-notification-arrival-first-inferred-attendance,s,1,n1,\"{\"\"source_event_id\"\":\"\"arrival\"\",\"\"event_role\"\":\"\"notification_arrival\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":2}\",\"{\"\"source_event_id\"\":\"\"attendance\"\",\"\"event_role\"\":\"\"first_inferred_attendance\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":5}\""
+      ],
+      "expected_result_json": {
+        "elapsed_coordinate_units": "3",
+        "coordinate_unit": "s",
+        "stroke_time_ms": null,
+        "status": "computed_supplied_endpoints"
+      },
+      "expected_source_row_count": 1,
+      "method_setting_ids": [
+        "method-setting-d8fc995910c92989b35c50d7"
+      ],
+      "hand_math": "5−2=3 declared seconds"
+    },
+    {
+      "component": "chronicle.multidevice-supplied-android-active-time/v1",
+      "stage": "MultiActive",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,device_type,day_id,coordinate_unit,timestamp_precision,intervals_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-complete-disjoint-closed-screen-on-device-day,phone,qualifiedDay,s,1,\"[{\"\"interval_id\"\":\"\"on1\"\",\"\"source_order\"\":0,\"\"start\"\":{\"\"source_event_id\"\":\"\"s1\"\",\"\"event_role\"\":\"\"screen_on\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":0},\"\"end\"\":{\"\"source_event_id\"\":\"\"e1\"\",\"\"event_role\"\":\"\"screen_off\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":3}},{\"\"interval_id\"\":\"\"on2\"\",\"\"source_order\"\":1,\"\"start\"\":{\"\"source_event_id\"\":\"\"s2\"\",\"\"event_role\"\":\"\"screen_on\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":4},\"\"end\"\":{\"\"source_event_id\"\":\"\"e2\"\",\"\"event_role\"\":\"\"screen_off\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":9}}]\""
+      ],
+      "expected_result_json": {
+        "closed_interval_count": 2,
+        "active_time_coordinate_units": "8",
+        "active_time_binary64": 8,
+        "coordinate_unit": "s",
+        "status": "computed_supplied_closed_screen_on_sum"
+      },
+      "expected_source_row_count": 1,
+      "method_setting_ids": [
+        "method-setting-00e6cd067eaa64307cd338b6"
+      ],
+      "hand_math": "(3−0)+(9−4)=8 coordinate seconds"
+    },
+    {
+      "component": "chronicle.mathur-supplied-signed-app-gap/v1",
+      "stage": "MathurGap",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,coordinate_unit,timestamp_precision,context_id,start_anchor_json,end_anchor_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-previous-app-close-current-app-open,s,1,context,\"{\"\"source_event_id\"\":\"\"close\"\",\"\"event_role\"\":\"\"previous_app_close\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":10}\",\"{\"\"source_event_id\"\":\"\"open\"\",\"\"event_role\"\":\"\"current_app_open\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":5}\""
+      ],
+      "expected_result_json": {
+        "elapsed_coordinate_units": "-5",
+        "coordinate_unit": "s",
+        "stroke_time_ms": null,
+        "status": "computed_supplied_endpoints"
+      },
+      "expected_source_row_count": 1,
+      "method_setting_ids": [
+        "method-setting-1a5636e53d46b78980e59a80"
+      ],
+      "hand_math": "5−10=−5, signed source gap not an absolute duration"
+    },
+    {
+      "component": "chronicle.mathur-supplied-active-time-ratio/v1",
+      "stage": "MathurRatio",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,last_hour_id,active_time_unit,last_hour_app_count,last_hour_active_time",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-lasthour-count-and-active-time,qualifiedHour,caller-minute,6,1.5"
+      ],
+      "expected_result_json": {
+        "app_count": 6,
+        "active_time": 1.5,
+        "active_time_unit": "caller-minute",
+        "apps_per_declared_active_time_unit": 4,
+        "status": "computed_caller_unit_quotient"
+      },
+      "expected_source_row_count": 1,
+      "method_setting_ids": [
+        "method-setting-8ea1938bd28e273ef56b296d"
+      ],
+      "hand_math": "6/1.5=4 apps per explicitly declared caller-minute"
+    },
+    {
+      "component": "chronicle.dismissed-supplied-daily-category-median/v1",
+      "stage": "DismissedDaily",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,category_id,users_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-complete-category-user-day-count-inventories,social,\"[{\"\"user_id\"\":\"\"u1\"\",\"\"days\"\":[{\"\"day_id\"\":\"\"d1\"\",\"\"count\"\":2},{\"\"day_id\"\":\"\"d2\"\",\"\"count\"\":4}]},{\"\"user_id\"\":\"\"u2\"\",\"\"days\"\":[{\"\"day_id\"\":\"\"d1\"\",\"\"count\"\":1}]}]\""
+      ],
+      "expected_result_json": {
+        "user_means": [
+          {
+            "user_id": "u1",
+            "mean_notifications_per_day": 3
+          },
+          {
+            "user_id": "u2",
+            "mean_notifications_per_day": 1
+          }
+        ],
+        "median_user_daily_mean": 2,
+        "status": "computed_mean_per_user_then_median"
+      },
+      "expected_source_row_count": 1,
+      "method_setting_ids": [
+        "method-setting-349570e1a0fe52cbd67bb6b9"
+      ],
+      "hand_math": "means(2,4)=3; mean(1)=1; median(3,1)=2, not pooled7/3"
+    },
+    {
+      "component": "chronicle.dismissed-supplied-category-conversion/v1",
+      "stage": "DismissedConversion",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,category_id,notifications_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-complete-source-eligible-category-consumed-notifications,social,\"[{\"\"item_id\"\":\"\"n1\"\",\"\"source_order\"\":0,\"\"value\"\":true},{\"\"item_id\"\":\"\"n2\"\",\"\"source_order\"\":1,\"\"value\"\":true},{\"\"item_id\"\":\"\"n3\"\",\"\"source_order\"\":2,\"\"value\"\":false}]\""
+      ],
+      "expected_result_json": {
+        "total": 3,
+        "true_count": 2,
+        "value": 0.6666666666666666,
+        "zero_click_reminder": null,
+        "status": "computed_supplied_inventory"
+      },
+      "expected_source_row_count": 1,
+      "method_setting_ids": [
+        "method-setting-49cd0078bd78e3fdebdf49ae"
+      ],
+      "hand_math": "2/3"
+    },
+    {
+      "component": "chronicle.sarsen-supplied-hour-launch-count/v1",
+      "stage": "SarsenCount",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,hour_id,launches_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-complete-phone-participant-hour-launches,qualifiedHour,\"[{\"\"item_id\"\":\"\"l1\"\",\"\"source_order\"\":0},{\"\"item_id\"\":\"\"l2\"\",\"\"source_order\"\":1},{\"\"item_id\"\":\"\"l3\"\",\"\"source_order\"\":2}]\""
+      ],
+      "expected_result_json": {
+        "launch_count": 3,
+        "status": "computed_supplied_hour_launch_count"
+      },
+      "expected_source_row_count": 1,
+      "method_setting_ids": [
+        "method-setting-72f874d60f058654bb36f63e"
+      ],
+      "hand_math": "3 supplied launch occurrences"
+    },
+    {
+      "component": "chronicle.sarsen-supplied-hour-duration-total/v1",
+      "stage": "SarsenDuration",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,hour_id,duration_unit,contributions_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-complete-phone-participant-hour-durations,qualifiedHour,caller-seconds,\"[{\"\"item_id\"\":\"\"c1\"\",\"\"source_order\"\":0,\"\"value\"\":1.5},{\"\"item_id\"\":\"\"c2\"\",\"\"source_order\"\":1,\"\"value\"\":2.5}]\""
+      ],
+      "expected_result_json": {
+        "contribution_count": 2,
+        "duration_total": 4,
+        "duration_unit": "caller-seconds",
+        "status": "computed_supplied_hour_duration_sum"
+      },
+      "expected_source_row_count": 1,
+      "method_setting_ids": [
+        "method-setting-a73523f53b02143147c2b0fc"
+      ],
+      "hand_math": "1.5+2.5=4 declared duration units"
+    },
+    {
+      "component": "chronicle.finesse-supplied-session-feature-fraction/v1",
+      "stage": "FinessePresence",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,feature_id,sessions_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-complete-nonempty-app-session-feature-presence,app,feature,\"[{\"\"item_id\"\":\"\"s1\"\",\"\"source_order\"\":0,\"\"value\"\":true},{\"\"item_id\"\":\"\"s2\"\",\"\"source_order\"\":1,\"\"value\"\":true},{\"\"item_id\"\":\"\"s3\"\",\"\"source_order\"\":2,\"\"value\"\":false},{\"\"item_id\"\":\"\"s4\"\",\"\"source_order\"\":3,\"\"value\"\":true}]\""
+      ],
+      "expected_result_json": {
+        "total": 4,
+        "true_count": 3,
+        "value": 0.75,
+        "zero_click_reminder": null,
+        "status": "computed_supplied_inventory"
+      },
+      "expected_source_row_count": 1,
+      "method_setting_ids": [
+        "method-setting-116fac65a8d5052c590bd5d8"
+      ],
+      "hand_math": "3/4 session feature presence, not feature instance count"
+    },
+    {
+      "component": "chronicle.touchposter-supplied-stroke-time/v1",
+      "stage": "TouchStroke",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,coordinate_unit,timestamp_precision,stroke_id,start_anchor_json,end_anchor_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-closed-touch-scanning-stroke,ms,1,stroke,\"{\"\"source_event_id\"\":\"\"touchDown\"\",\"\"event_role\"\":\"\"stroke_start\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":2}\",\"{\"\"source_event_id\"\":\"\"touchUp\"\",\"\"event_role\"\":\"\"stroke_end\"\",\"\"clock_id\"\":\"\"clk\"\",\"\"coordinate\"\":5}\""
+      ],
+      "expected_result_json": {
+        "elapsed_coordinate_units": "3",
+        "coordinate_unit": "ms",
+        "stroke_time_ms": 3,
+        "status": "computed_supplied_endpoints"
+      },
+      "expected_source_row_count": 1,
+      "method_setting_ids": [
+        "method-setting-801d3dca71f1fc8effb3a37c",
+        "method-setting-8d5e625457005a75de903856"
+      ],
+      "hand_math": "5−2=3 milliseconds"
+    },
+    {
+      "component": "chronicle.hush-supplied-beta-sensitivity/v1",
+      "stage": "HushBeta",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,sequence_origin,observations_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-complete-ordered-app-active-background-following-screen-on,app,caller-qualified-source-sequence-from-initial-0.5,\"[{\"\"background_interval_id\"\":\"\"b1\"\",\"\"following_screen_on_interval_id\"\":\"\"on1\"\",\"\"source_order\"\":0,\"\"x_foreground\"\":false,\"\"was_suppressed\"\":false},{\"\"background_interval_id\"\":\"\"b2\"\",\"\"following_screen_on_interval_id\"\":\"\"on2\"\",\"\"source_order\"\":1,\"\"x_foreground\"\":false,\"\"was_suppressed\"\":true}]\""
+      ],
+      "expected_result_json": {
+        "selections": [
+          0.1,
+          0.5,
+          0.9
+        ],
+        "results": [
+          {
+            "background_count": 2,
+            "foreground_count": 0,
+            "static_bfc": 0,
+            "initial_bfc": 0.5,
+            "beta": 0.1,
+            "updates": [
+              {
+                "background_interval_id": "b1",
+                "following_screen_on_interval_id": "on1",
+                "source_order": 0,
+                "was_suppressed": false,
+                "previous_bfc": 0.5,
+                "bfc": 0.05
+              },
+              {
+                "background_interval_id": "b2",
+                "following_screen_on_interval_id": "on2",
+                "source_order": 1,
+                "was_suppressed": true,
+                "previous_bfc": 0.05,
+                "bfc": 0.005
+              }
+            ],
+            "status": "computed_supplied_sequence"
+          },
+          {
+            "background_count": 2,
+            "foreground_count": 0,
+            "static_bfc": 0,
+            "initial_bfc": 0.5,
+            "beta": 0.5,
+            "updates": [
+              {
+                "background_interval_id": "b1",
+                "following_screen_on_interval_id": "on1",
+                "source_order": 0,
+                "was_suppressed": false,
+                "previous_bfc": 0.5,
+                "bfc": 0.25
+              },
+              {
+                "background_interval_id": "b2",
+                "following_screen_on_interval_id": "on2",
+                "source_order": 1,
+                "was_suppressed": true,
+                "previous_bfc": 0.25,
+                "bfc": 0.125
+              }
+            ],
+            "status": "computed_supplied_sequence"
+          },
+          {
+            "background_count": 2,
+            "foreground_count": 0,
+            "static_bfc": 0,
+            "initial_bfc": 0.5,
+            "beta": 0.9,
+            "updates": [
+              {
+                "background_interval_id": "b1",
+                "following_screen_on_interval_id": "on1",
+                "source_order": 0,
+                "was_suppressed": false,
+                "previous_bfc": 0.5,
+                "bfc": 0.45
+              },
+              {
+                "background_interval_id": "b2",
+                "following_screen_on_interval_id": "on2",
+                "source_order": 1,
+                "was_suppressed": true,
+                "previous_bfc": 0.45,
+                "bfc": 0.405
+              }
+            ],
+            "status": "computed_supplied_sequence"
+          }
+        ],
+        "status": "computed_disclosed_alternatives"
+      },
+      "expected_source_row_count": 1,
+      "method_setting_ids": [
+        "method-setting-0d2d52fbda7e70a66e882863"
+      ],
+      "hand_math": "initial.5: false,false yields beta.1=.05,.005; beta.5=.25,.125; beta.9=.45,.405"
+    },
+    {
+      "component": "chronicle.hush-supplied-alpha-sensitivity/v1",
+      "stage": "HushAlpha",
+      "raw_csv_lines": [
+        "source_row_id,participant_id,source_device_id,source_stream_id,source_platform,scope_id,input_stage,app_id,beta,sequence_origin,observations_json",
+        "row1,participantA,deviceA,streamA,Android,scope1,caller-qualified-complete-ordered-app-active-background-following-screen-on,app,0.5,caller-qualified-source-sequence-from-initial-0.5,\"[{\"\"background_interval_id\"\":\"\"b1\"\",\"\"following_screen_on_interval_id\"\":\"\"on1\"\",\"\"source_order\"\":0,\"\"x_foreground\"\":false,\"\"was_suppressed\"\":false},{\"\"background_interval_id\"\":\"\"b2\"\",\"\"following_screen_on_interval_id\"\":\"\"on2\"\",\"\"source_order\"\":1,\"\"x_foreground\"\":false,\"\"was_suppressed\"\":true}]\""
+      ],
+      "expected_result_json": {
+        "selections": [
+          0,
+          0.1,
+          0.2,
+          0.8
+        ],
+        "results": [
+          {
+            "background_count": 2,
+            "foreground_count": 0,
+            "static_bfc": 0,
+            "initial_bfc": 0.5,
+            "beta": 0.5,
+            "alpha": 0,
+            "updates": [
+              {
+                "background_interval_id": "b1",
+                "following_screen_on_interval_id": "on1",
+                "source_order": 0,
+                "was_suppressed": false,
+                "previous_bfc": 0.5,
+                "bfc": 0.25,
+                "suppress_using_previous_bfc": false,
+                "suppress_using_updated_bfc": false
+              },
+              {
+                "background_interval_id": "b2",
+                "following_screen_on_interval_id": "on2",
+                "source_order": 1,
+                "was_suppressed": true,
+                "previous_bfc": 0.25,
+                "bfc": 0.125,
+                "suppress_using_previous_bfc": false,
+                "suppress_using_updated_bfc": false
+              }
+            ],
+            "status": "computed_supplied_sequence"
+          },
+          {
+            "background_count": 2,
+            "foreground_count": 0,
+            "static_bfc": 0,
+            "initial_bfc": 0.5,
+            "beta": 0.5,
+            "alpha": 0.1,
+            "updates": [
+              {
+                "background_interval_id": "b1",
+                "following_screen_on_interval_id": "on1",
+                "source_order": 0,
+                "was_suppressed": false,
+                "previous_bfc": 0.5,
+                "bfc": 0.25,
+                "suppress_using_previous_bfc": false,
+                "suppress_using_updated_bfc": false
+              },
+              {
+                "background_interval_id": "b2",
+                "following_screen_on_interval_id": "on2",
+                "source_order": 1,
+                "was_suppressed": true,
+                "previous_bfc": 0.25,
+                "bfc": 0.125,
+                "suppress_using_previous_bfc": false,
+                "suppress_using_updated_bfc": false
+              }
+            ],
+            "status": "computed_supplied_sequence"
+          },
+          {
+            "background_count": 2,
+            "foreground_count": 0,
+            "static_bfc": 0,
+            "initial_bfc": 0.5,
+            "beta": 0.5,
+            "alpha": 0.2,
+            "updates": [
+              {
+                "background_interval_id": "b1",
+                "following_screen_on_interval_id": "on1",
+                "source_order": 0,
+                "was_suppressed": false,
+                "previous_bfc": 0.5,
+                "bfc": 0.25,
+                "suppress_using_previous_bfc": false,
+                "suppress_using_updated_bfc": false
+              },
+              {
+                "background_interval_id": "b2",
+                "following_screen_on_interval_id": "on2",
+                "source_order": 1,
+                "was_suppressed": true,
+                "previous_bfc": 0.25,
+                "bfc": 0.125,
+                "suppress_using_previous_bfc": false,
+                "suppress_using_updated_bfc": true
+              }
+            ],
+            "status": "computed_supplied_sequence"
+          },
+          {
+            "background_count": 2,
+            "foreground_count": 0,
+            "static_bfc": 0,
+            "initial_bfc": 0.5,
+            "beta": 0.5,
+            "alpha": 0.8,
+            "updates": [
+              {
+                "background_interval_id": "b1",
+                "following_screen_on_interval_id": "on1",
+                "source_order": 0,
+                "was_suppressed": false,
+                "previous_bfc": 0.5,
+                "bfc": 0.25,
+                "suppress_using_previous_bfc": true,
+                "suppress_using_updated_bfc": true
+              },
+              {
+                "background_interval_id": "b2",
+                "following_screen_on_interval_id": "on2",
+                "source_order": 1,
+                "was_suppressed": true,
+                "previous_bfc": 0.25,
+                "bfc": 0.125,
+                "suppress_using_previous_bfc": true,
+                "suppress_using_updated_bfc": true
+              }
+            ],
+            "status": "computed_supplied_sequence"
+          }
+        ],
+        "status": "computed_disclosed_alternatives"
+      },
+      "expected_source_row_count": 1,
+      "method_setting_ids": [
+        "method-setting-0a5696f82fd22474da54b2c5"
+      ],
+      "hand_math": "beta.5 state.5→.25→.125; <=alphas0,.1,.2,.8 separately, updated value applies next opportunity"
+    }
+  ]
+}

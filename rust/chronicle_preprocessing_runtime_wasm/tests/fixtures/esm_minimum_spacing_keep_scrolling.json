@@ -1,0 +1,69 @@
+{
+  "schemaVersion": "chronicle-esm-minimum-spacing-source-fixture/v1",
+  "sourceWorkId": "doi:10.1016/j.chb.2023.107977",
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-00df33a6d005b66b496e1aca",
+    "parameterKey": "profile.esm_spacing",
+    "sourceObservedSetting": "profile.esm_spacing: Exclude ESM observations spaced less than 60 minutes apart",
+    "sourceValueSha256": "7f8eb49abebf3045be4d75d96f8b91e1285e9b0d24dbfa0fc4a2e52b997388f0"
+  },
+  "sourceArtifacts": [
+    {
+      "locator": ".tmp-literature-review-private/corrective-packet-08-ranks277-329-20260831/fulltext/rank287-supplement.txt:63-75",
+      "sha256": "7e8088c9ff442f7df17706781d74db55ac485735d072ffbfbdfd0ba452b083db"
+    },
+    {
+      "locator": ".tmp-literature-review-private/corrective-packet-08-ranks277-329-20260831/work/rank287-archive/SmartphoneUsage_Wellbeing/scripts/featureExtraction/01_SOURCE_featureExtraction_DatasetA.R:65-78",
+      "sha256": "418fde38159e1ffdf4dfe2683ba4fd6e29c1e8901f80658c4b6feb8ac947efdf"
+    },
+    {
+      "locator": ".tmp-literature-review-private/corrective-packet-08-ranks277-329-20260831/work/rank287-archive/SmartphoneUsage_Wellbeing/scripts/featureExtraction/02_SOURCE_featureExtraction_DatasetB.R:66-79",
+      "sha256": "a7f32264046ee953d1aa8aefef01dd8af7ea338754a776e377677fb48aa426b9"
+    },
+    {
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/source-completeness-audits/doi-10.1016-j.chb.2023.107977.json",
+      "sha256": "d8373a36a2e56fe0ee44fed23b8ea8b196a883638245d93ffe3de85a6e17e56c"
+    }
+  ],
+  "inputBoundary": "One caller-supplied finite nonnegative difference in minutes between corrected questionnaire-start timestamps for a row and its lagged row after the source's one-time ordering by raw questionnaire-start timestamp.",
+  "outputBoundary": "Exclude the later row when that precomputed gap is strictly less than 60 minutes and retain it at equality or above.",
+  "limitations": [
+    "This predicate does not sort rows, correct timestamps, partition participants, or choose the lagged row; those source operations occur upstream.",
+    "The released code computes every lag before removing rows, so the lag is the immediately previous prefilter row rather than the previous retained row.",
+    "The first ordered row has no lag and is retained by the source's R which/index removal; that first-row branch is outside this scalar predicate.",
+    "The paper-level wording says within 60 minutes of another questionnaire, while the released code operationalizes only the preceding-row gap after ordering.",
+    "No timestamp precision, rounding, clock, timezone-correction, or tolerance behavior is inferred beyond the released strict comparison.",
+    "Missing, negative, or nonfinite gap input fails closed rather than being interpreted as a retained first row."
+  ],
+  "minimumRetainedGapMinutes": 60,
+  "dispositions": ["exclude_later_row", "retain_row"],
+  "laggedRows": [
+    {
+      "caseId": "immediately-below",
+      "gapMinutes": 59.999,
+      "expectedDisposition": "exclude_later_row"
+    },
+    {
+      "caseId": "at-boundary",
+      "gapMinutes": 60,
+      "expectedDisposition": "retain_row"
+    },
+    {
+      "caseId": "immediately-above",
+      "gapMinutes": 60.001,
+      "expectedDisposition": "retain_row"
+    }
+  ],
+  "invalidGapCases": [
+    {
+      "caseId": "missing-gap",
+      "gapMinutes": null,
+      "expectedError": "esm_lag_gap_minutes_required"
+    },
+    {
+      "caseId": "negative-gap",
+      "gapMinutes": -0.001,
+      "expectedError": "esm_lag_gap_minutes_must_be_nonnegative_finite"
+    }
+  ]
+}

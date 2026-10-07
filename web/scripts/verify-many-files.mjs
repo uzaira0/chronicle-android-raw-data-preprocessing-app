@@ -102,8 +102,8 @@ function buildSmallCsv(participantId) {
 let stagedFixtureDirectory = null;
 let bytesPerFile;
 let totalInputBytes;
-/** Distinct SHA-256 count over the staged inputs; 1 in duplicate-content mode. */
-let distinctContentCount = null;
+/** @type {number} Distinct SHA-256 count over the staged inputs; 1 in duplicate-content mode. */
+let distinctContentCount;
 let uploadFiles;
 if (fixturePath) {
   const fixture = await stat(fixturePath);
@@ -153,6 +153,14 @@ if (fixturePath) {
   distinctContentCount = new Set(
     sourceFiles.map((sourcePath) => digestByPath.get(sourcePath)),
   ).size;
+  // A directory is the distinct-input mode: every staged file must be a
+  // different input, or the run measures duplicate reuse while claiming
+  // distinct files. A single fixture file is duplicate-content by design.
+  if (fixture.isDirectory() && distinctContentCount !== fileCount) {
+    throw new Error(
+      `${fixturePath}: ${fileCount} files staged but only ${distinctContentCount} distinct SHA-256 contents`,
+    );
+  }
   const sizes = await Promise.all(
     sourceFiles.map(async (sourcePath) => (await stat(sourcePath)).size),
   );
@@ -169,6 +177,15 @@ if (fixturePath) {
   }));
   bytesPerFile = uploadFiles[0]?.buffer.byteLength ?? 0;
   totalInputBytes = bytesPerFile * fileCount;
+  // Generated inputs differ only in their participant id; still prove it.
+  distinctContentCount = new Set(
+    uploadFiles.map((file) => createHash("sha256").update(file.buffer).digest("hex")),
+  ).size;
+  if (distinctContentCount !== fileCount) {
+    throw new Error(
+      `generated ${fileCount} inputs but only ${distinctContentCount} distinct SHA-256 contents`,
+    );
+  }
 }
 
 let browser;
@@ -353,6 +370,8 @@ try {
   await page.addInitScript((traceId) => {
     window.__CHRONICLE_TEST_RUNTIME__ = {
       datetimeOfPreprocessing: "2026-04-24 00:32:53",
+      incrementalEngine: true,
+      provenanceEvidence: true,
       performanceTraceId: traceId,
     };
   }, performanceTraceId);
@@ -405,6 +424,11 @@ try {
 
   phase = "startup";
   await page.goto(target, { waitUntil: "networkidle" });
+  // The injected runtime is honoured only by a test build (npm run build:test);
+  // against a deploy build this would silently measure the default runtime.
+  if ((await page.locator('meta[name="chronicle-test-hooks"]').count()) !== 1) {
+    throw new Error("the served build ignores the injected test runtime: build it with `npm run build:test`");
+  }
   await page
     .getByRole("heading", { name: "Chronicle Android Raw Data Preprocessor" })
     .waitFor();
@@ -769,7 +793,7 @@ try {
       }
     }
     console.log(
-      `Compared ${fileCount} files with the 8-worker A/B path in ${(comparisonElapsedMs / 1000).toFixed(1)}s` +
+      `Compared ${fileCount} files with the ${workerCount}-worker A/B path in ${(comparisonElapsedMs / 1000).toFixed(1)}s` +
         (repeatedComparisonElapsedMs === null
           ? ""
           : `; repeated config edit in ${(repeatedComparisonElapsedMs / 1000).toFixed(1)}s`),

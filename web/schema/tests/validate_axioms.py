@@ -82,9 +82,32 @@ CASES: list[tuple[str, str, str, bool, tuple[str, ...]]] = [
     (
         "A6 an effective-usage measure without provenance is forbidden",
         "EffectiveUsageMeasure",
-        'participant_id: "P1"\ndate: "2026-03-05"\neffective_minutes: 42.0\n',
+        # A credited app EPISODE, which is what the engine emits into
+        # credited_app_csv — not the daily effective_minutes figure this fixture
+        # used to build, which no pipeline path ever produced.
+        'participant_id: "P1"\n'
+        'date: "2026-03-05"\n'
+        'app_package_name: "com.example"\n'
+        "screen_gating_rule: screen_and_liveness_v1\n",
         False,
         ("cite the ParameterSet", "name the operation execution that produced it"),
+    ),
+    (
+        # Positive twin for the reshaped class: proves the credited-episode
+        # shape is instantiable at all. produced_by must be a bare CURIE plus
+        # an EXTRA_TTL node — the inline-object form fails linkml-convert with
+        # "Not a valid CURIE", the C4-C6 identifier-serialization class.
+        "A6 a credited effective-usage episode with provenance conforms",
+        "EffectiveUsageMeasure",
+        'participant_id: "P1"\n'
+        'date: "2026-03-05"\n'
+        'app_package_name: "com.example"\n'
+        "screen_gating_rule: screen_and_liveness_v1\n"
+        'produced_by: "chron:execution-a"\n'
+        "cites_parameter_set:\n"
+        '  parameter_set_sha256: "abc123"\n',
+        True,
+        (),
     ),
     (
         "A7 an operation execution with a start but no end is forbidden",
@@ -208,6 +231,18 @@ CASES: list[tuple[str, str, str, bool, tuple[str, ...]]] = [
 # Without it, the generated `sh:class chron:OperationDefinition` constraint fires
 # for a reason unrelated to the axiom under test.
 EXTRA_TTL: dict[str, str] = {
+    "A6 a credited effective-usage episode with provenance conforms": (
+        "@prefix chron: <https://w3id.org/chronicle-usage-ontology/core/> .\n"
+        "chron:execution-a a chron:OperationExecution ; "
+        'chron:execution_id "chron:execution-a" ; '
+        "chron:executes_operation chron:operation-a ; "
+        "chron:used_parameter_set [ a chron:ParameterSet ; "
+        'chron:parameter_set_sha256 "abc123" ] ; '
+        'chron:started_at "2026-07-19T00:00:00Z" ; '
+        'chron:ended_at "2026-07-19T00:00:01Z" .\n'
+        "chron:operation-a a chron:OperationDefinition ; "
+        'chron:operation_id "chron:operation-a" .\n'
+    ),
     "A7 a complete operation execution conforms": (
         "@prefix chron: <https://w3id.org/chronicle-usage-ontology/core/> .\n"
         "chron:operation-a a chron:OperationDefinition ; "

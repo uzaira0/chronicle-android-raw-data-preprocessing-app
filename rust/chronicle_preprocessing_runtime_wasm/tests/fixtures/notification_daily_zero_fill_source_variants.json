@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "chronicle-notification-daily-zero-fill-source-variants/v1",
+  "sourceWorkId": "doi:10.1080/15213269.2024.2334025",
+  "sourceMethodVariantId": "source-configuration-space-0fb788bc62d547eaaf91bb9a",
+  "sourceArtifact": ".tmp-literature-review-private/corrective-packet-06-ranks174-223-20260831/artifacts/rank209-osf-45q72/osfstorage/Notification-disabling intervention study/Data & Analyses/(2) R script data cleaning [raw survey & tracking data].R",
+  "sourceArtifactSha256": "2bd5bab0c9a917a64f347093972bff72e2b0b5cfd38539a1df229c65cdbd383b",
+  "sourceLocator": "lines 402-419",
+  "exactCanonicalSettingIds": [
+    "method-setting-1a54c43ea05a73d05fb96b06",
+    "method-setting-00b9e68ec2f812485d70c809",
+    "method-setting-b4785babbe7649c9ea815804"
+  ],
+  "componentId": "chronicle.notification-study-daily/v1",
+  "sourceOracleId": "notification-daily-count-source-variants-r-source/sha256:2bd5bab0c9a917a64f347093972bff72e2b0b5cfd38539a1df229c65cdbd383b",
+  "rawCsvLines": [
+    "participant_id,event_timestamp,interaction_type,study_local_date,study_week,intervention_group,tracking_date_observed,notification_observed",
+    "P2,2026-01-02 00:00:00,Activity Resumed,2026-01-02,1,0,true,false",
+    "P1,2026-01-02 00:00:00,Activity Resumed,2026-01-02,0,0,true,false",
+    "P1,2026-01-01 00:00:00,Activity Resumed,2026-01-01,0,0,true,false",
+    "P2,2026-01-01 00:00:00,Activity Resumed,2026-01-01,0,0,true,false",
+    "P1,2026-01-01 00:00:01,Notification Seen,2026-01-01,0,0,false,true",
+    "P1,2026-01-01 00:00:02,Notification Seen,2026-01-01,0,0,false,true",
+    "P2,2026-01-02 00:00:01,Notification Seen,2026-01-02,1,0,false,true",
+    "OUTSIDE_SPINE,2026-01-03 00:00:01,Notification Seen,2026-01-03,0,0,false,true"
+  ],
+  "spine": [
+    {"participantId":"P2","date":"2026-01-02"},
+    {"participantId":"P1","date":"2026-01-02"},
+    {"participantId":"P1","date":"2026-01-01"},
+    {"participantId":"P2","date":"2026-01-01"}
+  ],
+  "postSelectionContacts": [
+    {"participantId":"P1","date":"2026-01-01"},
+    {"participantId":"P1","date":"2026-01-01"},
+    {"participantId":"P2","date":"2026-01-02"},
+    {"participantId":"OUTSIDE_SPINE","date":"2026-01-03"}
+  ],
+  "rOracle": {
+    "executable": "/opt/homebrew/bin/Rscript 4.6.1",
+    "depositedPipelineExecutableLocally": false,
+    "missingPackage": "dplyr",
+    "equivalentRelationalCheck": "base R merge(..., all.x=TRUE), then joined-row length versus non-NA match sum",
+    "releasedCodeCounts": [2, 1, 1, 1],
+    "statedIntendedCounts": [2, 0, 0, 1]
+  },
+  "sourceDiscrepancy": {
+    "releasedCode": "left_join retains one NA placeholder row for an unmatched spine day; group n() therefore returns 1 and replace(is.na(notif_n_day), 0) is inert",
+    "statedIntent": "the line-402 comment and line-413 inline comment say a day without logged notifications should receive numeric zero",
+    "adjudication": "retain two explicit variants; do not identify the zero-fill variant as released-code parity"
+  },
+  "indispensableUpstreamLimitations": [
+    "Contact rows must already have passed notification selection, classification, and cleaning.",
+    "The participant-day spine must already have been derived from observed tracking dates.",
+    "Study-week construction, weekly totals, intervention compliance, exclusions, and modeling are outside this bounded operator."
+  ]
+}

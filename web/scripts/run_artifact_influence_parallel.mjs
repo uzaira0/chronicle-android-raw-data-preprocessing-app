@@ -1,7 +1,8 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { gzipSync } from "node:zlib";
+import { gunzipSync, gzipSync } from "node:zlib";
 import {
+  existsSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -10,10 +11,15 @@ import {
 import { availableParallelism } from "node:os";
 import path from "node:path";
 
-const workerCount = Math.min(
-  6,
-  Math.max(1, Number(process.env.CHRONICLE_CAMPAIGN_WORKERS ?? availableParallelism() - 1)),
+const requestedWorkers = Number(
+  process.env.CHRONICLE_CAMPAIGN_WORKERS ?? availableParallelism() - 1,
 );
+if (!Number.isSafeInteger(requestedWorkers)) {
+  throw new Error(
+    `CHRONICLE_CAMPAIGN_WORKERS must be an integer, got: ${process.env.CHRONICLE_CAMPAIGN_WORKERS}`,
+  );
+}
+const workerCount = Math.min(6, Math.max(1, requestedWorkers));
 const testFile = "src/lib/pipelineGraph/golden/artifactInterventionCampaign.test.ts";
 const expectedFile = path.resolve(
   "src/lib/pipelineGraph/golden/family-expected/artifact-influence-ledger.json",
@@ -103,6 +109,16 @@ try {
   const fixtures = shards
     .flatMap((shard) => shard.evidence.fixtures)
     .sort((left, right) => rankCorpus(left.corpusId) - rankCorpus(right.corpusId));
+  // Mirror the raw-boundary runner: an empty or duplicated shard slice must
+  // fail here, not shrink the witness sets it feeds below.
+  if (
+    fixtures.length !== corpusOrder.length ||
+    new Set(fixtures.map(({ corpusId }) => corpusId)).size !== corpusOrder.length
+  ) {
+    throw new Error(
+      "parallel artifact campaign did not cover every corpus exactly once",
+    );
+  }
   const substantiveIds = new Set(
     reports
       .filter((report) => report.expectedSemanticEffect === "required")
@@ -197,13 +213,22 @@ try {
     caseSetDigest,
   };
   const serialized = `${JSON.stringify(evidence, null, 2)}\n`;
+  // Compare and rewrite the sidecar by CONTENT, not gzip bytes: gzipSync
+  // output depends on the linked zlib version, so a Node upgrade alone would
+  // rewrite (or fail on) the compressed stream while the decompressed
+  // evidence stayed byte-identical. Mirrors the single-process campaigns.
+  const checkedInCellEvidence = existsSync(cellEvidenceFile)
+    ? gunzipSync(readFileSync(cellEvidenceFile)).toString("utf8")
+    : null;
   if (process.env.UPDATE_ARTIFACT_INFLUENCE === "1") {
-    writeFileSync(cellEvidenceFile, cellEvidenceCompressed);
+    if (checkedInCellEvidence !== cellEvidenceSerialized) {
+      writeFileSync(cellEvidenceFile, cellEvidenceCompressed);
+    }
     writeFileSync(expectedFile, serialized, "utf8");
     process.stdout.write("updated artifact influence evidence\n");
   } else if (
     serialized !== readFileSync(expectedFile, "utf8") ||
-    !cellEvidenceCompressed.equals(readFileSync(cellEvidenceFile))
+    checkedInCellEvidence !== cellEvidenceSerialized
   ) {
     throw new Error(
       "parallel artifact influence result differs from checked-in evidence; rerun with UPDATE_ARTIFACT_INFLUENCE=1 only after reviewing the change",

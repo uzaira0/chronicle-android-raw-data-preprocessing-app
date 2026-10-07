@@ -1,0 +1,9 @@
+id: chronicle-ts-inner-html
+valid:
+  - "element.textContent = label;"
+  - "const markup = element.innerHTML;"
+  - "if (element.outerHTML === expected) {}"
+invalid:
+  - "element.innerHTML = label;"
+  - "element.outerHTML = `<b>${label}</b>`;"
+  - "container.innerHTML += row;"

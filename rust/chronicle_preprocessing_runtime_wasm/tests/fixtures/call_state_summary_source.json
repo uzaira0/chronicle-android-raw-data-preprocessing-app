@@ -1,0 +1,73 @@
+{
+  "schemaVersion": "chronicle-call-state-summary-source-fixture/v1",
+  "sourceWorkId": "doi:10.1002/per.2309",
+  "sourceCodeSha256": "74de549e3b9c068339d4a68d94dae623b63e2a8120f06886427ce491a1175532",
+  "sourceTestSha256": "8257552c5fa29eb72ede03b884be65e4cb4a091212f477509928a81a5d7907c6",
+  "sourceLocator": ".tmp-literature-review-private/corrective-packet-06-ranks174-223-20260831/artifacts/rank183-osf-j93bs/osfstorage/processing/feature_extraction/state.py:161-205",
+  "sourceTestLocator": ".tmp-literature-review-private/corrective-packet-06-ranks174-223-20260831/artifacts/rank183-osf-j93bs/osfstorage/processing/feature_extraction/test_state.py:20-49,104-125",
+  "sourceRuntime": {
+    "containerImage": "chronicle/rueegger-per2309:python3.7.1",
+    "containerImageId": "sha256:1ef375425fbba3b0f47c7c07838c12c78d94bea31e06307ed3cfa7834b80f58d",
+    "python": "3.7.1",
+    "numpy": "1.16.2",
+    "pandas": "1.0.5"
+  },
+  "exactCanonicalSettingIds": [
+    "method-setting-4076eae725c960ecbe100733",
+    "method-setting-2a03e83df7b172a01f2f79ac",
+    "method-setting-fab7ec8a3c91721486072c70",
+    "method-setting-c4e83c85eeecb32c9bb15808",
+    "method-setting-f037a13808ebed4bdf17177c"
+  ],
+  "cases": [
+    {
+      "caseId": "released-basic-shape",
+      "states": ["outgoing", "incoming", "outgoing", "outgoing"],
+      "expected": {
+        "incomingCount": 1,
+        "outgoingCount": 3,
+        "totalCount": 4,
+        "missedCount": 0,
+        "incomingResponseRate": "1"
+      }
+    },
+    {
+      "caseId": "exact-vocabulary-and-total-row-count",
+      "states": ["incoming", "outgoing", "missed", "other", null, "INCOMING"],
+      "expected": {
+        "incomingCount": 1,
+        "outgoingCount": 1,
+        "totalCount": 6,
+        "missedCount": 1,
+        "incomingResponseRate": "0.5"
+      }
+    },
+    {
+      "caseId": "zero-response-denominator",
+      "states": ["outgoing", "other", null],
+      "expected": {
+        "incomingCount": 0,
+        "outgoingCount": 1,
+        "totalCount": 3,
+        "missedCount": 0,
+        "incomingResponseRate": "NaN"
+      }
+    },
+    {
+      "caseId": "released-empty-shape",
+      "states": [],
+      "expected": {
+        "incomingCount": 0,
+        "outgoingCount": 0,
+        "totalCount": 0,
+        "missedCount": 0,
+        "incomingResponseRate": "NaN"
+      }
+    }
+  ],
+  "limitations": [
+    "The primitive starts after source call validation, neighbor inclusion, duration-to-window clipping, and row retention; those upstream operations remain separate dependencies.",
+    "It does not implement call-response label matching, time-of-day classification, unique-contact features, duration summaries, or the complete feature aggregator.",
+    "A missing state column on nonempty input remains an upstream schema error; null cells in a present column follow the released comparison behavior and count only toward the total row count."
+  ]
+}

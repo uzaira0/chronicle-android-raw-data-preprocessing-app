@@ -158,8 +158,69 @@ export function SettingsOverviewCard({ options, setOptions }: Props): ReactEleme
                 <option value="long">Long (tidy: one row per metric)</option>
               </select>
             </SettingsField>
+            <SettingsField
+              label="Daily top-app limit"
+              htmlFor="aggregate-top-apps-limit-input"
+              tooltip={TOOLTIPS.aggregateTopAppsLimit}
+              modified={!isOptionDefault("aggregateTopAppsLimit", options.aggregateTopAppsLimit)}
+              onReset={() =>
+                setOptions((current) => ({
+                  ...current,
+                  aggregateTopAppsLimit: DEFAULT_BROWSER_OPTIONS.aggregateTopAppsLimit,
+                }))
+              }
+            >
+              <input
+                id="aggregate-top-apps-limit-input"
+                data-testid="input-aggregateTopAppsLimit"
+                className="input"
+                type="number"
+                min={0}
+                max={1000}
+                step={1}
+                value={options.aggregateTopAppsLimit}
+                onChange={(event) =>
+                  setOptions((current) => ({
+                    ...current,
+                    aggregateTopAppsLimit: Number(event.target.value),
+                  }))
+                }
+              />
+            </SettingsField>
           </div>
         ) : null}
+        {options.enableParticipantAmountSummary && !options.processAppUsage ? (
+          <p
+            className="settings-dependency-note"
+            role="note"
+            data-testid="participant-amount-dependency-note"
+          >
+            App usage output is off, so the participant amount summary cannot be
+            built. Turn on “App usage output” above to use it.
+          </p>
+        ) : null}
+        <ToggleField
+          label="Participant amount summary"
+          checked={options.enableParticipantAmountSummary}
+          onChange={(value) =>
+            setOptions((current) => ({ ...current, enableParticipantAmountSummary: value }))
+          }
+          testId="toggle-enableParticipantAmountSummary"
+          tooltip={TOOLTIPS.enableParticipantAmountSummary}
+          modified={
+            !isOptionDefault(
+              "enableParticipantAmountSummary",
+              options.enableParticipantAmountSummary,
+            )
+          }
+          onReset={() =>
+            setOptions((current) => ({
+              ...current,
+              enableParticipantAmountSummary:
+                DEFAULT_BROWSER_OPTIONS.enableParticipantAmountSummary,
+            }))
+          }
+        />
         <ToggleField
           label="Also export Parquet"
           checked={options.enableParquetExport}
@@ -187,6 +248,28 @@ export function SettingsOverviewCard({ options, setOptions }: Props): ReactEleme
             setOptions((current) => ({
               ...current,
               enableSpssExport: DEFAULT_BROWSER_OPTIONS.enableSpssExport,
+            }))
+          }
+        />
+        <ToggleField
+          label="Spreadsheet-safe CSV cells"
+          checked={options.neutralizeSpreadsheetFormulas}
+          onChange={(value) =>
+            setOptions((current) => ({ ...current, neutralizeSpreadsheetFormulas: value }))
+          }
+          testId="toggle-neutralizeSpreadsheetFormulas"
+          tooltip={TOOLTIPS.neutralizeSpreadsheetFormulas}
+          modified={
+            !isOptionDefault(
+              "neutralizeSpreadsheetFormulas",
+              options.neutralizeSpreadsheetFormulas,
+            )
+          }
+          onReset={() =>
+            setOptions((current) => ({
+              ...current,
+              neutralizeSpreadsheetFormulas:
+                DEFAULT_BROWSER_OPTIONS.neutralizeSpreadsheetFormulas,
             }))
           }
         />

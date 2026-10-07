@@ -1,0 +1,49 @@
+{
+  "schemaVersion": "chronicle-carat-daypart-source-fixture/v1",
+  "sourceWorkId": "doi:10.2196/26540",
+  "exactCanonicalSettings": [
+    {
+      "settingId": "method-setting-4b06de7d35a34616aee5aca2",
+      "parameterKey": "feature.daypart.night",
+      "sourceValue": "hours 0-5",
+      "sourceValueSha256": "31f8ba3a420fa52f6247f4b64830f927f8a34d915fc8a9b4f39626abfbed4b59"
+    },
+    {
+      "settingId": "method-setting-7adc9afe3c538cfce5178098",
+      "parameterKey": "feature.daypart.morning",
+      "sourceValue": "hours 6-11",
+      "sourceValueSha256": "a997501de571a006e8f003b076b35e37eece3b6cdff66c9db4b48c755134c833"
+    },
+    {
+      "settingId": "method-setting-3dfc3bf4a0f57e0105cecec5",
+      "parameterKey": "feature.daypart.afternoon",
+      "sourceValue": "hours 12-17",
+      "sourceValueSha256": "915182ace028cf17c6be55b0439f127d74634b62c767e5173fcceca7611cca29"
+    },
+    {
+      "settingId": "method-setting-628b56b16dfe48e03f221cd0",
+      "parameterKey": "feature.daypart.evening",
+      "sourceValue": "hours 18-23",
+      "sourceValueSha256": "cdd56a7b01c9e990e805d2815f4e417f7e52900fdbe8b31adc9052bc97d11ccc"
+    }
+  ],
+  "sourceArtifact": {
+    "locator": ".tmp-literature-review-private/corrective-packet-04-ranks-074-123-20260831/text/100.txt:267-280",
+    "sha256": "a4683ab2ede60c1fb9ebae8c57bd55fdb71cae47ee1a1ade10318ab943f1ad69"
+  },
+  "inputBoundary": "One caller-supplied integer hour of day in the closed domain 0 through 23, after any required timestamp and timezone reconstruction.",
+  "outputBoundary": "Exactly one of the four disclosed daypart labels for that hour.",
+  "limitations": [
+    "This binding does not parse a timestamp or select a timezone; those operations precede the disclosed daypart boundary.",
+    "The source clause defines only integer hours 0 through 23, so this fixture makes no claim for fractional or out-of-domain inputs.",
+    "The downstream per-epoch counts and per-day standard deviations are separate settings and are not claimed by this binding."
+  ],
+  "thresholds": [6.0, 12.0, 18.0],
+  "categories": ["night", "morning", "afternoon", "evening"],
+  "expectedCategoryByHour": [
+    "night", "night", "night", "night", "night", "night",
+    "morning", "morning", "morning", "morning", "morning", "morning",
+    "afternoon", "afternoon", "afternoon", "afternoon", "afternoon", "afternoon",
+    "evening", "evening", "evening", "evening", "evening", "evening"
+  ]
+}

@@ -85,6 +85,12 @@ classes:
       - device_sharing_file
       - survey_attribution_file
       - enrolled_devices_file
+      - input_capability_evidence_file
+      - analysis_feature_matrix_file
+      - call_sms_eligibility_file
+      - phone_study_ps_communication_file
+      - phone_study_es_file
+      - anchor_events_file
 
   BrowserProcessingRuntime:
     slots:
@@ -95,33 +101,63 @@ classes:
       - study_name
       - process_app_usage
       - process_screen_usage
+      - event_retention_set
+      - opener_set
+      - episode_reconstruction_strategy
+      - micro_use_classification_policy
       - allow_stop_event_reuse
       - use_activity_stopped_as_fallback
       - apply_threshold_to_fallback
       - long_duration_threshold_hours
+      - long_duration_threshold_hours_explicit
+      - maximum_duration_policy
+      - maximum_duration_disposition
+      - maximum_duration_threshold_source
+      - maximum_duration_threshold_ns
       - correct_duplicate_event_timestamps
       - deduplicate_exact_rows
+      - drop_out_of_source_order_events
       - selected_timezone
       - timezone_handling
+      - day_boundary_attribution
       - use_filter_file
+      - filter_match_field
+      - application_label_exclusions
+      - package_exclusion_preset
       - use_apps_forcing_screen_open_file
       - use_background_apps_file
       - use_app_codebook
       - include_category_column
+      - include_app_usage_end_reason
       - enable_plotting
       - include_filtered_app_usage_in_plots
       - enable_activity_heatmap
       - export_plots_as_svg
       - enable_aggregates
       - aggregate_shape
+      - aggregate_top_apps_limit
+      - enable_participant_amount_summary
       - enable_parquet_export
       - enable_spss_export
+      - neutralize_spreadsheet_formulas
       - enable_interactive_timeline
       - minimum_usage_duration
+      - minimum_duration_comparator
+      - minimum_duration_disposition
       - filter_zero_duration_sessions
+      - interval_quality_policy
+      - session_grouping_policy
+      - session_gap_basis
+      - session_boundary_scope
+      - emit_session_break_lineage
       - custom_app_engagement_duration
       - long_usage_duration_thresholds
       - long_data_time_gap_thresholds
+      - screen_session_construction_strategy
+      - screen_session_classification_policy
+      - screen_session_maximum_duration_minutes
+      - screen_session_maximum_duration_disposition
+      - locked_screen_audio_disposition
       - screen_usage_auto_lock_timeout_seconds
       - screen_usage_auto_lock_tolerance_seconds
       - screen_usage_manual_lock_max_tail_gap_seconds
@@ -133,14 +169,21 @@ classes:
       - model_concurrent_usage
       - apply_minimum_usage_duration_to_concurrent_subintervals
       - interaction_types_to_remove
+      - interaction_type_removal_mode
       - interaction_type_remap
       - proximity_interval_seconds
       - add_no_activity_placeholder_days
       - enable_screen_gated_crediting
+      - screen_gating_rule
       - credited_session_cap_minutes
       - device_liveness_gap_tolerance_minutes
       - auto_lock_bridge_seconds
       - no_witness_min_day_apps
+      - notification_proxy_rule
+      - polled_emulation_method
+      - polled_emulation_interval_seconds
+      - polled_emulation_gap_seconds
+      - interval_expansion_method
       - enable_study_window_filter
       - enable_person_attribution
       - enable_compliance_scoring
@@ -208,8 +251,10 @@ classes:
       slots are ADVISORY: fileInspection derives REQUIRED_RAW_COLUMNS from
       them and warns — never blocks — when a header is missing, preserving
       the desktop preprocessor's ingest tolerance. start_timestamp /
-      stop_timestamp appear only in some Chronicle exports;
-      possible_device_model and username are likewise export-dependent.
+      stop_timestamp appear only in some Chronicle exports. The optional
+      literature-adapter columns are consumed only by the registered input
+      adapters named in literature-input-adapter-contract.json; their mere
+      presence never changes baseline Chronicle ingestion.
     slots:
       - study_id
       - participant_id
@@ -221,6 +266,33 @@ classes:
       - event_timestamp
       - start_timestamp
       - stop_timestamp
+      - duration_seconds
+      - interval_type
+      - source_event_type
+      - source_event_type_map
+      - network_traffic_bytes
+      - network_interactivity_class
+      - network_interactivity_qualification
+      - bytes_sent
+      - bytes_received
+      - battery_charging_no_data_percent
+      - battery_discharging_no_data_percent
+      - network_source_rows
+      - network_call_sequence
+      - network_call_send_bytes_numerator
+      - network_call_send_bytes_denominator
+      - network_call_receive_bytes
+      - network_call_offset_nanoseconds
+      - network_call_order
+      - network_window_screen_state
+      - communication_modality
+      - communication_direction
+      - communication_peer_id
+      - communication_state
+      - communication_conversation_id
+      - sms_response_to_source_row
+      - sms_response_latency_seconds
+      - client_db_id
       - timezone
 
   ProcessedOutputFileResult:
@@ -263,9 +335,11 @@ slots:
   study_dates_file:
     range: BrowserSupportFile
     description: >-
-      Study-dates table (CSV/XLSX): one row per participant with the study
-      window start and end dates. Consumed by the observation-window step.
-      Columns: participant_id, start_date, end_date (ISO dates, inclusive).
+      Study-dates table (CSV/XLSX): one or more rows per participant with the
+      inclusive study-window start and end dates. Optional repeated rows add
+      inclusive, source-labeled interior exclusions. Consumed by the
+      observation-window step. Columns: participant_id, start_date, end_date;
+      optional exclusion_label, exclusion_start_date, exclusion_end_date.
   device_sharing_file:
     range: BrowserSupportFile
     description: >-
@@ -284,6 +358,52 @@ slots:
     description: >-
       Enrolled/expected device counts per participant (CSV/XLSX) — the
       denominator for compliance validity. Columns: participant_id, device_count.
+  input_capability_evidence_file:
+    range: BrowserSupportFile
+    description: >-
+      Optional immutable CSV evidence about whether the bound raw input can
+      represent the Android screen/keyguard/device signals and physical source
+      ordering required by source-sensitive screen-session strategies. It uses
+      schema chronicle-input-capability-evidence/v1 and is retained in a saved
+      project when files are included, but is transported only when Parry-Toth
+      or Zhu screen construction is an active output or an internal dependency
+      of the Schoedel prose reconstruction. Absence reaches the scientific
+      applicability resolver and is never converted into a generic missing-file
+      error. There is no bundled default.
+  analysis_feature_matrix_file:
+    range: BrowserSupportFile
+    description: >-
+      Paper-specific analysis feature matrix (CSV). Each feature_id is
+      the unique feature-by-temporal-slice column identity. Columns:
+      participant_id, feature_id, value, missing_state, feature_set_id.
+  call_sms_eligibility_file:
+    range: BrowserSupportFile
+    description: >-
+      Paper-specific Call/SMS eligibility and modality-availability rows
+      (CSV) consumed only by registered research-method input adapters.
+      There is no bundled default.
+  phone_study_ps_communication_file:
+    range: BrowserSupportFile
+    description: >-
+      Released PhoneStudy ps_communication CSV keyed by id. This source table
+      is transported as phonestudy_ps_communication_file only when method
+      setting method-setting-faf89bac61ad22df438c751c selects the ps_activity
+      relational join. It is distinct from the ES questionnaire base and has
+      no bundled default.
+  phone_study_es_file:
+    range: BrowserSupportFile
+    description: >-
+      Released PhoneStudy ES questionnaire base CSV. Required columns are
+      user_id and es_questionnaire_id. This source table is transported as
+      phonestudy_es_file only for the registered PhoneStudy reconstruction,
+      call-feature, or SMS-feature settings. It is distinct from
+      ps_communication and has no bundled default.
+  anchor_events_file:
+    range: BrowserSupportFile
+    description: >-
+      Anchor events CSV for registered research-method inputs. Required
+      columns are participant_id and anchor_timestamp. There is no bundled
+      default.
   datetime_of_preprocessing:
     description: >
       Internal/test-only fixed preprocessing timestamp used to make output stamping
@@ -311,9 +431,130 @@ slots:
     required: true
     title: "Screen usage output"
     description: >-
-      Derive screen-usage sessions and include the screen-usage CSV in the output ZIP.
-      Sessions are inferred from Screen Interactive / Screen Non-Interactive events.
+      Derive screen-usage sessions with the selected construction strategy and
+      include the screen-usage CSV in the output ZIP. When this output is off,
+      the selected screen strategy is still computed as a declared internal
+      dependency if the Schoedel prose app reconstruction is active.
     default: true
+  event_retention_set:
+    range: string
+    annotations:
+      research_axis_enum: EventRetentionSetId
+    required: true
+    title: "Event retention set"
+    description: >-
+      Which published study's set of raw interaction types the app-usage
+      reconstruction is allowed to see. This runs upstream of every other axis:
+      it narrows the events before an episode is reconstructed, so one study's
+      reconstruction rule can be replayed on the set of event types another
+      study recorded. It does not narrow the screen-usage branch, which reads
+      the full event stream. Every set except none is transcribed from a paper's
+      description and is NOT checkable against anything in this repository —
+      treat the retained-type lists as unverified. none is
+      the default and retains every type, so output is byte-identical to before
+      this option existed. parry_toth_7 keeps types 1, 15, 16, 17, 18, 26 and 27
+      — notably NOT Activity Paused (type 2), because that paper closes an
+      episode on screen and device events rather than on the app going to
+      background; this is a different thing from the
+      parry_toth_forward_pairing reconstruction rule, which ports the adaptation
+      that does close on type 2. usage_logger_5 keeps types 1, 2, 7, 26 and 27
+      and is the only set retaining User Interaction. toth_trifonova_app keeps
+      types 1, 2, 17 and 26 — type 17 is Keyguard Shown, the screen locking, not
+      screen-on. foreground_background_only keeps just types 1 and 2, so every
+      episode close is an observed app transition and nothing else; it is a
+      strict subset of usage_logger_5 and toth_trifonova_app but not of
+      parry_toth_7, which drops type 2.
+      An unrecognised value resolves to none, which widens rather than narrows,
+      so a bad value can never silently delete events.
+    default: none
+  opener_set:
+    range: string
+    annotations:
+      research_axis_enum: OpenerSetId
+    required: true
+    title: "App-episode opener set"
+    description: >-
+      Which retained, app-scoped event rows may begin an app episode. This is a
+      separate axis between event retention and reconstruction: B01 decides
+      which rows reach app reconstruction, while this option only marks those
+      retained rows as opener-eligible. Non-opener rows remain available to
+      close, bound, explain, or censor an episode. strategy_defined is the
+      compatibility default and preserves each reconstruction strategy's native
+      opener and materializer behavior. activity_resumed_only admits canonical
+      Android type 1 (Activity Resumed / Move to Foreground), including
+      Chronicle's filtered equivalent after normalization.
+      gesis_app_scoped_starts is a GESIS-derived adapter, not a verbatim source
+      method: it begins with source membership {1, 4, 11, 14, 15, 18, 19, 22,
+      27} and intersects it with app-scoped Android event semantics, yielding
+      effective membership {1, 4, 11, 14, 19, 22}. Device-scoped types 15, 18,
+      and 27 never open app credit. Closer selection, repair, and unmatched-open
+      behavior remain with the selected reconstruction strategy; package
+      handling remains with that strategy and the separate package-policy axis.
+      Browser persistence and import sanitization resolve unknown strings,
+      wrong JSON types, null, and missing values to strategy_defined. Direct
+      runtime requests remain schema-typed: non-string values are rejected,
+      while unknown strings resolve to strategy_defined.
+    default: strategy_defined
+  episode_reconstruction_strategy:
+    range: string
+    annotations:
+      research_axis_enum: ReconstructionStrategyId
+    required: true
+    title: "Episode reconstruction rule"
+    description: >-
+      Which published rule turns raw event rows into app episodes. fused_matcher
+      is this engine's own open/close matcher and the default; output is
+      byte-identical to before this option existed. parry_toth_forward_pairing
+      is Parry & Toth (2025): only Activity Resumed is read, Activity Stopped is
+      discarded, and an episode ends where the next one begins. eyes_complement
+      segments the device-state timeline first — ACTIVE is what is left after
+      shutdown, idle, gap and glance are removed — and reconstructs episodes
+      against it, repairing an orphaned episode forward onto the next app's
+      resume. gesis_start_stop_repair is the GESIS/Zerrer tutorial rule: it
+      reads a much wider event vocabulary (screen, keyguard and device-power
+      rows are starts and stops), and ends each episode at the nearest
+      same-package stop, else the next event of any kind, else a fixed 600 s
+      cut — so under this rule no episode is ever left without an end.
+      foreground_background_pairing subtracts and repairs nothing: each Activity
+      Resumed is closed by the next Activity Paused of the same package, and a
+      resume that never pauses yields no episode at all. Ahmed et al. (2023) and
+      Okoshi et al. (2025) both describe exactly this, and on Chronicle's event
+      vocabulary they are the same rule, so one arm carries both; what differs
+      between those papers is their session and micro-use handling, which are
+      separate options. draxler_interruption_aware is Draxler et al. (2021): an
+      episode ends at whichever comes first of its own package backgrounding,
+      the screen going off, or ten minutes of inactivity — the only rule here
+      under which a screen event ends an app episode, and the only one that cuts
+      an episode at the last event actually observed before a silence rather
+      than at the event that breaks it. morrison_lock_tolerant is Morrison et
+      al. (2018): a use ends on a handover or on the screen locking, but only if
+      the screen stays off for thirty seconds — a shorter lock is a pocket-check
+      and the use runs through it. Returning to the same app after a lock that
+      did count starts a new use rather than resuming the old one. The thirty
+      seconds is inherited by name and value from Bohmer et al. (2011).
+      schoedel_2026_app_within_screen_prose_v1 is a controlled derivative of
+      Schoedel et al. (2026)'s simplified published prose: it consumes the
+      selected screen-session intervals and closes app A at A's last logged row
+      before a different-app type-1 row or an observed screen end. It is not the
+      full deposited PhoneStudy pipeline, which remains structurally unavailable
+      on ordinary Chronicle input.
+    default: fused_matcher
+  micro_use_classification_policy:
+    range: string
+    annotations:
+      research_axis_enum: MicroUseClassificationPolicyId
+    required: true
+    title: "Micro-use classification"
+    description: >-
+      Non-destructively classify an already reconstructed app episode. none is
+      the compatibility default and emits no scientific CSV column.
+      okoshi_lt_5s labels a positive, bounded raw reconstructed duration as
+      micro_use only when it is strictly below five seconds; equality is
+      not_micro_use, while a zero-length artifact or unbounded episode is
+      not_classifiable. This option never changes duration, boundaries,
+      inclusion, grouping, or aggregate credit; the separate minimum-duration
+      controls own analytical disposition.
+    default: none
   allow_stop_event_reuse:
     range: boolean
     required: true
@@ -342,7 +583,11 @@ slots:
       Only relevant when model_concurrent_usage is on. When enabled, a split
       primary/secondary sub-interval shorter than minimum_usage_duration has its
       duration_seconds/duration_minutes nulled (the row is kept). Off by default,
-      so sub-interval durations are always populated, matching every surface.
+      so this second, sub-interval floor is not applied. The minimum-duration
+      decision itself is made once on the whole raw episode, before splitting:
+      under the chronicle_blank_keep_row disposition, every sub-interval of an
+      episode below the floor inherits that blank, and sub-intervals of an
+      episode above it are always populated.
   use_activity_stopped_as_fallback:
     range: boolean
     required: true
@@ -368,6 +613,64 @@ slots:
       which may indicate an instrumentation gap rather than real use.
     example: "default 12 hours"
     default: 12
+  long_duration_threshold_hours_explicit:
+    range: boolean
+    title: "Max session duration threshold was set explicitly"
+    description: >-
+      Origin marker: true once the max session duration threshold has been
+      typed in for this configuration, absent while it still carries the
+      12-hour default. It changes no computation on its own; the
+      maximum-duration receipt records whether the legacy hours were an
+      explicit choice or the inherited default.
+  maximum_duration_policy:
+    range: string
+    annotations:
+      research_axis_enum: MaximumDurationPolicyId
+    title: "Maximum-duration policy"
+    description: >-
+      Optional. Absent means Chronicle's legacy behaviour runs exactly as
+      before with no receipt. strategy_native adopts the selected
+      reconstruction strategy's own maximum-duration behaviour explicitly;
+      chronicle_observed_close_rejection_v1 names the fused matcher's
+      candidate-rejection rule (fused_matcher only);
+      post_reconstruction_strict_max_v1 qualifies episodes strictly longer than
+      the threshold after reconstruction and applies the configured
+      disposition. Selecting a policy also requires the disposition and
+      threshold source.
+  maximum_duration_disposition:
+    range: string
+    annotations:
+      research_axis_enum: MaximumDurationConfiguredDispositionId
+    title: "Maximum-duration disposition"
+    description: >-
+      Optional; only read by post_reconstruction_strict_max_v1 (the other
+      policies require not_applicable). flag_and_retain keeps and credits the
+      episode; retain_but_exclude keeps the row but excludes it from headline
+      aggregates; truncate_to_threshold moves the effective stop to
+      start + threshold and records the trimmed time; drop_row removes the row
+      but preserves exact excluded lineage in the receipt.
+  maximum_duration_threshold_source:
+    range: string
+    annotations:
+      research_axis_enum: MaximumDurationThresholdSourceId
+    title: "Maximum-duration threshold source"
+    description: >-
+      Optional; each policy accepts one pairing. strategy_native goes with the
+      strategy_native policy; chronicle_legacy_config goes with
+      chronicle_observed_close_rejection_v1 and reuses the max session duration
+      threshold above, canonicalized exactly to nanoseconds; fixed_parameter
+      (reads the nanosecond threshold below) and b12_adaptive_participant
+      (refuses until the adaptive provider lands) go with
+      post_reconstruction_strict_max_v1.
+  maximum_duration_threshold_ns:
+    range: string
+    title: "Maximum-duration threshold (nanoseconds)"
+    description: >-
+      Optional; required by fixed_parameter and refused by every other source.
+      Exact base-10 nanoseconds without sign, decimal point, exponent, or
+      leading zeros, at most 9223372036854775807. Kept as text so the value is
+      never rounded through a JavaScript number.
+    example: "3600000000000 (1 hour)"
   correct_duplicate_event_timestamps:
     range: boolean
     required: true
@@ -385,6 +688,16 @@ slots:
       before processing. Re-exported Chronicle data often repeats rows verbatim; the first
       occurrence is kept. Turn this off to keep every raw row as-is.
     default: true
+  drop_out_of_source_order_events:
+    range: boolean
+    required: true
+    title: "Drop out-of-source-order events"
+    description: >-
+      Drop an event when its timestamp moves backward relative to an earlier
+      event for the same participant in the original input row order. This is
+      the post-processing rule reported by Harbach, De Luca, and Egelman; leave it off to
+      preserve Chronicle's normal behavior of retaining and sorting every row.
+    default: false
   selected_timezone:
     range: string
     title: "Selected timezone"
@@ -395,12 +708,42 @@ slots:
   timezone_handling:
     range: TimezoneHandlingMode
     required: true
+    annotations:
+      # The kernel reads this key as a plain string, so its values cannot be
+      # sourced from the ontology the way a `research_axis_enum` slot's are —
+      # TimezoneHandlingMode below stays the range. The ontology still needs a
+      # term for it, because DayBoundaryAttributionId is defined relative to
+      # "the row's output timezone" and two of these four values DELETE rows to
+      # decide what that zone is. `research_ontology_enum` binds the two
+      # vocabularies without routing this key through the research-axis
+      # generator; check_contract_consistency.mts fails if they ever disagree.
+      research_ontology_enum: TimezoneNormalizationPolicyId
     title: "Timezone handling"
     description: >-
       Decides what happens to rows with timezones that differ from the selected one —
       keep only the matching rows, convert mixed rows to a common zone,
-      or anchor on the file's primary zone.
-    default: "selected-filter"
+      or anchor on the file's primary zone. The default converts every row to the
+      selected zone, so no row is dropped for carrying a different timezone and all
+      day attribution is on one clock; it is what the studies' locked configuration
+      runs, and it matches the kernel's absent-key default.
+    default: "selected-convert"
+  day_boundary_attribution:
+    range: string
+    required: true
+    annotations:
+      research_axis_enum: DayBoundaryAttributionId
+    title: "Day-boundary attribution"
+    description: >-
+      How a session that runs past local midnight is attributed to calendar
+      days. attribute_to_start_day (the default) keeps the session as one row
+      dated by the day it started, so a 23:40-00:20 session puts all forty
+      minutes on the first day. split_at_local_midnight divides it into one row
+      per day, each with its own start, stop, duration and date and all
+      carrying the same raw evidence, so daily totals sum the time that
+      actually fell within each day. Midnight is resolved in the row's output
+      timezone through that zone's own transitions, so a daylight-saving day is
+      23 or 25 hours.
+    default: attribute_to_start_day
   use_filter_file:
     range: boolean
     required: true
@@ -411,13 +754,58 @@ slots:
       this is an app-policy (cleaning) decision, not part of standard preprocessing —
       enable it only when your study's protocol says to.
     default: false
+  filter_match_field:
+    range: string
+    required: true
+    annotations:
+      research_axis_enum: FilterMatchFieldId
+    title: "Filter-file match field"
+    description: >-
+      Selects the identity column used by the filter file. app_package_name
+      preserves the existing package rules. application_label matches the
+      application_label cell by exact, case-sensitive, full-string equality;
+      it never infers a package, folds case, or matches a substring. Label
+      matches retain their source rows as filtered lineage while excluding
+      only those matched rows from headline app-usage aggregates.
+    default: app_package_name
+  application_label_exclusions:
+    range: string
+    multivalued: true
+    required: true
+    title: "Exact application-label exclusions"
+    description: >-
+      Application labels to retain as filtered lineage while excluding them
+      from headline app-usage aggregates. Every entry uses exact,
+      case-sensitive, full-string equality against application_label; package
+      identity, case folding, and substring matching are never inferred.
+    default: []
+  package_exclusion_preset:
+    range: string
+    required: true
+    annotations:
+      research_axis_enum: PackageExclusionPresetId
+    title: "Package-exclusion preset"
+    description: >-
+      Which rows of your filter file actually exclude a package. all_supplied_rows
+      (the default) excludes every row, whatever its category or filter flag —
+      this is what the app has always done. honor_filter_flag respects the
+      filter_bool column, so a row you set to 0 stops excluding. system_scope_only
+      excludes just the system and system-defensive rows (60 of the 80 in the
+      bundled default list), leaving carrier, audio, navigation and the rest
+      measured as ordinary app usage. Excluded apps are always relabelled rather
+      than deleted, so this changes app-usage totals and never changes how
+      sessions are reconstructed. Only applies when "Use filter file" is on.
+    default: all_supplied_rows
   use_apps_forcing_screen_open_file:
     range: boolean
     required: true
     title: "Use apps-forcing-screen-open file"
     description: >-
       Apps in this list are treated as ones that force the screen to stay on during screen-usage derivation,
-      which influences how locks/unlocks are interpreted.
+      which influences how locks/unlocks are interpreted. The practice is a
+      documented one in the literature: Dekker et al. (2024) removed
+      screen-forcing apps (their cases were YouTube Vanced and Basic
+      Daydreams) from screen-time estimates for exactly this reason.
     default: false
   use_background_apps_file:
     range: boolean
@@ -450,6 +838,20 @@ slots:
       the codebook's per-source category columns and mapping them onto the
       standard palette. Requires the app codebook; off by default.
     default: false
+  include_app_usage_end_reason:
+    range: boolean
+    required: true
+    title: "Include app-usage end reason column"
+    description: >-
+      Add an `app_usage_end_reason` column recording WHY each app episode
+      ended — a stop event was recorded, another app opened, the screen turned
+      off, an inactivity timeout cut it, or nothing observable ended it at all.
+      This is how you tell a real observed end from a repaired or inferred one,
+      which otherwise looks identical in the duration column. The cell always
+      describes what happened to the device, never which reconstruction rule
+      noticed it. On by default; turn it off only if a downstream consumer
+      requires the narrower column set.
+    default: true
   enable_plotting:
     range: boolean
     required: true
@@ -514,6 +916,33 @@ slots:
       as columns) or "long" (tidy: one row per period per metric). The per-app,
       category, and co-usage outputs are always long.
     default: "wide"
+  aggregate_top_apps_limit:
+    range: integer
+    required: true
+    title: "Daily top-app limit"
+    description: >-
+      Maximum number of ranked apps emitted per participant-day in the top-app
+      aggregate. Zero preserves the complete ranking; a positive value keeps
+      exactly that many rows after descending usage-time ranking and the
+      package-name tie-break.
+    default: 0
+  enable_participant_amount_summary:
+    range: boolean
+    required: true
+    title: "Participant amount summary"
+    description: >-
+      Emit one extra CSV with one row per participant: days tracked (days with
+      any raw data, used or not), total app-usage minutes, the daily average
+      (total over days tracked — the amount-of-use measure of Wenz, Keusch &
+      Bach 2024), that average winsorized at this export's own 1st/99th
+      percentiles (their footnoted treatment; the realized cut values are
+      published on every row), and a Huber M estimate of the same per-day
+      series (the robust aggregation Stachl et al. 2020 describe, standard
+      constants). The estimators are side-by-side columns, so choosing between
+      them is an analysis decision made on the export, not a preprocessing
+      fork. Off by default; when off the file is absent and output is
+      byte-identical.
+    default: false
   enable_parquet_export:
     range: boolean
     required: true
@@ -534,6 +963,26 @@ slots:
       as an SPSS/PSPP system file (.sav) with typed variables and the column names
       as variable labels — open it directly in SPSS or PSPP. Same rows and columns
       as the CSV. Off by default. (Stata .dta is not yet supported.)
+    default: false
+  neutralize_spreadsheet_formulas:
+    range: boolean
+    required: true
+    title: "Spreadsheet-safe CSV cells"
+    description: >-
+      Excel, LibreOffice and Google Sheets run a CSV cell that starts with =, +,
+      -, @, a tab or a carriage return as a formula. App names, usernames and
+      participant IDs are copied from your raw export, so a cell such as
+      =HYPERLINK(...) can run when someone opens a downloaded file. When on,
+      every such text cell in the preprocessing CSV tables (app usage, screen
+      usage, credited usage, day coverage, compliance, notification contacts,
+      polled emulation, interval expansion and the summary tables) gets a
+      leading apostrophe ('), which spreadsheets read as "this is text". Cells
+      that are plain numbers, such as -5, are never changed. The
+      literature-method downloads (Preserved Source Fields and literature
+      result tables) are not rewritten. This changes the data: an analysis
+      script (R, Python, SPSS) will read the apostrophe as part of the value,
+      and the Parquet and SPSS files built from these CSVs carry it too. Off
+      by default, which leaves every value exactly as it was in the input.
     default: false
   enable_interactive_timeline:
     range: boolean
@@ -556,12 +1005,41 @@ slots:
     required: true
     title: "Minimum usage duration (seconds)"
     description: >-
-      Sessions shorter than this threshold have their duration_seconds and duration_minutes
-      set to null in the output. The session row is retained. Set to 0 to disable.
-      The 60-second default nulls sub-minute foreground blips (UI transitions and
-      glances), matching the studies' locked preprocessing configuration.
+      Numeric threshold used by the independently selected minimum-duration
+      comparator and disposition. It is evaluated once on immutable raw
+      reconstructed episode duration after materialization and before optional
+      concurrency splitting or cleaning. Set to 0 to disable qualification for
+      every disposition. The separate existing concurrent-subinterval option
+      controls any later floor on generated sub-intervals.
     example: "default 60 seconds"
     default: 60
+  minimum_duration_comparator:
+    range: string
+    annotations:
+      research_axis_enum: MinimumDurationComparatorId
+    required: true
+    title: "Minimum-duration comparator"
+    description: >-
+      Choose whether an episode qualifies only when its raw duration is
+      strictly below the threshold (strict_lt, compatibility default) or when
+      equality also qualifies (inclusive_le). Comparison uses integer
+      nanoseconds at the post-materialization, pre-concurrency checkpoint.
+    default: strict_lt
+  minimum_duration_disposition:
+    range: string
+    annotations:
+      research_axis_enum: MinimumDurationDispositionId
+    required: true
+    title: "Minimum-duration disposition"
+    description: >-
+      Choose what happens to a threshold-qualified episode.
+      chronicle_blank_keep_row preserves compatibility by retaining boundaries
+      while blanking duration; retain_and_credit preserves and credits raw
+      timing; retain_but_exclude preserves the audit row but excludes it from
+      headline aggregates through explicit eligibility; drop_row removes the
+      output row but preserves exact excluded lineage. No disposition fabricates
+      a zero duration, and this axis is independent of micro-use classification.
+    default: chronicle_blank_keep_row
   filter_zero_duration_sessions:
     range: boolean
     required: true
@@ -569,6 +1047,131 @@ slots:
     description: >-
       Removes app-usage session rows whose computed duration is exactly zero or negative.
       These arise from duplicate events at the same millisecond, common on Fire tablets.
+    default: false
+  interval_quality_policy:
+    range: string
+    annotations:
+      research_axis_enum: IntervalQualityPolicyId
+    required: true
+    title: "Interval quality policy"
+    description: >-
+      Which published policy bounds the quality of already-reconstructed intervals.
+      This is a different axis from the episode reconstruction rule: reconstruction
+      decides where an episode starts and ends, this decides what to do about an
+      episode that is already reconstructed and is implausible. none is this
+      engine's own interval cleaning and the default; output is byte-identical to
+      before this option existed. culverhouse_trim_and_log is the Culverhouse
+      chronicle-preprocessed-cleaning program, which never redefines episodes:
+      adjacent same-app rows within 1 s collapse into one usage, a bad-app row is
+      capped at 10 minutes and credited rather than blanked, a row of 3 h or more
+      is flagged long-3h, a row of 6 h or more is flagged long-6h instead and
+      truncated to the same 10-minute cap, and each participant's first and last
+      day plus the days around a gap of 12 h or more are flagged partial, as are
+      days carrying a clock change. Every mutation is stamped into the row's
+      flag column and nothing is deleted.
+    default: none
+  session_grouping_policy:
+    range: string
+    annotations:
+      research_axis_enum: SessionGroupingPolicyId
+    required: true
+    title: "Session grouping policy"
+    description: >-
+      Which published rule groups already-reconstructed app episodes into usage
+      sessions. A third axis, crossed with the reconstruction rule rather than
+      part of it: Ahmed et al. (2023) and Okoshi et al. (2025) reconstruct
+      episodes identically and differ only here. When set to anything other than
+      none, a usage_session_id column is added to the app-usage CSV, numbered
+      from 0 within each participant. none is the default and emits no column,
+      so output is byte-identical to before this option existed. Every policy
+      compares the gap from one episode's stop to the next episode's start
+      against a published constant, and they differ in the constant, in the
+      comparison, and in whether anything besides the gap ends a session.
+      Apps are not distinguished unless a policy says otherwise. church_5s is
+      5 seconds, reported second-hand by van Berkel et al. and the weakest
+      provenance in the set. grosse_deters_10s is 10 seconds, published as a
+      merge of sessions within ten seconds.
+      smartphone_wellbeing_strict_lt_5s is the deposited
+      SmartphoneUsage_Wellbeing code's exact `diff.to.previous < 5` rule: a
+      4.999999999 second gap joins and a gap exactly equal to 5 seconds splits.
+      ross_15s is 15 seconds, also splits on equality, and is the only one where
+      a change of foreground app also ends a session regardless of the gap.
+      van_berkel_45s retains a legacy identifier for Chronicle's app-episode
+      grouping: gaps <=45 seconds join and gaps >45 seconds split. It is not
+      van Berkel's source-exact Constant Classifier, which classifies supplied
+      device-session gaps as continuous only when Gap<T, new otherwise,
+      against participant objective-continuation labels. Their 45-second
+      recommendation is sample/objective-specific and explicitly not
+      generalizable. Citation of the constant does not establish identical
+      inputs, pipeline stage or equality semantics in a later paper.
+      zerrer_60s is 60 seconds; that source's prose says "at least 60 seconds"
+      while its code says greater-than 60, and the code is what produced its
+      published numbers. peng_zhu_2020_participant_median is the only
+      individualized member: Peng & Zhu (2020) adopt "the median score of a
+      user's inter-app intervals ... for each user", so the threshold is
+      derived per participant from that participant's own stop-to-next-start
+      intervals rather than quoted as a constant, a gap exactly equal to the
+      median splits (their "smaller than ... joins"), and with session-break
+      lineage on each participant's derived median and interval count are
+      stamped into the first row of the partition so the threshold is
+      reconstructible from the export.
+    default: none
+  session_gap_basis:
+    range: string
+    annotations:
+      research_axis_enum: SessionGapBasisId
+    required: true
+    title: "Session gap measured from"
+    description: >-
+      Which endpoint the session gap is measured from. Only read when a session
+      grouping policy is selected. Every published rule measures from the
+      immediately preceding episode's stop in start order, which is the default
+      and keeps output byte-identical. That reading assumes episodes never
+      overlap, and Chronicle's event stream does not guarantee that: modelling
+      concurrent usage is off by default, so an episode nested inside a longer
+      one reaches grouping intact and becomes the point the next gap is measured
+      from. A 30 minute episode with a 1 minute episode nested at its start,
+      followed by a third episode 20 seconds after the long one ends, is
+      measured as a 28 minute 20 second gap and split under a 60 second rule
+      even though the screen was covered continuously. Setting
+      session_running_maximum_stop_v1 measures instead from the furthest stop
+      already placed in the session, so a nested episode can no longer pull the
+      measuring point backwards. That is a stated departure from all published
+      rules rather than a correction of them, which is why it is opt-in.
+    default: previous_episode_stop_v1
+  session_boundary_scope:
+    range: string
+    annotations:
+      research_axis_enum: SessionBoundaryScopeId
+    required: true
+    title: "Session boundary scope"
+    description: >-
+      Which rows are numbered as one sequence of sessions. Only read when a
+      session grouping policy is selected. The default, participant_v1,
+      partitions by participant id alone, which is what the engine has always
+      done. Both other dimensions of the published classification key vary
+      within a participant: username is a raw per-row Chronicle column, and
+      nothing constrains one export to a single study id. A foreign row landing
+      inside a participant's silence therefore bridges it and the participant's
+      session is never split. Person attribution already retypes a shared
+      device's non-target rows so grouping skips them, but that runs only when a
+      device-sharing file is configured. participant_and_study_v1 adds study id;
+      participant_study_and_person_v1 also adds username. The scopes nest, so
+      widening can only split a sequence further and can never merge two.
+    default: participant_v1
+  emit_session_break_lineage:
+    range: boolean
+    required: true
+    title: "Record why each session broke"
+    description: >-
+      Stamp each numbered episode with the rule that placed it, in the existing
+      any_app_usage_flags column: whether the session opened, joined or broke,
+      the observed gap in seconds, and whether a change of foreground app was
+      also responsible. Only read when a session grouping policy is selected.
+      Off by default, and with it off no flag is written, so the app-usage CSV
+      is byte-identical. The lineage rides in an existing column rather than a
+      new one, so a run with it on stays schema-compatible with a run with it
+      off.
     default: false
   proximity_interval_seconds:
     range: float
@@ -578,10 +1181,9 @@ slots:
       When greater than 0, an Activity Stopped fallback close landing within this many
       seconds of a re-resumed session's start is treated as an intra-app teardown artifact
       (the app was torn down then immediately re-resumed) rather than a real close, so the
-      session stays open for the next genuine stop event. Set to 0 to disable. When on,
-      app-usage matching runs in a JavaScript matcher path (the shared WASM matcher has no
-      proximity parameter); with it off the output is byte-identical to before.
-      The 2-second default matches the studies' locked preprocessing configuration.
+      session stays open for the next genuine stop event. Set to 0 to disable, which
+      reproduces the pre-proximity output byte for byte. The 2-second default matches
+      the studies' locked preprocessing configuration.
     example: "default 2 seconds"
     default: 2.0
   enable_screen_gated_crediting:
@@ -596,6 +1198,24 @@ slots:
       output is never changed by this option. Long held-open sessions are
       credited only while the device was actually lit and alive. Off by default.
     default: false
+  screen_gating_rule:
+    range: string
+    required: true
+    annotations:
+      research_axis_enum: ScreenGatingRuleId
+    title: "Screen-gating rule"
+    description: >-
+      Which observation the credited output rests on. screen_and_liveness_v1
+      (the default) credits only where a witnessed screen-ON interval overlaps
+      a demonstrably-alive span. screen_witness_only drops the liveness
+      requirement, so a lit screen inside a long event silence still earns
+      credit. strict_visual_only also uses screen witness alone but excludes
+      sessions with no witness instead of using the alive-span fallback.
+      device_liveness_only drops the screen requirement and credits
+      alive spans alone, which makes it an activity-based measurement and means
+      the no-witness fallback never applies. Only the side-by-side credited
+      output changes; the headline app-usage output is never affected.
+    default: screen_and_liveness_v1
   credited_session_cap_minutes:
     range: integer
     required: true
@@ -635,6 +1255,88 @@ slots:
       earns no credit.
     example: "default 2"
     default: 2
+  notification_proxy_rule:
+    range: string
+    required: true
+    annotations:
+      research_axis_enum: NotificationProxyRuleId
+    title: "Notification proxy rule"
+    description: >-
+      Whether raw notification events become explicit proxy "contact" rows.
+      Chronicle logs Notification Seen and Notification Interruption against a
+      package, and the app-usage algorithm reads neither, so today those rows
+      produce nothing at all. none (the default) keeps it that way.
+      seen_contact_v1, interruption_contact_v1 and any_notification_contact_v1
+      emit the matching rows into a separate "Notification Contact" CSV. A
+      notification is an instant, not a session, so those rows carry no start,
+      stop, or duration — only the moment, the app, which rule emitted them, and
+      whether the moment falls inside a usage session of the same app, so you can
+      tell notification contact apart from time already counted as usage. Your
+      headline app-usage output is never changed by this setting.
+    default: none
+  polled_emulation_method:
+    range: string
+    required: true
+    annotations:
+      research_axis_enum: PolledEmulationMethodId
+    title: "Polled-method emulation"
+    description: >-
+      Re-derive your sessions the way a POLLED study would have measured them,
+      and emit that alongside your real output. Chronicle records every
+      foreground transition with its own timestamp; much of the published
+      screen-time literature instead samples "what is on screen right now" every
+      few seconds and builds sessions from those samples. The two instruments do
+      not see the same thing, so the totals are not directly comparable. none
+      (the default) emits nothing. ross_2025_sampled_gap_v1 samples your
+      timeline at the cadence below and closes a session when the next sample is
+      at least the gap seconds later or a different app, forcing the last sample
+      closed so it counts. cerit_2025_sample_count_v1 instead multiplies the
+      number of retained samples by the cadence and never subtracts endpoints.
+      Both write a separate "Polled Emulation" CSV; your headline app-usage
+      output is never changed. Every emitted row is flagged EMULATED NOT
+      OBSERVED, because resampling can only lose detail — it does not reproduce
+      what a real polled collector would have missed differently.
+    default: none
+  polled_emulation_interval_seconds:
+    range: float
+    required: true
+    title: "Polled sampling cadence (seconds)"
+    description: >-
+      How often the emulated collector looks at the screen. Used by both
+      emulation methods: it is the sampling grid for the gap rule and the
+      per-sample duration for the sample-count rule. The default of 10 seconds
+      is the foreground polling cadence reported by the Ross et al. (2025)
+      acquisition lineage. Ignored when polled-method emulation is off.
+    example: "default 10"
+    default: 10
+  polled_emulation_gap_seconds:
+    range: float
+    required: true
+    title: "Polled session-break gap (seconds)"
+    description: >-
+      How large a gap between consecutive retained samples closes an emulated
+      session. The default of 15 seconds is the value in the Ross et al. (2025)
+      released code; that source's own brief notes it is an engineering rule
+      embedded in code, not a validated behavioral cutoff, which is why it is
+      exposed here rather than fixed. Used only by
+      ross_2025_sampled_gap_v1 — the sample-count rule never asks how far apart
+      two samples were. Ignored when polled-method emulation is off.
+    example: "default 15"
+    default: 15
+  interval_expansion_method:
+    range: string
+    required: true
+    annotations:
+      research_axis_enum: IntervalExpansionMethodId
+    title: "Interval expansion output"
+    description: >-
+      Emit a separate source-method representation of each bounded app
+      interval. none (the default) emits nothing. The Behapp method is anchored
+      at each interval's own start, truncates its duration to whole seconds,
+      and emits one row per second under a half-open [start,end) boundary. It
+      is not the epoch-aligned, stop-inclusive polled-emulation sampler and it
+      never changes the headline app-usage output.
+    default: none
   enable_study_window_filter:
     range: boolean
     required: true
@@ -747,6 +1449,73 @@ slots:
       - 10
       - 11
       - 12
+  screen_session_construction_strategy:
+    range: string
+    annotations:
+      research_axis_enum: ScreenSessionConstructionStrategyId
+    required: true
+    title: "Screen-session construction rule"
+    description: >-
+      Which device-level rule constructs screen intervals.
+      chronicle_screen_interactive_v1 is the compatibility default and freezes
+      Chronicle's participant-isolated interactive/non-interactive state
+      machine. parry_toth_2025_session_glance_v1 preserves physical order in a
+      screen-only projection of separate Android types 15-18 and 26-27 and
+      distinguishes sessions from locked glances. zhu_2018_unlock_lock_v1
+      requires immediate screen-on to keyguard-hidden adjacency in the complete
+      unfiltered participant log, starts at unlock, and stops at screen-off or
+      shutdown. unlock_to_lock_v1 opens directly at keyguard-hidden and closes
+      at keyguard-shown. unlock_to_off_or_lock_v1 closes that direct-unlock
+      interval at the first keyguard-shown or screen-non-interactive event. The
+      four source-sensitive arms require a digest-bound input
+      capability evidence CSV and fail with a typed scientific refusal when
+      signal, ordering, completeness, or device-scope evidence is unavailable;
+      they never fall back to Chronicle.
+    default: chronicle_screen_interactive_v1
+  screen_session_classification_policy:
+    range: string
+    annotations:
+      research_axis_enum: ScreenSessionClassificationPolicyId
+    required: true
+    title: "Screen-session classification"
+    description: >-
+      Optional literature classification applied after screen-session
+      construction. phone_check_inclusive_15s labels sessions lasting at most
+      15 seconds as phone checks. null_no_app_strict_gt15s_vs_app labels
+      sessions with foreground-app evidence as app and no-app sessions longer
+      than 15 seconds as null.
+    default: none
+  screen_session_maximum_duration_minutes:
+    range: float
+    required: true
+    title: "Screen-session maximum duration (minutes)"
+    description: >-
+      Duration used when the screen-session maximum-duration disposition is
+      truncate or exclude_participant. Zero disables the cap.
+    default: 0
+  screen_session_maximum_duration_disposition:
+    range: string
+    annotations:
+      research_axis_enum: ScreenSessionMaximumDurationDispositionId
+    required: true
+    title: "Screen-session maximum-duration action"
+    description: >-
+      none preserves the constructed interval. truncate shortens only sessions
+      strictly longer than the configured maximum and records the synthetic
+      cap boundary. exclude_participant removes every analytical output for a
+      participant with any completed interval strictly over the maximum.
+    default: none
+  locked_screen_audio_disposition:
+    range: string
+    annotations:
+      research_axis_enum: LockedScreenAudioDispositionId
+    required: true
+    title: "Locked-screen audio"
+    description: >-
+      Whether app activity observed while the screen remains locked can create
+      a phone or app session. The exclusion arm requires an interactive,
+      unlocked screen witness.
+    default: include
   screen_usage_auto_lock_timeout_seconds:
     range: integer
     required: true
@@ -838,6 +1607,18 @@ slots:
       Rows of these types are dropped from the final output.
       Useful for stripping noisy events you don't want surfaced in the CSV.
     default: []
+  interaction_type_removal_mode:
+    range: string
+    annotations:
+      research_axis_enum: InteractionTypeRemovalModeId
+    required: true
+    title: "Interaction-type removal mode"
+    description: >-
+      gap_preserving keeps a selected row when it carries long-data-gap
+      evidence at or above the smallest configured threshold. unconditional
+      drops every selected row and reproduces source filters such as
+      SmartphoneUsage_Wellbeing's removal of STANDBY_BUCKET_CHANGED.
+    default: gap_preserving
   interaction_type_remap:
     multivalued: true
     required: true
@@ -1030,3 +1811,57 @@ slots:
     description: Pre-paired session start present only in some exports.
   stop_timestamp:
     description: Pre-paired session stop present only in some exports.
+  duration_seconds:
+    description: Optional finite non-negative source interval duration used only by the registered raw-interval adapter.
+  interval_type:
+    description: Optional source interval kind used when a pre-paired interval is not app-scoped.
+  source_event_type:
+    description: Optional source-native event label consumed by the registered event-map adapter.
+  source_event_type_map:
+    description: Optional JSON object mapping source_event_type labels to canonical Chronicle interaction types.
+  network_traffic_bytes:
+    description: Optional finite non-negative byte count for a network observation consumed by registered literature network adapters.
+  network_interactivity_class:
+    description: Optional literature-adapter output class for the network observation; baseline Chronicle ingestion ignores it.
+  network_interactivity_qualification:
+    description: Optional source-declared limitation attached to the network interactivity class.
+  bytes_sent:
+    description: Optional non-negative integer bytes sent in a source network window; consumed only by registered literature network adapters.
+  bytes_received:
+    description: Optional non-negative integer bytes received in a source network window; consumed only by registered literature network adapters.
+  battery_charging_no_data_percent:
+    description: Optional finite 0-100 percentage of a participant local day's charging periods with no Carat data; consumed only by the registered battery-period day-exclusion adapter.
+  battery_discharging_no_data_percent:
+    description: Optional finite 0-100 percentage of a participant local day's discharging periods with no Carat data; consumed only by the registered battery-period day-exclusion adapter.
+  network_source_rows:
+    description: Semicolon-separated original one-based source-row identities retained when a literature network adapter coalesces source windows.
+  network_call_sequence:
+    description: One-based call-pair identity emitted by the registered eStar network reconstruction adapter.
+  network_call_send_bytes_numerator:
+    description: Exact numerator of the source-declared equal sent-byte allocation for one reconstructed call pair.
+  network_call_send_bytes_denominator:
+    description: Exact denominator K of the source-declared equal sent-byte allocation for one reconstructed call pair.
+  network_call_receive_bytes:
+    description: Integer receive bytes assigned to one reconstructed call pair using the source's 6200-byte chunk rule.
+  network_call_offset_nanoseconds:
+    description: Deterministic uniformly distributed offset within the source counter window; derived from the raw-input digest and source-row identity so reruns are reproducible.
+  network_call_order:
+    description: Source-declared ordering within a reconstructed pair; the eStar adapter emits send_then_receive.
+  network_window_screen_state:
+    description: Screen state governing the exact source counter interval; screen_on requires 1 second and screen_off requires 5 seconds.
+  communication_modality:
+    description: Optional source communication modality; the registered SMS response adapter requires the exact value sms.
+  communication_direction:
+    description: Optional source communication direction; the registered SMS response adapter accepts sent or received.
+  communication_peer_id:
+    description: Optional privacy-preserving peer identity used to match directional SMS exchanges within a participant.
+  communication_state:
+    description: Optional source communication state or type; registered profile-owned schemas constrain its closed vocabulary.
+  communication_conversation_id:
+    description: Optional supplied SMS conversation token local to this input artifact and participant. Known peers within one supplied conversation must agree; no six-minute grouping, new/chat classification or clock policy is inferred.
+  sms_response_to_source_row:
+    description: Optional supplied one-based physical data-row identity of a received SMS referenced by a sent SMS in this exact input artifact, with the same participant and compatible known peer/conversation. Lastness, chronology, response-window eligibility and latency are not certified or inferred by this structural relationship guard.
+  sms_response_latency_seconds:
+    description: Optional non-negative response latency in seconds for a source-qualified SMS response.
+  client_db_id:
+    description: Optional source-record identity used to remove source-confirmed consecutive duplicate screen events.

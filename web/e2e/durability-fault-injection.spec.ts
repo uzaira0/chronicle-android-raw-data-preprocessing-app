@@ -258,8 +258,8 @@ test("@durability @opfs a destroyed newest root slot recovers from the alternati
 
   await flipByte(page, await newestRootSlot(page));
 
-  // The app must still boot, and the workspace must still export — from the
-  // slot the damaged one superseded. This is the whole point of two slots.
+  // The app must still boot, and the workspace must recover from the slot the
+  // damaged one superseded. This is the whole point of two slots.
   await page.reload();
   await expect(
     page.getByRole("heading", { name: "Chronicle Android Raw Data Preprocessor" }),
@@ -268,9 +268,23 @@ test("@durability @opfs a destroyed newest root slot recovers from the alternati
   await expect(page.getByTestId("export-workspace-closure").first()).toBeVisible({
     timeout: 30_000,
   });
-  const recovered = inspectClosure(await downloadClosure(page));
-  expect(recovered.manifest.workspaceId).toBe(first.manifest.workspaceId);
-  expect(recovered.manifest.workspaceRootDigest).toBe(
+  // The restored result on screen is the SECOND run, whose save is the one
+  // that was destroyed. Export never hands out a different root than the
+  // result shown, so it refuses — and says why, naming the recovered save.
+  const { status, downloads } = await attemptExport(page);
+  expect(status).toContain(
+    "The newest saved workspace could not be recovered, so this browser fell back to the earlier save at generation 1.",
+  );
+  expect(downloads, "no archive of a root other than the displayed one").toEqual([]);
+  // The recovered head is the first run's root: the next save builds on it
+  // (not on the destroyed second root), and that save exports.
+  await run(page);
+  const resumed = inspectClosure(await downloadClosure(page));
+  expect(resumed.manifest.workspaceId).toBe(first.manifest.workspaceId);
+  expect(resumed.manifest.previousWorkspaceRootDigest).toBe(
+    first.manifest.workspaceRootDigest,
+  );
+  expect(resumed.root.previousWorkspaceRootDigest).toBe(
     first.manifest.workspaceRootDigest,
   );
 });

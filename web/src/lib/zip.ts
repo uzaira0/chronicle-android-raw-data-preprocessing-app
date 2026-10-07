@@ -3,6 +3,35 @@ type ZipEntry = {
   blob: Blob;
 };
 
+type ZipOptions = {
+  /** Last-modified stamp written to every entry. Defaults to the current time. */
+  modifiedAt?: Date;
+};
+
+/**
+ * MS-DOS timestamps count from 1980-01-01 and encode month/day as 1-based
+ * fields, so a zeroed date field decodes to month 0 / day 0 — which extractors
+ * normalize to 1979-11-30. Writing a real stamp is what keeps downloaded
+ * batches from all claiming that date.
+ */
+const DOS_MIN_MS = new Date(1980, 0, 1, 0, 0, 0).getTime();
+const DOS_MAX_MS = new Date(2107, 11, 31, 23, 59, 58).getTime();
+
+function dosDateTime(modifiedAt: Date): { time: number; date: number } {
+  const raw = modifiedAt.getTime();
+  const clamped = Number.isFinite(raw)
+    ? Math.min(Math.max(raw, DOS_MIN_MS), DOS_MAX_MS)
+    : DOS_MIN_MS;
+  const at = new Date(clamped);
+  return {
+    // DOS stores local time with 2-second granularity.
+    time:
+      (at.getHours() << 11) | (at.getMinutes() << 5) | (at.getSeconds() >> 1),
+    date:
+      ((at.getFullYear() - 1980) << 9) | ((at.getMonth() + 1) << 5) | at.getDate(),
+  };
+}
+
 const textEncoder = new TextEncoder();
 
 let crcTable: DataView | null = null;
@@ -44,34 +73,70 @@ function writeUint32(target: Uint8Array, offset: number, value: number): void {
   target[offset + 3] = (value >>> 24) & 0xff;
 }
 
-function normalizeZipPath(fileName: string): string {
-  return fileName
-    .replace(/\\/g, "/")
-    .replace(/^\/+/, "")
-    .replace(/\.\.(\/|$)/g, "");
+/**
+ * Every entry is a flat output file that extracts on Windows, macOS and Linux.
+ * Path separators, drive and stream colons, the other characters Windows
+ * forbids, and control characters become "_"; leading dots and spaces (hidden
+ * or parent names) and trailing ones (dropped by Windows) go; a reserved
+ * Windows device stem (CON, NUL, COM1, …) gets a "_" prefix.
+ */
+function safeZipName(fileName: string): string {
+  const flat = fileName
+    .replace(/^(?:\.{0,2}[\\/])+/, "")
+    .replace(/[\\/:*?"<>|\p{Cc}]/gu, "_")
+    .replace(/^[.\s]+/, "")
+    .replace(/[.\s]+$/, "");
+  if (!flat) return "output";
+  return /^(con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(\.|$)/i.test(flat) ? `_${flat}` : flat;
+}
+
+/**
+ * Two outputs with one name would overwrite each other on extraction, and
+ * Windows and macOS compare names case-insensitively (lower-upper-lower folds
+ * final sigma and ß/ẞ too).
+ * ponytail: no 255-byte cap; a ~225-character input name plus a suffix fails to
+ * extract loudly on such filesystems. Truncate the stem if that ever happens.
+ */
+function uniqueZipName(name: string, used: Set<string>): string {
+  const key = (value: string) => value.toLowerCase().toUpperCase().toLowerCase();
+  let candidate = name;
+  const dot = name.lastIndexOf(".");
+  const [stem, extension] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ""];
+  for (let copy = 2; used.has(key(candidate)); copy += 1) {
+    candidate = `${stem} (${copy})${extension}`;
+  }
+  used.add(key(candidate));
+  return candidate;
 }
 
 /**
  * Build a no-compression ZIP. CSVs are already text and browser-side store
  * mode avoids adding a compression dependency to the offline app bundle.
  */
-export async function createZipBlob(entries: ZipEntry[]): Promise<Blob> {
+export async function createZipBlob(
+  entries: ZipEntry[],
+  options: ZipOptions = {},
+): Promise<Blob> {
   const localParts: Uint8Array<ArrayBuffer>[] = [];
   const centralParts: Uint8Array<ArrayBuffer>[] = [];
+  const modified = dosDateTime(options.modifiedAt ?? new Date());
   let offset = 0;
+  const usedNames = new Set<string>();
 
   for (const entry of entries) {
-    const nameBytes = textEncoder.encode(normalizeZipPath(entry.fileName));
+    const nameBytes = textEncoder.encode(uniqueZipName(safeZipName(entry.fileName), usedNames));
     const data = new Uint8Array((await entry.blob.arrayBuffer()));
     const checksum = crc32(data);
 
     const localHeader = new Uint8Array(30 + nameBytes.length);
     writeUint32(localHeader, 0, 0x04034b50);
     writeUint16(localHeader, 4, 20);
-    writeUint16(localHeader, 6, 0);
+    // Bit 11: names are UTF-8. Without it, Windows Explorer and other readers
+    // decode them as CP437 and mangle any non-ASCII output name.
+    writeUint16(localHeader, 6, 0x0800);
     writeUint16(localHeader, 8, 0);
-    writeUint16(localHeader, 10, 0);
-    writeUint16(localHeader, 12, 0);
+    writeUint16(localHeader, 10, modified.time);
+    writeUint16(localHeader, 12, modified.date);
     writeUint32(localHeader, 14, checksum);
     writeUint32(localHeader, 18, data.byteLength);
     writeUint32(localHeader, 22, data.byteLength);
@@ -85,10 +150,10 @@ export async function createZipBlob(entries: ZipEntry[]): Promise<Blob> {
     writeUint32(centralHeader, 0, 0x02014b50);
     writeUint16(centralHeader, 4, 20);
     writeUint16(centralHeader, 6, 20);
-    writeUint16(centralHeader, 8, 0);
+    writeUint16(centralHeader, 8, 0x0800);
     writeUint16(centralHeader, 10, 0);
-    writeUint16(centralHeader, 12, 0);
-    writeUint16(centralHeader, 14, 0);
+    writeUint16(centralHeader, 12, modified.time);
+    writeUint16(centralHeader, 14, modified.date);
     writeUint32(centralHeader, 16, checksum);
     writeUint32(centralHeader, 20, data.byteLength);
     writeUint32(centralHeader, 24, data.byteLength);

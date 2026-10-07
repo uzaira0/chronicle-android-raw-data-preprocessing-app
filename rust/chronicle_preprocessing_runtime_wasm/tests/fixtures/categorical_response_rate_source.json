@@ -1,0 +1,102 @@
+{
+  "schemaVersion": "chronicle-categorical-response-rate-source-fixture/v1",
+  "sourceWorkId": "doi:10.1002/per.2309",
+  "sourceCodeSha256": "74de549e3b9c068339d4a68d94dae623b63e2a8120f06886427ce491a1175532",
+  "sourceTestSha256": "8257552c5fa29eb72ede03b884be65e4cb4a091212f477509928a81a5d7907c6",
+  "sourceFeatureMetadataSha256": "145925c5780646c3501487658c2f6b292e3b5541bdac6f673485dc1803d1711e",
+  "sourceLocator": ".tmp-literature-review-private/corrective-packet-06-ranks174-223-20260831/artifacts/rank183-osf-j93bs/osfstorage/processing/feature_extraction/state.py:108-120",
+  "sourceCallSiteLocator": ".tmp-literature-review-private/corrective-packet-06-ranks174-223-20260831/artifacts/rank183-osf-j93bs/osfstorage/processing/feature_extraction/state.py:199-200",
+  "sourceTestLocator": ".tmp-literature-review-private/corrective-packet-06-ranks174-223-20260831/artifacts/rank183-osf-j93bs/osfstorage/processing/feature_extraction/test_state.py:60-82",
+  "sourceRuntime": {
+    "containerImage": "chronicle/rueegger-per2309:python3.7.1",
+    "containerImageId": "sha256:1ef375425fbba3b0f47c7c07838c12c78d94bea31e06307ed3cfa7834b80f58d",
+    "python": "3.7.1",
+    "numpy": "1.16.2",
+    "pandas": "1.0.5"
+  },
+  "exactCanonicalSettingIds": [
+    "method-setting-89f05ccdfebf96d26c4dac88",
+    "method-setting-5facd691213333bd0e7a5c8d",
+    "method-setting-7cdca72ce4ba1dae3e06c65d"
+  ],
+  "formulaSourceValueSha256": "1d6d43a2a4819b709944f49238e30d196d62a9ddbcfab814e60b0ff29d2f101c",
+  "sourceCallSites": [
+    {
+      "featureSettingId": "method-setting-5facd691213333bd0e7a5c8d",
+      "featureSourceValueSha256": "cec43190d2fcf9b0f45a7478ac101a4bab6db054199f6dfb56d752260dddec87",
+      "formulaSettingId": "method-setting-89f05ccdfebf96d26c4dac88",
+      "relationship": "distinct_source_feature_depends_on_shared_formula",
+      "labelColumn": "response_to_user_label",
+      "outputField": "Stachl_responserate_calls_others",
+      "featureMetadataLocator": "feature_metadata.csv:39",
+      "revision2Id": 38,
+      "featureStatus": "excluded",
+      "typedBoundaryLabels": ["responded"],
+      "expected": "1"
+    },
+    {
+      "featureSettingId": "method-setting-7cdca72ce4ba1dae3e06c65d",
+      "featureSourceValueSha256": "ffbeb102c08f9ec34b382391fc296d80d158e7fcdbeee487ceae2ddc3cf8ee4e",
+      "formulaSettingId": "method-setting-89f05ccdfebf96d26c4dac88",
+      "relationship": "distinct_source_feature_depends_on_shared_formula",
+      "labelColumn": "response_of_user_label",
+      "outputField": "Stachl_responserate_calls_user",
+      "featureMetadataLocator": "feature_metadata.csv:40",
+      "revision2Id": 39,
+      "featureStatus": "excluded",
+      "typedBoundaryLabels": ["responded", "no-response"],
+      "expected": "0.5"
+    }
+  ],
+  "upstreamDependencies": [
+    "method-setting-e36f8db35beae75e7dba31dd: preceding 30-minute smartphone-data window",
+    "method-setting-7a8120fcc9e3fecfab462223: window ends at the first ESM element",
+    "method-setting-41cd423bea34eb27d528548b: call overlap clipping and inclusive-start retention",
+    "unbound source operation at state.py:136-140: peach.calls.get_matching_labeled_calls supplies both selected response-label columns"
+  ],
+  "cases": [
+    {
+      "caseId": "all-source-label-kinds",
+      "input": {
+        "kind": "present",
+        "labels": ["responded", "no-response", "responded", "other", null, null]
+      },
+      "expected": "0.6666666666666666"
+    },
+    {
+      "caseId": "all-responded",
+      "input": { "kind": "present", "labels": ["responded", "responded"] },
+      "expected": "1"
+    },
+    {
+      "caseId": "all-no-response",
+      "input": { "kind": "present", "labels": ["no-response", "no-response"] },
+      "expected": "0"
+    },
+    {
+      "caseId": "zero-denominator-nonempty",
+      "input": { "kind": "present", "labels": ["other", null] },
+      "expected": "NaN"
+    },
+    {
+      "caseId": "empty-present-column",
+      "input": { "kind": "present", "labels": [] },
+      "expected": "NaN"
+    },
+    {
+      "caseId": "empty-table-missing-column",
+      "input": { "kind": "missingColumn", "rowCount": 0 },
+      "expected": "NaN"
+    },
+    {
+      "caseId": "nonempty-table-missing-column",
+      "input": { "kind": "missingColumn", "rowCount": 1 },
+      "expectedError": "missing_label_column"
+    }
+  ],
+  "limitations": [
+    "This fixture binds only the exact categorical response-rate calculation, not upstream call labeling, call-overlap clipping, or the complete feature aggregator.",
+    "The formula setting is shared, but the calls-user and calls-others feature settings remain distinct identities because they select different source columns and emit different named outputs.",
+    "A profile input binding must select exactly one participant/timeframe-aligned source label column; it must not pool response_of_user_label and response_to_user_label or combine separate state-assessment windows."
+  ]
+}

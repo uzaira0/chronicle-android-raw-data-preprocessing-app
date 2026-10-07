@@ -230,7 +230,7 @@ local change: `PipelineV2Result` in
 to feed the exports would hold that data across the whole Salsa-cached result
 in the default configuration where **both exports are off**, trading a
 transient 44 MB for a retained one, and would change the persisted resume
-format (v8, magic `CHRRX008`) and the query-registry contract. That is a peak-memory
+format (v9, magic `CHRRX009`) and the query-registry contract. That is a peak-memory
 regression for every default run in exchange for at most the remaining ~50 ms
 on a non-default path.
 

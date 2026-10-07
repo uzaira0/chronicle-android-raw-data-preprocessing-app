@@ -1,0 +1,140 @@
+{
+  "schema_version": "chronicle-source-completeness-audit/v1-draft",
+  "source_work_id": "doi:10.1145/3743726",
+  "title": "On-Device Interaction Mining",
+  "audited_at": "2026-09-25",
+  "audit_status": "new_candidate_source_read_not_canonically_projected",
+  "completion_verdict": "hard_no_exact_study_reproduction",
+  "scope_decision": "retain candidate: Android Accessibility/touch event streams are collected, joined with screenshot and view hierarchy snapshots, reconstructed into interaction traces, and quality-audited; this is UI-interaction-trace processing, not a screen-time or unlock-session method",
+  "future_completion_boundary": "The paper defines a useful source-located collector/repair/redaction/trace method and reports two evaluations. Exact study replay remains blocked by the unpinned evaluated APK/code revision, unreleased complete trace corpus and researcher ground-truth logs, and underspecified timing, pairing, boundary, and redaction details. Later public source is linked implementation context, not an automatic study oracle.",
+  "source_artifacts": [
+    {
+      "url": "https://www.ranjithakumar.net/resources/odim.pdf",
+      "path": ".tmp-literature-review-private/ontology-sublation-20260831/work/new-source-audits/odim-author.pdf",
+      "sha256": "dcf3c9cdf7d6fe9fb916774ee0cedfcae11ccdc2fe2c93cb922815faafd7e920",
+      "bytes": 5511007,
+      "pages": 17,
+      "identity_check": "author-hosted PDF internally names the target title, six authors, PACM HCI 9(5) MHCI024, September 2025, and DOI 10.1145/3743726 on pp1-2; web PDF source and SHA-256 streaming check on 2026-09-25",
+      "version_note": "HTTP Last-Modified 2026-05-12 is an asset timestamp, not evidence that the 2025 paper method changed."
+    },
+    {
+      "url": "https://github.com/datadrivendesign/odim-android",
+      "revision": "5237a464bbefd17dac1f200ff77e561b26a16f32",
+      "revision_date": "2025-11-14T22:38:58Z",
+      "identity_check": "public ODIM Android repository and README inspected; HEAD postdates September 2025 paper; a study build/commit/tag binding was not verified",
+      "evidence_role": "later linked implementation context only; no transfer of literal keys, package-boundary code, system-UI exclusion, SDK values, or UI behavior into the 2025 study without version evidence"
+    }
+  ],
+  "source_locator_base": "https://www.ranjithakumar.net/resources/odim.pdf",
+  "artifact_sweep": {
+    "paper": "17-page author-hosted article read through §§4.2–4.7, 5.1–5.3, figures/tables, limitations, and references; source identity pinned above.",
+    "supplement": "No separate supplement or evaluated-build manifest named in article; none independently verified in this isolated packet.",
+    "code": "Android and web source are public per §4.7, but current Android HEAD is post-publication; paper does not name a study commit, APK digest, build flags, dependency lock, or exact web revision.",
+    "data": "ODIM Explorer provides selected publicly moderated trace downloads, but the complete 159-trace evaluation set, original raw captures, human accuracy observations, and five-participant usability data were not verified as an exact frozen study release.",
+    "references": "[17] is Android AccessibilityService API documentation and [42] is an Accessibility-lag article cited at event-selection passage; neither establishes the evaluated implementation. Related ERICA/Rico and LLM references are background, not source for ODIM's operational rules. Full bibliography remains unchecked in this isolated draft."
+  },
+  "source_method_variants": [
+    {"id": "odim-2025-capture-postprocess", "kind": "implemented_system", "relation": "capture, conditional manual repair, removal of captured sensitive information before research use or sharing, and manual enrichment; device and web affordances described but not a source-declared multiverse"},
+    {"id": "odim-2025-capture-evaluation", "kind": "evaluation_protocol", "relation": "100-app raw capture accuracy measured before researchers repaired 682 interactions; cannot use repaired accuracy as raw-capture accuracy"},
+    {"id": "odim-2025-usability", "kind": "evaluation_protocol", "relation": "five participants, 15 traces, recording and human post-processing; distinct cohort and denominator from capture evaluation"},
+    {"id": "odim-2025-llm-baseline", "kind": "separate_evaluation_baseline", "relation": "GPT-4.1 mini zero-shot comparison on usability-study traces; illustrative o1 figure examples and speculative automation are not the deployed manual repair/redaction method"}
+  ],
+  "event_model": {
+    "raw_signals": ["transparent full-screen overlay touch", "selected AccessibilityEvents for view interaction", "active-screen AccessibilityNodeInfo root", "screenshot"],
+    "joined_unit": "ODIM event is a time-linked screenshot plus JSON view hierarchy and possibly a gesture; a touch first creates an incomplete event, and a subsequent selected AccessibilityEvent supplies type/element-derived coordinates to complete it",
+    "gesture_fields_disclosed": ["tap/long tap/scroll class", "center x,y of interacted element", "scroll dx,dy offsets"],
+    "not_equivalent_to": ["raw OS event alone", "actual finger-contact coordinates", "app foreground episode", "screen-on bout", "fully reliable gesture label"],
+    "source_version_boundary": "Paper §4.2 says trace starts with new app launch and ends on return to home screen, organized by app and timestamp; later README describes package transitions and launcher/system-UI exclusions. These are not silently equated."
+  },
+  "ordered_operations": [
+    {"order": 1, "stage": "capture", "verb": "observe_touch_and_snapshot", "input": "overlay touch and current UI", "output": "locally stored incomplete event containing screenshot and JSON view hierarchy", "locator": "PDF p6 §4.2, web lines 225-232"},
+    {"order": 2, "stage": "capture", "verb": "select_and_classify_accessibility_event", "input": "view-interaction AccessibilityEvent, node reference, most recent incomplete event", "output": "gesture type, interacted-element center x/y, optional scroll dx/dy attached to snapshot", "locator": "PDF p6 §4.2, web lines 233-240"},
+    {"order": 3, "stage": "reconstruction", "verb": "compile_trace", "input": "sequential events of target app", "output": "timestamp-ordered app trace from app launch until home return", "locator": "PDF p6 §4.2, web lines 205-214,241-244"},
+    {"order": 4, "stage": "quality_control", "verb": "manual_repair_and_edit", "input": "missing/misclassified gestures or unwanted screens", "output": "user-corrected event gesture location/type, removed screens, optionally shorter trace", "locator": "PDF pp7,12 §§4.3,5.1, web lines 253-278,414-417"},
+    {"order": 5, "stage": "privacy", "verb": "redact", "input": "screenshots and view hierarchy text/content", "output": "on-device element-mask/tag or web drawn-region mask plus metadata removal", "locator": "PDF pp8-9 §4.4, web lines 289-328"},
+    {"order": 6, "stage": "enrichment", "verb": "annotate", "input": "repaired/redacted trace and screens", "output": "manual task/trace description and optional screen descriptions", "locator": "PDF p9 §4.5, web lines 329-340"},
+    {"order": 7, "stage": "release", "verb": "upload_and_moderate", "input": "postprocessed trace linked to app package and account", "output": "Explorer listing and raw-data download subject to platform moderation", "locator": "PDF pp9-11 §§4.6–4.7, web lines 341-376"}
+  ],
+  "disclosed_atoms": [
+    {"key": "system.workflow_stages", "role": "provenance", "target": "released_artifact", "value": ["capture", "repair", "redact", "enrich"], "evidence": "explicit order; capture on-device, other stages device or web", "locator": "PDF p5 §4, web lines 180-187"},
+    {"key": "system.event_unit", "role": "event_schema", "target": "raw_record", "value": "visual/structural UI snapshot at time t, optionally one gesture; sequential events form trace", "evidence": "explicit", "locator": "PDF p6 §4.2, web lines 205-214"},
+    {"key": "collector.accessibility_service", "role": "acquisition", "target": "collector", "value": "Android AccessibilityService observes UI actions and AccessibilityEvents", "evidence": "explicit", "locator": "PDF p6 §4.2, web lines 215-224"},
+    {"key": "collector.accessibility_event_payload", "role": "event_schema", "target": "raw_record", "value": "event type and time plus reference to interacted AccessibilityNodeInfo", "evidence": "explicit semantic fields; literal serialized names unreported", "locator": "PDF p6 §4.2, web lines 217-224"},
+    {"key": "collector.touch_overlay", "role": "acquisition", "target": "collector", "value": "transparent device-wide overlay listens for touches when service enabled", "evidence": "explicit; touch callback phases and event ordering unreported", "locator": "PDF p6 §4.2, web lines 225-227"},
+    {"key": "collector.parallel_snapshot", "role": "acquisition", "target": "acquired_snapshot", "value": "upon touch, parallel screenshot and active root-node retrieval", "evidence": "explicit; synchronization barrier and race handling unreported", "locator": "PDF p6 §4.2, web lines 227-232"},
+    {"key": "collector.view_hierarchy_encoding", "role": "event_schema", "target": "acquired_snapshot", "value": "depth-first AccessibilityNodeInfo traversal, token-stream node properties to JSON view hierarchy", "evidence": "explicit traversal/encoding family; exact property inventory and serialization unreported", "locator": "PDF p6 §4.2, web lines 227-232"},
+    {"key": "collector.incomplete_snapshot", "role": "quality_control", "target": "raw_record", "value": "latest screenshot and hierarchy locally saved as incomplete event pending gesture", "evidence": "explicit; matching timeout and overwrite policy unreported", "locator": "PDF p6 §4.2, web lines 230-240"},
+    {"key": "collector.accessibility_event_subset", "role": "acquisition", "target": "raw_record", "value": "subset corresponding to view interaction such as click and scroll", "evidence": "explicit family; exact evaluated enum allowlist not enumerated by paper", "locator": "PDF p6 §4.2, web lines 233-236"},
+    {"key": "collector.gesture_classes", "role": "feature_engineering", "target": "derived_feature", "value": ["tap", "long tap", "scroll"], "evidence": "explicit basic classes; paper does not make swipe a fourth automatic class", "locator": "PDF p6 §4.2, web lines 235-240"},
+    {"key": "collector.gesture_coordinates", "role": "feature_engineering", "target": "derived_feature", "value": "center x/y of interacted element, not measured finger-touch x/y", "evidence": "explicit", "locator": "PDF p6 §4.2, web lines 236-240"},
+    {"key": "collector.scroll_offsets", "role": "feature_engineering", "target": "derived_feature", "value": "dx/dy displacement offsets where scroll event provides them", "evidence": "explicit; unit/sign/coordinate frame unreported", "locator": "PDF p6 §4.2, web lines 237-240"},
+    {"key": "collector.snapshot_gesture_pair", "role": "reconstruction", "target": "raw_record", "value": "combine selected event-derived gesture with most recent screenshot and view hierarchy", "evidence": "explicit; tie/lag/one-to-many policy unreported", "locator": "PDF p6 §4.2, web lines 233-240"},
+    {"key": "trace.paper_boundary", "role": "reconstruction", "target": "released_artifact", "value": "new app launch starts collection, home-screen return finalizes trace", "evidence": "explicit paper wording; exact package/window event predicates unreported", "locator": "PDF p6 §4.2, web lines 241-244"},
+    {"key": "trace.partition_order", "role": "reconstruction", "target": "released_artifact", "value": "local traces organized by app and sorted by timestamp", "evidence": "explicit; timestamp source, precision, tie rule unreported", "locator": "PDF p6 §4.2, web lines 241-244"},
+    {"key": "quality.missing_gesture", "role": "quality_control", "target": "raw_record", "value": "if no AccessibilityEvent or stale/destroyed node prevents interaction inference, mark incomplete for repair", "evidence": "explicit error causes and disposition", "locator": "PDF p7 §4.3, web lines 259-269"},
+    {"key": "quality.misclassified_gesture", "role": "quality_control", "target": "raw_record", "value": "subsequent state-change AccessibilityEvent may be incorrectly attached to prior touch; human detects and corrects", "evidence": "explicit", "locator": "PDF p7 §4.3, web lines 270-278"},
+    {"key": "repair.device_gesture", "role": "quality_control", "target": "raw_record", "value": "user reviews trace and manually adds/corrects location and interaction type on device", "evidence": "implemented procedure explicit; exact edit-provenance schema unreported", "locator": "PDF p7 §4.3/Figure 2, web lines 246-258,275-278"},
+    {"key": "repair.web_gesture", "role": "quality_control", "target": "raw_record", "value": "web interface after upload also corrects interaction location and type", "evidence": "explicit implemented route; not a separate scientific configuration", "locator": "PDF p7 §4.3, web lines 275-278"},
+    {"key": "repair.delete_screen", "role": "quality_control", "target": "released_artifact", "value": "unimportant or erroneous interactions/screens may be deleted", "evidence": "explicit capability; selection criteria human, not fixed threshold", "locator": "PDF p7 §4.3, web lines 253-258"},
+    {"key": "repair.long_trace_segmentation", "role": "quality_control", "target": "released_artifact", "value": "researchers segmented longer traces into shorter ones after accuracy scoring/repair", "evidence": "explicit evaluation action; exact cut decisions and UI procedure unreported by paper", "locator": "PDF p12 §5.1, web lines 414-417"},
+    {"key": "privacy.capture_toggle", "role": "acquisition", "target": "collector", "value": "participant can pause capture before entering sensitive information", "evidence": "explicit affordance", "locator": "PDF p8 §4.4, web lines 289-301"},
+    {"key": "privacy.device_redaction", "role": "quality_control", "target": "acquired_snapshot", "value": "user selects element bounding boxes; screenshot region deleted and corresponding hierarchy text/content receives special redaction tag", "evidence": "explicit implemented route", "locator": "PDF p8 §4.4, web lines 302-307"},
+    {"key": "privacy.redaction_reason", "role": "diary_schema", "target": "diary_response", "value": "user prompted for short textual justification per redaction", "evidence": "explicit", "locator": "PDF p8 §4.4, web lines 305-307"},
+    {"key": "privacy.device_keyword_mode", "role": "quality_control", "target": "acquired_snapshot", "value": "keyword scan over hierarchy text and content-description fields; matched elements marked; selections manually adjustable", "evidence": "explicit; matching rule/case/normalization unreported", "locator": "PDF p8 §4.4, web lines 308-311"},
+    {"key": "privacy.web_redaction", "role": "quality_control", "target": "acquired_snapshot", "value": "user draws black rectangle over screenshot; app removes metadata from view elements with sufficiently high intersection-over-union", "evidence": "explicit implemented route; IoU threshold and overlap boundary unreported", "locator": "PDF p9 §4.4, web lines 318-323"},
+    {"key": "privacy.hidden_metadata_review", "role": "quality_control", "target": "acquired_snapshot", "value": "web interface lists hierarchy content descriptions and text for manual redaction even if not visible in image", "evidence": "explicit", "locator": "PDF p9 §4.4, web lines 324-328"},
+    {"key": "enrich.trace_description", "role": "feature_engineering", "target": "released_artifact", "value": "manual natural-language trace/task description, device before upload or web", "evidence": "explicit implemented route", "locator": "PDF p9 §4.5, web lines 329-340"},
+    {"key": "enrich.screen_description", "role": "feature_engineering", "target": "raw_record", "value": "web interface can add descriptions to labeled interactions/screens", "evidence": "explicit", "locator": "PDF p9 §4.5, web lines 334-340"},
+    {"key": "release.package_link", "role": "provenance", "target": "released_artifact", "value": "uploaded trace associated with app via package ID; unknown package triggers Play Store metadata lookup", "evidence": "explicit", "locator": "PDF p10 §4.6, web lines 341-359"},
+    {"key": "release.account_moderation", "role": "provenance", "target": "released_artifact", "value": "uploads associated with user accounts and selectively made public after quality/PII moderation", "evidence": "explicit; schedule and moderation rule not fixed", "locator": "PDF p11 §4.7, web lines 370-376"},
+    {"key": "release.raw_trace_download", "role": "reporting", "target": "released_artifact", "value": "Explorer shows screen sequence/gestures and offers raw interaction data download", "evidence": "explicit; exact frozen 2025 output schema unreported", "locator": "PDF p10 §4.6, web lines 341-359"},
+    {"key": "evaluation.raw_capture_protocol", "role": "validation", "target": "analysis_record_set", "value": "three researchers, 100 manually sampled popular Android apps, 23 categories, 2 physical devices and emulator, 1-3 traces/app; exclude nonmobile and sparse-hierarchy categories", "evidence": "explicit", "locator": "PDF pp11-12 §5.1, web lines 387-400"},
+    {"key": "evaluation.capture_accuracy_order", "role": "validation", "target": "analysis_record_set", "value": "researchers documented explored screens/gestures, measured raw capture coverage, then repaired 682 missing/misclassified interactions and redacted/split/uploaded traces", "evidence": "explicit sequence; denominator log not released", "locator": "PDF p12 §5.1, web lines 399-417"},
+    {"key": "evaluation.usability_protocol", "role": "validation", "target": "participant_record", "value": "five Android-owning students, two to three installed apps each, one-hour session, record/postprocess/upload, NASA-TLX-selected and privacy/quality five-point items", "evidence": "explicit; full instrument and exact row data unreported", "locator": "PDF p12 §5.2, web lines 426-449"},
+    {"key": "evaluation.llm_baseline", "role": "analysis", "target": "model", "value": "separate zero-shot GPT-4.1 mini baseline on 15 usability traces with participant permission; screenshots/hierarchies/gestures used to propose gesture repair, PII labels, and trace description", "evidence": "explicit evaluation, not deployed automatic repair/redaction; figure examples use o1", "locator": "PDF p13 §5.3/Figures 2-4, web lines 246-252,280-285,313-317,461-485"}
+  ],
+  "reported_result_oracles_not_settings": [
+    {"measure": "raw capture evaluation", "values": {"apps": 100, "traces": 159, "ui_screens": 1740, "raw_screen_ui_captured_percent": 100, "raw_gesture_correct_percent": 60.8, "raw_gesture_misclassified_percent": 15.8, "raw_gesture_missed_percent": 23}, "qualification": "Within manually selected evaluation traces; not a universal capture guarantee or post-repair rate. Table 1 rounds totals to 61/16/23.", "locator": "PDF pp11-12 Table 1/§5.1, web lines 361-369,397-413"},
+    {"measure": "gesture-specific raw accuracy", "values": {"tap": {"n": 1460, "success_percent": 57, "misclassified_percent": 18, "missed_percent": 25}, "long_tap": {"n": 32, "success_percent": 63, "misclassified_percent": 3, "missed_percent": 34}, "scroll": {"n": 248, "success_percent": 83, "misclassified_percent": 4, "missed_percent": 13}}, "qualification": "Observed result distributions, not classification thresholds.", "locator": "PDF p11 Table 1, web lines 361-369"},
+    {"measure": "post-score repair", "values": {"interactions_manually_repaired": 682}, "qualification": "Repair happens after raw capture scoring; no separate post-repair numeric accuracy oracle disclosed.", "locator": "PDF p12 §5.1, web lines 414-417"},
+    {"measure": "usability study", "values": {"participants": 5, "traces": 15, "apps": 10, "screens_repaired": 47, "elements_redacted": 134}, "qualification": "Separate cohort from 100-app capture evaluation.", "locator": "PDF pp12-13 §5.2/Table 2, web lines 426-460"},
+    {"measure": "LLM baseline", "values": {"candidate_repair_screens": 63, "repair_overlap_with_human": 39, "human_repairs_missed": 8, "candidate_redactions": 151, "redaction_overlap_with_human": 76, "human_redactions_missed": 58}, "qualification": "Separate exploratory analysis using participant actions as reference; not a production preprocessing choice.", "locator": "PDF p13 §5.3, web lines 461-485"}
+  ],
+  "indispensable_unavailable_facts": [
+    "Exact evaluated APK/server commit, build configuration, Android OS versions and repo-to-study revision binding are absent; later HEAD cannot fill historical behavior.",
+    "Full raw interaction traces, image bytes, hierarchy JSON, ground-truth screen/gesture observations, and participant edits for the two evaluations were not found as an exact archived study bundle.",
+    "Exact AccessibilityEvent enum allowlist, service filters, overlay touch action phases, screenshot and hierarchy thread synchronization, capture latency pairing, most-recent overwrite/race policy, and absent AccessibilityEvent timeout are not fully disclosed.",
+    "The gesture mapping from AccessibilityEvent type to tap/long tap/scroll, element-center coordinate system and scroll dx/dy units/sign are not fully specified by the article.",
+    "App launch/home-return predicates, package transition semantics, handling of intermediate apps/system UI, timestamp field/precision/timezone, equal-time ordering, and trace closure on shutdown/background/permission loss are unreported in the paper.",
+    "Manual edit history, deleted-screen provenance, split boundaries, repaired-gesture original values, and adjudicator identity are not disclosed as a frozen output schema.",
+    "On-device screenshot removal/masking details, hierarchy redaction tag, keyword matching, web IoU cutoff and intersection convention, and release moderation criteria are not fixed by the article.",
+    "The complete evaluation sampling list, researcher observation log, NASA-TLX item subset, and raw participant scores are unavailable for exact numerical reproduction."
+  ],
+  "current_ontology_mapping": {
+    "reusable": [
+      {"term": "StudyMethodProfile / MethodSettingAssertion", "use": "can carry source settings and locators, with unresolved exact execution status; no ODIM candidate profile yet"},
+      {"term": "AcquisitionProtocol", "use": "captures AccessibilityService, overlay, screenshot/hierarchy acquisition provenance and unknown timing, not UI event payload itself"},
+      {"term": "OperationDefinition", "use": "can express capture→join→trace→manual repair→redact→enrich→release dependency graph prospectively; no instantiated operations or import proof"},
+      {"term": "TimestampPolicy and MeasurementReleaseProfile", "use": "can preserve ordering uncertainty and distinction between local raw/edited and moderated public trace"}
+    ],
+    "not_semantically_equivalent": [
+      {"term": "UsageEventRecord", "reason": "It is typed for Android UsageStats rows; it has no screenshot, AccessibilityNodeInfo hierarchy, overlay touch, gesture, or repair lineage."},
+      {"term": "UsageEpisodeAssertion / SessionConstructionPolicy", "reason": "An ODIM UI trace is a sequential set of multimodal interaction events with user-editable boundaries, not an app-foreground duration interval."},
+      {"term": "notification_seen / interruption proxy", "reason": "These UsageStats notification codes do not represent ODIM Accessibility gestures."}
+    ],
+    "candidate_semantic_residues": [
+      {"axis": "multimodal_interaction_event", "residue": "Current data ontology lacks a typed trace event linking distinct touch occurrence, AccessibilityEvent, screenshot, hierarchy, and optional gesture with captured/completed status and time-specific provenance.", "evidence": "PDF p6 §4.2, web lines 205-240", "qualification": "Check actual input and persistence owners before adding a new class; an operation graph alone does not hold the row relation."},
+      {"axis": "interaction_trace_and_edit_lineage", "residue": "No typed source-to-corrected trace entity preserves app boundary, ordered event membership, human deletion/split, original versus repaired gesture, and adjudication provenance.", "evidence": "PDF pp6-7 §4.2-4.3 and p12 §5.1, web lines 241-278,414-417", "qualification": "Paper does not give exact edit-log schema; ontology should represent known distinctions without inventing study rows."},
+      {"axis": "paired_privacy_redaction", "residue": "Redaction is coupled across PNG pixels and hierarchy text/content, with on-device element-based and web pixel/IoU routes; a generic record flag would lose synchronized privacy state and release provenance.", "evidence": "PDF pp8-9 §4.4, web lines 289-328", "qualification": "Preserve source-reported alternative affordances, but not a fabricated factorial configuration."},
+      {"axis": "source_version_conflict", "residue": "Paper launch→home trace boundary cannot be silently equated to later README package-transition/system-UI rules; study build unavailable.", "evidence": "PDF p6 §4.2 lines 241-244; later GitHub README lines 290-302 at HEAD 5237a464", "qualification": "Evidence/version blocker, not by itself an ontology extension."}
+    ]
+  },
+  "minimum_typed_inputs": ["overlay touch occurrence with time/sequence", "selected AccessibilityEvent kind/time and source node identity", "screenshot bytes and capture timestamp", "JSON view hierarchy tree and capture timestamp", "target app/package and launch/home boundary signals", "gesture type/element-center/scroll displacement with missing/misclassified state", "manual edit actions with original and corrected entities", "redaction masks/tags and disclosure stage", "trace/screen/task descriptions", "released trace identity and source-artifact digest"],
+  "required_execution_proofs": [
+    "First, version-bind the evaluated Android/web implementation or label any run as later-code compatibility, never exact study execution.",
+    "Use order- and timing-adversarial fixtures where touch, screenshot, hierarchy, and multiple AccessibilityEvents disagree; preserve original versus effective gesture and incomplete status.",
+    "Round-trip a trace with app launch/home close, missing gesture, misclassification, manually deleted screen, manual split, and separately masked screenshot/hierarchy metadata through import, persistence, GUI edit, and export.",
+    "Keep 100-app raw-capture results, five-participant usability actions, and GPT-4.1 mini baseline as distinct validation oracles with their own denominators; do not infer a post-repair capture percentage."
+  ],
+  "canonical_projection_policy": "Isolated draft only. Do not merge or mark executable. Preserve 2025 article wording separately from later repository HEAD and preserve evaluation baselines as analysis, not as deployed collector settings."
+}

@@ -107,6 +107,160 @@ export type BrowserSupportFiles = {
   deviceSharingFile?: BrowserSupportFile;
   surveyAttributionFile?: BrowserSupportFile;
   enrolledDevicesFile?: BrowserSupportFile;
+  inputCapabilityEvidenceFile?: BrowserSupportFile;
+  analysisFeatureMatrixFile?: BrowserSupportFile;
+  callSmsEligibilityFile?: BrowserSupportFile;
+  phoneStudyPsCommunicationFile?: BrowserSupportFile;
+  phoneStudyEsFile?: BrowserSupportFile;
+  anchorEventsFile?: BrowserSupportFile;
+};
+
+export type MethodProfileReceipt = {
+  methodProfileId: string;
+  sourceWorkId: string;
+  sourceMethodVariantId: string;
+  /** Exact source-declared levels selected within the outer configuration space. */
+  sourceMethodVariantIds: string[];
+  /** Exact source-enumerated combination, when the source names one. */
+  sourceMethodCombinationId?: string;
+  methodProfileVersion: string;
+  settingIds: string[];
+  bindings: Array<{
+    settingId: string;
+    slot: string;
+    value: unknown;
+    conformanceFixtureId: string;
+    conformanceResultDigest: string;
+  }>;
+  inputBindings?: Array<{
+    settingId: string;
+    routeKind: "protocol_input" | "native_operator_parameter";
+    inputRole: string;
+    schemaId: string;
+    adapterId: string;
+    adapterVersion: string;
+    requiredFields: string[];
+    sourceValue: unknown;
+    sourceWorkId?: string;
+    sourceValueSha256?: string;
+    sourceSchema?: {
+      methodSettingId: string;
+      sourceWorkId: string;
+      sourceValue: unknown;
+      sourceValueSha256: string;
+      kind: "event_type" | "field_alias" | "field_passthrough" | "scope_guard";
+      sourceExact?: boolean;
+      sourceField: string;
+      sourceMatchValue?: string;
+      canonicalField?: "interaction_type" | "event_timestamp" | "app_package_name";
+      canonicalValue?: string;
+      requiresPackage: boolean;
+    };
+    conformanceFixtureId: string;
+    conformanceResultDigest: string;
+  }>;
+  /** Exact source-published output tuple fields bound to Chronicle's emitted columns. */
+  outputBindings?: Array<{
+    settingId: string;
+    outputKind: "app-csv" | "screen-csv";
+    sourceField: string;
+    sourcePosition: number;
+    canonicalField: string;
+    conformanceFixtureId: string;
+    conformanceResultDigest: string;
+  }>;
+  documentaryBindings?: Array<{
+    settingId: string;
+    registryInput: Record<string, unknown>;
+    conformanceFixtureId: string;
+    conformanceResultDigest: string;
+    executionEligible: false;
+  }>;
+  /** Content-bound execution through a registered, source-versioned analysis runtime. */
+  externalBindings?: Array<{
+    executorId: string;
+    destinationId: string;
+    sourceConfigurationId: string;
+    bindingKind: "model" | "campaign";
+    settingIds: string[];
+    receiptId: string;
+    modelName?: string;
+    formula?: string;
+    observations?: number;
+    aggregateEvidence?: {
+      methodExecutionPassed: true;
+      publishedNumericOraclePassed: boolean;
+      sourceJobCount: number;
+      executedSourceJobCount: number;
+      generatedResultRows: number;
+      publishedOracleRows: number;
+      publishedOracleJobCount: number;
+      numericOracleCellsCompared: number;
+      numericOracleCellsMismatched: number;
+      jobsWithoutPublishedNumericOracles: number;
+      sourceJobsSha256: string;
+      sourceResultsSha256: string;
+      generatedResultManifestSha256: string;
+    };
+    runtime: string;
+    runtimeVersion: string;
+    containerImageDigest: string;
+    conformanceFixtureId: string;
+    conformanceResultDigest: string;
+    executionReceiptDigest: string;
+  }>;
+  diaryReplicationBinding?: DiaryReplicationBindingReceipt;
+};
+
+export type MethodProfileReceipts = {
+  android?: MethodProfileReceipt;
+  sleepDiary?: MethodProfileReceipt;
+};
+
+/** Which optional support inputs a method receipt's settings require. */
+export type MethodReceiptInputUses = {
+  inputCapabilityEvidence: boolean;
+  analysisFeatureMatrix: boolean;
+  callSmsEligibility: boolean;
+  phoneStudyPsCommunication: boolean;
+  phoneStudyEs: boolean;
+  anchorEvents: boolean;
+};
+
+export type DiarySourceAdapterReceipt = {
+  contractVersion: "diary-source-adapter-receipt-v1";
+  mappingProfileId: string;
+  mappingProfileVersion: string;
+  adapterId: string;
+  adapterVersion: string;
+  conformanceFixtureIds: string[];
+  sourceSha256: string;
+  normalizedSha256: string;
+};
+
+/** Exact, fail-closed binding to the generated Sleep Scoring diary authority. */
+export type DiaryReplicationBindingReceipt = {
+  contractVersion: "chronicle-diary-replication-binding-v1";
+  settingId: string;
+  bridgePayloadSha256: string;
+  catalogSourceSha256: string;
+  versionDefinitionId: string;
+  sourceMethodVariantId: string;
+  mappingProfileId: string;
+  mappingProfileVersion: string;
+  adapterId: string;
+  adapterVersion: string;
+  fixtureId: string;
+  fixtureInputSha256: string;
+  fixtureNormalizedSha256: string;
+  profileExecutionStatus: "blocked";
+  blockerCodes: string[];
+  diaryItemCount: number;
+  formElementCount: number;
+  scheduleRuleCount: number;
+  administrationScheduleCount: number;
+  ruleDefinitionCount: number;
+  sourceAdapterReceipt: DiarySourceAdapterReceipt;
 };
 
 export type BrowserProcessingRuntime = {
@@ -115,8 +269,25 @@ export type BrowserProcessingRuntime = {
   executionAuthority?: "rust";
   /** Persist verified Rust artifacts and alternating roots in OPFS. */
   persistRustWorkspace?: boolean;
+  /**
+   * Run the Salsa incremental engine (memoized queries, warm A/B review,
+   * persisted resume bases). Only `true` enables it; `false` or absent sends
+   * every request through the sequential scheduler, which recomputes the
+   * whole registry from the raw file. The app sets it from a local
+   * Performance toggle that defaults off.
+   */
+  incrementalEngine?: boolean;
+  /**
+   * Build the three optional provenance evidence Arrow files. Only `true`
+   * enables their builders; `false` or absent skips them.
+   */
+  provenanceEvidence?: boolean;
   /** Opt-in benchmark trace ID; never enters semantic inputs or artifacts. */
   performanceTraceId?: string;
+  /** Source-paper profile identity and exact bindings; committed as a runtime artifact. */
+  methodProfileReceipt?: MethodProfileReceipt;
+  /** Independently validated Android and sleep-diary receipts. */
+  methodProfileReceipts?: MethodProfileReceipt[];
 };
 
 /** Presence-only support-role input for the pre-run Workflow Explorer request. */
@@ -160,7 +331,8 @@ export type RustWorkflowExplorerView = {
     outputArtifactIds: string[];
     dataEffects: string[];
     applicable: boolean;
-    runState: "applied" | "bypassed" | "not_applicable" | "not_observed" | "error";
+    runState:
+      "applied" | "bypassed" | "not_applicable" | "not_observed" | "error";
     offReason: string | null;
   }>;
   artifacts: Array<{
@@ -198,7 +370,7 @@ export type RustWorkflowExplorerView = {
 };
 
 export type RustRuntimeReceipt = {
-  protocolVersion: "chronicle-preprocessing-runtime/v1";
+  protocolVersion: "chronicle-preprocessing-runtime/v2";
   workspaceId: string;
   workspaceRootDigest: string;
   previousWorkspaceRootDigest: string | null;
@@ -256,7 +428,7 @@ export type PersistedTimelineRequest = {
 
 /** Exact identities for a fast, non-persisted A/B review calculation. */
 export type RustReviewReceipt = {
-  protocolVersion: "chronicle-preprocessing-runtime/v1";
+  protocolVersion: "chronicle-preprocessing-runtime/v2";
   workspaceId: string;
   previousWorkspaceRootDigest: string | null;
   inputDigest: string;
@@ -306,6 +478,7 @@ export type ProgressEvent =
       fileName: string;
       result?: ProcessedFileResult;
       error?: string;
+      scientificPreflightRefusal?: import("@/lib/generatedRuntimeBoundary").RuntimeScientificPreflightReceipt;
     };
 
 /**
@@ -396,9 +569,25 @@ export type ReviewSummary = {
   participants: ReviewParticipantSummary[];
 };
 
+/** Spill-bridge traffic counters; see `ProcessedFileResult.workerPayloadSpill`. */
+export type PayloadSpillStats = {
+  puts: number;
+  gets: number;
+  putBytes: number;
+  getBytes: number;
+  putMs: number;
+  getMs: number;
+};
+
+/** An output that could not be generated or read and was left out, with why. */
+export type SkippedOutput = { outputFileName: string; reason: string };
+
 export type ProcessedFileResult = {
   inputFileName: string;
   outputs: ProcessedOutputFileResult[];
+  /** Outputs drawn during processing that failed (a plot past the browser's
+   * canvas limits) and were left out instead of failing the file. */
+  skippedOutputs?: SkippedOutput[];
   originalRowCount: number;
   processedRowCount: number;
   availableTimezones: string[];
@@ -427,6 +616,13 @@ export type ProcessedFileResult = {
    * cost is below the static worst-case guess. Worker entry points only.
    */
   workerWasmMemoryBytes?: number;
+  /**
+   * The worker's payload-spill traffic for this file: counts, bytes and the
+   * time spent inside the OPFS sync-access-handle read/write calls, measured
+   * with performance.now() around each call. Absent when no spill backend was
+   * installed (no sync access handles). Worker entry points only.
+   */
+  workerPayloadSpill?: PayloadSpillStats;
   /** Rust/WASM authority and content-addressed workspace receipt. */
   rustRuntimeReceipt?: RustRuntimeReceipt;
   /** Static plots that can be regenerated from a receipt-pinned OPFS artifact. */

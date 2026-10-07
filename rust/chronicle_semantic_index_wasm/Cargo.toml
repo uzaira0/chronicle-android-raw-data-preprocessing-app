@@ -21,13 +21,33 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 console_error_panic_hook = "0.1"
+chronicle_chrono_kernel_wasm = { path = "deps/chronicle_preprocessing_runtime_wasm/deps/chronicle_chrono_kernel_wasm", default-features = false }
+flate2 = { version = "=1.1.9", default-features = false, features = ["rust_backend"] }
+hex = "0.4"
 # Oxigraph 0.5.9 pins quick-xml 0.37, which is affected by
 # RUSTSEC-2026-0194/0195. Pin the upstream post-fix commit until the next
 # crates.io release; the immutable revision already uses quick-xml 0.41.
 oxigraph = { git = "https://github.com/oxigraph/oxigraph.git", rev = "d14ac0b5c4fa67b15d03af945d8669e3497c25a9", default-features = false, features = ["js"] }
 oxttl = { git = "https://github.com/oxigraph/oxigraph.git", rev = "d14ac0b5c4fa67b15d03af945d8669e3497c25a9", default-features = false }
 serde = { version = "1.0", features = ["derive"] }
+serde_jcs = "0.2"
 serde_json = "1.0"
+# Keep the semantic/Oxigraph digest stack on 0.10. Oxigraph's pinned revision
+# accepts 0.11 semver-wise, but its SPARQL evaluator still shares the 0.10
+# `digest` trait with md-5/sha1. The kernel may independently use sha2 0.11.
+#
+# This `=0.10.9` alone is NOT enough once anything in the graph wants sha2 0.11,
+# which the runtime dev-dependency below does. Oxigraph's workspace declares
+# `sha2 = ">=0.10,<0.12"`, so with both majors present the resolver hands
+# `spareval` the newest match (0.11) and its `Sha512: md5::Digest` bounds stop
+# compiling — `digest` 0.10 vs 0.11 are different traits. `Cargo.lock` therefore
+# pins the `spareval` and `oxrdf` entries to `sha2 0.10.9` explicitly. Both
+# versions stay in the lock (0.11 for the runtime and kernel, 0.10.9 for the
+# whole Oxigraph stack) and `--locked` preserves it. If a `cargo update` ever
+# re-resolves `spareval` onto `sha2 0.11.0`, this crate stops compiling with
+# `E0277` on `build_hash_expression_evaluator`; restore the pin rather than
+# relaxing it.
+sha2 = "=0.10.9"
 wasm-bindgen = "0.2"
 
 [profile.release]
@@ -39,3 +59,18 @@ strip = "symbols"
 
 [build-dependencies]
 serde_json = "1.0"
+
+[dev-dependencies]
+# Tests generate their semantic-index source and scientific substrate bundle by
+# running the real product runtime, instead of hand-writing a fixture. A
+# recorded fixture is correct the day it is written and stale the day
+# `IndexSource`, `WORKFLOW_QUERIES`, or the scientific-evidence protocols move,
+# with no signal — that is exactly the rot that switched these tests off. The
+# edge is acyclic: the runtime does not depend on this crate. It is a
+# dev-dependency only, so it never enters the shipped WASM and is not built by
+# the lib-only `cargo check --target wasm32-unknown-unknown` gate.
+chronicle_preprocessing_runtime_wasm = { path = "deps/chronicle_preprocessing_runtime_wasm" }
+
+[patch.crates-io]
+# Cargo patches are root-scoped; tests use the same runtime-owned backport.
+arrow-ipc = { path = "deps/chronicle_preprocessing_runtime_wasm/vendor/arrow-ipc-59.1.0" }

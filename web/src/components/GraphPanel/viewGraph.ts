@@ -52,8 +52,7 @@ function adjacency(graph: ViewGraph): Adjacency {
 function reach(start: string[], edges: Map<string, string[]>): Set<string> {
   const seen = new Set<string>();
   const queue = [...start];
-  while (queue.length > 0) {
-    const id = queue.shift()!;
+  for (let id = queue.shift(); id !== undefined; id = queue.shift()) {
     for (const next of edges.get(id) ?? []) {
       if (seen.has(next)) continue;
       seen.add(next);

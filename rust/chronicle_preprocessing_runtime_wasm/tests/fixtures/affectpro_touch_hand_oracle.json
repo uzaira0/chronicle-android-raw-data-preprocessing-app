@@ -1,0 +1,100 @@
+{
+  "schemaVersion": "chronicle-affectpro-touch-hand-oracle/v1",
+  "source": {
+    "workId": "doi:10.1145/3536221.3556603",
+    "primaryPdfSha256": "432e12be1573da8ba9bbd46df3ca00e3214fd228b41b4ab364d2e8994fcf4f09",
+    "primaryTextSha256": "656794ab000f545b4130b0f5fff17223eb93b653ef7c5bda6ed47eee534e54c5",
+    "locator": "printed p218; text114-125,134-137",
+    "formulas": [
+      "n supplied touch occurrences",
+      "last touch timestamp minus first touch timestamp",
+      "ITD[i] = touch_timestamp[i+1] - touch_timestamp[i]"
+    ]
+  },
+  "cases": [
+    {
+      "id": "ordered-interleaved-duplicate-lexical-scope",
+      "rawCsv": "participant_id,device_id,application_id,task_id,session_id,source_sequence_id,source_stream_role,source_row_id,clock_id,time_unit,time_precision,touch_timestamp,note\nA,d,app ,natural,s,q,affectpro_supplied_session_touch_sequence,e1,c,ms,7,100,first\nB,d,app,natural,s,q,affectpro_supplied_session_touch_sequence,b1,cb,us,1,4,interleaved\nA,d,app ,natural,s,q,affectpro_supplied_session_touch_sequence,e2,c,ms,7,100,tie\nA,d,app ,natural,s,q,affectpro_supplied_session_touch_sequence,e2,c,ms,11,6200,duplicate occurrence ID\nA,d,app,natural,s,q,affectpro_supplied_session_touch_sequence,x1,c,ms,7,-2,lexically distinct app\nA,d,app ,natural,s,q,affectpro_supplied_session_touch_sequence,e3,c,ms,13,6000,signed supplied-order gap\n",
+      "expectedAppendedRows": [
+        [
+          "1",
+          "4",
+          "5900",
+          "computed_supplied_order_arithmetic",
+          "ms",
+          "e2",
+          "2",
+          "0",
+          "computed_supplied_order_arithmetic",
+          "ms",
+          "arithmetic_only_not_source_session_admission"
+        ],
+        [
+          "1",
+          "1",
+          "",
+          "unavailable:single_touch_source_behavior_undisclosed",
+          "",
+          "",
+          "",
+          "",
+          "not_applicable:sequence_end",
+          "",
+          "arithmetic_only_not_source_session_admission"
+        ],
+        [
+          "2",
+          "4",
+          "5900",
+          "computed_supplied_order_arithmetic",
+          "ms",
+          "e2",
+          "3",
+          "6100",
+          "computed_supplied_order_arithmetic",
+          "ms",
+          "arithmetic_only_not_source_session_admission"
+        ],
+        [
+          "3",
+          "4",
+          "5900",
+          "computed_supplied_order_arithmetic",
+          "ms",
+          "e3",
+          "4",
+          "-200",
+          "computed_supplied_order_arithmetic",
+          "ms",
+          "arithmetic_only_not_source_session_admission"
+        ],
+        [
+          "1",
+          "1",
+          "",
+          "unavailable:single_touch_source_behavior_undisclosed",
+          "",
+          "",
+          "",
+          "",
+          "not_applicable:sequence_end",
+          "",
+          "arithmetic_only_not_source_session_admission"
+        ],
+        [
+          "4",
+          "4",
+          "5900",
+          "computed_supplied_order_arithmetic",
+          "ms",
+          "",
+          "",
+          "",
+          "not_applicable:sequence_end",
+          "",
+          "arithmetic_only_not_source_session_admission"
+        ]
+      ]
+    }
+  ]
+}

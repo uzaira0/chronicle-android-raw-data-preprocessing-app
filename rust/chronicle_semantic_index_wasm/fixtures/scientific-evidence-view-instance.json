@@ -1,0 +1,21 @@
+{
+  "protocol_version": "0.1",
+  "view_id": "chronicle.scientific-evidence.v1",
+  "family": "incremental-dataflow",
+  "schema_id": "urn:chronicle:view:scientific-evidence:v1",
+  "revision": 7,
+  "root_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "payload": {
+    "evidence_bindings": [
+      {
+        "axis": "zero_duration_cleanup",
+        "receipt_id": "urn:receipt:zero",
+        "status": true,
+        "artifact_id": "urn:artifact:cleanup",
+        "lineage_artifact_id": "urn:artifact:lineage",
+        "dependency_id": "urn:artifact:foundation",
+        "lineage_dependency_id": "urn:artifact:foundation"
+      }
+    ]
+  }
+}

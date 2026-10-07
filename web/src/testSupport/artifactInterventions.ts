@@ -1,4 +1,8 @@
+import { createHash } from "node:crypto";
+
 import Papa from "papaparse";
+import { usesInputCapabilityEvidence } from "@/lib/inputCapabilityEvidence";
+import type { BrowserProcessingOptions } from "@/lib/types";
 import type {
   SyntheticCatalog,
   SyntheticChronicleCorpus,
@@ -16,6 +20,7 @@ export const SUPPORT_ROLE_IDS = [
   "device_sharing_file",
   "survey_attribution_file",
   "enrolled_devices_file",
+  "input_capability_evidence_file",
 ] as const;
 
 export type SupportRoleId = (typeof SUPPORT_ROLE_IDS)[number];
@@ -65,12 +70,102 @@ export type ArtifactIntervention = {
   apply: (source: ArtifactFixtureState) => ArtifactFixtureState;
 };
 
+export function isCapabilityEvidenceIntervention(
+  intervention: ArtifactIntervention,
+): boolean {
+  return intervention.roleId === "input_capability_evidence_file";
+}
+
 type CsvTable = {
   fields: string[];
   rows: CsvRow[];
 };
 
 const ALTERNATE_PARTICIPANT = "P-ARTIFACT-999-D1";
+export const INPUT_CAPABILITY_EVIDENCE_FIELDS = [
+  "schema_version",
+  "raw_input_sha256",
+  "participant_id",
+  "capability_id",
+  "state",
+  "evidence_basis",
+  "evidence_reference",
+  "evidence_sha256",
+] as const;
+export const INPUT_CAPABILITY_EVIDENCE_SCHEMA_VERSION =
+  "chronicle-input-capability-evidence/v1";
+export const INPUT_CAPABILITY_IDS = [
+  "android_usage_event_15_screen_interactive",
+  "android_usage_event_16_screen_non_interactive",
+  "android_usage_event_17_keyguard_shown",
+  "android_usage_event_18_keyguard_hidden",
+  "android_usage_event_26_device_shutdown",
+  "android_usage_event_27_device_startup",
+  "separate_screen_keyguard_event_rows",
+  "full_unfiltered_source_event_stream",
+  "source_record_order_preserved",
+  "equal_timestamp_source_order_preserved",
+  "single_device_stream_per_participant",
+  "complete_observation_window_chunk",
+] as const;
+
+function sha256Uri(bytes: string): string {
+  return `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
+}
+
+export function buildInputCapabilityEvidenceCsv(rawCsv: string): string {
+  const rawDigest = sha256Uri(rawCsv);
+  return serializeTable({
+    fields: [...INPUT_CAPABILITY_EVIDENCE_FIELDS],
+    rows: INPUT_CAPABILITY_IDS.map((capabilityId) => ({
+      schema_version: INPUT_CAPABILITY_EVIDENCE_SCHEMA_VERSION,
+      raw_input_sha256: rawDigest,
+      participant_id: "*",
+      capability_id: capabilityId,
+      state: "capable",
+      evidence_basis: "producer_manifest",
+      evidence_reference: "urn:chronicle:synthetic-campaign-manifest",
+      evidence_sha256: "",
+    })),
+  });
+}
+
+/** Rebind the scientific sidecar after an intentional raw-byte intervention. */
+export function rebindInputCapabilityEvidence(
+  source: ArtifactFixtureState,
+): ArtifactFixtureState {
+  const target = cloneState(source);
+  target.supports.input_capability_evidence_file = {
+    name: "input-capability-evidence.csv",
+    csv: buildInputCapabilityEvidenceCsv(target.rawCsv),
+  };
+  return target;
+}
+
+/**
+ * Raw-byte mutations deliberately invalidate the old digest-bound sidecar.
+ * Rebind those campaign cells before a source-sensitive execution, while
+ * preserving mixed/current bindings so explicit capability interventions can
+ * prove typed refusal or validation behavior.
+ */
+export function prepareArtifactFixtureForScientificExecution(
+  source: ArtifactFixtureState,
+  options: BrowserProcessingOptions,
+): ArtifactFixtureState {
+  if (!usesInputCapabilityEvidence(options)) return source;
+  const rawDigest = sha256Uri(source.rawCsv);
+  const table = parseTable(
+    source.supports.input_capability_evidence_file.csv,
+    "input capability evidence",
+  );
+  const boundDigests = new Set(
+    table.rows.map(({ raw_input_sha256 }) => raw_input_sha256 ?? ""),
+  );
+  if (boundDigests.size === 1 && !boundDigests.has(rawDigest)) {
+    return rebindInputCapabilityEvidence(source);
+  }
+  return source;
+}
 
 function parseTable(csv: string, label: string): CsvTable {
   const parsed = Papa.parse<CsvRow>(csv, {
@@ -99,7 +194,10 @@ function cloneState(source: ArtifactFixtureState): ArtifactFixtureState {
   return {
     rawCsv: source.rawCsv,
     supports: Object.fromEntries(
-      SUPPORT_ROLE_IDS.map((roleId) => [roleId, { ...source.supports[roleId] }]),
+      SUPPORT_ROLE_IDS.map((roleId) => [
+        roleId,
+        { ...source.supports[roleId] },
+      ]),
     ) as Record<SupportRoleId, SupportArtifact>,
   };
 }
@@ -121,7 +219,10 @@ function mutateSupportTable(
   mutate: (table: CsvTable) => void,
 ): ArtifactFixtureState {
   const target = cloneState(source);
-  const table = parseTable(target.supports[roleId].csv, `${roleId} intervention`);
+  const table = parseTable(
+    target.supports[roleId].csv,
+    `${roleId} intervention`,
+  );
   mutate(table);
   target.supports[roleId].csv = serializeTable(table);
   return target;
@@ -141,7 +242,9 @@ function usedPackageForClass(
   appClass: "filtered" | "background" | "forcing-screen-open",
 ): string {
   const candidate = catalog.apps.find(
-    (app) => corpus.usedPackages.includes(app.packageName) && app.classes.includes(appClass),
+    (app) =>
+      corpus.usedPackages.includes(app.packageName) &&
+      app.classes.includes(appClass),
   );
   if (!candidate) throw new Error(`corpus has no used ${appClass} package`);
   return candidate.packageName;
@@ -156,7 +259,9 @@ function removePackage(table: CsvTable, packageName: string): void {
 }
 
 function firstApplicationRow(table: CsvTable): CsvRow {
-  const row = table.rows.find((candidate) => packageColumn(candidate) !== "android");
+  const row = table.rows.find(
+    (candidate) => packageColumn(candidate) !== "android",
+  );
   if (!row) throw new Error("synthetic corpus has no application event");
   return row;
 }
@@ -177,7 +282,8 @@ function rawFieldIntervention(
     apply: (source) =>
       mutateRawTable(source, (table) => {
         const row = firstApplicationRow(table);
-        if (!table.fields.includes(field)) throw new Error(`raw fixture omits ${field}`);
+        if (!table.fields.includes(field))
+          throw new Error(`raw fixture omits ${field}`);
         row[field] = replacement(row[field] ?? "", row);
       }),
   };
@@ -201,7 +307,9 @@ export function buildArtifactFixtureState(input: {
     .filter(
       (row) =>
         packageColumn(row) !== "android" &&
-        ["Activity Resumed", "Unknown importance: 1"].includes(row.interaction_type ?? ""),
+        ["Activity Resumed", "Unknown importance: 1"].includes(
+          row.interaction_type ?? "",
+        ),
     )
     .map((row) => ({
       participant_id: corpus.participantId,
@@ -266,6 +374,10 @@ export function buildArtifactFixtureState(input: {
           "enrolled devices fixture",
         ),
       },
+      input_capability_evidence_file: {
+        name: "input-capability-evidence.csv",
+        csv: buildInputCapabilityEvidenceCsv(serializeTable(raw)),
+      },
     },
   };
 }
@@ -275,8 +387,10 @@ export function buildArtifactInterventions(input: {
   catalog: SyntheticCatalog;
 }): ArtifactIntervention[] {
   const { corpus, catalog } = input;
-  const firstCorpusTimestamp = parseTable(corpus.csv, "artifact intervention corpus")
-    .rows[0]?.event_timestamp;
+  const firstCorpusTimestamp = parseTable(
+    corpus.csv,
+    "artifact intervention corpus",
+  ).rows[0]?.event_timestamp;
   if (firstCorpusTimestamp === undefined) {
     throw new Error("artifact intervention corpus has no timestamped rows");
   }
@@ -284,7 +398,9 @@ export function buildArtifactInterventions(input: {
   const backgroundPackage = usedPackageForClass(corpus, catalog, "background");
   const rawRows = parseTable(corpus.csv, "artifact intervention corpus").rows;
   const filterActivationEvent = rawRows.find((row) => {
-    const app = catalog.apps.find((candidate) => candidate.packageName === packageColumn(row));
+    const app = catalog.apps.find(
+      (candidate) => candidate.packageName === packageColumn(row),
+    );
     return (
       app?.classes.includes("catalog") &&
       [
@@ -296,16 +412,27 @@ export function buildArtifactInterventions(input: {
     );
   });
   if (!filterActivationEvent) {
-    throw new Error("corpus has no catalog-only application event for filter activation");
+    throw new Error(
+      "corpus has no catalog-only application event for filter activation",
+    );
   }
   let forcingActivationEvent: CsvRow | undefined;
   for (let stopIndex = 0; stopIndex < rawRows.length; stopIndex += 1) {
-    if (rawRows[stopIndex]?.interaction_type !== "Screen Non-Interactive") continue;
-    for (let candidateIndex = stopIndex - 1; candidateIndex >= 0; candidateIndex -= 1) {
+    if (rawRows[stopIndex]?.interaction_type !== "Screen Non-Interactive")
+      continue;
+    for (
+      let candidateIndex = stopIndex - 1;
+      candidateIndex >= 0;
+      candidateIndex -= 1
+    ) {
       const candidate = rawRows[candidateIndex];
       if (candidate === undefined) continue;
       if (packageColumn(candidate) === "android") continue;
-      if (!["Activity Resumed", "Unknown importance: 1"].includes(candidate.interaction_type ?? "")) {
+      if (
+        !["Activity Resumed", "Unknown importance: 1"].includes(
+          candidate.interaction_type ?? "",
+        )
+      ) {
         continue;
       }
       const app = catalog.apps.find(
@@ -319,12 +446,15 @@ export function buildArtifactInterventions(input: {
     if (forcingActivationEvent) break;
   }
   if (!forcingActivationEvent) {
-    throw new Error("corpus has no non-forcing application before a screen stop");
+    throw new Error(
+      "corpus has no non-forcing application before a screen stop",
+    );
   }
   const codebookPackage = corpus.usedPackages.find((packageName) =>
     catalog.codebookByPackage.has(packageName),
   );
-  if (!codebookPackage) throw new Error("corpus has no codebook-backed package");
+  if (!codebookPackage)
+    throw new Error("corpus has no codebook-backed package");
 
   const rawFieldInterventions = [
     rawFieldIntervention("study_id", (value) => `${value}-intervention`),
@@ -335,7 +465,10 @@ export function buildArtifactInterventions(input: {
       "equivalent",
     ),
     rawFieldIntervention("username", () => "Other"),
-    rawFieldIntervention("application_label", (value) => `${value} [intervention]`),
+    rawFieldIntervention(
+      "application_label",
+      (value) => `${value} [intervention]`,
+    ),
     rawFieldIntervention("interaction_type", () => "Notification Seen"),
     rawFieldIntervention(
       "app_package_name",
@@ -431,15 +564,20 @@ export function buildArtifactInterventions(input: {
         "filter_file.app_filter_category",
         "filter_file.filter_bool",
       ],
-      description: "Add a package-wide filter rule for one previously unfiltered used package",
+      description:
+        "Add a package-wide filter rule for one previously unfiltered used package",
       expectedSemanticEffect: "required",
       apply: (source) =>
         mutateSupportTable(source, "filter_file", (table) => {
           const packageName = packageColumn(filterActivationEvent);
           if (table.rows.some((row) => packageColumn(row) === packageName)) {
-            throw new Error(`filter fixture unexpectedly already contains ${packageName}`);
+            throw new Error(
+              `filter fixture unexpectedly already contains ${packageName}`,
+            );
           }
-          const row = Object.fromEntries(table.fields.map((field) => [field, ""]));
+          const row = Object.fromEntries(
+            table.fields.map((field) => [field, ""]),
+          );
           row.app_package_name = packageName;
           // Empty labels deliberately activate package-wide matching. Shipped
           // labels may contain commas, whose support-file meaning is a list of
@@ -461,15 +599,20 @@ export function buildArtifactInterventions(input: {
         "apps_forcing_screen_open_file.package_name",
         "apps_forcing_screen_open_file.label_or_note",
       ],
-      description: "Mark the last meaningful package before a screen stop as screen-forcing",
+      description:
+        "Mark the last meaningful package before a screen stop as screen-forcing",
       expectedSemanticEffect: "required",
       apply: (source) =>
         mutateSupportTable(source, "apps_forcing_screen_open_file", (table) => {
           const packageName = packageColumn(forcingActivationEvent);
           if (table.rows.some((row) => packageColumn(row) === packageName)) {
-            throw new Error(`forcing fixture unexpectedly already contains ${packageName}`);
+            throw new Error(
+              `forcing fixture unexpectedly already contains ${packageName}`,
+            );
           }
-          const row = Object.fromEntries(table.fields.map((field) => [field, ""]));
+          const row = Object.fromEntries(
+            table.fields.map((field) => [field, ""]),
+          );
           row.package_name = packageName;
           row.label_or_note = "Artifact intervention screen-tail witness";
           table.rows.push(row);
@@ -495,14 +638,19 @@ export function buildArtifactInterventions(input: {
       id: "support:codebook-edit-category",
       roleId: "app_codebook_file",
       mutationClass: "record-edit",
-      changedComponents: [`app_codebook_file.package[${codebookPackage}].bcm_play_store_genreId`],
+      changedComponents: [
+        `app_codebook_file.package[${codebookPackage}].bcm_play_store_genreId`,
+      ],
       sourceFields: ["app_codebook_file.bcm_play_store_genreId"],
       description: "Change one used package's codebook category",
       expectedSemanticEffect: "required",
       apply: (source) =>
         mutateSupportTable(source, "app_codebook_file", (table) => {
-          const row = table.rows.find((candidate) => packageColumn(candidate) === codebookPackage);
-          if (!row) throw new Error(`codebook row missing for ${codebookPackage}`);
+          const row = table.rows.find(
+            (candidate) => packageColumn(candidate) === codebookPackage,
+          );
+          if (!row)
+            throw new Error(`codebook row missing for ${codebookPackage}`);
           row.bcm_play_store_genreId = "ARTIFACT_INTERVENTION_CATEGORY";
         }),
     },
@@ -514,7 +662,10 @@ export function buildArtifactInterventions(input: {
         `study_dates_file.participant[${corpus.participantId}].start_date`,
         `study_dates_file.participant[${corpus.participantId}].end_date`,
       ],
-      sourceFields: ["study_dates_file.start_date", "study_dates_file.end_date"],
+      sourceFields: [
+        "study_dates_file.start_date",
+        "study_dates_file.end_date",
+      ],
       description: "Narrow the participant study window to its first day",
       expectedSemanticEffect: "required",
       apply: (source) =>
@@ -554,7 +705,8 @@ export function buildArtifactInterventions(input: {
         `survey_attribution_file.participant[${corpus.participantId}].users[*]`,
       ],
       sourceFields: ["survey_attribution_file.users"],
-      description: "Change every exact session-start survey attribution to Other",
+      description:
+        "Change every exact session-start survey attribution to Other",
       expectedSemanticEffect: "required",
       apply: (source) =>
         mutateSupportTable(source, "survey_attribution_file", (table) => {
@@ -584,6 +736,170 @@ export function buildArtifactInterventions(input: {
           row.device_count = "2";
         }),
     },
+    {
+      id: "support:capability-schema-version-invalid",
+      roleId: "input_capability_evidence_file",
+      mutationClass: "field-edit",
+      changedComponents: ["input_capability_evidence_file.schema_version"],
+      sourceFields: ["input_capability_evidence_file.schema_version"],
+      description: "Change the capability evidence schema version",
+      expectedSemanticEffect: "required",
+      apply: (source) =>
+        mutateSupportTable(
+          source,
+          "input_capability_evidence_file",
+          (table) => {
+            const row = table.rows[0];
+            if (!row) throw new Error("capability evidence has no claim");
+            row.schema_version = "chronicle-input-capability-evidence/v0";
+          },
+        ),
+    },
+    {
+      id: "support:capability-stale-raw-binding",
+      roleId: "input_capability_evidence_file",
+      mutationClass: "field-edit",
+      changedComponents: ["input_capability_evidence_file.raw_input_sha256"],
+      sourceFields: ["input_capability_evidence_file.raw_input_sha256"],
+      description: "Bind one capability claim to a foreign raw digest",
+      expectedSemanticEffect: "required",
+      apply: (source) =>
+        mutateSupportTable(
+          source,
+          "input_capability_evidence_file",
+          (table) => {
+            const row = table.rows[0];
+            if (!row) throw new Error("capability evidence has no claim");
+            row.raw_input_sha256 = `sha256:${"0".repeat(64)}`;
+          },
+        ),
+    },
+    {
+      id: "support:capability-wildcard-to-participant",
+      roleId: "input_capability_evidence_file",
+      mutationClass: "field-edit",
+      changedComponents: ["input_capability_evidence_file.participant_id"],
+      sourceFields: ["input_capability_evidence_file.participant_id"],
+      description:
+        "Scope one wildcard capability claim to the exact participant",
+      expectedSemanticEffect: "required",
+      apply: (source) =>
+        mutateSupportTable(
+          source,
+          "input_capability_evidence_file",
+          (table) => {
+            const row = table.rows[0];
+            if (!row) throw new Error("capability evidence has no claim");
+            row.participant_id = corpus.participantId;
+          },
+        ),
+    },
+    {
+      id: "support:capability-id-swap",
+      roleId: "input_capability_evidence_file",
+      mutationClass: "field-edit",
+      changedComponents: ["input_capability_evidence_file.capability_id"],
+      sourceFields: ["input_capability_evidence_file.capability_id"],
+      description:
+        "Swap two capability identifiers without changing other fields",
+      expectedSemanticEffect: "required",
+      apply: (source) =>
+        mutateSupportTable(
+          source,
+          "input_capability_evidence_file",
+          (table) => {
+            const first = table.rows[0];
+            const second = table.rows[1];
+            if (!first || !second)
+              throw new Error("capability evidence needs two claims");
+            [first.capability_id, second.capability_id] = [
+              second.capability_id ?? "",
+              first.capability_id ?? "",
+            ];
+          },
+        ),
+    },
+    {
+      id: "support:capability-capable-to-absent",
+      roleId: "input_capability_evidence_file",
+      mutationClass: "field-edit",
+      changedComponents: ["input_capability_evidence_file.state"],
+      sourceFields: ["input_capability_evidence_file.state"],
+      description:
+        "Change the complete-window capability from capable to absent",
+      expectedSemanticEffect: "required",
+      apply: (source) =>
+        mutateSupportTable(
+          source,
+          "input_capability_evidence_file",
+          (table) => {
+            const row = table.rows.find(
+              ({ capability_id }) =>
+                capability_id === "complete_observation_window_chunk",
+            );
+            if (!row) throw new Error("capability evidence has no claim");
+            row.state = "absent";
+          },
+        ),
+    },
+    {
+      id: "support:capability-evidence-basis",
+      roleId: "input_capability_evidence_file",
+      mutationClass: "field-edit",
+      changedComponents: ["input_capability_evidence_file.evidence_basis"],
+      sourceFields: ["input_capability_evidence_file.evidence_basis"],
+      description: "Change one capability claim evidence basis",
+      expectedSemanticEffect: "required",
+      apply: (source) =>
+        mutateSupportTable(
+          source,
+          "input_capability_evidence_file",
+          (table) => {
+            const row = table.rows[0];
+            if (!row) throw new Error("capability evidence has no claim");
+            row.evidence_basis = "operator_attestation";
+          },
+        ),
+    },
+    {
+      id: "support:capability-evidence-reference",
+      roleId: "input_capability_evidence_file",
+      mutationClass: "field-edit",
+      changedComponents: ["input_capability_evidence_file.evidence_reference"],
+      sourceFields: ["input_capability_evidence_file.evidence_reference"],
+      description: "Change one capability evidence reference",
+      expectedSemanticEffect: "required",
+      apply: (source) =>
+        mutateSupportTable(
+          source,
+          "input_capability_evidence_file",
+          (table) => {
+            const row = table.rows[0];
+            if (!row) throw new Error("capability evidence has no claim");
+            row.evidence_reference =
+              "urn:chronicle:synthetic-campaign-manifest:alternate";
+          },
+        ),
+    },
+    {
+      id: "support:capability-evidence-digest",
+      roleId: "input_capability_evidence_file",
+      mutationClass: "field-edit",
+      changedComponents: ["input_capability_evidence_file.evidence_sha256"],
+      sourceFields: ["input_capability_evidence_file.evidence_sha256"],
+      description: "Add one exact capability evidence content digest",
+      expectedSemanticEffect: "required",
+      apply: (source) =>
+        mutateSupportTable(
+          source,
+          "input_capability_evidence_file",
+          (table) => {
+            const row = table.rows[0];
+            if (!row) throw new Error("capability evidence has no claim");
+            row.evidence_sha256 = sha256Uri("synthetic-capability-evidence");
+          },
+        ),
+    },
   ];
 
   const representationControls: ArtifactIntervention[] = [
@@ -595,24 +911,33 @@ export function buildArtifactInterventions(input: {
       sourceFields: [],
       description: "Replace LF record separators with CRLF",
       expectedSemanticEffect: "equivalent",
-      apply: (source) => ({ ...cloneState(source), rawCsv: toCrLf(source.rawCsv) }),
-    },
-    ...SUPPORT_ROLE_IDS.map(
-      (roleId): ArtifactIntervention => ({
-        id: `support-representation:${roleId}:crlf`,
-        roleId,
-        mutationClass: "representation-only",
-        changedComponents: [`${roleId}.line_endings`],
-        sourceFields: [],
-        description: `Replace ${roleId} LF record separators with CRLF`,
-        expectedSemanticEffect: "equivalent",
-        apply: (source) => {
-          const target = cloneState(source);
-          target.supports[roleId].csv = toCrLf(source.supports[roleId].csv);
-          return target;
-        },
+      apply: (source) => ({
+        ...cloneState(source),
+        rawCsv: toCrLf(source.rawCsv),
       }),
-    ),
+    },
+    ...SUPPORT_ROLE_IDS.map((roleId): ArtifactIntervention => ({
+      id: `support-representation:${roleId}:crlf`,
+      roleId,
+      mutationClass: "representation-only",
+      changedComponents:
+        roleId === "input_capability_evidence_file"
+          ? [
+              `${roleId}.line_endings`,
+              `${roleId}.artifact_digest`,
+              `${roleId}.assignment_id`,
+            ]
+          : [`${roleId}.line_endings`],
+      sourceFields: [],
+      description: `Replace ${roleId} LF record separators with CRLF`,
+      expectedSemanticEffect:
+        roleId === "input_capability_evidence_file" ? "required" : "equivalent",
+      apply: (source) => {
+        const target = cloneState(source);
+        target.supports[roleId].csv = toCrLf(source.supports[roleId].csv);
+        return target;
+      },
+    })),
   ];
 
   return [
@@ -635,8 +960,8 @@ function formatTimestamp(date: Date): string {
  */
 export function buildRawBoundaryInterventions(): ArtifactIntervention[] {
   const gapSeconds = [
-    0, 1, 2, 29, 30, 31, 59, 60, 61, 119, 120, 121, 299, 300, 301, 3_599,
-    3_600, 3_601, 43_199, 43_200, 43_201,
+    0, 1, 2, 29, 30, 31, 59, 60, 61, 119, 120, 121, 299, 300, 301, 3_599, 3_600,
+    3_601, 43_199, 43_200, 43_201,
   ];
   const gaps = gapSeconds.map<ArtifactIntervention>((seconds) => ({
     id: `raw-boundary:adjacent-gap:${seconds}s`,
@@ -651,7 +976,9 @@ export function buildRawBoundaryInterventions(): ArtifactIntervention[] {
     expectedSemanticEffect: "required",
     apply: (source) =>
       mutateRawTable(source, (table) => {
-        const rows = table.rows.filter((row) => packageColumn(row) !== "android");
+        const rows = table.rows.filter(
+          (row) => packageColumn(row) !== "android",
+        );
         const firstRowTimestamp = rows[0]?.event_timestamp;
         if (firstRowTimestamp === undefined) {
           throw new Error("boundary fixture needs an application event");
@@ -660,14 +987,23 @@ export function buildRawBoundaryInterventions(): ArtifactIntervention[] {
         if (Number.isNaN(origin.valueOf())) {
           throw new Error(`invalid boundary origin ${firstRowTimestamp}`);
         }
-        const desired = formatTimestamp(new Date(origin.valueOf() + seconds * 1_000));
+        const desired = formatTimestamp(
+          new Date(origin.valueOf() + seconds * 1_000),
+        );
         const target = rows.find((row, index) => {
           if (index === 0) return false;
-          const current = new Date(`${(row.event_timestamp ?? "").replace(" ", "T")}Z`);
-          return !Number.isNaN(current.valueOf()) && current.valueOf() !== origin.valueOf() + seconds * 1_000;
+          const current = new Date(
+            `${(row.event_timestamp ?? "").replace(" ", "T")}Z`,
+          );
+          return (
+            !Number.isNaN(current.valueOf()) &&
+            current.valueOf() !== origin.valueOf() + seconds * 1_000
+          );
         });
         if (!target) {
-          throw new Error(`boundary fixture has no event distinct from ${desired}`);
+          throw new Error(
+            `boundary fixture has no event distinct from ${desired}`,
+          );
         }
         target.event_timestamp = desired;
       }),
@@ -680,21 +1016,23 @@ export function buildRawBoundaryInterventions(): ArtifactIntervention[] {
     ["day-end", "2026-06-15 23:59:59"],
     ["day-start", "2026-06-16 00:00:00"],
   ];
-  const calendarValues = calendarJoints.map<ArtifactIntervention>(([label, timestamp]) => ({
-    id: `raw-boundary:calendar:${label}`,
-    roleId: "raw_chronicle_csv",
-    mutationClass: "boundary-edit",
-    changedComponents: [
-      "raw.row[application-event].event_timestamp",
-      `boundary.calendar.${label}`,
-    ],
-    sourceFields: ["raw_chronicle_csv.event_timestamp"],
-    description: `Move one application event to the ${label} calendar joint`,
-    expectedSemanticEffect: "required",
-    apply: (source) =>
-      mutateRawTable(source, (table) => {
-        firstApplicationRow(table).event_timestamp = timestamp;
-      }),
-  }));
+  const calendarValues = calendarJoints.map<ArtifactIntervention>(
+    ([label, timestamp]) => ({
+      id: `raw-boundary:calendar:${label}`,
+      roleId: "raw_chronicle_csv",
+      mutationClass: "boundary-edit",
+      changedComponents: [
+        "raw.row[application-event].event_timestamp",
+        `boundary.calendar.${label}`,
+      ],
+      sourceFields: ["raw_chronicle_csv.event_timestamp"],
+      description: `Move one application event to the ${label} calendar joint`,
+      expectedSemanticEffect: "required",
+      apply: (source) =>
+        mutateRawTable(source, (table) => {
+          firstApplicationRow(table).event_timestamp = timestamp;
+        }),
+    }),
+  );
   return [...gaps, ...calendarValues];
 }

@@ -1,14 +1,18 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type * as Comlink from "comlink";
 import {
+  beginRawInspectionBatch,
   comparisonSupportCacheKey,
   discoverTimezonesBytes,
   exportVerifiedWorkspaceClosure,
   getRuntimeVersion,
   getWorkflowExplorerView,
+  onWorkerBackgroundFailure,
   importVerifiedWorkspaceClosure,
   inspectRawCsvBytes,
   clearReviewSummaryReuseCache,
+  reviewSummaryReuseRetainedBytes,
+  setReviewSummaryReuseBudgetBytesForTesting,
   probeWorkerWorkspaceCapability,
   processPersistedReview,
   processPersistedOrRawChangedReviewViaPool,
@@ -25,6 +29,12 @@ import type {
   BrowserProcessingOptions,
   ProcessedFileResult,
 } from "@/lib/types";
+import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
+import {
+  parseWorkerBackgroundFailure,
+  WORKER_BACKGROUND_FAILURE_MESSAGE,
+} from "@/lib/workerBackgroundFailure";
+import { runtimeScientificPreflightFixture } from "@/testSupport/runtimeScientificPreflightFixture";
 
 // Node's built-in fetch (undici) compiles its HTTP parser with
 // WebAssembly.compile the first time a Response body is read. A test that
@@ -139,6 +149,80 @@ function stubSpawn(
 }
 
 describe("WorkerPool", () => {
+  it("releases idle warm workers when a later run grows one heap past the shared budget", async () => {
+    const gib = 1024 ** 3;
+    const terminated = [vi.fn(), vi.fn(), vi.fn()];
+    let spawned = 0;
+    const pool = new WorkerPool(3, () => ({
+      api: {} as RemoteApi,
+      worker: { terminate: terminated[spawned++]! },
+    }));
+    pool.setRetainedMemoryBudget(8);
+    await Promise.all(
+      ["a", "b", "c"].map((digest) =>
+        pool.submit(
+          () => Promise.resolve({ workerWasmMemoryBytes: gib }),
+          digest,
+        ),
+      ),
+    );
+    expect(pool.size).toBe(3);
+
+    await pool.submit(
+      () => Promise.resolve({ workerWasmMemoryBytes: 3 * gib }),
+      "a",
+    );
+
+    expect(pool.size).toBe(1);
+    expect(terminated.filter((terminate) => terminate.mock.calls.length)).toHaveLength(2);
+    await pool.submit(
+      () => Promise.resolve({ workerWasmMemoryBytes: 5 * gib }),
+      "a",
+    );
+    expect(pool.usable).toBe(false);
+    expect(terminated.every((terminate) => terminate.mock.calls.length === 1)).toBe(true);
+    pool.terminate();
+  });
+
+  it("retires a warm worker whose heap may grow before its task rejects", async () => {
+    const gib = 1024 ** 3;
+    const terminated = [vi.fn(), vi.fn(), vi.fn()];
+    let spawned = 0;
+    const pool = new WorkerPool(3, () => ({
+      api: {} as RemoteApi,
+      worker: { terminate: terminated[spawned++]! },
+    }));
+    pool.setRetainedMemoryBudget(8);
+    await Promise.all(["a", "b", "c"].map((digest) =>
+      pool.submit(() => Promise.resolve({ workerWasmMemoryBytes: gib }), digest),
+    ));
+
+    await expect(pool.submit(
+      () => Promise.reject(new Error("comparison rejected after heap growth")),
+      "a",
+    )).rejects.toThrow("comparison rejected after heap growth");
+
+    expect(terminated[0]).toHaveBeenCalledOnce();
+    expect(terminated[1]).not.toHaveBeenCalled();
+    expect(terminated[2]).not.toHaveBeenCalled();
+    expect(pool.usable).toBe(true);
+    pool.terminate();
+  });
+
+  it("releases the whole warm pool when any worker faults", async () => {
+    const { spawn, faults, terminated } = stubSpawn();
+    const onFault = vi.fn(() => pool.terminate());
+    const pool = new WorkerPool(2, { spawn, onFault });
+
+    faults[0]!.reject(new Error("worker failed"));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(onFault).toHaveBeenCalledTimes(1);
+    expect(terminated).toEqual([true, true]);
+    expect(pool.usable).toBe(false);
+  });
+
   it("creates exactly `size` workers regardless of submitted task count", async () => {
     const { spawn, workers } = makeSpawn();
     const pool = new WorkerPool(3, spawn);
@@ -254,7 +338,10 @@ describe("WorkerPool", () => {
       }
       return slot;
     };
-    const pool = new WorkerPool(1, { spawn: throwingSpawn, maxTasksPerWorker: 1 });
+    const pool = new WorkerPool(1, {
+      spawn: throwingSpawn,
+      maxTasksPerWorker: 1,
+    });
     await expect(pool.submit((api) => Promise.resolve(api))).resolves.toBe(
       apis[0],
     );
@@ -385,6 +472,31 @@ describe("WorkerPool", () => {
     expect(firstWorker.terminate).toHaveBeenCalledTimes(1);
     failingPool.terminate();
     expect(firstWorker.terminate).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports an all-dead initialization pool as unusable so comparison retry can replace it", async () => {
+    const ready = deferred<void>();
+    const failed = new WorkerPool(1, () => ({
+      api: {} as RemoteApi,
+      worker: { terminate: vi.fn() },
+      ready: ready.promise,
+    }));
+    expect(failed.usable).toBe(true);
+    ready.reject(new Error("offline during worker initialization"));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(failed.usable).toBe(false);
+    await expect(
+      failed.submit(() => Promise.resolve("stale")),
+    ).rejects.toThrow("All Chronicle workers have failed");
+
+    const fresh = new WorkerPool(1, makeSpawn().spawn);
+    expect(fresh.usable).toBe(true);
+    await expect(fresh.submit(() => Promise.resolve("online"))).resolves.toBe(
+      "online",
+    );
+    failed.terminate();
+    fresh.terminate();
   });
 
   it("fails the slot without hanging when worker termination throws during recycling", async () => {
@@ -667,6 +779,198 @@ describe("WorkerPool", () => {
 });
 
 describe("pool entry points", () => {
+  it("rehydrates an exact typed scientific refusal without an execute fallback", async () => {
+    const receipt = runtimeScientificPreflightFixture();
+    const harness = stubSpawn({
+      processRawCsvBytes: () =>
+        // The worker deliberately throws a plain structured-clone carrier;
+        // Comlink Error serialization would discard the typed receipt.
+        // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+        Promise.reject({
+          kind: "chronicle-scientific-preflight-refusal/v1",
+          message: "typed scientific refusal",
+          receipt,
+        }),
+    });
+    const pool = new WorkerPool(1, harness.spawn);
+    const failure = await processRawCsvBytesViaPool(
+      pool,
+      "refused.csv",
+      new Uint8Array([1]).buffer,
+      { ...DEFAULT_BROWSER_OPTIONS, processScreenUsage: true },
+      undefined,
+      undefined,
+      undefined,
+      "1".repeat(64),
+    ).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure).toMatchObject({
+      code: "scientific_preflight_refused",
+      receipt,
+    });
+    pool.terminate();
+  });
+
+  it("threads active partition metadata through every raw lane and detaches inactive metadata", async () => {
+    const fullCalls: unknown[][] = [];
+    const reviewCalls: unknown[][] = [];
+    const result = { outputFileName: "out.csv" } as unknown as ProcessedFileResult;
+    const harness = stubSpawn({
+      processRawCsvBytes: (...args: unknown[]) => {
+        fullCalls.push(args);
+        return Promise.resolve(result);
+      },
+      processReviewCsvBytes: (...args: unknown[]) => {
+        reviewCalls.push(args);
+        return Promise.resolve(result);
+      },
+      processPersistedReview: vi.fn().mockResolvedValue(null),
+    });
+    const pool = new WorkerPool(1, harness.spawn);
+    const batch = {
+      participantPartitionBatchId: `sha256:${"a".repeat(64)}`,
+      secret: new Uint8Array(32).fill(4),
+    };
+    const partition = {
+      participantPartitionBatchId: batch.participantPartitionBatchId,
+      fragmentedParticipantTokens: [`sha256:${"b".repeat(64)}`],
+    };
+    const active = { ...DEFAULT_BROWSER_OPTIONS, processScreenUsage: true };
+
+    await processRawCsvBytesViaPool(
+      pool,
+      "full.csv",
+      new Uint8Array([1]).buffer,
+      active,
+      undefined,
+      undefined,
+      undefined,
+      "1".repeat(64),
+      partition,
+      batch,
+    );
+    await processRawCsvChangedReviewBytesViaPool(
+      pool,
+      "review.csv",
+      new Uint8Array([2]).buffer,
+      active,
+      undefined,
+      undefined,
+      "2".repeat(64),
+      partition,
+      batch,
+    );
+    await processPersistedOrRawChangedReviewViaPool(
+      pool,
+      "fallback.csv",
+      1,
+      () => Promise.resolve(new Uint8Array([3]).buffer),
+      active,
+      undefined,
+      undefined,
+      "3".repeat(64),
+      undefined,
+      partition,
+      batch,
+    );
+    await processRawCsvBytesViaPool(
+      pool,
+      "inactive.csv",
+      new Uint8Array([4]).buffer,
+      { ...DEFAULT_BROWSER_OPTIONS, processScreenUsage: false },
+      undefined,
+      undefined,
+      undefined,
+      "4".repeat(64),
+      partition,
+      batch,
+    );
+
+    expect(fullCalls[0]?.[7]).toEqual(partition);
+    expect(fullCalls[0]?.[8]).toBeInstanceOf(ArrayBuffer);
+    expect(reviewCalls[0]?.[8]).toEqual(partition);
+    expect(reviewCalls[0]?.[9]).toBeInstanceOf(ArrayBuffer);
+    expect(reviewCalls[1]?.[8]).toEqual(partition);
+    expect(reviewCalls[1]?.[9]).toBeInstanceOf(ArrayBuffer);
+    expect(fullCalls[1]?.[7]).toBeUndefined();
+    expect(fullCalls[1]?.[8]).toBeUndefined();
+    expect(batch.secret).toEqual(new Uint8Array(32).fill(4));
+    pool.terminate();
+  });
+
+  it("wipes a changed-review secret copy when pool acquisition is terminated", async () => {
+    const { spawn } = makeSpawn();
+    const pool = new WorkerPool(1, spawn);
+    const batch = {
+      participantPartitionBatchId: `sha256:${"a".repeat(64)}`,
+      secret: new Uint8Array(32).fill(0x26),
+    };
+    const transient = new Uint8Array(32).fill(0x26);
+    vi.spyOn(batch.secret, "slice").mockReturnValue(transient);
+    const pending = processRawCsvChangedReviewBytesViaPool(
+      pool,
+      "review.csv",
+      new Uint8Array([1]).buffer,
+      { ...DEFAULT_BROWSER_OPTIONS, processScreenUsage: true },
+      undefined,
+      undefined,
+      "1".repeat(64),
+      {
+        participantPartitionBatchId: batch.participantPartitionBatchId,
+        fragmentedParticipantTokens: [`sha256:${"b".repeat(64)}`],
+      },
+      batch,
+    );
+    pool.terminate();
+    await expect(pending).rejects.toThrow("Worker pool has been terminated");
+    expect(transient).toEqual(new Uint8Array(32));
+    expect(batch.secret).toEqual(new Uint8Array(32).fill(0x26));
+  });
+
+  it("wipes a persisted-fallback secret when termination wins during deferred raw loading", async () => {
+    const load = deferred<ArrayBuffer>();
+    const rpcNeverSettles = new Promise<ProcessedFileResult>(() => {});
+    const persistedCalled = deferred<void>();
+    const harness = stubSpawn({
+      processPersistedReview: vi.fn(() => {
+        persistedCalled.resolve();
+        return Promise.resolve(null);
+      }),
+      processReviewCsvBytes: vi.fn(() => rpcNeverSettles),
+    });
+    const pool = new WorkerPool(1, harness.spawn);
+    const batch = {
+      participantPartitionBatchId: `sha256:${"a".repeat(64)}`,
+      secret: new Uint8Array(32).fill(0x31),
+    };
+    const transient = new Uint8Array(32).fill(0x31);
+    vi.spyOn(batch.secret, "slice").mockReturnValue(transient);
+    const pending = processPersistedOrRawChangedReviewViaPool(
+      pool,
+      "fallback.csv",
+      3,
+      () => load.promise,
+      { ...DEFAULT_BROWSER_OPTIONS, processScreenUsage: true },
+      undefined,
+      undefined,
+      "1".repeat(64),
+      undefined,
+      {
+        participantPartitionBatchId: batch.participantPartitionBatchId,
+        fragmentedParticipantTokens: [`sha256:${"b".repeat(64)}`],
+      },
+      batch,
+    );
+    await persistedCalled.promise;
+    pool.terminate();
+    await expect(pending).rejects.toThrow("Worker pool has been terminated");
+    expect(transient).toEqual(new Uint8Array(32));
+    load.resolve(new Uint8Array([1, 2, 3]).buffer);
+    await Promise.resolve();
+    expect(transient).toEqual(new Uint8Array(32));
+    expect(batch.secret).toEqual(new Uint8Array(32).fill(0x31));
+  });
+
   it("processRawCsvBytesViaPool transfers bytes and reuses the inspected digest", async () => {
     const { spawn, calls, result } = stubSpawn();
     const pool = new WorkerPool(1, spawn);
@@ -804,10 +1108,12 @@ describe("pool entry points", () => {
         key,
       );
     }
-    expect(harness.calls.filter((call) => call.startsWith("support:"))).toEqual([
-      `support:${key}`,
-    ]);
-    expect(harness.calls.filter((call) => call.startsWith("persisted:"))).toHaveLength(2);
+    expect(harness.calls.filter((call) => call.startsWith("support:"))).toEqual(
+      [`support:${key}`],
+    );
+    expect(
+      harness.calls.filter((call) => call.startsWith("persisted:")),
+    ).toHaveLength(2);
     pool.terminate();
   });
 
@@ -839,7 +1145,8 @@ describe("pool entry points", () => {
       }),
     );
     const firstBundle = bundles[0];
-    if (firstBundle === undefined) throw new Error("expected three support bundles");
+    if (firstBundle === undefined)
+      throw new Error("expected three support bundles");
     for (const bundle of [...bundles, firstBundle]) {
       await processPersistedOrRawChangedReviewViaPool(
         pool,
@@ -853,7 +1160,9 @@ describe("pool entry points", () => {
         bundle.key,
       );
     }
-    expect(harness.calls.filter((call) => call === `support:${firstBundle.key}`)).toHaveLength(2);
+    expect(
+      harness.calls.filter((call) => call === `support:${firstBundle.key}`),
+    ).toHaveLength(2);
     pool.terminate();
   });
 });
@@ -867,6 +1176,7 @@ describe("pool entry points", () => {
  */
 class FakeWorker {
   static instances: FakeWorker[] = [];
+  static deferReady = false;
   listeners = new Map<string, Array<(event: unknown) => void>>();
   terminated = false;
 
@@ -878,6 +1188,9 @@ class FakeWorker {
     const bucket = this.listeners.get(type) ?? [];
     bucket.push(handler);
     this.listeners.set(type, bucket);
+    if (type === "message" && !FakeWorker.deferReady) {
+      queueMicrotask(() => handler({ data: { type: "chronicle-worker-api-ready/v1" } }));
+    }
   }
 
   removeEventListener(): void {}
@@ -909,6 +1222,29 @@ afterAll(() => vi.unstubAllGlobals());
 function lastWorker(): FakeWorker {
   return FakeWorker.instances.at(-1)!;
 }
+
+describe("worker background failures (fake Worker global)", () => {
+  it("hands a worker's background failure to every listener until it unsubscribes", () => {
+    const heard: unknown[] = [];
+    const stop = onWorkerBackgroundFailure((failure) => heard.push(failure));
+    void getRuntimeVersion().catch(() => undefined);
+    const worker = lastWorker();
+    worker.fire("message", { data: { type: WORKER_BACKGROUND_FAILURE_MESSAGE, operation: "spill-sweep", message: "disk" } });
+    // Comlink replies and the ready announcement are not background failures.
+    worker.fire("message", { data: { type: "chronicle-worker-api-ready/v1" } });
+    worker.fire("message", { data: null });
+    stop();
+    worker.fire("message", { data: { type: WORKER_BACKGROUND_FAILURE_MESSAGE, operation: "spill-sweep", message: "later" } });
+    expect(heard).toEqual([{ operation: "spill-sweep", message: "disk" }]);
+    worker.fire("error", { message: "end of test" });
+  });
+
+  it("parses only well-formed background failure messages", () => {
+    expect(parseWorkerBackgroundFailure({ type: WORKER_BACKGROUND_FAILURE_MESSAGE, operation: "other", message: "x" })).toBeNull();
+    expect(parseWorkerBackgroundFailure({ type: WORKER_BACKGROUND_FAILURE_MESSAGE, operation: "spill-sweep", message: 1 })).toBeNull();
+    expect(parseWorkerBackgroundFailure("text")).toBeNull();
+  });
+});
 
 describe("shared worker fault handling (fake Worker global)", () => {
   it("rejects loudly on a worker error event, evicts the singleton, and re-spawns on retry", async () => {
@@ -961,6 +1297,39 @@ describe("shared worker fault handling (fake Worker global)", () => {
     );
   });
 
+  it("wipes inspection and active-run secret copies when shared initialization faults", async () => {
+    const beginSecret = new Uint8Array(32).fill(0x31);
+    const begin = beginRawInspectionBatch(beginSecret.buffer);
+    lastWorker().fire("error", { message: "begin init failed" });
+    await expect(begin).rejects.toThrow("begin init failed");
+    expect(beginSecret).toEqual(new Uint8Array(32));
+
+    const batch = {
+      participantPartitionBatchId: `sha256:${"a".repeat(64)}`,
+      secret: new Uint8Array(32).fill(0x42),
+    };
+    const transient = new Uint8Array(32).fill(0x42);
+    vi.spyOn(batch.secret, "slice").mockReturnValue(transient);
+    const processing = processRawCsvBytes(
+      "raw.csv",
+      new Uint8Array([1]).buffer,
+      { ...DEFAULT_BROWSER_OPTIONS, processScreenUsage: true },
+      undefined,
+      undefined,
+      undefined,
+      "1".repeat(64),
+      {
+        participantPartitionBatchId: batch.participantPartitionBatchId,
+        fragmentedParticipantTokens: [`sha256:${"b".repeat(64)}`],
+      },
+      batch,
+    );
+    lastWorker().fire("error", { message: "processing init failed" });
+    await expect(processing).rejects.toThrow("processing init failed");
+    expect(transient).toEqual(new Uint8Array(32));
+    expect(batch.secret).toEqual(new Uint8Array(32).fill(0x42));
+  });
+
   it("routes workspace closure and pre-run view requests through the shared worker", async () => {
     const exported = exportVerifiedWorkspaceClosure(`sha256:${"1".repeat(64)}`);
     lastWorker().fire("error", { message: "export failed" });
@@ -972,7 +1341,9 @@ describe("shared worker fault handling (fake Worker global)", () => {
     lastWorker().fire("error", { message: "import failed" });
     await expect(imported).rejects.toThrow("import failed");
 
-    const view = getWorkflowExplorerView({} as Parameters<typeof getWorkflowExplorerView>[0]);
+    const view = getWorkflowExplorerView(
+      {} as Parameters<typeof getWorkflowExplorerView>[0],
+    );
     lastWorker().fire("error", { message: "view failed" });
     await expect(view).rejects.toThrow("view failed");
   });
@@ -1042,11 +1413,16 @@ describe("shared worker fault handling (fake Worker global)", () => {
 async function loadFreshWorkerClient(
   api: RemoteApi,
   response: Response,
+  detachTransfers = false,
 ): Promise<typeof import("@/lib/rustWorkerClient")> {
   vi.resetModules();
   vi.doMock("comlink", () => ({
     wrap: vi.fn(() => api),
-    transfer: vi.fn((value: unknown) => value),
+    transfer: vi.fn((value: unknown) =>
+      detachTransfers && value instanceof ArrayBuffer
+        ? structuredClone(value, { transfer: [value] })
+        : value,
+    ),
     proxy: vi.fn((value: unknown) => value),
   }));
   vi.stubGlobal(
@@ -1057,6 +1433,43 @@ async function loadFreshWorkerClient(
 }
 
 describe("shared worker successful routing and WASM compilation", () => {
+  it("rejects comparison warm-up if the worker fails before exposing its API", async () => {
+    FakeWorker.deferReady = true;
+    const api = { initializeRuntime: vi.fn(() => Promise.resolve()), setComparisonCacheCapacity: vi.fn() } as unknown as RemoteApi;
+    const client = await loadFreshWorkerClient(api, new Response("unused", { status: 503 }));
+    const pool = new client.WorkerPool(1);
+    try {
+      const pending = pool.setComparisonCacheCapacity(2);
+      lastWorker().fire("error", { message: "corrupt packed worker contract" });
+      await expect(pending).rejects.toThrow("Chronicle worker failed: corrupt packed worker contract");
+      expect(api.initializeRuntime).not.toHaveBeenCalled();
+      expect(api.setComparisonCacheCapacity).not.toHaveBeenCalled();
+    } finally { pool.terminate(); FakeWorker.deferReady = false; }
+  });
+
+  it("waits for worker API exposure before sending initialization despite an already compiled module", async () => {
+    FakeWorker.deferReady = true;
+    const api = {
+      initializeRuntime: vi.fn(() => Promise.resolve()),
+      runtimeVersion: vi.fn(() => Promise.resolve("ready")),
+    } as unknown as RemoteApi;
+    const compile = vi.spyOn(WebAssembly, "compileStreaming").mockResolvedValue({});
+    try {
+      const client = await loadFreshWorkerClient(api, new Response(new Uint8Array([0, 97, 115, 109]), {
+        headers: { "content-type": "application/wasm" },
+      }));
+      const pending = client.getRuntimeVersion();
+      await vi.waitFor(() => expect(compile).toHaveBeenCalled());
+      lastWorker().fire("message", {});
+      lastWorker().fire("message", { data: { type: "foreign-ready" } });
+      await Promise.resolve();
+      expect(api.initializeRuntime).not.toHaveBeenCalled();
+      lastWorker().fire("message", { data: { type: "chronicle-worker-api-ready/v1" } });
+      await expect(pending).resolves.toBe("ready");
+      expect(api.initializeRuntime).toHaveBeenCalledOnce();
+    } finally { FakeWorker.deferReady = false; compile.mockRestore(); }
+  });
+
   it("reports an HTTP failure before initializing the worker runtime", async () => {
     const api = {
       initializeRuntime: vi.fn(() => Promise.resolve()),
@@ -1070,6 +1483,130 @@ describe("shared worker successful routing and WASM compilation", () => {
       "Could not load the Rust runtime (503)",
     );
     expect(api.initializeRuntime).not.toHaveBeenCalled();
+  });
+
+  it("clears a rejected module fetch and creates a fresh shared worker after connectivity recovers", async () => {
+    const api = {
+      initializeRuntime: vi.fn(() => Promise.resolve()),
+      runtimeVersion: vi.fn(() => Promise.resolve("online")),
+    } as unknown as RemoteApi;
+    const client = await loadFreshWorkerClient(
+      api,
+      new Response("placeholder", { status: 500 }),
+    );
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockReset()
+      .mockResolvedValueOnce(new Response("offline", { status: 503 }))
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array([0, 97, 115, 109]), {
+          headers: { "content-type": "application/wasm" },
+        }),
+      );
+    const compileStreaming = vi
+      .spyOn(WebAssembly, "compileStreaming")
+      .mockResolvedValue({});
+    const before = FakeWorker.instances.length;
+
+    await expect(client.getRuntimeVersion()).rejects.toThrow(
+      "Could not load the Rust runtime (503)",
+    );
+    expect(FakeWorker.instances[before]?.terminated).toBe(true);
+    await expect(client.getRuntimeVersion()).resolves.toBe("online");
+    expect(FakeWorker.instances.length).toBe(before + 2);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(api.initializeRuntime).toHaveBeenCalledTimes(1);
+    compileStreaming.mockRestore();
+  });
+
+  it("clears a rejected compilation promise instead of memoizing it", async () => {
+    const api = {
+      initializeRuntime: vi.fn(() => Promise.resolve()),
+      runtimeVersion: vi.fn(() => Promise.resolve("compiled-on-retry")),
+    } as unknown as RemoteApi;
+    const client = await loadFreshWorkerClient(
+      api,
+      new Response(new Uint8Array([0, 97, 115, 109])),
+    );
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockReset()
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array([0, 97, 115, 109])),
+      )
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array([0, 97, 115, 109])),
+      );
+    const compileStreaming = vi
+      .spyOn(WebAssembly, "compileStreaming")
+      .mockRejectedValue(new TypeError("stream unavailable"));
+    const compile = vi
+      .spyOn(WebAssembly, "compile")
+      .mockRejectedValueOnce(new Error("compile failed"))
+      .mockResolvedValueOnce({});
+
+    await expect(client.getRuntimeVersion()).rejects.toThrow("compile failed");
+    await expect(client.getRuntimeVersion()).resolves.toBe(
+      "compiled-on-retry",
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(compile).toHaveBeenCalledTimes(2);
+    compileStreaming.mockRestore();
+    compile.mockRestore();
+  });
+
+  it("evicts a shared worker whose initializeRuntime call rejects", async () => {
+    const api = {
+      initializeRuntime: vi
+        .fn()
+        .mockRejectedValueOnce(new Error("initialization refused"))
+        .mockResolvedValueOnce(undefined),
+      runtimeVersion: vi.fn(() => Promise.resolve("fresh-worker")),
+    } as unknown as RemoteApi;
+    const client = await loadFreshWorkerClient(
+      api,
+      new Response(new Uint8Array([0, 97, 115, 109]), {
+        headers: { "content-type": "application/wasm" },
+      }),
+    );
+    const compileStreaming = vi
+      .spyOn(WebAssembly, "compileStreaming")
+      .mockResolvedValue({});
+    const before = FakeWorker.instances.length;
+
+    await expect(client.getRuntimeVersion()).rejects.toThrow(
+      "initialization refused",
+    );
+    expect(FakeWorker.instances[before]?.terminated).toBe(true);
+    await expect(client.getRuntimeVersion()).resolves.toBe("fresh-worker");
+    expect(FakeWorker.instances.length).toBe(before + 2);
+    expect(api.initializeRuntime).toHaveBeenCalledTimes(2);
+    compileStreaming.mockRestore();
+  });
+
+  it("detaches a successfully transferred inspection secret", async () => {
+    const api = {
+      initializeRuntime: vi.fn(() => Promise.resolve()),
+      beginRawInspectionBatch: vi.fn(() =>
+        Promise.resolve(`sha256:${"a".repeat(64)}`),
+      ),
+    } as unknown as RemoteApi;
+    const client = await loadFreshWorkerClient(
+      api,
+      new Response(new Uint8Array([0, 97, 115, 109]), {
+        headers: { "content-type": "application/wasm" },
+      }),
+      true,
+    );
+    const compileStreaming = vi
+      .spyOn(WebAssembly, "compileStreaming")
+      .mockResolvedValue({});
+    const secret = new Uint8Array(32).fill(0x55);
+    await expect(client.beginRawInspectionBatch(secret.buffer)).resolves.toBe(
+      `sha256:${"a".repeat(64)}`,
+    );
+    expect(secret.byteLength).toBe(0);
+    compileStreaming.mockRestore();
   });
 
   it("compiles once on the main thread and routes every shared-worker operation", async () => {
@@ -1116,9 +1653,11 @@ describe("shared worker successful routing and WASM compilation", () => {
     expect(compileStreaming).toHaveBeenCalledTimes(1);
     expect(compile).not.toHaveBeenCalled();
 
-const exportedArchive = await client.exportVerifiedWorkspaceClosure(
+    const exportedArchive = await client.exportVerifiedWorkspaceClosure(
       `sha256:${"1".repeat(64)}`,
+      imported.slot.workspaceRootDigest,
     );
+    expect(api.exportWorkspaceClosure).toHaveBeenCalledWith(imported.workspaceId, imported.slot.workspaceRootDigest);
     expect(new Uint8Array(await exportedArchive.arrayBuffer())).toEqual(
       new Uint8Array([1, 2, 3]),
     );
@@ -1129,10 +1668,9 @@ const exportedArchive = await client.exportVerifiedWorkspaceClosure(
       client.importVerifiedWorkspaceClosure(archiveBlob),
     ).resolves.toEqual(imported);
     await expect(
-      client.getWorkflowExplorerView(
-        {} as BrowserProcessingOptions,
-        [{ roleId: "filter_file", present: true }],
-      ),
+      client.getWorkflowExplorerView({} as BrowserProcessingOptions, [
+        { roleId: "filter_file", present: true },
+      ]),
     ).resolves.toEqual({ payload: {} });
     await expect(
       client.discoverTimezonesBytes(new ArrayBuffer(2)),
@@ -1169,10 +1707,9 @@ const exportedArchive = await client.exportVerifiedWorkspaceClosure(
       ),
     ).resolves.toBe(result);
     expect(api.importWorkspaceClosureArchive).toHaveBeenCalledWith(archiveBlob);
-    expect(api.workflowExplorerView).toHaveBeenCalledWith(
-      {},
-      [{ roleId: "filter_file", present: true }],
-    );
+    expect(api.workflowExplorerView).toHaveBeenCalledWith({}, [
+      { roleId: "filter_file", present: true },
+    ]);
     expect(api.processRawCsvBytes).toHaveBeenCalledWith(
       "raw.csv",
       expect.any(ArrayBuffer),
@@ -1181,6 +1718,8 @@ const exportedArchive = await client.exportVerifiedWorkspaceClosure(
       undefined,
       progress,
       "digest",
+      undefined,
+      undefined,
     );
     const pool = new client.WorkerPool(1, { maxTasksPerWorker: 2 });
     await expect(
@@ -1190,6 +1729,92 @@ const exportedArchive = await client.exportVerifiedWorkspaceClosure(
 
     compileStreaming.mockRestore();
     compile.mockRestore();
+  });
+
+  it("transfers a mixed-study upload to the worker splitter and returns its per-study files", async () => {
+    const compileStreaming = vi
+      .spyOn(WebAssembly, "compileStreaming")
+      .mockResolvedValue({});
+    const received: number[][] = [];
+    const studyA = new Uint8Array([1]).buffer;
+    const studyB = new Uint8Array([2, 3]).buffer;
+    const api = {
+      initializeRuntime: vi.fn(() => Promise.resolve()),
+      splitRawCsvByStudy: vi.fn((bytes: ArrayBuffer) => {
+        received.push([...new Uint8Array(bytes)]);
+        return Promise.resolve([
+          { studyId: "study-a", bytes: studyA },
+          { studyId: "study-b", bytes: studyB },
+        ]);
+      }),
+      garbageCollectWorkspace: vi.fn(() => Promise.resolve(3)),
+    } as unknown as RemoteApi;
+    const client = await loadFreshWorkerClient(
+      api,
+      new Response(new Uint8Array([0, 97, 115, 109]), {
+        headers: { "content-type": "application/wasm" },
+      }),
+      true,
+    );
+    try {
+      const upload = new Uint8Array([7, 8, 9]).buffer;
+      await expect(client.splitRawCsvByStudy(upload)).resolves.toEqual([
+        { studyId: "study-a", bytes: studyA },
+        { studyId: "study-b", bytes: studyB },
+      ]);
+      // The upload is handed over, not copied: the main thread keeps no
+      // second copy of the raw participant file.
+      expect(upload.byteLength).toBe(0);
+      expect(received).toEqual([[7, 8, 9]]);
+
+      const workspaceId = `sha256:${"1".repeat(64)}`;
+      await expect(
+        client.garbageCollectWorkspaceAfterResults(workspaceId),
+      ).resolves.toBeUndefined();
+      expect(api.garbageCollectWorkspace).toHaveBeenCalledTimes(1);
+      expect(api.garbageCollectWorkspace).toHaveBeenCalledWith(workspaceId);
+    } finally {
+      compileStreaming.mockRestore();
+    }
+  });
+
+  it("deletes each named workspace once in the worker and stops at the first refusal", async () => {
+    const compileStreaming = vi
+      .spyOn(WebAssembly, "compileStreaming")
+      .mockResolvedValue({});
+    const first = `sha256:${"1".repeat(64)}`;
+    const second = `sha256:${"2".repeat(64)}`;
+    const third = `sha256:${"3".repeat(64)}`;
+    const deleteWorkspace = vi.fn((workspaceId: string) =>
+      workspaceId === second
+        ? Promise.reject(new Error("workspace in use"))
+        : Promise.resolve(),
+    );
+    const api = {
+      initializeRuntime: vi.fn(() => Promise.resolve()),
+      deleteWorkspace,
+    } as unknown as RemoteApi;
+    const client = await loadFreshWorkerClient(
+      api,
+      new Response(new Uint8Array([0, 97, 115, 109]), {
+        headers: { "content-type": "application/wasm" },
+      }),
+    );
+    try {
+      await expect(
+        client.deletePersistedWorkspaces([first, first]),
+      ).resolves.toBeUndefined();
+      expect(deleteWorkspace.mock.calls).toEqual([[first]]);
+
+      deleteWorkspace.mockClear();
+      await expect(
+        client.deletePersistedWorkspaces([second, third]),
+      ).rejects.toThrow("workspace in use");
+      // The caller is told the deletion failed; nothing after it was tried.
+      expect(deleteWorkspace.mock.calls).toEqual([[second]]);
+    } finally {
+      compileStreaming.mockRestore();
+    }
   });
 
   it("returns the worker's own durable-storage verdict when the worker answers", async () => {
@@ -1285,6 +1910,180 @@ const exportedArchive = await client.exportVerifiedWorkspaceClosure(
         Object.defineProperty(WebAssembly, "compileStreaming", original);
       }
     }
+  });
+
+  it("routes a raw-inspection batch disposal to the shared worker and returns its verdict", async () => {
+    const disposeRawInspectionBatch = vi
+      .fn()
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false);
+    const api = {
+      initializeRuntime: vi.fn(() => Promise.resolve()),
+      disposeRawInspectionBatch,
+    } as unknown as RemoteApi;
+    const client = await loadFreshWorkerClient(
+      api,
+      new Response(new Uint8Array([0, 97, 115, 109]), {
+        headers: { "content-type": "application/wasm" },
+      }),
+    );
+    const compileStreaming = vi
+      .spyOn(WebAssembly, "compileStreaming")
+      .mockResolvedValue({});
+    const batchId = `sha256:${"a".repeat(64)}`;
+
+    await expect(client.disposeRawInspectionBatch(batchId)).resolves.toBe(true);
+    await expect(client.disposeRawInspectionBatch(batchId)).resolves.toBe(false);
+    expect(disposeRawInspectionBatch).toHaveBeenCalledWith(batchId);
+    compileStreaming.mockRestore();
+  });
+
+  it("rehydrates a worker-side scientific preflight refusal envelope into a typed error", async () => {
+    // The worker throws the structured-cloneable envelope built by
+    // serializeScientificPreflightRefusal; the client boundary is where it
+    // becomes an Error again, so callers see one refusal shape everywhere.
+    // The worker throws a plain structured-cloneable envelope, never an Error;
+    // that is the whole point of the transport.
+    const envelope = {
+      kind: "chronicle-scientific-preflight-refusal/v1",
+      message: "Scientific preflight refused (B05).",
+      receipt: runtimeScientificPreflightFixture(),
+    } as unknown as Error;
+    const api = {
+      initializeRuntime: vi.fn(() => Promise.resolve()),
+      runtimeVersion: vi.fn(() => Promise.reject(envelope)),
+    } as unknown as RemoteApi;
+    const client = await loadFreshWorkerClient(
+      api,
+      new Response(new Uint8Array([0, 97, 115, 109]), {
+        headers: { "content-type": "application/wasm" },
+      }),
+    );
+    const compileStreaming = vi
+      .spyOn(WebAssembly, "compileStreaming")
+      .mockResolvedValue({});
+
+    const refusal: unknown = await client
+      .getRuntimeVersion()
+      .then(() => undefined, (error: unknown) => error);
+    expect(refusal).toBeInstanceOf(Error);
+    expect((refusal as Error).name).toBe("RustScientificPreflightRefusalError");
+    expect((refusal as Error).message).toBe(
+      "Scientific preflight refused (B05).",
+    );
+    compileStreaming.mockRestore();
+  });
+
+  it("transfers the inspection-batch secret alongside the partition on both live-preflight routes", async () => {
+    const result = { inputFileName: "raw.csv" } as ProcessedFileResult;
+    // The secret is wiped as soon as the call settles, so the bytes that
+    // crossed the boundary have to be read inside the call itself.
+    const transferred: Array<{ partition: unknown; secret: Uint8Array }> = [];
+    const record = (...args: unknown[]) => {
+      transferred.push({
+        partition: args[args.length - 2],
+        secret: new Uint8Array(args[args.length - 1] as ArrayBuffer).slice(),
+      });
+      return Promise.resolve(result);
+    };
+    const api = {
+      initializeRuntime: vi.fn(() => Promise.resolve()),
+      processRawCsvBytes: vi.fn(record),
+      processReviewCsvBytes: vi.fn(record),
+    } as unknown as RemoteApi;
+    const client = await loadFreshWorkerClient(
+      api,
+      new Response(new Uint8Array([0, 97, 115, 109]), {
+        headers: { "content-type": "application/wasm" },
+      }),
+    );
+    const compileStreaming = vi
+      .spyOn(WebAssembly, "compileStreaming")
+      .mockResolvedValue({});
+    const partition = {
+      participantPartitionBatchId: `sha256:${"a".repeat(64)}`,
+      fragmentedParticipantTokens: [`sha256:${"b".repeat(64)}`],
+    };
+    const batch = () => ({
+      participantPartitionBatchId: partition.participantPartitionBatchId,
+      secret: new Uint8Array(32).fill(0x42),
+    });
+    const options = { ...DEFAULT_BROWSER_OPTIONS, processScreenUsage: true };
+
+    await expect(
+      client.processRawCsvBytes(
+        "raw.csv",
+        new ArrayBuffer(2),
+        options,
+        undefined,
+        undefined,
+        undefined,
+        "digest",
+        partition,
+        batch(),
+      ),
+    ).resolves.toBe(result);
+    await expect(
+      client.processRawCsvReviewBytes(
+        "raw.csv",
+        new ArrayBuffer(2),
+        options,
+        undefined,
+        undefined,
+        "digest",
+        partition,
+        batch(),
+      ),
+    ).resolves.toBe(result);
+
+    expect(transferred).toHaveLength(2);
+    for (const crossing of transferred) {
+      expect(crossing.partition).toBe(partition);
+      expect(crossing.secret).toEqual(new Uint8Array(32).fill(0x42));
+    }
+    compileStreaming.mockRestore();
+  });
+});
+
+describe("exact partition secret", () => {
+  const partition = {
+    participantPartitionBatchId: `sha256:${"a".repeat(64)}`,
+    fragmentedParticipantTokens: [`sha256:${"b".repeat(64)}`],
+  };
+  const liveOptions = { ...DEFAULT_BROWSER_OPTIONS, processScreenUsage: true };
+
+  it.each([
+    ["no inspection batch survives the reselection", undefined],
+    [
+      "the batch belongs to a different partition",
+      {
+        participantPartitionBatchId: `sha256:${"c".repeat(64)}`,
+        secret: new Uint8Array(32),
+      },
+    ],
+    [
+      "the batch secret is not the 32-byte worker secret",
+      {
+        participantPartitionBatchId: `sha256:${"a".repeat(64)}`,
+        secret: new Uint8Array(16),
+      },
+    ],
+  ])("refuses a live-preflight run when %s", async (_label, batch) => {
+    await expect(
+      processRawCsvBytes(
+        "raw.csv",
+        new ArrayBuffer(2),
+        liveOptions,
+        undefined,
+        undefined,
+        undefined,
+        "digest",
+        partition,
+        batch,
+      ),
+    ).rejects.toThrow(
+      "Participant partition metadata expired; re-select and re-inspect the raw files.",
+    );
   });
 });
 
@@ -1450,9 +2249,7 @@ describe("review summary reuse cache (ETag semantics for the 2+ MB summary)", ()
           headers: { "content-type": "application/wasm" },
         }),
       );
-      const load = vi
-        .fn()
-        .mockResolvedValue(new Uint8Array([1]).buffer);
+      const load = vi.fn().mockResolvedValue(new Uint8Array([1]).buffer);
       const run = () =>
         client.processPersistedOrRawChangedReview(
           "pair.csv",
@@ -1480,6 +2277,207 @@ describe("review summary reuse cache (ETag semantics for the 2+ MB summary)", ()
       expect(second.reviewSummaryJsonBytes).toBe(bytes);
     } finally {
       compileStreaming.mockRestore();
+    }
+  });
+
+  it("bounds the outer per-input map by retained bytes, keeping recent inputs reusable", async () => {
+    // The post-run pre-warm in App.tsx submits EVERY unique input digest of a
+    // batch, so without an outer bound a 124-file study retains 124 x 8
+    // multi-MB summaries on the main thread for the life of the tab. Shrink the
+    // ceiling instead of allocating a quarter of a gigabyte here.
+    setReviewSummaryReuseBudgetBytesForTesting(300);
+    const shas = ["a", "b", "c", "d"].map((letter) => letter.repeat(64));
+    const { pool, seenDigests } = reviewPool([
+      summaryResult("digest-a", new Uint8Array(100)),
+      summaryResult("digest-b", new Uint8Array(100)),
+      summaryResult("digest-c", new Uint8Array(100)),
+      summaryResult("digest-d", new Uint8Array(100)),
+      reusedResult("digest-d"),
+      summaryResult("digest-a2", new Uint8Array(100)),
+    ]);
+    try {
+      for (const sha of shas) await dispatch(pool, sha);
+      // Four 100-byte summaries against a 300-byte ceiling: the
+      // least-recently-touched input is dropped whole, not merely counted.
+      expect(reviewSummaryReuseRetainedBytes()).toBe(300);
+
+      // Within the bound, reuse still hits: the newest input keeps offering
+      // its digest and gets its exact bytes reattached.
+      const reused = await dispatch(pool, shas[3]!);
+      expect(seenDigests[4]).toEqual(["digest-d"]);
+      expect(reused.reviewSummaryReused).toBe(true);
+      expect(reviewSummaryReuseRetainedBytes()).toBe(300);
+
+      // The evicted input offers nothing and simply recomputes — the
+      // pre-cache behaviour, never an error.
+      await dispatch(pool, shas[0]!);
+      expect(seenDigests[5]).toBeUndefined();
+      expect(reviewSummaryReuseRetainedBytes()).toBe(300);
+    } finally {
+      pool.terminate();
+      clearReviewSummaryReuseCache();
+      setReviewSummaryReuseBudgetBytesForTesting(0);
+    }
+  });
+
+  it("honours a digest a concurrent request evicted after it was offered", async () => {
+    // Two reviews of the same verified input can be in flight together (the
+    // post-run pre-warm walks every digest through the comparison pool while
+    // the drawer warm-up reviews the selected file on the shared worker). The
+    // digests are snapshotted before the request; if the other request stores a
+    // ninth summary meanwhile, the promised digest leaves the LRU and a
+    // perfectly valid review used to fail hard with "client no longer holds".
+    const inputSha = "f".repeat(64);
+    const firstBytes = new Uint8Array([1, 1, 1]);
+    const seenDigests: Array<string[] | undefined> = [];
+    const gate = deferred<ProcessedFileResult>();
+    const ninthIssued = deferred<void>();
+    let calls = 0;
+    const harness = stubSpawn({
+      processPersistedReview: vi.fn((...args: unknown[]) => {
+        seenDigests.push(args[7] as string[] | undefined);
+        calls += 1;
+        if (calls <= 8) {
+          return Promise.resolve(
+            summaryResult(
+              `digest-${calls}`,
+              calls === 1 ? firstBytes : new Uint8Array([calls]),
+            ),
+          );
+        }
+        if (calls === 9) {
+          ninthIssued.resolve();
+          return gate.promise;
+        }
+        return Promise.resolve(
+          summaryResult("digest-9", new Uint8Array([9, 9])),
+        );
+      }),
+    });
+    const pool = new WorkerPool(2, harness.spawn);
+    try {
+      for (let index = 0; index < 8; index += 1) await dispatch(pool, inputSha);
+
+      // Request A offers digest-1..digest-8 and is held mid-flight.
+      const pending = dispatch(pool, inputSha);
+      await ninthIssued.promise;
+      expect(seenDigests[8]).toContain("digest-1");
+
+      // Request B lands a ninth summary, evicting digest-1 from the LRU that
+      // request A already promised it from.
+      await dispatch(pool, inputSha);
+      // Observe the LIVE LRU through a fresh request's offer: this fails
+      // loudly if digest-1 was NOT evicted (e.g. a raised capacity constant),
+      // instead of leaving the pinned path silently unexercised. Asserting
+      // the snapshot the tenth request carried could never fail -- digest-9
+      // does not exist until that request resolves.
+      const { pool: evictionProbe, seenDigests: evictionOffer } = reviewPool([
+        reusedResult("digest-2"),
+      ]);
+      await dispatch(evictionProbe, inputSha);
+      evictionProbe.terminate();
+      expect(evictionOffer[0]).not.toContain("digest-1");
+      expect(evictionOffer[0]).toContain("digest-9");
+
+      // A now legitimately reuses digest-1. The pinned offer keeps the exact
+      // buffer alive, so the review succeeds and re-admits the digest.
+      gate.resolve(reusedResult("digest-1"));
+      const reused = await pending;
+      expect(reused.reviewSummaryReused).toBe(true);
+      expect(reused.reviewSummaryJsonBytes).toBe(firstBytes);
+
+      // Re-admitted as newest, so the next request offers it again.
+      const { pool: probePool, seenDigests: probeDigests } = reviewPool([
+        reusedResult("digest-1"),
+      ]);
+      const again = await dispatch(probePool, inputSha);
+      expect(probeDigests[0]).toContain("digest-1");
+      expect(again.reviewSummaryJsonBytes).toBe(firstBytes);
+      probePool.terminate();
+    } finally {
+      pool.terminate();
+      clearReviewSummaryReuseCache();
+    }
+  });
+
+  it("purges a detached summary at offer time instead of advertising it", async () => {
+    // Presence is not possession: a transferred Uint8Array is still truthy but
+    // carries no bytes. A digest whose buffer was detached is dropped from the
+    // cache at the next offer -- with its ADMITTED size subtracted, so the
+    // byte accounting cannot drift -- and is never advertised, so the runtime
+    // recomputes instead of promising bytes the client cannot hand over. A
+    // runtime that claims reuse of the never-offered digest anyway hits the
+    // protocol-violation refusal.
+    const inputSha = "g".repeat(64);
+    const transferable = new Uint8Array(new ArrayBuffer(8));
+    const { pool, seenDigests } = reviewPool([
+      summaryResult("digest-detached", transferable),
+      reusedResult("digest-detached"),
+    ]);
+    try {
+      await dispatch(pool, inputSha);
+      expect(reviewSummaryReuseRetainedBytes()).toBe(8);
+      structuredClone(transferable.buffer, {
+        transfer: [transferable.buffer],
+      });
+      expect(transferable.byteLength).toBe(0);
+      await expect(dispatch(pool, inputSha)).rejects.toThrow(
+        "runtime reused a review summary the client no longer holds",
+      );
+      expect(seenDigests[1]).toBeUndefined();
+      expect(reviewSummaryReuseRetainedBytes()).toBe(0);
+    } finally {
+      pool.terminate();
+      clearReviewSummaryReuseCache();
+    }
+  });
+
+  it("refuses to reattach a summary detached after it was offered", async () => {
+    // The narrow interleaving the offer-time purge cannot cover: the buffer
+    // detaches between the offer snapshot and the runtime's "reused" answer,
+    // so even the pinned copy is empty. Reattaching it would publish an empty
+    // summary; the refusal names the release, and the purge stops the next
+    // offer from advertising the dead digest again.
+    const inputSha = "h".repeat(64);
+    const transferable = new Uint8Array(new ArrayBuffer(8));
+    const gate = deferred<ProcessedFileResult>();
+    const offered = deferred<void>();
+    let calls = 0;
+    const harness = stubSpawn({
+      processPersistedReview: vi.fn(() => {
+        calls += 1;
+        if (calls === 1) {
+          return Promise.resolve(
+            summaryResult("digest-late-detach", transferable),
+          );
+        }
+        offered.resolve();
+        return gate.promise;
+      }),
+    });
+    const pool = new WorkerPool(1, harness.spawn);
+    try {
+      await dispatch(pool, inputSha);
+      const pending = dispatch(pool, inputSha);
+      await offered.promise;
+      // The offer snapshot exists; now the cached buffer detaches under it.
+      structuredClone(transferable.buffer, {
+        transfer: [transferable.buffer],
+      });
+      gate.resolve(reusedResult("digest-late-detach"));
+      await expect(pending).rejects.toThrow(
+        "runtime reused a review summary whose cached bytes were released",
+      );
+      // Purged: the next request offers nothing for this input.
+      const { pool: probePool, seenDigests: probeDigests } = reviewPool([
+        summaryResult("digest-fresh", new Uint8Array([5])),
+      ]);
+      await dispatch(probePool, inputSha);
+      probePool.terminate();
+      expect(probeDigests[0]).toBeUndefined();
+    } finally {
+      pool.terminate();
+      clearReviewSummaryReuseCache();
     }
   });
 });

@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { suppliedCommunicationCsv } from "./fixtures/ringer-state-interval";
 import { pathToFileURL } from "node:url";
 
 import { AxeBuilder } from "@axe-core/playwright";
@@ -18,6 +19,7 @@ import {
   MALFORMED_RAW_CSV,
   MIXED_TIMEZONE_RAW_CSV,
   MULTI_FILE_RAW_CSV_B,
+  FIXED_DATETIME,
 } from "./fixtures";
 import {
   assertNoExternalRequests,
@@ -26,6 +28,7 @@ import {
   downloadZipEntries,
   expandSectionCard,
   gotoApp,
+  expectDatetimeOfPreprocessing,
   installDeterministicRuntime,
   parseCsv,
   processFiles,
@@ -46,14 +49,376 @@ test.beforeEach(async ({ page }) => {
 test("@smoke @opfs boots locally and processes a raw file entirely on localhost", async ({
   page,
 }) => {
+  await expandSectionCard(page, "session-detection");
+  await page
+    .getByTestId("opener-set-select")
+    .selectOption("activity_resumed_only");
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
+  const runStartedAtMs = Date.now();
   await processFiles(page);
   await expect(page.getByTestId("result-panel")).toHaveCount(1);
   await expect(page.getByTestId("result-file-table")).toBeVisible();
   const appCsv = await downloadCsv(page, "download-app-csv");
   const rows = parseCsv(appCsv);
   expect(rows.length).toBeGreaterThan(0);
-  expect(rows[0]?.datetime_of_preprocessing).toBe("2026-04-24 00:32:53");
+  await expectDatetimeOfPreprocessing(page, rows[0]?.datetime_of_preprocessing, runStartedAtMs);
+
+  const zipEntries = await downloadZipEntries(page, "download-all-zip");
+  const manifest = JSON.parse(
+    zipEntries.get("Raw P01 Runtime Manifest.json") ?? "{}",
+  ) as {
+    artifacts?: Array<{ kind?: string }>;
+    processingSummary?: {
+      openerSetReceipt?: {
+        applicability?: {
+          requested?: string;
+          effective?: string | null;
+          relation?: string;
+          refusalReason?: string | null;
+        };
+      };
+    };
+  };
+  expect(manifest.processingSummary?.openerSetReceipt?.applicability).toEqual({
+    requested: "activity_resumed_only",
+    effective: "activity_resumed_only",
+    relation: "baseline_equivalent",
+    refusalReason: null,
+  });
+  expect(manifest.artifacts?.map(({ kind }) => kind)).toContain(
+    "opener-set-receipt-json",
+  );
+
+  const provenance = JSON.parse(
+    zipEntries.get("Raw P01 Workflow Provenance.jsonld") ?? "{}",
+  ) as {
+    "@graph"?: Array<{
+      "@type"?: string | string[];
+      "chron:knob_key"?: string;
+      "chron:knob_value"?: string;
+    }>;
+  };
+  const openerBinding = provenance["@graph"]?.find(
+    (node) =>
+      node["@type"] === "chron:ParameterBinding" &&
+      node["chron:knob_key"] === "opener_set",
+  );
+  expect(openerBinding?.["chron:knob_value"]).toBe(
+    JSON.stringify("activity_resumed_only"),
+  );
+  assertNoExternalRequests(requestTracker);
+});
+
+test("@smoke @opfs processes a raw file on the sequential engine, the only engine the app offers", async ({
+  page,
+}) => {
+  // The Salsa incremental engine is switched off in the app: the Performance
+  // card has no toggle for it, and a fresh install sends sequential requests.
+  // The injected test runtime pins the same flag the app now always sends.
+  await expandSectionCard(page, "performance");
+  await expect(page.getByTestId("toggle-incrementalEngine")).toHaveCount(0);
+  // Registered before the reload so the reloaded document boots with it.
+  await installDeterministicRuntime(page, {
+    datetimeOfPreprocessing: FIXED_DATETIME,
+    incrementalEngine: false,
+  });
+  await page.reload();
+
+  await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_AND_SCREEN_RAW_CSV, "text/csv");
+  await processFiles(page);
+  await expect(page.getByTestId("result-panel")).toHaveCount(1);
+  const appCsv = await downloadCsv(page, "download-app-csv");
+  expect(parseCsv(appCsv).length).toBeGreaterThan(0);
+
+  const zipEntries = await downloadZipEntries(page, "download-all-zip");
+  const manifest = JSON.parse(
+    zipEntries.get("Raw P01 Runtime Manifest.json") ?? "{}",
+  ) as {
+    artifacts?: Array<{ kind?: string }>;
+    queryExecutions?: Array<{ query_id?: string; status?: string }>;
+  };
+  expect(
+    manifest.queryExecutions?.filter(({ status }) => status === "cached"),
+  ).toEqual([]);
+  expect(manifest.queryExecutions?.some(({ status }) => status === "recomputed")).toBe(true);
+  expect(manifest.artifacts?.map(({ kind }) => kind)).not.toContain(
+    "review-base",
+  );
+  assertNoExternalRequests(requestTracker);
+});
+
+test("@smoke @opfs a plot past the browser canvas limit is left out of Download all ZIP with a warning", async ({
+  page,
+}) => {
+  // One short session a day for 10,000 days: the timeline and heatmap PNGs
+  // would be ~280,000 px tall at 28 px a day (~500 M px at 1,800 px wide).
+  // Chromium and Firefox cap a canvas side at 32,767 px, but WebKit caps only
+  // the area (~268 M px), so 3,000 days (~84,000 px) still drew in WebKit. The
+  // longest real export spans 84 days; this is the failure path, not a shape.
+  const rows = [APP_AND_SCREEN_RAW_CSV.split("\n")[0]];
+  const firstDay = Date.UTC(2018, 0, 1, 15);
+  for (let day = 0; day < 10_000; day += 1) {
+    const at = (seconds: number) =>
+      new Date(firstDay + day * 86_400_000 + seconds * 1_000)
+        .toISOString()
+        .slice(0, 19)
+        .replace("T", " ");
+    rows.push(
+      `study,P01,Android,Target Child,Chat,Unknown importance: 1,com.example.chat,${at(0)},,,America/Chicago`,
+      `study,P01,Android,Target Child,Chat,Unknown importance: 2,com.example.chat,${at(90)},,,America/Chicago`,
+    );
+  }
+  await setInputFile(page, "raw-file-input", "Raw Long.csv", rows.join("\n"), "text/csv");
+  await processFiles(page);
+
+  const entries = [...(await downloadZipEntries(page, "download-all-zip")).keys()];
+  expect(entries).toContain("Raw Long Automatically Preprocessed.csv");
+  expect(entries.filter((name) => name.endsWith(".png"))).toEqual([]);
+  const skipped = page.getByTestId("download-skipped");
+  await expect(skipped).toContainText("Raw Long App Usage Plot.png");
+  await expect(skipped).toContainText("Raw Long App Usage Heatmap.png");
+  await expect(page.getByTestId("download-error")).toHaveCount(0);
+  assertNoExternalRequests(requestTracker);
+});
+
+test("@smoke @opfs B02 persists its binding and refuses the incompatible EYES crossing before execution", async ({
+  page,
+}) => {
+  await expandSectionCard(page, "session-detection");
+  const openerSet = page.getByTestId("opener-set-select");
+  const reconstruction = page.getByTestId(
+    "episode-reconstruction-strategy-select",
+  );
+  await expect(openerSet).toHaveValue("strategy_defined");
+  await openerSet.selectOption("gesis_app_scoped_starts");
+  await reconstruction.selectOption("eyes_complement");
+
+  await page.reload();
+  await installDeterministicRuntime(page);
+  await expandSectionCard(page, "session-detection");
+  await expect(page.getByTestId("opener-set-select")).toHaveValue(
+    "gesis_app_scoped_starts",
+  );
+  await expect(
+    page.getByTestId("episode-reconstruction-strategy-select"),
+  ).toHaveValue("eyes_complement");
+
+  await setInputFile(
+    page,
+    "raw-file-input",
+    "Raw P01.csv",
+    APP_ONLY_RAW_CSV,
+    "text/csv",
+  );
+  await page.getByRole("tab", { name: /Process/i }).click();
+  await page.getByTestId("process-files-button").click();
+  await expect(page.locator(".result-panel .error-text")).toContainText(
+    "Opener set gesis_app_scoped_starts is incompatible with the selected reconstruction strategy (eyes_requires_lifecycle_triplets)",
+    { timeout: 15_000 },
+  );
+  await expect(page.getByTestId("result-file-table")).toHaveCount(0);
+  assertNoExternalRequests(requestTracker);
+});
+
+test("@smoke @opfs B06 persists the maximum-duration vector, truncates strictly above the threshold, and refuses the adaptive source before execution", async ({
+  page,
+}) => {
+  await expandSectionCard(page, "session-detection");
+  const policy = page.getByTestId("maximum-duration-policy-select");
+  await expect(policy).toHaveValue("");
+  await expect(
+    page.getByTestId("maximum-duration-disposition-select"),
+  ).toHaveCount(0);
+  await policy.selectOption("post_reconstruction_strict_max_v1");
+  await page
+    .getByTestId("maximum-duration-disposition-select")
+    .selectOption("truncate_to_threshold");
+  await expect(
+    page.getByTestId("maximum-duration-threshold-source-select"),
+  ).toHaveValue("fixed_parameter");
+  // The fixture's only session is exactly 60 s; a 59 s cap qualifies it
+  // (strict >) and truncation moves its endpoint to start + 59 s.
+  await page
+    .getByTestId("maximum-duration-threshold-ns-input")
+    .fill("59000000000");
+
+  await page.reload();
+  await installDeterministicRuntime(page);
+  await expandSectionCard(page, "session-detection");
+  await expect(page.getByTestId("maximum-duration-policy-select")).toHaveValue(
+    "post_reconstruction_strict_max_v1",
+  );
+  await expect(
+    page.getByTestId("maximum-duration-disposition-select"),
+  ).toHaveValue("truncate_to_threshold");
+  await expect(
+    page.getByTestId("maximum-duration-threshold-source-select"),
+  ).toHaveValue("fixed_parameter");
+  await expect(
+    page.getByTestId("maximum-duration-threshold-ns-input"),
+  ).toHaveValue("59000000000");
+
+  await setInputFile(
+    page,
+    "raw-file-input",
+    "Raw P01.csv",
+    APP_ONLY_RAW_CSV,
+    "text/csv",
+  );
+  await processFiles(page);
+  await expect(page.getByTestId("result-file-table")).toBeVisible();
+  const appCsv = await downloadCsv(page, "download-app-csv");
+  const headers = csvHeaders(appCsv);
+  expect(headers).toEqual(
+    expect.arrayContaining([
+      "raw_episode_duration_seconds",
+      "maximum_duration_qualified",
+      "maximum_duration_aggregate_eligible",
+      "maximum_duration_trimmed_seconds",
+      "effective_endpoint_reason",
+    ]),
+  );
+  const rows = parseCsv(appCsv);
+  expect(rows).toHaveLength(1);
+  expect(rows[0]).toMatchObject({
+    raw_episode_duration_seconds: "60.0",
+    duration_seconds: "59.0",
+    maximum_duration_qualified: "true",
+    maximum_duration_aggregate_eligible: "true",
+    maximum_duration_trimmed_seconds: "1.0",
+    effective_endpoint_reason: "maximum_duration_truncation_boundary",
+  });
+
+  const zipEntries = await downloadZipEntries(page, "download-all-zip");
+  const manifest = JSON.parse(
+    zipEntries.get("Raw P01 Runtime Manifest.json") ?? "{}",
+  ) as {
+    processingSummary?: {
+      // The aggregate receipt only; the participant-level excluded lineage
+      // lives in the maximum-duration-receipt-json artifact.
+      maximumDurationReceipt?: {
+        applicability?: Record<string, unknown>;
+        boundedEpisodeCount?: number;
+        qualifyingCount?: number;
+        outcomeCounts?: Record<string, number>;
+        trimmedTotalNs?: string;
+        excludedLineageDigest?: string;
+      };
+    };
+  };
+  const receipt = manifest.processingSummary?.maximumDurationReceipt;
+  expect(receipt?.applicability).toMatchObject({
+    shape: "explicit_generic_fixed",
+    requestedPolicy: "post_reconstruction_strict_max_v1",
+    effectivePolicy: "post_reconstruction_strict_max_v1",
+    disposition: "truncate_to_threshold",
+    thresholdSource: "fixed_parameter",
+    thresholdNs: "59000000000",
+    relation: "controlled_derivative",
+    refusalReason: null,
+  });
+  expect(receipt?.boundedEpisodeCount).toBe(1);
+  expect(receipt?.qualifyingCount).toBe(1);
+  expect(receipt?.outcomeCounts).toEqual({ truncated: 1 });
+  expect(receipt?.trimmedTotalNs).toBe("1000000000");
+  expect(receipt?.excludedLineageDigest).toMatch(/^sha256:[0-9a-f]{64}$/);
+  // The manifest never carries the participant-level lineage.
+  expect(JSON.stringify(receipt)).not.toContain("excludedEpisodes");
+
+  const provenance = JSON.parse(
+    zipEntries.get("Raw P01 Workflow Provenance.jsonld") ?? "{}",
+  ) as {
+    "@graph"?: Array<{
+      "chron:knob_key"?: string;
+      "chron:knob_value"?: string;
+    }>;
+  };
+  const knobs = new Map(
+    (provenance["@graph"] ?? [])
+      .filter((node) => typeof node["chron:knob_key"] === "string")
+      .map((node) => [node["chron:knob_key"], node["chron:knob_value"]]),
+  );
+  expect(knobs.get("maximum_duration_policy")).toBe(
+    JSON.stringify("post_reconstruction_strict_max_v1"),
+  );
+  expect(knobs.get("maximum_duration_threshold_ns")).toBe(
+    JSON.stringify("59000000000"),
+  );
+
+  // The adaptive threshold source is a legal shape with no provider in v1:
+  // the request is refused before execution, never silently rebound.
+  await page.getByRole("tab", { name: /Settings/i }).click();
+  await expandSectionCard(page, "session-detection");
+  await page
+    .getByTestId("maximum-duration-threshold-source-select")
+    .selectOption("b12_adaptive_participant");
+  await expect(
+    page.getByTestId("maximum-duration-threshold-ns-input"),
+  ).toHaveCount(0);
+  await page.getByRole("tab", { name: /Process/i }).click();
+  await page.getByTestId("process-files-button").click();
+  await expect(page.locator(".result-panel .error-text")).toContainText(
+    "Maximum-duration policy post_reconstruction_strict_max_v1 cannot run with the selected settings (adaptive_maximum_threshold_provider_unavailable)",
+    { timeout: 15_000 },
+  );
+  assertNoExternalRequests(requestTracker);
+});
+
+// The researcher-facing loop is: choose a setting, see its effect on the data,
+// then export. The CSV assertions above cover the export half. This covers the
+// other half: a maximum-duration truncation has to reach the View tab, which
+// reads the Rust-projected visualization-data-json artifact rather than the
+// exported CSV, so agreement between the two is a real invariant.
+test("@smoke @opfs B06 truncation reaches the View tab, not just the exported CSV", async ({
+  page,
+}) => {
+  await expandSectionCard(page, "session-detection");
+  await page
+    .getByTestId("maximum-duration-policy-select")
+    .selectOption("post_reconstruction_strict_max_v1");
+  await page
+    .getByTestId("maximum-duration-disposition-select")
+    .selectOption("truncate_to_threshold");
+  // The fixture's only session is 60 s. A 30 s cap halves it, which the
+  // metrics card renders at its one-decimal resolution as 0.5 against the
+  // untruncated 1.0 — a 59 s cap would print "1.0" either way and prove
+  // nothing about the view.
+  await page
+    .getByTestId("maximum-duration-threshold-ns-input")
+    .fill("30000000000");
+  // The waterfall geometry is opt-in; without it the View tab shows metrics
+  // but no scene.
+  await page.getByTestId("toggle-enableInteractiveTimeline").check();
+
+  await setInputFile(
+    page,
+    "raw-file-input",
+    "Raw P01.csv",
+    APP_ONLY_RAW_CSV,
+    "text/csv",
+  );
+  await processFiles(page);
+  await expect(page.getByTestId("result-file-table")).toBeVisible();
+
+  const appCsv = await downloadCsv(page, "download-app-csv");
+  const rows = parseCsv(appCsv);
+  expect(rows).toHaveLength(1);
+  expect(rows[0]).toMatchObject({
+    raw_episode_duration_seconds: "60.0",
+    duration_seconds: "30.0",
+    effective_endpoint_reason: "maximum_duration_truncation_boundary",
+  });
+
+  await page.getByRole("tab", { name: /View/i }).click();
+  await expect(page.getByTestId("timeline-view")).toBeVisible();
+  // The plot draws each bar from stop_timestamp_ns - start_timestamp_ns, so a
+  // truncation that only moved the CSV cell and left the endpoint alone would
+  // still total 1.0 here.
+  const metrics = page.getByTestId("review-metrics");
+  await expect(metrics).toBeVisible();
+  await expect(
+    metrics.locator(".review-mrow", { hasText: "app usage min" }),
+  ).toContainText("0.5");
   assertNoExternalRequests(requestTracker);
 });
 
@@ -94,7 +459,7 @@ test("processes app and screen outputs with CSV support files and downloads both
   const manifest = JSON.parse(
     zipEntries.get("Raw P01 Runtime Manifest.json") ?? "{}",
   ) as Record<string, unknown>;
-  expect(manifest.protocolVersion).toBe("chronicle-preprocessing-runtime/v1");
+  expect(manifest.protocolVersion).toBe("chronicle-preprocessing-runtime/v2");
   expect(manifest.preprocessorVersion).toBe("1.0.0");
   // Plots are on by default, so the artifact set also includes plot/derived
   // entries; assert the CSV kinds are present rather than pinning the whole set.
@@ -109,7 +474,10 @@ test("processes app and screen outputs with CSV support files and downloads both
   ) as { "@graph"?: Array<{ "@type"?: string | string[] }> };
   expect(provenance["@graph"]?.some((node) => node["@type"] === "chron:WorkflowPlan")).toBe(true);
   expect(
-    provenance["@graph"]?.some((node) => node["@type"] === "chron:OperationExecution"),
+    provenance["@graph"]?.some(
+      (node) =>
+        Array.isArray(node["@type"]) && node["@type"].includes("chron:OperationExecution"),
+    ),
   ).toBe(true);
   expect(
     provenance["@graph"]?.some(
@@ -309,13 +677,16 @@ test("has no automated axe accessibility violations across workflow tabs", async
   assertNoExternalRequests(requestTracker);
 });
 
-test("supports keyboard-only skip and workflow tab navigation", async ({ page }) => {
+test("supports keyboard-only skip and workflow tab navigation", async ({ page, browserName }) => {
   const settingsTab = page.getByRole("tab", { name: /Settings/i });
   const filesTab = page.getByRole("tab", { name: /Files/i });
   const guideTab = page.getByRole("tab", { name: /Guide/i });
   const graphTab = page.getByRole("tab", { name: /Graph/i });
 
-  await page.keyboard.press("Tab");
+  // Safari's Tab moves between form fields only; a keyboard user reaches
+  // links and buttons with Option+Tab (measured: plain Tab lands on the
+  // settings search box in WebKit, Option+Tab on the skip link).
+  await page.keyboard.press(browserName === "webkit" ? "Alt+Tab" : "Tab");
   await expect(page.getByRole("link", { name: /Skip to workflow tabs/i })).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.locator("#workflow-panels")).toBeFocused();
@@ -334,13 +705,29 @@ test("supports keyboard-only skip and workflow tab navigation", async ({ page })
 });
 
 test("does not rely on color alone for file status", async ({ page }) => {
-  await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
+  // Screen events included: with screen usage on (the default) an app-only
+  // export is flagged for review because its screen output would be empty.
+  await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_AND_SCREEN_RAW_CSV, "text/csv");
   await page.getByRole("tab", { name: /Files/i }).click();
   const filesPanel = page.getByRole("tabpanel", { name: /Files/i });
   await expect(filesPanel.getByText("Success: Ready")).toBeVisible();
 
-  await setInputFile(page, "raw-file-input", "Raw Bad.txt", "not,a,raw,file", "text/plain");
+  // Amber: a cosmetic warning. Every required column is present; only the
+  // extension is unusual, so the file is still processable.
+  await setInputFile(
+    page,
+    "raw-file-input",
+    "Raw P01.txt",
+    APP_AND_SCREEN_RAW_CSV,
+    "text/plain",
+  );
   await expect(filesPanel.getByText("Warning: Review")).toBeVisible();
+
+  // Red: a blocking error. This one has none of the required columns, and the
+  // three states must be told apart by their text, not only their colour.
+  await setInputFile(page, "raw-file-input", "Raw Bad.txt", "not,a,raw,file", "text/plain");
+  await expect(filesPanel.getByText("Error: Missing columns")).toBeVisible();
+  await expect(filesPanel.getByText("Warning: Review")).toHaveCount(0);
   assertNoExternalRequests(requestTracker);
 });
 
@@ -555,6 +942,34 @@ test("emits aggregate summary outputs when aggregates are enabled (#8/#13/#15)",
   assertNoExternalRequests(requestTracker);
 });
 
+test("emits the participant amount summary only when its own toggle is on", async ({ page }) => {
+  await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
+  await page.getByTestId("toggle-enableParticipantAmountSummary").check();
+  await processFiles(page);
+
+  // The summary rides the aggregate download group on its own toggle, with
+  // the sibling aggregate summaries still off.
+  await expect(page.getByTestId("download-aggregates-zip")).toBeVisible();
+  const entries = await downloadZipEntries(page, "download-aggregates-zip");
+  const names = Array.from(entries.keys());
+  const summaryName = names.find((name) => name.endsWith(" Participant Amount Summary.csv"));
+  expect(summaryName, `expected the amount summary among ${names.join(", ")}`).toBeDefined();
+  expect(names.some((name) => name.endsWith(" Daily Summary.csv"))).toBe(false);
+  const rows = parseCsv(entries.get(summaryName ?? "") ?? "");
+  expect(Object.keys(rows[0] ?? {})).toEqual([
+    "participant_id",
+    "days_tracked",
+    "total_app_usage_minutes",
+    "daily_average_minutes",
+    "daily_average_minutes_winsorized",
+    "huber_m_daily_minutes",
+    "sample_p1_minutes",
+    "sample_p99_minutes",
+  ]);
+  expect(rows.length).toBeGreaterThan(0);
+  assertNoExternalRequests(requestTracker);
+});
+
 test("emits Parquet outputs when Parquet export is enabled (#7)", async ({ page }) => {
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
   await page.getByTestId("toggle-enableParquetExport").check();
@@ -610,6 +1025,10 @@ test("@smoke @opfs the exported HTML timeline viewer runs its inlined interactiv
       scriptErrors.push(msg.text());
     }
   });
+  // The offline runtime has a 320 CSS-pixel minimum canvas. A narrow viewport
+  // therefore turns its one-scene-unit minimum session bar into a true
+  // sub-pixel target (about 0.3 CSS px), exercising the expanded hover seam.
+  await viewer.setViewportSize({ width: 360, height: 900 });
   await viewer.goto(pathToFileURL(htmlPath).href);
 
   // (1) The inlined runtime parsed and ran with no errors.
@@ -631,21 +1050,37 @@ test("@smoke @opfs the exported HTML timeline viewer runs its inlined interactiv
   // (3) Hovering a session bar shows the per-session detail tooltip. The bar's
   // screen position is derived from the embedded scene at the auto-fit transform
   // (scale = width / sceneWidth, tx = ty = 0).
-  const target: { x: number; y: number; title: string } = await viewer.evaluate(() => {
+  const target: { x: number; nearX: number; y: number; title: string; cssWidth: number } = await viewer.evaluate(() => {
     const data = JSON.parse(document.getElementById("tv-data")!.textContent) as unknown;
     const view = (data as Record<string, unknown>).app as Array<Record<string, unknown>>;
-    const region = (view[0]?.regions as Array<Record<string, unknown>>)?.[0];
+    const regions = view[0]?.regions as Array<Record<string, unknown>>;
+    const region = regions.reduce((smallest, candidate) =>
+      (candidate.w as number) < (smallest.w as number) ? candidate : smallest,
+    );
     const el = document.querySelector(
       '[data-tv-type="app"][data-tv-index="0"] .tv-canvas',
     ) as HTMLCanvasElement;
     const rect = el.getBoundingClientRect();
     const scale = rect.width / ((view[0]?.scene as Record<string, unknown>)?.width as number);
+    const left = rect.left + ((region.x as number) ?? 0) * scale;
+    const cssWidth = ((region.w as number) ?? 0) * scale;
     return {
-      x: rect.left + (((region?.x as number) ?? 0) + (((region?.w as number) ?? 0) / 2)) * scale,
-      y: rect.top + (((region?.y as number) ?? 0) + (((region?.h as number) ?? 0) / 2)) * scale,
-      title: region?.title as string,
+      x: left + cssWidth / 2,
+      // Firefox integerizes mouse coordinates. Choose the nearest integer that
+      // is still strictly outside the real bar so both engines exercise the
+      // expanded hover seam rather than an exact hit.
+      nearX: Math.ceil(left) - 1,
+      y: rect.top + (((region.y as number) ?? 0) + (((region.h as number) ?? 0) / 2)) * scale,
+      title: region.title as string,
+      cssWidth,
     };
   });
+  const tooltip = viewer.locator('[data-tv-type="app"][data-tv-index="0"] .tv-tooltip');
+  expect(target.cssWidth).toBeLessThan(1);
+  await viewer.mouse.move(target.nearX, target.y);
+  await expect(tooltip).toBeVisible();
+  await expect(tooltip).toContainText(target.title);
+
   const beforeZoom = await canvas.evaluate((c) => ({
     bitmap: (c as HTMLCanvasElement).toDataURL(),
     height: (c as HTMLCanvasElement).getBoundingClientRect().height,
@@ -661,7 +1096,6 @@ test("@smoke @opfs the exported HTML timeline viewer runs its inlined interactiv
   expect(afterZoomHeight).toBe(beforeZoom.height);
 
   await viewer.mouse.move(target.x, target.y);
-  const tooltip = viewer.locator('[data-tv-type="app"][data-tv-index="0"] .tv-tooltip');
   await expect(tooltip).toBeVisible();
   await expect(tooltip).toContainText(target.title);
   // ...including the exact start → stop usage time.
@@ -833,9 +1267,15 @@ test("View tab compares the run against a second config (Arm B) in-browser", asy
   const drawer = page.getByTestId("review-compare-drawer");
   await expect(drawer).toBeVisible();
   // Change a high-impact option within the drawer (scoped so it does not collide
-  // with the Settings-tab control of the same testid). A huge minimum usage
-  // duration blanks every short session, so Arm B differs from Arm A.
-  await drawer.getByTestId("minimum-usage-duration-input").fill("999999");
+  // with the Settings-tab control of the same testid). The fixture's sessions
+  // are 10 s and 60 s, so the maximum in-range minimum-usage duration (3600 s,
+  // per OPTION_NUMERIC_RANGES.minimumUsageDuration) blanks every one of them and
+  // Arm B differs from Arm A. It must stay in range: the drawer now runs the
+  // same bounds gate the Process button runs, so the old 999999 renders the
+  // `review-range-block` refusal and DISABLES the Run button — the comparison
+  // never dispatches and there are no Arm-B metrics to assert. The disabled
+  // path is covered directly in CompareConfigDrawer.test.tsx.
+  await drawer.getByTestId("minimum-usage-duration-input").fill("3600");
   await page.getByTestId("review-run-comparison").click();
 
   // B and Δ metric cards appear; the day table gains A/B/Δ columns.
@@ -898,6 +1338,7 @@ test("restores last processed results after refresh and collapses process detail
   // Delete results: the panel empties AND the persisted copy is gone, so a
   // further refresh starts clean instead of restoring the run again.
   await page.getByTestId("delete-results").click();
+  await page.getByTestId("delete-results-dialog-confirm").click();
   await expect(page.getByTestId("result-panel")).toBeHidden();
   await page.reload();
   await expect(
@@ -956,8 +1397,9 @@ test("changes output semantics when Activity Stopped fallback is disabled", asyn
   expect(fallbackOnRows[0]?.interaction_type).toBe("App Usage");
   expect(fallbackOnRows[0]?.duration_seconds).toBe("300.0");
 
-  await page.reload();
-  await installDeterministicRuntime(page);
+  // One navigation reboots the app (the init script from the first load still
+  // applies). A reload followed at once by a goto aborted the reload's boot
+  // fetches, which surfaced as an uncaught "Failed to fetch".
   await gotoApp(page);
   await setInputFile(page, "raw-file-input", "Raw P01.csv", fallbackRawCsv, "text/csv");
   await page.getByRole("tab", { name: /Settings/i }).click();
@@ -984,6 +1426,8 @@ test("processes multiple uploaded files with parallel workers enabled", async ({
     {
       name: "Raw P01.csv",
       mimeType: "text/csv",
+      // File A of the multi-file upload is the standard P01 fixture; only
+      // file B differs, so the two files carry different participants.
       buffer: Buffer.from(APP_ONLY_RAW_CSV, "utf-8"),
     },
     {
@@ -1042,6 +1486,10 @@ test("large result batches defer per-output controls and reset that choice for t
 });
 
 test("saves a project with files to IndexedDB and restores it after reload (#22)", async ({ page }) => {
+  await expandSectionCard(page, "session-detection");
+  await page
+    .getByTestId("opener-set-select")
+    .selectOption("activity_resumed_only");
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
   await expect(page.getByTestId("raw-file-row")).toHaveCount(1);
 
@@ -1060,6 +1508,50 @@ test("saves a project with files to IndexedDB and restores it after reload (#22)
   await page.getByTestId("project-list").getByRole("button", { name: "Load" }).first().click();
   await expect(page.getByTestId("raw-file-row")).toHaveCount(1);
   await expect(page.getByTestId("raw-file-row")).toContainText("Raw P01.csv");
+  await expandSectionCard(page, "session-detection");
+  await expect(page.getByTestId("opener-set-select")).toHaveValue(
+    "activity_resumed_only",
+  );
+  assertNoExternalRequests(requestTracker);
+});
+
+
+test("reopens and validates supplied communication relationships in the retained input artifact", async ({ page }) => {
+  await expandSectionCard(page, "session-detection");
+  await page.getByTestId("opener-set-select").selectOption("activity_resumed_only");
+  await setInputFile(page, "raw-file-input", "Supplied communication.csv", suppliedCommunicationCsv, "text/csv");
+  await page.getByTestId("project-include-files").check();
+  await page.getByTestId("project-name-input").fill("Supplied SMS and conversations");
+  await page.getByTestId("save-project-button").click();
+  // Saving is an asynchronous IndexedDB write; reloading before it commits
+  // leaves "No saved projects yet." (seen in the full chromium suite).
+  await expect(page.getByTestId("project-list")).toContainText("Supplied SMS and conversations");
+  await page.reload();
+  await installDeterministicRuntime(page);
+  await page.getByTestId("project-list").getByRole("button", { name: "Load" }).first().click();
+  await expect(page.getByTestId("raw-file-row")).toContainText("Supplied communication.csv");
+  const retained = await page.evaluate(async () => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open("chronicle-projects");
+      request.onsuccess = () => resolve(request.result); request.onerror = () => reject(new Error(request.error?.message ?? "IndexedDB request failed"));
+    });
+    try {
+      const projects = await new Promise<Array<{ name: string; rawFiles: Array<{ blob: Blob }> }>>((resolve, reject) => {
+        const request = db.transaction("projects", "readonly").objectStore("projects").getAll();
+        request.onsuccess = () => resolve(request.result as Array<{ name: string; rawFiles: Array<{ blob: Blob }> }>);
+        request.onerror = () => reject(new Error(request.error?.message ?? "IndexedDB request failed"));
+      });
+      return projects.find(p => p.name === "Supplied SMS and conversations")!.rawFiles[0]!.blob.text();
+    } finally { db.close(); }
+  });
+  expect(retained).toBe(suppliedCommunicationCsv);
+  await processFiles(page); // Relationship validation is execution-side, not byte equality alone.
+  await expect(page.getByTestId("result-file-table")).toBeVisible();
+  const invalid = suppliedCommunicationCsv.replace("peer-one,1,conversation-one", "peer-one,2,conversation-one");
+  await setInputFile(page, "raw-file-input", "Bad supplied communication.csv", invalid, "text/csv");
+  await page.getByRole("tab", { name: /Process/i }).click();
+  await page.getByTestId("process-files-button").click();
+  await expect(page.locator(".result-panel .error-text")).toContainText("supplied SMS");
   assertNoExternalRequests(requestTracker);
 });
 
@@ -1074,6 +1566,9 @@ test("persists all edited settings across reload and supports settings import", 
   await page.getByTestId("custom-engagement-duration-input").fill("45");
   await page.getByTestId("long-usage-thresholds-input").fill("2, 4, 8");
   await page.getByTestId("toggle-allowStopEventReuse").check();
+  await page
+    .getByTestId("opener-set-select")
+    .selectOption("activity_resumed_only");
   await expandSectionCard(page, "performance");
   await page.getByTestId("toggle-parallelProcessing").check();
   await page.getByTestId("parallel-max-workers-input").fill("3");
@@ -1091,6 +1586,9 @@ test("persists all edited settings across reload and supports settings import", 
   await expect(page.getByTestId("custom-engagement-duration-input")).toHaveValue("45");
   await expect(page.getByTestId("long-usage-thresholds-input")).toHaveValue("2, 4, 8");
   await expect(page.getByTestId("toggle-allowStopEventReuse")).toBeChecked();
+  await expect(page.getByTestId("opener-set-select")).toHaveValue(
+    "activity_resumed_only",
+  );
   await expandSectionCard(page, "performance");
   await expect(page.getByTestId("toggle-parallelProcessing")).toBeChecked();
   await expect(page.getByTestId("parallel-max-workers-input")).toHaveValue("3");
@@ -1107,6 +1605,7 @@ test("persists all edited settings across reload and supports settings import", 
           processAppUsage: false,
           processScreenUsage: true,
           useAppCodebook: false,
+          openerSet: "gesis_app_scoped_starts",
           longDataTimeGapThresholds: [1.5, 2.5],
         },
         presets: [],
@@ -1121,6 +1620,9 @@ test("persists all edited settings across reload and supports settings import", 
   await expect(page.getByTestId("toggle-useAppCodebook")).not.toBeChecked();
   await expandSectionCard(page, "session-detection");
   await expect(page.getByTestId("long-gap-thresholds-input")).toHaveValue("1.5, 2.5");
+  await expect(page.getByTestId("opener-set-select")).toHaveValue(
+    "gesis_app_scoped_starts",
+  );
   assertNoExternalRequests(requestTracker);
 });
 
@@ -1230,6 +1732,9 @@ test("files tab lists every timezone instead of summarizing as N timezones", asy
 });
 
 test("duplicate timestamps stop blocking readiness when correction is enabled", async ({ page }) => {
+  // This export has no screen events; screen output off keeps that separate
+  // warning out of the readiness pill this test is about.
+  await page.getByTestId("toggle-processScreenUsage").uncheck();
   await expandSectionCard(page, "session-detection");
   await expect(page.getByTestId("toggle-correctDuplicateEventTimestamps")).toBeChecked();
 
@@ -1326,4 +1831,91 @@ test("config export round-trips both active settings and the preset library", as
   expect(exported.currentSettings.studyName).toBe("RoundTrip");
   expect(exported.presets.map((p) => p.name)).toContain("Snapshot A");
   assertNoExternalRequests(requestTracker);
+});
+
+/**
+ * `RuntimeSupportFiles::resolve` has a dedicated fail-closed arm for `.xls`
+ * ("Convert legacy .xls workbooks to .xlsx or CSV") because only calamine's
+ * `Xlsx` reader is linked. The picker used to advertise `.xls`, so the file was
+ * accepted, the widget showed "Enabled with uploaded file", and the whole batch
+ * failed at run time. The refusal now happens at pick time.
+ */
+test("@smoke a legacy .xls support file is refused at the picker, not at run time", async ({
+  page,
+}) => {
+  await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
+  await page.getByTestId("toggle-useFilterFile").check();
+  const picker = page.getByTestId("filter-file-input");
+  // The dialog filter no longer offers it either.
+  await expect(picker).toHaveAttribute("accept", ".csv,.xlsx");
+  await setInputFile(
+    page,
+    "filter-file-input",
+    "filter.xls",
+    "app_package_name\ncom.example.app\n",
+    "application/vnd.ms-excel",
+  );
+
+  const error = page.getByTestId("filter-file-input-format-error");
+  await expect(error).toBeVisible();
+  await expect(error).toContainText("filter.xls");
+  await expect(error).toContainText(".csv or .xlsx");
+  // And the widget does not claim the file was taken — neither with the
+  // rejected file's name nor with the bundled default, which would put a green
+  // "Success: Enabled with …" line directly beside the red refusal.
+  await expect(
+    page.getByText(/Enabled with uploaded file: filter\.xls/),
+  ).toHaveCount(0);
+  const filterRow = page
+    .locator(".support-file-row")
+    .filter({ hasText: "Filter file" });
+  await expect(filterRow.getByText(/^Success:/)).toHaveCount(0);
+
+  // The correctly-shaped CSV still loads through the same picker.
+  await setInputFile(page, "filter-file-input", "filter.csv", FILTER_FILE_CSV, "text/csv");
+  await expect(error).toHaveCount(0);
+  await expect(
+    page.getByText(/Enabled with uploaded file: filter\.csv/),
+  ).toBeVisible();
+});
+
+/**
+ * The kernel's row reader resolves raw columns by name and substitutes an empty
+ * string for one it cannot find, so a file whose header is missing
+ * `app_package_name` used to process to blank packages and report success. The
+ * inspection already computed `hasRequiredColumns` and nothing read it, so the
+ * file showed the same amber "Warning: Review" pill as a cosmetic warning.
+ */
+test("@smoke a raw file missing a required column is an error, and blocks the run", async ({
+  page,
+}) => {
+  const missingPackageColumn = [
+    "study_id,participant_id,username,application_label,interaction_type,event_timestamp,timezone",
+    "study,P01,Target Child,Chat,Activity Resumed,2026-03-07 10:00:00,America/Chicago",
+    "study,P01,Target Child,Chat,Activity Paused,2026-03-07 10:05:00,America/Chicago",
+  ].join("\n");
+  await setInputFile(
+    page,
+    "raw-file-input",
+    "Raw Missing.csv",
+    missingPackageColumn,
+    "text/csv",
+  );
+
+  await page.getByRole("tab", { name: /Files/i }).click();
+  const filesPanel = page.getByRole("tabpanel", { name: /Files/i });
+  await expect(filesPanel.getByTestId("raw-file-row-error")).toBeVisible();
+  await expect(filesPanel.getByTestId("raw-file-row-error")).toContainText(
+    "app_package_name",
+  );
+  await expect(filesPanel.getByText("Error: Missing columns")).toBeVisible();
+  await expect(filesPanel.getByText("Warning: Review")).toHaveCount(0);
+
+  await page.getByRole("tab", { name: /Process/i }).click();
+  const block = page.getByTestId("raw-columns-block");
+  await expect(block).toBeVisible();
+  await expect(block).toContainText("Raw Missing.csv");
+  await expect(block).toContainText("app_package_name");
+  await expect(page.getByTestId("process-files-button")).toBeDisabled();
+  await expect(page.getByTestId("result-panel")).toHaveCount(0);
 });

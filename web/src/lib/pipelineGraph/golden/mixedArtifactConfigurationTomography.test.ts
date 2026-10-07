@@ -2,18 +2,21 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import filterCsv from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv?raw";
 import forcingCsv from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv?raw";
 import backgroundCsv from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_background_apps.csv?raw";
 import codebookCsv from "@/assets/defaults/unified_app_codebook.csv?raw";
 import { COMPUTATIONAL_BROWSER_OPTION_KEYS } from "@/lib/generatedContract";
-import { ALL_ON, GOLDEN_RUNTIME } from "@/testSupport/rustCampaignGraph";
+import { usesInputCapabilityEvidence } from "@/lib/inputCapabilityEvidence";
+import { ALL_ON, GOLDEN_RUNTIME, validConfiguration, withValue } from "@/testSupport/rustCampaignGraph";
 import { buildRustV2Options } from "@/lib/rustPipelineRuntime";
 import type { BrowserProcessingOptions } from "@/lib/types";
 import {
   buildArtifactFixtureState,
   buildArtifactInterventions,
+  prepareArtifactFixtureForScientificExecution,
+  isCapabilityEvidenceIntervention,
   SUPPORT_ROLE_IDS,
   type ArtifactFixtureState,
   type ArtifactIntervention,
@@ -30,11 +33,41 @@ import {
   SYNTHETIC_CORPUS_PROFILES,
 } from "@/testSupport/syntheticChronicleCorpus";
 import {
-  sourceRoleIsActive,
+  unjustifiedExecutions,
   type RustWorkflowContract,
 } from "@/testSupport/workflowContract";
-import { dependencyCampaignRuntimeBytes } from "@/testSupport/dependencyCampaignRuntime";
+import {
+  authorityReceipt,
+  cachedWithChangedOutput,
+  changedFields,
+  checkpointComponentSet,
+  executedQueryIds,
+  nodeOutputDigests,
+  outputArtifactDigests,
+  queryStatuses,
+  type CampaignRuntimeManifest,
+  type ObservedRuntimeManifest,
+} from "@/testSupport/campaignManifest";
+import {
+  CAMPAIGN_RUNTIME_INIT_TIMEOUT_MS,
+  dependencyCampaignRuntimeBytes,
+  captureCampaignFootprint,
+  CAMPAIGN_FOOTPRINT_CAPTURE_TIMEOUT_MS,
+} from "@/testSupport/dependencyCampaignRuntime";
+import {
+  executeScientificCampaignWorkspace,
+  putScientificCampaignSupportArtifact,
+  ScientificCampaignRefusalError,
+} from "@/testSupport/scientificCampaignExecution";
 import * as runtime from "@/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm.js";
+
+// Footprint selection: record which production source files this campaign
+// actually executed (no-op unless the evidence refresh sets the profraw dir).
+afterAll(
+  () => captureCampaignFootprint(runtime),
+  CAMPAIGN_FOOTPRINT_CAPTURE_TIMEOUT_MS,
+);
+import { CAMPAIGN_TEST_TIMEOUT_MS } from "@/testSupport/campaignTimeout";
 
 const EXPECTED_DIRECTORY = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -58,40 +91,28 @@ if (MIXED_ROLE && !ROLE_IDS.includes(MIXED_ROLE)) {
   throw new Error(`unknown MIXED_ROLE: ${MIXED_ROLE}`);
 }
 
-type RuntimeManifest = {
-  implementation: string;
-  implementationDigest: string;
-  planDigest: string;
-  profileDigest: string;
-  profileLockDigest: string;
-  runtimeAuthorityDigest: string;
-  productContractDigest: string;
-  workspaceRootDigest: string;
-  openObligations: unknown[];
-  processingSummary: {
-    workflowQueryGroupDigests: Record<string, string>;
-    workflowQueryGroupCheckpoints: Record<string, Record<string, unknown>>;
-    workflowQueryDigests: Record<string, string>;
-    [key: string]: unknown;
-  };
-  queryGroupExecutions: Array<{
-    query_group_id: string;
-    input_key: string;
-    output: { digest: string } | null;
-    status: "cached" | "recomputed" | "error" | "skipped" | "bypassed";
-  }>;
-  queryExecutions: Array<{
-    query_id: string;
-    query_group_id: string;
-    input_key: string;
-    output_digest: string;
-    status: "cached" | "recomputed" | "error" | "skipped" | "bypassed";
-  }>;
-  artifacts: Array<{ kind: string; digest: string; size: number }>;
-};
-
-type Observation = RuntimeManifest & { outputCells: Record<string, string> };
+type ObservationOutcome =
+  | {
+      status: "executed";
+      observation: ObservedRuntimeManifest;
+      executeCalls: 1;
+    }
+  | {
+      status: "refused";
+      receipt: import("@/lib/generatedRuntimeBoundary").RuntimeScientificPreflightReceipt;
+      executeCalls: 0;
+    };
 type AxisValue = { label: string; value: unknown };
+const NO_VALID_APP_USAGE = "No valid app usage data during the study period";
+
+function isNoValidAppUsage(cause: unknown): boolean {
+  if (cause === NO_VALID_APP_USAGE) return true;
+  if (typeof cause !== "object" || cause === null) return false;
+  const error = cause as { message?: unknown; cause?: unknown };
+  return (
+    error.message === NO_VALID_APP_USAGE || isNoValidAppUsage(error.cause)
+  );
+}
 
 const plan = JSON.parse(readFileSync(PLAN_FILE, "utf8")) as {
   plan_id: string;
@@ -113,8 +134,23 @@ beforeAll(() => {
   expect(workflowContract.protocolVersion).toBe(
     "chronicle-workflow-contract/v1",
   );
-  expect(workflowContract.execution.queries).toHaveLength(workflowContract.execution.queries.length);
-});
+  // The previous form compared the registry length to itself and could
+  // never fail. Assert the properties the campaign relies on instead --
+  // a non-empty registry with unique, non-blank query ids.
+  {
+    const contractQueryIds = workflowContract.execution.queries.map(
+      ({ id }) => id,
+    );
+    expect(contractQueryIds.length, "empty workflow query registry").toBeGreaterThan(0);
+    expect(new Set(contractQueryIds).size, "duplicate workflow query ids").toBe(
+      contractQueryIds.length,
+    );
+    expect(
+      contractQueryIds.filter((id) => id.trim().length === 0),
+      "blank workflow query id",
+    ).toEqual([]);
+  }
+}, CAMPAIGN_RUNTIME_INIT_TIMEOUT_MS);
 
 async function sha256Uri(value: Uint8Array | string): Promise<string> {
   const bytes = typeof value === "string" ? encoder.encode(value) : value;
@@ -127,35 +163,72 @@ async function sha256Uri(value: Uint8Array | string): Promise<string> {
   ).join("")}`;
 }
 
-function changedFields(
-  left: Record<string, unknown>,
-  right: Record<string, unknown>,
-): string[] {
-  return [...new Set([...Object.keys(left), ...Object.keys(right)])]
-    .filter((key) => JSON.stringify(left[key]) !== JSON.stringify(right[key]))
-    .sort();
-}
-
-function withValue(
-  source: BrowserProcessingOptions,
-  key: string,
-  value: unknown,
-): BrowserProcessingOptions {
-  const target = { ...source } as unknown as Record<string, unknown>;
-  if (value === undefined) delete target[key];
-  else target[key] = value;
-  return target as unknown as BrowserProcessingOptions;
-}
-
-function validConfiguration(options: BrowserProcessingOptions): boolean {
-  return !(
-    options.timezoneHandling.startsWith("selected-") &&
-    !options.selectedTimezone?.trim()
-  );
-}
-
 function axisId(key: string, alternate: AxisValue): string {
   return `${key}=${alternate.label}`;
+}
+
+async function executeOutcome(
+  state: ArtifactFixtureState,
+  options: BrowserProcessingOptions,
+  workspaceLabel: string,
+  requestId: string,
+  previousRoot: string | null,
+): Promise<ObservationOutcome> {
+  const executionState = prepareArtifactFixtureForScientificExecution(
+    state,
+    options,
+  );
+  const rawBytes = encoder.encode(executionState.rawCsv);
+  const supports = new runtime.RuntimeSupportFiles();
+  const supportArtifacts = new Map<string, Uint8Array>();
+  let handle: ReturnType<typeof runtime.execute_workspace> | undefined;
+  try {
+    for (const roleId of SUPPORT_ROLE_IDS) {
+      const support = executionState.supports[roleId];
+      const bytes = encoder.encode(support.csv);
+      putScientificCampaignSupportArtifact({
+        roleId,
+        fileName: support.name,
+        bytes,
+        options,
+        supports,
+        supportArtifacts,
+      });
+    }
+    const requestJson = JSON.stringify({
+      protocolVersion: "chronicle-preprocessing-runtime/v2",
+      executionEngine: "incremental",
+      provenanceEvidence: true,
+      requestId,
+      command: "ExecuteWorkspace",
+      workspaceRootDigest: previousRoot,
+      workspaceId: await sha256Uri(`mixed:${workspaceLabel}`),
+      inputFileName: "mixed-artifact-configuration.csv",
+      inputSha256: await sha256Uri(rawBytes),
+      options: buildRustV2Options(options, GOLDEN_RUNTIME),
+    });
+    const result = executeScientificCampaignWorkspace({
+      runtime,
+      options,
+      requestJson,
+      rawBytes,
+      supports,
+      supportArtifacts,
+    });
+    if (result.status === "refused") return result;
+    handle = result.handle;
+    const manifest = JSON.parse(handle.manifest_json()) as CampaignRuntimeManifest;
+    return {
+      status: "executed",
+      observation: Object.assign(manifest, {
+        outputCells: captureCanonicalOutputCells(handle),
+      }),
+      executeCalls: 1,
+    };
+  } finally {
+    handle?.free();
+    supports.free();
+  }
 }
 
 async function execute(
@@ -164,127 +237,33 @@ async function execute(
   workspaceLabel: string,
   requestId: string,
   previousRoot: string | null,
-): Promise<Observation> {
-  const rawBytes = encoder.encode(state.rawCsv);
-  const supports = new runtime.RuntimeSupportFiles();
-  let handle: ReturnType<typeof runtime.execute_workspace> | undefined;
+): Promise<ObservedRuntimeManifest> {
+  let result: ObservationOutcome;
   try {
-    for (const roleId of SUPPORT_ROLE_IDS) {
-      const support = state.supports[roleId];
-      supports.put_with_name(roleId, support.name, encoder.encode(support.csv));
-    }
-    handle = runtime.execute_workspace(
-      JSON.stringify({
-        protocolVersion: "chronicle-preprocessing-runtime/v1",
-        requestId,
-        command: "ExecuteWorkspace",
-        workspaceRootDigest: previousRoot,
-        workspaceId: await sha256Uri(`mixed:${workspaceLabel}`),
-        inputFileName: "mixed-artifact-configuration.csv",
-        inputSha256: await sha256Uri(rawBytes),
-        options: buildRustV2Options(options, GOLDEN_RUNTIME),
-      }),
-      rawBytes,
-      supports,
+    result = await executeOutcome(
+      state,
+      options,
+      workspaceLabel,
+      requestId,
+      previousRoot,
     );
-    const manifest = JSON.parse(handle.manifest_json()) as RuntimeManifest;
-    return Object.assign(manifest, {
-      outputCells: captureCanonicalOutputCells(handle),
-    });
-  } finally {
-    handle?.free();
-    supports.free();
+  } catch (cause) {
+    throw new Error(`${workspaceLabel}: execution failed`, { cause });
   }
+  if (result.status === "refused") {
+    throw new ScientificCampaignRefusalError(result.receipt);
+  }
+  return result.observation;
 }
 
-function receipt(manifest: RuntimeManifest): Record<string, string> {
-  return {
-    implementation: manifest.implementation,
-    implementationDigest: manifest.implementationDigest,
-    planDigest: manifest.planDigest,
-    profileDigest: manifest.profileDigest,
-    profileLockDigest: manifest.profileLockDigest,
-    runtimeAuthorityDigest: manifest.runtimeAuthorityDigest,
-    productContractDigest: manifest.productContractDigest,
-  };
-}
-
-function stepStatuses(manifest: RuntimeManifest): Record<string, string> {
-  return Object.fromEntries(
-    manifest.queryExecutions.map(({ query_id, status }) => [query_id, status]),
-  );
-}
-
-function executedStepIds(manifest: RuntimeManifest): string[] {
-  return manifest.queryExecutions
-    .filter(({ status }) => status === "recomputed")
-    .map(({ query_id }) => query_id)
-    .sort();
-}
-
-function nodeOutputDigests(
-  manifest: RuntimeManifest,
-): Record<string, string | null> {
-  return Object.fromEntries(
-    manifest.queryGroupExecutions.map(({ query_group_id, output }) => [
-      query_group_id,
-      output?.digest ?? null,
-    ]),
-  );
-}
-
-const OUTPUT_KINDS = new Set([
-  "app-csv",
-  "screen-csv",
-  "day-coverage-csv",
-  "compliance-csv",
-  "credited-app-csv",
-  "review-summary-json",
-  "visualization-data-json",
-  "app-parquet",
-  "screen-parquet",
-  "app-spss",
-  "screen-spss",
-  "row-lineage-arrow",
-  "source-coordinate-index-arrow",
-  "result-cell-correspondence-arrow",
-  "source-result-influence-arrow",
-]);
-
-function outputArtifacts(manifest: RuntimeManifest): Record<string, string> {
-  return Object.fromEntries(
-    manifest.artifacts
-      .filter(
-        ({ kind }) => OUTPUT_KINDS.has(kind) || kind.startsWith("aggregate-"),
-      )
-      .sort((left, right) => left.kind.localeCompare(right.kind))
-      .map(({ kind, digest }) => [kind, digest]),
-  );
-}
-
-function semanticOutcome(manifest: RuntimeManifest): Record<string, unknown> {
+function semanticOutcome(manifest: CampaignRuntimeManifest): Record<string, unknown> {
   return {
     processingSummary: manifest.processingSummary,
     nodeOutputs: nodeOutputDigests(manifest),
-    outputArtifacts: outputArtifacts(manifest),
+    outputArtifacts: outputArtifactDigests(manifest),
   };
 }
 
-function checkpointComponentSet(
-  source: RuntimeManifest,
-  target: RuntimeManifest,
-): string[] {
-  return Object.keys(source.processingSummary.workflowQueryGroupCheckpoints)
-    .sort()
-    .flatMap((nodeId) =>
-      changedFields(
-        source.processingSummary.workflowQueryGroupCheckpoints[nodeId] ?? {},
-        target.processingSummary.workflowQueryGroupCheckpoints[nodeId] ?? {},
-      )
-        .filter((component) => component !== "terminalDigest")
-        .map((component) => `${nodeId}.${component}`),
-    );
-}
 
 function delta(
   left: string[],
@@ -296,38 +275,9 @@ function delta(
   };
 }
 
-function predictedExecutedQueries(
-  changedRequestFields: ReadonlySet<string>,
-  changedSourceRoles: ReadonlySet<string>,
-  changedQueryOutputs: ReadonlySet<string>,
-  targetOptions: Record<string, unknown>,
-  source: RuntimeManifest,
-  target: RuntimeManifest,
-): string[] {
-  const sourceStatuses = stepStatuses(source);
-  const targetStatuses = stepStatuses(target);
-  return workflowContract.execution.queries
-    .filter((step) => {
-      const sourceApplicable = sourceStatuses[step.id] !== "bypassed";
-      const targetApplicable = targetStatuses[step.id] !== "bypassed";
-      return (
-        targetApplicable &&
-        (!sourceApplicable ||
-          step.requestFields.some((field) => changedRequestFields.has(field)) ||
-          step.sourceRoles.some(
-            (role) =>
-              changedSourceRoles.has(role) && sourceRoleIsActive(step, role, targetOptions),
-          ) ||
-          step.inputs.some((input) => changedQueryOutputs.has(input)))
-      );
-    })
-    .map(({ id }) => id)
-    .sort();
-}
-
 describe("mixed artifact × configuration tomography", () => {
   if (!MIXED_ROLE) {
-    it("binds the nine independently recycled role shards into one aggregate receipt", () => {
+    it("binds the nine generic role shards into one aggregate receipt", () => {
       expect(existsSync(AGGREGATE_FILE), "missing mixed aggregate ledger").toBe(
         true,
       );
@@ -343,7 +293,9 @@ describe("mixed artifact × configuration tomography", () => {
         "chronicle-mixed-artifact-configuration-aggregate/v1",
       );
       expect(aggregate.roleShards.map(({ roleId }) => roleId).sort()).toEqual(
-        [...ROLE_IDS].sort(),
+        ROLE_IDS.filter(
+          (roleId) => roleId !== "input_capability_evidence_file",
+        ).sort(),
       );
       for (const shard of aggregate.roleShards) {
         const bytes = readFileSync(join(EXPECTED_DIRECTORY, shard.path));
@@ -356,7 +308,14 @@ describe("mixed artifact × configuration tomography", () => {
   }
 
   it("proves every source-role/configuration interaction in both transition orders", async () => {
-    const baseOptions = ALL_ON;
+    const baseOptions: BrowserProcessingOptions =
+      MIXED_ROLE === "input_capability_evidence_file"
+        ? {
+            ...ALL_ON,
+            screenSessionConstructionStrategy:
+              "parry_toth_2025_session_glance_v1",
+          }
+        : ALL_ON;
     const representatives = new Map<
       InterventionRoleId,
       {
@@ -367,16 +326,22 @@ describe("mixed artifact × configuration tomography", () => {
         intervention: ArtifactIntervention;
         source: ArtifactFixtureState;
         state: ArtifactFixtureState;
-        coldBase: Observation;
-        cold: Observation;
+        coldBase: ObservedRuntimeManifest;
+        cold: ObservedRuntimeManifest;
       }
     >();
     const fixtureBases = new Map<
       string,
-      { source: ArtifactFixtureState; coldBase: Observation }
+      { source: ArtifactFixtureState; coldBase: ObservedRuntimeManifest }
     >();
     let activationBaseExecutions = 0;
     let activationProbeExecutions = 0;
+    const capabilityRefusalWitnesses: Array<{
+      corpusId: string;
+      interventionId: string;
+      executeCalls: 0;
+      receipt: import("@/lib/generatedRuntimeBoundary").RuntimeScientificPreflightReceipt;
+    }> = [];
     for (const roleId of [MIXED_ROLE]) {
       for (const profile of SYNTHETIC_CORPUS_PROFILES) {
         const candidateCorpus = generateSyntheticChronicleCorpus(
@@ -411,18 +376,30 @@ describe("mixed artifact × configuration tomography", () => {
         }).filter(
           (candidate) =>
             candidate.roleId === roleId &&
+            (!isCapabilityEvidenceIntervention(candidate) ||
+              candidate.id !== "support:capability-schema-version-invalid") &&
             candidate.expectedSemanticEffect === "required",
         );
         for (const candidate of candidates) {
           const state = candidate.apply(fixture.source);
-          const cold = await execute(
+          const outcome = await executeOutcome(
             state,
             baseOptions,
             `activate-${candidateCorpus.id}-${candidate.id}`,
             "activate",
             null,
           );
-          activationProbeExecutions += 1;
+          activationProbeExecutions += outcome.executeCalls;
+          if (outcome.status === "refused") {
+            capabilityRefusalWitnesses.push({
+              corpusId: candidateCorpus.id,
+              interventionId: candidate.id,
+              executeCalls: 0,
+              receipt: outcome.receipt,
+            });
+            continue;
+          }
+          const cold = outcome.observation;
           if (
             changedFields(
               fixture.coldBase.processingSummary.workflowQueryGroupDigests,
@@ -440,10 +417,15 @@ describe("mixed artifact × configuration tomography", () => {
               coldBase: fixture.coldBase,
               cold,
             });
-            break;
           }
         }
-        if (representatives.has(roleId)) {
+        if (
+          representatives.has(roleId) &&
+          (roleId !== "input_capability_evidence_file" ||
+            capabilityRefusalWitnesses.some(
+              ({ corpusId }) => corpusId === candidateCorpus.id,
+            ))
+        ) {
           break;
         }
       }
@@ -452,11 +434,11 @@ describe("mixed artifact × configuration tomography", () => {
       [...representatives.keys()].sort(),
       "each source role needs an empirically branch-activating representative",
     ).toEqual([MIXED_ROLE]);
-    const implementationReceipt = receipt(
+    const implementationReceipt = authorityReceipt(
       representatives.values().next().value!.coldBase,
     );
 
-    const variants = COMPUTATIONAL_BROWSER_OPTION_KEYS.flatMap((key) =>
+    const allVariants = COMPUTATIONAL_BROWSER_OPTION_KEYS.flatMap((key) =>
       configurationEquivalenceClasses(key)
         .filter(
           ({ value }) =>
@@ -467,8 +449,25 @@ describe("mixed artifact × configuration tomography", () => {
         )
         .map((alternate) => ({ key, alternate })),
     );
-    const coldConfigurations = new Map<string, Observation>();
+    const sourceSensitiveCompoundVariants =
+      MIXED_ROLE === "raw_chronicle_csv"
+        ? allVariants.filter(({ key, alternate }) =>
+            usesInputCapabilityEvidence(
+              withValue(baseOptions, key, alternate.value),
+            ),
+          )
+        : [];
+    const variants = allVariants.filter(
+      (variant) => !sourceSensitiveCompoundVariants.includes(variant),
+    );
+    const coldConfigurations = new Map<string, ObservedRuntimeManifest>();
     const invalidVariants: Array<{ variantId: string; reason: string }> = [];
+    const inputDependentStructuralOutcomes: Array<{
+      roleId: InterventionRoleId;
+      variantId: string;
+      phase: "cold_configuration" | "cold_pair";
+      reason: typeof NO_VALID_APP_USAGE;
+    }> = [];
     for (const { key, alternate } of variants) {
       const variantId = axisId(key, alternate);
       const options = withValue(baseOptions, key, alternate.value);
@@ -481,16 +480,31 @@ describe("mixed artifact × configuration tomography", () => {
         continue;
       }
       for (const [roleId, representative] of representatives) {
-        coldConfigurations.set(
-          `${roleId}:${variantId}`,
-          await execute(
-            representative.source,
-            options,
-            `cold-config-${roleId}-${variantId}`,
-            "cold-config",
-            null,
-          ),
-        );
+        try {
+          coldConfigurations.set(
+            `${roleId}:${variantId}`,
+            await execute(
+              representative.source,
+              options,
+              `cold-config-${roleId}-${variantId}`,
+              "cold-config",
+              null,
+            ),
+          );
+        } catch (cause) {
+          if (isNoValidAppUsage(cause)) {
+            inputDependentStructuralOutcomes.push({
+              roleId,
+              variantId,
+              phase: "cold_configuration",
+              reason: NO_VALID_APP_USAGE,
+            });
+            continue;
+          }
+          throw new Error(`${roleId}:${variantId}: cold configuration failed`, {
+            cause,
+          });
+        }
       }
     }
 
@@ -498,7 +512,6 @@ describe("mixed artifact × configuration tomography", () => {
     const caseIdentities: string[] = [];
     let pairCount = 0;
     let warmColdComparisons = 0;
-    let exactClusterComparisons = 0;
     for (const [roleId, representative] of representatives) {
       for (const { key, alternate } of variants) {
         const variantId = axisId(key, alternate);
@@ -515,13 +528,27 @@ describe("mixed artifact × configuration tomography", () => {
         );
         const exactTargetOptions = buildRustV2Options(options, GOLDEN_RUNTIME);
         const caseId = `${roleId}:${representative.intervention.id}×${variantId}`;
-        const coldPair = await execute(
-          representative.state,
-          options,
-          `cold-pair-${caseId}`,
-          "cold-pair",
-          null,
-        );
+        let coldPair: ObservedRuntimeManifest;
+        try {
+          coldPair = await execute(
+            representative.state,
+            options,
+            `cold-pair-${caseId}`,
+            "cold-pair",
+            null,
+          );
+        } catch (cause) {
+          if (isNoValidAppUsage(cause)) {
+            inputDependentStructuralOutcomes.push({
+              roleId,
+              variantId,
+              phase: "cold_pair",
+              reason: NO_VALID_APP_USAGE,
+            });
+            continue;
+          }
+          throw cause;
+        }
 
         const dataFirstWorkspace = `data-first-${caseId}`;
         const dataFirstBase = await execute(
@@ -581,7 +608,7 @@ describe("mixed artifact × configuration tomography", () => {
           expect(manifest.openObligations, `${caseId}: binding holes`).toEqual(
             [],
           );
-          expect(receipt(manifest), `${caseId}: authority drift`).toEqual(
+          expect(authorityReceipt(manifest), `${caseId}: authority drift`).toEqual(
             implementationReceipt,
           );
         }
@@ -623,38 +650,51 @@ describe("mixed artifact × configuration tomography", () => {
           representative.cold.processingSummary.workflowQueryDigests,
           coldPair.processingSummary.workflowQueryDigests,
         );
-        const predictedAfterData = predictedExecutedQueries(
-          changedRustKeys,
-          new Set(),
-          new Set(changedStepsAfterData),
-          exactTargetOptions,
-          representative.cold,
-          coldPair,
-        );
-        const actualAfterData = executedStepIds(dataFirstPair);
+        const actualAfterData = executedQueryIds(dataFirstPair);
+        // Salsa owns invalidation; `inputs` is a may-read set, so neither
+        // transition order predicts an execution set. What must hold on both is
+        // that nothing ran without a reason to.
+        const unjustifiedAfterData = unjustifiedExecutions({
+          contract: workflowContract,
+          targetOptions: exactTargetOptions,
+          sourceStatuses: queryStatuses(representative.cold),
+          targetStatuses: queryStatuses(coldPair),
+          changedRequestFields: changedRustKeys,
+          changedQueryOutputs: new Set(changedStepsAfterData),
+          executed: actualAfterData,
+        });
         expect(
-          actualAfterData,
-          `${caseId}: config-after-data Salsa execution`,
-        ).toEqual(predictedAfterData);
+          unjustifiedAfterData,
+          `${caseId}: config-after-data query executed with no changed request field, source role, or upstream output`,
+        ).toEqual([]);
+        expect(
+          cachedWithChangedOutput(dataFirstSingle, dataFirstPair),
+          `${caseId}: config-after-data query badged cached while publishing a changed output digest`,
+        ).toEqual([]);
         const changedStepsAfterConfig = changedFields(
           coldConfiguration.processingSummary.workflowQueryDigests,
           coldPair.processingSummary.workflowQueryDigests,
         );
-        const predictedAfterConfig = predictedExecutedQueries(
-          new Set(),
-          new Set([roleId]),
-          new Set(changedStepsAfterConfig),
-          exactTargetOptions,
-          coldConfiguration,
-          coldPair,
-        );
-        const actualAfterConfig = executedStepIds(configFirstPair);
+        const actualAfterConfig = executedQueryIds(configFirstPair);
+        const unjustifiedAfterConfig = unjustifiedExecutions({
+          contract: workflowContract,
+          targetOptions: exactTargetOptions,
+          sourceStatuses: queryStatuses(coldConfiguration),
+          targetStatuses: queryStatuses(coldPair),
+          changedSourceRoles: new Set([roleId]),
+          changedQueryOutputs: new Set(changedStepsAfterConfig),
+          executed: actualAfterConfig,
+        });
         expect(
-          actualAfterConfig,
-          `${caseId}: data-after-config Salsa execution`,
-        ).toEqual(predictedAfterConfig);
-        const dataFirstSourceStatuses = stepStatuses(representative.cold);
-        const pairStatuses = stepStatuses(coldPair);
+          unjustifiedAfterConfig,
+          `${caseId}: data-after-config query executed with no changed request field, source role, or upstream output`,
+        ).toEqual([]);
+        expect(
+          cachedWithChangedOutput(configFirstSingle, configFirstPair),
+          `${caseId}: data-after-config query badged cached while publishing a changed output digest`,
+        ).toEqual([]);
+        const dataFirstSourceStatuses = queryStatuses(representative.cold);
+        const pairStatuses = queryStatuses(coldPair);
         const deactivatedAfterData = workflowContract.execution.queries
           .filter(
             ({ id }) =>
@@ -665,11 +705,11 @@ describe("mixed artifact × configuration tomography", () => {
           .sort();
         for (const stepId of deactivatedAfterData) {
           expect(
-            stepStatuses(dataFirstPair)[stepId],
+            queryStatuses(dataFirstPair)[stepId],
             `${caseId}: deactivated config query must not execute`,
           ).toBe("bypassed");
         }
-        const configFirstSourceStatuses = stepStatuses(coldConfiguration);
+        const configFirstSourceStatuses = queryStatuses(coldConfiguration);
         const deactivatedAfterConfig = workflowContract.execution.queries
           .filter(
             ({ id }) =>
@@ -682,7 +722,6 @@ describe("mixed artifact × configuration tomography", () => {
           deactivatedAfterConfig,
           `${caseId}: artifact bytes cannot change applicability`,
         ).toEqual([]);
-        exactClusterComparisons += 2;
 
         const baseConfigComponents = checkpointComponentSet(
           representative.coldBase,
@@ -732,10 +771,12 @@ describe("mixed artifact × configuration tomography", () => {
           interventionId: representative.intervention.id,
           optionKey: key,
           alternate,
-          configAfterDataPredictedSteps: predictedAfterData,
+          // `unjustifiedAfterData` / `unjustifiedAfterConfig` are asserted empty
+          // above, so recording them would write a constant `[]` into every
+          // case. The per-case execution evidence is the `*ActualSteps` pair —
+          // the OBSERVED executed-query set for each transition order.
           configAfterDataActualSteps: actualAfterData,
           configAfterDataDeactivatedSteps: deactivatedAfterData,
-          dataAfterConfigPredictedSteps: predictedAfterConfig,
           dataAfterConfigActualSteps: actualAfterConfig,
           dataAfterConfigDeactivatedSteps: deactivatedAfterConfig,
           configConditioning,
@@ -778,10 +819,34 @@ describe("mixed artifact × configuration tomography", () => {
       }
     }
 
+    if (process.env.CHRONICLE_PRINT_PINS === "1") {
+      // nosemgrep: semgrep.chronicle-ts-console-log -- CHRONICLE_PRINT_PINS=1 re-pin dump, silent in normal runs
+      console.log(
+        "CHRONICLE_PINS_MIXED_STRUCTURAL " +
+          JSON.stringify(inputDependentStructuralOutcomes),
+      );
+    }
+    if (MIXED_ROLE === "raw_chronicle_csv") {
+      expect(inputDependentStructuralOutcomes).toEqual([
+        {
+          roleId: "raw_chronicle_csv",
+          variantId: "dropOutOfSourceOrderEvents=true",
+          phase: "cold_pair",
+          reason: NO_VALID_APP_USAGE,
+        },
+      ]);
+    } else {
+      expect(inputDependentStructuralOutcomes).toEqual([]);
+    }
+    for (const outcome of inputDependentStructuralOutcomes) {
+      expect(outcome.roleId).toBe("raw_chronicle_csv");
+      expect(outcome.reason).toBe(NO_VALID_APP_USAGE);
+    }
+
     const evidence = {
       protocolVersion: "chronicle-mixed-artifact-configuration-ledger/v1",
       claimBoundary:
-        "Exhaustive value-level pair coverage between every declared computational configuration alternate and one empirically branch-activating intervention for the selected raw/support source role. Its activation context is selected deterministically from the six existing synthetic corpora. Both transition orders must equal an independent cold Rust/WASM target at every workflow checkpoint, output artifact, and canonical output cell. The nine independently recycled role shards form the aggregate role/value proof; one representative mutation does not exhaust every record- or field-level interaction.",
+        "Exhaustive value-level pair coverage between every non-compound computational configuration alternate and one empirically branch-activating intervention for the selected raw/support source role. Its activation context is selected deterministically from the six existing synthetic corpora. Raw-role alternates that activate Parry/Zhu/Schoedel and therefore rebind the capability sidecar are explicitly excluded and unestimated as compound raw+capability mutations; the configuration-space sourceSensitiveScientificCells domain proves only the generic LF-sidecar to CRLF-raw Parry rebind mechanism. Capability representative discovery preserves exact typed refusal receipts with executeCalls=0 while selecting an executable intervention. Input-dependent structural outcomes are recorded with their exact phase and error but cannot enter manifest-to-manifest transition equality because they produce no workspace manifest. Every remaining pair's two transition orders must equal an independent cold Rust/WASM target at every workflow checkpoint, output artifact, and canonical output cell. The nine independently recycled generic role shards form the aggregate role/value proof; one representative mutation does not exhaust every record- or field-level interaction.",
       plan: { id: plan.plan_id, revision: plan.revision },
       implementationReceipt,
       roleRepresentatives: Object.fromEntries(
@@ -801,26 +866,36 @@ describe("mixed artifact × configuration tomography", () => {
           ]),
       ),
       invalidVariants,
+      inputDependentStructuralOutcomes,
+      capabilityRefusalWitnesses,
       coverage: {
         sourceRoles: representatives.size,
         computationalAxes: COMPUTATIONAL_BROWSER_OPTION_KEYS.length,
-        declaredAlternateValues: variants.length,
+        declaredAlternateValues: allVariants.length,
+        directlyCrossedAlternateValues: variants.length,
+        sourceSensitiveCompoundVariants: sourceSensitiveCompoundVariants.map(
+          ({ key, alternate }) => axisId(key, alternate),
+        ),
         validConfigurationVariants: variants.length - invalidVariants.length,
         invalidConfigurationVariants: invalidVariants.length,
+        inputDependentStructuralOutcomes:
+          inputDependentStructuralOutcomes.length,
+        scientificRefusalExecutionsAvoided: capabilityRefusalWitnesses.length,
         validRoleValuePairs: pairCount,
         coldExecutions:
           activationBaseExecutions +
           activationProbeExecutions +
           coldConfigurations.size +
-          pairCount,
+          pairCount +
+          inputDependentStructuralOutcomes.length,
         incrementalExecutions: pairCount * 6,
         totalRustExecutions:
           activationBaseExecutions +
           activationProbeExecutions +
           coldConfigurations.size +
-          pairCount * 7,
+          pairCount * 7 +
+          inputDependentStructuralOutcomes.length,
         warmColdComparisons,
-        exactClusterComparisons,
         nonAdditiveOrMaskedPairs: interactionCases.length,
       },
       interactions: interactionCases,
@@ -841,5 +916,5 @@ describe("mixed artifact × configuration tomography", () => {
       "missing mixed artifact/configuration ledger",
     ).toBe(true);
     expect(serialized).toBe(readFileSync(expectedFile, "utf8"));
-  }, 240_000);
+  }, CAMPAIGN_TEST_TIMEOUT_MS);
 });

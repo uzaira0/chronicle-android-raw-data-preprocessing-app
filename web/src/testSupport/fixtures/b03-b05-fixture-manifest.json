@@ -1,0 +1,43 @@
+{
+  "protocolVersion": "chronicle-b03-b05-scientific-fixtures/v1",
+  "status": "synthetic_engineering_evidence_only",
+  "limitations": [
+    "contains_no_real_participant_or_study_data",
+    "cannot_support_headline_empirical_magnitudes",
+    "fixture_specific_assertions_must_be_opt_in"
+  ],
+  "fixtures": [
+    {
+      "id": "b03_b04_duration_boundaries",
+      "path": "b03-b04-duration-boundaries.csv",
+      "sha256": "sha256:56114eebd47e487d2dda391c5038c8edb4044f09837be9aa71837fedee3e2cab"
+    },
+    {
+      "id": "b05_screen_construction",
+      "path": "b05-screen-construction.csv",
+      "sha256": "sha256:bbc7b4e42f7200e7cf5c27d6aa37395050089b0b5a883524f0172e099e902ed7"
+    },
+    {
+      "id": "schoedel_prose_reconstruction",
+      "path": "schoedel-prose-reconstruction.csv",
+      "sha256": "sha256:9c5cbeee126952eb88d75deb2651c53dee597663278555015b702cf13b963c02"
+    },
+    {
+      "id": "eyes_fau_close_provenance",
+      "path": "eyes-fau-close-provenance.csv",
+      "sha256": "sha256:d492c19344bf638bcdfdb14a035f38941eeaf062fcb564641d02ea8d64918cb1"
+    },
+    {
+      "id": "b05_input_capability_evidence",
+      "path": "b05-input-capability-evidence.csv",
+      "sha256": "sha256:9b1c554d3c0d9bb0fc5f297addbe447a3c64a87ce6a966ffe99de79c6391feb3",
+      "boundRawInputSha256": "sha256:bbc7b4e42f7200e7cf5c27d6aa37395050089b0b5a883524f0172e099e902ed7"
+    },
+    {
+      "id": "schoedel_input_capability_evidence",
+      "path": "schoedel-input-capability-evidence.csv",
+      "sha256": "sha256:4c7b842a26a4cd4fc9b6d809bd2929443368328709084ae245c448a4968091c9",
+      "boundRawInputSha256": "sha256:9c5cbeee126952eb88d75deb2651c53dee597663278555015b702cf13b963c02"
+    }
+  ]
+}

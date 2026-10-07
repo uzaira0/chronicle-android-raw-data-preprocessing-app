@@ -1,29 +1,27 @@
 {
   "protocolVersion": "chronicle-mixed-artifact-configuration-ledger/v1",
-  "claimBoundary": "Exhaustive value-level pair coverage between every declared computational configuration alternate and one empirically branch-activating intervention for the selected raw/support source role. Its activation context is selected deterministically from the six existing synthetic corpora. Both transition orders must equal an independent cold Rust/WASM target at every workflow checkpoint, output artifact, and canonical output cell. The nine independently recycled role shards form the aggregate role/value proof; one representative mutation does not exhaust every record- or field-level interaction.",
+  "claimBoundary": "Exhaustive value-level pair coverage between every non-compound computational configuration alternate and one empirically branch-activating intervention for the selected raw/support source role. Its activation context is selected deterministically from the six existing synthetic corpora. Raw-role alternates that activate Parry/Zhu/Schoedel and therefore rebind the capability sidecar are explicitly excluded and unestimated as compound raw+capability mutations; the configuration-space sourceSensitiveScientificCells domain proves only the generic LF-sidecar to CRLF-raw Parry rebind mechanism. Capability representative discovery preserves exact typed refusal receipts with executeCalls=0 while selecting an executable intervention. Input-dependent structural outcomes are recorded with their exact phase and error but cannot enter manifest-to-manifest transition equality because they produce no workspace manifest. Every remaining pair's two transition orders must equal an independent cold Rust/WASM target at every workflow checkpoint, output artifact, and canonical output cell. The nine independently recycled generic role shards form the aggregate role/value proof; one representative mutation does not exhaust every record- or field-level interaction.",
   "plan": {
     "id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:plan/raw-data/v1",
     "revision": "0.1.0"
   },
   "implementationReceipt": {
     "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
-    "implementationDigest": "sha256:dff9c26d1dae722d0d2938d3a2782de52b1bb654b0d3cae22e939dbd92fcf2cb",
-    "planDigest": "sha256:f32b34442d2aad2bb027d53039f112f49bd375b7210a616fbda99aa5d11858d3",
-    "profileDigest": "sha256:444af27d8331523780e0480cda96b5af6d27f5ad6b8781bf137a1646b05e9c1c",
-    "profileLockDigest": "sha256:ae08bf61c3bde50b58deb445bc1f198d441a37f4bc9fe4fcad5f186cac30dd79",
-    "runtimeAuthorityDigest": "sha256:643041e4330b4aca4b2cdf9a8e0dc285fdfb50b24338be312bdbff98c3d3ddbd",
-    "productContractDigest": "sha256:ce4f7d309cea44fd24fcb85fb81f3cd0639ec9c6c77eb8041b6ca071659a7562"
+    "implementationDigest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43",
+    "planDigest": "sha256:be0258af6aafbc9a1855ae4223adcc642a8d22b5fa8bb87eb09f6b62dc3abbd0",
+    "profileDigest": "sha256:637623272b4ab1bfd901a4d45103bc95984cc2e272dfa400745541b96a5aaefb",
+    "profileLockDigest": "sha256:424844ecf7fceb750d1f409453abf2f0ab76754f36861bd86cec1464a4fc6655",
+    "runtimeAuthorityDigest": "sha256:7807fe99a35b4ede2c85d8e8868ec3dcb2accb22e8265c4643966eb9840ce4e4",
+    "productContractDigest": "sha256:81e857feb3c24afaf0b3bbbef63081e884a498cfaa8398a76fabfe23c8c5c61b"
   },
   "roleRepresentatives": {
     "apps_forcing_screen_open_file": {
-      "corpusId": "support-intersections",
-      "seed": 1369957802,
-      "rowCount": 193,
+      "corpusId": "catalog-random",
+      "seed": 12648430,
+      "rowCount": 186,
       "injectedFeatures": [
         "catalog-derived-apps",
-        "exact-duplicate-rows",
         "mixed-timezone-rows",
-        "overlapping-sessions",
         "remappable-interaction-types",
         "removable-interaction-types",
         "screen-and-keyguard-events"
@@ -31,7 +29,7 @@
       "interventionId": "support:forcing-activate-screen-tail-package",
       "mutationClass": "row-add",
       "changedComponents": [
-        "apps_forcing_screen_open_file.package[com.sec.android.app.clockpackage]"
+        "apps_forcing_screen_open_file.package[com.samsung.android.scpm]"
       ]
     }
   },
@@ -41,19 +39,24 @@
       "reason": "selected timezone is required by a selected-* timezone policy"
     }
   ],
+  "inputDependentStructuralOutcomes": [],
+  "capabilityRefusalWitnesses": [],
   "coverage": {
     "sourceRoles": 1,
-    "computationalAxes": 46,
-    "declaredAlternateValues": 51,
-    "validConfigurationVariants": 50,
+    "computationalAxes": 83,
+    "declaredAlternateValues": 124,
+    "directlyCrossedAlternateValues": 124,
+    "sourceSensitiveCompoundVariants": [],
+    "validConfigurationVariants": 123,
     "invalidConfigurationVariants": 1,
-    "validRoleValuePairs": 50,
-    "coldExecutions": 104,
-    "incrementalExecutions": 300,
-    "totalRustExecutions": 404,
-    "warmColdComparisons": 300,
-    "exactClusterComparisons": 100,
-    "nonAdditiveOrMaskedPairs": 4
+    "inputDependentStructuralOutcomes": 0,
+    "scientificRefusalExecutionsAvoided": 0,
+    "validRoleValuePairs": 123,
+    "coldExecutions": 248,
+    "incrementalExecutions": 738,
+    "totalRustExecutions": 986,
+    "warmColdComparisons": 738,
+    "nonAdditiveOrMaskedPairs": 9
   },
   "interactions": [
     {
@@ -65,18 +68,17 @@
         "label": "false",
         "value": false
       },
-      "configAfterDataPredictedSteps": [
-        "assemble_result_manifest"
-      ],
       "configAfterDataActualSteps": [
-        "assemble_result_manifest"
+        "apply_participant_windows",
+        "assemble_result_manifest",
+        "resolve_participant_windows"
       ],
       "configAfterDataDeactivatedSteps": [
         "classify_screen_sessions",
+        "construct_screen_intervals",
         "index_keyguard_events",
         "infer_screen_session_skeletons"
       ],
-      "dataAfterConfigPredictedSteps": [],
       "dataAfterConfigActualSteps": [],
       "dataAfterConfigDeactivatedSteps": [],
       "configConditioning": {
@@ -87,6 +89,7 @@
         "introduced": [],
         "masked": [
           "device_state_timeline.classificationDigest",
+          "observation_window.classificationDigest",
           "outputs.payloadDigest"
         ]
       },
@@ -112,16 +115,12 @@
         "label": "false",
         "value": false
       },
-      "configAfterDataPredictedSteps": [
-        "assemble_result_manifest",
-        "classify_screen_sessions"
-      ],
       "configAfterDataActualSteps": [
         "assemble_result_manifest",
-        "classify_screen_sessions"
+        "classify_screen_sessions",
+        "resolve_participant_windows"
       ],
       "configAfterDataDeactivatedSteps": [],
-      "dataAfterConfigPredictedSteps": [],
       "dataAfterConfigActualSteps": [],
       "dataAfterConfigDeactivatedSteps": [],
       "configConditioning": {
@@ -132,6 +131,7 @@
         "introduced": [],
         "masked": [
           "device_state_timeline.classificationDigest",
+          "observation_window.classificationDigest",
           "outputs.payloadDigest"
         ]
       },
@@ -139,6 +139,263 @@
         "introducedCount": 1,
         "maskedCount": 0,
         "introducedDigest": "sha256:25dc2656542b7ebdd06f13c86dbca7a83c09ab42df454a2e939da0a4bb86cdb2",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 1,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:25dc2656542b7ebdd06f13c86dbca7a83c09ab42df454a2e939da0a4bb86cdb2"
+      }
+    },
+    {
+      "caseId": "apps_forcing_screen_open_file:support:forcing-activate-screen-tail-package×screenSessionConstructionStrategy=parrytothscreen",
+      "roleId": "apps_forcing_screen_open_file",
+      "interventionId": "support:forcing-activate-screen-tail-package",
+      "optionKey": "screenSessionConstructionStrategy",
+      "alternate": {
+        "label": "parrytothscreen",
+        "value": "parry_toth_2025_session_glance_v1"
+      },
+      "configAfterDataActualSteps": [
+        "assemble_result_manifest",
+        "classify_screen_sessions",
+        "construct_screen_intervals",
+        "resolve_participant_windows"
+      ],
+      "configAfterDataDeactivatedSteps": [
+        "index_keyguard_events",
+        "infer_screen_session_skeletons"
+      ],
+      "dataAfterConfigActualSteps": [],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": [
+          "device_state_timeline.classificationDigest",
+          "observation_window.classificationDigest",
+          "outputs.payloadDigest"
+        ]
+      },
+      "configCellConditioning": {
+        "introducedCount": 1,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:25dc2656542b7ebdd06f13c86dbca7a83c09ab42df454a2e939da0a4bb86cdb2",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 1,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:25dc2656542b7ebdd06f13c86dbca7a83c09ab42df454a2e939da0a4bb86cdb2"
+      }
+    },
+    {
+      "caseId": "apps_forcing_screen_open_file:support:forcing-activate-screen-tail-package×screenSessionConstructionStrategy=zhuscreen",
+      "roleId": "apps_forcing_screen_open_file",
+      "interventionId": "support:forcing-activate-screen-tail-package",
+      "optionKey": "screenSessionConstructionStrategy",
+      "alternate": {
+        "label": "zhuscreen",
+        "value": "zhu_2018_unlock_lock_v1"
+      },
+      "configAfterDataActualSteps": [
+        "assemble_result_manifest",
+        "classify_screen_sessions",
+        "construct_screen_intervals",
+        "resolve_participant_windows"
+      ],
+      "configAfterDataDeactivatedSteps": [
+        "index_keyguard_events",
+        "infer_screen_session_skeletons"
+      ],
+      "dataAfterConfigActualSteps": [],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": [
+          "device_state_timeline.classificationDigest",
+          "observation_window.classificationDigest",
+          "outputs.payloadDigest"
+        ]
+      },
+      "configCellConditioning": {
+        "introducedCount": 1,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:25dc2656542b7ebdd06f13c86dbca7a83c09ab42df454a2e939da0a4bb86cdb2",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 1,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:25dc2656542b7ebdd06f13c86dbca7a83c09ab42df454a2e939da0a4bb86cdb2"
+      }
+    },
+    {
+      "caseId": "apps_forcing_screen_open_file:support:forcing-activate-screen-tail-package×screenSessionConstructionStrategy=unlocklock",
+      "roleId": "apps_forcing_screen_open_file",
+      "interventionId": "support:forcing-activate-screen-tail-package",
+      "optionKey": "screenSessionConstructionStrategy",
+      "alternate": {
+        "label": "unlocklock",
+        "value": "unlock_to_lock_v1"
+      },
+      "configAfterDataActualSteps": [
+        "assemble_result_manifest",
+        "classify_screen_sessions",
+        "construct_screen_intervals",
+        "resolve_participant_windows"
+      ],
+      "configAfterDataDeactivatedSteps": [
+        "index_keyguard_events",
+        "infer_screen_session_skeletons"
+      ],
+      "dataAfterConfigActualSteps": [],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": [
+          "device_state_timeline.classificationDigest",
+          "observation_window.classificationDigest",
+          "outputs.payloadDigest"
+        ]
+      },
+      "configCellConditioning": {
+        "introducedCount": 1,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:25dc2656542b7ebdd06f13c86dbca7a83c09ab42df454a2e939da0a4bb86cdb2",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 1,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:25dc2656542b7ebdd06f13c86dbca7a83c09ab42df454a2e939da0a4bb86cdb2"
+      }
+    },
+    {
+      "caseId": "apps_forcing_screen_open_file:support:forcing-activate-screen-tail-package×screenSessionConstructionStrategy=unlockofflock",
+      "roleId": "apps_forcing_screen_open_file",
+      "interventionId": "support:forcing-activate-screen-tail-package",
+      "optionKey": "screenSessionConstructionStrategy",
+      "alternate": {
+        "label": "unlockofflock",
+        "value": "unlock_to_off_or_lock_v1"
+      },
+      "configAfterDataActualSteps": [
+        "assemble_result_manifest",
+        "classify_screen_sessions",
+        "construct_screen_intervals",
+        "resolve_participant_windows"
+      ],
+      "configAfterDataDeactivatedSteps": [
+        "index_keyguard_events",
+        "infer_screen_session_skeletons"
+      ],
+      "dataAfterConfigActualSteps": [],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": [
+          "device_state_timeline.classificationDigest",
+          "observation_window.classificationDigest",
+          "outputs.payloadDigest"
+        ]
+      },
+      "configCellConditioning": {
+        "introducedCount": 1,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:25dc2656542b7ebdd06f13c86dbca7a83c09ab42df454a2e939da0a4bb86cdb2",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 1,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:25dc2656542b7ebdd06f13c86dbca7a83c09ab42df454a2e939da0a4bb86cdb2"
+      }
+    },
+    {
+      "caseId": "apps_forcing_screen_open_file:support:forcing-activate-screen-tail-package×screenSessionMaximumDurationDisposition=exclude_participant",
+      "roleId": "apps_forcing_screen_open_file",
+      "interventionId": "support:forcing-activate-screen-tail-package",
+      "optionKey": "screenSessionMaximumDurationDisposition",
+      "alternate": {
+        "label": "exclude_participant",
+        "value": "exclude_participant"
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_activity_witness_indexes",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_person_attribution",
+        "classify_screen_sessions",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "index_raw_dates",
+        "join_app_codebook",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "classify_screen_sessions"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": [
+          "device_state_timeline.classificationDigest",
+          "observation_window.classificationDigest",
+          "outputs.payloadDigest"
+        ]
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
       "dataCellConditioning": {
@@ -157,22 +414,16 @@
         "label": "s0",
         "value": 0
       },
-      "configAfterDataPredictedSteps": [
-        "assemble_result_manifest",
-        "classify_screen_sessions"
-      ],
       "configAfterDataActualSteps": [
         "assemble_result_manifest",
-        "classify_screen_sessions"
+        "classify_screen_sessions",
+        "resolve_participant_windows"
       ],
       "configAfterDataDeactivatedSteps": [],
-      "dataAfterConfigPredictedSteps": [
-        "assemble_result_manifest",
-        "classify_screen_sessions"
-      ],
       "dataAfterConfigActualSteps": [
         "assemble_result_manifest",
-        "classify_screen_sessions"
+        "classify_screen_sessions",
+        "resolve_participant_windows"
       ],
       "dataAfterConfigDeactivatedSteps": [],
       "configConditioning": {
@@ -197,128 +448,26 @@
       }
     },
     {
-      "caseId": "apps_forcing_screen_open_file:support:forcing-activate-screen-tail-package×interactionTypeRemap=custom",
+      "caseId": "apps_forcing_screen_open_file:support:forcing-activate-screen-tail-package×enableStudyWindowFilter=false",
       "roleId": "apps_forcing_screen_open_file",
       "interventionId": "support:forcing-activate-screen-tail-package",
-      "optionKey": "interactionTypeRemap",
+      "optionKey": "enableStudyWindowFilter",
       "alternate": {
-        "label": "custom",
-        "value": [
-          "Custom Foreground => Activity Resumed"
-        ]
+        "label": "false",
+        "value": false
       },
-      "configAfterDataPredictedSteps": [
-        "aggregate_attribution_minutes",
-        "apply_app_inclusion_policy",
-        "apply_episode_flags",
-        "apply_participant_windows",
-        "assemble_credit_outputs",
-        "assemble_result_manifest",
-        "assess_screen_evidence_capability",
-        "build_activity_witness_indexes",
-        "build_app_event_index",
-        "build_participant_day_coverage",
-        "canonicalize_source_rows",
-        "classify_compliance_days",
-        "classify_episode_durations",
-        "classify_person_attribution",
-        "classify_screen_sessions",
-        "coalesce_duplicate_event_keys",
-        "collapse_app_genre",
-        "collect_timezone_observations",
-        "compute_attribution_completeness",
-        "derive_broad_category",
-        "derive_credited_intervals",
-        "derive_engagement_basis",
-        "derive_time_gap_evidence",
-        "disambiguate_duplicate_timestamps",
-        "estimate_dominant_timezone",
-        "identify_credit_eligible_sessions",
-        "index_keyguard_events",
-        "index_raw_dates",
-        "infer_screen_session_skeletons",
-        "join_app_codebook",
-        "mark_app_policy_matches",
-        "mask_excluded_app_events",
-        "match_app_episodes",
-        "materialize_candidate_episodes",
-        "materialize_credited_rows",
-        "order_app_episodes",
-        "order_source_records",
-        "remove_selected_interaction_types",
-        "remove_zero_duration_rows",
-        "resolve_excluded_packages",
-        "resolve_participant_windows",
-        "resolve_sharing_status",
-        "resolve_timezone_strategy",
-        "segment_concurrent_usage",
-        "standardize_event_clock",
-        "summarize_daily_apps",
-        "summarize_duplicate_groups",
-        "summarize_row_selection",
-        "suppress_excluded_timing",
-        "synthesize_placeholder_rows",
-        "validate_remap_rules"
-      ],
       "configAfterDataActualSteps": [
-        "aggregate_attribution_minutes",
-        "apply_app_inclusion_policy",
-        "apply_episode_flags",
         "apply_participant_windows",
-        "assemble_credit_outputs",
         "assemble_result_manifest",
-        "assess_screen_evidence_capability",
-        "build_activity_witness_indexes",
-        "build_app_event_index",
-        "build_participant_day_coverage",
-        "canonicalize_source_rows",
-        "classify_compliance_days",
-        "classify_episode_durations",
         "classify_person_attribution",
-        "classify_screen_sessions",
-        "coalesce_duplicate_event_keys",
-        "collapse_app_genre",
-        "collect_timezone_observations",
-        "compute_attribution_completeness",
-        "derive_broad_category",
-        "derive_credited_intervals",
-        "derive_engagement_basis",
-        "derive_time_gap_evidence",
-        "disambiguate_duplicate_timestamps",
-        "estimate_dominant_timezone",
-        "identify_credit_eligible_sessions",
-        "index_keyguard_events",
-        "index_raw_dates",
-        "infer_screen_session_skeletons",
-        "join_app_codebook",
-        "mark_app_policy_matches",
-        "mask_excluded_app_events",
-        "match_app_episodes",
-        "materialize_candidate_episodes",
-        "materialize_credited_rows",
-        "order_app_episodes",
-        "order_source_records",
-        "remove_selected_interaction_types",
-        "remove_zero_duration_rows",
-        "resolve_excluded_packages",
-        "resolve_participant_windows",
         "resolve_sharing_status",
-        "resolve_timezone_strategy",
-        "segment_concurrent_usage",
-        "standardize_event_clock",
-        "summarize_daily_apps",
-        "summarize_duplicate_groups",
-        "summarize_row_selection",
-        "suppress_excluded_timing",
-        "synthesize_placeholder_rows",
-        "validate_remap_rules"
+        "synthesize_placeholder_rows"
       ],
       "configAfterDataDeactivatedSteps": [],
-      "dataAfterConfigPredictedSteps": [
-        "classify_screen_sessions"
-      ],
       "dataAfterConfigActualSteps": [
-        "classify_screen_sessions"
+        "assemble_result_manifest",
+        "classify_screen_sessions",
+        "resolve_participant_windows"
       ],
       "dataAfterConfigDeactivatedSteps": [],
       "configConditioning": {
@@ -328,23 +477,22 @@
       "dataConditioning": {
         "introduced": [],
         "masked": [
-          "device_state_timeline.classificationDigest",
-          "outputs.payloadDigest"
+          "observation_window.classificationDigest"
         ]
       },
       "configCellConditioning": {
-        "introducedCount": 1,
+        "introducedCount": 0,
         "maskedCount": 0,
-        "introducedDigest": "sha256:25dc2656542b7ebdd06f13c86dbca7a83c09ab42df454a2e939da0a4bb86cdb2",
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
       "dataCellConditioning": {
         "introducedCount": 0,
-        "maskedCount": 1,
+        "maskedCount": 0,
         "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "maskedDigest": "sha256:25dc2656542b7ebdd06f13c86dbca7a83c09ab42df454a2e939da0a4bb86cdb2"
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       }
     }
   ],
-  "caseSetDigest": "sha256:384e00be79007950a55b28aa0d14dca069f12b8a0874ef5eb9befcb1d9166841"
+  "caseSetDigest": "sha256:78b6a5d78e7f9189a414c627fc9ea57403c9f6eeca209df9aae4e438a00710fa"
 }

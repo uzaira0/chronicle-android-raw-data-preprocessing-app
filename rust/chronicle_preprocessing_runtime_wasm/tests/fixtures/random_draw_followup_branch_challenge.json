@@ -1,0 +1,65 @@
+{
+  "schemaVersion": "chronicle-bounded-random-draw-followup-source-fixture/v1",
+  "sourceWorkId": "doi:10.1145/3191754",
+  "exactCanonicalSettings": [
+    {
+      "settingId": "method-setting-7d69af05c207b46889d73434",
+      "parameterKey": "sampling.affect_free_text_followup_probability",
+      "sourceObservedSetting": "sampling.affect_free_text_followup_probability: {\"numerator\":1,\"denominator\":10}",
+      "sourceValueSha256": "3760ec58e735cf667d419444cceb0afdf9e77475ac0a80de427b3dfcdd2e99e7"
+    },
+    {
+      "settingId": "method-setting-ff8cc6f8912ef08cd4384a65",
+      "parameterKey": "sampling.meaningfulness_free_text_code_probability",
+      "sourceObservedSetting": "sampling.meaningfulness_free_text_code_probability: {\"random_integer_range\":\"0..99\",\"predicate\":\"<=35\",\"implied_probability\":0.36}",
+      "sourceValueSha256": "b1565a04b3e19607eb2e65492d94e53aa39bc57935404b9415712189dcc46e5d"
+    }
+  ],
+  "sourceArtifact": {
+    "locator": ".tmp-literature-review-private/corrective-packet-04-ranks-074-123-20260831/code-data/098-emotion-sampling/app/src/main/java/com/uw/hcde/esm/Sample.java:175-218,443-489",
+    "sha256": "0edeae88ed09004873fedb8a3431052096b20c49e079d7b4118c88af58ef9c8b",
+    "releasedCodeCommit": "2181ae41d0633ae1708df8fe0b0c8e35c3c8fdca"
+  },
+  "inputBoundary": "For each rule, the caller supplies the exact zero-based integer outcome already drawn by Java Random.nextInt(bound): 0..9 for the affect follow-up and 0..99 for the meaningfulness follow-up.",
+  "outputBoundary": "Select the affect free-text follow-up exactly when the draw equals 0; select the meaningfulness free-text follow-up exactly when the draw is less than or equal to 35.",
+  "limitations": [
+    "No random seed, generator state, or realized draw sequence was released; this binding does not generate or replay random numbers.",
+    "A missing, negative, fractional, or out-of-range draw fails closed instead of being clamped or resampled.",
+    "The preceding scale-answer validation and the subsequent prompt construction, text validation, timer handling, event mutation, and serialization are outside this branch-decision boundary.",
+    "The two Random instances and their lifecycle are not collapsed into one inferred random stream."
+  ],
+  "rules": [
+    {
+      "ruleId": "affect-free-text",
+      "minimumDraw": 0,
+      "maximumDraw": 9,
+      "pivot": 0,
+      "belowDisposition": "skip_free_text_followup",
+      "equalDisposition": "show_free_text_followup",
+      "aboveDisposition": "skip_free_text_followup",
+      "cases": [
+        {"draw": 0, "expectedDisposition": "show_free_text_followup"},
+        {"draw": 1, "expectedDisposition": "skip_free_text_followup"},
+        {"draw": 9, "expectedDisposition": "skip_free_text_followup"}
+      ],
+      "invalidDraws": [-1, 10]
+    },
+    {
+      "ruleId": "meaningfulness-free-text",
+      "minimumDraw": 0,
+      "maximumDraw": 99,
+      "pivot": 35,
+      "belowDisposition": "show_free_text_followup",
+      "equalDisposition": "show_free_text_followup",
+      "aboveDisposition": "skip_free_text_followup",
+      "cases": [
+        {"draw": 0, "expectedDisposition": "show_free_text_followup"},
+        {"draw": 34, "expectedDisposition": "show_free_text_followup"},
+        {"draw": 35, "expectedDisposition": "show_free_text_followup"},
+        {"draw": 36, "expectedDisposition": "skip_free_text_followup"},
+        {"draw": 99, "expectedDisposition": "skip_free_text_followup"}
+      ],
+      "invalidDraws": [-1, 100]
+    }
+  ]
+}

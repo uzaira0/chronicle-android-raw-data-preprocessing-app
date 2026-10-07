@@ -4,13 +4,31 @@ import type { ReactElement } from "react";
 import { Combobox } from "@/components/Combobox";
 import { SectionCard } from "@/components/SectionCard";
 import { SettingsField } from "@/components/SettingsField";
-import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
+import {
+  DAY_BOUNDARY_ATTRIBUTION_VALUES,
+  DEFAULT_BROWSER_OPTIONS,
+  type DayBoundaryAttribution,
+} from "@/lib/generatedContract";
 import { TIMEZONE_HANDLING_OPTIONS } from "@/lib/processingUiContract";
 import { TOOLTIPS } from "@/lib/tooltipText";
 import { anyOptionModified, isOptionDefault, type OptionKey } from "@/lib/optionDefaults";
 import type { BrowserProcessingOptions } from "@/lib/types";
 
-const KEYS: readonly OptionKey[] = ["timezoneHandling", "selectedTimezone"];
+const KEYS: readonly OptionKey[] = [
+  "timezoneHandling",
+  "selectedTimezone",
+  "dayBoundaryAttribution",
+];
+
+const DAY_BOUNDARY_ATTRIBUTION_LABELS = {
+  attribute_to_start_day: "Count on the day it started (default)",
+  split_at_local_midnight: "Split at local midnight",
+} satisfies Record<DayBoundaryAttribution, string>;
+
+const DAY_BOUNDARY_ATTRIBUTIONS = DAY_BOUNDARY_ATTRIBUTION_VALUES.map((value) => ({
+  value,
+  label: DAY_BOUNDARY_ATTRIBUTION_LABELS[value],
+}));
 
 type Props = {
   options: BrowserProcessingOptions;
@@ -74,6 +92,33 @@ export function TimezoneCard({
             {TIMEZONE_HANDLING_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
+              </option>
+            ))}
+          </select>
+        </SettingsField>
+
+        <SettingsField
+          label="Sessions crossing midnight"
+          htmlFor="day-boundary-attribution-select"
+          tooltip={TOOLTIPS.dayBoundaryAttribution}
+          modified={!isOptionDefault("dayBoundaryAttribution", options.dayBoundaryAttribution)}
+          onReset={() => reset("dayBoundaryAttribution")}
+        >
+          <select
+            id="day-boundary-attribution-select"
+            data-testid="day-boundary-attribution-select"
+            className="select"
+            value={options.dayBoundaryAttribution}
+            onChange={(event) =>
+              update(
+                "dayBoundaryAttribution",
+                event.target.value as BrowserProcessingOptions["dayBoundaryAttribution"],
+              )
+            }
+          >
+            {DAY_BOUNDARY_ATTRIBUTIONS.map((rule) => (
+              <option key={rule.value} value={rule.value}>
+                {rule.label}
               </option>
             ))}
           </select>

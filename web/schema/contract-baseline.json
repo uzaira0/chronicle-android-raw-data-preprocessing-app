@@ -1,5 +1,5 @@
 {
-  "contractVersion": 2,
+  "contractVersion": 5,
   "options": {
     "studyName": {
       "type": "string",
@@ -12,6 +12,22 @@
     "processScreenUsage": {
       "type": "boolean",
       "default": true
+    },
+    "eventRetentionSet": {
+      "type": "string",
+      "default": "none"
+    },
+    "openerSet": {
+      "type": "string",
+      "default": "strategy_defined"
+    },
+    "episodeReconstructionStrategy": {
+      "type": "string",
+      "default": "fused_matcher"
+    },
+    "microUseClassificationPolicy": {
+      "type": "string",
+      "default": "none"
     },
     "allowStopEventReuse": {
       "type": "boolean",
@@ -29,6 +45,26 @@
       "type": "number",
       "default": 12
     },
+    "longDurationThresholdHoursExplicit": {
+      "type": "boolean",
+      "default": null
+    },
+    "maximumDurationPolicy": {
+      "type": "string",
+      "default": null
+    },
+    "maximumDurationDisposition": {
+      "type": "string",
+      "default": null
+    },
+    "maximumDurationThresholdSource": {
+      "type": "string",
+      "default": null
+    },
+    "maximumDurationThresholdNs": {
+      "type": "string",
+      "default": null
+    },
     "correctDuplicateEventTimestamps": {
       "type": "boolean",
       "default": true
@@ -37,17 +73,37 @@
       "type": "boolean",
       "default": true
     },
+    "dropOutOfSourceOrderEvents": {
+      "type": "boolean",
+      "default": false
+    },
     "selectedTimezone": {
       "type": "string",
       "default": ""
     },
     "timezoneHandling": {
       "type": "string",
-      "default": "selected-filter"
+      "default": "selected-convert"
+    },
+    "dayBoundaryAttribution": {
+      "type": "string",
+      "default": "attribute_to_start_day"
     },
     "useFilterFile": {
       "type": "boolean",
       "default": false
+    },
+    "filterMatchField": {
+      "type": "string",
+      "default": "app_package_name"
+    },
+    "applicationLabelExclusions": {
+      "type": "string[]",
+      "default": []
+    },
+    "packageExclusionPreset": {
+      "type": "string",
+      "default": "all_supplied_rows"
     },
     "useAppsForcingScreenOpenFile": {
       "type": "boolean",
@@ -64,6 +120,10 @@
     "includeCategoryColumn": {
       "type": "boolean",
       "default": false
+    },
+    "includeAppUsageEndReason": {
+      "type": "boolean",
+      "default": true
     },
     "enablePlotting": {
       "type": "boolean",
@@ -89,11 +149,23 @@
       "type": "string",
       "default": "wide"
     },
+    "aggregateTopAppsLimit": {
+      "type": "number",
+      "default": 0
+    },
+    "enableParticipantAmountSummary": {
+      "type": "boolean",
+      "default": false
+    },
     "enableParquetExport": {
       "type": "boolean",
       "default": false
     },
     "enableSpssExport": {
+      "type": "boolean",
+      "default": false
+    },
+    "neutralizeSpreadsheetFormulas": {
       "type": "boolean",
       "default": false
     },
@@ -105,7 +177,35 @@
       "type": "number",
       "default": 60
     },
+    "minimumDurationComparator": {
+      "type": "string",
+      "default": "strict_lt"
+    },
+    "minimumDurationDisposition": {
+      "type": "string",
+      "default": "chronicle_blank_keep_row"
+    },
     "filterZeroDurationSessions": {
+      "type": "boolean",
+      "default": false
+    },
+    "intervalQualityPolicy": {
+      "type": "string",
+      "default": "none"
+    },
+    "sessionGroupingPolicy": {
+      "type": "string",
+      "default": "none"
+    },
+    "sessionGapBasis": {
+      "type": "string",
+      "default": "previous_episode_stop_v1"
+    },
+    "sessionBoundaryScope": {
+      "type": "string",
+      "default": "participant_v1"
+    },
+    "emitSessionBreakLineage": {
       "type": "boolean",
       "default": false
     },
@@ -146,6 +246,26 @@
         11,
         12
       ]
+    },
+    "screenSessionConstructionStrategy": {
+      "type": "string",
+      "default": "chronicle_screen_interactive_v1"
+    },
+    "screenSessionClassificationPolicy": {
+      "type": "string",
+      "default": "none"
+    },
+    "screenSessionMaximumDurationMinutes": {
+      "type": "number",
+      "default": 0
+    },
+    "screenSessionMaximumDurationDisposition": {
+      "type": "string",
+      "default": "none"
+    },
+    "lockedScreenAudioDisposition": {
+      "type": "string",
+      "default": "include"
     },
     "screenUsageAutoLockTimeoutSeconds": {
       "type": "number",
@@ -201,6 +321,10 @@
       "type": "string[]",
       "default": []
     },
+    "interactionTypeRemovalMode": {
+      "type": "string",
+      "default": "gap_preserving"
+    },
     "interactionTypeRemap": {
       "type": "string[]",
       "default": []
@@ -217,6 +341,10 @@
       "type": "boolean",
       "default": false
     },
+    "screenGatingRule": {
+      "type": "string",
+      "default": "screen_and_liveness_v1"
+    },
     "creditedSessionCapMinutes": {
       "type": "number",
       "default": 360
@@ -232,6 +360,26 @@
     "noWitnessMinDayApps": {
       "type": "number",
       "default": 2
+    },
+    "notificationProxyRule": {
+      "type": "string",
+      "default": "none"
+    },
+    "polledEmulationMethod": {
+      "type": "string",
+      "default": "none"
+    },
+    "polledEmulationIntervalSeconds": {
+      "type": "number",
+      "default": 10
+    },
+    "polledEmulationGapSeconds": {
+      "type": "number",
+      "default": 15
+    },
+    "intervalExpansionMethod": {
+      "type": "string",
+      "default": "none"
     },
     "enableStudyWindowFilter": {
       "type": "boolean",
@@ -273,6 +421,142 @@
     "AggregateShape": [
       "wide",
       "long"
+    ],
+    "eventRetentionSet": [
+      "none",
+      "parry_toth_7",
+      "usage_logger_5",
+      "toth_trifonova_app",
+      "foreground_background_only"
+    ],
+    "openerSet": [
+      "strategy_defined",
+      "activity_resumed_only",
+      "gesis_app_scoped_starts"
+    ],
+    "episodeReconstructionStrategy": [
+      "parry_toth_forward_pairing",
+      "fused_matcher",
+      "eyes_complement",
+      "gesis_start_stop_repair",
+      "foreground_background_pairing",
+      "draxler_interruption_aware",
+      "morrison_lock_tolerant",
+      "schoedel_2026_app_within_screen_prose_v1"
+    ],
+    "microUseClassificationPolicy": [
+      "none",
+      "okoshi_lt_5s"
+    ],
+    "maximumDurationPolicy": [
+      "strategy_native",
+      "chronicle_observed_close_rejection_v1",
+      "post_reconstruction_strict_max_v1"
+    ],
+    "maximumDurationDisposition": [
+      "not_applicable",
+      "flag_and_retain",
+      "retain_but_exclude",
+      "truncate_to_threshold",
+      "drop_row"
+    ],
+    "maximumDurationThresholdSource": [
+      "strategy_native",
+      "chronicle_legacy_config",
+      "fixed_parameter",
+      "b12_adaptive_participant"
+    ],
+    "dayBoundaryAttribution": [
+      "attribute_to_start_day",
+      "split_at_local_midnight"
+    ],
+    "filterMatchField": [
+      "app_package_name",
+      "application_label"
+    ],
+    "packageExclusionPreset": [
+      "all_supplied_rows",
+      "honor_filter_flag",
+      "system_scope_only"
+    ],
+    "minimumDurationComparator": [
+      "strict_lt",
+      "inclusive_le"
+    ],
+    "minimumDurationDisposition": [
+      "chronicle_blank_keep_row",
+      "retain_and_credit",
+      "retain_but_exclude",
+      "drop_row"
+    ],
+    "intervalQualityPolicy": [
+      "none",
+      "culverhouse_trim_and_log"
+    ],
+    "sessionGroupingPolicy": [
+      "none",
+      "church_5s",
+      "smartphone_wellbeing_strict_lt_5s",
+      "grosse_deters_10s",
+      "ross_15s",
+      "van_berkel_45s",
+      "zerrer_60s",
+      "peng_zhu_2020_participant_median"
+    ],
+    "sessionGapBasis": [
+      "previous_episode_stop_v1",
+      "session_running_maximum_stop_v1"
+    ],
+    "sessionBoundaryScope": [
+      "participant_v1",
+      "participant_and_study_v1",
+      "participant_study_and_person_v1"
+    ],
+    "screenSessionConstructionStrategy": [
+      "chronicle_screen_interactive_v1",
+      "parry_toth_2025_session_glance_v1",
+      "zhu_2018_unlock_lock_v1",
+      "unlock_to_lock_v1",
+      "unlock_to_off_or_lock_v1"
+    ],
+    "screenSessionClassificationPolicy": [
+      "none",
+      "phone_check_inclusive_15s",
+      "null_no_app_strict_gt15s_vs_app"
+    ],
+    "screenSessionMaximumDurationDisposition": [
+      "none",
+      "truncate",
+      "exclude_participant"
+    ],
+    "lockedScreenAudioDisposition": [
+      "include",
+      "exclude_from_phone_and_app_sessions"
+    ],
+    "interactionTypeRemovalMode": [
+      "gap_preserving",
+      "unconditional"
+    ],
+    "screenGatingRule": [
+      "screen_and_liveness_v1",
+      "screen_witness_only",
+      "strict_visual_only",
+      "device_liveness_only"
+    ],
+    "notificationProxyRule": [
+      "none",
+      "seen_contact_v1",
+      "interruption_contact_v1",
+      "any_notification_contact_v1"
+    ],
+    "polledEmulationMethod": [
+      "none",
+      "ross_2025_sampled_gap_v1",
+      "cerit_2025_sample_count_v1"
+    ],
+    "intervalExpansionMethod": [
+      "none",
+      "behapp_start_anchored_half_open_1s_v1"
     ]
   },
   "queryGroupIds": [
@@ -286,9 +570,11 @@
     "episode_annotations",
     "interval_cleaning",
     "normalize_timezones",
+    "notification_proxy",
     "observation_window",
     "outputs",
     "parse_events",
+    "polled_emulation",
     "reconstruct_episodes",
     "score_compliance"
   ],
@@ -298,8 +584,11 @@
     "apply_episode_flags",
     "apply_participant_windows",
     "assemble_credit_outputs",
+    "assemble_notification_contact_outputs",
+    "assemble_polled_emulation_outputs",
     "assemble_result_manifest",
     "assess_screen_evidence_capability",
+    "assign_usage_session_ids",
     "attach_device_models",
     "bind_processing_timestamp",
     "build_activity_witness_indexes",
@@ -308,21 +597,26 @@
     "canonicalize_source_rows",
     "classify_compliance_days",
     "classify_episode_durations",
+    "classify_notification_contacts",
     "classify_person_attribution",
     "classify_screen_sessions",
     "coalesce_duplicate_event_keys",
     "collapse_app_genre",
     "collect_timezone_observations",
     "compute_attribution_completeness",
+    "construct_screen_intervals",
     "decode_source_records",
     "derive_broad_category",
     "derive_credited_intervals",
     "derive_engagement_basis",
     "derive_time_gap_evidence",
     "disambiguate_duplicate_timestamps",
+    "divide_sessions_at_day_boundary",
     "estimate_dominant_timezone",
+    "group_polled_runs",
     "identify_credit_eligible_sessions",
     "index_keyguard_events",
+    "index_observed_usage_spans",
     "index_raw_dates",
     "index_survey_responses",
     "infer_screen_session_skeletons",
@@ -332,6 +626,7 @@
     "match_app_episodes",
     "materialize_candidate_episodes",
     "materialize_credited_rows",
+    "materialize_polled_rows",
     "order_app_episodes",
     "order_source_records",
     "remove_missing_timestamps",
@@ -341,7 +636,9 @@
     "resolve_participant_windows",
     "resolve_sharing_status",
     "resolve_timezone_strategy",
+    "sample_polled_timeline",
     "segment_concurrent_usage",
+    "select_notification_events",
     "standardize_event_clock",
     "summarize_daily_apps",
     "summarize_duplicate_groups",
@@ -490,6 +787,12 @@
       "app",
       "screen"
     ],
+    "app_usage_end_reason": [
+      "app"
+    ],
+    "usage_session_id": [
+      "app"
+    ],
     "duration_seconds": [
       "app",
       "screen"
@@ -571,6 +874,9 @@
     "screen_usage_foreground_app_package": [
       "screen"
     ],
+    "screen_usage_session_classification": [
+      "screen"
+    ],
     "screen_usage_apps_forcing_screen_open_label": [
       "screen"
     ],
@@ -587,6 +893,64 @@
     ],
     "usage_layer": [
       "app"
+    ],
+    "screen_interval_id": [
+      "app",
+      "screen"
+    ],
+    "schoedel_completion": [
+      "app"
+    ],
+    "micro_use_classification": [
+      "app"
+    ],
+    "raw_episode_duration_seconds": [
+      "app"
+    ],
+    "minimum_duration_qualified": [
+      "app"
+    ],
+    "minimum_duration_aggregate_eligible": [
+      "app"
+    ],
+    "maximum_duration_qualified": [
+      "app"
+    ],
+    "maximum_duration_aggregate_eligible": [
+      "app"
+    ],
+    "maximum_duration_trimmed_seconds": [
+      "app"
+    ],
+    "effective_endpoint_reason": [
+      "app"
+    ],
+    "screen_session_construction_strategy": [
+      "screen"
+    ],
+    "screen_interval_kind": [
+      "screen"
+    ],
+    "screen_start_boundary_source_row": [
+      "screen"
+    ],
+    "screen_stop_boundary_source_row": [
+      "screen"
+    ],
+    "screen_start_source_rows": [
+      "screen"
+    ],
+    "screen_stop_source_rows": [
+      "screen"
+    ],
+    "screen_interval_close_reason": [
+      "screen"
+    ],
+    "screen_interval_left_censored": [
+      "screen"
+    ],
+    "screen_interval_right_censored": [
+      "screen"
     ]
   },
   "rawColumns": {
@@ -601,6 +965,33 @@
       "event_timestamp",
       "start_timestamp",
       "stop_timestamp",
+      "duration_seconds",
+      "interval_type",
+      "source_event_type",
+      "source_event_type_map",
+      "network_traffic_bytes",
+      "network_interactivity_class",
+      "network_interactivity_qualification",
+      "bytes_sent",
+      "bytes_received",
+      "battery_charging_no_data_percent",
+      "battery_discharging_no_data_percent",
+      "network_source_rows",
+      "network_call_sequence",
+      "network_call_send_bytes_numerator",
+      "network_call_send_bytes_denominator",
+      "network_call_receive_bytes",
+      "network_call_offset_nanoseconds",
+      "network_call_order",
+      "network_window_screen_state",
+      "communication_modality",
+      "communication_direction",
+      "communication_peer_id",
+      "communication_state",
+      "communication_conversation_id",
+      "sms_response_to_source_row",
+      "sms_response_latency_seconds",
+      "client_db_id",
       "timezone"
     ],
     "required": [

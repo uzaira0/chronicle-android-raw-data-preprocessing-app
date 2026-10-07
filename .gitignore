@@ -193,6 +193,8 @@ preprocessors/survey_data_preprocessor.py
 *unexpected_app_labels*
 *Plotted Data*
 *analysis*
+# Launch-audit ledgers are docs, not analysis outputs.
+!docs/launch-audit-*/analysis-tooling.md
 
 *test*
 !tests/
@@ -200,6 +202,9 @@ preprocessors/survey_data_preprocessor.py
 !web/src/**/*.test.ts
 !web/src/testSupport/
 !web/src/testSupport/syntheticChronicleCorpus.ts
+# `#[cfg(test)] mod x_tests;` files of the runtime crate. Hidden by *test*,
+# six of them were never committed and the lib test target did not compile.
+!rust/chronicle_preprocessing_runtime_wasm/src/*_tests.rs
 # ast-grep rule meta-tests (sg test walks with gitignore, so the blanket
 # *test* pattern above would hide them from BOTH git and the test runner)
 !.ast-grep/rule-tests/
@@ -232,6 +237,41 @@ archive/
 !src/chronicle_preprocessing_app/data/*.csv
 !apps_forcing_screen_open_files/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv
 !background_apps_files/Chronicle_Android_raw_data_preprocessor_background_apps.csv
+# B02 research fixture is synthetic, reviewed input—not participant data or output.
+!web/src/testSupport/fixtures/b02-opener-set.csv
+# Released notification cleaning probes are synthetic source-oracle inputs.
+!rust/chronicle_preprocessing_runtime_wasm/tests/fixtures/notification_payload_cleaning_source_input.csv
+!rust/chronicle_preprocessing_runtime_wasm/tests/fixtures/notification_payload_cleaning_source_expected.csv
+!rust/chronicle_preprocessing_runtime_wasm/tests/fixtures/notification_payload_cleaning_source_patterns.csv
+# Synthetic component fixtures the runtime integration tests include_bytes!;
+# ignored, they left `cargo test` unable to compile from a clean checkout.
+!rust/chronicle_preprocessing_runtime_wasm/tests/fixtures/participant_scoped_interval_union_source.csv
+!rust/chronicle_preprocessing_runtime_wasm/tests/fixtures/participant_scoped_interval_union_expected.csv
+!rust/chronicle_preprocessing_runtime_wasm/tests/fixtures/participant_scoped_interval_union_source_fidelity.csv
+!rust/chronicle_preprocessing_runtime_wasm/tests/fixtures/participant_scoped_interval_union_source_fidelity_expected.csv
+!rust/chronicle_preprocessing_runtime_wasm/tests/fixtures/schoedel_component_patterns_raw.csv
+!rust/chronicle_preprocessing_runtime_wasm/tests/fixtures/schoedel_component_patterns_communication.csv
+!rust/chronicle_preprocessing_runtime_wasm/tests/fixtures/schoedel_component_patterns_expected.csv
+# B03–B05/EYES scientific fixtures are synthetic, reviewed inputs—not participant data or output.
+!web/src/testSupport/fixtures/b03-b04-duration-boundaries.csv
+!web/src/testSupport/fixtures/b05-screen-construction.csv
+!web/src/testSupport/fixtures/schoedel-prose-reconstruction.csv
+!web/src/testSupport/fixtures/eyes-fau-close-provenance.csv
+!web/src/testSupport/fixtures/b05-input-capability-evidence.csv
+!web/src/testSupport/fixtures/schoedel-input-capability-evidence.csv
+# B06 omission-oracle inputs are synthetic, reviewed fixtures—not capture output.
+!web/src/testSupport/fixtures/b06-app-strategy-separating-rows.csv
+!web/src/testSupport/fixtures/b06-app-strategy-separating-input-capability-evidence.csv
+!web/src/testSupport/fixtures/b06-schoedel-b05-input-capability-evidence.csv
+!web/src/testSupport/fixtures/b06-all-outputs-intersection.csv
+!web/src/testSupport/fixtures/b06-all-outputs-intersection-app-codebook.csv
+!web/src/testSupport/fixtures/b06-all-outputs-intersection-apps-forcing-screen-open.csv
+!web/src/testSupport/fixtures/b06-all-outputs-intersection-apps-to-filter.csv
+!web/src/testSupport/fixtures/b06-all-outputs-intersection-background-apps.csv
+!web/src/testSupport/fixtures/b06-all-outputs-intersection-device-sharing.csv
+!web/src/testSupport/fixtures/b06-all-outputs-intersection-enrolled-devices.csv
+!web/src/testSupport/fixtures/b06-all-outputs-intersection-study-dates.csv
+!web/src/testSupport/fixtures/b06-all-outputs-intersection-survey-attribution.csv
 # Combinatorial coverage: the executed-test projection IS a tracked artifact
 # (with_covering_arrays.csv stays ignored — it is a derived concatenation)
 !web/combinatorial/existing_tests.csv
@@ -255,10 +295,16 @@ secrets/
 uv.lock
 
 # Web app
-web/node_modules/
+web/node_modules
 web/dist/
 web/.vite/
 web/.tmp/
+web/.tmp-dependency-campaign-wasm-*/
+web/.tmp-dependency-evidence-backup-*/
+web/.tmp-config-influence-*/
+web/.tmp-artifact-influence-*/
+web/.tmp-raw-boundary-*/
+web/.tmp-interaction-influence-*/
 web/.github-pages-dist/
 .cargo-target-shared/
 .superpowers/
@@ -297,6 +343,8 @@ cargo-flamegraph.trace/
 # cargo-mutants reports are local quality evidence, not source artifacts.
 rust/**/mutants.out/
 rust/**/mutants.out.old/
+# Its per-run crate copies, built under rust/ so deps/ symlinks resolve.
+rust/cargo-mutants-*/
 
 web/.lighthouse-results/
 web/.lighthouseci/
@@ -310,3 +358,23 @@ rust/chronicle_preprocessing_runtime_wasm/fuzz/corpus/
 !rust/chronicle_preprocessing_runtime_wasm/fuzz/seeds/raw_file_inspection/minimal.csv
 # Automation proposals — design docs, not source code
 automation-proposals/
+.gstack/
+
+# Third-party reference clones (read-only, never built or shipped)
+.refs/
+
+# Local scratch and scratch-render outputs at the repository root.
+# Copyrighted paper renders, private-corpus-derived profiles, Playwright
+# scratch runs, and a screenshot saved under a mangled filename. These stay on
+# disk but must never be committed or pushed.
+/-.png
+/.playwright-cli/
+/.tmp-paper-runs/
+# The private literature corpus (copyrighted PDFs, ~28 GB). Ignored here, not
+# only in a machine-local .git/info/exclude, so no clone can commit it.
+/.tmp-literature-review-private/
+# Root-level scratch: .tmp-benchmark/ fixtures and .tmp-*.log gate logs.
+/.tmp-*
+/tmp/
+/output/
+.check-web/

@@ -1,9 +1,9 @@
 use super::*;
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub struct AggregateCsvOutput {
+pub struct AggregateCsvOutput<B = Vec<u8>> {
     pub kind: String,
-    pub bytes: Vec<u8>,
+    pub bytes: B,
     pub row_count: u32,
 }
 
@@ -59,6 +59,7 @@ fn minutes(ns: i128) -> f64 {
 
 fn complete(row: &Row, kind: &str) -> bool {
     row.interaction_type == kind
+        && row.app_package_name != NO_ACTIVITY_PLACEHOLDER_PACKAGE
         && row.start_timestamp_ns.is_some()
         && row.stop_timestamp_ns.is_some()
 }
@@ -74,6 +75,9 @@ fn duration_ns(row: &Row) -> i128 {
 fn summarize(app: Vec<&Row>, screen: Vec<&Row>, background: Vec<&Row>) -> PeriodSummary {
     let mut app = app;
     app.sort_by_key(|row| row.start_timestamp_ns);
+    // A no-activity placeholder keeps its day in the summary but is no session.
+    let placeholder_sample = app.first().copied();
+    app.retain(|row| row.app_package_name != NO_ACTIVITY_PLACEHOLDER_PACKAGE);
     let total_app_ns: i128 = app.iter().map(|row| duration_ns(row)).sum();
     let total_background_ns: i128 = background.iter().map(|row| duration_ns(row)).sum();
     let total_screen_ns: i128 = screen.iter().map(|row| duration_ns(row)).sum();
@@ -103,6 +107,7 @@ fn summarize(app: Vec<&Row>, screen: Vec<&Row>, background: Vec<&Row>) -> Period
         .first()
         .copied()
         .or_else(|| screen.first().copied())
+        .or(placeholder_sample)
         .or_else(|| background.first().copied())
         .expect("aggregate group has a sample");
     let total_app_usage_minutes = minutes(total_app_ns);
@@ -155,7 +160,9 @@ where
     let mut app = BTreeMap::<Key, Vec<&Row>>::new();
     let mut background = BTreeMap::<Key, Vec<&Row>>::new();
     let mut screen = BTreeMap::<Key, Vec<&Row>>::new();
-    for row in app_rows.iter().filter(|row| complete(row, APP_USAGE)) {
+    for row in app_rows.iter().filter(|row| {
+        complete(row, APP_USAGE) || row.app_package_name == NO_ACTIVITY_PLACEHOLDER_PACKAGE
+    }) {
         if row.usage_layer.as_deref() == Some("secondary") {
             background.entry(key(row)).or_default().push(row);
         } else {
@@ -209,18 +216,22 @@ fn metric(summary: &PeriodSummary, name: &str) -> String {
     }
 }
 
-fn to_csv(headers: &[&str], rows: Vec<Vec<String>>) -> Vec<u8> {
-    let mut output = Vec::new();
-    output.extend_from_slice(headers.join(",").as_bytes());
-    output.push(b'\n');
+
+fn to_csv<W: std::io::Write>(
+    make_writer: &impl Fn() -> W, headers: &[&str], rows: Vec<Vec<String>>) -> W {
+    let mut output = make_writer();
+    let mut record = Vec::new();
+    record.extend_from_slice(headers.join(",").as_bytes());
+    record.push(b'\n');
+    output.write_all(&record).expect("infallible artifact writer");
     for row in rows {
+        record.clear();
         for (index, cell) in row.iter().enumerate() {
-            if index > 0 {
-                output.push(b',');
-            }
-            write_csv_field(&mut output, cell.as_bytes());
+            if index > 0 { record.push(b','); }
+            write_csv_field(&mut record, cell.as_bytes());
         }
-        output.push(b'\n');
+        record.push(b'\n');
+        output.write_all(&record).expect("infallible artifact writer");
     }
     output
 }
@@ -297,17 +308,20 @@ pub fn declared_aggregate_output_columns(kind: &str, shape: &str) -> Vec<&'stati
         "aggregate-top-apps-csv" => TOP_APPS_HEADERS.to_vec(),
         "aggregate-category-time-budget-csv" => CATEGORY_HEADERS.to_vec(),
         "aggregate-app-co-usage-csv" => CO_USAGE_HEADERS.to_vec(),
+        "aggregate-participant-amount-summary-csv" => PARTICIPANT_AMOUNT_HEADERS.to_vec(),
         _ => Vec::new(),
     }
 }
 
-fn summary_csv(
+
+fn summary_csv<W: std::io::Write>(
+    make_writer: &impl Fn() -> W,
     summaries: &[SummaryEntry],
     study_name: &str,
     period_column: &'static str,
     weekly: bool,
     shape: &str,
-) -> Vec<u8> {
+) -> W {
     let headers = summary_headers(period_column, weekly, shape);
     if shape == "long" {
         let rows = summaries
@@ -326,7 +340,7 @@ fn summary_csv(
                 })
             })
             .collect();
-        return to_csv(&headers, rows);
+        return to_csv(make_writer, &headers, rows);
     }
     let rows = summaries
         .iter()
@@ -362,7 +376,7 @@ fn summary_csv(
             row
         })
         .collect();
-    to_csv(&headers, rows)
+    to_csv(make_writer, &headers, rows)
 }
 
 fn iso_period(date: &str) -> String {
@@ -374,7 +388,13 @@ fn iso_period(date: &str) -> String {
         .unwrap_or_default()
 }
 
-fn top_apps_csv(app_rows: &[Row], study_name: &str) -> (Vec<u8>, u32) {
+#[cfg(test)]
+fn top_apps_csv(app_rows: &[Row], study_name: &str, limit: u32) -> (Vec<u8>, u32) {
+    top_apps_csv_with_writer::<Vec<u8>>(&Vec::new, app_rows, study_name, limit)
+}
+
+fn top_apps_csv_with_writer<W: std::io::Write>(
+    make_writer: &impl Fn() -> W, app_rows: &[Row], study_name: &str, limit: u32) -> (W, u32) {
     type DayKey = (String, String, String);
     let mut days = BTreeMap::<DayKey, Vec<&Row>>::new();
     for row in app_rows.iter().filter(|row| complete(row, APP_USAGE)) {
@@ -422,8 +442,14 @@ fn top_apps_csv(app_rows: &[Row], study_name: &str) -> (Vec<u8>, u32) {
                 .total_cmp(&minutes(left.2 + left.3))
                 .then_with(|| left.0.cmp(&right.0))
         });
-        for (index, (package, label, foreground, background, count)) in
-            ranked.into_iter().enumerate()
+        for (index, (package, label, foreground, background, count)) in ranked
+            .into_iter()
+            .take(if limit == 0 {
+                usize::MAX
+            } else {
+                limit as usize
+            })
+            .enumerate()
         {
             records.push(vec![
                 study_id.clone(),
@@ -441,10 +467,12 @@ fn top_apps_csv(app_rows: &[Row], study_name: &str) -> (Vec<u8>, u32) {
         }
     }
     let count = records.len() as u32;
-    (to_csv(TOP_APPS_HEADERS, records), count)
+    (to_csv(make_writer, TOP_APPS_HEADERS, records), count)
 }
 
-fn category_csv(app_rows: &[Row], study_name: &str) -> (Vec<u8>, u32) {
+
+fn category_csv_with_writer<W: std::io::Write>(
+    make_writer: &impl Fn() -> W, app_rows: &[Row], study_name: &str) -> (W, u32) {
     type Key = (String, String, String, String);
     let mut groups = BTreeMap::<Key, Vec<&Row>>::new();
     for row in app_rows.iter().filter(|row| complete(row, APP_USAGE)) {
@@ -492,10 +520,16 @@ fn category_csv(app_rows: &[Row], study_name: &str) -> (Vec<u8>, u32) {
         })
         .collect();
     let count = records.len() as u32;
-    (to_csv(CATEGORY_HEADERS, records), count)
+    (to_csv(make_writer, CATEGORY_HEADERS, records), count)
 }
 
+#[cfg(test)]
 fn co_usage_csv(app_rows: &[Row], study_name: &str) -> (Vec<u8>, u32) {
+    co_usage_csv_with_writer::<Vec<u8>>(&Vec::new, app_rows, study_name)
+}
+
+fn co_usage_csv_with_writer<W: std::io::Write>(
+    make_writer: &impl Fn() -> W, app_rows: &[Row], study_name: &str) -> (W, u32) {
     type Participant = (String, String);
     let mut participants = BTreeMap::<Participant, Vec<&Row>>::new();
     for row in app_rows.iter().filter(|row| complete(row, APP_USAGE)) {
@@ -550,7 +584,209 @@ fn co_usage_csv(app_rows: &[Row], study_name: &str) -> (Vec<u8>, u32) {
         }
     }
     let count = records.len() as u32;
-    (to_csv(CO_USAGE_HEADERS, records), count)
+    (to_csv(make_writer, CO_USAGE_HEADERS, records), count)
+}
+
+const PARTICIPANT_AMOUNT_HEADERS: &[&str] = &[
+    "participant_id",
+    "days_tracked",
+    "total_app_usage_minutes",
+    "daily_average_minutes",
+    "daily_average_minutes_winsorized",
+    "huber_m_daily_minutes",
+    "sample_p1_minutes",
+    "sample_p99_minutes",
+];
+
+/// Nearest-rank percentile over an already-sorted ascending sample: the value
+/// at 1-based rank `ceil(p/100 × n)`. Wenz, Keusch & Bach (2024) state the
+/// percentile RANKS (1st/99th) and not an interpolation rule — their 10 and
+/// 1200 min are the realized cut values of their sample — so the choice of
+/// nearest rank is this repository's, stated in the ontology. A tiny sample
+/// degenerates to min/max, which makes the clamp a no-op rather than a
+/// refusal.
+fn nearest_rank_percentile(sorted: &[f64], percentile: f64) -> f64 {
+    let rank = ((percentile / 100.0) * sorted.len() as f64).ceil() as usize;
+    sorted[rank.clamp(1, sorted.len()) - 1]
+}
+
+fn median_of_sorted(sorted: &[f64]) -> f64 {
+    let middle = sorted.len() / 2;
+    if sorted.len() % 2 == 1 {
+        sorted[middle]
+    } else {
+        (sorted[middle - 1] + sorted[middle]) / 2.0
+    }
+}
+
+/// Huber M location estimate over one participant's per-day minutes.
+///
+/// Stachl et al. (2020) state only "we used robust estimators (e.g., Huber M
+/// Estimator; ref. 61) for most variables" and their exact code is
+/// unpublished (their own availability statement), so the constants here are
+/// the standard ones: k = 1.345, MAD scale with the 1.4826 normal-consistency
+/// factor, iterated to a fixed tolerance. A zero MAD (at least half the days
+/// identical) leaves no scale to weight against and the estimate is the
+/// median itself. The day series arrives date-sorted, so the summation order
+/// — and therefore the f64 result — is a function of the data alone.
+fn huber_m_location(days: &[f64]) -> f64 {
+    const K: f64 = 1.345;
+    const MAD_NORMAL_CONSISTENCY: f64 = 1.4826;
+    const TOLERANCE: f64 = 1e-9;
+    const MAX_ITERATIONS: usize = 100;
+    let mut sorted = days.to_vec();
+    sorted.sort_by(f64::total_cmp);
+    let median = median_of_sorted(&sorted);
+    let mut deviations: Vec<f64> = days.iter().map(|value| (value - median).abs()).collect();
+    deviations.sort_by(f64::total_cmp);
+    let scale = MAD_NORMAL_CONSISTENCY * median_of_sorted(&deviations);
+    if scale == 0.0 {
+        return median;
+    }
+    let mut location = median;
+    for _ in 0..MAX_ITERATIONS {
+        let mut weighted_sum = 0.0;
+        let mut weight_total = 0.0;
+        for &value in days {
+            let deviation = (value - location).abs();
+            let weight = if deviation <= K * scale {
+                1.0
+            } else {
+                K * scale / deviation
+            };
+            weighted_sum += weight * value;
+            weight_total += weight;
+        }
+        let next = weighted_sum / weight_total;
+        let step = (next - location).abs();
+        location = next;
+        if step < TOLERANCE {
+            break;
+        }
+    }
+    location
+}
+
+/// One row per participant: Wenz, Keusch & Bach (2024)'s amount-of-use
+/// measure — total tracked time over days tracked, with the sample-percentile
+/// winsorized variant from their footnote — and Stachl et al. (2020)'s robust
+/// aggregation as a side-by-side Huber M column. Estimators ride as columns,
+/// not as options, so selecting between them is an analysis decision made on
+/// the export rather than a preprocessing fork.
+///
+/// `days_tracked` counts the participant's usage days plus raw-data days with
+/// no usage (the coverage spine's `usage` + `no_activity` statuses) — the
+/// closest analog of Wenz's "days for which the participants' devices were
+/// tracked". Tracked days without usage enter the per-day series as 0, which
+/// keeps the average, the winsorized average, and the Huber M estimate all
+/// over the same denominator. The winsorize sample is the participants of
+/// THIS export, and the realized cut values are published per row
+/// (`sample_p1_minutes`/`sample_p99_minutes`) so the export is
+/// self-describing the way Wenz's 10/1200 min footnote is.
+pub(super) fn participant_amount_summary_output(
+    app_rows: &[Row],
+    raw_dates: &BTreeMap<String, BTreeSet<String>>,
+    options: &PipelineV2Options,
+) -> Option<AggregateCsvOutput> {
+    participant_amount_summary_output_with_writer::<Vec<u8>>(app_rows, raw_dates, options)
+}
+
+pub(super) fn participant_amount_summary_output_with_writer<W: std::io::Write + Default>(
+    app_rows: &[Row],
+    raw_dates: &BTreeMap<String, BTreeSet<String>>,
+    options: &PipelineV2Options,
+) -> Option<AggregateCsvOutput<W>> {
+    participant_amount_summary_output_with_writer_factory(&W::default, app_rows, raw_dates, options)
+}
+
+pub(super) fn participant_amount_summary_output_with_writer_factory<W: std::io::Write>(
+    make_writer: &impl Fn() -> W,
+    app_rows: &[Row],
+    raw_dates: &BTreeMap<String, BTreeSet<String>>,
+    options: &PipelineV2Options,
+) -> Option<AggregateCsvOutput<W>> {
+    if !options.enable_participant_amount_summary {
+        return None;
+    }
+    let mut day_minutes = BTreeMap::<String, BTreeMap<String, i128>>::new();
+    for row in app_rows.iter().filter(|row| complete(row, APP_USAGE)) {
+        if row.usage_layer.as_deref() == Some("secondary") {
+            continue;
+        }
+        *day_minutes
+            .entry(row.participant_id.to_string())
+            .or_default()
+            .entry(row.date.to_string())
+            .or_default() += duration_ns(row);
+    }
+    let participants: BTreeSet<String> = day_minutes
+        .keys()
+        .chain(raw_dates.keys())
+        .cloned()
+        .collect();
+    struct ParticipantAmount {
+        participant_id: String,
+        days_tracked: usize,
+        total_minutes: f64,
+        daily_average: f64,
+        huber_m: f64,
+    }
+    let mut amounts = Vec::new();
+    for participant_id in participants {
+        let usage = day_minutes.remove(&participant_id).unwrap_or_default();
+        let mut tracked_days: BTreeSet<String> = usage.keys().cloned().collect();
+        if let Some(raw) = raw_dates.get(&participant_id) {
+            tracked_days.extend(raw.iter().cloned());
+        }
+        if tracked_days.is_empty() {
+            continue;
+        }
+        // Per-day values are the same `minutes()` roundings the daily
+        // summary publishes, so this table can be recomputed from that one.
+        let days: Vec<f64> = tracked_days
+            .iter()
+            .map(|date| usage.get(date).copied().map_or(0.0, minutes))
+            .collect();
+        let total: f64 = round4(days.iter().sum());
+        amounts.push(ParticipantAmount {
+            participant_id,
+            days_tracked: days.len(),
+            total_minutes: total,
+            daily_average: round4(total / days.len() as f64),
+            huber_m: round4(huber_m_location(&days)),
+        });
+    }
+    let mut sample: Vec<f64> = amounts.iter().map(|amount| amount.daily_average).collect();
+    sample.sort_by(f64::total_cmp);
+    let (p1, p99) = if sample.is_empty() {
+        (0.0, 0.0)
+    } else {
+        (
+            nearest_rank_percentile(&sample, 1.0),
+            nearest_rank_percentile(&sample, 99.0),
+        )
+    };
+    let records = amounts
+        .iter()
+        .map(|amount| {
+            vec![
+                amount.participant_id.clone(),
+                amount.days_tracked.to_string(),
+                js_number(amount.total_minutes),
+                js_number(amount.daily_average),
+                js_number(amount.daily_average.clamp(p1, p99)),
+                js_number(amount.huber_m),
+                js_number(p1),
+                js_number(p99),
+            ]
+        })
+        .collect::<Vec<_>>();
+    let row_count = records.len() as u32;
+    Some(AggregateCsvOutput {
+        kind: "aggregate-participant-amount-summary-csv".to_string(),
+        bytes: to_csv(make_writer, PARTICIPANT_AMOUNT_HEADERS, records),
+        row_count,
+    })
 }
 
 pub(super) fn build_aggregate_outputs(
@@ -558,6 +794,23 @@ pub(super) fn build_aggregate_outputs(
     screen_rows: &[Row],
     options: &PipelineV2Options,
 ) -> Vec<AggregateCsvOutput> {
+    build_aggregate_outputs_with_writer::<Vec<u8>>(app_rows, screen_rows, options)
+}
+
+pub(super) fn build_aggregate_outputs_with_writer<W: std::io::Write + Default>(
+    app_rows: &[Row],
+    screen_rows: &[Row],
+    options: &PipelineV2Options,
+) -> Vec<AggregateCsvOutput<W>> {
+    build_aggregate_outputs_with_writer_factory(&W::default, app_rows, screen_rows, options)
+}
+
+pub(super) fn build_aggregate_outputs_with_writer_factory<W: std::io::Write>(
+    make_writer: &impl Fn() -> W,
+    app_rows: &[Row],
+    screen_rows: &[Row],
+    options: &PipelineV2Options,
+) -> Vec<AggregateCsvOutput<W>> {
     if !options.enable_aggregates {
         return Vec::new();
     }
@@ -567,7 +820,7 @@ pub(super) fn build_aggregate_outputs(
     let mut outputs = vec![
         AggregateCsvOutput {
             kind: "aggregate-daily-summary-csv".to_string(),
-            bytes: summary_csv(
+            bytes: summary_csv(make_writer,
                 &daily,
                 &options.study_name,
                 "date",
@@ -582,7 +835,7 @@ pub(super) fn build_aggregate_outputs(
         },
         AggregateCsvOutput {
             kind: "aggregate-weekly-summary-csv".to_string(),
-            bytes: summary_csv(
+            bytes: summary_csv(make_writer,
                 &weekly,
                 &options.study_name,
                 "iso_year_week",
@@ -596,14 +849,19 @@ pub(super) fn build_aggregate_outputs(
             },
         },
     ];
-    let (bytes, row_count) = top_apps_csv(app_rows, &options.study_name);
+    let (bytes, row_count) = top_apps_csv_with_writer(
+        make_writer,
+        app_rows,
+        &options.study_name,
+        options.aggregate_top_apps_limit,
+    );
     outputs.push(AggregateCsvOutput {
         kind: "aggregate-top-apps-csv".to_string(),
         bytes,
         row_count,
     });
     if options.use_app_codebook {
-        let (bytes, row_count) = category_csv(app_rows, &options.study_name);
+        let (bytes, row_count) = category_csv_with_writer(make_writer, app_rows, &options.study_name);
         outputs.push(AggregateCsvOutput {
             kind: "aggregate-category-time-budget-csv".to_string(),
             bytes,
@@ -611,7 +869,7 @@ pub(super) fn build_aggregate_outputs(
         });
     }
     if options.model_concurrent_usage || options.use_background_apps_file {
-        let (bytes, row_count) = co_usage_csv(app_rows, &options.study_name);
+        let (bytes, row_count) = co_usage_csv_with_writer(make_writer, app_rows, &options.study_name);
         outputs.push(AggregateCsvOutput {
             kind: "aggregate-app-co-usage-csv".to_string(),
             bytes,
@@ -665,6 +923,180 @@ mod tests {
             .collect()
     }
 
+    fn amount_options(enabled: bool) -> PipelineV2Options {
+        let mut options = crate::pipeline_v2::tests::test_options();
+        options.enable_participant_amount_summary = enabled;
+        options
+    }
+
+    fn amount_rows(per_participant: &[(&str, &[(&str, f64)])]) -> Vec<Row> {
+        let template = sessions(&[("com.example.chat", None, 0, Some(1), APP_USAGE)])
+            .pop()
+            .expect("one template row");
+        let mut rows = Vec::new();
+        for (participant, days) in per_participant {
+            for (date, minutes) in days.iter() {
+                let mut row = template.clone();
+                let data = row.edit_all();
+                data.participant_id = (*participant).into();
+                data.date = (*date).into();
+                data.start_timestamp_ns = Some(0);
+                data.stop_timestamp_ns = Some((*minutes * MINUTE as f64) as i64);
+                data.duration_minutes = Some(*minutes);
+                rows.push(row);
+            }
+        }
+        rows
+    }
+
+    fn amount_csv(
+        rows: &[Row],
+        raw_dates: &BTreeMap<String, BTreeSet<String>>,
+    ) -> Vec<Vec<String>> {
+        let output = participant_amount_summary_output(rows, raw_dates, &amount_options(true))
+            .expect("the selected summary materializes");
+        assert_eq!(output.kind, "aggregate-participant-amount-summary-csv");
+        assert_eq!(output.row_count as usize, csv_rows(&output.bytes).len() - 1);
+        csv_rows(&output.bytes)
+    }
+
+    /// A no-activity placeholder keeps its day in the period summaries — a
+    /// zero-usage day still counts as a day — but it is not an app session.
+    #[test]
+    fn a_no_activity_placeholder_keeps_its_day_but_is_no_session() {
+        let rows = sessions(&[(NO_ACTIVITY_PLACEHOLDER_PACKAGE, None, 0, Some(0), APP_USAGE)]);
+        let summaries = compute_period_summaries(&rows, &[], str::to_string);
+        assert_eq!(summaries.len(), 1, "the zero-usage day is still summarized");
+        assert_eq!(summaries[0].summary.app_session_count, 0);
+        assert_eq!(summaries[0].summary.total_app_usage_minutes, 0.0);
+    }
+
+    /// Off by default: no artifact, so every existing output stays
+    /// byte-identical. The option is the only gate.
+    #[test]
+    fn the_participant_amount_summary_is_absent_unless_selected() {
+        let rows = amount_rows(&[("P01", &[("2026-03-07", 60.0)])]);
+        assert!(
+            participant_amount_summary_output(&rows, &BTreeMap::new(), &amount_options(false))
+                .is_none()
+        );
+    }
+
+    /// Wenz, Keusch & Bach: amount = total tracked time over days TRACKED,
+    /// not days used. Two raw-data days with no usage enter the denominator
+    /// and the per-day series as zeros, so the average is 20, not 60 — and
+    /// the Huber M estimate is the robust center of [60, 0, 0], which is 0.
+    #[test]
+    fn daily_amount_counts_tracked_days_including_zero_usage_days() {
+        let rows = amount_rows(&[("P01", &[("2026-03-07", 60.0)])]);
+        let raw_dates = BTreeMap::from([(
+            "P01".to_string(),
+            BTreeSet::from([
+                "2026-03-07".to_string(),
+                "2026-03-08".to_string(),
+                "2026-03-09".to_string(),
+            ]),
+        )]);
+        let lines = amount_csv(&rows, &raw_dates);
+        assert_eq!(
+            lines,
+            vec![
+                PARTICIPANT_AMOUNT_HEADERS
+                    .iter()
+                    .map(|header| header.to_string())
+                    .collect::<Vec<_>>(),
+                vec![
+                    "P01".to_string(),
+                    "3".to_string(),
+                    "60".to_string(),
+                    "20".to_string(),
+                    "20".to_string(),
+                    "0".to_string(),
+                    "20".to_string(),
+                    "20".to_string(),
+                ],
+            ],
+        );
+    }
+
+    /// Stachl: the robust estimator rides beside the mean, not instead of it.
+    /// P01's clipped weights cancel exactly at the bulk (the fixed point is
+    /// 10 while the mean is 67.6); P02's second outlier breaks the symmetry
+    /// and the pinned value comes from the standard constants (k = 1.345,
+    /// 1.4826 x MAD). With two participants the nearest-rank 1st/99th cuts
+    /// degenerate to min/max, so winsorizing is a documented no-op here.
+    #[test]
+    fn huber_m_downweights_outlier_days_where_the_mean_cannot() {
+        let p01_days: &[(&str, f64)] = &[
+            ("2026-03-07", 8.0),
+            ("2026-03-08", 9.0),
+            ("2026-03-09", 10.0),
+            ("2026-03-10", 11.0),
+            ("2026-03-11", 300.0),
+        ];
+        let p02_days: &[(&str, f64)] = &[
+            ("2026-03-07", 8.0),
+            ("2026-03-08", 9.0),
+            ("2026-03-09", 10.0),
+            ("2026-03-10", 11.0),
+            ("2026-03-11", 300.0),
+            ("2026-03-12", 301.0),
+        ];
+        let rows = amount_rows(&[("P01", p01_days), ("P02", p02_days)]);
+        let lines = amount_csv(&rows, &BTreeMap::new());
+        assert_eq!(
+            lines[1],
+            vec!["P01", "5", "338", "67.6", "67.6", "10", "67.6", "106.5"],
+        );
+        assert_eq!(
+            lines[2],
+            vec!["P02", "6", "639", "106.5", "106.5", "11.4941", "67.6", "106.5"],
+        );
+    }
+
+    /// The 1st/99th cuts are nearest-rank over the export's participants, so
+    /// they only bite once the sample is large enough for those ranks to
+    /// leave the extremes: at n = 101 the cuts are the 2nd and 100th values
+    /// and both tail participants are clamped, publishing the realized cut
+    /// values on every row the way Wenz's 10/1200 min footnote does.
+    #[test]
+    fn nearest_rank_cuts_clamp_only_the_sample_tails() {
+        assert_eq!(nearest_rank_percentile(&[5.0], 1.0), 5.0);
+        assert_eq!(nearest_rank_percentile(&[5.0], 99.0), 5.0);
+        let two_hundred: Vec<f64> = (1..=200).map(f64::from).collect();
+        assert_eq!(nearest_rank_percentile(&two_hundred, 1.0), 2.0);
+        assert_eq!(nearest_rank_percentile(&two_hundred, 99.0), 198.0);
+
+        let participants: Vec<(String, f64)> = (1..=101)
+            .map(|index| (format!("P{index:03}"), f64::from(index)))
+            .collect();
+        let spec: Vec<(&str, Vec<(&str, f64)>)> = participants
+            .iter()
+            .map(|(name, minutes)| (name.as_str(), vec![("2026-03-07", *minutes)]))
+            .collect();
+        let spec_refs: Vec<(&str, &[(&str, f64)])> = spec
+            .iter()
+            .map(|(name, days)| (*name, days.as_slice()))
+            .collect();
+        let rows = amount_rows(&spec_refs);
+        let lines = amount_csv(&rows, &BTreeMap::new());
+        assert_eq!(
+            lines[1],
+            vec!["P001", "1", "1", "1", "2", "1", "2", "100"],
+            "the low tail is clamped up to the realized 1st-percentile cut",
+        );
+        assert_eq!(
+            lines[101],
+            vec!["P101", "1", "101", "101", "100", "101", "2", "100"],
+            "the high tail is clamped down to the realized 99th-percentile cut",
+        );
+        assert_eq!(
+            lines[50],
+            vec!["P050", "1", "50", "50", "50", "50", "2", "100"],
+            "an interior participant is untouched",
+        );
+    }
+
     /// The aggregates describe app usage, so they count only completed app
     /// sessions: a screen session sitting in the same row list is a different
     /// kind, and an app session that never got a stop is not a session yet.
@@ -675,7 +1107,7 @@ mod tests {
             ("com.example.screen", None, 0, Some(10), SCREEN_USAGE),
             ("com.example.unfinished", None, 0, None, APP_USAGE),
         ]);
-        let (bytes, count) = top_apps_csv(&rows, "Study");
+        let (bytes, count) = top_apps_csv(&rows, "Study", 0);
         assert_eq!(count, 1, "only the completed app session may be ranked");
         let lines = csv_rows(&bytes);
         assert_eq!(lines.len(), 2, "one header and one ranked app");
@@ -752,7 +1184,7 @@ mod tests {
                 APP_USAGE,
             ),
         ]);
-        let (bytes, count) = top_apps_csv(&rows, "Study");
+        let (bytes, count) = top_apps_csv(&rows, "Study", 0);
         assert_eq!(count, 2);
         let lines = csv_rows(&bytes);
         let column = |name: &str| {
@@ -772,6 +1204,30 @@ mod tests {
             (lines[2][package].as_str(), lines[2][total].as_str()),
             ("com.example.foreground", "10"),
         );
+    }
+
+    #[test]
+    fn top_apps_limit_keeps_exactly_the_highest_ranked_rows() {
+        let rows = sessions(&[
+            ("com.example.a", None, 0, Some(60), APP_USAGE),
+            ("com.example.b", None, 0, Some(50), APP_USAGE),
+            ("com.example.c", None, 0, Some(40), APP_USAGE),
+            ("com.example.d", None, 0, Some(30), APP_USAGE),
+            ("com.example.e", None, 0, Some(20), APP_USAGE),
+            ("com.example.f", None, 0, Some(10), APP_USAGE),
+        ]);
+        let (bytes, count) = top_apps_csv(&rows, "Study", 5);
+        let lines = csv_rows(&bytes);
+        let package = lines[0]
+            .iter()
+            .position(|header| header == "app_package_name")
+            .expect("top-apps package column");
+        assert_eq!(count, 5);
+        assert_eq!(lines.len(), 6);
+        assert_eq!(lines[5][package], "com.example.e");
+        assert!(lines
+            .iter()
+            .all(|line| !line.contains(&"com.example.f".into())));
     }
 
     /// A period summary describes completed sessions of one kind. A row of the

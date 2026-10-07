@@ -1,0 +1,52 @@
+{
+  "schemaVersion": "chronicle-participant-minimum-count-source-fixture/v1",
+  "sourceWorkId": "doi:10.1145/2858036.2858267",
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-91f671f5ed4f7d35dca6a5ce",
+    "parameterKey": "cohort.minimum_observation",
+    "sourceObservedSetting": "cohort.minimum_observation: exclude participants with fewer than 30 full days of data; 57 of 202 excluded",
+    "sourceValueSha256": "ade871c66a78518c084befe32849429a515ce9206cad78d226d4bb35c2339c14"
+  },
+  "sourceArtifact": {
+    "locator": ".tmp-literature-review-private/corrective-queue-a-20260831/evidence/rank22.txt:293-299",
+    "sha256": "bca55fccaab4d7368190875715e7757dcfdbb21e59c275f4db055e502457c6b9"
+  },
+  "inputBoundary": "One already-derived nonnegative integer count of source-qualified full data days per participant.",
+  "outputBoundary": "Exclude a participant only when the supplied full-day count is strictly below 30; retain equality and larger counts.",
+  "limitations": [
+    "The source does not define the event coverage required for a day to qualify as a full day.",
+    "This binding does not assign timestamps to calendar days or select a timezone.",
+    "This binding does not group day evidence or derive participant-level full-day counts.",
+    "A missing participant count fails closed rather than being interpreted as zero.",
+    "The reported 57-of-202 exclusion count is descriptive evidence, not asserted as a fixture oracle without participant data."
+  ],
+  "minimumRetainedCount": 30,
+  "dispositions": ["exclude", "retain"],
+  "participants": [
+    {
+      "participantId": "no-full-days",
+      "fullDayCount": 0,
+      "expectedDisposition": "exclude"
+    },
+    {
+      "participantId": "immediately-below",
+      "fullDayCount": 29,
+      "expectedDisposition": "exclude"
+    },
+    {
+      "participantId": "at-boundary",
+      "fullDayCount": 30,
+      "expectedDisposition": "retain"
+    },
+    {
+      "participantId": "above-boundary",
+      "fullDayCount": 31,
+      "expectedDisposition": "retain"
+    }
+  ],
+  "missingCountCase": {
+    "participantId": "missing-count",
+    "fullDayCount": null,
+    "expectedError": "participant_full_day_count_required"
+  }
+}

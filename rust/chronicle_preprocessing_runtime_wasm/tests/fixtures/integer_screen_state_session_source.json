@@ -1,0 +1,78 @@
+{
+  "schemaVersion": "chronicle-integer-screen-state-session-source-fixture/v1",
+  "sourceWorkId": "doi:10.1145/3422821",
+  "canonicalSetting": {
+    "settingId": "method-setting-0d00eddbbf9b14cb90ae31f0",
+    "parameterKey": "screen.schema_and_constructor",
+    "sourceObservedSetting": "screen.schema_and_constructor: screen states on/off/lock/unlock; interaction begins at unlock and ends at the first off or lock",
+    "sourceValueSha256": "5a4259fa42cef30c1243703f696d7660176abe5b98ef5d34caf880a022dabebc"
+  },
+  "supersededAliases": [
+    "atomic-174054a7d269c1868178e6fe",
+    "atomic-5f6458eb3a4bb03c200ccf7c",
+    "atomic-661f0b776fd2ffabab513909",
+    "atomic-a396832ff2b10659ba2d3fb3",
+    "atomic-b8af1de2bbc902b5937971e7",
+    "atomic-d81526697c6f93c3c6e02cfc",
+    "atomic-e4475e58ebc682179dafa811"
+  ],
+  "sourceArtifacts": [
+    {
+      "role": "primary_paper",
+      "locator": ".tmp-literature-review-private/strict-screen-native-ranks37-73-20260831T0415Z/artifacts/73-depression-onset.pdf#page=14",
+      "sha256": "0d0ef0897966c1bdf71422cf4048c4af8273f1b383f5958809003d67fc1f4f79"
+    },
+    {
+      "role": "pinned_source_archive",
+      "locator": ".tmp-literature-review-private/priority-queue-b-direct-recovery-20260831T035622Z/artifacts/aware-legacy-client-paper-era-da453af4076b.zip",
+      "sha256": "7f070a32174da049f5d864a8d0c7cf2fa096897fc4ccd905fb8638d165b4e3a5"
+    },
+    {
+      "role": "screen_collector_source",
+      "locator": "aware-core/src/main/java/com/aware/Screen.java:24-73,118-193",
+      "sha256": "a909f3d3737b6a5023861e29057d5efc3e45d891d1be41995ad10540582943f0"
+    },
+    {
+      "role": "screen_provider_source",
+      "locator": "aware-core/src/main/java/com/aware/providers/Screen_Provider.java:45-72",
+      "sha256": "dffb69fc38fad656dc22ccb72a9cf13c47cb5efe77668181a10b8c1e6e517e5e"
+    }
+  ],
+  "statusMappings": [
+    {"sourceStatus": "0", "canonicalSignal": "screen_non_interactive"},
+    {"sourceStatus": "1", "canonicalSignal": "screen_interactive"},
+    {"sourceStatus": "2", "canonicalSignal": "keyguard_shown"},
+    {"sourceStatus": "3", "canonicalSignal": "keyguard_hidden"}
+  ],
+  "rawCsvLines": [
+    "_id,timestamp,device_id,screen_status",
+    "101,1000.0,device-a,1",
+    "102,1050.0,device-b,1",
+    "103,2000.0,device-a,3",
+    "104,2050.0,device-b,3",
+    "105,2500.0,device-a,1",
+    "106,2750.0,device-b,2",
+    "107,3000.0,device-a,0",
+    "108,3500.0,device-a,2",
+    "109,4000.0,device-a,3",
+    "110,4500.0,device-a,2"
+  ],
+  "expectedIntervals": [
+    {"deviceId":"device-a","startNs":2000000000,"stopNs":3000000000,"startSourceRow":3,"stopSourceRow":7,"closeReason":"screen_non_interactive"},
+    {"deviceId":"device-a","startNs":4000000000,"stopNs":4500000000,"startSourceRow":9,"stopSourceRow":10,"closeReason":"keyguard_shown"},
+    {"deviceId":"device-b","startNs":2050000000,"stopNs":2750000000,"startSourceRow":4,"stopSourceRow":6,"closeReason":"keyguard_shown"}
+  ],
+  "invalidCsvCases": [
+    {"caseId":"missing-header","csvLines":["timestamp,device_id","1000,device-a"],"expectedErrorCode":"missing_required_column"},
+    {"caseId":"duplicate-header","csvLines":["timestamp,device_id,screen_status,screen_status","1000,device-a,0,0"],"expectedErrorCode":"duplicate_required_column"},
+    {"caseId":"missing-value","csvLines":["timestamp,device_id,screen_status","1000,,0"],"expectedErrorCode":"missing_required_value"},
+    {"caseId":"unknown-status","csvLines":["timestamp,device_id,screen_status","1000,device-a,4"],"expectedErrorCode":"unknown_screen_status"},
+    {"caseId":"fractional-timestamp","csvLines":["timestamp,device_id,screen_status","1000.5,device-a,0"],"expectedErrorCode":"invalid_epoch_milliseconds"},
+    {"caseId":"timestamp-overflow","csvLines":["timestamp,device_id,screen_status","9223372036854775807,device-a,0"],"expectedErrorCode":"epoch_milliseconds_out_of_range"}
+  ],
+  "limitations": [
+    "This proves only the canonical screen schema and interaction constructor; phone-usage feature aggregation remains separate.",
+    "The pinned Android source is the archived paper-era AWARE framework, not an original study-specific analysis repository.",
+    "Structural capability evidence is required; incomplete, reordered, mixed-device, or fragmented streams do not silently execute."
+  ]
+}

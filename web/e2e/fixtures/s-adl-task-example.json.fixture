@@ -1,0 +1,72 @@
+{
+  "task_occurrences": [
+    {
+      "task_occurrence_id": "example:phone-task-1",
+      "method_profile_id": "method-profile:doi:10.1145/3613904.3642832",
+      "source_work_id": "doi:10.1145/3613904.3642832",
+      "participant_id": "example:participant-not-source-data",
+      "record_origin": "analyst_constructed_example",
+      "task_label": "Phone Number Register & Call",
+      "expected_script_setting_reference": "method-setting-282bc5a0e32ddcf182d7dd63",
+      "denotes_interval": {"start_instant": "example:opaque-task-start", "end_instant": null},
+      "task_actions": [
+        {
+          "task_action_id": "example:registration",
+          "action_label": "Contact app end",
+          "assigned_role_labels": ["Phone number register (typing)"],
+          "action_content_json": " {\"registered_number\":\"EXAMPLE-REDACTED-NUMBER\"} ",
+          "source_locators": ["S-ADL physical p25 Table11; constructed member, not original row"]
+        },
+        {
+          "task_action_id": "example:call",
+          "action_label": "Calling end",
+          "assigned_role_labels": ["Phone call"],
+          "denotes_interval": null,
+          "action_content_json": null,
+          "source_locators": ["S-ADL physical p25 Table11; constructed member, not original row"]
+        }
+      ],
+      "criterion_assessments": [
+        {
+          "criterion_assessment_id": "example:registration-check",
+          "criterion_setting_reference": "method-setting-541738e74e14251b91662104",
+          "criterion_label": "Phone Number Register",
+          "assessment_value_json": "0.00",
+          "assessment_content_json": " {\"presented_number\":\"EXAMPLE-DIFFERENT-NUMBER\"} ",
+          "support_task_action_references": ["example:registration"],
+          "source_locators": ["S-ADL physical p21 AppendixA.1; p23 Table6; constructed content/result, not study observation"]
+        },
+        {
+          "criterion_assessment_id": "example:call-check",
+          "criterion_setting_reference": "method-setting-541738e74e14251b91662104",
+          "criterion_label": "Phone Call",
+          "assessment_value_json": "null",
+          "assessment_content_json": null,
+          "support_task_action_references": ["example:call"],
+          "source_locators": ["S-ADL physical p23 Table6; constructed unknown content/result, not study observation"]
+        }
+      ],
+      "source_locators": ["S-ADL primary SHA256:c32c109b52626fdba8605b6b18ca4b3a7e99df38c718da1b62a3450ee0629775; physical p8 Figure2, p21 AppendixA.1, p23 Table6, p25 Table11; analyst-constructed normalized example, not recovered participant rows"]
+    },
+    {
+      "task_occurrence_id": "example:phone-task-2",
+      "method_profile_id": "method-profile:doi:10.1145/3613904.3642832",
+      "source_work_id": "doi:10.1145/3613904.3642832",
+      "participant_id": "example:participant-not-source-data",
+      "device_id": null,
+      "record_origin": "analyst_constructed_example",
+      "task_label": "Phone Number Register & Call",
+      "expected_script_setting_reference": "method-setting-282bc5a0e32ddcf182d7dd63",
+      "denotes_interval": {"start_instant": "example:opaque-task-start", "end_instant": null},
+      "task_actions": [
+        {
+          "task_action_id": "example:foreign-task-member",
+          "assigned_role_labels": null,
+          "source_locators": ["S-ADL physical p25 Table11; constructed partial member, not original row"]
+        }
+      ],
+      "criterion_assessments": null,
+      "source_locators": ["S-ADL physical p8 Figure2, p25 Table11; separate constructed partial task, not study observation"]
+    }
+  ]
+}

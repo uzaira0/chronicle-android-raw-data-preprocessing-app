@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "chronicle-building-circle-membership-source-fixture/v1",
+  "sourceWorkId": "doi:10.1016/j.compedu.2019.103611",
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-fe9b841235ec149984be1015",
+    "parameterKey": "attendance.manual_building_circles",
+    "sourceObservedSetting": "attendance.manual_building_circles: manually defined circular building boundaries; inside when distance to center is less than radius",
+    "sourceValueSha256": "558b4b683ebe970ac24b431cdb29efe71b76c4ea8080614a85634f43b13fdcac"
+  },
+  "sourceArtifact": {
+    "locator": ".tmp-literature-review-private/corrective-packet-08-ranks277-329-20260831/fulltext/rank288-primary.txt:318-328",
+    "sha256": "5444bf55d60696984c74e676bfc3dacd388e81074b3f5f09ba07120d2c3e414b"
+  },
+  "inputBoundary": "One caller-supplied finite circle radius and one already-derived finite center-to-coordinate distance expressed in the same source-aligned unit.",
+  "outputBoundary": "Classify the coordinate as inside only when distance is strictly less than radius; equality and greater distance are not inside.",
+  "limitations": [
+    "The radius is synthetic fixture configuration; the source does not disclose the manually selected centers or building-specific radii needed by the full profile.",
+    "This binding does not derive a distance from latitude and longitude or choose a distance formula or unit.",
+    "This binding does not detect a temporal boundary crossing, arrival, or departure from successive coordinates.",
+    "This binding does not implement the source GPS-missing and reappearance inference.",
+    "This binding does not implement Wi-Fi fingerprint matching or its fallback relationship with GPS.",
+    "This binding does not join a building classification to classroom schedules or infer attendance.",
+    "A missing or non-finite radius or distance fails closed."
+  ],
+  "fixtureCircleRadius": 100.0,
+  "categories": ["inside", "not_inside", "not_inside"],
+  "coordinates": [
+    {
+      "observationId": "immediately-inside",
+      "centerDistance": 99.999,
+      "expectedCategory": "inside"
+    },
+    {
+      "observationId": "on-boundary",
+      "centerDistance": 100.0,
+      "expectedCategory": "not_inside"
+    },
+    {
+      "observationId": "immediately-outside",
+      "centerDistance": 100.001,
+      "expectedCategory": "not_inside"
+    }
+  ],
+  "missingInputCases": [
+    {
+      "observationId": "missing-radius",
+      "circleRadius": null,
+      "centerDistance": 50.0,
+      "expectedError": "building_circle_radius_required"
+    },
+    {
+      "observationId": "missing-distance",
+      "circleRadius": 100.0,
+      "centerDistance": null,
+      "expectedError": "building_center_distance_required"
+    }
+  ]
+}

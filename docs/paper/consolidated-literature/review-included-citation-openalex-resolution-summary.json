@@ -1,0 +1,13 @@
+{
+  "generated_at": "2026-08-30T01:06:58.977Z",
+  "attempted_explicit_included_citations_without_doi": 109,
+  "status_counts": {
+    "high_confidence_openalex_match": 29,
+    "candidate_requires_manual_review": 20,
+    "openalex_http_400": 1,
+    "no_candidate": 17,
+    "openalex_http_429": 42
+  },
+  "accepted_doi_count": 29,
+  "warning": "Only high title-similarity matches with compatible year and author evidence are accepted automatically. Other candidates require manual source confirmation."
+}

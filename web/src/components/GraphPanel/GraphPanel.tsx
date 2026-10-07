@@ -28,6 +28,7 @@ import {
   NODE_WIDTH,
   type LayoutDirection,
 } from "@/components/GraphPanel/graphLayout";
+import { requireDefined } from "@/lib/invariant";
 import type { DemoDisplayMasker } from "@/lib/demoDisplay";
 import type {
   ProcessedFileResult,
@@ -127,7 +128,10 @@ function ExplorerNode({
       <span className="graph-node__badges">
         {data.isOff ? (
           <span className="graph-node__status graph-node__status--bypassed">off</span>
-        ) : data.status ? (
+        ) : null}
+        {/* An error is never hidden behind "off": a query the projection
+            calls not-applicable can still have run and failed. */}
+        {data.status && (!data.isOff || data.status === "error") ? (
           <span className={`graph-node__status graph-node__status--${data.status}`}>
             {STATUS_LABELS[data.status]}
           </span>
@@ -166,27 +170,7 @@ type Props = {
   displayMasker: DemoDisplayMasker;
 };
 
-function artifactSizes(
-  result: ProcessedFileResult | null,
-): Map<string, { bytes: number; mediaType: string }> {
-  const sizes = new Map<string, { bytes: number; mediaType: string }>();
-  const ambiguous = new Set<string>();
-  for (const output of result?.outputs ?? []) {
-    const artifact = output.persistedArtifact;
-    if (!artifact) continue;
-    const existing = sizes.get(artifact.kind);
-    if (
-      existing &&
-      (existing.bytes !== artifact.size || existing.mediaType !== artifact.mediaType)
-    ) {
-      ambiguous.add(artifact.kind);
-    } else {
-      sizes.set(artifact.kind, { bytes: artifact.size, mediaType: artifact.mediaType });
-    }
-  }
-  for (const kind of ambiguous) sizes.delete(kind);
-  return sizes;
-}
+const NO_COLLAPSED_PHASES: ReadonlySet<string> = new Set();
 
 function outputSize(output: ProcessedFileResult["outputs"][number]): string {
   const bytes = output.persistedArtifact?.size ?? output.blob?.size;
@@ -217,7 +201,6 @@ export function GraphPanel({
   const evidence = useMemo(
     () => ({
       executionLedger: activeResult?.executionLedger,
-      artifactSizes: artifactSizes(activeResult),
       // A persisted result does not currently echo support presence. Never
       // relabel an old run using today's file-picker state.
       supportPresence: activeResult
@@ -230,9 +213,16 @@ export function GraphPanel({
     () => graphForMode(view, mode, evidence),
     [view, mode, evidence],
   );
+  // Overview has no phase controls, so a phase collapsed in another mode
+  // must not follow the researcher there with no way to expand it.
   const projection = useMemo(
-    () => collapseProjection(baseProjection, view, collapsedPhaseIds),
-    [baseProjection, view, collapsedPhaseIds],
+    () =>
+      collapseProjection(
+        baseProjection,
+        view,
+        mode === "overview" ? NO_COLLAPSED_PHASES : collapsedPhaseIds,
+      ),
+    [baseProjection, view, mode, collapsedPhaseIds],
   );
   const metadata = useMemo(
     () => new Map(projection.nodes.map((node) => [node.id, node])),
@@ -316,7 +306,7 @@ export function GraphPanel({
   }, []);
 
   const nodes: ExplorerFlowNode[] = layout.nodes.map((node) => {
-    const data = metadata.get(node.id)!;
+    const data = requireDefined(metadata.get(node.id), "every laid-out graph node comes from the projection that keys metadata");
     const selectionDimmed = selected && node.id !== selected && !downstream?.has(node.id);
     const searchDimmed =
       mode === "audit" && auditSearch.trim() && !auditMatchIds.has(node.id);
@@ -538,7 +528,7 @@ export function GraphPanel({
             {selectedNode.description ? ` — ${selectedNode.description}` : ""}
             {selectedNode.detail ? ` ${selectedNode.detail}.` : ""}
             {selectedNode.offReason ? ` Off reason: ${selectedNode.offReason}.` : ""}
-            {downstream && downstream.size > 0
+            {downstream && downstream.size > 0 && selectedNode.section !== "decision"
               ? ` It reaches ${downstream.size} downstream item${downstream.size === 1 ? "" : "s"} in this view.`
               : ""}
           </>

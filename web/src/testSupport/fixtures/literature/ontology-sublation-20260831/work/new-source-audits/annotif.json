@@ -1,0 +1,143 @@
+{
+  "schema_version": "chronicle-source-completeness-audit/v1-draft",
+  "source_work_id": "doi:10.1145/3365610.3365611",
+  "title": "Annotif: A System for Annotating Mobile Notifications in User Studies",
+  "audited_at": "2026-09-25",
+  "audit_status": "new_candidate_source_read_not_canonically_projected",
+  "completion_verdict": "hard_no_exact_study_reproduction",
+  "future_completion_boundary": "The paper supports an ordered, source-located specification and normalized synthetic probes for the five server stages. It does not release a study-bound build, raw notification JSON, source data, server/browser code, or several decisive tie, hash, calendar, and privacy details; no exact study execution or numerical result reproduction is claimed.",
+  "source_artifacts": [
+    {
+      "path": ".tmp-literature-review-private/open-index-exact-keyword-wave4/retrieved/pdf/10.1145_3365610.3365611.pdf",
+      "url": "https://alexandra-voit.de/fileadmin/papers/a24-weber.pdf",
+      "sha256": "1ca0b9e3f37f73ba2ec25053ffad1ca32720916d7c9ec2d584a4587372cab5bf",
+      "bytes": 1968314,
+      "pages": 12,
+      "identity_check": "internal title, authors, venue, and DOI on PDF p1 agree with the target; all methods/results pages and reference pages read"
+    },
+    {
+      "path": ".tmp-literature-review-private/open-index-exact-keyword-wave4/retrieved/text/10.1145_3365610.3365611.txt",
+      "sha256": "2267927268badc207c4a2eedaa204ed5f8226192aed4f72737f578927a0c5b30",
+      "bytes": 78527,
+      "identity_check": "local layout extraction of the 12-page target PDF; PDF pages, not two-column text order, govern locators"
+    }
+  ],
+  "source_locator_base": "https://alexandra-voit.de/fileadmin/papers/a24-weber.pdf",
+  "source_method_variant": "2019 MUM Annotif case-study implementation, one week, Android 5.0+ personal phones; no source-declared alternative study configuration",
+  "scope_decision": "retain candidate: the study itself collects and analyzes Android NotificationListener event-derived records, not merely a screenshot or aggregate counter",
+  "artifact_sweep": {
+    "supplement": "No separate supplement, raw schema, data dictionary, or supplementary URL is named in the 12-page paper; no supplement identity verified.",
+    "study_code": "No Annotif Android/server/browser repository, commit, tag, APK, or released source JSON is named or bound to this study in the paper; searched exact title/authors/repository links without a verified study build.",
+    "linked_collector": "Reference [43] is Notification Log, DOI 10.1145/3267305.3274118. The authors' public https://github.com/interactionlab/android-notification-log README lists Annotif as a project, but its present master HEAD 7077c6a7b111a5a27a460d2583a12b21fecacca9 is not evidence for the modified 2019 Annotif app/server/browser, a study commit, or literal study JSON keys. No release tags were returned by git ls-remote --tags on 2026-09-25.",
+    "raw_data": "Neither notification-event rows nor participant annotations are supplied by the paper or verified attached artifact; only aggregate Table 1, Table 2, and figures are public.",
+    "bibliographic_neighbors": "[29] My Phone and Me, [36] Dismissed!, [37] Large-scale Assessment, [43] Notification Log, and Android API [12] were checked as reference identities; their processing rules are not imported into this target's method. Remaining background references are not full-text checked in this isolated draft."
+  },
+  "event_model": {
+    "source": "Android NotificationListenerService",
+    "callback_families_named": ["new notification", "removed notification"],
+    "annotation_path_evidence": "Only a new-notification event is explicitly followed through metadata extraction, encryption, local storage, server filters, and annotation; removed callback routing is not described.",
+    "raw_event_vs_presented_alert": "The paper explicitly warns that app updates and group-summary behavior can cause multiple listener events per displayed notification; a callback is not an already-deduplicated visible alert.",
+    "input_fields_explicit": ["app package name", "notification creation time", "app-set priority", "group key", "group summary distinction required by filter 4", "notification content text", "SHA-256 content hash", "user/contact name flags", "device location"],
+    "input_fields_unknown": ["literal JSON keys and types", "notification identity/update key", "callback sequence number", "posted-vs-removed encoding in stored JSON", "group-summary flag source", "creation-time clock/zone/precision", "content hash byte normalization", "location source and age threshold"]
+  },
+  "ordered_operations": [
+    {"order": 1, "stage": "server", "verb": "select", "input": "encrypted records for one user ID", "predicate": "not yet annotated", "output": "unannotated records", "locator": "PDF p4, Server, step 1; web PDF lines 263-268"},
+    {"order": 2, "stage": "server", "verb": "discard", "input": "step-1 records", "predicate": "older than the configured age window; 48 h used by case study", "output": "age-eligible records", "locator": "PDF p4, Server, step 2; p5 Design; web PDF lines 269-271, 342-344"},
+    {"order": 3, "stage": "server", "verb": "cluster_and_order", "input": "step-2 records", "predicate": "same creating app; split any multi-day cluster into one per day; order clusters oldest to newest", "output": "ordered app/day clusters", "locator": "PDF p4, Server, step 3; web PDF lines 272-275"},
+    {"order": 4, "stage": "server", "verb": "conditional_group_summary_filter", "input": "step-3 clusters", "predicate": "within each group key, if summary and other notifications coexist, remove summary and keep others; if only summary, retain it", "output": "group-resolved clusters", "locator": "PDF p4, Server, step 4; web PDF lines 276-280"},
+    {"order": 5, "stage": "server", "verb": "first_hash_deduplication", "input": "step-4 clusters", "predicate": "within each cluster, same app and same text hash -> retain first instance, discard later duplicates", "output": "annotation candidate clusters", "locator": "PDF p4, Server, step 5; web PDF lines 281-284"},
+    {"order": 6, "stage": "annotation", "verb": "serve_annotate_store", "input": "remaining clusters", "predicate": "serve one cluster at a time, require form controls, permit participant text censoring, then store annotations separately", "output": "decrypted-and-censored annotated records", "locator": "PDF pp4-5, Server/Annotation Tool; web PDF lines 285-327"}
+  ],
+  "disclosed_atoms": [
+    {"key": "collector.android_platform", "role": "participant_schema", "target": "participant_record", "value": "Android 5.0+ personal phone", "evidence": "explicit", "locator": "PDF p5 Participants; web lines 364-367"},
+    {"key": "collector.notification_listener", "role": "acquisition", "target": "collector", "value": "NotificationListenerService registered by app", "evidence": "explicit", "locator": "PDF p3 Notification Logging App; web lines 226-232"},
+    {"key": "collector.callback_families", "role": "event_schema", "target": "raw_record", "value": ["new", "removed"], "evidence": "explicit for service capability, not downstream removal handling", "locator": "PDF p3 Notification Logging App; web lines 230-238"},
+    {"key": "collector.app_scope", "role": "acquisition", "target": "collector", "value": "all installed apps", "evidence": "explicit", "locator": "PDF p3 Notification Logging App; web lines 230-232"},
+    {"key": "collector.background_service_claim", "role": "provenance", "target": "collector", "value": "authors state the listener service is exempt from battery optimization and runs without background interruption", "evidence": "explicit author claim, not empirically validated completeness or a portable OS guarantee", "locator": "PDF p3 Notification Logging App; web lines 233-235"},
+    {"key": "collector.package", "role": "event_schema", "target": "raw_record", "value": "package name of creating app", "evidence": "explicit semantic field; literal raw key unreported", "locator": "PDF p3 Notification Logging App; web lines 236-241"},
+    {"key": "collector.creation_time", "role": "event_schema", "target": "raw_record", "value": "time notification was created", "evidence": "explicit semantic field; clock encoding and zone unreported", "locator": "PDF p3 Notification Logging App; web lines 236-242"},
+    {"key": "collector.priority", "role": "event_schema", "target": "raw_record", "value": ["MIN", "LOW", "DEFAULT", "HIGH", "MAX"], "evidence": "priority field and levels explicit; numeric mapping unreported", "locator": "PDF p3 Background/Notification Logging App; web lines 201-203,236-242"},
+    {"key": "collector.group_key", "role": "event_schema", "target": "raw_record", "value": "app notification group key; group-summary status also required for server step 4", "evidence": "group key explicit; literal marker/path for summary unreported", "locator": "PDF pp3-4 Background/Server; web lines 204-206,239-242,276-280"},
+    {"key": "collector.content_encryption", "role": "acquisition", "target": "raw_record", "value": "notification content encrypted on phone using AES-CBC with key derived from participant passphrase using PBKDF2", "evidence": "explicit algorithm family; cipher parameters unreported", "locator": "PDF p4 Notification Logging App; web lines 247-250"},
+    {"key": "collector.content_hash", "role": "acquisition", "target": "raw_record", "value": "SHA-256 hash of notification content stored separately to detect duplicates without decrypting", "evidence": "explicit; byte/canonicalization boundary unreported", "locator": "PDF p4 Notification Logging App; web lines 251-253"},
+    {"key": "collector.name_detection", "role": "feature_engineering", "target": "derived_feature", "value": "flag whether content contains participant first/last/nickname or contact names, using saved contacts and regular-expression search", "evidence": "explicit procedure family; regex/normalization details unreported", "locator": "PDF pp4-5 Notification Logging App/Procedure; web lines 253-257,352-355"},
+    {"key": "collector.location", "role": "acquisition", "target": "raw_record", "value": "associate device current location with notification", "evidence": "explicit; provider/freshness/capture timestamp unreported", "locator": "PDF p4 Notification Logging App; web lines 258-259"},
+    {"key": "collector.local_persistence", "role": "acquisition", "target": "collector", "value": "extended encrypted notifications stored in on-device database", "evidence": "explicit; database schema unreported", "locator": "PDF p4 Notification Logging App; web lines 259-261"},
+    {"key": "collector.upload", "role": "acquisition", "target": "collector", "value": "periodic batched secure sync to server", "evidence": "explicit; cadence, retry, transport protocol unreported", "locator": "PDF p4 Notification Logging App; web lines 259-261"},
+    {"key": "server.user_partition", "role": "acquisition", "target": "raw_record", "value": "store encrypted records and associate with user ID", "evidence": "explicit", "locator": "PDF p4 Server; web lines 262-265"},
+    {"key": "server.unannotated_only", "role": "quality_control", "target": "analysis_record_set", "value": "select records for given user not yet annotated", "evidence": "explicit", "locator": "PDF p4 Server, step 1; web lines 265-268"},
+    {"key": "server.age_censor", "role": "quality_control", "target": "analysis_record_set", "value": {"duration": 48, "unit": "hours", "basis": "annotation eligibility after creation", "disposition": "discard older records"}, "evidence": "explicit study value; equality and clock reference unreported", "locator": "PDF p4 Server, step 2 and p5 Design; web lines 269-271,342-344"},
+    {"key": "server.cluster_app", "role": "reconstruction", "target": "analysis_record_set", "value": "group remaining notifications by creating app", "evidence": "explicit", "locator": "PDF p4 Server, step 3; web lines 272-275"},
+    {"key": "server.cluster_day", "role": "reconstruction", "target": "analysis_record_set", "value": "split multi-day app cluster to one cluster per day", "evidence": "explicit; calendar zone/boundary unreported", "locator": "PDF p4 Server, step 3; web lines 272-275"},
+    {"key": "server.cluster_order", "role": "reconstruction", "target": "analysis_record_set", "value": "sort clusters old to new", "evidence": "explicit; intra-cluster tie order unreported", "locator": "PDF p4 Server, step 3; web lines 272-275"},
+    {"key": "server.group_summary_disposition", "role": "quality_control", "target": "analysis_record_set", "value": "remove summary only if other notifications share group key in its cluster; retain summary if it is alone", "evidence": "explicit conditional rule", "locator": "PDF p4 Server, step 4; web lines 276-280"},
+    {"key": "server.content_duplicate_disposition", "role": "quality_control", "target": "analysis_record_set", "value": "within each cluster, same app plus identical content hash: keep first, discard subsequent", "evidence": "explicit partition/action; first-tie semantics unreported", "locator": "PDF p4 Server, step 5; web lines 281-284"},
+    {"key": "server.cluster_serving", "role": "diary_schema", "target": "diary_response", "value": "serve clusters one by one; annotated cluster saved to separate table before next", "evidence": "explicit; exact serving concurrency unreported", "locator": "PDF p4 Server; web lines 285-292"},
+    {"key": "browser.client_decryption", "role": "reconstruction", "target": "raw_record", "value": "personalized user-ID link and client-only passphrase; browser decrypts returned notifications", "evidence": "explicit", "locator": "PDF pp4-5 Annotation Tool; web lines 293-300"},
+    {"key": "browser.display_context", "role": "diary_schema", "target": "diary_item", "value": "map, location accuracy and age, absolute and relative creation time, app icon, content", "evidence": "explicit", "locator": "PDF p5 Annotation Tool/Figure 2; web lines 301-310"},
+    {"key": "browser.importance_urgency_items", "role": "diary_schema", "target": "diary_item", "value": "two agreement ratings, very important and very urgent, each five-point Likert", "evidence": "explicit", "locator": "PDF p5 Annotation Tool; web lines 311-313"},
+    {"key": "browser.location_label", "role": "diary_schema", "target": "diary_item", "value": ["Home", "Work", "On-the-go", "With friends", "Restaurant/cafe", "In public", "Sport", "Other"], "evidence": "eight labels explicit across method and results", "locator": "PDF p5 Annotation Tool and p6 Annotated Locations; web lines 313-315,439-444"},
+    {"key": "browser.optional_comment", "role": "diary_schema", "target": "diary_item", "value": "optional free-text context/problem comment", "evidence": "explicit", "locator": "PDF p5 Annotation Tool; web lines 313-315"},
+    {"key": "browser.censoring", "role": "diary_schema", "target": "diary_response", "value": "participant may censor individual words by click or all content by block icon before submission", "evidence": "explicit", "locator": "PDF pp4-5 Figure 2/Annotation Tool; web lines 243-246,307-322"},
+    {"key": "browser.required_controls", "role": "quality_control", "target": "diary_response", "value": "all required form controls checked after entire cluster annotated, before submission", "evidence": "explicit; exact required-field set not enumerated", "locator": "PDF p5 Annotation Tool; web lines 316-318"},
+    {"key": "browser.release_boundary", "role": "reporting", "target": "released_artifact", "value": "submitted annotated content no longer encrypted after participant-controlled censoring; JSON record extended through stages", "evidence": "explicit", "locator": "PDF p5 Annotation Tool; web lines 318-327"},
+    {"key": "study.duration", "role": "acquisition", "target": "study_window", "value": "one week of annotation on own Android phones; logged throughout day", "evidence": "explicit; exact calendar dates and per-user exposure unreported", "locator": "PDF p5 Case Study/Procedure; web lines 329-344,358-367"},
+    {"key": "analysis.priority_comparison", "role": "analysis", "target": "model", "value": "compare five Android priority levels to two five-point subjective ratings; Pearson correlations reported", "evidence": "explicit; complete code and missing-value policy unreported", "locator": "PDF p7 Importance and Urgency Ratings/Correlations/Figures 4-5"},
+    {"key": "analysis.whatsapp_media", "role": "feature_engineering", "target": "derived_feature", "value": "infer WhatsApp text/photo/audio/video type from emojis at specific content positions", "evidence": "explicit strategy; literal emoji/position predicates not text-recoverable and exact classifier absent", "locator": "PDF p7 Messaging Notifications, item 2; Figure/Table 2"},
+    {"key": "analysis.whatsapp_chat_type", "role": "feature_engineering", "target": "derived_feature", "value": {"one_to_one_tag": "s.whatsapp.net", "group_tag": "g.us", "unclassified_count": 16}, "evidence": "explicit strings and count; exact field path and match semantics unreported", "locator": "PDF pp7-8 Messaging Notifications, item 3; web lines 538-566"},
+    {"key": "analysis.name_strata", "role": "analysis", "target": "derived_feature", "value": "compare ratings by participant-name/contact-name presence, including one-to-one/group WhatsApp strata", "evidence": "explicit; full statistical implementation unreported", "locator": "PDF p8 Messaging Notifications, item 4/Table 2/Figure 7"},
+    {"key": "analysis.app_clusters", "role": "analysis", "target": "model", "value": "select apps rated by at least three participants; normalized mean importance/urgency for 18 apps plus WhatsApp 1:1/group points, 20 points total; k-means k=4", "evidence": "explicit design; normalization, initialization, seed, distance details unreported", "locator": "PDF p8 Notification Clusters/Figure 6; web lines 574-582"}
+  ],
+  "reported_result_oracles_not_settings": [
+    {"measure": "pipeline census", "values": {"notification_events": 18671, "filtered_duplicates_and_group_summaries": 12019, "missed_annotation_window": 464, "annotated_unique_notifications": 6188, "reported_annotation_coverage_percent": 93.02}, "qualification": "The 18,671 count is called notification events; the paper does not prove that removed callbacks are included or that all events are unique visible alerts.", "locator": "PDF p6 Table 1/Received and Annotated Notifications; web lines 380-409"},
+    {"measure": "annotation latency", "values": {"median": "17 h 53 min", "within_24h_percent": 72.66}, "qualification": "Measured result, not an acquisition cadence or annotation cutoff.", "locator": "PDF p6 Timings/Figure 3; web lines 416-438"},
+    {"measure": "censoring", "values": {"partly_censored_percent": 32.01, "fully_censored_percent": 0.82}, "qualification": "Observed participant behavior, not a required redaction ratio.", "locator": "PDF p6 Censored Content"}
+  ],
+  "linked_references": [
+    {"reference": 12, "identity": "Android NotificationListenerService documentation", "role": "API identity, not study implementation", "review_state": "identity_checked"},
+    {"reference": 29, "identity": "doi:10.1145/2858036.2858566", "role": "related notification receptivity study; not this pipeline", "review_state": "identity_checked"},
+    {"reference": 36, "identity": "doi:10.1145/3229434.3229445", "role": "related notification handling study; not this deduplication", "review_state": "identity_checked"},
+    {"reference": 37, "identity": "doi:10.1145/2556288.2557189", "role": "case-study design inspiration; not an imported method", "review_state": "identity_checked"},
+    {"reference": 43, "identity": "doi:10.1145/3267305.3274118", "role": "base open-source Notification Log collector, not version-bound Annotif build", "review_state": "artifact_landing_checked"}
+  ],
+  "indispensable_unavailable_facts": [
+    "Exact deployed Android listener, server, and browser code/build versions and literal JSON schema are not released or study-bound in verified artifacts.",
+    "How removed callbacks are persisted, matched, or discarded is not reported; they must not be inferred to enter the five-stage annotation pipeline.",
+    "Notification identity, update/revocation key, group-summary flag extraction, and callbacks' occurrence/creation timestamp relation are unreported.",
+    "Age-window equality, current-time evaluation moment, calendar-day timezone/boundary, and equal-time cluster ordering are unreported.",
+    "SHA-256 input encoding/normalization, ordering meaning of first duplicate, and duplicate handling across day-clusters are not fully specified beyond the stated per-cluster rule.",
+    "AES-CBC parameters, PBKDF2 parameters, IV/salt handling, transport details, local/server database schemas, batch cadence and retries are unreported.",
+    "Name-matching regex, contact string normalization and privacy boundary, location provider/freshness, and exact annotation record linkage are unreported.",
+    "Exact emoji positions, WhatsApp tag field and matching semantics, normalized-rating transform, k-means initialization/seed, and statistical missingness rules are unreported.",
+    "No raw cohort rows, annotations, or study-specific code are available to test published counts and downstream results."
+  ],
+  "current_ontology_mapping": {
+    "reusable": [
+      {"term": "StudyMethodProfile / MethodSettingAssertion", "use": "source, role, value, configuration, and evidence assertions; no existing Annotif profile yet"},
+      {"term": "AcquisitionProtocol", "use": "collector API, app scope, persistence and upload semantics; unknown cadence remains unknown"},
+      {"term": "OperationDefinition", "use": "six ordered processing/annotation steps via consumes, produces, depends_on; this candidate has not been instantiated or round-tripped"},
+      {"term": "TimestampPolicy / DurationPolicy", "use": "annotation age window, creation-time basis, calendar and tie uncertainty without inventing inclusivity"},
+      {"term": "MeasurementReleaseProfile / source artifact provenance", "use": "encrypted collector record versus participant-censored released annotation, with exact source identity"}
+    ],
+    "not_semantically_equivalent": [
+      {"term": "UsageEventRecord", "reason": "This class is a logged Android UsageStats event, not a posted/removed NotificationListener callback or a versioned notification JSON record."},
+      {"term": "NotificationAttributionPolicy", "reason": "It represents notification evidence related to user behavior, not five-stage filtering, persistent notification identity, privacy release, or participant annotation."},
+      {"term": "notification_seen / notification_interruption UsageStats proxy", "reason": "Those are Android UsageStats event codes 10/12 and cannot stand in for NotificationListener posted/removed callbacks, group keys, content hashes, or actual display."},
+      {"term": "UsageEpisodeAssertion / UsageSessionAssertion", "reason": "App/device durations are not app/day notification annotation clusters or notification lifecycle states."}
+    ],
+    "candidate_semantic_residues": [
+      {"axis": "notification_event_and_alert_identity", "residue": "No first-class typed representation of callback occurrence, notification instance/update/group-summary relation, and distinct candidate/displayed/annotated entities; a flat UsageEventRecord would lose source meaning.", "evidence": "PDF pp3-4 Background/Notification Logging App/Server, web lines 204-225,230-242,276-284", "qualification": "Test existing generic operation/input schema first; add a class only if a concrete round-trip loses these distinctions."},
+      {"axis": "ordered_conditional_notification_filter", "residue": "The five stages are representable in generic OperationDefinition, but no current instantiated profile or typed notification-input/output route proves their order, per-user partition, app/day cluster scope, conditional summary treatment, or first-hash retention.", "evidence": "PDF p4 Server, web lines 263-291", "qualification": "This is currently a missing materialization/execution proof, not yet proof that OperationDefinition itself needs extension."},
+      {"axis": "privacy_state_and_annotation_link", "residue": "The record transitions from encrypted raw content plus plaintext hash, to client-decrypted participant-redacted content and ratings, with annotation status and user-controlled release; the current UsageStats record and notification-attribution policy cannot encode this as the same source fact.", "evidence": "PDF pp4-5 Notification Logging App/Annotation Tool, web lines 247-261,293-327", "qualification": "Check existing release and diary/annotation structures before adding a new ontology element."},
+      {"axis": "version_and_unknowns", "residue": "No exact study software or raw JSON identity permits source-exact import, privacy replay, tie adjudication, or result reproduction.", "evidence": "PDF pp3-8 methods/results and linked collector README", "qualification": "Evidence blocker, not license to fill settings from current collector master."}
+    ]
+  },
+  "minimum_typed_inputs": ["participant/user ID", "NotificationListener callback kind and occurrence/creation time separately", "notification instance/update/group identity and summary flag", "creating package", "priority", "content hash and encrypted content with explicit privacy state", "name-presence flags", "device location plus accuracy/age", "annotation state and two five-point ratings", "participant-controlled censored text and location category"],
+  "required_execution_proofs": [
+    "Version-bound source input or a clearly labeled normalized synthetic contract; never call the latter study-exact.",
+    "Order-sensitive fixtures distinguishing age filtering before app/day grouping, lone versus grouped summary, same-app equal hash versus cross-app equal hash, and first-retained tie cases.",
+    "Round-trip notification entity, callback kind, annotation state, privacy state, group identity and source locators through ontology/import/persistence/export.",
+    "Separate result-oracle check of Table 1 counts only if raw study rows and exact build become available."
+  ],
+  "canonical_projection_policy": "Isolated source-audit candidate only. Do not merge into canonical retained library, assign canonical setting IDs, or promote a generic notification proxy/native binding before independent source-to-term adjudication."
+}

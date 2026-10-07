@@ -1,0 +1,63 @@
+{
+  "schemaVersion": "chronicle-gps-place-consecutive-dwell-gate-source-fixture/v1",
+  "sourceWorkId": "doi:10.1007/978-3-642-37210-0_6",
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-950e4e1a1d9d685c18edb489",
+    "parameterKey": "feature.place_dwell_gate",
+    "sourceObservedSetting": "feature.place_dwell_gate: {\"comparison\":\"greater than\",\"threshold_minutes\":15,\"source_wording\":\"in a row\"}",
+    "sourceValueSha256": "c584a72504709c3753995e6cf706d62a4b36de3b86585fd2714a6db3b97a1e7b"
+  },
+  "sourceArtifacts": [
+    {
+      "locator": ".tmp-literature-review-private/source-completeness-artifacts/doi-10.1007-978-3-642-37210-0_6/de-montjoye-2013-author.txt:228-234",
+      "sha256": "e7695acc8e8cbcd32bf9421deb18f2e14719f59116a4dcc33a08c79b8d348f1a"
+    },
+    {
+      "locator": ".tmp-literature-review-private/source-completeness-artifacts/doi-10.1007-978-3-642-37210-0_6/de-montjoye-2013-author.pdf#audit-locator=de-montjoye-2013-author.txt:228-234",
+      "sha256": "239a23caebc02f3d81d16442c5dbb28984a1594a99bce820028f7038481ff8d2"
+    }
+  ],
+  "inputBoundary": "One caller-measured finite nonnegative consecutive dwell duration in minutes for an already-constructed place visit; the source wording 'in a row' is a precondition on that supplied duration.",
+  "outputBoundary": "Retain the already-constructed place only when consecutive dwell is strictly greater than 15 minutes; equality is excluded by the source wording 'more than 15 minutes'.",
+  "limitations": [
+    "The source does not disclose sampling cadence, gap tolerance, missing-fix handling, or how consecutive dwell is accumulated, so this binding does not reconstruct dwell from GPS samples.",
+    "This binding does not parse GPS records, calculate point distances, group points into places, choose clustering linkage or transitivity, or calculate a center of mass.",
+    "The source does not disclose sub-minute measurement precision, rounding, or tolerance around 15 minutes; none is inferred.",
+    "No exact study feature code or participant rows were released, so this proves the disclosed gate only and is not an end-to-end place-feature reproduction."
+  ],
+  "pivotMinutes": 15,
+  "categories": {
+    "below": "exclude_place",
+    "equal": "exclude_place",
+    "above": "retain_place"
+  },
+  "observations": [
+    {
+      "caseId": "zero-dwell",
+      "consecutiveDwellMinutes": 0,
+      "expectedDisposition": "exclude_place"
+    },
+    {
+      "caseId": "immediately-below-threshold",
+      "consecutiveDwellMinutes": 14.999,
+      "expectedDisposition": "exclude_place"
+    },
+    {
+      "caseId": "exact-threshold",
+      "consecutiveDwellMinutes": 15,
+      "expectedDisposition": "exclude_place"
+    },
+    {
+      "caseId": "immediately-above-threshold",
+      "consecutiveDwellMinutes": 15.001,
+      "expectedDisposition": "retain_place"
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "caseId": "negative-dwell",
+      "consecutiveDwellMinutes": -0.001,
+      "reason": "source_requires_nonnegative_dwell"
+    }
+  ]
+}

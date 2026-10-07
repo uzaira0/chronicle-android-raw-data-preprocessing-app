@@ -1,0 +1,25 @@
+{
+  "generated_at": "2026-08-30T01:06:05.749Z",
+  "input_source_appearances": 1165,
+  "existing_slice_role_records": 573,
+  "new_review_candidates": 52,
+  "new_primary_candidates": 40,
+  "review_included_primary_candidates": 500,
+  "provisional_work_groups": 1119,
+  "doi_keyed_groups": 809,
+  "non_doi_title_keyed_groups": 310,
+  "manually_confirmed_doi_aliases": {
+    "10.48550/arxiv.1910.03970": "10.1038/s41746-021-00514-4"
+  },
+  "fulltext_status_counts": {
+    "pdf_cached": 196,
+    "retrieval_failed": 219,
+    "no_retrieved_full_text": 553,
+    "oa_location_not_retrieved": 119,
+    "pmc_retrieved_and_extracted": 12,
+    "no_pmc_fulltext_record": 6,
+    "pdf_retrieved_and_extracted": 3,
+    "pmc_cached": 11
+  },
+  "warning": "Work groups are provisional DOI/title clusters, not a completed manual deduplication. Preprint/publication pairs, malformed identifiers, artifacts, standards, and title variants still require reconciliation."
+}

@@ -6,15 +6,23 @@ The browser application is the first full implementation target for the
 generalized semantic-federation scaffold. Browser computation is Rust/WASM. A
 count-neutral workflow contract separates researcher-facing phases, scientific
 operations, typed artifacts, physical Salsa queries, checkpoint policy, and run
-evidence. The registered queries match the complete Rust oracle in every usage
-mode; an unchanged call reuses all applicable computation.
+evidence. The retained incremental campaign evidence records that the registered queries match the complete Rust oracle in every usage
+mode; an unchanged incremental call can reuse applicable computation. Those
+receipts certify their recorded revision, not this merged source.
 
-The runtime reports actual query execution events. Query groups are internal
+The normal app defaults to the sequential scheduler; explicit incremental
+requests retain Salsa tracking for campaigns. Both schedulers share scientific
+stage functions, so scheduler parity is not independent algorithm verification.
+The three optional provenance Arrow artifacts are off by default
+(`provenanceEvidence`); the Performance card's “Build provenance evidence” toggle
+enables them.
+
+The incremental engine reports actual Salsa query execution events. Query groups are internal
 reporting projections, not scientific operations and not another scheduler.
 Persisted Salsa snapshots were removed after profiling showed that restoring
 one was slower and much larger than recalculating from the verified inputs.
 OPFS keeps the source, configuration, results, history, evidence, and views;
-the in-worker Salsa database is only a fast disposable cache.
+the optional in-worker incremental Salsa database is only a fast disposable cache.
 
 See the
 [query-registry incremental Rust plan](docs/semantic-federation/incremental-runtime-plan.md)
@@ -48,8 +56,10 @@ Rust targets, records context-dependent convergence, and separates
 computational equivalence from exact source/correspondence identity. A second
 162-case boundary ledger probes 21 adjacent timestamp gaps and six calendar/DST
 joints across those same corpora. Compressed digest-bound sidecars retain the
-853,947 exact canonical CSV/JSON cell addresses changed by those controlled
-interventions. A model-mutation gate also deletes or reverses every declared
+900,293 exact canonical CSV/JSON cell addresses changed by those controlled
+interventions in the recorded 2026-10-02 campaign; those revision-bound receipts
+do not establish final merged-source application acceptance.
+A model-mutation gate also deletes or reverses every declared
 DAG edge and deletes every recorded option and input-role binding; all 116
 mutants must be killed by an attributed empirical or structural test case.
 
@@ -77,4 +87,4 @@ Credits:
 - Including or excluding filtered app usage defined in the preprocessing
 - Custom loading of app codebooks to color apps in plots based on their categories
 - Marking device shutdown and device startup events
-- Marking data time gaps (WIP)
+- Marking data time gaps (shaded "Data Gap" bands where no device activity was recorded)

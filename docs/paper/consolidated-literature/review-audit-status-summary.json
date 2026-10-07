@@ -1,0 +1,16 @@
+{
+  "generated_at": "2026-08-30T01:02:13.839Z",
+  "review_source_records": 52,
+  "canonical_review_works": 51,
+  "version_aliases": {
+    "R023": "R032"
+  },
+  "audit_state_counts": {
+    "complete_through_references_and_linked_artifacts": 33,
+    "partial_access_blocked": 3,
+    "complete_with_named_unavailable_artifact": 2,
+    "full_text_retrieved_not_yet_audited": 11,
+    "full_text_not_yet_retrieved": 3
+  },
+  "warning": "Complete means the accessible main text was read through references and every linked artifact was checked; named unavailable artifacts remain explicit. Code/data absence is recorded in the narrative audit and is not inferred from metadata."
+}

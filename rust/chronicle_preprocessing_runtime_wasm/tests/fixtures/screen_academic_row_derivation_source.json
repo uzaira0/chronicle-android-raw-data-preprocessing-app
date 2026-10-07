@@ -1,0 +1,262 @@
+{
+  "schemaVersion": "chronicle-screen-academic-row-derivation-source-fixture/v1",
+  "sourceWorkId": "doi:10.1177/0956797620956613",
+  "sourceCodeSha256": "b2c12ecb356742dd05c23abb9c7ca78013125a87f24bf279c0b38f778e16302c",
+  "sourceLocator": ".tmp-literature-review-private/authenticated-cookie-recovery-wave-20260830/retrieved/negative-academic-performance-2020/artifacts/load_data.R:5-11",
+  "exactCanonicalSettingIds": [
+    "method-setting-5c3f17fb0b99a68bb5b58faf",
+    "method-setting-7ff8cbc41656ef587e3ce315",
+    "method-setting-1be0e5d48ec456488904f8f8",
+    "method-setting-d7bf0f48272d6fcce11546f9",
+    "method-setting-8d69ae47ccd24603e4d86d9e"
+  ],
+  "inputBoundary": "Rows after the source has coerced grade with as.integer; the named attendance, parent_inc_mean, screentime, and grade columns are otherwise untransformed.",
+  "outputBoundary": "The six mutate expressions at load_data.R lines 6-11 only; no filtering, participant aggregation, centering, or model fitting.",
+  "rVersion": "4.1.2",
+  "backgroundCompleteCaseFilter": {
+    "enabled": true,
+    "exactCanonicalSettingIds": [
+      "method-setting-2c2fd81770205f5258803415",
+      "method-setting-c5050ba0fae976cbebaa7bf2"
+    ],
+    "configurationLocator": ".tmp-literature-review-private/authenticated-cookie-recovery-wave-20260830/retrieved/negative-academic-performance-2020/artifacts/main_models.R:1-4",
+    "operationLocator": ".tmp-literature-review-private/authenticated-cookie-recovery-wave-20260830/retrieved/negative-academic-performance-2020/artifacts/load_data.R:19-21",
+    "rows": [
+      {
+        "highSchoolGpa": 3.5,
+        "parentEducationMax": 16.0,
+        "parentIncomeMean": 5.0,
+        "payload": "complete-a"
+      },
+      {
+        "highSchoolGpa": null,
+        "parentEducationMax": 16.0,
+        "parentIncomeMean": 5.0,
+        "payload": "missing-gpa"
+      },
+      {
+        "highSchoolGpa": 3.5,
+        "parentEducationMax": null,
+        "parentIncomeMean": 5.0,
+        "payload": "missing-education"
+      },
+      {
+        "highSchoolGpa": 3.5,
+        "parentEducationMax": 16.0,
+        "parentIncomeMean": null,
+        "payload": "missing-income"
+      },
+      {
+        "highSchoolGpa": 0.0,
+        "parentEducationMax": 0.0,
+        "parentIncomeMean": 0.0,
+        "payload": "complete-zero"
+      }
+    ],
+    "expectedPayloads": ["complete-a", "complete-zero"]
+  },
+  "cases": [
+    {
+      "caseId": "complete-columns-and-independent-row-missingness",
+      "rows": [
+        {
+          "integerGrade": 50,
+          "screenTime": 1.0,
+          "attendancePercent": 100.0,
+          "parentIncomeMean": 50000.0,
+          "smokeFrequency": 4.0,
+          "courseSemesterId": "COURSE-A_2020_fall",
+          "payload": "row-a"
+        },
+        {
+          "integerGrade": 70,
+          "screenTime": 2.0,
+          "attendancePercent": 87.5,
+          "parentIncomeMean": 0.0,
+          "smokeFrequency": 3.0,
+          "courseSemesterId": "NOSUFFIX",
+          "payload": "row-b"
+        },
+        {
+          "integerGrade": 90,
+          "screenTime": 4.0,
+          "attendancePercent": null,
+          "parentIncomeMean": null,
+          "smokeFrequency": null,
+          "courseSemesterId": null,
+          "payload": "row-c"
+        }
+      ],
+      "expectedGradeSampleSd": "20",
+      "expectedScreenTimeSampleSd": "1.5275252316519468",
+      "expectedRows": [
+        {
+          "skippingPercent": "0",
+          "parentIncomeTenThousands": "5",
+          "screenTimeScaleOnly": "0.6546536707079772",
+          "gradeScaleOnly": "2.5",
+          "smokerIndicator": "0",
+          "courseId": "COURSE-A",
+          "payload": "row-a"
+        },
+        {
+          "skippingPercent": "12.5",
+          "parentIncomeTenThousands": "0",
+          "screenTimeScaleOnly": "1.3093073414159544",
+          "gradeScaleOnly": "3.5",
+          "smokerIndicator": "1",
+          "courseId": "NOSUFFIX",
+          "payload": "row-b"
+        },
+        {
+          "skippingPercent": "NA",
+          "parentIncomeTenThousands": "NA",
+          "screenTimeScaleOnly": "2.618614682831909",
+          "gradeScaleOnly": "4.5",
+          "smokerIndicator": "NA",
+          "courseId": null,
+          "payload": "row-c"
+        }
+      ]
+    },
+    {
+      "caseId": "one-row-sd-is-na",
+      "rows": [
+        {
+          "integerGrade": 2,
+          "screenTime": 3.0,
+          "attendancePercent": 80.0,
+          "parentIncomeMean": 10000.0,
+          "smokeFrequency": 4.000000000000001,
+          "courseSemesterId": "_2020",
+          "payload": "only-row"
+        }
+      ],
+      "expectedGradeSampleSd": "NA",
+      "expectedScreenTimeSampleSd": "NA",
+      "expectedRows": [
+        {
+          "skippingPercent": "20",
+          "parentIncomeTenThousands": "1",
+          "screenTimeScaleOnly": "NA",
+          "gradeScaleOnly": "NA",
+          "smokerIndicator": "1",
+          "courseId": "",
+          "payload": "only-row"
+        }
+      ]
+    },
+    {
+      "caseId": "missing-grade-propagates-only-through-grade-sd",
+      "rows": [
+        {
+          "integerGrade": 2,
+          "screenTime": 1.0,
+          "attendancePercent": 90.0,
+          "parentIncomeMean": 20000.0,
+          "smokeFrequency": -1.0,
+          "courseSemesterId": "A_B_C",
+          "payload": "row-a"
+        },
+        {
+          "integerGrade": null,
+          "screenTime": 2.0,
+          "attendancePercent": 80.0,
+          "parentIncomeMean": 30000.0,
+          "smokeFrequency": 4.0,
+          "courseSemesterId": "A_\nB_C",
+          "payload": "row-b"
+        },
+        {
+          "integerGrade": 4,
+          "screenTime": 3.0,
+          "attendancePercent": 70.0,
+          "parentIncomeMean": 40000.0,
+          "smokeFrequency": 5.0,
+          "courseSemesterId": "C_2021",
+          "payload": "row-c"
+        }
+      ],
+      "expectedGradeSampleSd": "NA",
+      "expectedScreenTimeSampleSd": "1",
+      "expectedRows": [
+        {
+          "skippingPercent": "10",
+          "parentIncomeTenThousands": "2",
+          "screenTimeScaleOnly": "1",
+          "gradeScaleOnly": "NA",
+          "smokerIndicator": "1",
+          "courseId": "A",
+          "payload": "row-a"
+        },
+        {
+          "skippingPercent": "20",
+          "parentIncomeTenThousands": "3",
+          "screenTimeScaleOnly": "2",
+          "gradeScaleOnly": "NA",
+          "smokerIndicator": "0",
+          "courseId": "A\nB_C",
+          "payload": "row-b"
+        },
+        {
+          "skippingPercent": "30",
+          "parentIncomeTenThousands": "4",
+          "screenTimeScaleOnly": "3",
+          "gradeScaleOnly": "NA",
+          "smokerIndicator": "1",
+          "courseId": "C",
+          "payload": "row-c"
+        }
+      ]
+    },
+    {
+      "caseId": "zero-variance-preserves-r-infinity-and-nan",
+      "rows": [
+        {
+          "integerGrade": 2,
+          "screenTime": 0.0,
+          "attendancePercent": null,
+          "parentIncomeMean": null,
+          "smokeFrequency": 4.0,
+          "courseSemesterId": "COURSE_1",
+          "payload": "row-a"
+        },
+        {
+          "integerGrade": 2,
+          "screenTime": 0.0,
+          "attendancePercent": null,
+          "parentIncomeMean": null,
+          "smokeFrequency": 3.0,
+          "courseSemesterId": "COURSE_2",
+          "payload": "row-b"
+        }
+      ],
+      "expectedGradeSampleSd": "0",
+      "expectedScreenTimeSampleSd": "0",
+      "expectedRows": [
+        {
+          "skippingPercent": "NA",
+          "parentIncomeTenThousands": "NA",
+          "screenTimeScaleOnly": "NaN",
+          "gradeScaleOnly": "Inf",
+          "smokerIndicator": "0",
+          "courseId": "COURSE",
+          "payload": "row-a"
+        },
+        {
+          "skippingPercent": "NA",
+          "parentIncomeTenThousands": "NA",
+          "screenTimeScaleOnly": "NaN",
+          "gradeScaleOnly": "Inf",
+          "smokerIndicator": "1",
+          "courseId": "COURSE",
+          "payload": "row-b"
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "The source's preceding as.integer(grade) coercion is an explicit input boundary and is not claimed by these three settings.",
+    "Later sparse-group filtering, participant aggregation, factor conversion, and model fitting are outside this component."
+  ]
+}

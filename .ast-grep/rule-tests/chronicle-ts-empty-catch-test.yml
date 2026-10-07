@@ -1,0 +1,14 @@
+id: chronicle-ts-empty-catch
+valid:
+  - "try { load(); } catch { /* A missing cache is rebuilt on the next run. */ }"
+  - "try { load(); } catch (error) { console.warn(error); }"
+  - "try { load(); } catch {\n  // Optional: storage is unavailable in private mode.\n}"
+  - "promise.catch(() => { /* Best effort: the badge is cosmetic. */ });"
+  - "promise.catch((error) => report(error));"
+  - "promise.then(() => {});"
+  - "if (ready) {}"
+invalid:
+  - "try { load(); } catch {}"
+  - "try { load(); } catch (error) {\n}"
+  - "promise.catch(() => {});"
+  - "promise.catch(function () {});"

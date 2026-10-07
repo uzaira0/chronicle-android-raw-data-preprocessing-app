@@ -1,0 +1,61 @@
+{
+  "schemaVersion": "chronicle-grouped-column-summary-source-fixture/v1",
+  "sourceWorkId": "doi:10.1177/2050157921993896",
+  "sourceCodeSha256": "951d86185cd8d561e5e12c5fc962b4778f16189e6be06284790d1b541f73805b",
+  "sourceLocator": ".tmp-literature-review-private/source-completeness-artifacts/doi-10.1177-2050157921993896/qvj8g/itemSelection_preprocessing.R:20-39",
+  "sourceRuntime": {
+    "originalVersionDisclosure": "not disclosed",
+    "oracleEngine": "R",
+    "oracleVersion": "4.6.1",
+    "oraclePlatform": "aarch64-apple-darwin25.4.0"
+  },
+  "exactCanonicalSettingIds": [
+    "method-setting-f8153027f090225acb723955",
+    "method-setting-892d9b6b5121e2bf37c75722"
+  ],
+  "cases": [
+    {
+      "caseId": "first-seen-groups-and-columnwise-missingness",
+      "rows": [
+        { "group": "B", "values": ["1", "NA", "5"] },
+        { "group": "A", "values": ["2", "4", "NA"] },
+        { "group": "B", "values": ["3", "7", "5"] },
+        { "group": "C", "values": ["NA", "9", "10"] },
+        { "group": "A", "values": ["4", "6", "8"] },
+        { "group": "C", "values": ["NA", "NA", "10"] }
+      ],
+      "expected": [
+        { "group": "B", "means": ["2", "7", "5"], "sampleStandardDeviations": ["1.4142135623730951", "NA", "0"] },
+        { "group": "A", "means": ["3", "5", "8"], "sampleStandardDeviations": ["1.4142135623730951", "1.4142135623730951", "NA"] },
+        { "group": "C", "means": ["NaN", "9", "10"], "sampleStandardDeviations": ["NA", "NA", "0"] }
+      ]
+    },
+    {
+      "caseId": "missing-group-key-follows-released-comparison",
+      "rows": [
+        { "group": "B", "values": ["1", "NA", "5"] },
+        { "group": null, "values": ["2", "4", "NA"] },
+        { "group": "B", "values": ["3", "7", "5"] },
+        { "group": "C", "values": ["NA", "9", "10"] },
+        { "group": "A", "values": ["4", "6", "8"] },
+        { "group": "C", "values": ["NA", "NA", "10"] }
+      ],
+      "expected": [
+        { "group": "B", "means": ["2", "7", "5"], "sampleStandardDeviations": ["1.4142135623730951", "NA", "0"] },
+        { "group": null, "means": ["NaN", "NaN", "NaN"], "sampleStandardDeviations": ["NA", "NA", "NA"] },
+        { "group": "C", "means": ["NaN", "9", "10"], "sampleStandardDeviations": ["NA", "NA", "0"] },
+        { "group": "A", "means": ["4", "6", "8"], "sampleStandardDeviations": ["NA", "NA", "NA"] }
+      ]
+    },
+    {
+      "caseId": "empty-input-errors-at-source-boundary",
+      "rows": [],
+      "expectedError": "empty_input"
+    }
+  ],
+  "limitations": [
+    "The primitive starts after caller-selected item columns have been converted to numeric values; it does not claim the adjacent column-selection or factor-level-recoding settings.",
+    "The released artifacts do not pin an R version, so the fixture records an explicit R 4.6.1 compatibility oracle rather than attributing that version to the study.",
+    "This fixture covers only per-group column means and sample standard deviations, not item selection, ICC or factor-loading filters, questionnaire scoring, or downstream models."
+  ]
+}

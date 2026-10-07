@@ -11,6 +11,8 @@ import {
   BROWSER_SUPPORT_FILE_KEYS,
   OUTPUT_KIND_VALUES,
   RAW_CHRONICLE_COLUMNS,
+  RESEARCH_AXIS_BROWSER_OPTION_KEYS,
+  RESEARCH_AXIS_VALUES_BY_OPTION,
   REQUIRED_RAW_COLUMNS,
   TIMEZONE_HANDLING_VALUES,
 } from "../src/lib/generatedContract";
@@ -20,7 +22,14 @@ const webDir = path.resolve(scriptDir, "..");
 
 type LinkMlDocument = {
   classes: Record<string, { slots?: string[] }>;
-  slots: Record<string, { required?: boolean; range?: string }>;
+  slots: Record<
+    string,
+    {
+      annotations?: Record<string, unknown>;
+      required?: boolean;
+      range?: string;
+    }
+  >;
   enums: Record<string, { permissible_values?: Record<string, unknown> }>;
 };
 
@@ -65,6 +74,9 @@ async function main(): Promise<void> {
   const openapi = await loadYamlDocument<OpenApiDocument>(
     path.join(webDir, "openapi", "chronicle-local-api.yaml"),
   );
+  const ontology = await loadYamlDocument<LinkMlDocument>(
+    path.join(webDir, "schema", "chronicle-research-ontology.linkml.yaml"),
+  );
 
   const linkmlOptionSlots =
     linkml.classes.BrowserProcessingOptions?.slots?.map((slot) => snakeToCamel(slot)) ?? [];
@@ -81,6 +93,79 @@ async function main(): Promise<void> {
     "BrowserProcessingOptions keys vs LinkML slots",
     BROWSER_PROCESSING_OPTION_KEYS,
     linkmlOptionSlots,
+  );
+
+  for (const optionKey of RESEARCH_AXIS_BROWSER_OPTION_KEYS) {
+    const slotName = linkml.classes.BrowserProcessingOptions?.slots?.find(
+      (slot) => snakeToCamel(slot) === optionKey,
+    );
+    if (!slotName) {
+      throw new Error(`Research axis ${optionKey} has no LinkML option slot`);
+    }
+    const enumName = linkml.slots[slotName]?.annotations?.research_axis_enum;
+    if (typeof enumName !== "string") {
+      throw new Error(`Research axis ${optionKey} has no research_axis_enum annotation`);
+    }
+    const generatedValues = RESEARCH_AXIS_VALUES_BY_OPTION[optionKey] as readonly string[];
+    const ontologyValues = Object.keys(
+      ontology.enums[enumName]?.permissible_values ?? {},
+    );
+    const openapiValues =
+      (openapi.components.schemas.BrowserProcessingOptions?.properties?.[
+        optionKey
+      ] as { enum?: string[] })?.enum ?? [];
+    expectEqual(`${optionKey} generated values vs ${enumName}`, generatedValues, ontologyValues);
+    expectEqual(`${optionKey} OpenAPI values`, openapiValues, generatedValues);
+  }
+
+  // A key the kernel reads as a plain string cannot take its values from the
+  // ontology the way a `research_axis_enum` slot does — its range stays a local
+  // contract enum. `research_ontology_enum` is how such a key still gets an
+  // ontology term without being routed through the research-axis generator, and
+  // this loop is what stops the two vocabularies from drifting apart. Without
+  // it the ontology term would be a second, unpoliced declaration of the same
+  // value set, which is exactly the parallel authority the architecture rules
+  // forbid.
+  const ontologyEnumBoundSlots: string[] = [];
+  for (const [slotName, slot] of Object.entries(linkml.slots)) {
+    const ontologyEnumName = slot?.annotations?.research_ontology_enum;
+    if (typeof ontologyEnumName !== "string") continue;
+    ontologyEnumBoundSlots.push(slotName);
+    if (typeof slot?.annotations?.research_axis_enum === "string") {
+      throw new Error(
+        `${slotName} carries both research_axis_enum and research_ontology_enum; a key takes its values from exactly one place`,
+      );
+    }
+    const localEnumName = slot.range;
+    const localValues = Object.keys(
+      (localEnumName && linkml.enums[localEnumName]?.permissible_values) ?? {},
+    );
+    if (localValues.length === 0) {
+      throw new Error(
+        `${slotName} names ontology enum ${ontologyEnumName} but its range ${String(localEnumName)} declares no permissible values`,
+      );
+    }
+    const ontologyValues = Object.keys(
+      ontology.enums[ontologyEnumName]?.permissible_values ?? {},
+    );
+    if (ontologyValues.length === 0) {
+      throw new Error(`the research ontology declares no enum named ${ontologyEnumName}`);
+    }
+    expectEqual(
+      `${slotName} (${String(localEnumName)}) vs research ontology ${ontologyEnumName}`,
+      localValues,
+      ontologyValues,
+    );
+  }
+  // The loop above enrolls a slot only through its own annotation, so a
+  // deleted or misspelled `research_ontology_enum` (or one written in LinkML's
+  // expanded tag/value form, which the string guard skips) would silently
+  // disarm the drift check. This list is the external declaration that keeps
+  // it armed, the way RESEARCH_AXIS_BROWSER_OPTION_KEYS drives the axis loop.
+  expectEqual(
+    "slots bound by research_ontology_enum",
+    ontologyEnumBoundSlots,
+    ["timezone_handling"],
   );
   expectEqual(
     "OpenAPI BrowserProcessingOptions properties vs runtime option keys",

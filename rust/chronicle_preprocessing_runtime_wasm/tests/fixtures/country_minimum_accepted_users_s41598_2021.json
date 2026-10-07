@@ -1,0 +1,52 @@
+{
+  "schemaVersion": "chronicle-group-minimum-count-source-fixture/v1",
+  "sourceWorkId": "doi:10.1038/s41598-021-82294-1",
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-atomic-16230674bb01ce59dc91",
+    "parameterKey": "country.eligibility",
+    "sourceObservedSetting": "country.eligibility: {\"minimum_users\":20000,\"comparator\":\"at_least\"}",
+    "sourceValueSha256": "dafc8e3ecc6305a1723193bcf806455230fcfde8ab52c5965a0a87930cbc42fe"
+  },
+  "sourceArtifact": {
+    "locator": ".tmp-literature-review-private/ontology-sublation-20260831/source-completeness-audits/artifacts/doi-10.1038-s41598-021-82294-1/primary.txt:491-506",
+    "sha256": "b7ddc9b09bd959c6f3dd5195abd23bf9b96f5890d76f24fd66995b26d822aba1"
+  },
+  "inputBoundary": "One already-derived nonnegative integer count of distinct users who accepted the study terms of service per country.",
+  "outputBoundary": "Include a country only when its supplied accepted-user count is at least 20,000; equality is included.",
+  "limitations": [
+    "This binding does not determine whether a user accepted the study terms of service.",
+    "This binding does not identify or deduplicate users or attribute them to countries.",
+    "This binding does not group records or derive country-level accepted-user counts.",
+    "A missing country count fails closed rather than being interpreted as zero.",
+    "The 20,000-person public sample is not used as evidence for any country's eligibility count."
+  ],
+  "minimumIncludedCount": 20000,
+  "dispositions": ["exclude_country", "include_country"],
+  "countries": [
+    {
+      "countryId": "none",
+      "acceptedUserCount": 0,
+      "expectedDisposition": "exclude_country"
+    },
+    {
+      "countryId": "immediately-below",
+      "acceptedUserCount": 19999,
+      "expectedDisposition": "exclude_country"
+    },
+    {
+      "countryId": "at-boundary",
+      "acceptedUserCount": 20000,
+      "expectedDisposition": "include_country"
+    },
+    {
+      "countryId": "above-boundary",
+      "acceptedUserCount": 20001,
+      "expectedDisposition": "include_country"
+    }
+  ],
+  "missingCountCase": {
+    "countryId": "missing-count",
+    "acceptedUserCount": null,
+    "expectedError": "country_accepted_user_count_required"
+  }
+}

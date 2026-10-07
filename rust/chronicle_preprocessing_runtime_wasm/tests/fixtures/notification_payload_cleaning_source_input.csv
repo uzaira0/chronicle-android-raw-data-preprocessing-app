@@ -1,0 +1,466 @@
+"source_row_id","Code","Time","Data","study_week","intervention_group"
+"literal-1","P1","2024-02-29 23:59:58","XAndroid-System123456textdiscarded payload","0","0"
+"wildcard-1","P1","2024-02-29 23:59:58","XAndroid-System123456textdiscarded payload","0","0"
+"newline-1","P1","2024-02-29 23:59:58","XAndroid-System123456textdiscarded payload","0","0"
+"case-1","P1","2024-02-29 23:59:58","Xandroid-System123456textdiscarded payload","0","0"
+"literal-2","P1","2024-02-29 23:59:58","XAndroid-systeem123456textdiscarded payload","0","0"
+"wildcard-2","P1","2024-02-29 23:59:58","XAndroid-systeem123456textdiscarded payload","0","0"
+"newline-2","P1","2024-02-29 23:59:58","XAndroid-systeem123456textdiscarded payload","0","0"
+"case-2","P1","2024-02-29 23:59:58","Xandroid-systeem123456textdiscarded payload","0","0"
+"literal-3","P1","2024-02-29 23:59:58","XAndroid System123456textdiscarded payload","0","0"
+"wildcard-3","P1","2024-02-29 23:59:58","XAndroid System123456textdiscarded payload","0","0"
+"newline-3","P1","2024-02-29 23:59:58","XAndroid System123456textdiscarded payload","0","0"
+"case-3","P1","2024-02-29 23:59:58","Xandroid System123456textdiscarded payload","0","0"
+"literal-4","P1","2024-02-29 23:59:58","XGoogle Play Store123456textdiscarded payload","0","0"
+"wildcard-4","P1","2024-02-29 23:59:58","XGoogle Play Store123456textdiscarded payload","0","0"
+"newline-4","P1","2024-02-29 23:59:58","XGoogle Play Store123456textdiscarded payload","0","0"
+"case-4","P1","2024-02-29 23:59:58","Xgoogle Play Store123456textdiscarded payload","0","0"
+"literal-5","P1","2024-02-29 23:59:58","Xcom.android.system123456textdiscarded payload","0","0"
+"wildcard-5","P1","2024-02-29 23:59:58","XcomXandroidXsystem123456textdiscarded payload","0","0"
+"newline-5","P1","2024-02-29 23:59:58","Xcom
+android
+system123456textdiscarded payload","0","0"
+"case-5","P1","2024-02-29 23:59:58","XCom.android.system123456textdiscarded payload","0","0"
+"literal-6","P1","2024-02-29 23:59:58","Xcom.sec.android.app.camera123456textdiscarded payload","0","0"
+"wildcard-6","P1","2024-02-29 23:59:58","XcomXsecXandroidXappXcamera123456textdiscarded payload","0","0"
+"newline-6","P1","2024-02-29 23:59:58","Xcom
+sec
+android
+app
+camera123456textdiscarded payload","0","0"
+"case-6","P1","2024-02-29 23:59:58","XCom.sec.android.app.camera123456textdiscarded payload","0","0"
+"literal-7","P1","2024-02-29 23:59:58","Xcom.sec.android.app.clockpackage123456textdiscarded payload","0","0"
+"wildcard-7","P1","2024-02-29 23:59:58","XcomXsecXandroidXappXclockpackage123456textdiscarded payload","0","0"
+"newline-7","P1","2024-02-29 23:59:58","Xcom
+sec
+android
+app
+clockpackage123456textdiscarded payload","0","0"
+"case-7","P1","2024-02-29 23:59:58","XCom.sec.android.app.clockpackage123456textdiscarded payload","0","0"
+"literal-8","P1","2024-02-29 23:59:58","Xandroid.dialer123456textdiscarded payload","0","0"
+"wildcard-8","P1","2024-02-29 23:59:58","XandroidXdialer123456textdiscarded payload","0","0"
+"newline-8","P1","2024-02-29 23:59:58","Xandroid
+dialer123456textdiscarded payload","0","0"
+"case-8","P1","2024-02-29 23:59:58","XAndroid.dialer123456textdiscarded payload","0","0"
+"literal-9","P1","2024-02-29 23:59:58","Xandroid.server.telecom123456textdiscarded payload","0","0"
+"wildcard-9","P1","2024-02-29 23:59:58","XandroidXserverXtelecom123456textdiscarded payload","0","0"
+"newline-9","P1","2024-02-29 23:59:58","Xandroid
+server
+telecom123456textdiscarded payload","0","0"
+"case-9","P1","2024-02-29 23:59:58","XAndroid.server.telecom123456textdiscarded payload","0","0"
+"literal-10","P1","2024-02-29 23:59:58","Xcom.wdc.gza123456textdiscarded payload","0","0"
+"wildcard-10","P1","2024-02-29 23:59:58","XcomXwdcXgza123456textdiscarded payload","0","0"
+"newline-10","P1","2024-02-29 23:59:58","Xcom
+wdc
+gza123456textdiscarded payload","0","0"
+"case-10","P1","2024-02-29 23:59:58","XCom.wdc.gza123456textdiscarded payload","0","0"
+"literal-11","P1","2024-02-29 23:59:58","Xcom.samsung.android.bixby123456textdiscarded payload","0","0"
+"wildcard-11","P1","2024-02-29 23:59:58","XcomXsamsungXandroidXbixby123456textdiscarded payload","0","0"
+"newline-11","P1","2024-02-29 23:59:58","Xcom
+samsung
+android
+bixby123456textdiscarded payload","0","0"
+"case-11","P1","2024-02-29 23:59:58","XCom.samsung.android.bixby123456textdiscarded payload","0","0"
+"literal-12","P1","2024-02-29 23:59:58","Xcom.sonyericsson.digitalclockwidget123456textdiscarded payload","0","0"
+"wildcard-12","P1","2024-02-29 23:59:58","XcomXsonyericssonXdigitalclockwidget123456textdiscarded payload","0","0"
+"newline-12","P1","2024-02-29 23:59:58","Xcom
+sonyericsson
+digitalclockwidget123456textdiscarded payload","0","0"
+"case-12","P1","2024-02-29 23:59:58","XCom.sonyericsson.digitalclockwidget123456textdiscarded payload","0","0"
+"literal-13","P1","2024-02-29 23:59:58","Xsonyericsson.organizer123456textdiscarded payload","0","0"
+"wildcard-13","P1","2024-02-29 23:59:58","XsonyericssonXorganizer123456textdiscarded payload","0","0"
+"newline-13","P1","2024-02-29 23:59:58","Xsonyericsson
+organizer123456textdiscarded payload","0","0"
+"case-13","P1","2024-02-29 23:59:58","XSonyericsson.organizer123456textdiscarded payload","0","0"
+"literal-14","P1","2024-02-29 23:59:58","Xandroid.deskclock123456textdiscarded payload","0","0"
+"wildcard-14","P1","2024-02-29 23:59:58","XandroidXdeskclock123456textdiscarded payload","0","0"
+"newline-14","P1","2024-02-29 23:59:58","Xandroid
+deskclock123456textdiscarded payload","0","0"
+"case-14","P1","2024-02-29 23:59:58","XAndroid.deskclock123456textdiscarded payload","0","0"
+"literal-15","P1","2024-02-29 23:59:58","Xcom.samsung.android.app.smartcapture123456textdiscarded payload","0","0"
+"wildcard-15","P1","2024-02-29 23:59:58","XcomXsamsungXandroidXappXsmartcapture123456textdiscarded payload","0","0"
+"newline-15","P1","2024-02-29 23:59:58","Xcom
+samsung
+android
+app
+smartcapture123456textdiscarded payload","0","0"
+"case-15","P1","2024-02-29 23:59:58","XCom.samsung.android.app.smartcapture123456textdiscarded payload","0","0"
+"literal-16","P1","2024-02-29 23:59:58","Xcom.android.phone123456textdiscarded payload","0","0"
+"wildcard-16","P1","2024-02-29 23:59:58","XcomXandroidXphone123456textdiscarded payload","0","0"
+"newline-16","P1","2024-02-29 23:59:58","Xcom
+android
+phone123456textdiscarded payload","0","0"
+"case-16","P1","2024-02-29 23:59:58","XCom.android.phone123456textdiscarded payload","0","0"
+"literal-17","P1","2024-02-29 23:59:58","Xcom.samsung.android.fast123456textdiscarded payload","0","0"
+"wildcard-17","P1","2024-02-29 23:59:58","XcomXsamsungXandroidXfast123456textdiscarded payload","0","0"
+"newline-17","P1","2024-02-29 23:59:58","Xcom
+samsung
+android
+fast123456textdiscarded payload","0","0"
+"case-17","P1","2024-02-29 23:59:58","XCom.samsung.android.fast123456textdiscarded payload","0","0"
+"literal-18","P1","2024-02-29 23:59:58","Xandroid.incallui123456textdiscarded payload","0","0"
+"wildcard-18","P1","2024-02-29 23:59:58","XandroidXincallui123456textdiscarded payload","0","0"
+"newline-18","P1","2024-02-29 23:59:58","Xandroid
+incallui123456textdiscarded payload","0","0"
+"case-18","P1","2024-02-29 23:59:58","XAndroid.incallui123456textdiscarded payload","0","0"
+"literal-19","P1","2024-02-29 23:59:58","Xcom.motorola.camera123456textdiscarded payload","0","0"
+"wildcard-19","P1","2024-02-29 23:59:58","XcomXmotorolaXcamera123456textdiscarded payload","0","0"
+"newline-19","P1","2024-02-29 23:59:58","Xcom
+motorola
+camera123456textdiscarded payload","0","0"
+"case-19","P1","2024-02-29 23:59:58","XCom.motorola.camera123456textdiscarded payload","0","0"
+"literal-20","P1","2024-02-29 23:59:58","Xandroid.apps.photos123456textdiscarded payload","0","0"
+"wildcard-20","P1","2024-02-29 23:59:58","XandroidXappsXphotos123456textdiscarded payload","0","0"
+"newline-20","P1","2024-02-29 23:59:58","Xandroid
+apps
+photos123456textdiscarded payload","0","0"
+"case-20","P1","2024-02-29 23:59:58","XAndroid.apps.photos123456textdiscarded payload","0","0"
+"literal-21","P1","2024-02-29 23:59:58","XSistema123456textdiscarded payload","0","0"
+"wildcard-21","P1","2024-02-29 23:59:58","XSistema123456textdiscarded payload","0","0"
+"newline-21","P1","2024-02-29 23:59:58","XSistema123456textdiscarded payload","0","0"
+"case-21","P1","2024-02-29 23:59:58","Xsistema123456textdiscarded payload","0","0"
+"literal-22","P1","2024-02-29 23:59:58","XAndroid 系统123456textdiscarded payload","0","0"
+"wildcard-22","P1","2024-02-29 23:59:58","XAndroid 系统123456textdiscarded payload","0","0"
+"newline-22","P1","2024-02-29 23:59:58","XAndroid 系统123456textdiscarded payload","0","0"
+"case-22","P1","2024-02-29 23:59:58","Xandroid 系统123456textdiscarded payload","0","0"
+"literal-23","P1","2024-02-29 23:59:58","XSystem', 'android123456textdiscarded payload","0","0"
+"wildcard-23","P1","2024-02-29 23:59:58","XSystem', 'android123456textdiscarded payload","0","0"
+"newline-23","P1","2024-02-29 23:59:58","XSystem', 'android123456textdiscarded payload","0","0"
+"case-23","P1","2024-02-29 23:59:58","Xsystem', 'android123456textdiscarded payload","0","0"
+"literal-24","P1","2024-02-29 23:59:58","Xcom.oneplus.deskclock123456textdiscarded payload","0","0"
+"wildcard-24","P1","2024-02-29 23:59:58","XcomXoneplusXdeskclock123456textdiscarded payload","0","0"
+"newline-24","P1","2024-02-29 23:59:58","Xcom
+oneplus
+deskclock123456textdiscarded payload","0","0"
+"case-24","P1","2024-02-29 23:59:58","XCom.oneplus.deskclock123456textdiscarded payload","0","0"
+"literal-25","P1","2024-02-29 23:59:58","XGoogle Play-services123456textdiscarded payload","0","0"
+"wildcard-25","P1","2024-02-29 23:59:58","XGoogle Play-services123456textdiscarded payload","0","0"
+"newline-25","P1","2024-02-29 23:59:58","XGoogle Play-services123456textdiscarded payload","0","0"
+"case-25","P1","2024-02-29 23:59:58","Xgoogle Play-services123456textdiscarded payload","0","0"
+"literal-26","P1","2024-02-29 23:59:58","XEdge screen123456textdiscarded payload","0","0"
+"wildcard-26","P1","2024-02-29 23:59:58","XEdge screen123456textdiscarded payload","0","0"
+"newline-26","P1","2024-02-29 23:59:58","XEdge screen123456textdiscarded payload","0","0"
+"case-26","P1","2024-02-29 23:59:58","Xedge screen123456textdiscarded payload","0","0"
+"literal-27","P1","2024-02-29 23:59:58","Xcom.google.android.googlequicksearchbox123456textdiscarded payload","0","0"
+"wildcard-27","P1","2024-02-29 23:59:58","XcomXgoogleXandroidXgooglequicksearchbox123456textdiscarded payload","0","0"
+"newline-27","P1","2024-02-29 23:59:58","Xcom
+google
+android
+googlequicksearchbox123456textdiscarded payload","0","0"
+"case-27","P1","2024-02-29 23:59:58","XCom.google.android.googlequicksearchbox123456textdiscarded payload","0","0"
+"literal-28","P1","2024-02-29 23:59:58","XGoogle Play services123456textdiscarded payload","0","0"
+"wildcard-28","P1","2024-02-29 23:59:58","XGoogle Play services123456textdiscarded payload","0","0"
+"newline-28","P1","2024-02-29 23:59:58","XGoogle Play services123456textdiscarded payload","0","0"
+"case-28","P1","2024-02-29 23:59:58","Xgoogle Play services123456textdiscarded payload","0","0"
+"literal-29","P1","2024-02-29 23:59:58","Xcom.samsung.android.app.reminder123456textdiscarded payload","0","0"
+"wildcard-29","P1","2024-02-29 23:59:58","XcomXsamsungXandroidXappXreminder123456textdiscarded payload","0","0"
+"newline-29","P1","2024-02-29 23:59:58","Xcom
+samsung
+android
+app
+reminder123456textdiscarded payload","0","0"
+"case-29","P1","2024-02-29 23:59:58","XCom.samsung.android.app.reminder123456textdiscarded payload","0","0"
+"literal-30","P1","2024-02-29 23:59:58","Xcom.huawei.mediacontroller123456textdiscarded payload","0","0"
+"wildcard-30","P1","2024-02-29 23:59:58","XcomXhuaweiXmediacontroller123456textdiscarded payload","0","0"
+"newline-30","P1","2024-02-29 23:59:58","Xcom
+huawei
+mediacontroller123456textdiscarded payload","0","0"
+"case-30","P1","2024-02-29 23:59:58","XCom.huawei.mediacontroller123456textdiscarded payload","0","0"
+"literal-31","P1","2024-02-29 23:59:58","XGame Booster123456textdiscarded payload","0","0"
+"wildcard-31","P1","2024-02-29 23:59:58","XGame Booster123456textdiscarded payload","0","0"
+"newline-31","P1","2024-02-29 23:59:58","XGame Booster123456textdiscarded payload","0","0"
+"case-31","P1","2024-02-29 23:59:58","Xgame Booster123456textdiscarded payload","0","0"
+"literal-32","P1","2024-02-29 23:59:58","Xandroid.calendar123456textdiscarded payload","0","0"
+"wildcard-32","P1","2024-02-29 23:59:58","XandroidXcalendar123456textdiscarded payload","0","0"
+"newline-32","P1","2024-02-29 23:59:58","Xandroid
+calendar123456textdiscarded payload","0","0"
+"case-32","P1","2024-02-29 23:59:58","XAndroid.calendar123456textdiscarded payload","0","0"
+"literal-33","P1","2024-02-29 23:59:58","XSystem"", ""android123456textdiscarded payload","0","0"
+"wildcard-33","P1","2024-02-29 23:59:58","XSystem"", ""android123456textdiscarded payload","0","0"
+"newline-33","P1","2024-02-29 23:59:58","XSystem"", ""android123456textdiscarded payload","0","0"
+"case-33","P1","2024-02-29 23:59:58","Xsystem"", ""android123456textdiscarded payload","0","0"
+"literal-34","P1","2024-02-29 23:59:58","Xcom.coloros.alarmclock123456textdiscarded payload","0","0"
+"wildcard-34","P1","2024-02-29 23:59:58","XcomXcolorosXalarmclock123456textdiscarded payload","0","0"
+"newline-34","P1","2024-02-29 23:59:58","Xcom
+coloros
+alarmclock123456textdiscarded payload","0","0"
+"case-34","P1","2024-02-29 23:59:58","XCom.coloros.alarmclock123456textdiscarded payload","0","0"
+"literal-35","P1","2024-02-29 23:59:58","XRing"", ""com.ringapp123456textdiscarded payload","0","0"
+"wildcard-35","P1","2024-02-29 23:59:58","XRing"", ""comXringapp123456textdiscarded payload","0","0"
+"newline-35","P1","2024-02-29 23:59:58","XRing"", ""com
+ringapp123456textdiscarded payload","0","0"
+"case-35","P1","2024-02-29 23:59:58","Xring"", ""com.ringapp123456textdiscarded payload","0","0"
+"literal-36","P1","2024-02-29 23:59:58","XAndroid system123456textdiscarded payload","0","0"
+"wildcard-36","P1","2024-02-29 23:59:58","XAndroid system123456textdiscarded payload","0","0"
+"newline-36","P1","2024-02-29 23:59:58","XAndroid system123456textdiscarded payload","0","0"
+"case-36","P1","2024-02-29 23:59:58","Xandroid system123456textdiscarded payload","0","0"
+"literal-37","P1","2024-02-29 23:59:58","Xcom.google.android.apps.maps123456textdiscarded payload","0","0"
+"wildcard-37","P1","2024-02-29 23:59:58","XcomXgoogleXandroidXappsXmaps123456textdiscarded payload","0","0"
+"newline-37","P1","2024-02-29 23:59:58","Xcom
+google
+android
+apps
+maps123456textdiscarded payload","0","0"
+"case-37","P1","2024-02-29 23:59:58","XCom.google.android.apps.maps123456textdiscarded payload","0","0"
+"literal-38","P1","2024-02-29 23:59:58","Xcom.samsung.android.app.telephonyui123456textdiscarded payload","0","0"
+"wildcard-38","P1","2024-02-29 23:59:58","XcomXsamsungXandroidXappXtelephonyui123456textdiscarded payload","0","0"
+"newline-38","P1","2024-02-29 23:59:58","Xcom
+samsung
+android
+app
+telephonyui123456textdiscarded payload","0","0"
+"case-38","P1","2024-02-29 23:59:58","XCom.samsung.android.app.telephonyui123456textdiscarded payload","0","0"
+"literal-39","P1","2024-02-29 23:59:58","Xcom.sec.imsservice123456textdiscarded payload","0","0"
+"wildcard-39","P1","2024-02-29 23:59:58","XcomXsecXimsservice123456textdiscarded payload","0","0"
+"newline-39","P1","2024-02-29 23:59:58","Xcom
+sec
+imsservice123456textdiscarded payload","0","0"
+"case-39","P1","2024-02-29 23:59:58","XCom.sec.imsservice123456textdiscarded payload","0","0"
+"literal-40","P1","2024-02-29 23:59:58","XSoftware update123456textdiscarded payload","0","0"
+"wildcard-40","P1","2024-02-29 23:59:58","XSoftware update123456textdiscarded payload","0","0"
+"newline-40","P1","2024-02-29 23:59:58","XSoftware update123456textdiscarded payload","0","0"
+"case-40","P1","2024-02-29 23:59:58","Xsoftware update123456textdiscarded payload","0","0"
+"literal-41","P1","2024-02-29 23:59:58","Xcom.immediasemi.android123456textdiscarded payload","0","0"
+"wildcard-41","P1","2024-02-29 23:59:58","XcomXimmediasemiXandroid123456textdiscarded payload","0","0"
+"newline-41","P1","2024-02-29 23:59:58","Xcom
+immediasemi
+android123456textdiscarded payload","0","0"
+"case-41","P1","2024-02-29 23:59:58","XCom.immediasemi.android123456textdiscarded payload","0","0"
+"literal-42","P1","2024-02-29 23:59:58","Xcom.smartaddx.vicohome123456textdiscarded payload","0","0"
+"wildcard-42","P1","2024-02-29 23:59:58","XcomXsmartaddxXvicohome123456textdiscarded payload","0","0"
+"newline-42","P1","2024-02-29 23:59:58","Xcom
+smartaddx
+vicohome123456textdiscarded payload","0","0"
+"case-42","P1","2024-02-29 23:59:58","XCom.smartaddx.vicohome123456textdiscarded payload","0","0"
+"literal-43","P1","2024-02-29 23:59:58","Xcom.sec.android.app.samsungapps123456textdiscarded payload","0","0"
+"wildcard-43","P1","2024-02-29 23:59:58","XcomXsecXandroidXappXsamsungapps123456textdiscarded payload","0","0"
+"newline-43","P1","2024-02-29 23:59:58","Xcom
+sec
+android
+app
+samsungapps123456textdiscarded payload","0","0"
+"case-43","P1","2024-02-29 23:59:58","XCom.sec.android.app.samsungapps123456textdiscarded payload","0","0"
+"literal-44","P1","2024-02-29 23:59:58","Xcom.xiaomi.bsp.gps.nps123456textdiscarded payload","0","0"
+"wildcard-44","P1","2024-02-29 23:59:58","XcomXxiaomiXbspXgpsXnps123456textdiscarded payload","0","0"
+"newline-44","P1","2024-02-29 23:59:58","Xcom
+xiaomi
+bsp
+gps
+nps123456textdiscarded payload","0","0"
+"case-44","P1","2024-02-29 23:59:58","XCom.xiaomi.bsp.gps.nps123456textdiscarded payload","0","0"
+"literal-45","P1","2024-02-29 23:59:58","Xcom.azure.authenticator123456textdiscarded payload","0","0"
+"wildcard-45","P1","2024-02-29 23:59:58","XcomXazureXauthenticator123456textdiscarded payload","0","0"
+"newline-45","P1","2024-02-29 23:59:58","Xcom
+azure
+authenticator123456textdiscarded payload","0","0"
+"case-45","P1","2024-02-29 23:59:58","XCom.azure.authenticator123456textdiscarded payload","0","0"
+"literal-46","P1","2024-02-29 23:59:58","Xcom.google.android.apps.messaging123456textdiscarded payload","0","0"
+"wildcard-46","P1","2024-02-29 23:59:58","XcomXgoogleXandroidXappsXmessaging123456textdiscarded payload","0","0"
+"newline-46","P1","2024-02-29 23:59:58","Xcom
+google
+android
+apps
+messaging123456textdiscarded payload","0","0"
+"case-46","P1","2024-02-29 23:59:58","XCom.google.android.apps.messaging123456textdiscarded payload","0","0"
+"literal-47","P1","2024-02-29 23:59:58","XAlarm Clock Xtreme123456textdiscarded payload","0","0"
+"wildcard-47","P1","2024-02-29 23:59:58","XAlarm Clock Xtreme123456textdiscarded payload","0","0"
+"newline-47","P1","2024-02-29 23:59:58","XAlarm Clock Xtreme123456textdiscarded payload","0","0"
+"case-47","P1","2024-02-29 23:59:58","Xalarm Clock Xtreme123456textdiscarded payload","0","0"
+"literal-48","P1","2024-02-29 23:59:58","XAndroid Auto123456textdiscarded payload","0","0"
+"wildcard-48","P1","2024-02-29 23:59:58","XAndroid Auto123456textdiscarded payload","0","0"
+"newline-48","P1","2024-02-29 23:59:58","XAndroid Auto123456textdiscarded payload","0","0"
+"case-48","P1","2024-02-29 23:59:58","Xandroid Auto123456textdiscarded payload","0","0"
+"literal-49","P1","2024-02-29 23:59:58","Xcom.android.settings123456textdiscarded payload","0","0"
+"wildcard-49","P1","2024-02-29 23:59:58","XcomXandroidXsettings123456textdiscarded payload","0","0"
+"newline-49","P1","2024-02-29 23:59:58","Xcom
+android
+settings123456textdiscarded payload","0","0"
+"case-49","P1","2024-02-29 23:59:58","XCom.android.settings123456textdiscarded payload","0","0"
+"literal-50","P1","2024-02-29 23:59:58","Xcom.google.android.packageinstaller123456textdiscarded payload","0","0"
+"wildcard-50","P1","2024-02-29 23:59:58","XcomXgoogleXandroidXpackageinstaller123456textdiscarded payload","0","0"
+"newline-50","P1","2024-02-29 23:59:58","Xcom
+google
+android
+packageinstaller123456textdiscarded payload","0","0"
+"case-50","P1","2024-02-29 23:59:58","XCom.google.android.packageinstaller123456textdiscarded payload","0","0"
+"literal-51","P1","2024-02-29 23:59:58","Xcom.android.nfc123456textdiscarded payload","0","0"
+"wildcard-51","P1","2024-02-29 23:59:58","XcomXandroidXnfc123456textdiscarded payload","0","0"
+"newline-51","P1","2024-02-29 23:59:58","Xcom
+android
+nfc123456textdiscarded payload","0","0"
+"case-51","P1","2024-02-29 23:59:58","XCom.android.nfc123456textdiscarded payload","0","0"
+"literal-52","P1","2024-02-29 23:59:58","Xcom.huawei.systemmanager123456textdiscarded payload","0","0"
+"wildcard-52","P1","2024-02-29 23:59:58","XcomXhuaweiXsystemmanager123456textdiscarded payload","0","0"
+"newline-52","P1","2024-02-29 23:59:58","Xcom
+huawei
+systemmanager123456textdiscarded payload","0","0"
+"case-52","P1","2024-02-29 23:59:58","XCom.huawei.systemmanager123456textdiscarded payload","0","0"
+"literal-53","P1","2024-02-29 23:59:58","Xcom.google.android.networkstack123456textdiscarded payload","0","0"
+"wildcard-53","P1","2024-02-29 23:59:58","XcomXgoogleXandroidXnetworkstack123456textdiscarded payload","0","0"
+"newline-53","P1","2024-02-29 23:59:58","Xcom
+google
+android
+networkstack123456textdiscarded payload","0","0"
+"case-53","P1","2024-02-29 23:59:58","XCom.google.android.networkstack123456textdiscarded payload","0","0"
+"literal-54","P1","2024-02-29 23:59:58","Xcom.huawei.android.launcher123456textdiscarded payload","0","0"
+"wildcard-54","P1","2024-02-29 23:59:58","XcomXhuaweiXandroidXlauncher123456textdiscarded payload","0","0"
+"newline-54","P1","2024-02-29 23:59:58","Xcom
+huawei
+android
+launcher123456textdiscarded payload","0","0"
+"case-54","P1","2024-02-29 23:59:58","XCom.huawei.android.launcher123456textdiscarded payload","0","0"
+"literal-55","P1","2024-02-29 23:59:58","XSystem launcher123456textdiscarded payload","0","0"
+"wildcard-55","P1","2024-02-29 23:59:58","XSystem launcher123456textdiscarded payload","0","0"
+"newline-55","P1","2024-02-29 23:59:58","XSystem launcher123456textdiscarded payload","0","0"
+"case-55","P1","2024-02-29 23:59:58","Xsystem launcher123456textdiscarded payload","0","0"
+"literal-56","P1","2024-02-29 23:59:58","Xcom.android.bluetooth123456textdiscarded payload","0","0"
+"wildcard-56","P1","2024-02-29 23:59:58","XcomXandroidXbluetooth123456textdiscarded payload","0","0"
+"newline-56","P1","2024-02-29 23:59:58","Xcom
+android
+bluetooth123456textdiscarded payload","0","0"
+"case-56","P1","2024-02-29 23:59:58","XCom.android.bluetooth123456textdiscarded payload","0","0"
+"literal-57","P1","2024-02-29 23:59:58","Xcom.oplus.battery123456textdiscarded payload","0","0"
+"wildcard-57","P1","2024-02-29 23:59:58","XcomXoplusXbattery123456textdiscarded payload","0","0"
+"newline-57","P1","2024-02-29 23:59:58","Xcom
+oplus
+battery123456textdiscarded payload","0","0"
+"case-57","P1","2024-02-29 23:59:58","XCom.oplus.battery123456textdiscarded payload","0","0"
+"literal-58","P1","2024-02-29 23:59:58","XSoftware-update123456textdiscarded payload","0","0"
+"wildcard-58","P1","2024-02-29 23:59:58","XSoftware-update123456textdiscarded payload","0","0"
+"newline-58","P1","2024-02-29 23:59:58","XSoftware-update123456textdiscarded payload","0","0"
+"case-58","P1","2024-02-29 23:59:58","Xsoftware-update123456textdiscarded payload","0","0"
+"literal-59","P1","2024-02-29 23:59:58","Xcom.coloros.gallery3d123456textdiscarded payload","0","0"
+"wildcard-59","P1","2024-02-29 23:59:58","XcomXcolorosXgallery3d123456textdiscarded payload","0","0"
+"newline-59","P1","2024-02-29 23:59:58","Xcom
+coloros
+gallery3d123456textdiscarded payload","0","0"
+"case-59","P1","2024-02-29 23:59:58","XCom.coloros.gallery3d123456textdiscarded payload","0","0"
+"literal-60","P1","2024-02-29 23:59:58","Xcom.sec.android.gallery3d123456textdiscarded payload","0","0"
+"wildcard-60","P1","2024-02-29 23:59:58","XcomXsecXandroidXgallery3d123456textdiscarded payload","0","0"
+"newline-60","P1","2024-02-29 23:59:58","Xcom
+sec
+android
+gallery3d123456textdiscarded payload","0","0"
+"case-60","P1","2024-02-29 23:59:58","XCom.sec.android.gallery3d123456textdiscarded payload","0","0"
+"literal-61","P1","2024-02-29 23:59:58","Xcom.samsung.android.messaging123456textdiscarded payload","0","0"
+"wildcard-61","P1","2024-02-29 23:59:58","XcomXsamsungXandroidXmessaging123456textdiscarded payload","0","0"
+"newline-61","P1","2024-02-29 23:59:58","Xcom
+samsung
+android
+messaging123456textdiscarded payload","0","0"
+"case-61","P1","2024-02-29 23:59:58","XCom.samsung.android.messaging123456textdiscarded payload","0","0"
+"literal-62","P1","2024-02-29 23:59:58","Xcom.sec.android.app.myfiles123456textdiscarded payload","0","0"
+"wildcard-62","P1","2024-02-29 23:59:58","XcomXsecXandroidXappXmyfiles123456textdiscarded payload","0","0"
+"newline-62","P1","2024-02-29 23:59:58","Xcom
+sec
+android
+app
+myfiles123456textdiscarded payload","0","0"
+"case-62","P1","2024-02-29 23:59:58","XCom.sec.android.app.myfiles123456textdiscarded payload","0","0"
+"literal-63","P1","2024-02-29 23:59:58","XOnePlus Launcher123456textdiscarded payload","0","0"
+"wildcard-63","P1","2024-02-29 23:59:58","XOnePlus Launcher123456textdiscarded payload","0","0"
+"newline-63","P1","2024-02-29 23:59:58","XOnePlus Launcher123456textdiscarded payload","0","0"
+"case-63","P1","2024-02-29 23:59:58","XonePlus Launcher123456textdiscarded payload","0","0"
+"literal-64","P1","2024-02-29 23:59:58","Xcom.urbandroid.sleep123456textdiscarded payload","0","0"
+"wildcard-64","P1","2024-02-29 23:59:58","XcomXurbandroidXsleep123456textdiscarded payload","0","0"
+"newline-64","P1","2024-02-29 23:59:58","Xcom
+urbandroid
+sleep123456textdiscarded payload","0","0"
+"case-64","P1","2024-02-29 23:59:58","XCom.urbandroid.sleep123456textdiscarded payload","0","0"
+"literal-65","P1","2024-02-29 23:59:58","Xcom.oneplus.dialer123456textdiscarded payload","0","0"
+"wildcard-65","P1","2024-02-29 23:59:58","XcomXoneplusXdialer123456textdiscarded payload","0","0"
+"newline-65","P1","2024-02-29 23:59:58","Xcom
+oneplus
+dialer123456textdiscarded payload","0","0"
+"case-65","P1","2024-02-29 23:59:58","XCom.oneplus.dialer123456textdiscarded payload","0","0"
+"literal-66","P1","2024-02-29 23:59:58","XSamsung Keyboard123456textdiscarded payload","0","0"
+"wildcard-66","P1","2024-02-29 23:59:58","XSamsung Keyboard123456textdiscarded payload","0","0"
+"newline-66","P1","2024-02-29 23:59:58","XSamsung Keyboard123456textdiscarded payload","0","0"
+"case-66","P1","2024-02-29 23:59:58","Xsamsung Keyboard123456textdiscarded payload","0","0"
+"literal-67","P1","2024-02-29 23:59:58","Xcom.samsung.android.app.cocktailbarservice123456textdiscarded payload","0","0"
+"wildcard-67","P1","2024-02-29 23:59:58","XcomXsamsungXandroidXappXcocktailbarservice123456textdiscarded payload","0","0"
+"newline-67","P1","2024-02-29 23:59:58","Xcom
+samsung
+android
+app
+cocktailbarservice123456textdiscarded payload","0","0"
+"case-67","P1","2024-02-29 23:59:58","XCom.samsung.android.app.cocktailbarservice123456textdiscarded payload","0","0"
+"literal-68","P1","2024-02-29 23:59:58","Xcom.google.android.gms123456textdiscarded payload","0","0"
+"wildcard-68","P1","2024-02-29 23:59:58","XcomXgoogleXandroidXgms123456textdiscarded payload","0","0"
+"newline-68","P1","2024-02-29 23:59:58","Xcom
+google
+android
+gms123456textdiscarded payload","0","0"
+"case-68","P1","2024-02-29 23:59:58","XCom.google.android.gms123456textdiscarded payload","0","0"
+"literal-69","P1","2024-02-29 23:59:58","Xcom.android.mms123456textdiscarded payload","0","0"
+"wildcard-69","P1","2024-02-29 23:59:58","XcomXandroidXmms123456textdiscarded payload","0","0"
+"newline-69","P1","2024-02-29 23:59:58","Xcom
+android
+mms123456textdiscarded payload","0","0"
+"case-69","P1","2024-02-29 23:59:58","XCom.android.mms123456textdiscarded payload","0","0"
+"literal-70","P1","2024-02-29 23:59:58","Xcom.yunyi.smartcamera123456textdiscarded payload","0","0"
+"wildcard-70","P1","2024-02-29 23:59:58","XcomXyunyiXsmartcamera123456textdiscarded payload","0","0"
+"newline-70","P1","2024-02-29 23:59:58","Xcom
+yunyi
+smartcamera123456textdiscarded payload","0","0"
+"case-70","P1","2024-02-29 23:59:58","XCom.yunyi.smartcamera123456textdiscarded payload","0","0"
+"literal-71","P1","2024-02-29 23:59:58","Xcom.android.chrome123456textdiscarded payload","0","0"
+"wildcard-71","P1","2024-02-29 23:59:58","XcomXandroidXchrome123456textdiscarded payload","0","0"
+"newline-71","P1","2024-02-29 23:59:58","Xcom
+android
+chrome123456textdiscarded payload","0","0"
+"case-71","P1","2024-02-29 23:59:58","XCom.android.chrome123456textdiscarded payload","0","0"
+"literal-72","P1","2024-02-29 23:59:58","Xcom.sec.android.app.sbrowser123456textdiscarded payload","0","0"
+"wildcard-72","P1","2024-02-29 23:59:58","XcomXsecXandroidXappXsbrowser123456textdiscarded payload","0","0"
+"newline-72","P1","2024-02-29 23:59:58","Xcom
+sec
+android
+app
+sbrowser123456textdiscarded payload","0","0"
+"case-72","P1","2024-02-29 23:59:58","XCom.sec.android.app.sbrowser123456textdiscarded payload","0","0"
+"literal-73","P1","2024-02-29 23:59:58","XSystem apps updater123456textdiscarded payload","0","0"
+"wildcard-73","P1","2024-02-29 23:59:58","XSystem apps updater123456textdiscarded payload","0","0"
+"newline-73","P1","2024-02-29 23:59:58","XSystem apps updater123456textdiscarded payload","0","0"
+"case-73","P1","2024-02-29 23:59:58","Xsystem apps updater123456textdiscarded payload","0","0"
+"literal-74","P1","2024-02-29 23:59:58","XMi Browser123456textdiscarded payload","0","0"
+"wildcard-74","P1","2024-02-29 23:59:58","XMi Browser123456textdiscarded payload","0","0"
+"newline-74","P1","2024-02-29 23:59:58","XMi Browser123456textdiscarded payload","0","0"
+"case-74","P1","2024-02-29 23:59:58","Xmi Browser123456textdiscarded payload","0","0"
+"literal-75","P1","2024-02-29 23:59:58","XSystem Android123456textdiscarded payload","0","0"
+"wildcard-75","P1","2024-02-29 23:59:58","XSystem Android123456textdiscarded payload","0","0"
+"newline-75","P1","2024-02-29 23:59:58","XSystem Android123456textdiscarded payload","0","0"
+"case-75","P1","2024-02-29 23:59:58","Xsystem Android123456textdiscarded payload","0","0"
+"literal-76","P1","2024-02-29 23:59:58","XOneDrive123456textdiscarded payload","0","0"
+"wildcard-76","P1","2024-02-29 23:59:58","XOneDrive123456textdiscarded payload","0","0"
+"newline-76","P1","2024-02-29 23:59:58","XOneDrive123456textdiscarded payload","0","0"
+"case-76","P1","2024-02-29 23:59:58","XoneDrive123456textdiscarded payload","0","0"
+"literal-77","P1","2024-02-29 23:59:58","Xcom.ecosia.android123456textdiscarded payload","0","0"
+"wildcard-77","P1","2024-02-29 23:59:58","XcomXecosiaXandroid123456textdiscarded payload","0","0"
+"newline-77","P1","2024-02-29 23:59:58","Xcom
+ecosia
+android123456textdiscarded payload","0","0"
+"case-77","P1","2024-02-29 23:59:58","XCom.ecosia.android123456textdiscarded payload","0","0"
+"literal-78","P1","2024-02-29 23:59:58","XWireless Settings123456textdiscarded payload","0","0"
+"wildcard-78","P1","2024-02-29 23:59:58","XWireless Settings123456textdiscarded payload","0","0"
+"newline-78","P1","2024-02-29 23:59:58","XWireless Settings123456textdiscarded payload","0","0"
+"case-78","P1","2024-02-29 23:59:58","Xwireless Settings123456textdiscarded payload","0","0"
+"literal-79","P1","2024-02-29 23:59:58","XGoogle Play Services123456textdiscarded payload","0","0"
+"wildcard-79","P1","2024-02-29 23:59:58","XGoogle Play Services123456textdiscarded payload","0","0"
+"newline-79","P1","2024-02-29 23:59:58","XGoogle Play Services123456textdiscarded payload","0","0"
+"case-79","P1","2024-02-29 23:59:58","Xgoogle Play Services123456textdiscarded payload","0","0"
+"ordinary","P1","2024-02-29 23:59:58","XOrdinary App123456textdiscarded payload","0","0"
+"empty","P1","2024-02-29 23:59:58","","0","0"
+"short","P1","2024-02-29 23:59:58","abc","0","0"
+"no-marker","P1","2024-02-29 23:59:58","abcdefghi","0","0"
+"first-marker","P1","2024-02-29 23:59:58","text123456textafter","0","0"
+"two-markers","P1","2024-02-29 23:59:58","XKeep123456textfirsttextsecond","0","0"
+"unicode","P1","2024-02-29 23:59:58","Xé漢🙂é123456textdiscarded payload","0","0"
+"newline-payload","P1","2024-02-29 23:59:58","XOrdinary App123456text
+private tail","0","0"
+"date-only","P1","2024-02-29","XCalendar123456textdiscarded payload","0","0"
+"literal-offset","P1","2024-02-29T23:59:58-08:00","XClock123456textdiscarded payload","0","0"
+"literal-fraction","P1","2024-02-29 23:59:58.125","XClock123456textdiscarded payload","0","0"
+"literal-not-a-clock","P1","2024-02-29 ABCDEFGHIJ","XClock123456textdiscarded payload","0","0"
+"duplicate","P1","2024-02-29 23:59:58","XOrdinary App123456textdiscarded payload","0","0"
+"duplicate","P1","2024-02-29 23:59:58","XOrdinary App123456textdiscarded payload","0","0"
+"exact-test-code","hmK3i4czcpB7qOiAg0","not a date","ignored","0","0"

@@ -17,6 +17,7 @@ import {
   installDeterministicRuntime,
   parseCsv,
   processFiles,
+  RESULT_PANEL_TIMEOUT_MS,
   setInputFile,
   setRawFiles,
   trackExternalRequests,
@@ -116,8 +117,9 @@ test("every edited setting round-trips through reload", async ({ page }) => {
   await page.getByTestId("toggle-parallelProcessing").check();
   await page.getByTestId("parallel-max-workers-input").fill("4");
 
-  await page.reload();
-  await installDeterministicRuntime(page);
+  // One navigation reboots the app (the init script from the first load still
+  // applies). A reload followed at once by a goto aborted the reload's boot
+  // fetches, which surfaced as an uncaught "Failed to fetch".
   await gotoApp(page);
 
   await expect(page.getByTestId("study-name-input")).toHaveValue("EXPERT pilot");
@@ -182,7 +184,7 @@ test("drives the full review + A/B comparison workflow in the View tab", async (
   await page.getByTestId("review-compare-toggle").click();
   const drawer = page.getByTestId("review-compare-drawer");
   await expect(drawer).toBeVisible();
-  await drawer.getByTestId("minimum-usage-duration-input").fill("999999");
+  await drawer.getByTestId("minimum-usage-duration-input").fill("3600"); // the allowed maximum
   await page.getByTestId("review-run-comparison").click();
   await expect(page.getByTestId("review-mcard-b")).toBeVisible();
   await expect(page.getByTestId("review-mcard-delta")).toBeVisible();
@@ -206,7 +208,9 @@ test("a power user can re-run with parquet only after toggling other exports off
   await page.getByRole("tab", { name: /Settings/i }).click();
   await page.getByTestId("toggle-enableParquetExport").uncheck();
   await processFiles(page);
-  await expect(page.getByTestId("download-parquet-zip")).toHaveCount(0);
+  // processFiles returns on the previous run's still-visible panel; the new
+  // run's results replace it once it finishes.
+  await expect(page.getByTestId("download-parquet-zip")).toHaveCount(0, { timeout: RESULT_PANEL_TIMEOUT_MS });
   const rows = parseCsv(await downloadCsv(page, "download-app-csv"));
   expect(rows.length).toBeGreaterThan(0);
   assertNoExternalRequests(requestTracker);

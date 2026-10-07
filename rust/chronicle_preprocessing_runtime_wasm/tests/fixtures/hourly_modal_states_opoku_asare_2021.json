@@ -1,0 +1,78 @@
+{
+  "schemaVersion": "chronicle-hourly-modal-states-source-fixture/v1",
+  "sourceWorkId": "doi:10.2196/26540",
+  "exactCanonicalSettings": [
+    {
+      "settingId": "method-setting-30a656701f4f3ab15c76e2f6",
+      "parameterKey": "feature.hourly_screen_state",
+      "sourceValue": "modal screen status for each hour",
+      "sourceValueSha256": "78aa4df17339273af360ccb7ca7903865e364dc618aa99a6c8a4de1b4bd860fe"
+    },
+    {
+      "settingId": "method-setting-4ba32f01e20f10d7a52c7259",
+      "parameterKey": "feature.hourly_internet_state",
+      "sourceValue": "modal internet-connectivity state for each hour",
+      "sourceValueSha256": "c442e8784aa9b05d16d02c16ef306388148bda65b6256658e9151b3b318d9412"
+    }
+  ],
+  "sourceArtifact": {
+    "locator": ".tmp-literature-review-private/corrective-packet-04-ranks-074-123-20260831/text/100.txt:243-256",
+    "sha256": "a4683ab2ede60c1fb9ebae8c57bd55fdb71cae47ee1a1ade10318ab943f1ad69"
+  },
+  "inputBoundary": "Categorical states already assigned to caller-reconstructed participant, source-local day, and integer hour groups.",
+  "outputBoundary": "The uniquely most frequent state and its observation frequency for each observed participant/day/hour group.",
+  "limitations": [
+    "This binding does not parse timestamps, select a timezone, or construct participant/day/hour groups.",
+    "This binding does not derive screen or connectivity state categories from raw records.",
+    "The paper does not disclose a tied-mode rule, so tied maximum frequencies fail closed.",
+    "Groups with no supplied observations are not synthesized or zero-filled.",
+    "Observation frequency is used for the categorical mode; no duration weighting is inferred."
+  ],
+  "streams": [
+    {
+      "parameterKey": "feature.hourly_screen_state",
+      "observations": [
+        {"participantId": "P01", "sourceDayId": "2018-03-01", "hourOfDay": 9, "category": "screen_on"},
+        {"participantId": "P01", "sourceDayId": "2018-03-01", "hourOfDay": 9, "category": "screen_off"},
+        {"participantId": "P01", "sourceDayId": "2018-03-01", "hourOfDay": 9, "category": "screen_on"},
+        {"participantId": "P01", "sourceDayId": "2018-03-01", "hourOfDay": 10, "category": "screen_off"},
+        {"participantId": "P02", "sourceDayId": "2018-03-01", "hourOfDay": 9, "category": "screen_off"},
+        {"participantId": "P02", "sourceDayId": "2018-03-01", "hourOfDay": 9, "category": "screen_off"}
+      ],
+      "expectedObservedGroups": [
+        {"participantId": "P01", "sourceDayId": "2018-03-01", "hourOfDay": 9, "category": "screen_on", "frequency": 2},
+        {"participantId": "P01", "sourceDayId": "2018-03-01", "hourOfDay": 10, "category": "screen_off", "frequency": 1},
+        {"participantId": "P02", "sourceDayId": "2018-03-01", "hourOfDay": 9, "category": "screen_off", "frequency": 2}
+      ]
+    },
+    {
+      "parameterKey": "feature.hourly_internet_state",
+      "observations": [
+        {"participantId": "P01", "sourceDayId": "2018-03-01", "hourOfDay": 9, "category": "connected"},
+        {"participantId": "P01", "sourceDayId": "2018-03-01", "hourOfDay": 9, "category": "disconnected"},
+        {"participantId": "P01", "sourceDayId": "2018-03-01", "hourOfDay": 9, "category": "connected"},
+        {"participantId": "P01", "sourceDayId": "2018-03-02", "hourOfDay": 9, "category": "disconnected"}
+      ],
+      "expectedObservedGroups": [
+        {"participantId": "P01", "sourceDayId": "2018-03-01", "hourOfDay": 9, "category": "connected", "frequency": 2},
+        {"participantId": "P01", "sourceDayId": "2018-03-02", "hourOfDay": 9, "category": "disconnected", "frequency": 1}
+      ]
+    }
+  ],
+  "tieCases": [
+    {
+      "caseId": "screen-state-two-way-tie",
+      "group": {"participantId": "P03", "sourceDayId": "2018-03-01", "hourOfDay": 9},
+      "categories": ["screen_on", "screen_off"],
+      "expectedMaximumFrequency": 1,
+      "expectedTiedCategoryCount": 2
+    },
+    {
+      "caseId": "connectivity-two-way-tie",
+      "group": {"participantId": "P04", "sourceDayId": "2018-03-01", "hourOfDay": 10},
+      "categories": ["connected", "disconnected"],
+      "expectedMaximumFrequency": 1,
+      "expectedTiedCategoryCount": 2
+    }
+  ]
+}

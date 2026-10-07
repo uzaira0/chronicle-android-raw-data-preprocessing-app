@@ -8,6 +8,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 for crate in rust/*/; do
   [ -f "${crate}Cargo.toml" ] || continue
+  case "$crate" in rust/cargo-mutants-*) continue ;; esac
   echo "==> cargo clippy ${crate}"
   ( cd "$crate" && cargo clippy --all-targets --all-features -- -D warnings )
 done

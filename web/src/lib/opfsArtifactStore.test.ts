@@ -7,6 +7,7 @@ import {
   garbageCollectRuntimeObjects,
   exportRuntimeClosure,
   importRuntimeClosure,
+  inspectVerifiedRuntimeClosure,
   openOpfsRoot,
   openOpfsWorkspace,
   persistRuntimeObject,
@@ -23,11 +24,18 @@ import {
   type RuntimeClosureManifest,
   type WorkspaceRootSlot,
   verifyRuntimeWorkspace,
+  workspaceDegradesToEphemeral,
+  workspaceRefusesRun,
 } from "@/lib/opfsArtifactStore";
 import {
   encodeWorkflowClosureMagic,
   WORKFLOW_CLOSURE_PROTOCOL_VERSION,
 } from "@/lib/workflowClosureProtocol";
+import {
+  MemoryDirectoryHandle,
+  MemoryFileHandle,
+  memoryDirectoryHandle,
+} from "@/testSupport/memoryFileSystem";
 
 /**
  * Geometry of the last BufferSource handed to `write()`. WebKit's
@@ -37,110 +45,6 @@ import {
  * faithfully) can never reproduce. Recording the geometry lets a test assert
  * the constraint directly.
  */
-type WriteGeometry = { byteOffset: number; byteLength: number; bufferBytes: number };
-
-class MemoryFileHandle {
-  readonly kind = "file" as const;
-  bytes = new Uint8Array();
-  reads = 0;
-  lastWriteGeometry: WriteGeometry | undefined;
-  nextReadError: Error | undefined;
-  nextWriteTransform:
-    | ((bytes: Uint8Array<ArrayBuffer>) => Promise<Uint8Array<ArrayBuffer>>)
-    | undefined;
-
-  getFile(): Promise<File> {
-    this.reads += 1;
-    if (this.nextReadError) {
-      const error = this.nextReadError;
-      this.nextReadError = undefined;
-      return Promise.reject(error);
-    }
-    return Promise.resolve(new File([this.bytes], "object"));
-  }
-
-  createWritable(): Promise<FileSystemWritableFileStream> {
-    let pending = new Uint8Array();
-    return Promise.resolve({
-      write: (data: FileSystemWriteChunkType) => {
-        if (data instanceof Uint8Array) {
-          this.lastWriteGeometry = {
-            byteOffset: data.byteOffset,
-            byteLength: data.byteLength,
-            bufferBytes: data.buffer.byteLength,
-          };
-          pending = Uint8Array.from(data);
-        } else if (data instanceof ArrayBuffer) {
-          this.lastWriteGeometry = {
-            byteOffset: 0,
-            byteLength: data.byteLength,
-            bufferBytes: data.byteLength,
-          };
-          pending = new Uint8Array(data);
-        } else throw new Error("unsupported test write");
-        return Promise.resolve();
-      },
-      close: async () => {
-        this.bytes = this.nextWriteTransform
-          ? await this.nextWriteTransform(pending)
-          : pending;
-        this.nextWriteTransform = undefined;
-      },
-    } as FileSystemWritableFileStream);
-  }
-}
-
-class MemoryDirectoryHandle {
-  readonly kind = "directory" as const;
-  readonly directories = new Map<string, MemoryDirectoryHandle>();
-  readonly files = new Map<string, MemoryFileHandle>();
-
-  getDirectoryHandle(
-    name: string,
-    options?: FileSystemGetDirectoryOptions,
-  ): Promise<FileSystemDirectoryHandle> {
-    let directory = this.directories.get(name);
-    if (!directory && options?.create) {
-      directory = new MemoryDirectoryHandle();
-      this.directories.set(name, directory);
-    }
-    if (!directory) throw new DOMException("missing", "NotFoundError");
-    return Promise.resolve(directory as unknown as FileSystemDirectoryHandle);
-  }
-
-  getFileHandle(
-    name: string,
-    options?: FileSystemGetFileOptions,
-  ): Promise<FileSystemFileHandle> {
-    let file = this.files.get(name);
-    if (!file && options?.create) {
-      file = new MemoryFileHandle();
-      this.files.set(name, file);
-    }
-    if (!file) throw new DOMException("missing", "NotFoundError");
-    return Promise.resolve(file as unknown as FileSystemFileHandle);
-  }
-
-  removeEntry(name: string): Promise<void> {
-    if (!this.files.delete(name) && !this.directories.delete(name)) {
-      throw new DOMException("missing", "NotFoundError");
-    }
-    return Promise.resolve();
-  }
-
-  async *entries(): AsyncIterableIterator<
-    [string, FileSystemFileHandle | FileSystemDirectoryHandle]
-  > {
-    await Promise.resolve();
-    for (const entry of this.directories) {
-      yield [entry[0], entry[1] as unknown as FileSystemDirectoryHandle];
-    }
-    for (const entry of this.files) {
-      yield [entry[0], entry[1] as unknown as FileSystemFileHandle];
-    }
-  }
-}
-
 beforeAll(() => {
   vi.stubGlobal("crypto", webcrypto);
   if (typeof File === "undefined") {
@@ -181,7 +85,7 @@ async function artifact(
 }
 
 function rootHandle(root: MemoryDirectoryHandle): FileSystemDirectoryHandle {
-  return root as unknown as FileSystemDirectoryHandle;
+  return memoryDirectoryHandle(root);
 }
 
 function objectFile(
@@ -239,6 +143,30 @@ function archiveWithSliceHook(
         ? (value as (...args: never[]) => unknown).bind(target)
         : value;
     },
+  });
+}
+
+function archiveWithOwnedReadTracking(
+  archive: Blob,
+  reads: Uint8Array[],
+): Blob {
+  return archiveWithSliceHook(archive, (start, end) => {
+    const range = archive.slice(start, end);
+    return new Proxy(range, {
+      get(target, property, receiver) {
+        if (property === "arrayBuffer") {
+          return async () => {
+            const buffer = await target.arrayBuffer();
+            reads.push(new Uint8Array(buffer));
+            return buffer;
+          };
+        }
+        const value: unknown = Reflect.get(target, property, receiver);
+        return typeof value === "function"
+          ? (value as (...args: never[]) => unknown).bind(target)
+          : value;
+      },
+    });
   });
 }
 
@@ -359,6 +287,34 @@ describe("OPFS content-addressed runtime workspace", () => {
       directoryNames: [],
     });
     expect(root.directories.size).toBe(0);
+  });
+
+  it("opens the origin-private root itself when no handle is supplied", async () => {
+    const root = new MemoryDirectoryHandle();
+    root.directories.set(
+      "chronicle-preprocessing-workspaces-v1",
+      new MemoryDirectoryHandle(),
+    );
+    vi.stubGlobal("navigator", {
+      storage: { getDirectory: () => Promise.resolve(rootHandle(root)) },
+    });
+    try {
+      await expect(detectLegacyOpfsState()).resolves.toEqual({
+        detected: true,
+        directoryNames: ["chronicle-preprocessing-workspaces-v1"],
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("propagates a storage failure that is not a missing directory", async () => {
+    const failure = new DOMException("storage is not readable", "SecurityError");
+    await expect(
+      detectLegacyOpfsState({
+        getDirectoryHandle: () => Promise.reject(failure),
+      } as unknown as FileSystemDirectoryHandle),
+    ).rejects.toBe(failure);
   });
 
   it("reads only an untrusted prefix and leaves full digest verification to the selected read", async () => {
@@ -506,6 +462,27 @@ describe("OPFS content-addressed runtime workspace", () => {
     ).rejects.toThrow(
       "recovered OPFS root does not match the runtime's previous root",
     );
+  });
+
+  it("leaves a stray file sitting beside the object prefixes alone", async () => {
+    // Object files live one level down, under a two-character prefix
+    // directory. Anything that is a file at the top of `objects/` is not an
+    // object of this store, so collection walks past it instead of deleting it.
+    const root = new MemoryDirectoryHandle();
+    const onlyRoot = await artifact("workspace-root-json", "root-one");
+    const slot = await persistRuntimeWorkspace(rootHandle(root), {
+      workspaceRootDigest: onlyRoot.digest,
+      previousWorkspaceRootDigest: null,
+      artifacts: [onlyRoot],
+    });
+    const objects = root.directories
+      .get("chronicle-workflow-runtime-v1")!
+      .directories.get("objects")!;
+    await objects.getFileHandle("stray-note.txt", { create: true });
+    expect(
+      await garbageCollectRuntimeObjects(rootHandle(root), [slot]),
+    ).toBe(0);
+    expect(objects.files.has("stray-note.txt")).toBe(true);
   });
 
   it("falls back to the prior valid slot when the newest closure is corrupt", async () => {
@@ -752,6 +729,9 @@ describe("OPFS content-addressed runtime workspace", () => {
     const archive = await exportRuntimeClosure(rootHandle(source), slot);
     expect(archive.type).toBe("application/vnd.chronicle.workflow-workspace");
     await expect(runtimeClosureWorkspaceId(archive)).resolves.toBe(workspaceId);
+    const inspected = await inspectVerifiedRuntimeClosure(archive);
+    expect(inspected.manifest.workspaceRootDigest).toBe(rootArtifact.digest);
+    await expect(inspected.object(payload.digest)).resolves.toEqual(payload.bytes);
     const destination = new MemoryDirectoryHandle();
     let verified = false;
     const imported = await importRuntimeClosure(
@@ -773,12 +753,204 @@ describe("OPFS content-addressed runtime workspace", () => {
     const corrupt = await blobBytes(archive);
     corrupt[corrupt.length - 1] = (corrupt[corrupt.length - 1] ?? 0) ^ 0xff;
     await expect(
+      inspectVerifiedRuntimeClosure(asArchive(corrupt)),
+    ).rejects.toThrow(/digest mismatch/);
+    await expect(
       importRuntimeClosure(
         rootHandle(new MemoryDirectoryHandle()),
         asArchive(corrupt),
         () => Promise.resolve(),
       ),
     ).rejects.toThrow(/digest mismatch/);
+  });
+
+  it("wipes every archive-owned range after a verified import without wiping public reads", async () => {
+    const source = new MemoryDirectoryHandle();
+    const workspaceId = `sha256:${"8".repeat(64)}`;
+    const payload = await artifact("app-csv", "participant-sensitive-payload");
+    const rootArtifact = await artifact(
+      "workspace-root-json",
+      JSON.stringify({
+        workspaceId,
+        previousWorkspaceRootDigest: null,
+        artifactDigests: [payload.digest],
+      }),
+    );
+    const slot = await persistRuntimeWorkspace(rootHandle(source), {
+      workspaceRootDigest: rootArtifact.digest,
+      previousWorkspaceRootDigest: null,
+      artifacts: [rootArtifact, payload],
+    });
+    const archive = await exportRuntimeClosure(rootHandle(source), slot);
+    const publicInspection = await inspectVerifiedRuntimeClosure(archive);
+    const publicBytes = await publicInspection.object(payload.digest);
+    expect(publicBytes).toEqual(payload.bytes);
+
+    const ownedReads: Uint8Array[] = [];
+    await importRuntimeClosure(
+      rootHandle(new MemoryDirectoryHandle()),
+      archiveWithOwnedReadTracking(archive, ownedReads),
+      () => Promise.resolve(),
+    );
+    expect(ownedReads.length).toBeGreaterThan(4);
+    expect(ownedReads.every((bytes) => bytes.every((byte) => byte === 0))).toBe(
+      true,
+    );
+    expect(publicBytes).toEqual(payload.bytes);
+  });
+
+  it("wipes private OPFS reads across history, verification, and export while preserving eager inputs", async () => {
+    const source = new MemoryDirectoryHandle();
+    const workspaceId = `sha256:${"6".repeat(64)}`;
+    const payload = await artifact("app-csv", "private-participant-payload");
+    const rootArtifact = await artifact(
+      "workspace-root-json",
+      JSON.stringify({
+        workspaceId,
+        previousWorkspaceRootDigest: null,
+        artifactDigests: [payload.digest],
+      }),
+    );
+    const eagerPayloadBefore = Uint8Array.from(payload.bytes);
+    const eagerRootBefore = Uint8Array.from(rootArtifact.bytes);
+    const slot = await persistRuntimeWorkspace(rootHandle(source), {
+      workspaceRootDigest: rootArtifact.digest,
+      previousWorkspaceRootDigest: null,
+      artifacts: [rootArtifact, payload],
+    });
+    const handles = [
+      objectFile(source, rootArtifact.digest),
+      objectFile(source, payload.digest),
+    ];
+    for (const handle of handles) handle.retainReadBuffers = true;
+
+    await collectRuntimeHistoryDigests(rootHandle(source), slot.workspaceRootDigest);
+    await verifyRuntimeWorkspace(rootHandle(source), slot);
+    const archive = await exportRuntimeClosure(rootHandle(source), slot);
+    expect(archive.size).toBeGreaterThan(rootArtifact.size + payload.size);
+    expect(
+      handles.flatMap(({ retainedReadBuffers }) => retainedReadBuffers).length,
+    ).toBeGreaterThan(4);
+    expect(
+      handles
+        .flatMap(({ retainedReadBuffers }) => retainedReadBuffers)
+        .every((bytes) => bytes.every((byte) => byte === 0)),
+    ).toBe(true);
+    expect(payload.bytes).toEqual(eagerPayloadBefore);
+    expect(rootArtifact.bytes).toEqual(eagerRootBefore);
+
+    const callerOwned = await readRuntimeObject(rootHandle(source), payload.digest);
+    expect(callerOwned).toEqual(eagerPayloadBefore);
+    expect(callerOwned.some((byte) => byte !== 0)).toBe(true);
+  });
+
+  it("wipes archive-owned ranges when object verification rejects", async () => {
+    const bytes = new TextEncoder().encode("sensitive-corrupt-object");
+    const declared = {
+      kind: "workspace-root-json",
+      digest: await digest(bytes),
+      size: bytes.byteLength,
+      bytes,
+    };
+    const archiveBytes = buildTestClosureArchive(
+      `sha256:${"9".repeat(64)}`,
+      declared.digest,
+      null,
+      [declared],
+    );
+    archiveBytes[archiveBytes.length - 1] =
+      (archiveBytes[archiveBytes.length - 1] ?? 0) ^ 0xff;
+    const reads: Uint8Array[] = [];
+    await expect(
+      inspectVerifiedRuntimeClosure(
+        archiveWithOwnedReadTracking(asArchive(archiveBytes), reads),
+      ),
+    ).rejects.toThrow(/digest mismatch/);
+    expect(reads.length).toBeGreaterThanOrEqual(3);
+    expect(reads.every((value) => value.every((byte) => byte === 0))).toBe(true);
+  });
+
+  it("wipes archive-owned root reads on truncated, foreign-history, and write failures", async () => {
+    const workspaceId = `sha256:${"4".repeat(64)}`;
+    const makeRoot = async (committedWorkspaceId = workspaceId) =>
+      artifact(
+        "workspace-root-json",
+        JSON.stringify({
+          workspaceId: committedWorkspaceId,
+          previousWorkspaceRootDigest: null,
+          artifactDigests: [],
+        }),
+      );
+
+    const rootArtifact = await makeRoot();
+    const archive = asArchive(
+      buildTestClosureArchive(workspaceId, rootArtifact.digest, null, [rootArtifact]),
+    );
+    let sliceCalls = 0;
+    const truncated = archiveWithSliceHook(archive, (start, end) => {
+      sliceCalls += 1;
+      return sliceCalls === 4
+        ? archive.slice(start, Math.max(start, end - 1))
+        : archive.slice(start, end);
+    });
+    const truncatedReads: Uint8Array[] = [];
+    await expect(
+      importRuntimeClosure(
+        rootHandle(new MemoryDirectoryHandle()),
+        archiveWithOwnedReadTracking(truncated, truncatedReads),
+        () => Promise.resolve(),
+      ),
+    ).rejects.toThrow(/truncated/);
+    expect(
+      truncatedReads.every((bytes) => bytes.every((byte) => byte === 0)),
+    ).toBe(true);
+
+    const foreignRoot = await makeRoot(`sha256:${"5".repeat(64)}`);
+    const foreignReads: Uint8Array[] = [];
+    await expect(
+      importRuntimeClosure(
+        rootHandle(new MemoryDirectoryHandle()),
+        archiveWithOwnedReadTracking(
+          asArchive(
+            buildTestClosureArchive(workspaceId, foreignRoot.digest, null, [foreignRoot]),
+          ),
+          foreignReads,
+        ),
+        () => Promise.resolve(),
+      ),
+    ).rejects.toThrow(/crosses workspace identities/);
+    expect(foreignReads.every((bytes) => bytes.every((byte) => byte === 0))).toBe(
+      true,
+    );
+
+    const destination = new MemoryDirectoryHandle();
+    const store = await destination.getDirectoryHandle(
+      "chronicle-workflow-runtime-v1",
+      { create: true },
+    ) as unknown as MemoryDirectoryHandle;
+    const objects = await store.getDirectoryHandle("objects", {
+      create: true,
+    }) as unknown as MemoryDirectoryHandle;
+    const hex = rootArtifact.digest.slice(7);
+    const prefix = await objects.getDirectoryHandle(hex.slice(0, 2), {
+      create: true,
+    }) as unknown as MemoryDirectoryHandle;
+    const file = await prefix.getFileHandle(hex.slice(2), {
+      create: true,
+    }) as unknown as MemoryFileHandle;
+    file.nextWriteTransform = () => Promise.reject(new Error("injected write failure"));
+    const writeReads: Uint8Array[] = [];
+    await expect(
+      importRuntimeClosure(
+        rootHandle(destination),
+        archiveWithOwnedReadTracking(archive, writeReads),
+        () => Promise.resolve(),
+      ),
+    ).rejects.toThrow(/injected write failure/);
+    expect(writeReads.every((bytes) => bytes.every((byte) => byte === 0))).toBe(
+      true,
+    );
+    expect(rootArtifact.bytes.some((byte) => byte !== 0)).toBe(true);
   });
 
   it("writes bytes identical to the pre-streaming whole-buffer exporter and imports that writer's archives", async () => {
@@ -900,8 +1072,22 @@ describe("OPFS content-addressed runtime workspace", () => {
       artifacts: [rootArtifact, ...payloads],
     });
 
+    const retainedHandles = [rootArtifact, ...payloads].map((value) =>
+      objectFile(source, value.digest),
+    );
+    for (const handle of retainedHandles) handle.retainReadBuffers = true;
+
     const archive = await exportRuntimeClosure(rootHandle(source), slot);
     expect(archive.size).toBeGreaterThan(4 * 1024 * 1024);
+    expect(
+      retainedHandles
+        .flatMap(({ retainedReadBuffers }) => retainedReadBuffers)
+        .every((bytes) => bytes.every((byte) => byte === 0)),
+    ).toBe(true);
+    for (const handle of retainedHandles) {
+      handle.retainReadBuffers = false;
+      handle.retainedReadBuffers.length = 0;
+    }
     // Staging is an allocation strategy, never a format decision: a flushed
     // archive is byte-identical to the whole-buffer writer's output. Compared
     // by digest because element-wise deep equality over megabytes of typed
@@ -909,7 +1095,6 @@ describe("OPFS content-addressed runtime workspace", () => {
     const wholeBuffer = await wholeBufferExportRuntimeClosure(rootHandle(source), slot);
     expect(archive.size).toBe(wholeBuffer.byteLength);
     expect(await digest(await blobBytes(archive))).toBe(await digest(wholeBuffer));
-
     const destination = new MemoryDirectoryHandle();
     const imported = await importRuntimeClosure(
       rootHandle(destination),
@@ -921,6 +1106,57 @@ describe("OPFS content-addressed runtime workspace", () => {
       const stored = await readRuntimeObject(rootHandle(destination), value.digest);
       expect(stored.byteLength).toBe(value.size);
       expect(await digest(stored)).toBe(value.digest);
+    }
+  });
+
+  it("wipes staged and private read buffers when a late export read fails", async () => {
+    const workspaceId = `sha256:${"d".repeat(64)}`;
+    const source = new MemoryDirectoryHandle();
+    const payloads = await Promise.all(
+      ["first-sensitive", "second-sensitive", "third-sensitive"].map((value) =>
+        artifact("app-csv", value.repeat(1024)),
+      ),
+    );
+    const rootArtifact = await artifact(
+      "workspace-root-json",
+      JSON.stringify({
+        workspaceId,
+        previousWorkspaceRootDigest: null,
+        artifactDigests: payloads.map(({ digest }) => digest),
+      }),
+    );
+    const slot = await persistRuntimeWorkspace(rootHandle(source), {
+      workspaceRootDigest: rootArtifact.digest,
+      previousWorkspaceRootDigest: null,
+      artifacts: [rootArtifact, ...payloads],
+    });
+    const ordered = [rootArtifact, ...payloads].sort((left, right) =>
+      left.digest.localeCompare(right.digest),
+    );
+    const handles = ordered.map((value) => objectFile(source, value.digest));
+    for (const handle of handles) handle.retainReadBuffers = true;
+    const failingValue = [...payloads].sort((left, right) =>
+      left.digest.localeCompare(right.digest),
+    ).at(-1)!;
+    const last = objectFile(source, failingValue.digest);
+    // Each non-root object is read twice for the two verified history passes,
+    // once for metadata, then once for the builder. Failing the final object's
+    // builder read leaves earlier payloads staged and exercises dispose().
+    last.errorOnReadNumber = {
+      read: last.reads + 4,
+      error: new DOMException("late export read failed", "NotReadableError"),
+    };
+
+    await expect(exportRuntimeClosure(rootHandle(source), slot)).rejects.toThrow(
+      /late export read failed/,
+    );
+    expect(
+      handles
+        .flatMap(({ retainedReadBuffers }) => retainedReadBuffers)
+        .every((bytes) => bytes.every((byte) => byte === 0)),
+    ).toBe(true);
+    for (const value of [rootArtifact, ...payloads]) {
+      expect(value.bytes.some((byte) => byte !== 0)).toBe(true);
     }
   });
 
@@ -1692,6 +1928,10 @@ describe("OPFS content-addressed runtime workspace", () => {
     await expect(openOpfsRoot()).rejects.toThrow(/OPFS is unavailable/);
     await expect(probeOpfsCapability()).resolves.toMatchObject({
       status: "unavailable",
+      // `navigator.storage.getDirectory` simply not existing is the oldest
+      // form of structural unsupport, so this arm degrades to ephemeral
+      // instead of refusing.
+      kind: "unsupported",
     });
     const root = new MemoryDirectoryHandle();
     vi.stubGlobal("navigator", {
@@ -1718,6 +1958,10 @@ describe("OPFS content-addressed runtime workspace", () => {
     });
     await expect(probeOpfsCapability()).resolves.toEqual({
       status: "unavailable",
+      // An opaque rejection is not evidence that the context CANNOT persist,
+      // so it is classified indeterminate and the run is refused rather than
+      // silently downgraded to ephemeral mode.
+      kind: "indeterminate",
       reason: "Origin-private file storage could not be opened: opaque failure",
     });
 
@@ -1747,6 +1991,8 @@ describe("OPFS content-addressed runtime workspace", () => {
     });
     await expect(probeOpfsCapability()).resolves.toEqual({
       status: "unavailable",
+      // A quota failure can clear: indeterminate, therefore refused.
+      kind: "indeterminate",
       reason: "Origin-private file storage is open but not writable: quota",
     });
 
@@ -1763,6 +2009,7 @@ describe("OPFS content-addressed runtime workspace", () => {
     });
     await expect(probeOpfsCapability()).resolves.toEqual({
       status: "unavailable",
+      kind: "indeterminate",
       reason:
         "Origin-private file storage is readable but no directory can be created: no space",
     });
@@ -1792,6 +2039,7 @@ describe("OPFS content-addressed runtime workspace", () => {
     });
     await expect(probeOpfsCapability()).resolves.toEqual({
       status: "unavailable",
+      kind: "indeterminate",
       reason:
         "Origin-private file storage accepted a write it cannot read back: read failed",
     });
@@ -1820,6 +2068,9 @@ describe("OPFS content-addressed runtime workspace", () => {
     });
     await expect(probeOpfsCapability()).resolves.toEqual({
       status: "unavailable",
+      // A store that corrupts bytes is broken, not structurally unsupported:
+      // fail closed rather than degrade.
+      kind: "indeterminate",
       reason:
         "Origin-private file storage returned different bytes than were written, so verified persistence is impossible.",
     });
@@ -1855,6 +2106,95 @@ describe("OPFS content-addressed runtime workspace", () => {
       root.directories.get("chronicle-workflow-workspaces-v1")?.directories
         .size,
     ).toBe(2);
+  });
+
+  describe("a pre-open UnknownError (WebKit private browsing)", () => {
+    // The exact rejection WebKit 26.4 gives in a non-persistent context.
+    const webkitPrivate = () =>
+      new DOMException(
+        "The operation failed for an unknown transient reason (e.g. out of memory).",
+        "UnknownError",
+      );
+
+    function stubGetDirectory(
+      ...answers: Array<() => Promise<FileSystemDirectoryHandle>>
+    ) {
+      const getDirectory = vi.fn<() => Promise<FileSystemDirectoryHandle>>();
+      for (const answer of answers) getDirectory.mockImplementationOnce(answer);
+      vi.stubGlobal("navigator", {
+        storage: { getDirectory },
+        locks: { request: vi.fn() },
+      });
+      return getDirectory;
+    }
+
+    it("degrades to ephemeral when the browser refuses twice", async () => {
+      const getDirectory = stubGetDirectory(
+        () => Promise.reject(webkitPrivate()),
+        () => Promise.reject(webkitPrivate()),
+      );
+      const capability = await probeOpfsCapability();
+      expect(capability).toEqual({
+        status: "unavailable",
+        kind: "unsupported",
+        reason:
+          "Origin-private file storage could not be opened: The operation failed for an unknown transient reason (e.g. out of memory). " +
+          "The browser refused again when asked a second time, which is how Safari private browsing denies storage.",
+      });
+      expect(getDirectory).toHaveBeenCalledTimes(2);
+      expect(workspaceDegradesToEphemeral(capability)).toBe(true);
+      expect(workspaceRefusesRun(capability)).toBe(false);
+    });
+
+    it("keeps durable storage when the second request succeeds", async () => {
+      const root = new MemoryDirectoryHandle();
+      const getDirectory = stubGetDirectory(
+        () => Promise.reject(webkitPrivate()),
+        () => Promise.resolve(rootHandle(root)),
+      );
+      await expect(probeOpfsCapability()).resolves.toEqual({
+        status: "ready",
+        evictionProtected: null,
+      });
+      expect(getDirectory).toHaveBeenCalledTimes(2);
+    });
+
+    it("refuses when the retry fails some other way", async () => {
+      stubGetDirectory(
+        () => Promise.reject(webkitPrivate()),
+        () => Promise.reject(new DOMException("quota", "QuotaExceededError")),
+      );
+      const capability = await probeOpfsCapability();
+      expect(capability).toEqual({
+        status: "unavailable",
+        kind: "indeterminate",
+        reason: "Origin-private file storage could not be opened: quota",
+      });
+      expect(workspaceRefusesRun(capability)).toBe(true);
+    });
+
+    it("does not retry any other pre-open failure", async () => {
+      const getDirectory = stubGetDirectory(() =>
+        Promise.reject(new DOMException("quota", "QuotaExceededError")),
+      );
+      await expect(probeOpfsCapability()).resolves.toMatchObject({
+        kind: "indeterminate",
+      });
+      expect(getDirectory).toHaveBeenCalledTimes(1);
+    });
+
+    it("still refuses an UnknownError after a handle exists", async () => {
+      const unknownWrite = new MemoryDirectoryHandle();
+      unknownWrite.getDirectoryHandle = () =>
+        Promise.resolve({
+          getFileHandle: () => Promise.reject(webkitPrivate()),
+        } as unknown as FileSystemDirectoryHandle);
+      stubGetDirectory(() => Promise.resolve(rootHandle(unknownWrite)));
+      await expect(probeOpfsCapability()).resolves.toMatchObject({
+        status: "unavailable",
+        kind: "indeterminate",
+      });
+    });
   });
 
   it("rejects malformed portable closure framing and tables", async () => {

@@ -12,3 +12,59 @@ paths = [
   '''^Pathological.*''',
   '''^TrackedSmoke.*''',
 ]
+
+# The consolidated literature ledgers are bibliographic data, not code. Their
+# `key` and `pdf_sha256` fields hold 20–64 hex content addresses, which the
+# default generic-api-key rule reads as secrets (241 findings, every one a
+# digest). Publisher-issued download tokens captured in retrieved URLs are
+# redacted to `token=REDACTED-BY-BACKUP` in the ledgers themselves rather than
+# allowlisted here, so a real token still fails this scan.
+[[allowlists]]
+description = "Literature corpus ledger content addresses"
+matchCondition = "AND"
+paths = ['''^docs/paper/consolidated-literature/''']
+regexes = [
+  '''"(?:key|pdf_sha256)"\s*:\s*"[0-9a-f]{20,64}"''',
+  '''access_state"\s*:\s*"publisher/PDF''',
+]
+
+# Android's lock screen is called the keyguard; the foundational-semantics
+# write-ups discuss keyguard event ordering in prose.
+[[allowlists]]
+description = "Android keyguard prose"
+regexTarget = "match"
+regexes = ['''keyguard''']
+
+# `parameterKey` in the literature-component fixtures names a study parameter
+# (e.g. "cohort.lt40_excluded"), not a credential.
+[[allowlists]]
+description = "Study parameter names in literature component fixtures"
+matchCondition = "AND"
+paths = ['''^rust/chronicle_preprocessing_runtime_wasm/tests/fixtures/''']
+regexTarget = "match"
+regexes = ['''parameterKey"\s*:\s*"[A-Za-z0-9_.]+"''']
+
+# Exact public ontology identifiers in comparisons/maps, not API credentials.
+# Keep this bounded to the reviewed strings and their three source/test owners.
+[[allowlists]]
+description = "Reviewed PHQ and Attelia method parameter identifiers"
+matchCondition = "AND"
+paths = ['''^web/src/lib/(?:methodProfiles|methodProfileTasks\.test|methodProfileTemporalObservations\.test)\.ts$''']
+regexTarget = "secret"
+regexes = ['''^(?:ground_truth\.PHQ9|ground_truth\.Q9|diary\.phq9_instrument|model\.combo_conjunction|validation\.phase1_joint_comparison|validation\.phase2_daily_assignment|outcome\.depression\.phq9_threshold|phq8\.item_scale)$''']
+
+# `DIAGNOSTICS_STORAGE_KEY` is the localStorage key the local diagnostics log
+# is kept under (web/src/lib/diagnostics.ts); generic-api-key reads any
+# `*_KEY = "..."` as a credential. Bounded to that file and that exact value.
+[[allowlists]]
+description = "Diagnostics localStorage key name"
+matchCondition = "AND"
+paths = ['''^web/src/lib/diagnostics\.ts$''']
+regexTarget = "secret"
+regexes = ['''^chronicle-web\.diagnostics\.v[0-9]+$''']
+
+[[allowlists]]
+description = "Keyguard-sequence prose in the B03-B05 paper documents; gitleaks >= 8.30 generic-api-key reads 'keyguard, orphan/duplicate' as a key/value pair"
+regexes = [
+  '''^(?:orphan/duplicate|duplicate/orphan/tail)$''',
+]

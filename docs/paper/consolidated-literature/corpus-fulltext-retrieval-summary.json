@@ -1,0 +1,9 @@
+{
+  "generated_at": "2026-08-30T00:59:34.195Z",
+  "attempted": 982,
+  "status_counts": {
+    "retrieval_failed": 559,
+    "cached": 419,
+    "retrieved_and_extracted": 4
+  }
+}

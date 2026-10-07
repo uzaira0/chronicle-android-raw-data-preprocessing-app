@@ -133,6 +133,11 @@ const main = async () => {
   });
 
   await page.goto(BASE, { waitUntil: "networkidle" });
+  // The injected runtime is honoured only by a test build (npm run build:test);
+  // against a deploy build this would silently measure the default runtime.
+  if ((await page.locator('meta[name="chronicle-test-hooks"]').count()) !== 1) {
+    throw new Error("the served build ignores the injected test runtime: build it with `npm run build:test`");
+  }
 
   await page.getByTestId("raw-file-input").setInputFiles([
     bufFor("Raw P01.csv", FILE_A),

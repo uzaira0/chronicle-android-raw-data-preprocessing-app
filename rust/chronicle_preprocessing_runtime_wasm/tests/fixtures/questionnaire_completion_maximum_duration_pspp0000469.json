@@ -1,0 +1,68 @@
+{
+  "schemaVersion": "chronicle-questionnaire-maximum-completion-duration-source-fixture/v1",
+  "sourceWorkId": "doi:10.1037/pspp0000469",
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-81aa8e8b5e23b45f8267a498",
+    "parameterKey": "quality.es_completion_filter",
+    "sourceObservedSetting": "quality.es_completion_filter: exclude ES questionnaires taking more than 15 minutes",
+    "sourceValueSha256": "f7d427fbd6b8ecb6493381d78c64f9885ce7a97f0594a61df91fa765c949905a"
+  },
+  "sourceArtifacts": [
+    {
+      "locator": ".tmp-literature-review-private/corrective-packet-06-ranks174-223-20260831/artifacts/rank203-osf-b7krz/osfstorage/Feature_Engineering/02_SOURCE_FeatureExtraction.R:89-99",
+      "sha256": "edcf64f7e5ceb1a5e2dd48dd08bc7542dd6abe8865eff0f9ea372997fd0bbf3d"
+    },
+    {
+      "locator": ".tmp-literature-review-private/corrective-packet-06-ranks174-223-20260831/artifacts/rank203-osf-b7krz/osfstorage/Online Supplemental Material.pdf:pages=1-2",
+      "sha256": "72e0a7a61c67ef839bf5cfb55635fc786ee91be162e4894d2aef92a2f4d43fe2"
+    },
+    {
+      "locator": ".tmp-literature-review-private/ontology-sublation-20260831/source-completeness-audits/doi-10.1037-pspp0000469.json",
+      "sha256": "46a848981ae6492d52589d2260d05b8263ccc75920d68178837aa8902e72fa22"
+    }
+  ],
+  "inputBoundary": "One caller-supplied finite nonnegative completion duration in minutes for an already-identified experience-sampling questionnaire, computed from corrected questionnaire start and end timestamps.",
+  "outputBoundary": "Retain completion durations at or below 15 minutes and exclude durations strictly greater than 15 minutes; equality is retained.",
+  "limitations": [
+    "This binding does not identify experience-sampling questionnaires or derive their corrected start and end timestamps.",
+    "Timestamp correction, clock semantics, row ordering, duplicate handling, and duration calculation occur upstream.",
+    "The source compares difftime in minutes directly; no integer rounding or sub-minute tolerance is inferred.",
+    "The separate rule that removes a later questionnaire less than 60 minutes after the previous questionnaire is not part of this component.",
+    "Missing, negative, or nonfinite completion duration fails closed rather than being retained or treated as zero."
+  ],
+  "maximumRetainedMinutes": 15,
+  "categories": {
+    "below": "retain",
+    "equal": "retain",
+    "above": "exclude"
+  },
+  "questionnaires": [
+    {
+      "caseId": "immediately-below",
+      "completionMinutes": 14.999,
+      "expectedDisposition": "retain"
+    },
+    {
+      "caseId": "at-boundary",
+      "completionMinutes": 15,
+      "expectedDisposition": "retain"
+    },
+    {
+      "caseId": "immediately-above",
+      "completionMinutes": 15.001,
+      "expectedDisposition": "exclude"
+    }
+  ],
+  "invalidCompletionDurations": [
+    {
+      "caseId": "missing-duration",
+      "completionMinutes": null,
+      "expectedError": "questionnaire_completion_minutes_required"
+    },
+    {
+      "caseId": "negative-duration",
+      "completionMinutes": -0.001,
+      "expectedError": "questionnaire_completion_minutes_must_be_nonnegative_finite"
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "schemaVersion": "chronicle-twelve-recorded-day-call-duration-mean-source-fixture/v1",
+  "sourceWorkId": "doi:10.3390/j2020008",
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-e686bbf41309953e493a1da0",
+    "parameterKey": "feature.total_call_duration.twelve_day_mean",
+    "sourceObservedSetting": "feature.total_call_duration.twelve_day_mean: Mean daily total incoming plus outgoing call duration in minutes per day over the selected 12 days",
+    "sourceValueSha256": "9e5642ef49323f5d1671dcde9d83dcff428923d9108f3136db21b25fc2b68424"
+  },
+  "sourceArtifacts": [
+    {
+      "locator": ".tmp-literature-review-private/authenticated-cookie-recovery-wave-20260830/retrieved/smartphone-social-sciences-app-2019/primary.pdf:pages 11-12",
+      "sha256": "a075a49da753982cfb7fd790ff50ac56631ab354b4006a0a27dfcf91ba3bb2d9"
+    },
+    {
+      "locator": ".tmp-literature-review-private/corrective-queue-audit-b-20260831/packet-05-ranks-124-173/fulltext/rank135.txt:652-676,717-722,777-779",
+      "sha256": "b32b63deee97a6a04d658ad197d3e8f498b686c6de579e3e5dc8ef0aca168cdd"
+    }
+  ],
+  "expectedObservedDayCount": 12,
+  "inputUnit": "minutes",
+  "inputBoundary": "Exactly twelve caller-selected, uniquely identified recorded-day values for one participant. Each value is already the daily total incoming-plus-outgoing call duration in minutes; day identity is opaque and days need not be consecutive.",
+  "outputBoundary": "One arithmetic mean of the twelve supplied daily total-call-duration values for each participant, in minutes per recorded day.",
+  "rows": [
+    { "participantId": "participant-01", "sourceDayId": "day-001", "dailyTotalCallDurationMinutes": 1.0 },
+    { "participantId": "participant-01", "sourceDayId": "day-003", "dailyTotalCallDurationMinutes": 2.0 },
+    { "participantId": "participant-01", "sourceDayId": "day-004", "dailyTotalCallDurationMinutes": 3.0 },
+    { "participantId": "participant-01", "sourceDayId": "day-008", "dailyTotalCallDurationMinutes": 4.0 },
+    { "participantId": "participant-01", "sourceDayId": "day-011", "dailyTotalCallDurationMinutes": 5.0 },
+    { "participantId": "participant-01", "sourceDayId": "day-012", "dailyTotalCallDurationMinutes": 6.0 },
+    { "participantId": "participant-01", "sourceDayId": "day-016", "dailyTotalCallDurationMinutes": 7.0 },
+    { "participantId": "participant-01", "sourceDayId": "day-017", "dailyTotalCallDurationMinutes": 8.0 },
+    { "participantId": "participant-01", "sourceDayId": "day-023", "dailyTotalCallDurationMinutes": 9.0 },
+    { "participantId": "participant-01", "sourceDayId": "day-025", "dailyTotalCallDurationMinutes": 10.0 },
+    { "participantId": "participant-01", "sourceDayId": "day-030", "dailyTotalCallDurationMinutes": 11.0 },
+    { "participantId": "participant-01", "sourceDayId": "day-032", "dailyTotalCallDurationMinutes": 12.0 }
+  ],
+  "expectedParticipantMeans": [
+    { "participantId": "participant-01", "meanDailyTotalCallDurationMinutes": 6.5 }
+  ],
+  "limitations": [
+    "The source says twelve recorded days were selected to accommodate missing data but does not disclose which days were selected; selection and any completeness rule remain upstream.",
+    "Calendar-day construction, timezone, raw call direction classification, call-duration extraction, conversion to minutes, and daily summation remain upstream.",
+    "The source does not disclose whether a selected day with no retained calls is represented as zero or missing. This boundary never synthesizes zero and requires twelve explicit numeric daily values.",
+    "Missing, non-finite, negative, duplicate-day, or other-than-twelve-day inputs fail closed as typed-boundary violations; those rejection rules are Chronicle safeguards, not attributed source behavior.",
+    "The existing grouped-column primitive also computes sample standard deviation. This binding claims only its arithmetic-mean projection, not that extra output, the population descriptives, correlations, bootstrap intervals, or SPSS behavior.",
+    "No publication-time PHP/MySQL aggregation script or row-level study data was released; the values in this fixture are synthetic and method-shaped rather than a source-issued oracle."
+  ]
+}

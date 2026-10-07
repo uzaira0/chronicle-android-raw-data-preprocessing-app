@@ -1,0 +1,98 @@
+{
+  "schema_version": "chronicle-source-completeness-audit/v1-candidate",
+  "source_work_id": "doi:10.1145/2971648.2971732",
+  "title": "In-Situ Investigation of Notifications in Multi-Device Environments",
+  "authors": ["Dominik Weber", "Alexandra Voit", "Philipp Kratzer", "Niels Henze"],
+  "publication": "UbiComp 2016, pp. 1259–1264, DOI 10.1145/2971648.2971732",
+  "audited_at": "2026-09-25",
+  "audit_status": "isolated_new_source_candidate_not_canonical",
+  "scope_decision": {
+    "android_event_stream_eligible": true,
+    "qualification": "The paper analyzes Android screen/status/touch observations with ESM response data. It does not collect naturally arriving notification callbacks or construct same-package app sessions. Windows PC logs and the dedicated ESM phone are separate source branches.",
+    "locator": "PDF pp. 2–5, METHOD OF THE STUDY/Apparatus/RESULTS"
+  },
+  "source_artifacts": [
+    {
+      "path": ".tmp-literature-review-private/open-index-exact-keyword-wave4/retrieved/pdf/10.1145_2971648.2971732.pdf",
+      "sha256": "6540602bb337c43cfdb0f32b15966609bcdd57a8861aa7437077a556c3184266",
+      "bytes": 1154879,
+      "pages": 6,
+      "identity_verification": "PDF p. 1 prints the exact title, four authors, UbiComp '16 line and DOI 10.1145/2971648.2971732.",
+      "inspection": "All six PDF pages inspected; the method, results, figures, limitations and references were checked."
+    },
+    {
+      "path": ".tmp-literature-review-private/open-index-exact-keyword-wave4/retrieved/text/10.1145_2971648.2971732.txt",
+      "sha256": "b42648cd71d2886fc7ce3b2b2a58649cd4659ac81789ab546d9239f1d6caf716",
+      "inspection": "Searchable extraction; PDF page/section locators below govern where two-column text order differs."
+    }
+  ],
+  "existing_corpus_overlap": "Exact DOI exists in normalized combined study-method extractions; C21 mixes collector, ESM and study-window facts, while C09/C18 app-package constructs are not applicable. This isolated draft does not mutate the frozen review queue or canonical 94-audit set.",
+  "source_method_variants": [
+    "Android phone, tablet and smartwatch share an event-based logger; the Windows PC has a distinct idle/login/foreground-process logger. Do not force a common raw event schema across platforms.",
+    "The additional Android ESM handset produces study questionnaires and their own prompt notifications, not inbound third-party alerts. The four target-device ratings are separate per-device answers to one prompt, not four collector variants.",
+    "One-touch-per-minute Android retention is a collector-time event cap; the once-per-minute Windows inactivity check is a separate polling cadence; 45–90-minute ESM triggering and 10-minute prompt expiry are different clocks."
+  ],
+  "disclosed_atoms": [
+    {"key":"collector.android_device_families","role":"acquisition","target":"collector","value":"High-priority background logger on Android 4.3+ smartphone, tablet, and smartwatch.","locator":"PDF p. 3, Apparatus","evidence_status":"explicit","mapping":"AcquisitionProtocol with per-device provenance; no natural notification-listener stream is described."},
+    {"key":"input.android_display_events","role":"event_schema","target":"raw_record","value":"Event-based display on/off observations.","locator":"PDF p. 3, Apparatus","evidence_status":"explicit_partial","mapping":"Screen-state event family; original row schema and pairing policy are undisclosed."},
+    {"key":"input.android_connectivity_events","role":"event_schema","target":"raw_record","value":"Connection status including Wi-Fi, mobile, and offline.","locator":"PDF p. 3, Apparatus","evidence_status":"explicit_partial","mapping":"Device-status family; whether transitions or repeated state reports are logged is not specified."},
+    {"key":"input.android_power_headset_charging","role":"event_schema","target":"raw_record","value":"Power on/off, headset connected, and charging/not-charging observations.","locator":"PDF p. 3, Apparatus","evidence_status":"explicit_partial","mapping":"Keep distinct status channels; no unreported encoding or state-transition policy."},
+    {"key":"input.android_touch_overlay","role":"acquisition","target":"collector","value":"Touch is recorded through a transparent layer above other apps.","locator":"PDF p. 3, Apparatus","evidence_status":"explicit_partial","mapping":"Touch collection path, not a UsageStats foreground episode."},
+    {"key":"acquisition.android_touch_cap","role":"acquisition","target":"raw_record","value":{"maximum_logged_touches":1,"per_minutes":1},"locator":"PDF p. 3, Apparatus","evidence_status":"explicit_partial","mapping":"Collector-time rate cap. Source does not say first/last/random touch or rolling/calendar minute; not offline deduplication."},
+    {"key":"input.android_location","role":"acquisition","target":"raw_record","value":"Google Play Services provides current location.","locator":"PDF p. 3, Apparatus","evidence_status":"explicit_partial","mapping":"Context channel; no source-declared sampling cadence, precision or encoding."},
+    {"key":"input.android_activity_probabilities","role":"acquisition","target":"raw_record","value":["foot","bicycle","still","running","tilting","walking","unknown"],"locator":"PDF p. 3, Apparatus","evidence_status":"explicit_partial","mapping":"Activity Recognition probability outputs, not Boolean observed activities; cadence and probability schema unknown."},
+    {"key":"collector.windows_distinct","role":"acquisition","target":"collector","value":"Windows PC background process logs login/logout, current foreground process and idle/resume timestamps.","locator":"PDF p. 3, Apparatus","evidence_status":"explicit","mapping":"Separate platform branch, not Android event-type values."},
+    {"key":"acquisition.windows_idle_poll","role":"acquisition","target":"raw_record","value":"Windows process checks mouse/keyboard interaction once per minute and logs inactivity onset and end.","locator":"PDF p. 3, Apparatus","evidence_status":"explicit_partial","mapping":"PC inactivity polling cadence, not Android touch cap or ESM trigger cadence."},
+    {"key":"collector.esm_fifth_device","role":"acquisition","target":"collector","value":"Dedicated additional Android phone presents the ESM survey; its other apps and data connections are disabled and answers are stored locally.","locator":"PDF pp. 2–3, Apparatus","evidence_status":"explicit","mapping":"Separate prompt/response source and device identity; do not count prompts as natural inbound alerts."},
+    {"key":"intervention.esm_schedule","role":"intervention","target":"prompt_delivery","value":{"inter_prompt_minutes":"45–90","quiet_hours":"00:00–06:00"},"locator":"PDF pp. 2–3, Apparatus","evidence_status":"explicit_partial","mapping":"Study-prompt schedule; randomization distribution and local-time handling not disclosed."},
+    {"key":"intervention.esm_expiry","role":"intervention","target":"prompt_delivery","value":{"unanswered_expiry_minutes":10},"locator":"PDF p. 3, Apparatus","evidence_status":"explicit","mapping":"Removal of a study-generated prompt if unclicked, not a notification-attendance window for other apps."},
+    {"key":"protocol.esm_q1_location","role":"questionnaire","target":"qualitative_response","value":"Q1 place permits multiple choices (in transit, home, work/uni, restaurant, sport, other plus optional text).","locator":"PDF p. 2, Design/Figure 2","evidence_status":"explicit","mapping":"Diary/ESM response schema; not inferred GPS ground truth."},
+    {"key":"protocol.esm_q2_people","role":"questionnaire","target":"qualitative_response","value":"Q2 number of nearby people is one choice from 0, 1–3, 4–10, 11–50, more than 50.","locator":"PDF p. 2, Design/Figure 2","evidence_status":"explicit","mapping":"ESM answer categories, not Android sensor categories."},
+    {"key":"protocol.esm_q3_q4_device_ratings","role":"questionnaire","target":"qualitative_response","value":"Q3 proximity and Q4 desire to receive a notification are five-point ratings separately for phone, tablet, PC and watch; Q4 leaves notification type/content unspecified.","locator":"PDF p. 2, Design/Figure 2; p. 5, DISCUSSION AND LIMITATIONS","evidence_status":"explicit","mapping":"Separate self-report constructs; Q4 is preference, not observed notification response."},
+    {"key":"study.seven_full_days","role":"analysis","target":"study_population","value":"Seven full collection days per participant, with setup the prior day and export the following day.","locator":"PDF p. 3, Procedure","evidence_status":"explicit","mapping":"Study window, not a session or acquisition-gap parameter."},
+    {"key":"study.excluded_participants","role":"filter","target":"study_population","value":"Of 18 recruited, exclude one because smartwatch log export failed and one because only one ESM response was provided; analyze 16.","locator":"PDF p. 3, Participants","evidence_status":"explicit","mapping":"Two different participant-level quality rules; do not equate failed device export with absent event rows."},
+    {"key":"feature.android_active_time","role":"feature_engineering","target":"derived_feature","value":"Android phone, tablet and watch active time is screen-on duration.","locator":"PDF p. 4, Analysis of the device usage/Figure 6","evidence_status":"explicit_partial","mapping":"Screen interval aggregation; first/last/missing boundary behavior not disclosed."},
+    {"key":"feature.windows_active_time","role":"feature_engineering","target":"derived_feature","value":"PC active time is login-to-logout time minus inactivity.","locator":"PDF p. 4, Analysis of the device usage/Figure 6","evidence_status":"explicit_partial","mapping":"Platform-specific interval subtraction, not a screen-on rule."},
+    {"key":"analysis.daily_device_usage","role":"analysis","target":"outcome","value":"Figure 6 compares average daily screen-on event counts, touch-event counts and active times by device; PC has no screen-on events.","locator":"PDF p. 4, Figure 6/Analysis of the device usage; p. 5, Correlations","evidence_status":"explicit","mapping":"Different available channels/denominators by platform."},
+    {"key":"analysis.proximity_preference_tests","role":"analysis","target":"outcome","value":"Q3 and Q4 device comparisons use Friedman tests and Wilcoxon signed-rank post-hoc tests with Bonferroni-corrected threshold p≤0.008.","locator":"PDF p. 4, Results/Figures 4–5","evidence_status":"explicit","mapping":"Statistical analysis on self-report ratings, not collector parameter variation."},
+    {"key":"analysis.esm_device_correlations","role":"analysis","target":"outcome","value":"Compute correlation r per participant and device for Q3/Q4 and device/context associations, average over participants, report only average effects with |r|>0.1.","locator":"PDF pp. 4–5, Correlations/Figure 7","evidence_status":"explicit_partial","mapping":"Per-person/device analytical aggregation; missing-response and averaging details not disclosed."},
+    {"key":"analysis.screen_on_near_prompt","role":"analysis","target":"outcome","value":"Correlate screen-on events right before or after ESM trigger with Q4; exact adjacency window is unstated; PC has no screen-on channel.","locator":"PDF p. 5, Correlations","evidence_status":"explicit_partial","mapping":"Source-located temporal join with unresolved window; never substitute the ESM expiry or touch cap."},
+    {"key":"analysis.activity_still_preference","role":"analysis","target":"outcome","value":"Correlate Activity Recognition 'still' for Android devices with Q4; PC excluded because it has no activity-recognition events.","locator":"PDF p. 5, Correlations","evidence_status":"explicit_partial","mapping":"Android-only feature association, not an all-platform missing-value default."},
+    {"key":"result.esm_answers","role":"reported_result","target":"outcome","value":"965 answered questionnaires from 16 analyzed participants, between 14 and 90 per participant.","locator":"PDF p. 3, RESULTS/Analysis of the ESM questionnaires","evidence_status":"explicit","mapping":"Observed study yield, not the number of Android events or notification callbacks."}
+  ],
+  "source_operation_partial_order": [
+    {"before":"collector.android_device_families","after":"acquisition.android_touch_cap","locator":"PDF p. 3, Apparatus"},
+    {"before":"collector.esm_fifth_device","after":"intervention.esm_schedule","locator":"PDF pp. 2–3, Apparatus"},
+    {"before":"intervention.esm_schedule","after":"intervention.esm_expiry","locator":"PDF p. 3, Apparatus"},
+    {"before":"input.android_display_events","after":"feature.android_active_time","locator":"PDF pp. 3–4, Apparatus/Analysis of the device usage"},
+    {"before":"collector.windows_distinct","after":"feature.windows_active_time","locator":"PDF pp. 3–4, Apparatus/Analysis of the device usage"},
+    {"before":"study.excluded_participants","after":"analysis.daily_device_usage","locator":"PDF pp. 3–4, Participants/RESULTS"}
+  ],
+  "analysis_outputs_and_population_warnings": [
+    "This is a study of desired notification device, not one of actual inbound notification arrival, dismissal or response. ESM prompt notifications are study interventions.",
+    "The one-touch-per-minute cap is source collection loss; no subsequent algorithm can recover discarded touches. Its selection within each minute is not stated.",
+    "Android screen-on duration and Windows login-to-logout minus idle represent different active-time definitions. Do not pool these under one unqualified session constructor.",
+    "The ESM screen-event adjacency window and event-to-answer alignment are unspecified; neither the ten-minute prompt expiry nor 45–90-minute schedule supplies that missing value.",
+    "C09 same-package runs and C18 package policy in the normalized 21-row rubric are inapplicable, not missing source settings for this paper."
+  ],
+  "artifact_sweep": {
+    "primary_pdf": "preexisting_verified_0600",
+    "full_text_extraction": "preexisting_verified_0600",
+    "study_specific_code": "No repository named in the primary PDF or found by bounded exact-title/author web search on 2026-09-25; absence not proven",
+    "supplement": "No supplement named in the inspected primary PDF; external absence not proven",
+    "raw_rows": "No study-versioned Android/Windows/ESM export retrieved"
+  },
+  "citation_frontier": "17 outgoing Crossref-bibliography links for this exact citing DOI are already preserved in .tmp-literature-review-private/open-index-exact-keyword-wave4/outgoing-reference-links.jsonl; cited-work status is separate from this source-method audit.",
+  "indispensable_unavailable_facts": [
+    "Exact Android and Windows row schemas, timestamp encoding/timezone, cross-device identity/join and clock alignment.",
+    "Which touch is retained within a one-minute cap, and whether the interval is rolling or calendar-aligned.",
+    "Cadence and accuracy of location/Activity Recognition values, and their alignment to prompt answers.",
+    "Android screen on/off malformed-boundary policy, Windows login/idle overlap policy, ESM prompt-time adjacency window, and missing-channel treatment.",
+    "Original logs, study collector build/source, and analysis code for source-exact execution and numerical reproduction."
+  ],
+  "semantic_residues_vs_current_linkml": [
+    {"status":"definition_preservable_no_new_class_proven","source_case":"Android touch observations are capped during acquisition at one per minute, while PC idle checks occur once per minute and ESM prompts have a separate schedule and expiry.","existing_terms":"AcquisitionProtocol, MethodSettingAssertion, DiaryProtocol and OperationDefinition can preserve their roles and device branches.","residue":"Test actual import/persistence and source-shaped rows before proposing new types; do not map equal minute units to the same operation.","locator":"PDF pp. 2–3, Apparatus; web/schema/chronicle-research-ontology.linkml.yaml:1373–1403"},
+    {"status":"source_exact_execution_blocked","source_case":"Per-device screen-state duration and prompt-adjacent correlations need row joins and unknown boundary/window rules.","existing_terms":"SessionConstructionPolicy and OperationDefinition can state the prospective steps; UsageSessionAssertion specifically means unlock-to-lock.","residue":"Do not assert an unlock/lock session, natural notification response, or executable prompt-window join from this paper.","locator":"PDF pp. 4–5, Analysis of the device usage/Correlations; web/schema/chronicle-research-ontology.linkml.yaml:888–898"}
+  ],
+  "completion_verdict": "Bounded full-text audit of an Android event-based multi-device study. No canonical admission or source-exact replay is claimed; collector rate-cap selection, row schema, clock alignment and ESM-event join remain unreported."
+}

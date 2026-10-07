@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
+  existsSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -8,7 +9,7 @@ import {
 } from "node:fs";
 import { availableParallelism } from "node:os";
 import path from "node:path";
-import { gzipSync } from "node:zlib";
+import { gunzipSync, gzipSync } from "node:zlib";
 
 const corpusCount = 6;
 const workerCount = Math.min(
@@ -174,13 +175,22 @@ try {
     caseSetDigest,
   };
   const serialized = `${JSON.stringify(evidence, null, 2)}\n`;
+  // Compare and rewrite the sidecar by CONTENT, not gzip bytes: gzipSync
+  // output depends on the linked zlib version, so a Node upgrade alone would
+  // rewrite (or fail on) the compressed stream while the decompressed
+  // evidence stayed byte-identical. Mirrors the single-process campaigns.
+  const checkedInCellEvidence = existsSync(cellEvidenceFile)
+    ? gunzipSync(readFileSync(cellEvidenceFile)).toString("utf8")
+    : null;
   if (process.env.UPDATE_RAW_BOUNDARY_INFLUENCE === "1") {
-    writeFileSync(cellEvidenceFile, cellEvidenceCompressed);
+    if (checkedInCellEvidence !== cellEvidenceSerialized) {
+      writeFileSync(cellEvidenceFile, cellEvidenceCompressed);
+    }
     writeFileSync(expectedFile, serialized, "utf8");
     process.stdout.write("updated raw-boundary influence evidence\n");
   } else if (
     serialized !== readFileSync(expectedFile, "utf8") ||
-    !cellEvidenceCompressed.equals(readFileSync(cellEvidenceFile))
+    checkedInCellEvidence !== cellEvidenceSerialized
   ) {
     throw new Error(
       "parallel raw-boundary result differs from the checked-in evidence; rerun with UPDATE_RAW_BOUNDARY_INFLUENCE=1 only after reviewing the change",

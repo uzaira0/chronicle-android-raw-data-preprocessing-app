@@ -1,4 +1,6 @@
-import { useEffect, useState, type ReactElement } from "react";
+import { useEffect, useId, useState, type ReactElement } from "react";
+
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 import {
   buildProjectRecord,
@@ -11,7 +13,7 @@ import {
   type ProjectSummary,
   type SupportFileSlot,
 } from "@/lib/projectsStore";
-import type { BrowserProcessingOptions } from "@/lib/types";
+import type { BrowserProcessingOptions, MethodProfileReceipt } from "@/lib/types";
 import { safeUuid } from "@/lib/uuid";
 
 /** Warn when a bundled save would exceed this (IndexedDB quota / eviction risk). */
@@ -19,11 +21,41 @@ const LARGE_SAVE_BYTES = 50 * 1024 * 1024;
 
 type Props = {
   options: BrowserProcessingOptions;
+  methodProfileReceipt?: MethodProfileReceipt | null;
   uploadedFiles: File[];
   supportFiles: Partial<Record<SupportFileSlot, File | null>>;
-  onApplyProject: (record: ProjectRecord) => void;
+  onApplyProject: (record: ProjectRecord) => void | Promise<void>;
   onStatus: (message: string, isError?: boolean) => void;
+  disabled?: boolean;
 };
+
+type ProjectLoader = (id: string) => Promise<ProjectRecord | null | undefined>;
+
+/** Async load/apply seam kept explicit so a run that starts while IndexedDB is
+ * resolving cannot produce a false success toast after App rejects the commit. */
+export async function loadProjectForApplication(
+  summary: ProjectSummary,
+  onApplyProject: (record: ProjectRecord) => void | Promise<void>,
+  onStatus: (message: string, isError?: boolean) => void,
+  loader: ProjectLoader = loadProject,
+): Promise<void> {
+  try {
+    const record = await loader(summary.id);
+    if (!record) {
+      onStatus("Project not found.", true);
+      return;
+    }
+    await onApplyProject(record);
+    onStatus(
+      `Loaded project: ${record.name}${record.includesFiles ? " (config + files)" : " (config only)"}`,
+    );
+  } catch (error: unknown) {
+    onStatus(
+      `Could not load project: ${error instanceof Error ? error.message : String(error)}`,
+      true,
+    );
+  }
+}
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -33,14 +65,19 @@ function formatBytes(bytes: number): string {
 
 export function ProjectsCard({
   options,
+  methodProfileReceipt = null,
   uploadedFiles,
   supportFiles,
   onApplyProject,
   onStatus,
+  disabled = false,
 }: Props): ReactElement {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [name, setName] = useState("");
   const [includeFiles, setIncludeFiles] = useState(false);
+  // The project awaiting delete confirmation; deletion is irreversible.
+  const [pendingDelete, setPendingDelete] = useState<ProjectSummary | null>(null);
+  const nameInputId = useId();
 
   const refresh = (): void => {
     void listProjects().then(setProjects, (error: unknown) =>
@@ -66,6 +103,7 @@ export function ProjectsCard({
       name: trimmed,
       now: new Date().toISOString(),
       options,
+      methodProfileReceipt,
       rawFiles: uploadedFiles,
       supportFiles,
       includeFiles,
@@ -95,24 +133,18 @@ export function ProjectsCard({
     );
   };
 
-  const load = (summary: ProjectSummary): void => {
-    void loadProject(summary.id).then(
-      (record) => {
-        if (!record) {
-          onStatus("Project not found.", true);
-          return;
-        }
-        onApplyProject(record);
-        onStatus(
-          `Loaded project: ${record.name}${record.includesFiles ? " (config + files)" : " (config only)"}`,
-        );
-      },
-      (error: unknown) =>
-        onStatus(
-          `Could not load project: ${error instanceof Error ? error.message : String(error)}`,
-          true,
-        ),
-    );
+  const load = async (summary: ProjectSummary): Promise<void> => {
+    if (disabled) {
+      onStatus(
+        "Project application is unavailable while processing, retry, or comparison work is active.",
+        true,
+      );
+      return;
+    }
+    // App rechecks its synchronous activity refs here, after IndexedDB has
+    // resolved. A load that started idle but overlaps a newly started run is
+    // rejected before any project state is committed.
+    await loadProjectForApplication(summary, onApplyProject, onStatus);
   };
 
   const remove = (summary: ProjectSummary): void => {
@@ -133,6 +165,7 @@ export function ProjectsCard({
     <section
       className="settings-management"
       aria-labelledby="projects-card-title"
+      aria-disabled={disabled}
       data-testid="projects-card"
     >
       <header className="workflow-section__header">
@@ -149,11 +182,15 @@ export function ProjectsCard({
       </header>
 
       <div className="settings-management__group">
+        <label className="settings-field__label" htmlFor={nameInputId}>
+          Project name
+        </label>
         <div className="preset-manager__save">
           <input
+            id={nameInputId}
             className="input"
             value={name}
-            placeholder="Project name"
+            placeholder="e.g. Wave 2 child tablets"
             data-testid="project-name-input"
             onChange={(event) => setName(event.target.value)}
           />
@@ -194,14 +231,17 @@ export function ProjectsCard({
                     type="button"
                     className="btn btn--primary"
                     data-testid={`load-project-${project.id}`}
-                    onClick={() => load(project)}
+                    disabled={disabled}
+                    onClick={() => void load(project)}
                   >
                     Load
                   </button>
                   <button
                     type="button"
                     className="btn btn--danger-ghost"
-                    onClick={() => remove(project)}
+                    data-testid={`delete-project-${project.id}`}
+                    aria-label={`Delete project ${project.name}`}
+                    onClick={() => setPendingDelete(project)}
                   >
                     Delete
                   </button>
@@ -213,6 +253,28 @@ export function ProjectsCard({
           <p className="empty-state">No saved projects yet.</p>
         )}
       </div>
+      {pendingDelete ? (
+        <ConfirmDialog
+          title={`Delete project “${pendingDelete.name}”?`}
+          confirmLabel="Delete project"
+          testId="delete-project-dialog"
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={() => {
+            const target = pendingDelete;
+            setPendingDelete(null);
+            remove(target);
+          }}
+        >
+          <p>
+            This deletes the saved project from this browser: its settings
+            {pendingDelete.includesFiles
+              ? ` and the ${pendingDelete.rawFileNames.length} raw file${pendingDelete.rawFileNames.length === 1 ? "" : "s"} bundled into it`
+              : ""}
+            . The files on your computer and any exported config are not affected. This cannot be
+            undone.
+          </p>
+        </ConfirmDialog>
+      ) : null}
     </section>
   );
 }

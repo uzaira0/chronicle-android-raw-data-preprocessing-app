@@ -1,5 +1,12 @@
 name: Canary
 
+# Smoke-tests the GitHub Pages site of the repository this workflow runs in:
+# the public repository's canary tests production, the private preview
+# repository's canary tests the preview site. Both the URL and the tested
+# commit are derived at run time, never hardcoded, because the two repositories
+# carry this same file and each must test its own site with the tests of the
+# build that site is actually serving (main is usually ahead of what is live).
+
 on:
   schedule:
     - cron: "0 */6 * * *"  # Every 6 hours
@@ -11,13 +18,53 @@ permissions:
 jobs:
   canary:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: read
     steps:
-      - uses: actions/checkout@v7
+      # The newest github-pages deployment names what is live. A workflow-built
+      # site (production) deploys its source commit directly. A branch-built
+      # site (preview, `gh-pages`) deploys a commit whose message ends with the
+      # source commit, e.g. "deploy: <subject> (35b9b2b80)".
+      - name: Resolve the live Pages URL and the commit it serves
+        id: live
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          name="${REPO#*/}"
+          owner_lower="$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]')"
+          if [ "$name" = "${owner_lower}.github.io" ]; then
+            url="https://${owner_lower}.github.io/"
+          else
+            url="https://${owner_lower}.github.io/${name}/"
+          fi
+          deployed="$(gh api "repos/${REPO}/deployments?environment=github-pages&per_page=1" --jq '.[0].sha // empty')"
+          if [ -z "$deployed" ]; then
+            echo "::error::no github-pages deployment in ${REPO}; nothing to canary"
+            exit 1
+          fi
+          message="$(gh api "repos/${REPO}/commits/${deployed}" --jq '.commit.message | split("\n")[0]')"
+          source_sha="$(printf '%s\n' "$message" | sed -nE 's/^deploy: .*\(([0-9a-f]{7,40})\)$/\1/p')"
+          if [ -n "$source_sha" ]; then
+            source_sha="$(gh api "repos/${REPO}/commits/${source_sha}" --jq '.sha')"
+          else
+            source_sha="$deployed"
+          fi
+          echo "url=${url}" >> "$GITHUB_OUTPUT"
+          echo "sha=${source_sha}" >> "$GITHUB_OUTPUT"
+          echo "Canary target: ${url} serving ${source_sha} (deployment commit ${deployed})" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.live.outputs.sha }}
 
       - name: Set up Node
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: "24"
+          node-version-file: web/.node-version
           cache: "npm"
           cache-dependency-path: web/package-lock.json
 
@@ -31,15 +78,15 @@ jobs:
       # `npx --prefix web` resolves the binary from web/node_modules but keeps
       # the repo root as cwd, so playwright never finds web/playwright.config.ts
       # ("Project(s) \"chromium\" not found. Available projects: \"\"").
-      - name: Run smoke tests against deployed app
+      - name: Run smoke tests against the deployed app
         run: npx playwright test --grep "@smoke" --project=chromium
         working-directory: web
         env:
           CI: "true"
-          PLAYWRIGHT_BASE_URL: "https://uzaira0.github.io/chronicle-android-raw-data-preprocessing-app/"
+          PLAYWRIGHT_BASE_URL: ${{ steps.live.outputs.url }}
 
       - name: Upload report on failure
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
         with:
           name: canary-report

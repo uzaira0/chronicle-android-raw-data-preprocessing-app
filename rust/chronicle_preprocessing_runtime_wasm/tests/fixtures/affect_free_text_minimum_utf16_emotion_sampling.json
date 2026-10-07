@@ -1,0 +1,108 @@
+{
+  "schemaVersion": "chronicle-raw-text-minimum-utf16-source-fixture/v1",
+  "sourceWorkId": "doi:10.1145/3191754",
+  "sourceRevision": {
+    "commit": "2181ae41d0633ae1708df8fe0b0c8e35c3c8fdca",
+    "tree": "74c00e3b1a7f537a00e1fd0d76027b0e5064836c"
+  },
+  "exactCanonicalSetting": {
+    "settingId": "method-setting-b1af907e1494c7266158e17c",
+    "parameterKey": "sampling.affect_free_text_minimum_characters",
+    "sourceObservedSetting": "sampling.affect_free_text_minimum_characters: 25",
+    "sourceValueSha256": "3f368ffab8110bf101f11f827edad692fae6c18dc84d58f5feb37c811bb5ff82"
+  },
+  "siblingSetting": {
+    "settingId": "method-setting-503fde4baa827bcb852902d3",
+    "parameterKey": "sampling.meaningfulness_free_text_minimum_characters",
+    "sourceObservedSetting": "sampling.meaningfulness_free_text_minimum_characters: 25",
+    "sourceValueSha256": "b97ac07ba9a9001b7ed3796b6eb1aecc0d4b5b1d183567fee95572d5936ec197",
+    "sourceLocator": ".tmp-literature-review-private/corrective-packet-04-ranks-074-123-20260831/code-data/098-emotion-sampling/app/src/main/java/com/uw/hcde/esm/Sample.java:454-466",
+    "sourceArtifactSha256": "0edeae88ed09004873fedb8a3431052096b20c49e079d7b4118c88af58ef9c8b",
+    "sharedPredicate": "response.length() >= 25",
+    "callerDifference": "The affect caller stores affectText before the gate and advances to ug_mc only on success; the meaningfulness caller stores meaningfulnessText and ends the prompts only on success."
+  },
+  "sourceArtifacts": [
+    {
+      "locator": ".tmp-literature-review-private/corrective-packet-04-ranks-074-123-20260831/code-data/098-emotion-sampling/app/src/main/java/com/uw/hcde/esm/Sample.java:183-197",
+      "sha256": "0edeae88ed09004873fedb8a3431052096b20c49e079d7b4118c88af58ef9c8b"
+    },
+    {
+      "locator": ".tmp-literature-review-private/corrective-packet-04-ranks-074-123-20260831/code-data/098-emotion-sampling/app/src/main/res/layout/affect_text.xml:54-69",
+      "sha256": "8a1a41ca32e83b4d597992771e28331668b0bd963cc51303e8135b507284da1f"
+    }
+  ],
+  "productionBindingStatus": "missing_raw_text_utf16_minimum_gate",
+  "inputBoundary": "The raw, non-null Java String returned by answer.getText().toString() when the affect free-text Submit button is pressed.",
+  "countSemantics": "java.lang.String.length(): UTF-16 code units, without trimming, normalization, code-point conversion, or grapheme segmentation.",
+  "outputBoundary": "Return whether the raw text contains at least 25 UTF-16 code units. Equality advances from affect_text to ug_mc; a shorter response leaves the current prompt open.",
+  "minimumUtf16CodeUnits": 25,
+  "limitations": [
+    "The reusable primitive only returns the inclusive minimum decision; it does not mutate the questionnaire UI or Event.",
+    "The affect caller stores event.affectText before evaluating the gate, including for a response that is too short.",
+    "The sibling meaningfulness caller uses the same count predicate but performs different successful-side Event and prompt-completion actions.",
+    "Whitespace, line breaks, combining marks, and UTF-16 surrogate pairs are counted exactly as Java String.length counts them; no semantic text validation is inferred.",
+    "A missing text field must fail closed at a Chronicle adapter boundary even though Android EditText.getText().toString() supplies a non-null String in the captured caller.",
+    "The fixture is a source-faithful test-only specification and does not claim that a production Chronicle binding exists."
+  ],
+  "cases": [
+    {
+      "caseId": "empty",
+      "text": "",
+      "expectedUtf16CodeUnits": 0,
+      "expectedMeetsMinimum": false
+    },
+    {
+      "caseId": "ascii-immediately-below",
+      "text": "aaaaaaaaaaaaaaaaaaaaaaaa",
+      "expectedUtf16CodeUnits": 24,
+      "expectedMeetsMinimum": false
+    },
+    {
+      "caseId": "ascii-equality",
+      "text": "aaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expectedUtf16CodeUnits": 25,
+      "expectedMeetsMinimum": true
+    },
+    {
+      "caseId": "ascii-above",
+      "text": "aaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expectedUtf16CodeUnits": 26,
+      "expectedMeetsMinimum": true
+    },
+    {
+      "caseId": "twelve-supplementary-code-points-are-twenty-four-utf16-units",
+      "text": "😀😀😀😀😀😀😀😀😀😀😀😀",
+      "expectedUtf16CodeUnits": 24,
+      "expectedMeetsMinimum": false
+    },
+    {
+      "caseId": "twelve-supplementary-code-points-plus-ascii-reach-equality",
+      "text": "😀😀😀😀😀😀😀😀😀😀😀😀a",
+      "expectedUtf16CodeUnits": 25,
+      "expectedMeetsMinimum": true
+    },
+    {
+      "caseId": "twelve-decomposed-accented-letters-are-not-normalized",
+      "text": "e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301",
+      "expectedUtf16CodeUnits": 24,
+      "expectedMeetsMinimum": false
+    },
+    {
+      "caseId": "decomposed-sequence-plus-ascii-reaches-equality",
+      "text": "e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301a",
+      "expectedUtf16CodeUnits": 25,
+      "expectedMeetsMinimum": true
+    },
+    {
+      "caseId": "whitespace-and-newline-are-not-trimmed",
+      "text": "                        \n",
+      "expectedUtf16CodeUnits": 25,
+      "expectedMeetsMinimum": true
+    }
+  ],
+  "missingTextCase": {
+    "caseId": "missing-source-text",
+    "text": null,
+    "expectedError": "raw_answer_text_required"
+  }
+}

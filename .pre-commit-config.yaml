@@ -6,15 +6,32 @@ repos:
       # The kernel output-contract expectations are byte-exact copies of what
       # the pipeline emits; rewriting their whitespace would make the contract
       # test assert bytes the product never produces.
+      #
+      # The same rule covers two more generated trees, added 2026-08-08 after
+      # they were observed in a rewrite loop with their own generators:
+      #   web/src/lib/pipelineGraph/golden/expected/  — the pipeline writes these
+      #     CSVs with no terminal newline; end-of-file-fixer added one, so every
+      #     regeneration re-dirtied all ten files.
+      #   web/schema/generated/                        — the LinkML generators emit
+      #     a terminal blank line; end-of-file-fixer stripped it, with the same
+      #     result in the opposite direction.
+      # Neither drift was a content change. A generator owns the byte format of
+      # its own output; a hygiene hook must not arbitrate that, or `git status`
+      # reports drift forever and real drift stops being visible.
       - id: trailing-whitespace
-        exclude: '\.md$|^rust/chronicle_chrono_kernel_wasm/tests/golden/'
+        exclude: >-
+          \.md$|^rust/chronicle_chrono_kernel_wasm/tests/golden/|^web/src/lib/pipelineGraph/golden/expected/|^web/schema/generated/
       - id: end-of-file-fixer
-        exclude: 'web/src/wasm/|^rust/chronicle_chrono_kernel_wasm/tests/golden/'
+        exclude: >-
+          web/src/wasm/|^rust/chronicle_chrono_kernel_wasm/tests/golden/|^web/src/lib/pipelineGraph/golden/expected/|^web/schema/generated/
       - id: check-yaml
         exclude: '\.ast-grep/'
       - id: check-toml
+      # The literature corpus ledgers and generated component registries are
+      # legitimate multi-megabyte data artifacts, so the ceiling has to clear
+      # the largest of them (corpus-openalex-metadata.jsonl, ~19 MB).
       - id: check-added-large-files
-        args: [--maxkb=1000]
+        args: [--maxkb=25000]
         exclude: 'web/src/wasm/'
       - id: mixed-line-ending
         args: [--fix=lf]
@@ -66,12 +83,12 @@ repos:
         stages: [pre-push]
 
       - id: run-fuzz-sanity
-        name: Fuzz sanity — match_core (10s)
+        name: Fuzz sanity — matcher + runtime ingestion targets (10s each)
         language: script
         entry: scripts/run-fuzz-sanity.sh
         stages: [pre-push]
         pass_filenames: false
-        files: ^rust/chronicle_app_usage_matcher/
+        files: ^(rust/chronicle_app_usage_matcher/|rust/chronicle_preprocessing_runtime_wasm/fuzz/|scripts/run-fuzz-sanity\.sh$)
 
       - id: e2e-all-browsers
         name: E2E smoke — all browsers
