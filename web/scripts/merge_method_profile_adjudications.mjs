@@ -4916,7 +4916,6 @@ function applyExternalExecutionReceipts(assertions, profiles, spaces) {
   ];
   for (const { receipt, audit, digest } of loadLiteratureExternalExecutionReceipts(repo)) {
     const sourceWorkId = receipt.source_work_id;
-    const yesVerdicts = audit.configuration_verdicts.filter((verdict) => verdict.verdict === "hard_yes");
     const noVerdicts = audit.configuration_verdicts.filter((verdict) => verdict.verdict === "hard_no");
     const profile = repairedProfiles.find((candidate) => candidate.source_work_id === sourceWorkId);
     if (!profile || !profile.method_profile_version.includes("+source-complete-v1")) {

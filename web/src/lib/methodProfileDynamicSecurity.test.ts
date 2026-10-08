@@ -7,6 +7,7 @@ import { lazyPrivateCorpusJson } from "@/testSupport/privateCorpus";
 import { parseStudyMethodProfileLibrary, type StudyMethodProfile } from "./methodProfiles";
 import { loadResearchMethodSelection, saveResearchMethodSelection } from "./lastRunStore";
 import { dynamicSecurityExample } from "../../e2e/fixtures/temporal-observations";
+import { linkmlPython } from "../testSupport/linkmlPython";
 
 const canonical=lazyPrivateCorpusJson<{profiles:StudyMethodProfile[]}>("ontology-sublation-20260831/adjudicated-method-profile-library.json");
 function input() {
@@ -221,6 +222,6 @@ itWithPrivateCorpus("preserves the optional history identity and existing nested
     "  validator.validate(row); assert getattr(model,name)(**row).model_dump(exclude_unset=True)==row",
     "  assert not validator.is_valid(dict(row,invented_owner=True))",
     "print('dynamic-security-shapes-preserved')"].join("\n");
-  expect(execFileSync("uvx",["--from","linkml==1.10.0","--with","jsonschema","python","-c",script,schemaPath,pydanticPath],
+  expect(execFileSync(linkmlPython(), ["-c",script,schemaPath,pydanticPath],
     {input:JSON.stringify(v),encoding:"utf8",timeout:60_000}).trim()).toBe("dynamic-security-shapes-preserved");
 });

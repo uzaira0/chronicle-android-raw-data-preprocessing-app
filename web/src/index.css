@@ -330,11 +330,13 @@ a:hover {
   background: var(--color-surface);
   color: var(--color-text-strong);
   font-weight: var(--font-weight-bold);
-  box-shadow: var(--shadow-pop);
 }
 
+/* The shadow goes on only when the link is shown. Its 48px blur would
+   otherwise spill below the top edge while the link waits off-screen. */
 .skip-link:focus-visible {
   transform: translateY(0);
+  box-shadow: var(--shadow-pop);
 }
 
 ::selection {

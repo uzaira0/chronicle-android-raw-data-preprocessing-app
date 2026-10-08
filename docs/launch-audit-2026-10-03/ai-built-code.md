@@ -106,3 +106,11 @@ Counts: **PASS 34 · FAIL 29 · N/A 2** (65 items).
   The Makefile:1-2 header says the deploy workflow "re-runs the web build checks", but it runs only
   `build:app` (typecheck) plus the artifact check (web-pwa-deploy.yml:47-73). README's "all 46 computational
   options" is not registered in check_published_figures.py, so by the repo's own rule it is an unverified figure.
+
+## Resolutions after the audit
+
+- **K6** is not a bug. The raw export has a timezone column, raw times are UTC, and the app converts
+  them into that zone on purpose. The output is local wall-clock time, which is what researchers need.
+- **K7** is fixed in the labels. All four settings name their unit (seconds or hours) in the settings
+  screen. The option keys keep their names, so saved settings and the research-pipeline consumer do
+  not change.
