@@ -1279,7 +1279,7 @@ export const BROWSER_OPTION_TOOLTIPS = {
     body: "Stamp each numbered episode with the rule that placed it, in the existing any_app_usage_flags column: whether the session opened, joined or broke, the observed gap in seconds, and whether a change of foreground app was also responsible. Only read when a session grouping policy is selected. Off by default, and with it off no flag is written, so the app-usage CSV is byte-identical. The lineage rides in an existing column rather than a new one, so a run with it on stays schema-compatible with a run with it off.",
   },
   customAppEngagementDuration: {
-    title: "Custom app engagement duration",
+    title: "Custom app engagement duration (seconds)",
     body: "Window in seconds within which two consecutive activities on the same app count as continued engagement. Affects how first new engagement is detected.",
     example: "default 300 seconds",
   },

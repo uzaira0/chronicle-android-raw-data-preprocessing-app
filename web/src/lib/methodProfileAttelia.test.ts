@@ -7,6 +7,7 @@ import { lazyPrivateCorpusJson } from "@/testSupport/privateCorpus";
 import { parseStudyMethodProfileLibrary, type StudyMethodProfile } from "./methodProfiles";
 import { loadResearchMethodSelection, saveResearchMethodSelection } from "./lastRunStore";
 import { atteliaObservationExample } from "../../e2e/fixtures/temporal-observations";
+import { linkmlPython } from "../testSupport/linkmlPython";
 const canonical=lazyPrivateCorpusJson<{profiles:StudyMethodProfile[]}>("ontology-sublation-20260831/adjudicated-method-profile-library.json");
 function input(){
   const profile=structuredClone(canonical().profiles.find(p=>p.source_work_id==="doi:10.1145/2750858.2807517")!);
@@ -138,5 +139,5 @@ itWithPrivateCorpus("preserves Attelia supplied relationships in existing genera
     "for name,key in [('TaskOccurrenceRecord','task_occurrences'),('SampledQuantityObservationRecord','sampled_quantity_observations')]:",
     " validator=Draft202012Validator({'$ref':'#/$defs/'+name,'$defs':schema['$defs']})"," for row in data[key]:","  validator.validate(row); assert getattr(model,name)(**row).model_dump(exclude_unset=True)==row",
     "print('attelia-existing-shapes-preserved')"].join("\n");
-  expect(execFileSync("uvx",["--from","linkml==1.10.0","--with","jsonschema","python","-c",script,schema,model],{input:JSON.stringify(input()),encoding:"utf8",timeout:60_000}).trim()).toBe("attelia-existing-shapes-preserved");
+  expect(execFileSync(linkmlPython(), ["-c",script,schema,model],{input:JSON.stringify(input()),encoding:"utf8",timeout:60_000}).trim()).toBe("attelia-existing-shapes-preserved");
 });

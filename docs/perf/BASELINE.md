@@ -510,7 +510,7 @@ those hashes protect checkpoint and artifact identity and remain intact.
 
 ## Deploy artifact
 
-The deploy build occupies 14,899,456 bytes on disk (2026-10-03 working-tree build;
+The deploy build occupies 14,899,444 bytes on disk (2026-10-03 working-tree build;
 480,690 of those bytes are `THIRD-PARTY-NOTICES.txt` and 83,539 are the CycloneDX
 SBOM `sbom.cdx.json`, neither of which the app fetches or precaches; they are served
 only when someone opens them).

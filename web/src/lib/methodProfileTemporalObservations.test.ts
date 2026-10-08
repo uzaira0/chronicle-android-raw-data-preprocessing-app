@@ -19,6 +19,7 @@ import { falakiObservationExample, trafficObservationExample, depressionTrafficO
 import { moodscopeObservationExample, wearableMoodObservationExample } from "../../e2e/fixtures/temporal-observations";
 import { mercatiGovernorObservationExample, signalPowerObservationExample } from "../../e2e/fixtures/temporal-observations";
 import { prefminerObservationExample, tailFourExample, assessmentTrioExample, typingMotionExample, classroomContextExample, cohortAppSummaryExample, backDeviceAuthenticationExample, timeKillingObservationExample } from "../../e2e/fixtures/temporal-observations";
+import { linkmlPython } from "../testSupport/linkmlPython";
 
 const canonical = lazyPrivateCorpusJson<{ profiles: StudyMethodProfile[] }>("ontology-sublation-20260831/adjudicated-method-profile-library.json");
 const workIds = ["doi:10.1145/1879141.1879176", "doi:10.1038/s41598-021-82294-1"];
@@ -505,7 +506,7 @@ itWithPrivateCorpus("preserves Boredom and Energy raw observations through indep
     "for row in data['participant_day_observations']: preserved('ParticipantDayObservationRecord',row)",
     "print('Boredom raw shape parity')",
   ].join("\n");
-  expect(execFileSync("uvx", ["--from", "linkml==1.10.0", "--with", "jsonschema", "python", "-c", script, schemaPath, pydanticPath], {
+  expect(execFileSync(linkmlPython(), ["-c", script, schemaPath, pydanticPath], {
     input: JSON.stringify(source), encoding: "utf8", timeout: 180_000,
   }).trim()).toBe("Boredom raw shape parity");
 });
@@ -1810,7 +1811,7 @@ describe("sampled process quantities and independent monthly app-use cells", () 
       task_occurrences: [...memberships.flatMap(value => value.task_occurrences), ...wearable.task_occurrences] };
     const schemaPath = resolve(import.meta.dirname, "../../schema/generated/json-schema/chronicle-research-ontology.schema.json");
     const pydanticPath = resolve(import.meta.dirname, "../../schema/generated/pydantic");
-    const result = execFileSync("uvx", ["--from", "linkml==1.10.0", "--with", "jsonschema", "python", "-c", [
+    const result = execFileSync(linkmlPython(), ["-c", [
       "import json,sys", "from jsonschema import Draft202012Validator", "sys.path.insert(0,sys.argv[2])",
       "import chronicle_research_ontology as model", "schema=json.load(open(sys.argv[1]))", "rows=json.load(sys.stdin)",
       "for name,records in [('SampledQuantityObservationRecord',rows['sampled_quantity_observations']),('MonthlyAppUseCellRecord',rows['monthly_app_use_cells']),('ParticipantDayObservationRecord',rows['participant_day_observations']),('AppFeatureSessionRecord',rows['app_feature_sessions']),('TaskOccurrenceRecord',rows['task_occurrences'])]:",
@@ -3005,7 +3006,7 @@ itWithPrivateCorpus("preserves supplied S3 records through generated JSON Schema
     "  assert not validator.is_valid(dict(row,sampled_observation_references=[dict(link,relationship_label='')]))",
     "print('S3-shapes-preserved')",
   ].join("\n");
-  expect(execFileSync("uvx", ["--from", "linkml==1.10.0", "--with", "jsonschema", "python", "-c", script, schemaPath, pydanticPath], {
+  expect(execFileSync(linkmlPython(), ["-c", script, schemaPath, pydanticPath], {
     input: JSON.stringify(input), encoding: "utf8", timeout: 180_000,
   }).trim()).toBe("S3-shapes-preserved");
 });
@@ -3164,7 +3165,7 @@ itWithPrivateCorpus("preserves MoodScope API records through existing generated 
     " assert not validator.is_valid(dict(row,invented_field=True))",
     "print('MoodScope-shapes-preserved')",
   ].join("\n");
-  expect(execFileSync("uvx", ["--from", "linkml==1.10.0", "--with", "jsonschema", "python", "-c", script, schemaPath, pydanticPath], {
+  expect(execFileSync(linkmlPython(), ["-c", script, schemaPath, pydanticPath], {
     input: JSON.stringify(input), encoding: "utf8", timeout: 180_000,
   }).trim()).toBe("MoodScope-shapes-preserved");
 });
@@ -4038,7 +4039,7 @@ itWithPrivateCorpus("preserves Mercati hardware core records through existing ge
     " assert not validator.is_valid(dict(row,invented_field=True))",
     "print('Mercati-shapes-preserved')",
   ].join("\n");
-  expect(execFileSync("uvx", ["--from", "linkml==1.10.0", "--with", "jsonschema", "python", "-c", script, schemaPath, pydanticPath], {
+  expect(execFileSync(linkmlPython(), ["-c", script, schemaPath, pydanticPath], {
     input: JSON.stringify(input), encoding: "utf8", timeout: 180_000,
   }).trim()).toBe("Mercati-shapes-preserved");
 });
@@ -4329,7 +4330,7 @@ itWithPrivateCorpus("preserves signal-power hardware context and raw event/colle
     " assert not validator.is_valid(dict(row,invented_field=True))",
     "print('signal-power-shapes-preserved')",
   ].join("\n");
-  expect(execFileSync("uvx", ["--from", "linkml==1.10.0", "--with", "jsonschema", "python", "-c", script, schemaPath, pydanticPath], {
+  expect(execFileSync(linkmlPython(), ["-c", script, schemaPath, pydanticPath], {
     input: JSON.stringify(input), encoding: "utf8", timeout: 180_000,
   }).trim()).toBe("signal-power-shapes-preserved");
 });
@@ -4538,7 +4539,7 @@ function assertTemporalGeneratedShapes(input: { sampled_quantity_observations: u
       "  assert not validator.is_valid(dict(row,invented_field=True))",
       "print('temporal-shapes-preserved')",
     ].join("\n");
-    expect(execFileSync("uvx", ["--from","linkml==1.10.0","--with","jsonschema","python","-c",script,schemaPath,pydanticPath],
+    expect(execFileSync(linkmlPython(), ["-c",script,schemaPath,pydanticPath],
       { input: JSON.stringify(input), encoding: "utf8", timeout: 180_000 }).trim()).toBe("temporal-shapes-preserved");
 }
 
@@ -6764,7 +6765,7 @@ itWithPrivateCorpus.each(cohortAppWorks)("preserves aggregate payloads through e
     " validator.validate(row); assert model.SampledQuantityObservationRecord(**row).model_dump(exclude_unset=True)==row",
     " assert not validator.is_valid(dict(row,invented_owner=True))","print('cohort-app-shapes-preserved')",
   ].join("\n");
-  expect(execFileSync("uvx",["--from","linkml==1.10.0","--with","jsonschema","python","-c",script,schemaPath,pydanticPath],
+  expect(execFileSync(linkmlPython(), ["-c",script,schemaPath,pydanticPath],
     {input:JSON.stringify(input),encoding:"utf8",timeout:180_000}).trim()).toBe("cohort-app-shapes-preserved");
 });
 
@@ -7037,7 +7038,7 @@ itWithPrivateCorpus("preserves Back-of-device existing shapes through generated 
     "  assert not validator.is_valid(dict(row,invented_owner=True))",
     "print('back-device-existing-shapes-preserved')",
   ].join("\n");
-  expect(execFileSync("uvx", ["--from", "linkml==1.10.0", "--with", "jsonschema", "python", "-c", script, schemaPath, pydanticPath],
+  expect(execFileSync(linkmlPython(), ["-c", script, schemaPath, pydanticPath],
     { input: JSON.stringify(input), encoding: "utf8", timeout: 180_000 }).trim()).toBe("back-device-existing-shapes-preserved");
 });
 
@@ -7285,7 +7286,7 @@ itWithPrivateCorpus("preserves TimeKilling existing generated shapes and new opt
     "  assert not validator.is_valid(dict(row,invented_owner=True))",
     "print('time-killing-shapes-preserved')",
   ].join("\n");
-  expect(execFileSync("uvx",["--from","linkml==1.10.0","--with","jsonschema","python","-c",script,schemaPath,pydanticPath],
+  expect(execFileSync(linkmlPython(), ["-c",script,schemaPath,pydanticPath],
     {input:JSON.stringify(input),encoding:"utf8",timeout:180_000}).trim()).toBe("time-killing-shapes-preserved");
 });
 

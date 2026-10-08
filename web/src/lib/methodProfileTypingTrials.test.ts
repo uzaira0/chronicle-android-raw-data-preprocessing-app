@@ -10,6 +10,7 @@ import { loadResearchMethodSelection, saveResearchMethodSelection } from "./last
 import { typingTransactionExample as input, typingCaseExample } from "../../e2e/fixtures/typing-transactions";
 import { derivedTypingTrialExample } from "../../e2e/fixtures/derived-typing-trials";
 import { createHash } from "node:crypto";
+import { linkmlPython } from "../testSupport/linkmlPython";
 
 it("rejects malformed keyboard and trial children at their exact supplied field", () => {
   const mutations: Array<[(source: typeof typingCaseExample) => void, string]> = [
@@ -221,7 +222,7 @@ describe("supplied trial cases, independent verdicts and separately owned answer
       expect(parseStudyMethodProfileLibrary({ ...rows, typing_trials: [variant] }).typing_trials).toEqual([variant]);
       variants.push(variant);
     }
-    const checked = execFileSync("uvx", ["--from", "linkml==1.10.0", "python", "-c", [
+    const checked = execFileSync(linkmlPython(), ["-c", [
       "import json,sys", "from jsonschema import Draft202012Validator", "sys.path.insert(0,sys.argv[1])",
       "from chronicle_research_ontology import TypingTrialRecord", "x=json.load(sys.stdin)",
       "v=Draft202012Validator({'$ref':'#/$defs/TypingTrialRecord','$defs':x['schema']['$defs']})",

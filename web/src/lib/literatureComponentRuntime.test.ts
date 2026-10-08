@@ -1070,7 +1070,7 @@ describe("registered literature component runtime", () => {
       const manifest = JSON.parse(manifestJson) as Record<string, unknown>;
       mutate(manifest);
       return reopenLiteratureComponentResult(JSON.stringify(manifest));
-    }
+    };
 
 
     it("reopens the saved workspace and republishes every persisted artifact", async () => {

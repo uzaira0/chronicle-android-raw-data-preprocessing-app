@@ -10,6 +10,7 @@ import { loadResearchMethodSelection, saveResearchMethodSelection } from "@/lib/
 import { compileNativeMethodProfile, parseStudyMethodProfileLibrary, type StudyMethodProfile, type TaskOccurrenceRecord } from "@/lib/methodProfiles";
 import { taskInstrumentExamples } from "../../e2e/fixtures/task-instrument-examples";
 import { appInterruptionQuestionnaireExample } from "../../e2e/fixtures/app-interruption-session";
+import { linkmlPython } from "../testSupport/linkmlPython";
 
 itWithPrivateCorpus.each([
   ["survey.baseline", "response"], ["covariate.derived_and_instrument", "response"],
@@ -979,7 +980,7 @@ itWithPrivateCorpus("preserves supplied instrument and performance records throu
     rows.NotificationHistoryRecord!.push(...pair.notification_histories ?? []);
     rows.ParticipantDayObservationRecord!.push(...pair.participant_day_observations ?? []);
   }
-  const result = execFileSync("uvx", ["--from", "linkml==1.10.0", "--with", "jsonschema", "python", "-c", [
+  const result = execFileSync(linkmlPython(), ["-c", [
     "import json,sys", "from jsonschema import Draft202012Validator", "sys.path.insert(0,sys.argv[2])",
     "import chronicle_research_ontology as models", "schema=json.load(open(sys.argv[1]))",
     "for name, rows in json.load(sys.stdin).items():",

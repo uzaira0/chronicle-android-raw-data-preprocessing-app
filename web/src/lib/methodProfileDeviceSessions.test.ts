@@ -10,6 +10,7 @@ import { loadResearchMethodSelection, saveResearchMethodSelection } from "@/lib/
 import { dailyValidityDeviceSessionExample, appPeriodDeviceSessionExample, apnomsDeviceSessionExample, hammerDeviceSessionExample } from "../../e2e/fixtures/device-use-session";
 import { falakiDeviceSessionExample } from "../../e2e/fixtures/device-use-session";
 import { academicDeviceSessionExample, appMeasuresDeviceSessionExample, cognitiveDeviceSessionExample, deviceUseSessionExample, hushDeviceSessionExample, jonesDeviceSessionExample, lonelinessDeviceSessionExample, mommDeviceSessionExample, recordedBehaviorDeviceSessionExample, separateDeviceSessionExample, sessionQuantityExample, shinDeviceSessionExample, vanBerkelDeviceSessionExample, whatsappDeviceSessionExample } from "../../e2e/fixtures/device-use-session";
+import { linkmlPython } from "../testSupport/linkmlPython";
 
 const libraryPath = privateCorpusPath("ontology-sublation-20260831/adjudicated-method-profile-library.json");
 const example = () => {
@@ -1042,7 +1043,7 @@ describeWithPrivateCorpus("supplied device sessions, repeated answers and indepe
       ...sessionQuantityExample(profiles.find(p => p.source_work_id === "doi:10.1145/2750858.2807542")!).device_use_sessions,
       ...sessionQuantityExample(profiles.find(p => p.source_work_id === "doi:10.1145/3604241")!).device_use_sessions,
     ];
-    const result = execFileSync("uvx", ["--from", "linkml==1.10.0", "--with", "jsonschema", "python", "-c", [
+    const result = execFileSync(linkmlPython(), ["-c", [
       "import json,sys", "from jsonschema import Draft202012Validator", "sys.path.insert(0,sys.argv[2])",
       "from chronicle_research_ontology import DeviceUseSessionRecord", "schema=json.load(open(sys.argv[1]))",
       "validator=Draft202012Validator({'$ref':'#/$defs/DeviceUseSessionRecord','$defs':schema['$defs']})",

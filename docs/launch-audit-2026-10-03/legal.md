@@ -100,3 +100,13 @@ Network requests observed (served build at :4318, fresh Chromium profile; phases
 ## Counts
 
 PASS 12 · FAIL 17 · N/A 24 (53 rows).
+
+## Resolutions after the audit
+
+- **I4d / L6, app codebook (2026-10-07):** the owner reports that the labs
+  whose coding the codebook merges gave permission to publish it. That
+  permission also covers the older codebook files still in public history, so
+  no history rewrite is needed.
+- **I4b / L4, ported code (2026-10-07):** owner decision. The EYES and
+  Culverhouse ports are published on public `main` (#110). The Van Gaeveren
+  session rule is removed from public and kept on preview only.

@@ -7,6 +7,7 @@ import { itWithPrivateCorpus } from "@/testSupport/privateCorpusGates";
 import { privateCorpusPath } from "@/testSupport/privateCorpus";
 import { loadResearchMethodSelection, saveResearchMethodSelection } from "./lastRunStore";
 import { parseStudyMethodProfileLibrary, type StudyMethodProfile, type StudyMethodProfileLibrary } from "./methodProfiles";
+import { linkmlPython } from "../testSupport/linkmlPython";
 
 const input = () => {
   const library = JSON.parse(readFileSync(privateCorpusPath("ontology-sublation-20260831/adjudicated-method-profile-library.json"), "utf8")) as { profiles: StudyMethodProfile[] };
@@ -126,7 +127,7 @@ itWithPrivateCorpus("preserves PVT windows and explicit prior-night/following-da
 
 itWithPrivateCorpus("validates night identity and cross-period reference structure with generated contracts", () => {
   const source = input();
-  const result = execFileSync("uvx", ["--from", "linkml==1.10.0", "--with", "jsonschema", "python", "-c", [
+  const result = execFileSync(linkmlPython(), ["-c", [
     "import json,sys", "from jsonschema import Draft202012Validator", "sys.path.insert(0,sys.argv[2])",
     "import chronicle_research_ontology as models", "schema=json.load(open(sys.argv[1]))", "source=json.load(sys.stdin)",
     "groups={'TaskOccurrenceRecord':source['task_occurrences'],'ParticipantDayObservationRecord':source['participant_day_observations'],'CrossPeriodAggregateReference':source['participant_day_observations'][0]['cross_period_aggregate_references']}",

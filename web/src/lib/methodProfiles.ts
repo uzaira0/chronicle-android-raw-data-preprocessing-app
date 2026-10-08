@@ -10309,7 +10309,7 @@ function validateS3Quantity(value: unknown, property: string, shape: ReturnType<
   if (states && (typeof value !== "string" || !states.includes(value))) throw new Error(path + " is not a disclosed S3 categorical value");
   if (shape.key === "dataset.info_schema" && property === "type"
     && (typeof value !== "string" || value.split("_").some(part => !["st", "cr", "vn"].includes(part)) || new Set(value.split("_")).size !== value.split("_").length)) throw new Error(path + " is not a disclosed S3 file-type composition");
-  if (value !== null && typeof value !== "string" && (typeof value !== "number" || !Number.isFinite(value))) throw new Error(path + " must contain a supplied S3 scalar or null");
+  if (typeof value !== "string" && (typeof value !== "number" || !Number.isFinite(value))) throw new Error(path + " must contain a supplied S3 scalar or null");
   const range = spec.integerRanges?.[property] ?? spec.ranges?.[property];
   if (typeof value === "number" && range && (value < range[0] || value > range[1] || (spec.integerRanges?.[property] && !Number.isInteger(value)))) throw new Error(path + " is outside the disclosed S3 numeric range");
 }

@@ -27,18 +27,18 @@ at `55533851`, before the fixes below.
 
 ## 1. Verdict
 
-**Ready to merge to `main`; not yet ready to deploy to production.** Every
-code-level blocker the audit found is fixed and verified. Deploying still waits
-on the owner to-do in section 4 — above all the licence grants for ported code
-and the redistributed codebook, which are legal blockers for a public deploy of
-this branch, not code defects.
+**Deployed to production on 2026-10-07** (public `main` 96375c5d, tag
+`deployed-2026-10-07`). Every code-level blocker the audit found is fixed and
+verified. The two legal items in section 2 were settled by the owner: the labs
+gave permission for the codebook, and the owner chose to publish the EYES and
+Culverhouse ports while the Van Gaeveren port stays off public.
 
-## 2. Blockers that remain
+## 2. Legal items and how they were settled
 
 | IDs | What | Why it blocks |
 |---|---|---|
-| legal I4b/L4 | Code ported from repos with no licence: `eyes-toolbox` (EYES complement, `eyes_complement.rs`), `joshculverhouse/chronicle-preprocessed-cleaning` and `chronicle-android-preprocessing` (Culverhouse logic, `model.rs`), the OSF Van Gaeveren notebook (`checkpoint.rs`). | Publishing needs written permission. None of it is on public `main` yet. **2026-10-07:** the OSF notebook port and the 30 s session-grouping arm built on it were removed from the public copy (contract v5); EYES and Culverhouse remain open. |
-| legal I4d/L6 | `unified_app_codebook.csv` merges coding from Baby EMU, BYU, UMich, BCM and USC plus scraped Play Store data, with no permission on record. Older "internal" codebooks remain in public history. | Redistribution permission. |
+| legal I4b/L4 | Code ported from repos with no licence: `eyes-toolbox` (EYES complement, `eyes_complement.rs`), `joshculverhouse/chronicle-preprocessed-cleaning` and `chronicle-android-preprocessing` (Culverhouse logic, `model.rs`), the OSF Van Gaeveren notebook (`checkpoint.rs`). | Owner decision 2026-10-07: EYES and Culverhouse are published (public #110); the Van Gaeveren rule is removed from public and kept on preview only. |
+| legal I4d/L6 | `unified_app_codebook.csv` merges coding from Baby EMU, BYU, UMich, BCM and USC plus scraped Play Store data. | Resolved 2026-10-07: the owner reports that the labs gave permission to publish their coding. The older codebook files in public history are covered by the same permission and stay. |
 
 ## 3. Fixed in this pass
 
@@ -119,21 +119,12 @@ Every fix below has a test that fails without it. Branches were merged into
 
 ## 4. Owner to-do
 
-1. **Licences** — get written grants (or remove the ports) for `eyes-toolbox`,
-   both `joshculverhouse` repos and the OSF notebook port (removed from the
-   public copy on 2026-10-07, contract v5), and permission from
-   the five labs for the app codebook. Record them in the repo. Checked
-   2026-10-03: none of the GitHub repos and none of the OSF projects (`5bekx`,
-   `tmuhe`, `ztxmh`) carries a licence. Request drafts exist outside the repo;
-   nothing has been sent.
-2. **Linux screenshot baselines** — on node-z run
+1. **Linux screenshot baselines** — on node-z run
    `scripts/run-visual-regression.sh --update-snapshots` (intended changes:
    footer height and its diagnostic-report button, 24 px download rows, Files
    fixture, the first-paint skeleton). Recording them in Docker on macOS does
    not work: even on the commit node-z last recorded, Docker's rendering
    differs by 2–4%.
-3. **Older internal codebooks in public history** — removing them needs a
-   second content rewrite of public history (legal I4d/L6).
 
 Done since the first pass: branch protection on both repos (required checks
 CodeQL, gitleaks and osv-scanner; PR required; admins included; linear
@@ -153,9 +144,14 @@ Listed so none of them is mistaken for done:
   `methodProfiles.ts` is exercised only by corpus-backed tests). The pre-push
   coverage hook therefore stops on a machine that lacks the corpus, and says
   that is why.
-- Naive timestamps are written without a zone and option names carry no unit
-  (ai K6/K7): changing either changes output or saved settings for the
-  research-pipeline consumer, so it waits on an owner decision.
+- Settled after the audit, ai K6/K7. K6 (naive output timestamps) is not a
+  bug: the raw export carries a timezone column, the raw times are UTC, and
+  the app converts them to that local zone, so local wall-clock output is the
+  intended result. K7 (option names with no unit) is fixed where people read
+  it: all four settings now name their unit in the label, the last one being
+  "Custom app engagement duration (seconds)". The internal option keys keep
+  their names, so saved settings and the research-pipeline consumer are
+  unchanged.
 
 ### Fixed in the follow-up pass (batch 2)
 

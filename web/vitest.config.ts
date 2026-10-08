@@ -36,7 +36,8 @@ export default defineConfig({
     exclude: ["e2e/**", "node_modules/**", "dist/**"],
     // Reports whether the machine-local private literature corpus is present,
     // i.e. whether the tests gated on it ran or were skipped.
-    globalSetup: ["src/testSupport/privateCorpusGlobalSetup.ts"],
+    // The second resolves the pinned LinkML interpreter once for the whole run.
+    globalSetup: ["src/testSupport/privateCorpusGlobalSetup.ts", "src/testSupport/linkmlPythonGlobalSetup.ts"],
     // Stated explicitly rather than inherited. These are vitest 4's defaults, so
     // pinning them changes no current result — the point is that a version bump
     // cannot move them silently, and that a stuck test fails by name instead of
