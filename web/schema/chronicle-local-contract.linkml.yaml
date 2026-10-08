@@ -1399,7 +1399,7 @@ slots:
   custom_app_engagement_duration:
     range: integer
     required: true
-    title: "Custom app engagement duration"
+    title: "Custom app engagement duration (seconds)"
     description: >-
       Window in seconds within which two consecutive activities on the same app
       count as continued engagement. Affects how first new engagement is detected.

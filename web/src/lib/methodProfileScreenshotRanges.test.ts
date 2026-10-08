@@ -10,6 +10,7 @@ import { compileNativeMethodProfile, parseStudyMethodProfileLibrary } from "@/li
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import { humanScreenomeExample, pulseScreenshotRangeExample } from "../../e2e/fixtures/pulse-screenshot-ranges";
 import { nestedSessionFamilyExample } from "../../e2e/fixtures/device-use-session";
+import { linkmlPython } from "../testSupport/linkmlPython";
 
 describe("source-backed within-session screenshot range labels", () => {
   itWithPrivateCorpus("preserves Human Screenome app/topic/text-feature ownership through the existing singleton annotation path", async () => {
@@ -33,7 +34,7 @@ describe("source-backed within-session screenshot range labels", () => {
     const foreign = structuredClone(input);
     foreign.screenshot_sessions[0]!.screenshot_range_annotations[0]!.first_screenshot_reference = "foreign-capture";
     expect(() => parseStudyMethodProfileLibrary(foreign)).toThrow("within session");
-    const result = execFileSync("uvx", ["--from", "linkml==1.10.0", "--with", "jsonschema", "python", "-c", [
+    const result = execFileSync(linkmlPython(), ["-c", [
       "import json,sys", "from jsonschema import Draft202012Validator", "sys.path.insert(0,sys.argv[2])",
       "from chronicle_research_ontology import ScreenshotSessionRecord", "schema=json.load(open(sys.argv[1]))",
       "validator=Draft202012Validator({'$ref':'#/$defs/ScreenshotSessionRecord','$defs':schema['$defs']})",
@@ -289,7 +290,7 @@ describe("source-bound supplied nested sessions, app visits, screenshots and unl
     const saved = JSON.parse((await loadResearchMethodSelection())!) as Record<string, unknown>;
     const restored = parseStudyMethodProfileLibrary({ profiles: [saved.profile], ...Object.fromEntries(nestedChannels.map(channel => [channel, saved[channel]])) });
     for (const channel of nestedChannels) expect(restored[channel]).toEqual(input[channel]);
-    const result = execFileSync("uvx", ["--from", "linkml==1.10.0", "--with", "jsonschema", "python", "-c", [
+    const result = execFileSync(linkmlPython(), ["-c", [
       "import json,sys", "from jsonschema import Draft202012Validator", "sys.path.insert(0,sys.argv[2])",
       "import chronicle_research_ontology as model", "schema=json.load(open(sys.argv[1]))",
       "for name,rows in json.load(sys.stdin).items():",
