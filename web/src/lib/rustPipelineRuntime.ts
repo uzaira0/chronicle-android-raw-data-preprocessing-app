@@ -2504,8 +2504,11 @@ async function verifyRootClosure(
     };
     const decodeRoot = (bytes: Uint8Array): Root => {
       const root = JSON.parse(new TextDecoder().decode(bytes)) as Root;
+      if (isOtherRuntimeProtocol(root.protocolVersion)) {
+        throw new SavedByOtherAppVersionError();
+      }
       if (
-        root.protocolVersion !== "chronicle-preprocessing-runtime/v2" ||
+        root.protocolVersion !== RUNTIME_PROTOCOL_VERSION ||
         root.command !== "ExecuteWorkspace" ||
         !["certified_narrow", "conservative_full"].includes(
           root.dependencyCacheMode,
@@ -3094,14 +3097,63 @@ export async function garbageCollectPersistedRustWorkspace(
 export async function deletePersistedRustWorkspace(
   workspaceId: string,
 ): Promise<void> {
-  return withWorkspaceLock(workspaceId, async () => {
-    await removeOpfsWorkspace(workspaceId);
-    persistedRustReviewProbesCache = undefined;
-    persistedRustSelectedReviewBaseCache = undefined;
-    if (ephemeralContinuation?.workspaceId === workspaceId) {
-      ephemeralContinuation = undefined;
-    }
-  });
+  return withWorkspaceLock(workspaceId, () =>
+    removePersistedRustWorkspaceUnlocked(workspaceId),
+  );
+}
+
+/** Callers hold the workspace's exclusive lock. */
+async function removePersistedRustWorkspaceUnlocked(
+  workspaceId: string,
+): Promise<void> {
+  await removeOpfsWorkspace(workspaceId);
+  persistedRustReviewProbesCache = undefined;
+  persistedRustSelectedReviewBaseCache = undefined;
+  if (ephemeralContinuation?.workspaceId === workspaceId) {
+    ephemeralContinuation = undefined;
+  }
+}
+
+const RUNTIME_PROTOCOL_VERSION = "chronicle-preprocessing-runtime/v2";
+
+/**
+ * A saved run committed under another runtime protocol (the 2026-08-05
+ * production build wrote `/v1`). This build reads none of it; the message is
+ * what a user sees when they open or download such a restored run.
+ */
+export class SavedByOtherAppVersionError extends Error {
+  constructor() {
+    super(
+      "These results were saved by an earlier version of the app, which this version cannot open. Add the file again and process it to rebuild them.",
+    );
+    this.name = "SavedByOtherAppVersionError";
+  }
+}
+
+function isOtherRuntimeProtocol(protocolVersion: unknown): boolean {
+  return (
+    typeof protocolVersion === "string" &&
+    protocolVersion.startsWith("chronicle-preprocessing-runtime/") &&
+    protocolVersion !== RUNTIME_PROTOCOL_VERSION
+  );
+}
+
+async function headSavedByOtherAppVersion(
+  root: FileSystemDirectoryHandle,
+  slot: WorkspaceRootSlot,
+): Promise<boolean> {
+  // Not wiped after reading: a root commit holds only digests, and the bytes
+  // may be shared with the caller's own read of the same object.
+  const bytes = await readRuntimeObject(root, slot.workspaceRootDigest);
+  try {
+    return isOtherRuntimeProtocol(
+      (JSON.parse(new TextDecoder().decode(bytes)) as { protocolVersion?: unknown })
+        .protocolVersion,
+    );
+  } catch {
+    // Not decodable at all: the full verification owns that refusal.
+    return false;
+  }
 }
 
 const RECOVERED_SLOT_INVARIANT =
@@ -4286,6 +4338,22 @@ async function executeRustRuntimeUnlocked(
                 persistenceAdapter.recoverHead ?? persistenceAdapter.recover
               )(opfsRoot)
             : await persistenceAdapter.recover(opfsRoot);
+        if (
+          recoveredRoot &&
+          persistenceAdapter === defaultPersistenceAdapter &&
+          (await headSavedByOtherAppVersion(opfsRoot, recoveredRoot))
+        ) {
+          // A head saved under another runtime protocol can be neither read
+          // nor chained onto, and refusing it failed every run of a file the
+          // August build had processed until site data was cleared. Nothing
+          // in that workspace is readable by this build, so a full run (which
+          // holds the exclusive lock) clears it and runs as if never processed
+          // here. Review queries hold only a shared lock and must not delete.
+          if (materialization !== "full") throw new SavedByOtherAppVersionError();
+          await removePersistedRustWorkspaceUnlocked(workspaceId);
+          opfsRoot = await persistenceAdapter.openRoot(workspaceId);
+          recoveredRoot = undefined;
+        }
         if (recoveredRoot && materialization === "full") {
           // The workspace is keyed by input content alone, so a file processed
           // before an app update finds a head committed by the earlier runtime

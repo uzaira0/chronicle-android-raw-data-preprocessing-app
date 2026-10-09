@@ -25,6 +25,7 @@ const opfs = vi.hoisted(() => ({
   recoverRuntimeWorkspace: vi.fn(),
   recoverRuntimeWorkspaceHead: vi.fn(),
   recoverRuntimeWorkspaceRoots: vi.fn(),
+  removeOpfsWorkspace: vi.fn(),
   runtimeClosureWorkspaceId: vi.fn(),
 }));
 
@@ -46,6 +47,7 @@ import {
   importPersistedRustWorkspaceArchive,
   installRustPayloadSpill,
   readVerifiedPersistedRustWorkspaceArchiveCapture,
+  SavedByOtherAppVersionError,
   inspectRustRawFile,
   queryPersistedRustReview,
   queryRustReview,
@@ -1959,6 +1961,7 @@ describe("persisted Rust workspace boundary", () => {
       expect(opfs.recoverRuntimeWorkspace).toHaveBeenCalledWith(root);
       // The damaged head is not chained onto; the verified older slot is.
       expect(request?.workspaceRootDigest).toBe(rootDigest);
+      expect(opfs.removeOpfsWorkspace).not.toHaveBeenCalled();
     });
 
     it("keeps the damaged-head error when recovery offers no different slot", async () => {
@@ -1975,6 +1978,84 @@ describe("persisted Rust workspace boundary", () => {
       }
       expect(opfs.recoverRuntimeWorkspace).toHaveBeenCalledTimes(2);
       expect(kernel.execute_workspace).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("saved run committed under another runtime protocol", () => {
+    // The 2026-08-05 production build committed `chronicle-preprocessing-runtime/v1`
+    // roots; every later build refused them, so re-running such a file failed
+    // with "recovered workspace root contract is invalid" until site data was
+    // cleared.
+    const raw = enc.encode("raw");
+    const fullOptions = {
+      ...DEFAULT_BROWSER_OPTIONS,
+      processScreenUsage: false,
+      selectedTimezone: "UTC",
+      useFilterFile: false,
+      useAppsForcingScreenOpenFile: false,
+      useBackgroundAppsFile: false,
+      useAppCodebook: false,
+    };
+    async function withV1Head(check: () => Promise<void>): Promise<void> {
+      const current = bytesByDigest.get(rootDigest)!;
+      bytesByDigest.set(
+        rootDigest,
+        enc.encode(
+          JSON.stringify({
+            ...validCommit,
+            protocolVersion: "chronicle-preprocessing-runtime/v1",
+          }),
+        ),
+      );
+      try {
+        await check();
+      } finally {
+        bytesByDigest.set(rootDigest, current);
+      }
+    }
+
+    it("clears it and processes the file fresh instead of refusing", async () => {
+      let request: { workspaceRootDigest?: unknown } | undefined;
+      kernel.execute_workspace.mockImplementationOnce((requestJson: string) => {
+        request = JSON.parse(requestJson) as typeof request;
+        throw new Error("full execution reached Rust");
+      });
+      await withV1Head(() =>
+        expect(
+          executeRustRuntime(raw, "Raw.csv", fullOptions, {}, {
+            persistRustWorkspace: true,
+            incrementalEngine: false,
+            datetimeOfPreprocessing: "2026-07-26 00:00:00 UTC",
+          }),
+        ).rejects.toThrow(/full execution reached Rust/),
+      );
+      expect(opfs.removeOpfsWorkspace).toHaveBeenCalledWith(
+        await runtimeWorkspaceId("Raw.csv", raw),
+      );
+      expect(request?.workspaceRootDigest).toBeNull();
+    });
+
+    it("refuses a review query on it without deleting under a shared lock", async () => {
+      await withV1Head(() =>
+        expect(
+          queryRustReview(raw, "Raw.csv", fullOptions, {}, {
+            persistRustWorkspace: true,
+            incrementalEngine: false,
+            datetimeOfPreprocessing: "2026-07-26 00:00:00 UTC",
+          }),
+        ).rejects.toThrow(SavedByOtherAppVersionError),
+      );
+      expect(opfs.removeOpfsWorkspace).not.toHaveBeenCalled();
+      expect(kernel.execute_workspace).not.toHaveBeenCalled();
+    });
+
+    it("refuses to reopen it with a message a user can act on", async () => {
+      await withV1Head(() =>
+        expect(verifyPersistedRustWorkspace(workspaceId)).rejects.toThrow(
+          SavedByOtherAppVersionError,
+        ),
+      );
+      expect(opfs.removeOpfsWorkspace).not.toHaveBeenCalled();
     });
   });
 

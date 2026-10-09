@@ -33,7 +33,7 @@ import {
   warmRuntime,
 } from "@/lib/rustWorkerClient";
 import { BUILD_DATE, BUILD_SHA } from "@/lib/buildInfo";
-import { recordError, setSensitiveNames } from "@/lib/diagnostics";
+import { processingErrorText, recordError, setSensitiveNames } from "@/lib/diagnostics";
 import {
   benchmarkPayloadBudgetOverride,
   testRuntimeOverride,
@@ -2752,10 +2752,7 @@ export default function App(): ReactElement {
             // that as a real failure — the finally block marks it cancelled.
             if (cancelRequestedRef.current) return;
             runHadFailure = true;
-            const message =
-              fileError instanceof Error
-                ? fileError.message
-                : String(fileError);
+            const message = processingErrorText(fileError);
             failures.push(message);
             handleProgressEvent({
               type: "file-complete",
@@ -3214,8 +3211,7 @@ export default function App(): ReactElement {
           isError: !retryPersisted || retrySaveFailure !== null,
         });
       } catch (retryError) {
-        const message =
-          retryError instanceof Error ? retryError.message : String(retryError);
+        const message = processingErrorText(retryError);
         handleProgressEvent({
           type: "file-complete",
           fileName,
