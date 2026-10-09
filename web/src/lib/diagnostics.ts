@@ -187,6 +187,28 @@ export function recordError(source: ErrorSource, error: unknown, context?: strin
   return entry;
 }
 
+/**
+ * Refusals from the saved-run integrity checks (rustPipelineRuntime.ts,
+ * opfsArtifactStore.ts). None tells a user what to do.
+ */
+const SAVED_RUN_CHECK_FAILURE =
+  /^(recovered workspace|recovered typed view|recovered OPFS root|workspace slot does not match|OPFS workspace roots exist|component history|corrupt OPFS object|runtime artifact set)/;
+
+export const SAVED_RUN_CHECK_NOTICE =
+  "This browser's saved copy of an earlier run of this file failed its integrity check, so the file was not processed. Use “Delete all local data” in the page footer, then process the file again. If it happens again, send the diagnostic report from the footer.";
+
+/**
+ * The text a failed run shows. A saved-run check failure becomes
+ * SAVED_RUN_CHECK_NOTICE and its raw message goes to the diagnostic log;
+ * every other message (input, timezone, schema) is already meant for users.
+ */
+export function processingErrorText(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  if (!SAVED_RUN_CHECK_FAILURE.test(message)) return message;
+  recordError("background", error, "saved-run integrity check");
+  return SAVED_RUN_CHECK_NOTICE;
+}
+
 export function recentErrors(): readonly RecordedError[] {
   return [...loaded()];
 }

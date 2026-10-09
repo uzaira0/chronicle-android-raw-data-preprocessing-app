@@ -8,6 +8,8 @@ import {
   formatDiagnosticReport,
   installGlobalErrorRecorder,
   onErrorRecorded,
+  processingErrorText,
+  SAVED_RUN_CHECK_NOTICE,
   recentErrors,
   recordError,
   redactDiagnosticText,
@@ -296,5 +298,23 @@ describe("diagnostic report", () => {
     expect(browserDiagnosticGlobals().localStorageAvailable).toBe(false);
     vi.stubGlobal("localStorage", undefined);
     expect(browserDiagnosticGlobals().localStorageAvailable).toBe(false);
+  });
+});
+
+describe("processingErrorText", () => {
+  it("shows a saved-run check failure as a notice and logs the raw text", () => {
+    expect(
+      processingErrorText(new Error("recovered workspace root contract is invalid")),
+    ).toBe(SAVED_RUN_CHECK_NOTICE);
+    expect(recentErrors().map((entry) => entry.message)).toEqual([
+      "recovered workspace root contract is invalid",
+    ]);
+  });
+
+  it("passes every other message through unrecorded", () => {
+    const message = "Missing required column: event_timestamp";
+    expect(processingErrorText(new Error(message))).toBe(message);
+    expect(processingErrorText(message)).toBe(message);
+    expect(recentErrors()).toEqual([]);
   });
 });
