@@ -2573,7 +2573,7 @@ async function verifyRootClosure(
         commit.workflowCompatibilityDigest !==
           workflowContractDigests.workspaceCompatibility
       ) {
-        throw new Error("recovered workspace workflow identity is invalid");
+        throw new SavedByOtherAppVersionError();
       }
       if (
         head &&
@@ -4328,71 +4328,88 @@ async function executeRustRuntimeUnlocked(
     let recoveredRoot: WorkspaceRootSlot | undefined;
     if (runtime.persistRustWorkspace) {
       await traced("previous-root-recovery", async () => {
-        opfsRoot = await persistenceAdapter.openRoot(workspaceId);
-        recoveredRoot =
-          materialization === "full" &&
-          persistenceAdapter === defaultPersistenceAdapter
-            ? await recoverRuntimeWorkspaceHead(opfsRoot, true)
-            : materialization === "review"
-            ? await (
-                persistenceAdapter.recoverHead ?? persistenceAdapter.recover
-              )(opfsRoot)
-            : await persistenceAdapter.recover(opfsRoot);
-        if (
-          recoveredRoot &&
-          persistenceAdapter === defaultPersistenceAdapter &&
-          (await headSavedByOtherAppVersion(opfsRoot, recoveredRoot))
-        ) {
-          // A head saved under another runtime protocol can be neither read
-          // nor chained onto, and refusing it failed every run of a file the
-          // August build had processed until site data was cleared. Nothing
-          // in that workspace is readable by this build, so a full run (which
-          // holds the exclusive lock) clears it and runs as if never processed
-          // here. Review queries hold only a shared lock and must not delete.
-          if (materialization !== "full") throw new SavedByOtherAppVersionError();
+        try {
+          opfsRoot = await persistenceAdapter.openRoot(workspaceId);
+          recoveredRoot =
+            materialization === "full" &&
+            persistenceAdapter === defaultPersistenceAdapter
+              ? await recoverRuntimeWorkspaceHead(opfsRoot, true)
+              : materialization === "review"
+              ? await (
+                  persistenceAdapter.recoverHead ?? persistenceAdapter.recover
+                )(opfsRoot)
+              : await persistenceAdapter.recover(opfsRoot);
+          if (
+            recoveredRoot &&
+            persistenceAdapter === defaultPersistenceAdapter &&
+            (await headSavedByOtherAppVersion(opfsRoot, recoveredRoot))
+          ) {
+            // A head saved under another runtime protocol can be neither read
+            // nor chained onto, and refusing it failed every run of a file the
+            // August build had processed until site data was cleared. Nothing
+            // in that workspace is readable by this build, so a full run (which
+            // holds the exclusive lock) clears it and runs as if never processed
+            // here. Review queries hold only a shared lock and must not delete.
+            if (materialization !== "full") throw new SavedByOtherAppVersionError();
+            await removePersistedRustWorkspaceUnlocked(workspaceId);
+            opfsRoot = await persistenceAdapter.openRoot(workspaceId);
+            recoveredRoot = undefined;
+          }
+          if (recoveredRoot && materialization === "full") {
+            // The workspace is keyed by input content alone, so a file processed
+            // before an app update finds a head committed by the earlier runtime
+            // build. A full run only chains onto that head and never reuses its
+            // outputs, so the head's closure is still verified but its runtime
+            // identity is not required to match; refusing it here failed every
+            // re-run of such a file until site data was cleared.
+            try {
+              await persistenceAdapter.verify?.(
+                opfsRoot,
+                recoveredRoot,
+                kernel,
+                workspaceId,
+                true,
+              );
+            } catch (error) {
+              // A signed newest head can still have a damaged downstream
+              // object. Full recovery then selects the prior independent slot;
+              // semantic failures on an intact head keep their original error.
+              if (
+                persistenceAdapter !== defaultPersistenceAdapter ||
+                !isRecoverableClosureObjectError(error)
+              ) throw error;
+              const fallback = await persistenceAdapter.recover(opfsRoot);
+              if (
+                !fallback ||
+                fallback.workspaceRootDigest === recoveredRoot.workspaceRootDigest
+              ) {
+                throw error;
+              }
+              await persistenceAdapter.verify?.(
+                opfsRoot,
+                fallback,
+                kernel,
+                workspaceId,
+                true,
+              );
+              recoveredRoot = fallback;
+            }
+          }
+        } catch (error) {
+          // Saved results are a cache: a full run reuses none of their
+          // outputs, so a saved run this build cannot verify (another app
+          // version's protocol or workflow contract, a damaged object, a
+          // broken history) must never stop the file from processing. Discard
+          // it and run as if the file was never processed here. Review
+          // queries hold only a shared lock and keep their refusal.
+          if (
+            materialization !== "full" ||
+            persistenceAdapter !== defaultPersistenceAdapter
+          ) throw error;
+          console.warn("discarding a saved run this build cannot use", error);
           await removePersistedRustWorkspaceUnlocked(workspaceId);
           opfsRoot = await persistenceAdapter.openRoot(workspaceId);
           recoveredRoot = undefined;
-        }
-        if (recoveredRoot && materialization === "full") {
-          // The workspace is keyed by input content alone, so a file processed
-          // before an app update finds a head committed by the earlier runtime
-          // build. A full run only chains onto that head and never reuses its
-          // outputs, so the head's closure is still verified but its runtime
-          // identity is not required to match; refusing it here failed every
-          // re-run of such a file until site data was cleared.
-          try {
-            await persistenceAdapter.verify?.(
-              opfsRoot,
-              recoveredRoot,
-              kernel,
-              workspaceId,
-              true,
-            );
-          } catch (error) {
-            // A signed newest head can still have a damaged downstream
-            // object. Full recovery then selects the prior independent slot;
-            // semantic failures on an intact head keep their original error.
-            if (
-              persistenceAdapter !== defaultPersistenceAdapter ||
-              !isRecoverableClosureObjectError(error)
-            ) throw error;
-            const fallback = await persistenceAdapter.recover(opfsRoot);
-            if (
-              !fallback ||
-              fallback.workspaceRootDigest === recoveredRoot.workspaceRootDigest
-            ) {
-              throw error;
-            }
-            await persistenceAdapter.verify?.(
-              opfsRoot,
-              fallback,
-              kernel,
-              workspaceId,
-              true,
-            );
-            recoveredRoot = fallback;
-          }
         }
       });
     }
