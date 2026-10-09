@@ -4,10 +4,10 @@
   "claimBoundary": "One supplied source column, one empirically branch-activating intervention on it, crossed with every non-compound computational configuration axis the field-level workflow contract predicts can interact with that column, plus a deterministic control sample of axes it predicts cannot. For raw-column shards, Parry/Zhu/Schoedel alternates that would necessarily rebind the digest-bound capability sidecar are explicitly excluded and remain unestimated as compound raw+capability interactions; the configuration-space sourceSensitiveScientificCells domain separately proves the generic LF-sidecar to CRLF-raw Parry rebind mechanism, not every excluded pair. Under every configuration executed, every canonical output cell the intervention changes belongs to a declared output-cell family of that column, and no control axis introduces a family the base configuration did not move. Declared families no configuration moved are listed, not asserted: a declared edge no run exercised is not evidence the edge is unreal. Changed query checkpoints are recorded as context only, because a query checkpoint also moves when the query merely carries a changed field through its records.",
   "implementationReceipt": {
     "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
-    "implementationDigest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43",
+    "implementationDigest": "sha256:cfa7f11b87802213388917c8b24238f947604e152a447cc69cf977511fdd40ce",
     "planDigest": "sha256:be0258af6aafbc9a1855ae4223adcc642a8d22b5fa8bb87eb09f6b62dc3abbd0",
-    "profileDigest": "sha256:637623272b4ab1bfd901a4d45103bc95984cc2e272dfa400745541b96a5aaefb",
-    "profileLockDigest": "sha256:424844ecf7fceb750d1f409453abf2f0ab76754f36861bd86cec1464a4fc6655",
+    "profileDigest": "sha256:37edc9f29d368950cd2a7893c164c223723741456d189d969a0f8b630f31dfbd",
+    "profileLockDigest": "sha256:a26272e97b5ff2e578d44665643e0da0007ff701fa647eac1fdd6ec7fd6197a6",
     "runtimeAuthorityDigest": "sha256:7807fe99a35b4ede2c85d8e8868ec3dcb2accb22e8265c4643966eb9840ce4e4",
     "productContractDigest": "sha256:81e857feb3c24afaf0b3bbbef63081e884a498cfaa8398a76fabfe23c8c5c61b"
   },
@@ -195,6 +195,13 @@
     "app-csv#bcm_play_store_genre",
     "app-csv#bcm_play_store_genreId",
     "app-csv#bcm_play_store_rating",
+    "app-csv#bluelight_play_store_broad_app_category",
+    "app-csv#bluelight_play_store_developer",
+    "app-csv#bluelight_play_store_downloads",
+    "app-csv#bluelight_play_store_free",
+    "app-csv#bluelight_play_store_genre",
+    "app-csv#bluelight_play_store_genreId",
+    "app-csv#bluelight_play_store_rating",
     "app-csv#broad_app_category",
     "app-csv#codebook_application_label",
     "app-csv#codebook_dataset",
@@ -281,6 +288,13 @@
     "credited-app-csv#bcm_play_store_genre",
     "credited-app-csv#bcm_play_store_genreId",
     "credited-app-csv#bcm_play_store_rating",
+    "credited-app-csv#bluelight_play_store_broad_app_category",
+    "credited-app-csv#bluelight_play_store_developer",
+    "credited-app-csv#bluelight_play_store_downloads",
+    "credited-app-csv#bluelight_play_store_free",
+    "credited-app-csv#bluelight_play_store_genre",
+    "credited-app-csv#bluelight_play_store_genreId",
+    "credited-app-csv#bluelight_play_store_rating",
     "credited-app-csv#broad_app_category",
     "credited-app-csv#codebook_application_label",
     "credited-app-csv#codebook_dataset",
@@ -436,6 +450,13 @@
     "app-csv#bcm_play_store_genre",
     "app-csv#bcm_play_store_genreId",
     "app-csv#bcm_play_store_rating",
+    "app-csv#bluelight_play_store_broad_app_category",
+    "app-csv#bluelight_play_store_developer",
+    "app-csv#bluelight_play_store_downloads",
+    "app-csv#bluelight_play_store_free",
+    "app-csv#bluelight_play_store_genre",
+    "app-csv#bluelight_play_store_genreId",
+    "app-csv#bluelight_play_store_rating",
     "app-csv#broad_app_category",
     "app-csv#codebook_application_label",
     "app-csv#codebook_dataset",
@@ -522,7 +543,7 @@
     "visualization-data-json#/eventTimestampsByParticipant/*/*",
     "visualization-data-json#/screenRows/*/*"
   ],
-  "baseConfigurationChangedCellAddresses": 5472,
+  "baseConfigurationChangedCellAddresses": 5479,
   "witnessedCellFamiliesAcrossAllConfigurations": [
     "aggregate-category-time-budget-csv#session_count",
     "aggregate-daily-summary-csv#active_window_minutes",
@@ -611,6 +632,13 @@
     "app-csv#bcm_play_store_genre",
     "app-csv#bcm_play_store_genreId",
     "app-csv#bcm_play_store_rating",
+    "app-csv#bluelight_play_store_broad_app_category",
+    "app-csv#bluelight_play_store_developer",
+    "app-csv#bluelight_play_store_downloads",
+    "app-csv#bluelight_play_store_free",
+    "app-csv#bluelight_play_store_genre",
+    "app-csv#bluelight_play_store_genreId",
+    "app-csv#bluelight_play_store_rating",
     "app-csv#broad_app_category",
     "app-csv#codebook_application_label",
     "app-csv#codebook_dataset",
@@ -695,6 +723,13 @@
     "credited-app-csv#bcm_play_store_genre",
     "credited-app-csv#bcm_play_store_genreId",
     "credited-app-csv#bcm_play_store_rating",
+    "credited-app-csv#bluelight_play_store_broad_app_category",
+    "credited-app-csv#bluelight_play_store_developer",
+    "credited-app-csv#bluelight_play_store_downloads",
+    "credited-app-csv#bluelight_play_store_free",
+    "credited-app-csv#bluelight_play_store_genre",
+    "credited-app-csv#bluelight_play_store_genreId",
+    "credited-app-csv#bluelight_play_store_rating",
     "credited-app-csv#broad_app_category",
     "credited-app-csv#codebook_application_label",
     "credited-app-csv#codebook_dataset",
@@ -924,6 +959,13 @@
         "app-csv#bcm_play_store_genre",
         "app-csv#bcm_play_store_genreId",
         "app-csv#bcm_play_store_rating",
+        "app-csv#bluelight_play_store_broad_app_category",
+        "app-csv#bluelight_play_store_developer",
+        "app-csv#bluelight_play_store_downloads",
+        "app-csv#bluelight_play_store_free",
+        "app-csv#bluelight_play_store_genre",
+        "app-csv#bluelight_play_store_genreId",
+        "app-csv#bluelight_play_store_rating",
         "app-csv#broad_app_category",
         "app-csv#codebook_application_label",
         "app-csv#codebook_dataset",
@@ -1009,8 +1051,8 @@
     {
       "axisId": "processScreenUsage=false",
       "predictedAffected": true,
-      "changedCellAddresses": 5464,
-      "changedCellFamilies": 105,
+      "changedCellAddresses": 5471,
+      "changedCellFamilies": 112,
       "sameFamiliesAsBaseConfiguration": false,
       "introducedFamilies": [],
       "maskedFamilies": [
@@ -1023,8 +1065,8 @@
     {
       "axisId": "eventRetentionSet=parrytoth7",
       "predictedAffected": true,
-      "changedCellAddresses": 4201,
-      "changedCellFamilies": 97,
+      "changedCellAddresses": 4208,
+      "changedCellFamilies": 104,
       "sameFamiliesAsBaseConfiguration": false,
       "introducedFamilies": [],
       "maskedFamilies": [
@@ -1045,8 +1087,8 @@
     {
       "axisId": "openerSet=resumedonly",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1054,8 +1096,8 @@
     {
       "axisId": "episodeReconstructionStrategy=forward",
       "predictedAffected": true,
-      "changedCellAddresses": 4390,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 4397,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1063,8 +1105,8 @@
     {
       "axisId": "microUseClassificationPolicy=okoshilt5s",
       "predictedAffected": true,
-      "changedCellAddresses": 5621,
-      "changedCellFamilies": 112,
+      "changedCellAddresses": 5628,
+      "changedCellFamilies": 119,
       "sameFamiliesAsBaseConfiguration": false,
       "introducedFamilies": [
         "app-csv#micro_use_classification",
@@ -1076,8 +1118,8 @@
     {
       "axisId": "allowStopEventReuse=true",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1085,8 +1127,8 @@
     {
       "axisId": "useActivityStoppedAsFallback=false",
       "predictedAffected": true,
-      "changedCellAddresses": 5259,
-      "changedCellFamilies": 97,
+      "changedCellAddresses": 5266,
+      "changedCellFamilies": 104,
       "sameFamiliesAsBaseConfiguration": false,
       "introducedFamilies": [],
       "maskedFamilies": [
@@ -1107,8 +1149,8 @@
     {
       "axisId": "applyThresholdToFallback=false",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1116,8 +1158,8 @@
     {
       "axisId": "longDurationThresholdHours=h1",
       "predictedAffected": true,
-      "changedCellAddresses": 4444,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 4451,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1125,8 +1167,8 @@
     {
       "axisId": "longDurationThresholdHoursExplicit=true",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1134,8 +1176,8 @@
     {
       "axisId": "maximumDurationPolicy=strategynative",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1143,8 +1185,8 @@
     {
       "axisId": "maximumDurationDisposition=notapplicable",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1152,8 +1194,8 @@
     {
       "axisId": "maximumDurationThresholdSource=strategynative",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1161,8 +1203,8 @@
     {
       "axisId": "maximumDurationThresholdNs=ns1",
       "predictedAffected": true,
-      "changedCellAddresses": 5723,
-      "changedCellFamilies": 117,
+      "changedCellAddresses": 5730,
+      "changedCellFamilies": 124,
       "sameFamiliesAsBaseConfiguration": false,
       "introducedFamilies": [
         "app-csv#effective_endpoint_reason",
@@ -1179,8 +1221,8 @@
     {
       "axisId": "correctDuplicateEventTimestamps=false",
       "predictedAffected": true,
-      "changedCellAddresses": 7163,
-      "changedCellFamilies": 160,
+      "changedCellAddresses": 7184,
+      "changedCellFamilies": 174,
       "sameFamiliesAsBaseConfiguration": false,
       "introducedFamilies": [
         "credited-app-csv#any_app_usage_flags",
@@ -1202,6 +1244,13 @@
         "credited-app-csv#bcm_play_store_genre",
         "credited-app-csv#bcm_play_store_genreId",
         "credited-app-csv#bcm_play_store_rating",
+        "credited-app-csv#bluelight_play_store_broad_app_category",
+        "credited-app-csv#bluelight_play_store_developer",
+        "credited-app-csv#bluelight_play_store_downloads",
+        "credited-app-csv#bluelight_play_store_free",
+        "credited-app-csv#bluelight_play_store_genre",
+        "credited-app-csv#bluelight_play_store_genreId",
+        "credited-app-csv#bluelight_play_store_rating",
         "credited-app-csv#broad_app_category",
         "credited-app-csv#codebook_application_label",
         "credited-app-csv#codebook_dataset",
@@ -1240,8 +1289,8 @@
     {
       "axisId": "deduplicateExactRows=false",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1249,8 +1298,8 @@
     {
       "axisId": "dropOutOfSourceOrderEvents=true",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1258,8 +1307,8 @@
     {
       "axisId": "selectedTimezone=america_new_york",
       "predictedAffected": true,
-      "changedCellAddresses": 5456,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5463,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1267,8 +1316,8 @@
     {
       "axisId": "timezoneHandling=selected_filter",
       "predictedAffected": true,
-      "changedCellAddresses": 3412,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 3419,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1276,8 +1325,8 @@
     {
       "axisId": "dayBoundaryAttribution=splitmidnight",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1285,8 +1334,8 @@
     {
       "axisId": "useFilterFile=false",
       "predictedAffected": true,
-      "changedCellAddresses": 5758,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5765,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1294,8 +1343,8 @@
     {
       "axisId": "filterMatchField=application_label",
       "predictedAffected": true,
-      "changedCellAddresses": 5758,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5765,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1303,8 +1352,8 @@
     {
       "axisId": "applicationLabelExclusions=unknown_app",
       "predictedAffected": true,
-      "changedCellAddresses": 5241,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5248,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1312,8 +1361,8 @@
     {
       "axisId": "packageExclusionPreset=honorfilterflag",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1321,8 +1370,8 @@
     {
       "axisId": "useAppsForcingScreenOpenFile=false",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1330,8 +1379,8 @@
     {
       "axisId": "useBackgroundAppsFile=false",
       "predictedAffected": true,
-      "changedCellAddresses": 4395,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 4402,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1360,6 +1409,13 @@
         "app-csv#bcm_play_store_genre",
         "app-csv#bcm_play_store_genreId",
         "app-csv#bcm_play_store_rating",
+        "app-csv#bluelight_play_store_broad_app_category",
+        "app-csv#bluelight_play_store_developer",
+        "app-csv#bluelight_play_store_downloads",
+        "app-csv#bluelight_play_store_free",
+        "app-csv#bluelight_play_store_genre",
+        "app-csv#bluelight_play_store_genreId",
+        "app-csv#bluelight_play_store_rating",
         "app-csv#broad_app_category",
         "app-csv#codebook_application_label",
         "app-csv#codebook_dataset",
@@ -1378,8 +1434,8 @@
     {
       "axisId": "includeCategoryColumn=false",
       "predictedAffected": true,
-      "changedCellAddresses": 5400,
-      "changedCellFamilies": 108,
+      "changedCellAddresses": 5407,
+      "changedCellFamilies": 115,
       "sameFamiliesAsBaseConfiguration": false,
       "introducedFamilies": [],
       "maskedFamilies": [
@@ -1389,8 +1445,8 @@
     {
       "axisId": "includeAppUsageEndReason=false",
       "predictedAffected": true,
-      "changedCellAddresses": 5387,
-      "changedCellFamilies": 107,
+      "changedCellAddresses": 5394,
+      "changedCellFamilies": 114,
       "sameFamiliesAsBaseConfiguration": false,
       "introducedFamilies": [],
       "maskedFamilies": [
@@ -1401,8 +1457,8 @@
     {
       "axisId": "enableAggregates=true",
       "predictedAffected": true,
-      "changedCellAddresses": 5576,
-      "changedCellFamilies": 163,
+      "changedCellAddresses": 5583,
+      "changedCellFamilies": 170,
       "sameFamiliesAsBaseConfiguration": false,
       "introducedFamilies": [
         "aggregate-category-time-budget-csv#session_count",
@@ -1465,8 +1521,8 @@
     {
       "axisId": "aggregateShape=long",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1474,8 +1530,8 @@
     {
       "axisId": "aggregateTopAppsLimit=top5",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1483,8 +1539,8 @@
     {
       "axisId": "enableParticipantAmountSummary=true",
       "predictedAffected": true,
-      "changedCellAddresses": 5488,
-      "changedCellFamilies": 118,
+      "changedCellAddresses": 5495,
+      "changedCellFamilies": 125,
       "sameFamiliesAsBaseConfiguration": false,
       "introducedFamilies": [
         "aggregate-participant-amount-summary-csv#daily_average_minutes",
@@ -1502,8 +1558,8 @@
     {
       "axisId": "neutralizeSpreadsheetFormulas=true",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1511,8 +1567,8 @@
     {
       "axisId": "minimumUsageDuration=s0",
       "predictedAffected": true,
-      "changedCellAddresses": 7941,
-      "changedCellFamilies": 145,
+      "changedCellAddresses": 7948,
+      "changedCellFamilies": 152,
       "sameFamiliesAsBaseConfiguration": false,
       "introducedFamilies": [
         "credited-app-csv#any_app_usage_flags",
@@ -1557,8 +1613,8 @@
     {
       "axisId": "minimumDurationComparator=inclusivele",
       "predictedAffected": true,
-      "changedCellAddresses": 5721,
-      "changedCellFamilies": 114,
+      "changedCellAddresses": 5728,
+      "changedCellFamilies": 121,
       "sameFamiliesAsBaseConfiguration": false,
       "introducedFamilies": [
         "app-csv#minimum_duration_aggregate_eligible",
@@ -1572,8 +1628,8 @@
     {
       "axisId": "minimumDurationDisposition=retaincredit",
       "predictedAffected": true,
-      "changedCellAddresses": 5725,
-      "changedCellFamilies": 114,
+      "changedCellAddresses": 5732,
+      "changedCellFamilies": 121,
       "sameFamiliesAsBaseConfiguration": false,
       "introducedFamilies": [
         "app-csv#minimum_duration_aggregate_eligible",
@@ -1587,8 +1643,8 @@
     {
       "axisId": "filterZeroDurationSessions=false",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1596,8 +1652,8 @@
     {
       "axisId": "intervalQualityPolicy=culverhouse",
       "predictedAffected": true,
-      "changedCellAddresses": 5437,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5444,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1605,8 +1661,8 @@
     {
       "axisId": "sessionGroupingPolicy=zerrer60s",
       "predictedAffected": true,
-      "changedCellAddresses": 5543,
-      "changedCellFamilies": 111,
+      "changedCellAddresses": 5550,
+      "changedCellFamilies": 118,
       "sameFamiliesAsBaseConfiguration": false,
       "introducedFamilies": [
         "app-csv#usage_session_id",
@@ -1617,8 +1673,8 @@
     {
       "axisId": "sessionGapBasis=runningmaxstop",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1626,8 +1682,8 @@
     {
       "axisId": "sessionBoundaryScope=participantstudy",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1635,8 +1691,8 @@
     {
       "axisId": "emitSessionBreakLineage=true",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1644,8 +1700,8 @@
     {
       "axisId": "customAppEngagementDuration=s0",
       "predictedAffected": true,
-      "changedCellAddresses": 5656,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5663,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1653,8 +1709,8 @@
     {
       "axisId": "longUsageDurationThresholds=empty",
       "predictedAffected": true,
-      "changedCellAddresses": 5444,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5451,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1662,8 +1718,8 @@
     {
       "axisId": "longDataTimeGapThresholds=empty",
       "predictedAffected": true,
-      "changedCellAddresses": 5470,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5477,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1671,8 +1727,8 @@
     {
       "axisId": "screenSessionClassificationPolicy=phone_check_inclusive_15s",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1680,8 +1736,8 @@
     {
       "axisId": "screenSessionMaximumDurationMinutes=m60",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1689,8 +1745,8 @@
     {
       "axisId": "screenSessionMaximumDurationDisposition=truncate",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1698,8 +1754,8 @@
     {
       "axisId": "lockedScreenAudioDisposition=exclude_from_phone_and_app_sessions",
       "predictedAffected": true,
-      "changedCellAddresses": 1737,
-      "changedCellFamilies": 118,
+      "changedCellAddresses": 1744,
+      "changedCellFamilies": 125,
       "sameFamiliesAsBaseConfiguration": false,
       "introducedFamilies": [
         "credited-app-csv#any_app_usage_flags",
@@ -1721,6 +1777,13 @@
         "credited-app-csv#bcm_play_store_genre",
         "credited-app-csv#bcm_play_store_genreId",
         "credited-app-csv#bcm_play_store_rating",
+        "credited-app-csv#bluelight_play_store_broad_app_category",
+        "credited-app-csv#bluelight_play_store_developer",
+        "credited-app-csv#bluelight_play_store_downloads",
+        "credited-app-csv#bluelight_play_store_free",
+        "credited-app-csv#bluelight_play_store_genre",
+        "credited-app-csv#bluelight_play_store_genreId",
+        "credited-app-csv#bluelight_play_store_rating",
         "credited-app-csv#broad_app_category",
         "credited-app-csv#codebook_application_label",
         "credited-app-csv#codebook_dataset",
@@ -1769,6 +1832,13 @@
         "app-csv#bcm_play_store_genre",
         "app-csv#bcm_play_store_genreId",
         "app-csv#bcm_play_store_rating",
+        "app-csv#bluelight_play_store_broad_app_category",
+        "app-csv#bluelight_play_store_developer",
+        "app-csv#bluelight_play_store_downloads",
+        "app-csv#bluelight_play_store_free",
+        "app-csv#bluelight_play_store_genre",
+        "app-csv#bluelight_play_store_genreId",
+        "app-csv#bluelight_play_store_rating",
         "app-csv#data_time_gap_hours",
         "app-csv#date",
         "app-csv#datetime_of_preprocessing",
@@ -1800,8 +1870,8 @@
     {
       "axisId": "screenUsageAutoLockTimeoutSeconds=s0",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1809,8 +1879,8 @@
     {
       "axisId": "screenUsageAutoLockToleranceSeconds=s0",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1818,8 +1888,8 @@
     {
       "axisId": "screenUsageManualLockMaxTailGapSeconds=s0",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1827,8 +1897,8 @@
     {
       "axisId": "screenUsageKeyguardNearStopSeconds=s0",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1836,8 +1906,8 @@
     {
       "axisId": "sameAppInteractionTypesToStopUsageAt=empty",
       "predictedAffected": true,
-      "changedCellAddresses": 4892,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 4899,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1845,8 +1915,8 @@
     {
       "axisId": "otherInteractionTypesToStopUsageAt=empty",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1854,8 +1924,8 @@
     {
       "axisId": "modelConcurrentUsage=false",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1863,8 +1933,8 @@
     {
       "axisId": "applyMinimumUsageDurationToConcurrentSubintervals=false",
       "predictedAffected": true,
-      "changedCellAddresses": 5476,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5483,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1872,8 +1942,8 @@
     {
       "axisId": "interactionTypesToRemove=none",
       "predictedAffected": true,
-      "changedCellAddresses": 5544,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5551,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1881,8 +1951,8 @@
     {
       "axisId": "interactionTypeRemovalMode=unconditional",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1890,8 +1960,8 @@
     {
       "axisId": "interactionTypeRemap=custom",
       "predictedAffected": true,
-      "changedCellAddresses": 5501,
-      "changedCellFamilies": 105,
+      "changedCellAddresses": 5508,
+      "changedCellFamilies": 112,
       "sameFamiliesAsBaseConfiguration": false,
       "introducedFamilies": [],
       "maskedFamilies": [
@@ -1904,8 +1974,8 @@
     {
       "axisId": "proximityIntervalSeconds=s0",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1937,6 +2007,13 @@
         "app-csv#bcm_play_store_genre",
         "app-csv#bcm_play_store_genreId",
         "app-csv#bcm_play_store_rating",
+        "app-csv#bluelight_play_store_broad_app_category",
+        "app-csv#bluelight_play_store_developer",
+        "app-csv#bluelight_play_store_downloads",
+        "app-csv#bluelight_play_store_free",
+        "app-csv#bluelight_play_store_genre",
+        "app-csv#bluelight_play_store_genreId",
+        "app-csv#bluelight_play_store_rating",
         "app-csv#broad_app_category",
         "app-csv#codebook_application_label",
         "app-csv#codebook_dataset",
@@ -1979,8 +2056,8 @@
     {
       "axisId": "enableScreenGatedCrediting=false",
       "predictedAffected": true,
-      "changedCellAddresses": 5454,
-      "changedCellFamilies": 94,
+      "changedCellAddresses": 5461,
+      "changedCellFamilies": 101,
       "sameFamiliesAsBaseConfiguration": false,
       "introducedFamilies": [],
       "maskedFamilies": [
@@ -2004,8 +2081,8 @@
     {
       "axisId": "screenGatingRule=screenonly",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -2013,8 +2090,8 @@
     {
       "axisId": "creditedSessionCapMinutes=m0",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -2022,8 +2099,8 @@
     {
       "axisId": "deviceLivenessGapToleranceMinutes=m0",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -2031,8 +2108,8 @@
     {
       "axisId": "autoLockBridgeSeconds=s0",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -2040,8 +2117,8 @@
     {
       "axisId": "noWitnessMinDayApps=n0",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -2049,8 +2126,8 @@
     {
       "axisId": "notificationProxyRule=seencontact",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -2058,8 +2135,8 @@
     {
       "axisId": "polledEmulationMethod=rosssampledgap",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -2067,8 +2144,8 @@
     {
       "axisId": "polledEmulationIntervalSeconds=cadence5s",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -2076,8 +2153,8 @@
     {
       "axisId": "polledEmulationGapSeconds=gap0s",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -2085,8 +2162,8 @@
     {
       "axisId": "intervalExpansionMethod=behapp_start_anchored_half_open_1s_v1",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -2094,8 +2171,8 @@
     {
       "axisId": "enableStudyWindowFilter=false",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -2103,8 +2180,8 @@
     {
       "axisId": "enablePersonAttribution=false",
       "predictedAffected": true,
-      "changedCellAddresses": 5353,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5360,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -2112,8 +2189,8 @@
     {
       "axisId": "enableComplianceScoring=false",
       "predictedAffected": true,
-      "changedCellAddresses": 5456,
-      "changedCellFamilies": 99,
+      "changedCellAddresses": 5463,
+      "changedCellFamilies": 106,
       "sameFamiliesAsBaseConfiguration": false,
       "introducedFamilies": [],
       "maskedFamilies": [
@@ -2132,8 +2209,8 @@
     {
       "axisId": "complianceThresholdPercent=p0",
       "predictedAffected": true,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -2141,8 +2218,8 @@
     {
       "axisId": "enableDayCoverage=false",
       "predictedAffected": true,
-      "changedCellAddresses": 5098,
-      "changedCellFamilies": 105,
+      "changedCellAddresses": 5105,
+      "changedCellFamilies": 112,
       "sameFamiliesAsBaseConfiguration": false,
       "introducedFamilies": [],
       "maskedFamilies": [
@@ -2155,8 +2232,8 @@
     {
       "axisId": "enableParquetExport=true",
       "predictedAffected": false,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -2164,8 +2241,8 @@
     {
       "axisId": "enableSpssExport=true",
       "predictedAffected": false,
-      "changedCellAddresses": 5472,
-      "changedCellFamilies": 109,
+      "changedCellAddresses": 5479,
+      "changedCellFamilies": 116,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []

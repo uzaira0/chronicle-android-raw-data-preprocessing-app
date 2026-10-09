@@ -3,10 +3,10 @@
   "claimBoundary": "Aggregate of nine independently recycled generic role/value shards. Each shard selects one empirically branch-activating intervention for its source role, crosses it with every valid non-compound alternate value of all 83 computational axes, executes both transition orders, and compares every final workflow checkpoint, output artifact, and canonical output cell with an independent cold Rust/WASM target. Raw-role alternates that activate the digest-bound capability sidecar are explicitly listed and unestimated as source-sensitive compound variants; the configuration-space sourceSensitiveScientificCells campaign proves only the generic LF-sidecar to CRLF-raw Parry rebind mechanism. The conditionally active input_capability_evidence_file role is separately covered there. Field/record interactions beyond the selected representative remain outside this claim.",
   "implementationReceipt": {
     "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
-    "implementationDigest": "sha256:b3f57253fd90e98e172aa24bb14a12dfd3ad3a6594bdd43631f9fc50c73abf43",
+    "implementationDigest": "sha256:cfa7f11b87802213388917c8b24238f947604e152a447cc69cf977511fdd40ce",
     "planDigest": "sha256:be0258af6aafbc9a1855ae4223adcc642a8d22b5fa8bb87eb09f6b62dc3abbd0",
-    "profileDigest": "sha256:637623272b4ab1bfd901a4d45103bc95984cc2e272dfa400745541b96a5aaefb",
-    "profileLockDigest": "sha256:424844ecf7fceb750d1f409453abf2f0ab76754f36861bd86cec1464a4fc6655",
+    "profileDigest": "sha256:37edc9f29d368950cd2a7893c164c223723741456d189d969a0f8b630f31dfbd",
+    "profileLockDigest": "sha256:a26272e97b5ff2e578d44665643e0da0007ff701fa647eac1fdd6ec7fd6197a6",
     "runtimeAuthorityDigest": "sha256:7807fe99a35b4ede2c85d8e8868ec3dcb2accb22e8265c4643966eb9840ce4e4",
     "productContractDigest": "sha256:81e857feb3c24afaf0b3bbbef63081e884a498cfaa8398a76fabfe23c8c5c61b"
   },
@@ -90,7 +90,7 @@
     {
       "roleId": "raw_chronicle_csv",
       "path": "mixed-artifact-configuration-raw_chronicle_csv.json",
-      "contentDigest": "sha256:139034beb6feab1db7532850b06ba86845ebb55ee85264ea25ba814b2224d868",
+      "contentDigest": "sha256:78a810cdb6231c1e66b776ee87767e1293700d4497c3073887186837a363c233",
       "representative": {
         "corpusId": "catalog-random",
         "seed": 12648430,
@@ -116,7 +116,7 @@
     {
       "roleId": "filter_file",
       "path": "mixed-artifact-configuration-filter_file.json",
-      "contentDigest": "sha256:9254a112db5829960d7fc3d7ad60ccd39fa7df9c73318202bfba72af84766da0",
+      "contentDigest": "sha256:129e86231952376a99ac1fd3c230fdf90f82739c471fb2b7448957b9d4daf9a6",
       "representative": {
         "corpusId": "catalog-random",
         "seed": 12648430,
@@ -136,12 +136,12 @@
       },
       "validRoleValuePairs": 123,
       "nonAdditiveOrMaskedPairs": 42,
-      "caseSetDigest": "sha256:24af5baeb2e25dd52fb3be13113c610dcce489417e64266f4ed3ada2297e7f58"
+      "caseSetDigest": "sha256:237a0bd93b9fe6723406b5da0fe138f31c838b8efd5eaee7f5ddec20ce884a74"
     },
     {
       "roleId": "apps_forcing_screen_open_file",
       "path": "mixed-artifact-configuration-apps_forcing_screen_open_file.json",
-      "contentDigest": "sha256:280f5f140b21e3be3069c6fdc35312d3877ba4cf46324e64331677b9e49e70c6",
+      "contentDigest": "sha256:709ce30fc8662dee0ae1f0d5787f1a2ff4bcce967d67a3a976cc221d54478f68",
       "representative": {
         "corpusId": "catalog-random",
         "seed": 12648430,
@@ -166,7 +166,7 @@
     {
       "roleId": "background_apps_file",
       "path": "mixed-artifact-configuration-background_apps_file.json",
-      "contentDigest": "sha256:5cb7f25c09bda71ca99aaab4801e2b3239cfe335c5bb2e73efb5be5ab6b96632",
+      "contentDigest": "sha256:c095d0fe104d3166d94d09fc7e79a86c0f4233e7cf703483cc252ef576ab36d6",
       "representative": {
         "corpusId": "catalog-random",
         "seed": 12648430,
@@ -186,12 +186,12 @@
       },
       "validRoleValuePairs": 123,
       "nonAdditiveOrMaskedPairs": 63,
-      "caseSetDigest": "sha256:e59d175e779156d9d33aae4bec9eba53d2d3f23f44a3d1423915c7aabf16aba9"
+      "caseSetDigest": "sha256:f48532bb9c81879dda4de79e8c5135c57848113030510f295840a0fcabe97474"
     },
     {
       "roleId": "app_codebook_file",
       "path": "mixed-artifact-configuration-app_codebook_file.json",
-      "contentDigest": "sha256:5bcdcf42726f43e99697756cb0abc7d1d2be50dd7262b4084aca7d6a326fda53",
+      "contentDigest": "sha256:c7f96f89d1bcc5aa9169077f5495f4f36b88bf56ed855251487eae20652229e4",
       "representative": {
         "corpusId": "catalog-random",
         "seed": 12648430,
@@ -216,7 +216,7 @@
     {
       "roleId": "study_dates_file",
       "path": "mixed-artifact-configuration-study_dates_file.json",
-      "contentDigest": "sha256:2818d4025d3ef4d3775bd6b78d47b471336679dceaff9edbe25218f4f25e4bed",
+      "contentDigest": "sha256:67e59b052027feb17f92b341c77890766afc36264439face8cd91bd08266391b",
       "representative": {
         "corpusId": "catalog-random",
         "seed": 12648430,
@@ -237,12 +237,12 @@
       },
       "validRoleValuePairs": 123,
       "nonAdditiveOrMaskedPairs": 71,
-      "caseSetDigest": "sha256:2f1605166b30ebb167c79fb053eb73ab201425b3f1881dab7bfc3b97893d4506"
+      "caseSetDigest": "sha256:10114f207d35004259943f221ed4b66da9e11867da1e1fcdc293f94a5f365e66"
     },
     {
       "roleId": "device_sharing_file",
       "path": "mixed-artifact-configuration-device_sharing_file.json",
-      "contentDigest": "sha256:285c2c7f7a0813eff87cb21aee04005ba511de1e99a24d7c47cc87905f712bab",
+      "contentDigest": "sha256:ad1a9dc5de46c7132e49a5a71fa649b2124da3eeeb6f6fe36772f539db88edd0",
       "representative": {
         "corpusId": "catalog-random",
         "seed": 12648430,
@@ -267,7 +267,7 @@
     {
       "roleId": "survey_attribution_file",
       "path": "mixed-artifact-configuration-survey_attribution_file.json",
-      "contentDigest": "sha256:62037a834b98e21830144b9f49d4c41f1a5eb7baef3cc3c59739a79e613c88ba",
+      "contentDigest": "sha256:db7238608c73e073279522871852ae57fe075c68f3551c13ac1abe226269a1f6",
       "representative": {
         "corpusId": "catalog-random",
         "seed": 12648430,
@@ -287,12 +287,12 @@
       },
       "validRoleValuePairs": 123,
       "nonAdditiveOrMaskedPairs": 35,
-      "caseSetDigest": "sha256:9b171810b7fa35eb5621357932b7540abb0f578b38f10a30c229a24b2fb572c7"
+      "caseSetDigest": "sha256:8c28c7c22e01b73fcdb2d07a80caae5849031184c5dac517945ab1322f728ab9"
     },
     {
       "roleId": "enrolled_devices_file",
       "path": "mixed-artifact-configuration-enrolled_devices_file.json",
-      "contentDigest": "sha256:0e08236cdea2d0a01d7ed07926431912fb1690e9bdaa942ba37de945c1ec355b",
+      "contentDigest": "sha256:65bf32978004b2646794b7092c7fa9745d6884007f04ead10e0653361735bafe",
       "representative": {
         "corpusId": "catalog-random",
         "seed": 12648430,
