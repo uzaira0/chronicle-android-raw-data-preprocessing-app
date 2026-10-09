@@ -1278,6 +1278,9 @@ test("View tab compares the run against a second config (Arm B) in-browser", asy
   // `review-range-block` refusal and DISABLES the Run button — the comparison
   // never dispatches and there are no Arm-B metrics to assert. The disabled
   // path is covered directly in CompareConfigDrawer.test.tsx.
+  await drawer
+    .locator('[data-section-id="optional-cleaning"] .section-card__header')
+    .click();
   await drawer.getByTestId("minimum-usage-duration-input").fill("3600");
   await page.getByTestId("review-run-comparison").click();
 

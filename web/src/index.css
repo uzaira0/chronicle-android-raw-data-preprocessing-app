@@ -1258,7 +1258,8 @@ a:hover {
 
 .section-card__badge.is-modified {
   background: var(--color-warning-soft);
-  color: var(--color-warning);
+  /* --color-warning on this background is 4.31:1, under WCAG AA's 4.5:1. */
+  color: var(--color-warning-ink);
 }
 
 .section-card__badge.is-default {
