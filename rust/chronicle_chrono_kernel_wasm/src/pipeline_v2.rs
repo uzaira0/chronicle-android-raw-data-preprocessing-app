@@ -134,8 +134,8 @@ use model::{
     ACTIVITY_PAUSED, ACTIVITY_RESUMED, ACTIVITY_STOPPED, AMAZON_APPS, ANDROID_PSEUDO_PACKAGE,
     APP_USAGE, AttributedRows, AttributionCompleteness, AttributionCompletenessDay,
     AttributionMinutes, AttributionReport, B05RouterOptionsIdentity,
-    B05SchoedelValidationContext, B05ScreenOptionsIdentity, CODEBOOK_RENAME_PAIRS,
-    COLLAPSED_GENRE_FIELD_INDICES, CULVERHOUSE_BAD_APP_CAP_FLAG, CULVERHOUSE_BAD_APP_CAP_NS,
+    B05SchoedelValidationContext, B05ScreenOptionsIdentity, BROAD_CATEGORY_COLUMNS,
+    CODEBOOK_RENAME_PAIRS, COLLAPSED_GENRE_FIELD_INDICES, GENRE_ID_COLUMNS, CULVERHOUSE_BAD_APP_CAP_FLAG, CULVERHOUSE_BAD_APP_CAP_NS,
     CULVERHOUSE_COLLAPSED_FLAG, CULVERHOUSE_DST_DAY_FLAG, CULVERHOUSE_LONG_3H_FLAG,
     CULVERHOUSE_LONG_3H_NS, CULVERHOUSE_LONG_6H_FLAG, CULVERHOUSE_LONG_6H_NS,
     CULVERHOUSE_PARTIAL_DAY_FLAG, CULVERHOUSE_PARTIAL_DAY_GAP_HOURS,
@@ -200,7 +200,7 @@ pub use output::{
 use output::{
     CountingSink, LocalDateMemo, build_review_summary, build_row_lineage,
     build_row_lineage_from_iter, build_screen_row_lineage, build_visualization_data,
-    codebook_col_index, csv_escape_value, ecma_round_fixed_f64,
+    codebook_col_indices, csv_escape_value, ecma_round_fixed_f64,
     fmt_session_timestamp, format_cadence_seconds, format_threshold,
     foundational_output_projection, headline_eligible_app_rows, js_number_to_string,
     participant_event_timestamps, ts_to_local, write_app_csv, write_app_csv_from_iter,
@@ -208,6 +208,8 @@ use output::{
 };
 #[cfg(any(test, feature = "incremental-v2"))]
 use output::{compliance_csv};
+#[cfg(test)]
+use output::codebook_col_index;
 
 #[cfg(test)]
 use support::{
@@ -302,7 +304,8 @@ use annotations::{
 };
 #[cfg(test)]
 use annotations::{
-    clear_filtered_usage_timing, collapse_app_genre_row, local_day_start_ns,
+    clear_filtered_usage_timing, collapse_app_genre_row, derive_broad_category_row,
+    local_day_start_ns,
 };
 
 #[path = "pipeline/stages/screen.rs"]
@@ -11148,15 +11151,40 @@ mod tests {
     /// no genre at all, and a row with nothing to collapse is Unknown. The
     /// collapse runs over rows that may already carry an answer from an earlier
     /// pass, so it also has to correct a stale one rather than leave it.
+    /// The export blanks consumed genre columns by position, so those
+    /// positions must be exactly the genre sources the collapse reads; and the
+    /// Blue Light Play Store category ranks right after BCM's.
+    #[test]
+    fn collapsed_genre_positions_and_category_precedence_match_the_codebook() {
+        let mut genre = codebook_col_indices(GENRE_ID_COLUMNS);
+        genre.sort_unstable();
+        assert_eq!(genre, COLLAPSED_GENRE_FIELD_INDICES);
+        assert_eq!(
+            BROAD_CATEGORY_COLUMNS[..2],
+            [
+                "bcm_play_store_broad_app_category",
+                "bluelight_play_store_broad_app_category",
+            ],
+        );
+        let mut row = app_csv_rows().remove(0);
+        {
+            let data = row.edit_all();
+            let mut fields = vec![None; CODEBOOK_RENAME_PAIRS.len()];
+            fields[codebook_col_index("bluelight_play_store_broad_app_category").unwrap()] =
+                Some("Education".to_owned());
+            fields[codebook_col_index("bcm_cnrc_heuristic_category").unwrap()] =
+                Some("Utilities".to_owned());
+            data.codebook_fields = Arc::new(fields);
+            data.broad_app_category = None;
+        }
+        derive_broad_category_row(&mut row, codebook_col_indices(BROAD_CATEGORY_COLUMNS));
+        assert_eq!(row.broad_app_category.as_deref(), Some("Education"));
+    }
+
     #[test]
     fn genre_columns_collapse_to_one_answer_and_correct_a_stale_one() {
-        let indices = [
-            codebook_col_index("babyemu_genreId_scraped").expect("scraped genre column"),
-            codebook_col_index("babyemu_genreId_manual").expect("manual genre column"),
-            codebook_col_index("bcm_play_store_genreId").expect("play store genre column"),
-            codebook_col_index("usc_genreId").expect("usc genre column"),
-        ];
-        let collapse = |values: [Option<&str>; 4], genre: Option<&str>, cleared: bool| {
+        let indices = codebook_col_indices(GENRE_ID_COLUMNS);
+        let collapse = |values: [Option<&str>; 5], genre: Option<&str>, cleared: bool| {
             let mut row = app_csv_rows().remove(0);
             {
                 let data = row.edit_all();
@@ -11178,38 +11206,38 @@ mod tests {
         };
 
         #[allow(clippy::type_complexity)]
-        let cases: &[([Option<&str>; 4], Option<&str>, bool, Option<&str>, bool)] = &[
+        let cases: &[([Option<&str>; 5], Option<&str>, bool, Option<&str>, bool)] = &[
             // (columns, genre before, cleared before, genre after, cleared after)
             (
-                [None, None, None, None],
+                [None, None, None, None, None],
                 None,
                 false,
                 Some("Unknown"),
                 false,
             ),
             (
-                [Some(" "), None, Some(""), None],
+                [Some(" "), None, Some(""), None, None],
                 None,
                 false,
                 Some("Unknown"),
                 false,
             ),
             (
-                [None, Some("Social"), None, None],
+                [None, Some("Social"), None, None, None],
                 None,
                 false,
                 Some("Social"),
                 true,
             ),
             (
-                [Some("Social"), Some("Social"), None, Some("Social")],
+                [Some("Social"), Some("Social"), None, Some("Social"), None],
                 None,
                 false,
                 Some("Social"),
                 true,
             ),
             (
-                [Some("Social"), Some("Games"), None, None],
+                [Some("Social"), Some("Games"), None, None, None],
                 None,
                 false,
                 None,
@@ -11219,21 +11247,21 @@ mod tests {
             // directions, and a row that already names the right genre still
             // has to be marked as having consumed its source columns.
             (
-                [Some("Games"), Some("Games"), None, None],
+                [Some("Games"), Some("Games"), None, None, None],
                 Some("Social"),
                 true,
                 Some("Games"),
                 true,
             ),
             (
-                [Some("Games"), None, None, None],
+                [Some("Games"), None, None, None, None],
                 Some("Games"),
                 false,
                 Some("Games"),
                 true,
             ),
             (
-                [Some("Social"), Some("Games"), None, None],
+                [Some("Social"), Some("Games"), None, None, None],
                 Some("Social"),
                 true,
                 None,
@@ -11243,16 +11271,31 @@ mod tests {
             // is stale: the genre without the consumed mark, or the mark
             // without the genre.
             (
-                [Some("Social"), Some("Games"), None, None],
+                [Some("Social"), Some("Games"), None, None, None],
                 Some("Social"),
                 false,
                 None,
                 false,
             ),
             (
-                [Some("Social"), Some("Games"), None, None],
+                [Some("Social"), Some("Games"), None, None, None],
                 None,
                 true,
+                None,
+                false,
+            ),
+            // Blue Light's Play Store genre counts like any other source.
+            (
+                [None, None, None, None, Some("EDUCATION")],
+                None,
+                false,
+                Some("EDUCATION"),
+                true,
+            ),
+            (
+                [None, None, Some("EDUCATION"), None, Some("GAME_PUZZLE")],
+                None,
+                false,
                 None,
                 false,
             ),

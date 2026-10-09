@@ -32,7 +32,7 @@ SEMANTIC_INDEX := rust/chronicle_semantic_index_wasm/Cargo.toml
 LOCAL_SEM_PROF_BIN := $(HOME)/semantic-profile-toolchain/target/debug/semprof
 SEM_PROF_BIN ?= $(if $(wildcard $(LOCAL_SEM_PROF_BIN)),$(LOCAL_SEM_PROF_BIN),semprof)
 
-.PHONY: help check pin-figures wasm-fresh ci all security web \
+.PHONY: help check upgrade-check pin-figures wasm-fresh ci all security web \
         rust \
         semgrep semgrep-packs ast-grep cargo-audit cargo-deny trivy gitleaks \
         shellcheck actionlint udeps \
@@ -86,8 +86,15 @@ all:
 	$(MAKE) --no-print-directory e2e
 	@echo "── make all: 4/4 deploy-artifact ─────────────────"
 	$(MAKE) --no-print-directory deploy-artifact
+	$(MAKE) --no-print-directory upgrade-check
 	$(MAKE) --no-print-directory wasm-fresh
 	@echo "✓ make all: ci + web + e2e + deploy-artifact all completed"
+
+# What users do on a deploy: process every option case on the live production
+# build, then on this checkout's web/dist in the same browser storage. Any file
+# the new build refuses over a saved run fails the gate (2026-10-09 outage).
+upgrade-check:
+	cd web && npm exec -- node scripts/run-clean-env.mjs vite-node scripts/check_upgrade_from_live.mts
 
 # Change-scoped PR gate. `make all` stays the pre-deploy gate.
 check:

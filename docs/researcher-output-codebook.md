@@ -53,6 +53,13 @@ changes their values.
 | `babyemu_kids` | string |  | use_app_codebook | BabyEMU codebook — kids-app indicator. |
 | `bcm_cnrc_heuristic_category` | string |  | use_app_codebook | BCM CNRC codebook — heuristic category assignment. |
 | `bcm_cnrc_categorization_source` | string |  | use_app_codebook | BCM CNRC codebook — which source produced the heuristic category. |
+| `bluelight_play_store_genreId` | string |  | use_app_codebook | Blue Light dataset — Play-Store genre id for the package. |
+| `bluelight_play_store_genre` | string |  | use_app_codebook | Blue Light dataset — Play-Store genre name. |
+| `bluelight_play_store_broad_app_category` | string |  | use_app_codebook | Blue Light dataset — broad category derived from the Play-Store genre. |
+| `bluelight_play_store_developer` | string |  | use_app_codebook | Blue Light dataset — Play-Store developer name. |
+| `bluelight_play_store_free` | string |  | use_app_codebook | Blue Light dataset — whether the Play-Store listing is free. |
+| `bluelight_play_store_rating` | string |  | use_app_codebook | Blue Light dataset — Play-Store average star rating. |
+| `bluelight_play_store_downloads` | string |  | use_app_codebook | Blue Light dataset — Play-Store install-count bracket. |
 | `codebook_dataset` | string |  | use_app_codebook | Which codebook dataset the category row came from. |
 | `interaction_type` | string |  |  | Row kind — "App Usage" for reconstructed foreground sessions, "Screen Usage" for screen-on sessions, "Filtered App Usage" and related marker types for rows retained as timing witnesses. Derived from Android UsageEvents transitions (Activity Resumed/Paused/Stopped and screen events). *Vocabulary: Android UsageEvents event types (P&T pairing vocabulary).* |
 | `start_timestamp` | timestamp |  |  | Session start, in the row's output timezone. |

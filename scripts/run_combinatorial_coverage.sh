@@ -49,8 +49,9 @@ if [ -n "$PICT_TOOL" ]; then
   "$PICT_TOOL" "$OUT/model.pict" /o:3 > "$OUT/covering_t3.tsv"
 else
   echo "  PICT is not installed; verifying the checked-in arrays without regenerating them"
-  [ -s "$OUT/covering_t2.tsv" ] && [ -s "$OUT/covering_t3.tsv" ] \
-    || { echo "checked-in covering arrays are missing; install PICT or set PICT_BIN"; exit 1; }
+  if ! { [ -s "$OUT/covering_t2.tsv" ] && [ -s "$OUT/covering_t3.tsv" ]; }; then
+    echo "checked-in covering arrays are missing; install PICT or set PICT_BIN"; exit 1
+  fi
 fi
 echo "  t=2: $(($(wc -l < "$OUT/covering_t2.tsv") - 1)) configs, t=3: $(($(wc -l < "$OUT/covering_t3.tsv") - 1)) configs"
 

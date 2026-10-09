@@ -30,7 +30,9 @@ if (OBSERVED_NODE_MAJOR !== PINNED_NODE_MAJOR) {
 
 const [codebookCsv, filterCsv, backgroundCsv, forcingScreenOpenCsv] =
   await Promise.all([
-    readFile(path.join(DEFAULTS_ROOT, "unified_app_codebook.csv"), "utf8"),
+    // Frozen catalog: the synthetic corpus samples apps from it by position, so
+    // it must not move when the shipped codebook gains rows.
+    readFile(path.join(FIXTURES_ROOT, "synthetic-catalog-app-codebook.csv"), "utf8"),
     readFile(
       path.join(
         DEFAULTS_ROOT,
