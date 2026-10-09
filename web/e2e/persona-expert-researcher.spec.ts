@@ -56,6 +56,7 @@ test.afterEach(() => {
 
 async function uploadFullSupportSet(page: Page): Promise<void> {
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_AND_SCREEN_RAW_CSV, "text/csv");
+  await expandSectionCard(page, "optional-cleaning");
   await setInputFile(page, "filter-file-input", "filter.csv", FILTER_FILE_CSV, "text/csv");
   await setInputFile(page, "app-codebook-file-input", "codebook.csv", CODEBOOK_CSV, "text/csv");
 }
@@ -73,6 +74,7 @@ test("configures every export + processing feature and the artifacts reflect the
   await page.getByTestId("toggle-includeFilteredAppUsageInPlots").check();
   // App filtering is a cleaning step and off by default; this persona turns
   // every processing feature on and asserts filter semantics in the output.
+  await expandSectionCard(page, "optional-cleaning");
   await page.getByTestId("toggle-useFilterFile").check();
 
   await uploadFullSupportSet(page);

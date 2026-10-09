@@ -2349,7 +2349,7 @@ pub(super) fn default_micro_use_classification_policy() -> PresenceTrackedOption
 }
 
 pub(super) fn default_minimum_usage_duration() -> PresenceTrackedOption<f64> {
-    PresenceTrackedOption::omitted(60.0)
+    PresenceTrackedOption::omitted(0.0)
 }
 
 pub(super) fn default_minimum_duration_comparator() -> PresenceTrackedOption<String> {

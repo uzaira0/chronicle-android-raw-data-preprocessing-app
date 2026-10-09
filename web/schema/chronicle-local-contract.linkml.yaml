@@ -1011,8 +1011,8 @@ slots:
       concurrency splitting or cleaning. Set to 0 to disable qualification for
       every disposition. The separate existing concurrent-subinterval option
       controls any later floor on generated sub-intervals.
-    example: "default 60 seconds"
-    default: 60
+    example: "default 0 seconds (off: minimum usage is a cleaning step)"
+    default: 0
   minimum_duration_comparator:
     range: string
     annotations:

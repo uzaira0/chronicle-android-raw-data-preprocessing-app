@@ -8,11 +8,9 @@ import {
   LOCKED_SCREEN_AUDIO_DISPOSITION_VALUES,
   SCREEN_SESSION_CLASSIFICATION_POLICY_VALUES,
   SCREEN_SESSION_CONSTRUCTION_STRATEGY_VALUES,
-  SCREEN_SESSION_MAXIMUM_DURATION_DISPOSITION_VALUES,
   type LockedScreenAudioDisposition,
   type ScreenSessionClassificationPolicy,
   type ScreenSessionConstructionStrategy,
-  type ScreenSessionMaximumDurationDisposition,
 } from "@/lib/generatedContract";
 import { hasSourceSensitiveScreenStrategy } from "@/lib/inputCapabilityEvidence";
 import { TOOLTIPS } from "@/lib/tooltipText";
@@ -20,11 +18,11 @@ import { anyOptionModified, isOptionDefault, type OptionKey } from "@/lib/option
 import { optionRangeError } from "@/lib/validation";
 import type { BrowserProcessingOptions } from "@/lib/types";
 
+export { applyScreenMaximumDurationChange } from "@/components/CleaningSettingsCard";
+
 const KEYS: readonly OptionKey[] = [
   "screenSessionConstructionStrategy",
   "screenSessionClassificationPolicy",
-  "screenSessionMaximumDurationMinutes",
-  "screenSessionMaximumDurationDisposition",
   "lockedScreenAudioDisposition",
   "screenUsageAutoLockTimeoutSeconds",
   "screenUsageAutoLockToleranceSeconds",
@@ -53,48 +51,10 @@ const CLASSIFICATION_LABELS = {
   null_no_app_strict_gt15s_vs_app: "Null over 15 seconds vs app-evidenced",
 } satisfies Record<ScreenSessionClassificationPolicy, string>;
 
-const MAXIMUM_DURATION_LABELS = {
-  none: "No screen-session cap (default)",
-  truncate: "Truncate strictly over the maximum",
-  exclude_participant: "Exclude participant if any session is strictly over",
-} satisfies Record<ScreenSessionMaximumDurationDisposition, string>;
-
 const LOCKED_AUDIO_LABELS = {
   include: "Include under normal reconstruction (default)",
   exclude_from_phone_and_app_sessions: "Exclude without unlocked screen witness",
 } satisfies Record<LockedScreenAudioDisposition, string>;
-
-type ScreenMaximumDurationChange =
-  | { disposition: ScreenSessionMaximumDurationDisposition }
-  | { minutes: number };
-
-export function applyScreenMaximumDurationChange(
-  current: BrowserProcessingOptions,
-  change: ScreenMaximumDurationChange,
-): BrowserProcessingOptions {
-  if ("disposition" in change) {
-    return {
-      ...current,
-      screenSessionMaximumDurationDisposition: change.disposition,
-      screenSessionMaximumDurationMinutes:
-        change.disposition === "none"
-          ? 0
-          : current.screenSessionMaximumDurationMinutes > 0
-            ? current.screenSessionMaximumDurationMinutes
-            : 60,
-    };
-  }
-  const enabled = Number.isFinite(change.minutes) && change.minutes > 0;
-  return {
-    ...current,
-    screenSessionMaximumDurationMinutes: enabled ? change.minutes : 0,
-    screenSessionMaximumDurationDisposition: enabled
-      ? current.screenSessionMaximumDurationDisposition === "none"
-        ? "truncate"
-        : current.screenSessionMaximumDurationDisposition
-      : "none",
-  };
-}
 
 type Props = {
   options: BrowserProcessingOptions;
@@ -107,9 +67,6 @@ export function ScreenDetectionCard({ options, setOptions }: Props): ReactElemen
   };
   const reset = (key: OptionKey) => {
     setOptions((current) => ({ ...current, [key]: DEFAULT_BROWSER_OPTIONS[key] }));
-  };
-  const updateScreenMaximumDuration = (change: ScreenMaximumDurationChange) => {
-    setOptions((current) => applyScreenMaximumDurationChange(current, change));
   };
   const isMod = <K extends OptionKey>(key: K) => !isOptionDefault(key, options[key]);
   const schoedelUsesScreenIntervals =
@@ -240,55 +197,6 @@ export function ScreenDetectionCard({ options, setOptions }: Props): ReactElemen
               <option key={value} value={value}>{LOCKED_AUDIO_LABELS[value]}</option>
             ))}
           </select>
-        </SettingsField>
-        <SettingsField
-          label="Screen-session maximum-duration action"
-          htmlFor="screen-session-cap-disposition-select"
-          tooltip={TOOLTIPS.screenSessionMaximumDurationDisposition}
-          modified={isMod("screenSessionMaximumDurationDisposition")}
-          onReset={() =>
-            updateScreenMaximumDuration({
-              disposition: DEFAULT_BROWSER_OPTIONS.screenSessionMaximumDurationDisposition,
-            })
-          }
-        >
-          <select
-            id="screen-session-cap-disposition-select"
-            className="select"
-            value={options.screenSessionMaximumDurationDisposition}
-            onChange={(event) => {
-              const value = event.target.value as BrowserProcessingOptions["screenSessionMaximumDurationDisposition"];
-              updateScreenMaximumDuration({ disposition: value });
-            }}
-          >
-            {SCREEN_SESSION_MAXIMUM_DURATION_DISPOSITION_VALUES.map((value) => (
-              <option key={value} value={value}>{MAXIMUM_DURATION_LABELS[value]}</option>
-            ))}
-          </select>
-        </SettingsField>
-        <SettingsField
-          label="Screen-session maximum duration (minutes)"
-          tooltip={TOOLTIPS.screenSessionMaximumDurationMinutes}
-          modified={isMod("screenSessionMaximumDurationMinutes")}
-          onReset={() =>
-            updateScreenMaximumDuration({
-              minutes: DEFAULT_BROWSER_OPTIONS.screenSessionMaximumDurationMinutes,
-            })
-          }
-          error={optionRangeError("screenSessionMaximumDurationMinutes", options.screenSessionMaximumDurationMinutes)}
-        >
-          <input
-            type="number"
-            className="input"
-            data-testid="screen-session-cap-minutes-input"
-            min={0}
-            max={1440}
-            disabled={options.screenSessionMaximumDurationDisposition === "none"}
-            value={options.screenSessionMaximumDurationMinutes}
-            onChange={(event) =>
-              updateScreenMaximumDuration({ minutes: Number(event.target.value) })
-            }
-          />
         </SettingsField>
       </div>
       <div className="settings-grid-2">

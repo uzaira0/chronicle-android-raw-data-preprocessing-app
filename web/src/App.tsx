@@ -164,6 +164,7 @@ import { workflowExplorerSupportRoles } from "@/lib/workflowExplorerSupport";
 import { FilesAndInputsCard } from "@/components/FilesAndInputsCard";
 import { StudyInputsCard } from "@/components/StudyInputsCard";
 import { AnalyzeSettingsCard } from "@/components/AnalyzeSettingsCard";
+import { CleaningSettingsCard } from "@/components/CleaningSettingsCard";
 
 // Lazy: React Flow + dagre only load when the Graph tab is opened.
 const GraphPanel = lazy(() =>
@@ -3714,15 +3715,25 @@ export default function App(): ReactElement {
               />
               <SettingsOverviewCard options={options} setOptions={setOptions} />
               <div className="settings-stack">
+                {shows("support files keep awake prevent screen sleep codebook") ||
+                shows("timezone conversion selected primary") ||
+                shows(
+                  "session detection duration thresholds comparator disposition micro use classification okoshi reconstruction schoedel duplicate fallback stop",
+                ) ||
+                shows(
+                  "screen detection construction session parry toth zhu capability autolock keyguard manual",
+                ) ||
+                shows("interaction semantics stop usage remap") ||
+                shows("performance parallel workers") ? (
+                  <h3 className="workflow-section__subtitle">Preprocessing</h3>
+                ) : null}
                 {shows(
-                  "support files filter keep awake prevent screen sleep codebook",
+                  "support files keep awake prevent screen sleep codebook",
                 ) ? (
                   <FilesAndInputsCard
                     options={options}
                     setOptions={setOptions}
                     displayMasker={demoDisplay}
-                    filterFile={filterFile}
-                    setFilterFile={setFilterFile}
                     appsForcingScreenOpenFile={appsForcingScreenOpenFile}
                     setAppsForcingScreenOpenFile={setAppsForcingScreenOpenFile}
                     backgroundAppsFile={backgroundAppsFile}
@@ -3759,7 +3770,7 @@ export default function App(): ReactElement {
                     setOptions={setOptions}
                   />
                 ) : null}
-                {shows("interaction semantics remove stop usage") ? (
+                {shows("interaction semantics stop usage remap") ? (
                   <InteractionSemanticsCard
                     options={options}
                     setOptions={setOptions}
@@ -3772,6 +3783,29 @@ export default function App(): ReactElement {
                     provenanceEvidence={provenanceEvidence}
                     onProvenanceEvidenceChange={setProvenanceEvidence}
                   />
+                ) : null}
+                {shows(
+                  "filter minimum zero duration out of order interval quality maximum duration screen session maximum screen gated credit study window interaction removal cleaning",
+                ) ? (
+                  <>
+                    <h3 className="workflow-section__subtitle">Optional cleaning</h3>
+                    <CleaningSettingsCard
+                      options={options}
+                      setOptions={setOptions}
+                      settingsTab={{
+                        filterFile,
+                        setFilterFile,
+                        studyDatesLoaded: Boolean(studyDatesFile),
+                        displayMasker: demoDisplay,
+                      }}
+                    />
+                  </>
+                ) : null}
+                {shows(
+                  "study inputs dates device sharing survey enrolled devices input capability evidence sidecar phonestudy communication es questionnaire upload analyze",
+                ) ||
+                shows("study analysis notification polled emulation attribution compliance coverage analyze") ? (
+                  <h3 className="workflow-section__subtitle">Study analysis (optional)</h3>
                 ) : null}
                 {shows(
                   "study inputs dates device sharing survey enrolled devices input capability evidence sidecar phonestudy communication es questionnaire upload analyze",
@@ -3810,7 +3844,7 @@ export default function App(): ReactElement {
                   />
                 ) : null}
                 {shows(
-                  "study analysis screen gated credit window attribution compliance coverage analyze",
+                  "study analysis notification polled emulation attribution compliance coverage analyze",
                 ) ? (
                   <AnalyzeSettingsCard
                     options={options}

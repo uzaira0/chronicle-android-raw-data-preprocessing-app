@@ -645,9 +645,10 @@ describe("persisted options round-trip (window stubbed)", () => {
     (schemaVersion) => {
       const { storage, store } = fakeLocalStorage();
       vi.stubGlobal("window", { localStorage: storage });
+      // minimumUsageDuration is not here: its old default 0 is the current
+      // default again (contract v6), so choosing it stores nothing.
       const chosen = {
         useFilterFile: true,
-        minimumUsageDuration: 0,
         proximityIntervalSeconds: 0,
         timezoneHandling: "selected-filter",
       } as const;

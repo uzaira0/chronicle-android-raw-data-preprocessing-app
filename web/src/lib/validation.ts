@@ -140,7 +140,8 @@ export function rangeError(value: number, min?: number, max?: number): string | 
  * enforced on one of them and not the others.
  */
 export const OPTION_NUMERIC_RANGES = {
-  longDurationThresholdHours: { min: 1, max: 48 },
+  // 1,000,000 h is how a study switches the cap off (TECH/GNSM: the §14 credit truncates instead).
+  longDurationThresholdHours: { min: 1, max: 1_000_000 },
   customAppEngagementDuration: { min: 1, max: 3600 },
   proximityIntervalSeconds: { min: 0, max: 3600 },
   minimumUsageDuration: { min: 0, max: 3600, integer: true },

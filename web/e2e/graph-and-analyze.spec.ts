@@ -93,7 +93,7 @@ test("@smoke @opfs screen-gated credit emits the side-by-side Credited App Usage
   const pageErrors = trackPageErrors(page);
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_AND_SCREEN_RAW_CSV, "text/csv");
 
-  await expandSectionCard(page, "study-analysis");
+  await expandSectionCard(page, "optional-cleaning");
   await page.getByTestId("toggle-enableScreenGatedCrediting").check();
 
   await processFiles(page);
@@ -137,7 +137,7 @@ async function creditedSecondsForRule(
   // first run a reload lands on Process, not Settings.
   await page.getByRole("tab", { name: /Settings/i }).click();
   await setInputFile(page, "raw-file-input", "Raw P01.csv", SCREEN_GATING_RAW_CSV, "text/csv");
-  await expandSectionCard(page, "study-analysis");
+  await expandSectionCard(page, "optional-cleaning");
   await page.getByTestId("toggle-enableScreenGatedCrediting").check();
   await page.getByTestId("screen-gating-rule-select").selectOption(rule);
   await processFiles(page);
@@ -236,7 +236,7 @@ async function excludedPackagesForPreset(
   await gotoApp(page);
   await page.getByRole("tab", { name: /Settings/i }).click();
   await setInputFile(page, "raw-file-input", "Raw P01.csv", PACKAGE_EXCLUSION_RAW_CSV, "text/csv");
-  await expandSectionCard(page, "files");
+  await expandSectionCard(page, "optional-cleaning");
   await setInputFile(
     page,
     "filter-file-input",
@@ -498,7 +498,7 @@ test("@smoke @opfs the package-exclusion preset decides which filter rows exclud
   // The select is inert until the filter file it scopes is switched on.
   await gotoApp(page);
   await page.getByRole("tab", { name: /Settings/i }).click();
-  await expandSectionCard(page, "files");
+  await expandSectionCard(page, "optional-cleaning");
   await expect(page.getByTestId("package-exclusion-preset-select")).toBeDisabled();
 
   expect(await excludedPackagesForPreset(page, "all_supplied_rows")).toEqual([
