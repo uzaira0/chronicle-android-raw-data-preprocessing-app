@@ -230,7 +230,7 @@ The ledger also commits to the compressed
 `artifact-output-cell-correspondence.json.gz` sidecar. For every intervention,
 that sidecar maps the named changed raw/support component to every changed cell
 address in the canonical Rust-produced CSV and JSON outputs. The checked
-2026-10-09 replay contains 226,605 changed-cell addresses across the 192 cases. The ledger retains a
+2026-10-09 replay contains 246,069 changed-cell addresses across the 192 cases. The ledger retains a
 per-case address digest and a compact wildcarded column/path scope so it stays
 human-reviewable. Parquet, SPSS, and Arrow remain byte/digest-verified derived
 artifacts; they are not falsely decoded as independent semantic cell surfaces.
@@ -257,7 +257,7 @@ The independent boundary ledger is
 It records 648 Rust/WASM executions, 162 exact warm/cold comparisons, 162
 justified-execution and cache-badge comparisons, 162 typed-component
 comparisons, 162 artifact-to-role qualification correspondence comparisons,
-and 683,607 changed canonical output-cell addresses in the checked
+and 728,650 changed canonical output-cell addresses in the checked
 `raw-boundary-output-cell-correspondence.json.gz` sidecar.
 
 ```sh

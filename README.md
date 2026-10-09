@@ -56,7 +56,7 @@ Rust targets, records context-dependent convergence, and separates
 computational equivalence from exact source/correspondence identity. A second
 162-case boundary ledger probes 21 adjacent timestamp gaps and six calendar/DST
 joints across those same corpora. Compressed digest-bound sidecars retain the
-910,212 exact canonical CSV/JSON cell addresses changed by those controlled
+974,719 exact canonical CSV/JSON cell addresses changed by those controlled
 interventions in the recorded 2026-10-02 campaign; those revision-bound receipts
 do not establish final merged-source application acceptance.
 A model-mutation gate also deletes or reverses every declared

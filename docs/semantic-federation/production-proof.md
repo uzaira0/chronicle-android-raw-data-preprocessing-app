@@ -331,7 +331,7 @@ gap values and six calendar/DST joints; it also proved and fixed false coupling
 between row order, membership, and classification checkpoint components. See
 [the artifact dependency tomography proof](artifact-dependency-tomography.md).
 The two campaigns additionally compare canonical output cells on every warm
-and cold run. Digest-bound compressed sidecars retain 910,212 exact changed-cell
+and cold run. Digest-bound compressed sidecars retain 974,719 exact changed-cell
 addresses, yielding an empirical forward correspondence from each named
 raw/support mutation to affected CSV/JSON coordinates without turning large
 row/cell evidence into RDF or bloating the review ledger.
