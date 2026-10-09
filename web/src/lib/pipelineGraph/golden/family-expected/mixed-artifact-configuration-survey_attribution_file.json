@@ -7,12 +7,12 @@
   },
   "implementationReceipt": {
     "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
-    "implementationDigest": "sha256:cfa7f11b87802213388917c8b24238f947604e152a447cc69cf977511fdd40ce",
-    "planDigest": "sha256:be0258af6aafbc9a1855ae4223adcc642a8d22b5fa8bb87eb09f6b62dc3abbd0",
-    "profileDigest": "sha256:37edc9f29d368950cd2a7893c164c223723741456d189d969a0f8b630f31dfbd",
-    "profileLockDigest": "sha256:a26272e97b5ff2e578d44665643e0da0007ff701fa647eac1fdd6ec7fd6197a6",
+    "implementationDigest": "sha256:4b5fb72ce4570db1a7f25da5ead25762cefc9462eb036ae61098da23d4779762",
+    "planDigest": "sha256:5c4f19924961f6d5054899ad84a969d79cec45bd344b72f8640cc10370e00c0a",
+    "profileDigest": "sha256:8db9c35e66b7d36f54f005a0ed9414dac1de25693509450106be4a39959db664",
+    "profileLockDigest": "sha256:de5a7d9a809bb049c4fa96a91d6e97bb9ec00b818fd071df2293ad1ae424ef11",
     "runtimeAuthorityDigest": "sha256:7807fe99a35b4ede2c85d8e8868ec3dcb2accb22e8265c4643966eb9840ce4e4",
-    "productContractDigest": "sha256:81e857feb3c24afaf0b3bbbef63081e884a498cfaa8398a76fabfe23c8c5c61b"
+    "productContractDigest": "sha256:5f8586482ba8944b2cee4813d63de0096c4e4b7139eadad0ef426116921ca14d"
   },
   "roleRepresentatives": {
     "survey_attribution_file": {
@@ -56,7 +56,7 @@
     "incrementalExecutions": 738,
     "totalRustExecutions": 986,
     "warmColdComparisons": 738,
-    "nonAdditiveOrMaskedPairs": 35
+    "nonAdditiveOrMaskedPairs": 31
   },
   "interactions": [
     {
@@ -121,7 +121,6 @@
         "masked": [
           "attribute_person.classificationDigest",
           "day_coverage.classificationDigest",
-          "day_coverage.payloadDigest",
           "outputs.payloadDigest"
         ]
       },
@@ -133,9 +132,9 @@
       },
       "dataCellConditioning": {
         "introducedCount": 0,
-        "maskedCount": 607,
+        "maskedCount": 606,
         "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "maskedDigest": "sha256:37426a7d8c05b4989d80198e0f53f7aa178308565601649d3ba9919ff46554d7"
+        "maskedDigest": "sha256:f309576656efe1115a4b69c22541c2ab004bb8372c1ec33a85ba4c606dd0becd"
       }
     },
     {
@@ -196,28 +195,24 @@
       ],
       "dataAfterConfigDeactivatedSteps": [],
       "configConditioning": {
-        "introduced": [
-          "day_coverage.payloadDigest"
-        ],
+        "introduced": [],
         "masked": []
       },
       "dataConditioning": {
         "introduced": [],
-        "masked": [
-          "day_coverage.payloadDigest"
-        ]
+        "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 13,
+        "introducedCount": 12,
         "maskedCount": 0,
-        "introducedDigest": "sha256:55f5ba47f2ad83d109e431a624f168270b61426a6cbf9c4cbb93d73b750ad706",
+        "introducedDigest": "sha256:6f008a7d3bc5f0391a9d897cf7efe44a6928b470c9e967d1563fb602a90792bf",
         "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
       "dataCellConditioning": {
         "introducedCount": 94,
-        "maskedCount": 283,
+        "maskedCount": 282,
         "introducedDigest": "sha256:cacf32c6acac3c8c7c6adbe7c7a525a70635a88aedcf7fd53da744009577c67f",
-        "maskedDigest": "sha256:9342357bdb2b64f36d34c80fb41557c1a41ecde90588461f94200a65dbec60c8"
+        "maskedDigest": "sha256:1a0d978300d24a63b3f9574ed405c43b5cb79178d4a8a94182407696b1a02bc6"
       }
     },
     {
@@ -519,9 +514,9 @@
       },
       "configCellConditioning": {
         "introducedCount": 8,
-        "maskedCount": 6,
+        "maskedCount": 4,
         "introducedDigest": "sha256:795ad434b353139cb06b6c42f67e55892324ae21c94e34422bcafa6dd5f5b702",
-        "maskedDigest": "sha256:30d0607a2dfd594db103fae49651c40a868fbfde50560d90727ae96571c38a1d"
+        "maskedDigest": "sha256:cfe581530a2dbba3ff23000ef48ec3ffe0c10822604e1296aa3dd8143590c75e"
       },
       "dataCellConditioning": {
         "introducedCount": 26,
@@ -586,28 +581,24 @@
       ],
       "dataAfterConfigDeactivatedSteps": [],
       "configConditioning": {
-        "introduced": [
-          "day_coverage.payloadDigest"
-        ],
+        "introduced": [],
         "masked": []
       },
       "dataConditioning": {
         "introduced": [],
-        "masked": [
-          "day_coverage.payloadDigest"
-        ]
+        "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 13,
+        "introducedCount": 12,
         "maskedCount": 2,
-        "introducedDigest": "sha256:e0a9599f4aa3d0e86f49dc3953bef550e6b7258764e78f29dd33e16fa53d87d8",
+        "introducedDigest": "sha256:aff5e2dd06b01e96d0401d393550e4e8c300f25f9defda604634ca4dfff0539c",
         "maskedDigest": "sha256:e7377a0d9b6812b4b401e48f04b8b214bcff0650a00a4a854ff59b6bc876fa94"
       },
       "dataCellConditioning": {
         "introducedCount": 34,
-        "maskedCount": 387,
+        "maskedCount": 386,
         "introducedDigest": "sha256:c49c503ac0555d2cbd61c4e9712834711d3f7132615ec45792356d966792df7f",
-        "maskedDigest": "sha256:02033a924a33b50df52cd2fede0634efb9b01d8f4521717a550780d80fac294d"
+        "maskedDigest": "sha256:d33c04d041a108416dcec5b48e5317bc48163425df45b53dc930f72bb5e8125d"
       }
     },
     {
@@ -751,9 +742,9 @@
       },
       "configCellConditioning": {
         "introducedCount": 2,
-        "maskedCount": 4,
+        "maskedCount": 2,
         "introducedDigest": "sha256:dae559ee1f7746ceca83f2070b17e2bb5c821f766ee36a749ef47a65116f56fc",
-        "maskedDigest": "sha256:4feb892638459f5bb31a8a5d9e0e6ca9fce1fa537365023a04c571ab3cdddf74"
+        "maskedDigest": "sha256:e7377a0d9b6812b4b401e48f04b8b214bcff0650a00a4a854ff59b6bc876fa94"
       },
       "dataCellConditioning": {
         "introducedCount": 66,
@@ -935,7 +926,6 @@
         "build_activity_witness_indexes",
         "build_app_event_index",
         "build_participant_day_coverage",
-        "classify_compliance_days",
         "classify_episode_durations",
         "classify_person_attribution",
         "classify_screen_sessions",
@@ -982,11 +972,14 @@
       ],
       "dataAfterConfigDeactivatedSteps": [],
       "configConditioning": {
-        "introduced": [],
+        "introduced": [
+          "day_coverage.payloadDigest"
+        ],
         "masked": []
       },
       "dataConditioning": {
         "introduced": [
+          "day_coverage.payloadDigest",
           "day_coverage.rowMembershipDigest",
           "day_coverage.rowOrderDigest",
           "day_coverage.temporalStateDigest"
@@ -994,15 +987,15 @@
         "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 843,
-        "maskedCount": 1667,
-        "introducedDigest": "sha256:fba5f0280456874f177cdaa9b08dde2d2a673605f5d9020481c43537a35c6f72",
-        "maskedDigest": "sha256:381bb29f2ca8b821f17e1d1a6f35735825f17839b94beb6ca59dce55bb9e7567"
+        "introducedCount": 824,
+        "maskedCount": 1661,
+        "introducedDigest": "sha256:d90ac1405756dbc9bcac84ca2d4a2b15e08215774e5180fcf2cdd4e77cd2b10c",
+        "maskedDigest": "sha256:d06904275745cb109e33ef582fa03f02fa1e81b0c16629053b3ea0952a2704ae"
       },
       "dataCellConditioning": {
-        "introducedCount": 4395,
+        "introducedCount": 4444,
         "maskedCount": 44,
-        "introducedDigest": "sha256:2d98315f3fb01f9803f7633b112d773b52fd447c344e8358a859a605351b2e43",
+        "introducedDigest": "sha256:a891ae7876ade6f25101fcd1759332db73b1609647561df3775a49df6b5cd179",
         "maskedDigest": "sha256:1c6d334456a5647be0b17dd5236396444e05035d2d6f49753cad7be40a47b629"
       }
     },
@@ -1345,28 +1338,24 @@
       ],
       "dataAfterConfigDeactivatedSteps": [],
       "configConditioning": {
-        "introduced": [
-          "day_coverage.payloadDigest"
-        ],
+        "introduced": [],
         "masked": []
       },
       "dataConditioning": {
         "introduced": [],
-        "masked": [
-          "day_coverage.payloadDigest"
-        ]
+        "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 25,
+        "introducedCount": 24,
         "maskedCount": 0,
-        "introducedDigest": "sha256:95bba596bd239c1e3df0879bb9a5e33d91ecbace86c0d769663206209f697e60",
+        "introducedDigest": "sha256:7af83e977c473be608c7063f4c7cc67455330c9027a47f745e80b092d82c691b",
         "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
       "dataCellConditioning": {
         "introducedCount": 240,
-        "maskedCount": 155,
+        "maskedCount": 154,
         "introducedDigest": "sha256:4b25004966bae4fd4776379b1b8d013feef8acf95330351bbc55879f10ea3877",
-        "maskedDigest": "sha256:de39a35a4ae73cd226c4747ede5a88410837da51f1560742c67d582b5632d9a1"
+        "maskedDigest": "sha256:e01c500a08d1d3aed666ddccbd2e5fffa2535e27f0781fad261f26a047c09840"
       }
     },
     {
@@ -1428,28 +1417,24 @@
       ],
       "dataAfterConfigDeactivatedSteps": [],
       "configConditioning": {
-        "introduced": [
-          "day_coverage.payloadDigest"
-        ],
+        "introduced": [],
         "masked": []
       },
       "dataConditioning": {
         "introduced": [],
-        "masked": [
-          "day_coverage.payloadDigest"
-        ]
+        "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 25,
+        "introducedCount": 24,
         "maskedCount": 0,
-        "introducedDigest": "sha256:95bba596bd239c1e3df0879bb9a5e33d91ecbace86c0d769663206209f697e60",
+        "introducedDigest": "sha256:7af83e977c473be608c7063f4c7cc67455330c9027a47f745e80b092d82c691b",
         "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
       "dataCellConditioning": {
         "introducedCount": 240,
-        "maskedCount": 155,
+        "maskedCount": 154,
         "introducedDigest": "sha256:4b25004966bae4fd4776379b1b8d013feef8acf95330351bbc55879f10ea3877",
-        "maskedDigest": "sha256:de39a35a4ae73cd226c4747ede5a88410837da51f1560742c67d582b5632d9a1"
+        "maskedDigest": "sha256:e01c500a08d1d3aed666ddccbd2e5fffa2535e27f0781fad261f26a047c09840"
       }
     },
     {
@@ -1587,28 +1572,24 @@
       ],
       "dataAfterConfigDeactivatedSteps": [],
       "configConditioning": {
-        "introduced": [
-          "day_coverage.payloadDigest"
-        ],
+        "introduced": [],
         "masked": []
       },
       "dataConditioning": {
         "introduced": [],
-        "masked": [
-          "day_coverage.payloadDigest"
-        ]
+        "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 25,
+        "introducedCount": 24,
         "maskedCount": 0,
-        "introducedDigest": "sha256:737b5fa13741f7712fd1e623af5d508438d60ec885fb7b869912def1c42eaa24",
+        "introducedDigest": "sha256:e6505c5145d90a949f97df85fe79d38776bde5e29ce5c3dbc4a3243fb8ccd2b5",
         "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
       "dataCellConditioning": {
         "introducedCount": 226,
-        "maskedCount": 151,
+        "maskedCount": 150,
         "introducedDigest": "sha256:932821d29b37b677b051e45ad1db86bcffe3a40da39d4e92d4d75ff19d1548b1",
-        "maskedDigest": "sha256:f5d983c1332dbfc8a80de8c60836c81cd6eddae1bde76a8af3909acd02f3fc35"
+        "maskedDigest": "sha256:123da147116ab007bf7ea2152ec9152c9d35e1fdcbdc2aa3fc2911865d4513a4"
       }
     },
     {
@@ -1727,9 +1708,9 @@
         "maskedDigest": "sha256:f4552214cb22a40b5fabda9569945d4b5a2ec6a6fd9b37fc00f0103eadfb77e4"
       },
       "dataCellConditioning": {
-        "introducedCount": 637,
+        "introducedCount": 641,
         "maskedCount": 0,
-        "introducedDigest": "sha256:c189af5449db665bc37b55748c6b57af1dcafec1914ddc1e5d4a4719af9b40d4",
+        "introducedDigest": "sha256:d3605e85b05c1be8dbba849bac5c846ade486ee160d3bc2322cd0c4adcc65592",
         "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       }
     },
@@ -1779,13 +1760,13 @@
       }
     },
     {
-      "caseId": "survey_attribution_file:support:survey-target-to-other×minimumUsageDuration=s0",
+      "caseId": "survey_attribution_file:support:survey-target-to-other×minimumUsageDuration=s60",
       "roleId": "survey_attribution_file",
       "interventionId": "support:survey-target-to-other",
       "optionKey": "minimumUsageDuration",
       "alternate": {
-        "label": "s0",
-        "value": 0
+        "label": "s60",
+        "value": 60
       },
       "configAfterDataActualSteps": [
         "aggregate_attribution_minutes",
@@ -1838,10 +1819,10 @@
         "masked": []
       },
       "dataConditioning": {
-        "introduced": [],
-        "masked": [
+        "introduced": [
           "day_coverage.payloadDigest"
-        ]
+        ],
+        "masked": []
       },
       "configCellConditioning": {
         "introducedCount": 1,
@@ -1850,162 +1831,10 @@
         "maskedDigest": "sha256:4feb892638459f5bb31a8a5d9e0e6ca9fce1fa537365023a04c571ab3cdddf74"
       },
       "dataCellConditioning": {
-        "introducedCount": 0,
-        "maskedCount": 1,
-        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "maskedDigest": "sha256:689feb63e4ec1c6119017cf4d1a7cc37c40bcdf19fd56d7b1a0e8dcf85c71d1b"
-      }
-    },
-    {
-      "caseId": "survey_attribution_file:support:survey-target-to-other×minimumDurationComparator=inclusivele",
-      "roleId": "survey_attribution_file",
-      "interventionId": "support:survey-target-to-other",
-      "optionKey": "minimumDurationComparator",
-      "alternate": {
-        "label": "inclusivele",
-        "value": "inclusive_le"
-      },
-      "configAfterDataActualSteps": [
-        "aggregate_attribution_minutes",
-        "apply_app_inclusion_policy",
-        "apply_episode_flags",
-        "apply_participant_windows",
-        "assemble_credit_outputs",
-        "assemble_result_manifest",
-        "assess_screen_evidence_capability",
-        "assign_usage_session_ids",
-        "build_participant_day_coverage",
-        "classify_compliance_days",
-        "classify_episode_durations",
-        "classify_person_attribution",
-        "collapse_app_genre",
-        "compute_attribution_completeness",
-        "derive_broad_category",
-        "derive_credited_intervals",
-        "derive_engagement_basis",
-        "divide_sessions_at_day_boundary",
-        "identify_credit_eligible_sessions",
-        "join_app_codebook",
-        "materialize_credited_rows",
-        "order_app_episodes",
-        "remove_selected_interaction_types",
-        "remove_zero_duration_rows",
-        "resolve_participant_windows",
-        "resolve_sharing_status",
-        "segment_concurrent_usage",
-        "summarize_daily_apps",
-        "suppress_excluded_timing",
-        "synthesize_placeholder_rows"
-      ],
-      "configAfterDataDeactivatedSteps": [],
-      "dataAfterConfigActualSteps": [
-        "aggregate_attribution_minutes",
-        "assemble_result_manifest",
-        "build_participant_day_coverage",
-        "classify_person_attribution",
-        "compute_attribution_completeness",
-        "divide_sessions_at_day_boundary",
-        "index_survey_responses",
-        "synthesize_placeholder_rows"
-      ],
-      "dataAfterConfigDeactivatedSteps": [],
-      "configConditioning": {
-        "introduced": [],
-        "masked": []
-      },
-      "dataConditioning": {
-        "introduced": [],
-        "masked": []
-      },
-      "configCellConditioning": {
-        "introducedCount": 0,
-        "maskedCount": 2,
-        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "maskedDigest": "sha256:a744d6760c0a10cfb7db23f1ac20fa05581626e78702a777966a602f69049de2"
-      },
-      "dataCellConditioning": {
-        "introducedCount": 0,
+        "introducedCount": 1,
         "maskedCount": 0,
-        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "introducedDigest": "sha256:689feb63e4ec1c6119017cf4d1a7cc37c40bcdf19fd56d7b1a0e8dcf85c71d1b",
         "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-      }
-    },
-    {
-      "caseId": "survey_attribution_file:support:survey-target-to-other×minimumDurationDisposition=droprow",
-      "roleId": "survey_attribution_file",
-      "interventionId": "support:survey-target-to-other",
-      "optionKey": "minimumDurationDisposition",
-      "alternate": {
-        "label": "droprow",
-        "value": "drop_row"
-      },
-      "configAfterDataActualSteps": [
-        "aggregate_attribution_minutes",
-        "apply_app_inclusion_policy",
-        "apply_episode_flags",
-        "apply_participant_windows",
-        "assemble_credit_outputs",
-        "assemble_result_manifest",
-        "assess_screen_evidence_capability",
-        "assign_usage_session_ids",
-        "build_participant_day_coverage",
-        "classify_compliance_days",
-        "classify_episode_durations",
-        "classify_person_attribution",
-        "collapse_app_genre",
-        "compute_attribution_completeness",
-        "derive_broad_category",
-        "derive_credited_intervals",
-        "derive_engagement_basis",
-        "divide_sessions_at_day_boundary",
-        "identify_credit_eligible_sessions",
-        "join_app_codebook",
-        "materialize_credited_rows",
-        "order_app_episodes",
-        "remove_selected_interaction_types",
-        "remove_zero_duration_rows",
-        "resolve_participant_windows",
-        "resolve_sharing_status",
-        "segment_concurrent_usage",
-        "summarize_daily_apps",
-        "suppress_excluded_timing",
-        "synthesize_placeholder_rows"
-      ],
-      "configAfterDataDeactivatedSteps": [],
-      "dataAfterConfigActualSteps": [
-        "aggregate_attribution_minutes",
-        "assemble_result_manifest",
-        "build_participant_day_coverage",
-        "classify_person_attribution",
-        "compute_attribution_completeness",
-        "divide_sessions_at_day_boundary",
-        "index_survey_responses",
-        "synthesize_placeholder_rows"
-      ],
-      "dataAfterConfigDeactivatedSteps": [],
-      "configConditioning": {
-        "introduced": [],
-        "masked": []
-      },
-      "dataConditioning": {
-        "introduced": [
-          "day_coverage.rowMembershipDigest",
-          "day_coverage.rowOrderDigest",
-          "day_coverage.temporalStateDigest"
-        ],
-        "masked": []
-      },
-      "configCellConditioning": {
-        "introducedCount": 794,
-        "maskedCount": 1016,
-        "introducedDigest": "sha256:9e99449fc429ceb640fc54897feb5b09690072d574ca0faead64ec21776b9a90",
-        "maskedDigest": "sha256:947edd1078a08aaf4f3903c1473f075709961b23fb9d38e736397eccae6bc6c2"
-      },
-      "dataCellConditioning": {
-        "introducedCount": 3644,
-        "maskedCount": 180,
-        "introducedDigest": "sha256:df10c4f0bd512ac9f15d34e10c3d951a19e3bf523e3f15c4cf6ea5ca7db19927",
-        "maskedDigest": "sha256:babe7b5ce5f836a9b9a8f60abdc1aecac856ba4f3518965c42bdd3a25fb8c601"
       }
     },
     {
@@ -2061,16 +1890,16 @@
         "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 4,
+        "introducedCount": 6,
         "maskedCount": 4,
-        "introducedDigest": "sha256:4f33c08e1b24edbdaad909152cb3227325b8b6a5fcfe1a212cbd156a6d51b3a9",
+        "introducedDigest": "sha256:858c311691dc90714c4e3d2a47442e0dce70ee6663a982b81b92793883c1ac56",
         "maskedDigest": "sha256:ae5fa59c1e28919555b45778a2a89097b8a1f47df7b6e67de295a10df1a08ed1"
       },
       "dataCellConditioning": {
-        "introducedCount": 96,
-        "maskedCount": 120,
-        "introducedDigest": "sha256:4fe725f3464df7e73d36f70d7147453a21596826d53537f8436674628b8455d0",
-        "maskedDigest": "sha256:4dd66cec8e50937a4f1c10876aaefa3101bd9515e60c2a2c48217da1c8a2f567"
+        "introducedCount": 92,
+        "maskedCount": 124,
+        "introducedDigest": "sha256:12cc0f6f56e6f43508d48a1518545465dc79ee805d15f6a5a5d4f58b2a57eb31",
+        "maskedDigest": "sha256:526e51cdecd22f6dcfb6d0e6c0ad2d2b4c3e9dcacce40d846bd440ea84185254"
       }
     },
     {
@@ -2132,7 +1961,6 @@
         "masked": [
           "attribute_person.classificationDigest",
           "day_coverage.classificationDigest",
-          "day_coverage.payloadDigest",
           "outputs.payloadDigest"
         ]
       },
@@ -2144,9 +1972,9 @@
       },
       "dataCellConditioning": {
         "introducedCount": 0,
-        "maskedCount": 607,
+        "maskedCount": 606,
         "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "maskedDigest": "sha256:37426a7d8c05b4989d80198e0f53f7aa178308565601649d3ba9919ff46554d7"
+        "maskedDigest": "sha256:f309576656efe1115a4b69c22541c2ab004bb8372c1ec33a85ba4c606dd0becd"
       }
     },
     {
@@ -2281,99 +2109,24 @@
       ],
       "dataAfterConfigDeactivatedSteps": [],
       "configConditioning": {
-        "introduced": [
-          "day_coverage.payloadDigest"
-        ],
+        "introduced": [],
         "masked": []
       },
       "dataConditioning": {
         "introduced": [],
-        "masked": [
-          "day_coverage.payloadDigest"
-        ]
+        "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 13,
+        "introducedCount": 12,
         "maskedCount": 0,
-        "introducedDigest": "sha256:289edb8466ea307548705e5c6a128e6a835d15f37e5a7742f317ca9329ff6022",
+        "introducedDigest": "sha256:567a0db864d09fdcbb4fd0fc25ba7c47d1898f095d9aa755f68dfae430b06973",
         "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
       "dataCellConditioning": {
         "introducedCount": 104,
-        "maskedCount": 273,
+        "maskedCount": 272,
         "introducedDigest": "sha256:d90cb208728a4ebefd95216772a383b2fc69704166d3a69b75d7fe7a1fb373f2",
-        "maskedDigest": "sha256:09080e4efb8f7243b85823dd2c1011ee19d8ba576ad1cbe4101268ebed742672"
-      }
-    },
-    {
-      "caseId": "survey_attribution_file:support:survey-target-to-other×applyMinimumUsageDurationToConcurrentSubintervals=false",
-      "roleId": "survey_attribution_file",
-      "interventionId": "support:survey-target-to-other",
-      "optionKey": "applyMinimumUsageDurationToConcurrentSubintervals",
-      "alternate": {
-        "label": "false",
-        "value": false
-      },
-      "configAfterDataActualSteps": [
-        "aggregate_attribution_minutes",
-        "apply_episode_flags",
-        "apply_participant_windows",
-        "assemble_credit_outputs",
-        "assemble_result_manifest",
-        "assess_screen_evidence_capability",
-        "assign_usage_session_ids",
-        "build_participant_day_coverage",
-        "classify_compliance_days",
-        "classify_person_attribution",
-        "collapse_app_genre",
-        "compute_attribution_completeness",
-        "derive_broad_category",
-        "derive_credited_intervals",
-        "derive_engagement_basis",
-        "divide_sessions_at_day_boundary",
-        "identify_credit_eligible_sessions",
-        "join_app_codebook",
-        "materialize_credited_rows",
-        "remove_selected_interaction_types",
-        "remove_zero_duration_rows",
-        "resolve_participant_windows",
-        "resolve_sharing_status",
-        "segment_concurrent_usage",
-        "summarize_daily_apps",
-        "suppress_excluded_timing",
-        "synthesize_placeholder_rows"
-      ],
-      "configAfterDataDeactivatedSteps": [],
-      "dataAfterConfigActualSteps": [
-        "aggregate_attribution_minutes",
-        "assemble_result_manifest",
-        "build_participant_day_coverage",
-        "classify_person_attribution",
-        "compute_attribution_completeness",
-        "divide_sessions_at_day_boundary",
-        "index_survey_responses",
-        "synthesize_placeholder_rows"
-      ],
-      "dataAfterConfigDeactivatedSteps": [],
-      "configConditioning": {
-        "introduced": [],
-        "masked": []
-      },
-      "dataConditioning": {
-        "introduced": [],
-        "masked": []
-      },
-      "configCellConditioning": {
-        "introducedCount": 0,
-        "maskedCount": 4,
-        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "maskedDigest": "sha256:4feb892638459f5bb31a8a5d9e0e6ca9fce1fa537365023a04c571ab3cdddf74"
-      },
-      "dataCellConditioning": {
-        "introducedCount": 0,
-        "maskedCount": 0,
-        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        "maskedDigest": "sha256:d36edc84fb511d17412b0aa8d92274b51ed90853594dc40e59205f4259ef54af"
       }
     },
     {
@@ -2519,28 +2272,24 @@
       ],
       "dataAfterConfigDeactivatedSteps": [],
       "configConditioning": {
-        "introduced": [
-          "day_coverage.payloadDigest"
-        ],
+        "introduced": [],
         "masked": []
       },
       "dataConditioning": {
         "introduced": [],
-        "masked": [
-          "day_coverage.payloadDigest"
-        ]
+        "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 113,
+        "introducedCount": 114,
         "maskedCount": 0,
-        "introducedDigest": "sha256:2835268fecf280ce068f1bc25a2b4a10d2f3476c8124d64f1beeaf85c552f21e",
+        "introducedDigest": "sha256:6112a692b2a7497e62e02b8b6139c5e9f699aeb564ea74364cd455239e4cf213",
         "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
       "dataCellConditioning": {
         "introducedCount": 64,
-        "maskedCount": 325,
+        "maskedCount": 324,
         "introducedDigest": "sha256:c7177c8f5e1eb39c607990c53783ba7191387c7eb2ce91e1a1e970feba97e982",
-        "maskedDigest": "sha256:74cac80c3b24d2c45dda692f53a787123c9463ce89776483df5cac50c6817436"
+        "maskedDigest": "sha256:0bed9f89e281a6072a1cd950511679f15466de99b055ee5fd66ca95cd4e34c36"
       }
     },
     {
@@ -2617,9 +2366,7 @@
       "dataAfterConfigActualSteps": [],
       "dataAfterConfigDeactivatedSteps": [],
       "configConditioning": {
-        "introduced": [
-          "day_coverage.payloadDigest"
-        ],
+        "introduced": [],
         "masked": []
       },
       "dataConditioning": {
@@ -2627,71 +2374,22 @@
         "masked": [
           "attribute_person.classificationDigest",
           "day_coverage.classificationDigest",
-          "day_coverage.payloadDigest",
           "outputs.payloadDigest"
         ]
       },
       "configCellConditioning": {
-        "introducedCount": 293,
+        "introducedCount": 292,
         "maskedCount": 0,
-        "introducedDigest": "sha256:be575f26b3f134ebf1be1059f26c79f8c402f725a2f8359dba1a1304d8ca4068",
+        "introducedDigest": "sha256:39b3c11d046d39b6ce28a6c43f0ec3b284d30cbf382be8a3324b849972c52717",
         "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
       "dataCellConditioning": {
         "introducedCount": 0,
-        "maskedCount": 607,
+        "maskedCount": 606,
         "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "maskedDigest": "sha256:37426a7d8c05b4989d80198e0f53f7aa178308565601649d3ba9919ff46554d7"
-      }
-    },
-    {
-      "caseId": "survey_attribution_file:support:survey-target-to-other×enableDayCoverage=false",
-      "roleId": "survey_attribution_file",
-      "interventionId": "support:survey-target-to-other",
-      "optionKey": "enableDayCoverage",
-      "alternate": {
-        "label": "false",
-        "value": false
-      },
-      "configAfterDataActualSteps": [
-        "assemble_result_manifest"
-      ],
-      "configAfterDataDeactivatedSteps": [
-        "build_participant_day_coverage"
-      ],
-      "dataAfterConfigActualSteps": [
-        "aggregate_attribution_minutes",
-        "assemble_result_manifest",
-        "classify_person_attribution",
-        "compute_attribution_completeness",
-        "divide_sessions_at_day_boundary",
-        "index_survey_responses",
-        "synthesize_placeholder_rows"
-      ],
-      "dataAfterConfigDeactivatedSteps": [],
-      "configConditioning": {
-        "introduced": [],
-        "masked": []
-      },
-      "dataConditioning": {
-        "introduced": [],
-        "masked": [
-          "day_coverage.payloadDigest"
-        ]
-      },
-      "configCellConditioning": {
-        "introducedCount": 0,
-        "maskedCount": 0,
-        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-      },
-      "dataCellConditioning": {
-        "introducedCount": 0,
-        "maskedCount": 1,
-        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "maskedDigest": "sha256:689feb63e4ec1c6119017cf4d1a7cc37c40bcdf19fd56d7b1a0e8dcf85c71d1b"
+        "maskedDigest": "sha256:f309576656efe1115a4b69c22541c2ab004bb8372c1ec33a85ba4c606dd0becd"
       }
     }
   ],
-  "caseSetDigest": "sha256:8c28c7c22e01b73fcdb2d07a80caae5849031184c5dac517945ab1322f728ab9"
+  "caseSetDigest": "sha256:f99f455cfba9ab01457438d11448bc74758dfbd814f13031279834c362890d66"
 }
