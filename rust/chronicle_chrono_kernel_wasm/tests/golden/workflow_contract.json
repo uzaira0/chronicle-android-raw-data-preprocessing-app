@@ -7864,6 +7864,62 @@
       },
       {
         "outputKind": "app-csv",
+        "column": "bluelight_play_store_genreId",
+        "emittingQuery": "assemble_result_manifest",
+        "from": [
+          "codebook_fields"
+        ]
+      },
+      {
+        "outputKind": "app-csv",
+        "column": "bluelight_play_store_genre",
+        "emittingQuery": "assemble_result_manifest",
+        "from": [
+          "codebook_fields"
+        ]
+      },
+      {
+        "outputKind": "app-csv",
+        "column": "bluelight_play_store_broad_app_category",
+        "emittingQuery": "assemble_result_manifest",
+        "from": [
+          "codebook_fields"
+        ]
+      },
+      {
+        "outputKind": "app-csv",
+        "column": "bluelight_play_store_developer",
+        "emittingQuery": "assemble_result_manifest",
+        "from": [
+          "codebook_fields"
+        ]
+      },
+      {
+        "outputKind": "app-csv",
+        "column": "bluelight_play_store_free",
+        "emittingQuery": "assemble_result_manifest",
+        "from": [
+          "codebook_fields"
+        ]
+      },
+      {
+        "outputKind": "app-csv",
+        "column": "bluelight_play_store_rating",
+        "emittingQuery": "assemble_result_manifest",
+        "from": [
+          "codebook_fields"
+        ]
+      },
+      {
+        "outputKind": "app-csv",
+        "column": "bluelight_play_store_downloads",
+        "emittingQuery": "assemble_result_manifest",
+        "from": [
+          "codebook_fields"
+        ]
+      },
+      {
+        "outputKind": "app-csv",
         "column": "codebook_dataset",
         "emittingQuery": "assemble_result_manifest",
         "from": [
@@ -8460,6 +8516,62 @@
       {
         "outputKind": "credited-app-csv",
         "column": "bcm_cnrc_categorization_source",
+        "emittingQuery": "assemble_credit_outputs",
+        "from": [
+          "codebook_fields"
+        ]
+      },
+      {
+        "outputKind": "credited-app-csv",
+        "column": "bluelight_play_store_genreId",
+        "emittingQuery": "assemble_credit_outputs",
+        "from": [
+          "codebook_fields"
+        ]
+      },
+      {
+        "outputKind": "credited-app-csv",
+        "column": "bluelight_play_store_genre",
+        "emittingQuery": "assemble_credit_outputs",
+        "from": [
+          "codebook_fields"
+        ]
+      },
+      {
+        "outputKind": "credited-app-csv",
+        "column": "bluelight_play_store_broad_app_category",
+        "emittingQuery": "assemble_credit_outputs",
+        "from": [
+          "codebook_fields"
+        ]
+      },
+      {
+        "outputKind": "credited-app-csv",
+        "column": "bluelight_play_store_developer",
+        "emittingQuery": "assemble_credit_outputs",
+        "from": [
+          "codebook_fields"
+        ]
+      },
+      {
+        "outputKind": "credited-app-csv",
+        "column": "bluelight_play_store_free",
+        "emittingQuery": "assemble_credit_outputs",
+        "from": [
+          "codebook_fields"
+        ]
+      },
+      {
+        "outputKind": "credited-app-csv",
+        "column": "bluelight_play_store_rating",
+        "emittingQuery": "assemble_credit_outputs",
+        "from": [
+          "codebook_fields"
+        ]
+      },
+      {
+        "outputKind": "credited-app-csv",
+        "column": "bluelight_play_store_downloads",
         "emittingQuery": "assemble_credit_outputs",
         "from": [
           "codebook_fields"
@@ -16709,6 +16821,13 @@
           "app_codebook_file.babyemu_kids",
           "app_codebook_file.bcm_cnrc_heuristic_category",
           "app_codebook_file.bcm_cnrc_categorization_source",
+          "app_codebook_file.bluelight_play_store_genreId",
+          "app_codebook_file.bluelight_play_store_genre",
+          "app_codebook_file.bluelight_play_store_broad_app_category",
+          "app_codebook_file.bluelight_play_store_developer",
+          "app_codebook_file.bluelight_play_store_free",
+          "app_codebook_file.bluelight_play_store_rating",
+          "app_codebook_file.bluelight_play_store_downloads",
           "app_codebook_file.dataset"
         ],
         "fieldWrites": [
@@ -16747,6 +16866,13 @@
               "app_codebook_file.babyemu_kids",
               "app_codebook_file.bcm_cnrc_heuristic_category",
               "app_codebook_file.bcm_cnrc_categorization_source",
+              "app_codebook_file.bluelight_play_store_genreId",
+              "app_codebook_file.bluelight_play_store_genre",
+              "app_codebook_file.bluelight_play_store_broad_app_category",
+              "app_codebook_file.bluelight_play_store_developer",
+              "app_codebook_file.bluelight_play_store_free",
+              "app_codebook_file.bluelight_play_store_rating",
+              "app_codebook_file.bluelight_play_store_downloads",
               "app_codebook_file.dataset"
             ]
           }
@@ -16756,8 +16882,8 @@
           "option_key": "process_app_usage"
         },
         "canBypass": true,
-        "definitionDigest": "sha256:5012c5b41f43833477d1e1647ce9ce66851821b768868617d47ec693e43c124e",
-        "closureDigest": "sha256:edbed6b4328ea7ba15357b99958ad633161b43cb615442f9e04c8bcd201d6130"
+        "definitionDigest": "sha256:a101843fa9873bfb47e5f30680d19281caedc6d8ff8a87b823aa5366166af73b",
+        "closureDigest": "sha256:60bbd6b997134fbad4bc3ae5327200e076bae19cdd5571e9a6389f825439a8eb"
       },
       {
         "id": "derive_broad_category",
@@ -16800,7 +16926,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:8f9b30ca46a5956588f5428d3757325631a2723d1ecf97c428b594cdb500fd0c",
-        "closureDigest": "sha256:1f28260625edd4e89816be48141a124d620a574c94e1b58abf3b7f90fff04c60"
+        "closureDigest": "sha256:93a7cf79ed50954201c283c8c89c2a25fd72a17c4df2fbad2fb6c81bcd6d12d5"
       },
       {
         "id": "collapse_app_genre",
@@ -16854,7 +16980,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:d77b68ff44d847c13628802ecc59b8692a01b88958b9bb3f054c47d2b4a29833",
-        "closureDigest": "sha256:7077cd68696f9dd6a1267a8313fd5bdf7a9502de6d453f99676fe858363d2e4f"
+        "closureDigest": "sha256:70ea8fed393e1a601a7ec47b55b49f55774ebd78c316b55f2af46e5c789cdd02"
       },
       {
         "id": "derive_engagement_basis",
@@ -17009,7 +17135,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:328984b094f699145af8989023ed003a12a7f3f6581246438745142decb02117",
-        "closureDigest": "sha256:58ce8aad1148f508dde9f414b2602b0bc3c6aaf0976751e9f69c338261b749c5"
+        "closureDigest": "sha256:f508ee72d252cab4fa33cd1e5e8e57df64de0cfc45d13b300ba00d9581d02abe"
       },
       {
         "id": "apply_episode_flags",
@@ -17057,7 +17183,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:eea7d8dee6f2e04bcc499ec92fa8ee4121adb8bb8314a5b54d83094b4f97ac3f",
-        "closureDigest": "sha256:a4b2a5a910ae4d31f6bf109a9d627aa62f289e8492d777396a2dc7830cf85a90"
+        "closureDigest": "sha256:183b390e81b860ac932f33fd7208c61ddb940e80968c971b0bf5df189e41f8fe"
       },
       {
         "id": "suppress_excluded_timing",
@@ -17288,7 +17414,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:055793ae9abf7f3b4879f93440aa74b325393f8dbc1df87324b688cea80b5099",
-        "closureDigest": "sha256:b9f72806bd53097f3f35bd500e6ce7baf86d39157717ae88d030d85114bd99fe"
+        "closureDigest": "sha256:641ece09de28e4881e51e8396535dcfed879907d91bb22d63d7641f4e73fdae8"
       },
       {
         "id": "remove_selected_interaction_types",
@@ -17333,7 +17459,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:34b859eeb468beef40466ea17e2101ed57dc4bc6939e6869de0989ec69e7ff1e",
-        "closureDigest": "sha256:61830bb0231b05a3dd86e4aacad2bd276a3bb5cffbda1080b789424f1bc53b11"
+        "closureDigest": "sha256:7d0c723f9366498739ad0831275b49a11ec6d58e9ab3f30e3748b09cd579dd14"
       },
       {
         "id": "remove_zero_duration_rows",
@@ -17414,7 +17540,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:2289abfac633a4af84499df9df6e2372843e2c6652ad128814c886ea3cb9d789",
-        "closureDigest": "sha256:cbeb7a5eb46d873d977d01724701dfaf3a405014b5a43f7e1240348f72ed7dad"
+        "closureDigest": "sha256:3ec486939b461309275e0e3b04630d5b8e7ee9aa82ebc95c0a69e518fa078957"
       },
       {
         "id": "assign_usage_session_ids",
@@ -17486,7 +17612,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:ebcddc4bbdb2ded63c75b95200cf8b2b19dc16e24e6a630af3a4ceef889d6bc6",
-        "closureDigest": "sha256:7d8316092a68db594aa65cfac88042124affe75842d2a604906a8339e5c129fb"
+        "closureDigest": "sha256:6e94bc59618870f6f376821e4f3afcec53d93520887a09eff0f9008caae9d752"
       },
       {
         "id": "identify_credit_eligible_sessions",
@@ -17538,7 +17664,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:c87a1063c1a17beab6619f8cf910332fae7e7d623e5ed3d113393f8cedda4a28",
-        "closureDigest": "sha256:5bcca949675575612689b545acf9b1ce9cfd9ce69946e033c8a7d5c5f5f6c51f"
+        "closureDigest": "sha256:286fdab667b287afb0c9cb4dced6eccc8054f76a422abb7344f53cba5d64a21f"
       },
       {
         "id": "build_activity_witness_indexes",
@@ -17651,7 +17777,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:1bdebda839e35be2be41c70addc5ca9f74e9a36b1cc1bc6ed7766bdf4e3313a4",
-        "closureDigest": "sha256:73083a9609847f3cd7ad10d015fafbdf16a3c1e8d8bd30b570ba196093618deb"
+        "closureDigest": "sha256:bea64dafe597aced3f317a2691a6f9809ea5b141abaa4d4155d2b5789a25cb9b"
       },
       {
         "id": "summarize_daily_apps",
@@ -17705,7 +17831,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:5d46b2af51375df7fbd8cc4d1536c1add3cc8325207344f26fdfe4da8590b63b",
-        "closureDigest": "sha256:9263a72f42522a793080efa75e8afd06d1f7ab8e6c03c97bb9cacfdfa05ef77e"
+        "closureDigest": "sha256:dd7d826512a9ac94961681e324350d9bfad1a9709293956b74e1bef470061c52"
       },
       {
         "id": "derive_credited_intervals",
@@ -17781,7 +17907,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:5fcd9be59591beac1346ef887b1e9f528f98b0607f62097c2a64e00eea3a5626",
-        "closureDigest": "sha256:c7cb09f3052cdaf2d67b7fc916c40106fce07611a84ba541dbc89b7af7558666"
+        "closureDigest": "sha256:ba16354881190f25e9a40fd34c64509eaa641ef353aeda9b35660d609bf2500f"
       },
       {
         "id": "materialize_credited_rows",
@@ -17997,7 +18123,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:d4b69e76dd340209b8047fac9ac197052e88a77324e6517baa189fd172ef8c6e",
-        "closureDigest": "sha256:dc8a3b565a1547642e078fd79b6bcb760e95a6c206d942479f35b015137cd13c"
+        "closureDigest": "sha256:c7a9a4c89aa607327660db1490da69faa54cb7bf1182e3eb3b51d71995fbc6ca"
       },
       {
         "id": "assemble_credit_outputs",
@@ -18051,7 +18177,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:8a05e01771e554ab226872db86e6be581508dc2d916817da0bbadcf02dae4efc",
-        "closureDigest": "sha256:f54edfe5d8a17c48995376dd572fb918cca88a493c553835d787f114447e1ab8"
+        "closureDigest": "sha256:c9a2d0320d846dd4a881e6fb03ca01fe1e88320b1645faec6c4f2e4586d59a55"
       },
       {
         "id": "select_notification_events",
@@ -18170,7 +18296,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:1b0e8bf5c838a531a46ef5e0e7e524219db40c1270b30d994d9b52b56e4d593f",
-        "closureDigest": "sha256:e71e7ea9ee1c5c35fee016e6426c03d6f8b10fc3518c3aead106697bd5dd0d49"
+        "closureDigest": "sha256:58c9a3109aabe5867dd76c871af240541d1f1127910aeea6141db0340a21e09a"
       },
       {
         "id": "classify_notification_contacts",
@@ -18229,7 +18355,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:0ef486ddd492af4c9104b11745bf2190aedbf55e33d6cd267a78783bc9e8ce07",
-        "closureDigest": "sha256:9186b91435428b45ef57aa8c0a3d51d8a572850dbde03c6f988d8a718c92a319"
+        "closureDigest": "sha256:cc443351af88663e5b4735536f3fdb2fa3e9f17eb9a3b3f0dd2914fd32466583"
       },
       {
         "id": "assemble_notification_contact_outputs",
@@ -18302,6 +18428,13 @@
           "app_codebook_file.babyemu_kids",
           "app_codebook_file.bcm_cnrc_heuristic_category",
           "app_codebook_file.bcm_cnrc_categorization_source",
+          "app_codebook_file.bluelight_play_store_genreId",
+          "app_codebook_file.bluelight_play_store_genre",
+          "app_codebook_file.bluelight_play_store_broad_app_category",
+          "app_codebook_file.bluelight_play_store_developer",
+          "app_codebook_file.bluelight_play_store_free",
+          "app_codebook_file.bluelight_play_store_rating",
+          "app_codebook_file.bluelight_play_store_downloads",
           "app_codebook_file.dataset"
         ],
         "fieldWrites": [
@@ -18346,6 +18479,13 @@
               "app_codebook_file.babyemu_kids",
               "app_codebook_file.bcm_cnrc_heuristic_category",
               "app_codebook_file.bcm_cnrc_categorization_source",
+              "app_codebook_file.bluelight_play_store_genreId",
+              "app_codebook_file.bluelight_play_store_genre",
+              "app_codebook_file.bluelight_play_store_broad_app_category",
+              "app_codebook_file.bluelight_play_store_developer",
+              "app_codebook_file.bluelight_play_store_free",
+              "app_codebook_file.bluelight_play_store_rating",
+              "app_codebook_file.bluelight_play_store_downloads",
               "app_codebook_file.dataset"
             ]
           },
@@ -18384,6 +18524,13 @@
               "app_codebook_file.babyemu_kids",
               "app_codebook_file.bcm_cnrc_heuristic_category",
               "app_codebook_file.bcm_cnrc_categorization_source",
+              "app_codebook_file.bluelight_play_store_genreId",
+              "app_codebook_file.bluelight_play_store_genre",
+              "app_codebook_file.bluelight_play_store_broad_app_category",
+              "app_codebook_file.bluelight_play_store_developer",
+              "app_codebook_file.bluelight_play_store_free",
+              "app_codebook_file.bluelight_play_store_rating",
+              "app_codebook_file.bluelight_play_store_downloads",
               "app_codebook_file.dataset"
             ]
           },
@@ -18422,6 +18569,13 @@
               "app_codebook_file.babyemu_kids",
               "app_codebook_file.bcm_cnrc_heuristic_category",
               "app_codebook_file.bcm_cnrc_categorization_source",
+              "app_codebook_file.bluelight_play_store_genreId",
+              "app_codebook_file.bluelight_play_store_genre",
+              "app_codebook_file.bluelight_play_store_broad_app_category",
+              "app_codebook_file.bluelight_play_store_developer",
+              "app_codebook_file.bluelight_play_store_free",
+              "app_codebook_file.bluelight_play_store_rating",
+              "app_codebook_file.bluelight_play_store_downloads",
               "app_codebook_file.dataset"
             ]
           },
@@ -18460,6 +18614,13 @@
               "app_codebook_file.babyemu_kids",
               "app_codebook_file.bcm_cnrc_heuristic_category",
               "app_codebook_file.bcm_cnrc_categorization_source",
+              "app_codebook_file.bluelight_play_store_genreId",
+              "app_codebook_file.bluelight_play_store_genre",
+              "app_codebook_file.bluelight_play_store_broad_app_category",
+              "app_codebook_file.bluelight_play_store_developer",
+              "app_codebook_file.bluelight_play_store_free",
+              "app_codebook_file.bluelight_play_store_rating",
+              "app_codebook_file.bluelight_play_store_downloads",
               "app_codebook_file.dataset"
             ]
           }
@@ -18482,8 +18643,8 @@
           ]
         },
         "canBypass": true,
-        "definitionDigest": "sha256:d5dd25202c4c392d322d47408a7a976015255627f60075355af6a450b8b1a54c",
-        "closureDigest": "sha256:92a4917284dacf9377d78b0b0e7a3161fee67803baba7bf92ead89bcac1a263a"
+        "definitionDigest": "sha256:c507474cdbaa3112975b12e1a21b49bea69574f87a9fec9a66b1ff1f084107c8",
+        "closureDigest": "sha256:27283fd7867b25d5e22d99f308c9f1d88bf8cc44f5fd636cec2f1f0e444a55ea"
       },
       {
         "id": "sample_polled_timeline",
@@ -18536,7 +18697,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:c12e93c0e0150aa56a154df3cfab5b3c37a559797b608fa3f9fcfda70b05c244",
-        "closureDigest": "sha256:d9f51101b133c84523169b6ab0925c12cbc33316f2c30cc6895a242e2643c425"
+        "closureDigest": "sha256:d0b6b8f109d44f1cef298a6092d35706b6cf8df8c8820f5da9bf21383833c228"
       },
       {
         "id": "group_polled_runs",
@@ -18591,7 +18752,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:bdb510df1238e9cb0cd814038e45878a5a2c797b9fbe42ca67e9df44709f503c",
-        "closureDigest": "sha256:d45f5e3517a1a8c5b9a195796ff309f651fa19fbbfc9f08a12fc465030e93ec3"
+        "closureDigest": "sha256:f1ca9a97795fbf26a15445fe6fa20fbb1ba4d9732b7fa954a8bcf1b72d1c5a36"
       },
       {
         "id": "materialize_polled_rows",
@@ -18686,7 +18847,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:936320bc5c53dd161c0d9d71d688408cded201548a13773bd3f0898e3802169c",
-        "closureDigest": "sha256:9fd2f75f8c70d850a6f25ca6f2a3f37aaa517adf44916834a1896457e42499dc"
+        "closureDigest": "sha256:4d1e031ce92066db62e9f5f693caffc868df096fa00dff6fe91552933aaeb763"
       },
       {
         "id": "assemble_polled_emulation_outputs",
@@ -18758,6 +18919,13 @@
           "app_codebook_file.babyemu_kids",
           "app_codebook_file.bcm_cnrc_heuristic_category",
           "app_codebook_file.bcm_cnrc_categorization_source",
+          "app_codebook_file.bluelight_play_store_genreId",
+          "app_codebook_file.bluelight_play_store_genre",
+          "app_codebook_file.bluelight_play_store_broad_app_category",
+          "app_codebook_file.bluelight_play_store_developer",
+          "app_codebook_file.bluelight_play_store_free",
+          "app_codebook_file.bluelight_play_store_rating",
+          "app_codebook_file.bluelight_play_store_downloads",
           "app_codebook_file.dataset"
         ],
         "fieldWrites": [
@@ -18802,6 +18970,13 @@
               "app_codebook_file.babyemu_kids",
               "app_codebook_file.bcm_cnrc_heuristic_category",
               "app_codebook_file.bcm_cnrc_categorization_source",
+              "app_codebook_file.bluelight_play_store_genreId",
+              "app_codebook_file.bluelight_play_store_genre",
+              "app_codebook_file.bluelight_play_store_broad_app_category",
+              "app_codebook_file.bluelight_play_store_developer",
+              "app_codebook_file.bluelight_play_store_free",
+              "app_codebook_file.bluelight_play_store_rating",
+              "app_codebook_file.bluelight_play_store_downloads",
               "app_codebook_file.dataset"
             ]
           },
@@ -18840,6 +19015,13 @@
               "app_codebook_file.babyemu_kids",
               "app_codebook_file.bcm_cnrc_heuristic_category",
               "app_codebook_file.bcm_cnrc_categorization_source",
+              "app_codebook_file.bluelight_play_store_genreId",
+              "app_codebook_file.bluelight_play_store_genre",
+              "app_codebook_file.bluelight_play_store_broad_app_category",
+              "app_codebook_file.bluelight_play_store_developer",
+              "app_codebook_file.bluelight_play_store_free",
+              "app_codebook_file.bluelight_play_store_rating",
+              "app_codebook_file.bluelight_play_store_downloads",
               "app_codebook_file.dataset"
             ]
           },
@@ -18878,6 +19060,13 @@
               "app_codebook_file.babyemu_kids",
               "app_codebook_file.bcm_cnrc_heuristic_category",
               "app_codebook_file.bcm_cnrc_categorization_source",
+              "app_codebook_file.bluelight_play_store_genreId",
+              "app_codebook_file.bluelight_play_store_genre",
+              "app_codebook_file.bluelight_play_store_broad_app_category",
+              "app_codebook_file.bluelight_play_store_developer",
+              "app_codebook_file.bluelight_play_store_free",
+              "app_codebook_file.bluelight_play_store_rating",
+              "app_codebook_file.bluelight_play_store_downloads",
               "app_codebook_file.dataset"
             ]
           },
@@ -18916,6 +19105,13 @@
               "app_codebook_file.babyemu_kids",
               "app_codebook_file.bcm_cnrc_heuristic_category",
               "app_codebook_file.bcm_cnrc_categorization_source",
+              "app_codebook_file.bluelight_play_store_genreId",
+              "app_codebook_file.bluelight_play_store_genre",
+              "app_codebook_file.bluelight_play_store_broad_app_category",
+              "app_codebook_file.bluelight_play_store_developer",
+              "app_codebook_file.bluelight_play_store_free",
+              "app_codebook_file.bluelight_play_store_rating",
+              "app_codebook_file.bluelight_play_store_downloads",
               "app_codebook_file.dataset"
             ]
           }
@@ -18938,8 +19134,8 @@
           ]
         },
         "canBypass": true,
-        "definitionDigest": "sha256:c15b87f0eff70b410f445b2e306dc0a6acdafe8d14f8eb74173516ed5a0f8fae",
-        "closureDigest": "sha256:bf2d9ddbab12ef7287db7e9f2c6abb797afb20084b30d6f75f7ae633563afde4"
+        "definitionDigest": "sha256:743986e985f78932f7722fed548a0e71ff254fa6f3299caafef33c40c4e8c6f5",
+        "closureDigest": "sha256:e8c52525371fe1a9825318b275b60a33eeeecdb3eca8c768533c55afad37d95c"
       },
       {
         "id": "resolve_participant_windows",
@@ -19009,7 +19205,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:114c7c5c5ae02ca45ff12f877ab61732fde8787f7f31a3d9210b2e70b19f35ac",
-        "closureDigest": "sha256:e6aa7c50b452d42a794b7695ed1313d8c0044b767860541d706ccd46ed31c522"
+        "closureDigest": "sha256:d4b94deb0b38d60d89c25dac71f12ac2a188308ace66df21de410bcd0ce6b0c0"
       },
       {
         "id": "apply_participant_windows",
@@ -19091,7 +19287,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:7d8ca95e14a1bdde008a40ed8270494c6492301929c6bddde034217bc2949ac0",
-        "closureDigest": "sha256:54edb14ecc8b74513f3d0744916d131e9c6cf9b1c4e08fa7a368f61545bfaae1"
+        "closureDigest": "sha256:001ed337f81ce5e00e6fc3f71fb6844d9287292939279e883b82225af6a8d890"
       },
       {
         "id": "resolve_sharing_status",
@@ -19149,7 +19345,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:acf057ca36c14bcfa02ae93930d65b951cb01a0e6cac46d534c38ecc0f6c0fb5",
-        "closureDigest": "sha256:129378630dc54cb27e35d3111580134b9315f724984ebd361e59d833845203e3"
+        "closureDigest": "sha256:bc5b2aabf00ac3e80d0910d1e82258dd76579425dd5d570d567c5a1a5557e212"
       },
       {
         "id": "index_survey_responses",
@@ -19277,7 +19473,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:086fab24e51a9a342f8454be62805215498f0622f43e9ba0b6d3d56409ddad30",
-        "closureDigest": "sha256:d81a433e912ef5c16110f3d77747ed735533ad9449deaabc3035dc200154681f"
+        "closureDigest": "sha256:b39aab1df7d7b24135fba7c2ff0d3f3a9bab789d839f1332d200f76f1df8c3ba"
       },
       {
         "id": "divide_sessions_at_day_boundary",
@@ -19469,7 +19665,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:ae4366fdad439320bc8b96539474d573e329f9fa3f309605734fe03cab6549d8",
-        "closureDigest": "sha256:4284d533dab931eca65003a61656368361268104785023493a1d30bfd0eb1cf6"
+        "closureDigest": "sha256:e7e707df48a9aeedee36d30fac5b8aed67a8e4c737603ca77b93d8936e517fd9"
       },
       {
         "id": "synthesize_placeholder_rows",
@@ -19700,7 +19896,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:b0bf503660d4403a94eba2d02ea27e42f1237cfc4a5faec6b1226359ff8d8acc",
-        "closureDigest": "sha256:c5bf88a9938dc2f1cfab63accc1acd52a20baaf8524e244c4f2dccba723b5b40"
+        "closureDigest": "sha256:aa2f00011c55c5472e8b96a8caab76667c38a4767d23e5ca4c1973b7df770d6a"
       },
       {
         "id": "index_raw_dates",
@@ -19829,7 +20025,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:18c2be5866d90d1d316effd132ef69bb2eb5ed10f38f37ec65049aff73710e38",
-        "closureDigest": "sha256:4098231438fa28ab58780bdf68f2e4b7d8b9717782963fec8ef93936d967107c"
+        "closureDigest": "sha256:623e9a248db703e1b9f8d17c6d4e82dcf009c8432dcae1a3b77c84eda7456320"
       },
       {
         "id": "aggregate_attribution_minutes",
@@ -19887,7 +20083,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:d2e2e061ae61bb43306e9e8cc3a3e3b177c3eaac091a4eb369ec0814931b4caf",
-        "closureDigest": "sha256:dae5e2e15e7410dd4cfb954edeb3d276b56bcb124c5e604eebe715982f023ae6"
+        "closureDigest": "sha256:7e2725f752f0f4f47b646f2c0fea73127998852fbe113dc8c09daaadf2247625"
       },
       {
         "id": "compute_attribution_completeness",
@@ -19938,7 +20134,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:4cabe9b061a855dcba32a55d7bc7ed2327c83ac22749dc5434759a7f5fc24254",
-        "closureDigest": "sha256:e7d0b6a339d67ef29041a5b9697357c7d42149611cc814856422e623de3998fc"
+        "closureDigest": "sha256:89f880e25b9a8a4e7872386ad37311230b39fb4c9aca5009b39e56b7df2adff7"
       },
       {
         "id": "classify_compliance_days",
@@ -19992,7 +20188,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:e784b72b9b7ea95aa43e49188a2c68ff5b71055b122d8cc6565b770beaf26f5c",
-        "closureDigest": "sha256:74db1fac6db156964df5f3e71e9dfb39cbafcc6e2fe3d2db045fcf6e908865cb"
+        "closureDigest": "sha256:e25be6e19146cf0ade8debdae075832ecaebddb6303e46595c61df13e484d27a"
       },
       {
         "id": "bind_processing_timestamp",
@@ -21504,7 +21700,7 @@
         },
         "canBypass": false,
         "definitionDigest": "sha256:a48ba1a7e7242f5c3a05003bf5fb05f94c497ea9dad93e9a1abb39a9b86b030c",
-        "closureDigest": "sha256:a82f6a740a627c428c85a60f202b4f1903887e4231736155c12d639866403551"
+        "closureDigest": "sha256:9cc4dc5ac519b2b2738cb21bbe3f556bc433bf54f4698e1eebdf005b3c567ecf"
       }
     ]
   },
@@ -21541,11 +21737,11 @@
     ]
   },
   "digests": {
-    "semantic": "sha256:c51a5435d6fa6114135f2b4c2bcdea8a256f7e36141921442b1561ada5b083ee",
+    "semantic": "sha256:d7e6b6624d40208a47398afafe222b444c1a4a7a6b540c08d1c5ed6bafb6bf51",
     "presentation": "sha256:ab3cd30ce5e5bd04d1c7bf7aa507a0313c1afcf84092ab075cf3d079fbd33ccf",
-    "execution": "sha256:de2d00557e7049cb9f45f0be20517716dd28f5d0fffd42eeddc4eca9db53fe93",
+    "execution": "sha256:d56e0f53ccf3dd962d57bde7bcbbfa617c2b26c98e8d31e7e8161786e816289f",
     "checkpointPolicy": "sha256:8d73c8e6d90979c8a0ab149d3d1c1a1d720d62fdfcb68af3233e8fd7106addff",
     "evidence": "sha256:0389bfbc144d9ebf5778f904bbebbd2bbd9b38ac9072e0a3ce697a551e918ff4",
-    "workspaceCompatibility": "sha256:69e5539de29f2852e140234b2e11ddae1afeb3862c3ca6592323e30b92744583"
+    "workspaceCompatibility": "sha256:bd4cf39f72f6d4f6074bb0e37fa85068044364288e5cd601e94467ac6e4615cb"
   }
 }
