@@ -99,7 +99,7 @@ describe("independent keyboard transactions and supplied typing-trial membership
     expect(parseStudyMethodProfileLibrary(unknownDevice).typing_trials).toEqual(unknownDevice.typing_trials);
 
     const schema = JSON.parse(readFileSync(resolve(import.meta.dirname, "../../schema/generated/json-schema/chronicle-research-ontology.schema.json"), "utf8")) as { $defs: Record<string, unknown> };
-    const checked = execFileSync("python3", ["-c", [
+    const checked = execFileSync(linkmlPython(), ["-c", [
       "import json,sys", "from jsonschema import Draft202012Validator", "x=json.load(sys.stdin)",
       "for name,rows in [('KeyboardTransactionRecord',x['actions']),('TypingTrialRecord',x['trials'])]:",
       " v=Draft202012Validator({'$ref':'#/$defs/'+name,'$defs':x['schema']['$defs']})",
@@ -278,7 +278,7 @@ describe("supplied derived-only typing trials", () => {
     const saved = JSON.parse((await loadResearchMethodSelection())!) as { profile: unknown; typing_trials: unknown };
     expect(parseStudyMethodProfileLibrary({ profiles: [saved.profile], typing_trials: saved.typing_trials })).toEqual(parsed);
     const schema = JSON.parse(readFileSync(resolve(import.meta.dirname, "../../schema/generated/json-schema/chronicle-research-ontology.schema.json"), "utf8")) as { $defs: Record<string, unknown> };
-    const result = execFileSync("python3", ["-c", [
+    const result = execFileSync(linkmlPython(), ["-c", [
       "import json,sys", "from jsonschema import Draft202012Validator", "x=json.load(sys.stdin)",
       "v=Draft202012Validator({'$ref':'#/$defs/TypingTrialRecord','$defs':x['schema']['$defs']})",
       "for r in x['rows']:", " v.validate(r)",
