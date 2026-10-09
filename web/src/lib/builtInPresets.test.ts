@@ -26,6 +26,7 @@ describe("built-in presets", () => {
       "enableScreenGatedCrediting",
       "longDurationThresholdHours",
       "minimumUsageDuration",
+      "processScreenUsage",
       "selectedTimezone",
       "useFilterFile",
     ]);

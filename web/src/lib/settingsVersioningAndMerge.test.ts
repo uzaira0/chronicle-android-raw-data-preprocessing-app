@@ -85,6 +85,8 @@ describe("saved option sets (presets, projects, exported configs)", () => {
     expect(DEFAULT_BROWSER_OPTIONS.minimumUsageDuration).toBe(0);
     for (const saved of [
       { schemaVersion: 15, savedAt: "2026-10-01T00:00:00.000Z" },
+      // An old build still open after the deploy saves v15 with a later time.
+      { schemaVersion: 15, savedAt: "2027-01-01T00:00:00.000Z" },
       { schemaVersion: 15 },
       { savedAt: "2026-09-01T00:00:00.000Z" },
     ]) {

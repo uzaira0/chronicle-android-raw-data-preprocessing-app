@@ -43,8 +43,6 @@ export const SETTINGS_SCHEMA_VERSION = 16;
  * save froze `selected-filter` in as the default of the day, so it is listed
  * here and that save adopts the current default like the other three.
  */
-const MINIMUM_USAGE_ZERO_DEPLOYED_AT = "2026-10-10T00:00:00.000Z";
-
 const SUPERSEDED_DEFAULTS: readonly SupersededDefault[] = [
   // 93cc84cc, 2026-07-15T00:33:44-05:00. Settings schema v1 spans that date;
   // v2 (2026-08-05) is the first version entirely after it.
@@ -55,9 +53,10 @@ const SUPERSEDED_DEFAULTS: readonly SupersededDefault[] = [
   { key: "timezoneHandling", value: "selected-filter", supersededAt: "2026-08-28T13:43:43.000Z", firstVersionAfter: 13 },
   // Contract v6: minimum usage is a cleaning step, so the default went 60 → 0.
   // The user ruled that saved presets, projects and configs holding 60 move to
-  // 0 too. Every v15 record was written by a build whose default was 60;
-  // `supersededAt` is the production deploy of the change.
-  { key: "minimumUsageDuration", value: 60, supersededAt: MINIMUM_USAGE_ZERO_DEPLOYED_AT, firstVersionAfter: 16 },
+  // 0 too. Every pre-v16 record was written by a build whose default was 60,
+  // whenever it was saved (an old tab can still save after the deploy), so the
+  // version alone decides: `supersededAt` lies beyond any save time.
+  { key: "minimumUsageDuration", value: 60, supersededAt: "9999-12-31T00:00:00.000Z", firstVersionAfter: 16 },
 ];
 
 type SupersededDefault = {

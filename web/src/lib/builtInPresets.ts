@@ -32,6 +32,9 @@ function builtIn(
  */
 export const TECH_GNSM_OPTIONS: BrowserProcessingOptions = {
   ...DEFAULT_BROWSER_OPTIONS,
+  // v1_engine.py: usage_session_mode="app_usage", derive_screen_usage_sessions=False.
+  // Screen-gated credit reads the raw screen events, not this output.
+  processScreenUsage: false,
   selectedTimezone: "America/Chicago",
   useFilterFile: true,
   minimumUsageDuration: 60,

@@ -375,7 +375,11 @@ export function SettingsManagementCard({
                   aria-label={`Load built-in preset ${preset.name}`}
                   onClick={() => {
                     setPendingOverwriteName(null);
-                    setPendingLoad(preset);
+                    // A built-in preset is a method, not a study: keep the study name.
+                    setPendingLoad({
+                      ...preset,
+                      options: { ...preset.options, studyName: options.studyName },
+                    });
                   }}
                 >
                   Load
