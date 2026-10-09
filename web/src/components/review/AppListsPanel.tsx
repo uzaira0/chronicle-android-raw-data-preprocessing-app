@@ -9,6 +9,16 @@ import appCodebookUrl from "@/assets/defaults/unified_app_codebook.csv?url";
 
 type Row = Record<string, string>;
 
+// Same precedence as the kernel's BROAD_CATEGORY_COLUMNS (pipeline/model.rs).
+// Codebook cells are "" when blank, so `||`, not `??`.
+const codebookCategory = (row: Row): string =>
+  row.bcm_play_store_broad_app_category ||
+  row.bluelight_play_store_broad_app_category ||
+  row.usc_broad_app_category ||
+  row.babyemu_broad_app_category ||
+  row.bcm_cnrc_heuristic_category ||
+  "";
+
 const NOTES: Record<string, string> = {
   apps_to_filter:
     "Engine setting: use filter file. Matching usage is relabelled “Filtered App Usage” — visible but excluded from target minutes, and it closes other apps' sessions. A package also on the background list is constructed-and-marked instead: “Filtered App Background Usage” with real timing, its own deferred category.",
@@ -141,7 +151,7 @@ function CodebookList(): ReactElement {
               <tr key={`${row.app_package_name ?? index}`}>
                 <td>{row.application_label ?? ""}</td>
                 <td>{row.app_package_name ?? ""}</td>
-                <td>{row.bcm_cnrc_heuristic_category ?? row.bcm_play_store_broad_app_category ?? ""}</td>
+                <td>{codebookCategory(row)}</td>
               </tr>
             ))}
             {rows && hits.length === 0 ? (

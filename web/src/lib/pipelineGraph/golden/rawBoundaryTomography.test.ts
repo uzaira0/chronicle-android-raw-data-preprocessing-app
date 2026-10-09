@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import backgroundCsv from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_background_apps.csv?raw";
 import filterCsv from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv?raw";
 import forcingCsv from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv?raw";
-import codebookCsv from "@/assets/defaults/unified_app_codebook.csv?raw";
+import codebookCsv from "@/testSupport/fixtures/synthetic-catalog-app-codebook.csv?raw";
 import { ALL_ON, GOLDEN_RUNTIME, order } from "@/testSupport/rustCampaignGraph";
 import { buildRustV2Options } from "@/lib/rustPipelineRuntime";
 import {

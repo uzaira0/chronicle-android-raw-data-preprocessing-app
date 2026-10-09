@@ -225,9 +225,8 @@ async function* walkFiles(dir: string): AsyncGenerator<string> {
 }
 
 /**
- * Size-budget assertion (bundle-budget.json): total artifact bytes plus
- * per-extension category budgets. Fails on UNEXPLAINED growth — raising a
- * budget is a deliberate, named change to bundle-budget.json.
+ * Size-budget report (bundle-budget.json): total artifact bytes plus
+ * per-extension category budgets. Growth past a cap is printed as a warning.
  */
 async function checkBundleBudget(artifactDir: string): Promise<Record<string, number>> {
   const budget = JSON.parse(
@@ -268,11 +267,10 @@ async function checkBundleBudget(artifactDir: string): Promise<Record<string, nu
       );
     }
   }
+  // Report only (user, 2026-10-09): download size never blocks a fix from
+  // reaching users. The figures stay visible here and in BASELINE.md.
   if (failures.length > 0) {
-    throw new Error(
-      `bundle budget exceeded:\n  ${failures.join("\n  ")}\n` +
-        "If the growth is intentional, name the cause and raise bundle-budget.json in the same change.",
-    );
+    console.warn(`bundle budget exceeded (warning only):\n  ${failures.join("\n  ")}`);
   }
   return { totalBytes: total, ...byExtension };
 }
@@ -464,8 +462,15 @@ async function main(): Promise<void> {
   }
 
   const bundleSizes = await checkBundleBudget(artifactDir);
-  const dependencyImplementationDigest =
-    await verifyDependencyEvidenceCurrent();
+  // Warning only (user, 2026-10-09): a stale certificate makes the runtime
+  // reuse less (ConservativeFull), never compute differently, so it must not
+  // hold a fix back from users. `make dependency-evidence` catches up after.
+  let dependencyImplementationDigest: string | null = null;
+  try {
+    dependencyImplementationDigest = await verifyDependencyEvidenceCurrent();
+  } catch (error) {
+    console.warn(`dependency evidence is stale (warning only): ${(error as Error).message}`);
+  }
 
   console.log(
     JSON.stringify(
