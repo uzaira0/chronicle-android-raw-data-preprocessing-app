@@ -186,6 +186,9 @@ test("drives the full review + A/B comparison workflow in the View tab", async (
   await page.getByTestId("review-compare-toggle").click();
   const drawer = page.getByTestId("review-compare-drawer");
   await expect(drawer).toBeVisible();
+  await drawer
+    .locator('[data-section-id="optional-cleaning"] .section-card__header')
+    .click();
   await drawer.getByTestId("minimum-usage-duration-input").fill("3600"); // the allowed maximum
   await page.getByTestId("review-run-comparison").click();
   await expect(page.getByTestId("review-mcard-b")).toBeVisible();
