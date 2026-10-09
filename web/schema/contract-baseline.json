@@ -1,5 +1,5 @@
 {
-  "contractVersion": 5,
+  "contractVersion": 6,
   "options": {
     "studyName": {
       "type": "string",
@@ -175,7 +175,7 @@
     },
     "minimumUsageDuration": {
       "type": "number",
-      "default": 60
+      "default": 0
     },
     "minimumDurationComparator": {
       "type": "string",

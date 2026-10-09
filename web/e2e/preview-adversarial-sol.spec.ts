@@ -511,6 +511,7 @@ const SETTINGS_ATTACKS: SettingsAttack[] = [
 
 async function assertSettings(page: Page, attack: SettingsAttack): Promise<void> {
   await tab(page, "Settings");
+  await expandSectionCard(page, "optional-cleaning");
   await expandSectionCard(page, "session-detection");
   await expandSectionCard(page, "timezone");
   for (const [id, min, max, defaultValue] of [
@@ -642,6 +643,7 @@ test.describe("5. Hostile companion files", () => {
         const beforeRow = await page.getByTestId("result-row").innerText();
         await tab(page, "Files");
         await expandSectionCard(page, "files");
+        await expandSectionCard(page, "optional-cleaning");
         const bytes = attack === "wrong schema CSV" ? "unrelated_header\nmalformed support" :
           attack === "truncated XLSX" ? Buffer.from([0x50, 0x4b, 3, 4, 0, 0]) : Buffer.from([0x89, 0x50, 0x4e, 0x47]);
         await setInputFile(page, role.id,
@@ -665,6 +667,7 @@ test.describe("5. Hostile companion files", () => {
           // valid file back reproduces the original results exactly.
           await tab(page, "Files");
           await expandSectionCard(page, "files");
+          await expandSectionCard(page, "optional-cleaning");
           await setInputFile(page, role.id, "original-support.csv", role.valid, "text/csv");
           await processFiles(page);
         }
@@ -844,7 +847,7 @@ test.describe("6. Races", () => {
     await held(page);
     await tab(page, "Settings");
     await page.getByTestId("study-name-input").fill("edited while running");
-    await expandSectionCard(page, "session-detection");
+    await expandSectionCard(page, "optional-cleaning");
     await page.getByTestId("minimum-usage-duration-input").fill("3600");
     await release(page);
     await tab(page, "Process");

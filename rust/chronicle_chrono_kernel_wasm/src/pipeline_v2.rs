@@ -5758,7 +5758,7 @@ mod tests {
         assert!(parsed.application_label_exclusions.value().is_empty());
         assert_eq!(*parsed.aggregate_top_apps_limit.value(), 0);
         assert_eq!(parsed.micro_use_classification_policy.value(), "none");
-        assert_eq!(*parsed.minimum_usage_duration.value(), 60.0);
+        assert_eq!(*parsed.minimum_usage_duration.value(), 0.0);
         assert_eq!(parsed.minimum_duration_comparator.value(), "strict_lt");
         assert_eq!(
             parsed.minimum_duration_disposition.value(),

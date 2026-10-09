@@ -1016,7 +1016,7 @@ export const DEFAULT_BROWSER_OPTIONS: BrowserProcessingOptions = {
   enableSpssExport: false,
   neutralizeSpreadsheetFormulas: false,
   enableInteractiveTimeline: false,
-  minimumUsageDuration: 60,
+  minimumUsageDuration: 0,
   minimumDurationComparator: "strict_lt",
   minimumDurationDisposition: "chronicle_blank_keep_row",
   filterZeroDurationSessions: false,
@@ -1244,7 +1244,7 @@ export const BROWSER_OPTION_TOOLTIPS = {
   minimumUsageDuration: {
     title: "Minimum usage duration (seconds)",
     body: "Numeric threshold used by the independently selected minimum-duration comparator and disposition. It is evaluated once on immutable raw reconstructed episode duration after materialization and before optional concurrency splitting or cleaning. Set to 0 to disable qualification for every disposition. The separate existing concurrent-subinterval option controls any later floor on generated sub-intervals.",
-    example: "default 60 seconds",
+    example: "default 0 seconds (off: minimum usage is a cleaning step)",
   },
   minimumDurationComparator: {
     title: "Minimum-duration comparator",

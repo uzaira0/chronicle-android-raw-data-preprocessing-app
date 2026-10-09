@@ -26,6 +26,16 @@ const COMPONENT_FILE = resolve(
   dirname(fileURLToPath(import.meta.url)),
   "SessionDetectionCard.tsx",
 );
+const CLEANING_COMPONENT_FILE = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  "CleaningSettingsCard.tsx",
+);
+
+function componentSource(): string {
+  return [COMPONENT_FILE, CLEANING_COMPONENT_FILE]
+    .map((file) => readFileSync(file, "utf8"))
+    .join("\n");
+}
 
 /// Read one enum's permissible values out of the research ontology.
 ///
@@ -176,7 +186,7 @@ describe("published-method axis controls", () => {
   });
 
   it("places opener eligibility between event retention and reconstruction", () => {
-    const source = readFileSync(COMPONENT_FILE, "utf8");
+    const source = componentSource();
     const retention = source.indexOf('data-testid="event-retention-set-select"');
     const opener = source.indexOf('data-testid="opener-set-select"');
     const reconstruction = source.indexOf(
@@ -191,7 +201,7 @@ describe("published-method axis controls", () => {
   });
 
   it("keeps B03 classification and every B04 decision independently reachable", () => {
-    const source = readFileSync(COMPONENT_FILE, "utf8");
+    const source = componentSource();
     for (const testId of [
       "micro-use-classification-policy-select",
       "minimum-usage-duration-input",
@@ -211,7 +221,7 @@ describe("published-method axis controls", () => {
   });
 
   it("keeps every B06 maximum-duration control reachable and resets the vector as one unit", () => {
-    const source = readFileSync(COMPONENT_FILE, "utf8");
+    const source = componentSource();
     for (const testId of [
       "long-duration-threshold-input",
       "maximum-duration-policy-select",

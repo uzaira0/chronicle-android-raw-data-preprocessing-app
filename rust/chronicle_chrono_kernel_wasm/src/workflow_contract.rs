@@ -386,7 +386,7 @@ fn query_group_definition(id: &'static str) -> QueryGroupDefinition {
         "effective_usage" => ("Screen-gated usage credit", "clean"),
         "notification_proxy" => ("Notification-derived proxy contacts", "analyze"),
         "polled_emulation" => ("Polled-method emulation", "analyze"),
-        "observation_window" => ("Observation-window assessment", "analyze"),
+        "observation_window" => ("Study-window filter", "clean"),
         "attribute_person" => ("Person attribution", "analyze"),
         "day_coverage" => ("Day coverage", "analyze"),
         "score_compliance" => ("Compliance assessment", "analyze"),

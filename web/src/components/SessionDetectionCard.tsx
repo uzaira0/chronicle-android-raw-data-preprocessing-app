@@ -37,39 +37,22 @@ import {
 import { TOOLTIPS } from "@/lib/tooltipText";
 import { anyOptionModified, isOptionDefault, type OptionKey } from "@/lib/optionDefaults";
 import { optionRangeError } from "@/lib/validation";
-import {
-  completeMaximumDurationVector,
-  isCanonicalMaximumDurationThresholdNs,
-  isExplicitMaximumDurationVector,
-  withMaximumDurationVector,
-  type MaximumDurationVectorKey,
-} from "@/lib/maximumDurationVector";
 import type { BrowserProcessingOptions } from "@/lib/types";
 
 const KEYS: readonly OptionKey[] = [
   "longDurationThresholdHours",
-  "minimumUsageDuration",
   "microUseClassificationPolicy",
-  "minimumDurationComparator",
-  "minimumDurationDisposition",
-  "maximumDurationPolicy",
-  "maximumDurationDisposition",
-  "maximumDurationThresholdSource",
-  "maximumDurationThresholdNs",
   "longDurationThresholdHoursExplicit",
-  "filterZeroDurationSessions",
   "customAppEngagementDuration",
   "longUsageDurationThresholds",
   "longDataTimeGapThresholds",
   "proximityIntervalSeconds",
   "correctDuplicateEventTimestamps",
   "deduplicateExactRows",
-  "dropOutOfSourceOrderEvents",
   "eventRetentionSet",
   "openerSet",
   "episodeReconstructionStrategy",
   "includeAppUsageEndReason",
-  "intervalQualityPolicy",
   "sessionGroupingPolicy",
   "sessionGapBasis",
   "sessionBoundaryScope",
@@ -165,7 +148,7 @@ const MAXIMUM_DURATION_THRESHOLD_SOURCE_LABELS = {
   b12_adaptive_participant: "Adaptive per-participant (B12; refuses until it lands)",
 } satisfies Record<MaximumDurationThresholdSource, string>;
 
-const MAXIMUM_DURATION_UNSELECTED_LABEL = "Not selected — Chronicle legacy behaviour (default)";
+export const MAXIMUM_DURATION_UNSELECTED_LABEL = "Not selected — Chronicle legacy behaviour (default)";
 
 /// A different axis from the reconstruction rule above: Culverhouse never
 /// redefines episodes, it bounds implausible ones.
@@ -276,21 +259,7 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
     setOptions((current) => ({ ...current, [key]: DEFAULT_BROWSER_OPTIONS[key] }));
   };
   const isMod = <K extends OptionKey>(key: K) => !isOptionDefault(key, options[key]);
-  const maximumDurationExplicit = isExplicitMaximumDurationVector(options);
-  const maximumDurationGeneric =
-    options.maximumDurationPolicy === "post_reconstruction_strict_max_v1";
-  // One control edit rewrites the whole four-key vector so the browser never
-  // holds a partial set (the kernel refuses `request_shape_invalid`).
-  const updateMaximumDuration = (key: MaximumDurationVectorKey, value: unknown) => {
-    setOptions((current) =>
-      withMaximumDurationVector(
-        current,
-        completeMaximumDurationVector(current, key, value),
-      ),
-    );
-  };
-  const resetMaximumDuration = () =>
-    updateMaximumDuration("maximumDurationPolicy", undefined);
+
 
   return (
     <SectionCard
@@ -326,7 +295,7 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
             type="number"
             className="input"
             min={1}
-            max={48}
+            max={1_000_000}
             step={0.5}
             value={options.longDurationThresholdHours}
             onChange={(event) =>
@@ -340,210 +309,6 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
             }
           />
         </SettingsField>
-
-        <SettingsField
-          label="Minimum usage duration (seconds)"
-          htmlFor="minimum-usage-duration-input"
-          tooltip={TOOLTIPS.minimumUsageDuration}
-          modified={isMod("minimumUsageDuration")}
-          onReset={() => reset("minimumUsageDuration")}
-          error={optionRangeError("minimumUsageDuration", options.minimumUsageDuration)}
-        >
-          <input
-            id="minimum-usage-duration-input"
-            data-testid="minimum-usage-duration-input"
-            type="number"
-            className="input"
-            min={0}
-            max={3600}
-            step={1}
-            value={options.minimumUsageDuration}
-            onChange={(event) =>
-              update("minimumUsageDuration", Number(event.target.value))
-            }
-          />
-        </SettingsField>
-
-        <SettingsField
-          label="Minimum-duration comparator"
-          htmlFor="minimum-duration-comparator-select"
-          tooltip={TOOLTIPS.minimumDurationComparator}
-          modified={isMod("minimumDurationComparator")}
-          onReset={() => reset("minimumDurationComparator")}
-        >
-          <select
-            id="minimum-duration-comparator-select"
-            data-testid="minimum-duration-comparator-select"
-            className="select"
-            value={options.minimumDurationComparator}
-            onChange={(event) =>
-              update(
-                "minimumDurationComparator",
-                event.target.value as BrowserProcessingOptions["minimumDurationComparator"],
-              )
-            }
-          >
-            {MINIMUM_DURATION_COMPARATORS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </SettingsField>
-
-        <SettingsField
-          label="Minimum-duration disposition"
-          htmlFor="minimum-duration-disposition-select"
-          tooltip={TOOLTIPS.minimumDurationDisposition}
-          modified={isMod("minimumDurationDisposition")}
-          onReset={() => reset("minimumDurationDisposition")}
-        >
-          <select
-            id="minimum-duration-disposition-select"
-            data-testid="minimum-duration-disposition-select"
-            className="select"
-            value={options.minimumDurationDisposition}
-            onChange={(event) =>
-              update(
-                "minimumDurationDisposition",
-                event.target.value as BrowserProcessingOptions["minimumDurationDisposition"],
-              )
-            }
-          >
-            {MINIMUM_DURATION_DISPOSITIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </SettingsField>
-
-        <SettingsField
-          label="Maximum-duration policy"
-          htmlFor="maximum-duration-policy-select"
-          tooltip={TOOLTIPS.maximumDurationPolicy}
-          modified={maximumDurationExplicit}
-          onReset={resetMaximumDuration}
-        >
-          <select
-            id="maximum-duration-policy-select"
-            data-testid="maximum-duration-policy-select"
-            className="select"
-            value={options.maximumDurationPolicy ?? ""}
-            onChange={(event) =>
-              updateMaximumDuration(
-                "maximumDurationPolicy",
-                event.target.value === ""
-                  ? undefined
-                  : (event.target.value),
-              )
-            }
-          >
-            <option value="">{MAXIMUM_DURATION_UNSELECTED_LABEL}</option>
-            {MAXIMUM_DURATION_POLICIES.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </SettingsField>
-
-        {maximumDurationExplicit ? (
-          <>
-            <SettingsField
-              label="Maximum-duration disposition"
-              htmlFor="maximum-duration-disposition-select"
-              tooltip={TOOLTIPS.maximumDurationDisposition}
-              modified={options.maximumDurationDisposition !== undefined}
-              onReset={resetMaximumDuration}
-            >
-              <select
-                id="maximum-duration-disposition-select"
-                data-testid="maximum-duration-disposition-select"
-                className="select"
-                disabled={!maximumDurationGeneric}
-                value={options.maximumDurationDisposition ?? ""}
-                onChange={(event) =>
-                  updateMaximumDuration(
-                    "maximumDurationDisposition",
-                    event.target.value,
-                  )
-                }
-              >
-                {MAXIMUM_DURATION_DISPOSITIONS.filter((option) =>
-                  maximumDurationGeneric
-                    ? option.value !== "not_applicable"
-                    : option.value === "not_applicable",
-                ).map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </SettingsField>
-
-            <SettingsField
-              label="Maximum-duration threshold source"
-              htmlFor="maximum-duration-threshold-source-select"
-              tooltip={TOOLTIPS.maximumDurationThresholdSource}
-              modified={options.maximumDurationThresholdSource !== undefined}
-              onReset={resetMaximumDuration}
-            >
-              <select
-                id="maximum-duration-threshold-source-select"
-                data-testid="maximum-duration-threshold-source-select"
-                className="select"
-                disabled={!maximumDurationGeneric}
-                value={options.maximumDurationThresholdSource ?? ""}
-                onChange={(event) =>
-                  updateMaximumDuration(
-                    "maximumDurationThresholdSource",
-                    event.target.value,
-                  )
-                }
-              >
-                {MAXIMUM_DURATION_THRESHOLD_SOURCES.filter((option) =>
-                  maximumDurationGeneric
-                    ? option.value === "fixed_parameter" ||
-                      option.value === "b12_adaptive_participant"
-                    : option.value === options.maximumDurationThresholdSource,
-                ).map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </SettingsField>
-
-            {options.maximumDurationThresholdSource === "fixed_parameter" ? (
-              <SettingsField
-                label="Maximum-duration threshold (nanoseconds)"
-                htmlFor="maximum-duration-threshold-ns-input"
-                tooltip={TOOLTIPS.maximumDurationThresholdNs}
-                modified={options.maximumDurationThresholdNs !== undefined}
-                onReset={resetMaximumDuration}
-                error={
-                  isCanonicalMaximumDurationThresholdNs(options.maximumDurationThresholdNs)
-                    ? undefined
-                    : "Enter whole nanoseconds: digits only, no leading zero, at most 9223372036854775807."
-                }
-              >
-                <input
-                  id="maximum-duration-threshold-ns-input"
-                  data-testid="maximum-duration-threshold-ns-input"
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={19}
-                  className="input"
-                  value={options.maximumDurationThresholdNs ?? ""}
-                  onChange={(event) =>
-                    update("maximumDurationThresholdNs", event.target.value)
-                  }
-                />
-              </SettingsField>
-            ) : null}
-          </>
-        ) : null}
 
         <SettingsField
           label="Custom app engagement duration (seconds)"
@@ -739,35 +504,6 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
 
       <div className="settings-grid-1">
         <SettingsField
-          label="Interval quality policy"
-          htmlFor="interval-quality-policy-select"
-          tooltip={TOOLTIPS.intervalQualityPolicy}
-          modified={isMod("intervalQualityPolicy")}
-          onReset={() => reset("intervalQualityPolicy")}
-        >
-          <select
-            id="interval-quality-policy-select"
-            data-testid="interval-quality-policy-select"
-            className="select"
-            value={options.intervalQualityPolicy}
-            onChange={(event) =>
-              update(
-                "intervalQualityPolicy",
-                event.target.value as BrowserProcessingOptions["intervalQualityPolicy"],
-              )
-            }
-          >
-            {INTERVAL_QUALITY_POLICIES.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </SettingsField>
-      </div>
-
-      <div className="settings-grid-1">
-        <SettingsField
           label="Session grouping policy"
           htmlFor="session-grouping-policy-select"
           tooltip={TOOLTIPS.sessionGroupingPolicy}
@@ -887,15 +623,6 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
           onReset={() => reset("deduplicateExactRows")}
         />
         <ToggleField
-          label="Drop events written out of chronological order"
-          tooltip={TOOLTIPS.dropOutOfSourceOrderEvents}
-          checked={options.dropOutOfSourceOrderEvents}
-          onChange={(value) => update("dropOutOfSourceOrderEvents", value)}
-          testId="toggle-dropOutOfSourceOrderEvents"
-          modified={isMod("dropOutOfSourceOrderEvents")}
-          onReset={() => reset("dropOutOfSourceOrderEvents")}
-        />
-        <ToggleField
           label="Include app-usage end reason column"
           tooltip={TOOLTIPS.includeAppUsageEndReason}
           checked={options.includeAppUsageEndReason}
@@ -930,15 +657,6 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
           testId="toggle-applyThresholdToFallback"
           modified={isMod("applyThresholdToFallback")}
           onReset={() => reset("applyThresholdToFallback")}
-        />
-        <ToggleField
-          label="Filter zero duration sessions"
-          tooltip={TOOLTIPS.filterZeroDurationSessions}
-          checked={options.filterZeroDurationSessions}
-          onChange={(value) => update("filterZeroDurationSessions", value)}
-          testId="toggle-filterZeroDurationSessions"
-          modified={isMod("filterZeroDurationSessions")}
-          onReset={() => reset("filterZeroDurationSessions")}
         />
         <ToggleField
           label="Add no-activity placeholder days"

@@ -223,7 +223,7 @@ test("@smoke @opfs B02 persists its binding and refuses the incompatible EYES cr
 test("@smoke @opfs B06 persists the maximum-duration vector, truncates strictly above the threshold, and refuses the adaptive source before execution", async ({
   page,
 }) => {
-  await expandSectionCard(page, "session-detection");
+  await expandSectionCard(page, "optional-cleaning");
   const policy = page.getByTestId("maximum-duration-policy-select");
   await expect(policy).toHaveValue("");
   await expect(
@@ -244,7 +244,7 @@ test("@smoke @opfs B06 persists the maximum-duration vector, truncates strictly 
 
   await page.reload();
   await installDeterministicRuntime(page);
-  await expandSectionCard(page, "session-detection");
+  await expandSectionCard(page, "optional-cleaning");
   await expect(page.getByTestId("maximum-duration-policy-select")).toHaveValue(
     "post_reconstruction_strict_max_v1",
   );
@@ -348,7 +348,7 @@ test("@smoke @opfs B06 persists the maximum-duration vector, truncates strictly 
   // The adaptive threshold source is a legal shape with no provider in v1:
   // the request is refused before execution, never silently rebound.
   await page.getByRole("tab", { name: /Settings/i }).click();
-  await expandSectionCard(page, "session-detection");
+  await expandSectionCard(page, "optional-cleaning");
   await page
     .getByTestId("maximum-duration-threshold-source-select")
     .selectOption("b12_adaptive_participant");
@@ -372,7 +372,7 @@ test("@smoke @opfs B06 persists the maximum-duration vector, truncates strictly 
 test("@smoke @opfs B06 truncation reaches the View tab, not just the exported CSV", async ({
   page,
 }) => {
-  await expandSectionCard(page, "session-detection");
+  await expandSectionCard(page, "optional-cleaning");
   await page
     .getByTestId("maximum-duration-policy-select")
     .selectOption("post_reconstruction_strict_max_v1");
@@ -429,6 +429,7 @@ test("processes app and screen outputs with CSV support files and downloads both
   await page.getByTestId("toggle-processScreenUsage").check();
   await page.getByTestId("toggle-useAppsForcingScreenOpenFile").check();
   // App filtering is a cleaning step and off by default; this spec exercises it.
+  await expandSectionCard(page, "optional-cleaning");
   await page.getByTestId("toggle-useFilterFile").check();
   await setInputFile(page, "filter-file-input", "filter.csv", FILTER_FILE_CSV, "text/csv");
   await setInputFile(page, "apps-forcing-screen-open-file-input", "apps_forcing_screen_open.csv", APPS_FORCING_SCREEN_OPEN_CSV, "text/csv");
@@ -842,6 +843,7 @@ test("accepts an XLSX filter file and still produces filtered app usage locally"
   const xlsxBytes = await createFilterWorkbookBytes();
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_AND_SCREEN_RAW_CSV, "text/csv");
   // App filtering is a cleaning step and off by default; this spec exercises it.
+  await expandSectionCard(page, "optional-cleaning");
   await page.getByTestId("toggle-useFilterFile").check();
   await setInputFile(
     page,
@@ -1111,6 +1113,7 @@ test("View tab renders the review surface (rail, metrics, timeline) with file an
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_AND_SCREEN_RAW_CSV, "text/csv");
   // App filtering is a cleaning step and off by default; this spec asserts
   // filtered events appear in the review rail, so turn it on.
+  await expandSectionCard(page, "optional-cleaning");
   await page.getByTestId("toggle-useFilterFile").check();
   await setInputFile(page, "filter-file-input", "filter.csv", FILTER_FILE_CSV, "text/csv");
   await page.getByTestId("toggle-enableInteractiveTimeline").check();
@@ -1844,6 +1847,7 @@ test("@smoke a legacy .xls support file is refused at the picker, not at run tim
   page,
 }) => {
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
+  await expandSectionCard(page, "optional-cleaning");
   await page.getByTestId("toggle-useFilterFile").check();
   const picker = page.getByTestId("filter-file-input");
   // The dialog filter no longer offers it either.

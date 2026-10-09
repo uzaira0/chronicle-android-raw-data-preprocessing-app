@@ -183,7 +183,7 @@ describe("Arm B settings bounds", () => {
     });
     expect(html).toContain('data-testid="review-range-block"');
     expect(html).toContain("Cannot run the comparison:");
-    expect(html).toContain("enter a value between 1 and 48");
+    expect(html).toContain("enter a value between 1 and 1000000");
     expect(html).toContain("enter a value between 0 and 100");
     // Not merely styled: the dispatch itself is unreachable.
     expect(runButton(html)).toContain("disabled");

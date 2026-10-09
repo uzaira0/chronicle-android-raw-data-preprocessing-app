@@ -13,7 +13,32 @@ migration in `web/src/lib/settingsPersistence.ts`. Cite the contract version
 alongside the app version in methods sections — both are recorded in every
 run's processing report and provenance sidecar.
 
-## [Unreleased] — contract version 5
+## [Unreleased] — contract version 6
+
+### Changed (BREAKING, workflow contract v6)
+
+- **The defaults are now "Default Preprocessing (No Cleaning)".** Preprocessing
+  turns raw events into usage records without judging the data; cleaning (any
+  step that removes, blanks or re-credits records on a data-quality judgment) is
+  optional and off by default, in its own "Optional cleaning" section of
+  Settings. `minimum_usage_duration` therefore defaults to **0** (it was 60):
+  sub-minute sessions keep their durations unless a study turns the floor on.
+- **Built-in presets:** "Default Preprocessing (No Cleaning)" and "TECH/GNSM
+  (personal phones)" — 60 s minimum usage, filter file, no maximum session
+  length (1,000,000 h), screen-gated credit truncated at 6 h, America/Chicago.
+  The maximum session duration now accepts up to 1,000,000 h (was 48 h).
+- **Neutral wording:** usage attributed to someone other than the target
+  participant is `Non-Target Participant App Usage` (was `Non-Target Child App
+  Usage`; only with person attribution on), and the app-usage plot title says
+  "(Excluding Filtered Apps)" (was "(Target Child Only)"). The raw `username`
+  value "Target Child" is Chronicle's own and is still recognized.
+- The study-window filter step is labelled a cleaning step ("Study-window
+  filter") in the workflow graph.
+- `SETTINGS_SCHEMA_VERSION` 16 retires 60 s as a default: active settings,
+  saved presets, projects and exported configurations written by an earlier
+  build that hold a 60 s minimum usage duration load with 0. Any other value is
+  kept, and a 60 s saved by this version or later is kept. A study that wants
+  the 60 s floor sets it in Optional cleaning or loads the TECH/GNSM preset.
 
 ### Removed (BREAKING, workflow contract v5)
 
