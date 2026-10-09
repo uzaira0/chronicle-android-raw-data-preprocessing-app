@@ -11,5 +11,8 @@ export const BUILD_SHA: string =
 export const BUILD_DATE: string =
   typeof __BUILD_DATE__ !== "undefined" ? __BUILD_DATE__ : "";
 
+export const CONTRACT_VERSION: number | null =
+  typeof __CONTRACT_VERSION__ !== "undefined" ? __CONTRACT_VERSION__ : null;
+
 /** "sha (YYYY-MM-DD)", or just the sha when no date is available (dev). */
 export const BUILD_LABEL: string = BUILD_DATE ? `${BUILD_SHA} (${BUILD_DATE})` : BUILD_SHA;
