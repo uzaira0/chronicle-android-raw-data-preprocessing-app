@@ -200,7 +200,7 @@ pub use output::{
 use output::{
     CountingSink, LocalDateMemo, build_review_summary, build_row_lineage,
     build_row_lineage_from_iter, build_screen_row_lineage, build_visualization_data,
-    codebook_col_index, codebook_col_indices, csv_escape_value, ecma_round_fixed_f64,
+    codebook_col_indices, csv_escape_value, ecma_round_fixed_f64,
     fmt_session_timestamp, format_cadence_seconds, format_threshold,
     foundational_output_projection, headline_eligible_app_rows, js_number_to_string,
     participant_event_timestamps, ts_to_local, write_app_csv, write_app_csv_from_iter,
@@ -208,6 +208,8 @@ use output::{
 };
 #[cfg(any(test, feature = "incremental-v2"))]
 use output::{compliance_csv};
+#[cfg(test)]
+use output::codebook_col_index;
 
 #[cfg(test)]
 use support::{
