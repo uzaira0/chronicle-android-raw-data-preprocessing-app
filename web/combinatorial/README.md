@@ -116,7 +116,7 @@ Notes:
   boundary campaign adds 162 timestamp cases and 648 executions at adjacent-
   gap, calendar, and DST joints. Both campaigns also compare canonical
   Rust-produced CSV/JSON cells warm versus cold. Their compressed,
-  digest-addressed correspondence sidecars retain 910,212 exact changed-cell
+  digest-addressed correspondence sidecars retain 974,719 exact changed-cell
   addresses (221,609 artifact + 678,905 raw-boundary) in the recorded 2026-10-01 campaign,
   without inflating the human-reviewable ledgers. These revision-bound receipts
   do not establish final merged-source application acceptance.

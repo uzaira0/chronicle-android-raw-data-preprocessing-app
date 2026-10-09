@@ -530,8 +530,8 @@ timing/RSS benchmark.
 | Asset | Bytes |
 |---|---:|
 | preprocessing runtime WASM | 6,011,585 |
-| decoded preprocessing runtime WASM | 15,607,474 |
-| semantic index WASM | 2,907,163 |
+| decoded preprocessing runtime WASM | 15,607,393 |
+| semantic index WASM | 2,907,136 |
 | bundled app codebook | 2,147,719 |
 | main JavaScript | 492,679 |
 | graph JavaScript | 240,510 |
