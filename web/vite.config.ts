@@ -25,6 +25,10 @@ function buildIdentity(): { sha: string; date: string } {
   }
 }
 const BUILD = buildIdentity();
+/** The contract version stamped into every ZIP download's Build Info.json. */
+const CONTRACT_VERSION: number = JSON.parse(
+  readFileSync(resolve(__dirname, "schema/contract-baseline.json"), "utf8"),
+).contractVersion;
 /**
  * Test builds only (`npm run build:test`, used by the Playwright web server
  * and the browser benchmarks): honour `window.__CHRONICLE_TEST_RUNTIME__` and
@@ -144,6 +148,7 @@ export default defineConfig({
   define: {
     __BUILD_SHA__: JSON.stringify(BUILD.sha),
     __BUILD_DATE__: JSON.stringify(BUILD.date),
+    __CONTRACT_VERSION__: JSON.stringify(CONTRACT_VERSION),
     __CHRONICLE_TEST_HOOKS__: JSON.stringify(TEST_HOOKS),
   },
   plugins: [

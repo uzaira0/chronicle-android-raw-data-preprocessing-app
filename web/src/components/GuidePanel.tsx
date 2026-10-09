@@ -54,16 +54,18 @@ export function GuidePanel({ onNavigate }: Props): ReactElement {
         <li>
           <h3>Leave the settings alone</h3>
           <p>
-            The defaults <em>are</em> the standard preprocessing: parse the events, normalize
-            timezones, remove duplicate rows, rebuild screen sessions and app-usage episodes
-            (with the study&rsquo;s locked matcher settings), and add categories and quality
-            flags. If you have not been told to change a setting, don&rsquo;t.
+            The defaults are <strong>Default Preprocessing (No Cleaning)</strong>: parse the
+            events, convert timezones, remove exact duplicate rows, rebuild screen sessions and
+            app-usage episodes, and add categories and quality flags. Preprocessing never judges
+            the data: no row is dropped, blanked or re-credited because it looks implausible.
           </p>
           <p>
-            Cleaning and analysis steps — app filtering, zero-duration removal, screen-gated
-            credit, study-window filtering, person attribution, compliance scoring — are{" "}
-            <strong>off by default</strong>. Only turn one on if the study lead tells you to, and
-            write down which ones you changed.
+            <strong>Cleaning is optional</strong> and every cleaning step is off by default. A
+            cleaning step removes, blanks or re-credits records based on a judgment about data
+            quality, so it is a decision for the study lead. Study analysis steps (person
+            attribution, compliance scoring) are optional too. If your study uses a saved
+            configuration, load it from the preset library in Settings; the TECH/GNSM studies
+            have a built-in preset. Write down any setting you changed.
           </p>
         </li>
         <li>
@@ -111,10 +113,11 @@ export function GuidePanel({ onNavigate }: Props): ReactElement {
       </ol>
 
       <section className="guide-section">
-        <h3>What the off-by-default steps do</h3>
+        <h3>What the optional steps do</h3>
         <p>
           These change the numbers in the output, so they are decisions for the study lead — not
-          defaults. The{" "}
+          defaults. The first group is the optional cleaning in Settings; the last two are study
+          analysis. The{" "}
           <button type="button" className="guide-link" onClick={() => onNavigate("graph")}>
             Graph
           </button>{" "}
@@ -132,6 +135,13 @@ export function GuidePanel({ onNavigate }: Props): ReactElement {
             <tr>
               <td>App filtering (filter file)</td>
               <td>Labels listed apps as &ldquo;filtered&rdquo; and blanks their timing.</td>
+            </tr>
+            <tr>
+              <td>Minimum usage duration</td>
+              <td>
+                Blanks (or drops) sessions shorter than a threshold, e.g. 60&nbsp;s to discount
+                glances. 0 by default.
+              </td>
             </tr>
             <tr>
               <td>Zero-duration removal</td>
@@ -191,8 +201,8 @@ export function GuidePanel({ onNavigate }: Props): ReactElement {
             <tr>
               <td>Short sessions have empty durations</td>
               <td>
-                Expected: sessions under the minimum usage duration keep their row but have the
-                duration blanked. This is part of the standard preprocessing.
+                A minimum usage duration is set (a cleaning step): sessions under it keep their row
+                but have the duration blanked. Set it to 0 in Optional cleaning to keep them.
               </td>
             </tr>
             <tr>

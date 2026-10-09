@@ -5,6 +5,7 @@ import { SettingsOverviewCard } from "@/components/SettingsOverviewCard";
 import { SessionDetectionCard } from "@/components/SessionDetectionCard";
 import { ScreenDetectionCard } from "@/components/ScreenDetectionCard";
 import { InteractionSemanticsCard } from "@/components/InteractionSemanticsCard";
+import { CleaningSettingsCard } from "@/components/CleaningSettingsCard";
 import type { RuntimeScientificPreflightReceipt } from "@/lib/generatedRuntimeBoundary";
 import type { ComparisonFailure } from "@/lib/comparisonFailures";
 import type { DemoDisplayMasker } from "@/lib/demoDisplay";
@@ -39,6 +40,7 @@ const CompareConfigFields = memo(function CompareConfigFields({
         <SessionDetectionCard options={options} setOptions={setOptions} />
         <ScreenDetectionCard options={options} setOptions={setOptions} />
         <InteractionSemanticsCard options={options} setOptions={setOptions} />
+        <CleaningSettingsCard options={options} setOptions={setOptions} />
       </div>
     </fieldset>
   );

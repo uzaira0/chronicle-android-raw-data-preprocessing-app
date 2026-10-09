@@ -10,7 +10,7 @@
       "raw-boundary-output-cell-correspondence.json.gz"
     ],
     "cases": 354,
-    "changedCellAddresses": 910212
+    "changedCellAddresses": 974719
   },
   "counts": {
     "declaredFields": 179,
@@ -20366,7 +20366,7 @@
       "sourceField": "raw_chronicle_csv.study_id",
       "interventionCases": 6,
       "declaredCellFamilies": 324,
-      "witnessedCellFamilies": 11,
+      "witnessedCellFamilies": 10,
       "structurallyDeclaredButUnwitnessed": [
         "aggregate-app-co-usage-csv#app_a",
         "aggregate-app-co-usage-csv#app_b",
@@ -20633,6 +20633,7 @@
         "review-summary-json#/foundationalProvenance/*",
         "review-summary-json#/microUseReceipt/classCounts/*",
         "review-summary-json#/participants/*/perDay/*/flags/*",
+        "review-summary-json#/participants/*/topAppsByDate",
         "screen-csv#app_package_name",
         "screen-csv#application_label",
         "screen-csv#data_time_gap_hours",

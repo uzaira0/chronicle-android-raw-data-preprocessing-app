@@ -6,14 +6,10 @@ import { CheckboxGroup } from "@/components/CheckboxGroup";
 import { InteractionRemapEditor } from "@/components/InteractionRemapEditor";
 import { SettingsField } from "@/components/SettingsField";
 import {
-  INTERACTION_TYPES_TO_REMOVE_OPTIONS,
   OTHER_INTERACTION_TYPE_OPTIONS,
   SAME_APP_INTERACTION_TYPE_OPTIONS,
 } from "@/lib/processingUiContract";
-import {
-  DEFAULT_BROWSER_OPTIONS,
-  INTERACTION_TYPE_REMOVAL_MODE_VALUES,
-} from "@/lib/generatedContract";
+import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import { TOOLTIPS } from "@/lib/tooltipText";
 import { anyOptionModified, isOptionDefault, type OptionKey } from "@/lib/optionDefaults";
 import type { BrowserProcessingOptions } from "@/lib/types";
@@ -21,8 +17,6 @@ import type { BrowserProcessingOptions } from "@/lib/types";
 const KEYS: readonly OptionKey[] = [
   "sameAppInteractionTypesToStopUsageAt",
   "otherInteractionTypesToStopUsageAt",
-  "interactionTypesToRemove",
-  "interactionTypeRemovalMode",
   "interactionTypeRemap",
 ];
 
@@ -49,8 +43,8 @@ export function InteractionSemanticsCard({ options, setOptions }: Props): ReactE
       modified={anyOptionModified(options, KEYS)}
     >
       <p className="u-card-intro">
-        Pick which Android usage event interaction types end a session, and which to drop from
-        the final output. The defaults match the canonical desktop preprocessing semantics.
+        Pick which Android usage event interaction types end a session and how those types are
+        remapped. The defaults match the canonical desktop preprocessing semantics.
       </p>
       <CheckboxGroup
         title="Same app interaction types that end a session"
@@ -70,38 +64,6 @@ export function InteractionSemanticsCard({ options, setOptions }: Props): ReactE
         modified={isMod("otherInteractionTypesToStopUsageAt")}
         onReset={() => reset("otherInteractionTypesToStopUsageAt")}
       />
-      <CheckboxGroup
-        title="Interaction types to remove from final output"
-        options={INTERACTION_TYPES_TO_REMOVE_OPTIONS.map((value) => ({ label: value, value }))}
-        selected={options.interactionTypesToRemove}
-        onChange={(next) => update("interactionTypesToRemove", next)}
-        tooltip={TOOLTIPS.interactionTypesToRemove}
-        modified={isMod("interactionTypesToRemove")}
-        onReset={() => reset("interactionTypesToRemove")}
-        searchable
-      />
-      <SettingsField
-        label="Interaction-type removal mode"
-        htmlFor="interaction-type-removal-mode"
-        tooltip={TOOLTIPS.interactionTypeRemovalMode}
-        modified={isMod("interactionTypeRemovalMode")}
-        onReset={() => reset("interactionTypeRemovalMode")}
-      >
-        <select
-          id="interaction-type-removal-mode"
-          value={options.interactionTypeRemovalMode}
-          onChange={(event) => update(
-            "interactionTypeRemovalMode",
-            event.target.value as BrowserProcessingOptions["interactionTypeRemovalMode"],
-          )}
-        >
-          {INTERACTION_TYPE_REMOVAL_MODE_VALUES.map((value) => (
-            <option key={value} value={value}>
-              {value === "gap_preserving" ? "Preserve long-gap evidence (default)" : "Remove unconditionally"}
-            </option>
-          ))}
-        </select>
-      </SettingsField>
       <InteractionRemapEditor
         value={options.interactionTypeRemap}
         onChange={(next) => update("interactionTypeRemap", next)}

@@ -7,9 +7,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeAll, describe, expect, it } from "vitest";
 import { loadMethodReceiptValidation } from "@/lib/settingsPersistence";
 
-import { FilesAndInputsCard } from "@/components/FilesAndInputsCard";
+import { CleaningSettingsCard } from "@/components/CleaningSettingsCard";
 import { StudyInputsCard } from "@/components/StudyInputsCard";
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
+import { createDemoDisplayMasker } from "@/lib/demoDisplay";
 import { SUPPORT_FILE_ACCEPT } from "@/lib/validation";
 
 // Receipt validation loads on demand in the app (see loadMethodReceiptValidation);
@@ -22,6 +23,7 @@ const COMPONENT_FILE = resolve(
   dirname(fileURLToPath(import.meta.url)),
   "StudyInputsCard.tsx",
 );
+const DISPLAY_MASKER = createDemoDisplayMasker(false);
 
 describe("input capability evidence upload", () => {
   it("is CSV-only and explains conditional retention plus typed refusal", () => {
@@ -133,23 +135,21 @@ describe("support-file pickers advertise only resolvable formats", () => {
       }),
   );
   const filesAndInputs = renderToStaticMarkup(
-    createElement(FilesAndInputsCard, {
+    createElement(CleaningSettingsCard, {
       options: DEFAULT_BROWSER_OPTIONS,
       setOptions: () => {},
-      filterFile: null,
-      setFilterFile: () => {},
-      appsForcingScreenOpenFile: null,
-      setAppsForcingScreenOpenFile: () => {},
-      backgroundAppsFile: null,
-      setBackgroundAppsFile: () => {},
-      appCodebookFile: null,
-      setAppCodebookFile: () => {},
+      settingsTab: {
+        filterFile: null,
+        setFilterFile: () => {},
+        studyDatesLoaded: false,
+        displayMasker: DISPLAY_MASKER,
+      },
     }),
   );
 
   for (const [name, html] of [
     ["StudyInputsCard", studyInputs],
-    ["FilesAndInputsCard", filesAndInputs],
+    ["CleaningSettingsCard", filesAndInputs],
   ] as const) {
     it(`renders no .xls in any ${name} picker`, () => {
       // Rendered markup, not source text: the accept set the browser dialog
@@ -177,21 +177,19 @@ describe("support-file pickers advertise only resolvable formats", () => {
 
   it("renders the schema-backed exact application-label controls and source values", () => {
     const html = renderToStaticMarkup(
-      createElement(FilesAndInputsCard, {
+      createElement(CleaningSettingsCard, {
         options: {
           ...DEFAULT_BROWSER_OPTIONS,
           filterMatchField: "application_label",
           applicationLabelExclusions: ["YouTube Vanced", "Basic Daydreams"],
         },
         setOptions: () => {},
-        filterFile: null,
-        setFilterFile: () => {},
-        appsForcingScreenOpenFile: null,
-        setAppsForcingScreenOpenFile: () => {},
-        backgroundAppsFile: null,
-        setBackgroundAppsFile: () => {},
-        appCodebookFile: null,
-        setAppCodebookFile: () => {},
+        settingsTab: {
+          filterFile: null,
+          setFilterFile: () => {},
+          studyDatesLoaded: false,
+          displayMasker: DISPLAY_MASKER,
+        },
       }),
     );
     expect(html).toContain('data-testid="filter-match-field-select"');

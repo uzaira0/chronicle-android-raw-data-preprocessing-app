@@ -22,7 +22,7 @@ import {
 export const SETTINGS_STORAGE_KEY = "chronicle.processingOptions.v1";
 const STORAGE_KEY = SETTINGS_STORAGE_KEY;
 export const PRESETS_STORAGE_KEY = "chronicle.processingPresets.v1";
-export const SETTINGS_SCHEMA_VERSION = 15;
+export const SETTINGS_SCHEMA_VERSION = 16;
 
 /**
  * Values that WERE the shipped defaults before commit 93cc84c (2026-07-15,
@@ -51,6 +51,12 @@ const SUPERSEDED_DEFAULTS: readonly SupersededDefault[] = [
   { key: "proximityIntervalSeconds", value: 0, supersededAt: "2026-07-15T05:33:44.000Z", firstVersionAfter: 2 },
   // f7553c5c, 2026-08-28T08:43:43-05:00, which also introduced settings v13.
   { key: "timezoneHandling", value: "selected-filter", supersededAt: "2026-08-28T13:43:43.000Z", firstVersionAfter: 13 },
+  // Contract v6: minimum usage is a cleaning step, so the default went 60 → 0.
+  // The user ruled that saved presets, projects and configs holding 60 move to
+  // 0 too. Every pre-v16 record was written by a build whose default was 60,
+  // whenever it was saved (an old tab can still save after the deploy), so the
+  // version alone decides: `supersededAt` lies beyond any save time.
+  { key: "minimumUsageDuration", value: 60, supersededAt: "9999-12-31T00:00:00.000Z", firstVersionAfter: 16 },
 ];
 
 type SupersededDefault = {

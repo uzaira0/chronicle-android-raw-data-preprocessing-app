@@ -8,7 +8,7 @@
   "sources": {
     "rust_workflow_contract": {
       "path": "rust/chronicle_chrono_kernel_wasm/src/workflow_contract.rs",
-      "digest": "sha256:570d81e8c38de227151c4465d496463f2b138c373195a1ac065227da637983fa",
+      "digest": "sha256:44e17e85f4994e482ae73b924ae8056942f27ad808831c6d6fa9567cf665fcaf",
       "executable": false,
       "production_authority": true,
       "purpose": "declares the Rust query registry and dependency edges"
@@ -49,7 +49,7 @@
         "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "rust/chronicle_chrono_kernel_wasm/src/workflow_contract.rs"
       ],
-      "digest": "sha256:1bfd98fd4556c2a749d3fcc8c2550de2e6aba6249ae12111d7c0991c1da55e68",
+      "digest": "sha256:ef5a6431a03ee1e973466406818036953f808bb9922a9b9e4be154225705fef4",
       "coverage": "active-query-registry-plus-fused-cold-test-oracle"
     },
     "rust_product_runtime": {
@@ -60,7 +60,7 @@
         "rust/chronicle_preprocessing_runtime_wasm/src/execution/state.rs",
         "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs"
       ],
-      "digest": "sha256:b15aef7981355e967fcf96912ba5346e3571699eb65d90ec404f286296033fc0",
+      "digest": "sha256:f8cb4e0387480bc15eb47c51a7747ee4d166a997008282a58a37355a0f343384",
       "coverage": "production-worker-authority"
     }
   },
@@ -420,7 +420,7 @@
   "runtime_authority_surface_count": 24,
   "dependency_certificate": {
     "path": ".semantic-federation/proofs/dependency-certificate.json",
-    "digest": "sha256:2e8987e0d1c7c0f0a942815d1e745ee1856c4badaa7b7bb0274f1d927465f0e1",
+    "digest": "sha256:0df4a77de5cd1c4d3c3b82c75ed3f1425c2afe9e9619f2157fd6bc1b5a3620b2",
     "fallback": "full-logical-recompute"
   },
   "resolved_baseline_findings": [

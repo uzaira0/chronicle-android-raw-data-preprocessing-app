@@ -11260,8 +11260,8 @@
       },
       {
         "id": "observation_window",
-        "label": "Observation-window assessment",
-        "section": "analyze",
+        "label": "Study-window filter",
+        "section": "clean",
         "knobs": [
           {
             "optionKey": "process_app_usage",
@@ -21738,7 +21738,7 @@
   },
   "digests": {
     "semantic": "sha256:d7e6b6624d40208a47398afafe222b444c1a4a7a6b540c08d1c5ed6bafb6bf51",
-    "presentation": "sha256:ab3cd30ce5e5bd04d1c7bf7aa507a0313c1afcf84092ab075cf3d079fbd33ccf",
+    "presentation": "sha256:d2ae358ff63d876f2782bb0feb54d751253e968f66c586dd8cacab8bf5d60310",
     "execution": "sha256:d56e0f53ccf3dd962d57bde7bcbbfa617c2b26c98e8d31e7e8161786e816289f",
     "checkpointPolicy": "sha256:8d73c8e6d90979c8a0ab149d3d1c1a1d720d62fdfcb68af3233e8fd7106addff",
     "evidence": "sha256:0389bfbc144d9ebf5778f904bbebbd2bbd9b38ac9072e0a3ce697a551e918ff4",

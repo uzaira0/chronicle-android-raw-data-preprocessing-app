@@ -287,7 +287,7 @@ describe("numeric option bounds", () => {
     ).toEqual([
       {
         key: "longDurationThresholdHours",
-        message: "Enter a value between 1 and 48",
+        message: "Enter a value between 1 and 1000000",
       },
     ]);
   });

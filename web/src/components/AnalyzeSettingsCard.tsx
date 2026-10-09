@@ -9,11 +9,9 @@ import {
   INTERVAL_EXPANSION_METHOD_VALUES,
   NOTIFICATION_PROXY_RULE_VALUES,
   POLLED_EMULATION_METHOD_VALUES,
-  SCREEN_GATING_RULE_VALUES,
   type IntervalExpansionMethod,
   type NotificationProxyRule,
   type PolledEmulationMethod,
-  type ScreenGatingRule,
 } from "@/lib/generatedContract";
 import { TOOLTIPS } from "@/lib/tooltipText";
 import { anyOptionModified, isOptionDefault, type OptionKey } from "@/lib/optionDefaults";
@@ -21,35 +19,16 @@ import { optionRangeError } from "@/lib/validation";
 import type { BrowserProcessingOptions } from "@/lib/types";
 
 const KEYS: readonly OptionKey[] = [
-  "enableScreenGatedCrediting",
-  "screenGatingRule",
-  "creditedSessionCapMinutes",
-  "deviceLivenessGapToleranceMinutes",
-  "autoLockBridgeSeconds",
-  "noWitnessMinDayApps",
   "notificationProxyRule",
   "polledEmulationMethod",
   "polledEmulationIntervalSeconds",
   "polledEmulationGapSeconds",
   "intervalExpansionMethod",
-  "enableStudyWindowFilter",
   "enablePersonAttribution",
   "enableComplianceScoring",
   "complianceThresholdPercent",
   "enableDayCoverage",
 ];
-
-const SCREEN_GATING_RULE_LABELS = {
-  screen_and_liveness_v1: "Screen on and device alive (default)",
-  screen_witness_only: "Screen on only",
-  strict_visual_only: "Strict visual only — no fallback",
-  device_liveness_only: "Device alive only",
-} satisfies Record<ScreenGatingRule, string>;
-
-const SCREEN_GATING_RULES = SCREEN_GATING_RULE_VALUES.map((value) => ({
-  value,
-  label: SCREEN_GATING_RULE_LABELS[value],
-}));
 
 // `satisfies Record<NotificationProxyRule, string>` is the point: a new arm in
 // the contract becomes a compile error here until it is named for a reader.
@@ -114,143 +93,13 @@ export function AnalyzeSettingsCard(props: Props): ReactElement {
       modified={anyOptionModified(options, KEYS)}
     >
       <p className="u-card-intro">
-        Analysis steps that score participants against study structure. Every output here is
-        side-by-side: the headline app-usage and screen-usage CSVs are never changed by these
-        options.
+        Analysis steps that score participants against study structure.
       </p>
       {!options.processAppUsage ? (
         <p className="settings-dependency-note" role="note" data-testid="analyze-dependency-note">
           App usage output is off, so none of these analysis steps can run. Turn on “App usage
           output” in Output &amp; plots to use them.
         </p>
-      ) : null}
-
-      <ToggleField
-        label="Screen-gated usage credit"
-        tooltip={TOOLTIPS.enableScreenGatedCrediting}
-        checked={options.enableScreenGatedCrediting}
-        onChange={(value) => update("enableScreenGatedCrediting", value)}
-        testId="toggle-enableScreenGatedCrediting"
-        modified={isMod("enableScreenGatedCrediting")}
-        onReset={() => reset("enableScreenGatedCrediting")}
-      />
-      {options.enableScreenGatedCrediting ? (
-        <div className="settings-grid-1 settings-overview__subfield">
-          <SettingsField
-            label="Screen-gating rule"
-            htmlFor="screen-gating-rule-select"
-            tooltip={TOOLTIPS.screenGatingRule}
-            modified={isMod("screenGatingRule")}
-            onReset={() => reset("screenGatingRule")}
-          >
-            <select
-              id="screen-gating-rule-select"
-              data-testid="screen-gating-rule-select"
-              className="select"
-              value={options.screenGatingRule}
-              onChange={(event) =>
-                update(
-                  "screenGatingRule",
-                  event.target.value as BrowserProcessingOptions["screenGatingRule"],
-                )
-              }
-            >
-              {SCREEN_GATING_RULES.map((rule) => (
-                <option key={rule.value} value={rule.value}>
-                  {rule.label}
-                </option>
-              ))}
-            </select>
-          </SettingsField>
-        </div>
-      ) : null}
-      {options.enableScreenGatedCrediting ? (
-        <div className="settings-grid-2 settings-overview__subfield">
-          <SettingsField
-            label="Credited-session cap (minutes)"
-            tooltip={TOOLTIPS.creditedSessionCapMinutes}
-            modified={isMod("creditedSessionCapMinutes")}
-            onReset={() => reset("creditedSessionCapMinutes")}
-            error={optionRangeError("creditedSessionCapMinutes", options.creditedSessionCapMinutes)}
-          >
-            <input
-              type="number"
-              className="input"
-              data-testid="credited-session-cap-input"
-              min={1}
-              max={1440}
-              value={options.creditedSessionCapMinutes}
-              onChange={(event) => update("creditedSessionCapMinutes", Number(event.target.value))}
-            />
-          </SettingsField>
-          <SettingsField
-            label="Device-liveness gap tolerance (minutes)"
-            tooltip={TOOLTIPS.deviceLivenessGapToleranceMinutes}
-            modified={isMod("deviceLivenessGapToleranceMinutes")}
-            onReset={() => reset("deviceLivenessGapToleranceMinutes")}
-            error={optionRangeError("deviceLivenessGapToleranceMinutes", options.deviceLivenessGapToleranceMinutes)}
-          >
-            <input
-              type="number"
-              className="input"
-              data-testid="device-liveness-gap-input"
-              min={1}
-              max={1440}
-              value={options.deviceLivenessGapToleranceMinutes}
-              onChange={(event) =>
-                update("deviceLivenessGapToleranceMinutes", Number(event.target.value))
-              }
-            />
-          </SettingsField>
-          {options.screenGatingRule === "device_liveness_only" ? (
-            <p
-              className="settings-dependency-note"
-              role="note"
-              data-testid="screen-witness-dependency-note"
-            >
-              Auto-lock bridge and the no-witness fallback apply only to rules
-              that read screen events; &ldquo;Device alive only&rdquo; credits
-              the alive spans either way.
-            </p>
-          ) : (
-            <>
-          <SettingsField
-            label="Auto-lock bridge (seconds)"
-            tooltip={TOOLTIPS.autoLockBridgeSeconds}
-            modified={isMod("autoLockBridgeSeconds")}
-            onReset={() => reset("autoLockBridgeSeconds")}
-            error={optionRangeError("autoLockBridgeSeconds", options.autoLockBridgeSeconds)}
-          >
-            <input
-              type="number"
-              className="input"
-              data-testid="auto-lock-bridge-input"
-              min={0}
-              max={3600}
-              value={options.autoLockBridgeSeconds}
-              onChange={(event) => update("autoLockBridgeSeconds", Number(event.target.value))}
-            />
-          </SettingsField>
-          <SettingsField
-            label="No-witness fallback: min distinct apps per day"
-            tooltip={TOOLTIPS.noWitnessMinDayApps}
-            modified={isMod("noWitnessMinDayApps")}
-            onReset={() => reset("noWitnessMinDayApps")}
-            error={optionRangeError("noWitnessMinDayApps", options.noWitnessMinDayApps)}
-          >
-            <input
-              type="number"
-              className="input"
-              data-testid="no-witness-min-day-apps-input"
-              min={1}
-              max={100}
-              value={options.noWitnessMinDayApps}
-              onChange={(event) => update("noWitnessMinDayApps", Number(event.target.value))}
-            />
-          </SettingsField>
-            </>
-          )}
-        </div>
       ) : null}
 
       <div className="settings-grid-1">
@@ -383,21 +232,6 @@ export function AnalyzeSettingsCard(props: Props): ReactElement {
           </select>
         </SettingsField>
       </div>
-
-      <ToggleField
-        label="Study-window filter"
-        tooltip={TOOLTIPS.enableStudyWindowFilter}
-        checked={options.enableStudyWindowFilter}
-        onChange={(value) => update("enableStudyWindowFilter", value)}
-        testId="toggle-enableStudyWindowFilter"
-        modified={isMod("enableStudyWindowFilter")}
-        onReset={() => reset("enableStudyWindowFilter")}
-      />
-      {options.enableStudyWindowFilter && !studyDatesLoaded ? (
-        <p className="warning-text" role="note" data-testid="study-window-needs-input">
-          Needs input: upload the study-dates table under Study inputs, or turn this off.
-        </p>
-      ) : null}
 
       <ToggleField
         label="Person attribution (shared devices)"

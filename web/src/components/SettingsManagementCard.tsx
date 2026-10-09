@@ -15,6 +15,7 @@ import {
   SETTINGS_SCHEMA_VERSION,
   type SettingsPreset,
 } from "@/lib/settingsPersistence";
+import { BUILT_IN_PRESETS } from "@/lib/builtInPresets";
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import { BROWSER_OPTION_TOOLTIPS } from "@/lib/generatedContract";
 import { downloadBlob } from "@/lib/download";
@@ -359,6 +360,34 @@ export function SettingsManagementCard({
           captures the current active settings under a name. Load applies one back. Presets
           travel inside the config file above. There is no separate file for them.
         </p>
+        <div className="preset-list" data-testid="built-in-preset-list">
+          {BUILT_IN_PRESETS.map((preset) => (
+            <article className="preset-row" key={preset.id}>
+              <div>
+                <strong>{preset.name}</strong>
+                <span className="text-faint u-meta-xs">Built in · {preset.description}</span>
+              </div>
+              <div className="button-row">
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  data-testid="built-in-preset-load-button"
+                  aria-label={`Load built-in preset ${preset.name}`}
+                  onClick={() => {
+                    setPendingOverwriteName(null);
+                    // A built-in preset is a method, not a study: keep the study name.
+                    setPendingLoad({
+                      ...preset,
+                      options: { ...preset.options, studyName: options.studyName },
+                    });
+                  }}
+                >
+                  Load
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
         <label className="settings-field__label" htmlFor={presetNameInputId}>
           Preset name
         </label>

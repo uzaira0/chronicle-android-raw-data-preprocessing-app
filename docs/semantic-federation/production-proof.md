@@ -331,7 +331,7 @@ gap values and six calendar/DST joints; it also proved and fixed false coupling
 between row order, membership, and classification checkpoint components. See
 [the artifact dependency tomography proof](artifact-dependency-tomography.md).
 The two campaigns additionally compare canonical output cells on every warm
-and cold run. Digest-bound compressed sidecars retain 910,212 exact changed-cell
+and cold run. Digest-bound compressed sidecars retain 974,719 exact changed-cell
 addresses, yielding an empirical forward correspondence from each named
 raw/support mutation to affected CSV/JSON coordinates without turning large
 row/cell evidence into RDF or bloating the review ledger.
@@ -363,7 +363,7 @@ declared-transitive.
 
 `source-result-influence-arrow` makes those precision boundaries executable.
 Its protocol is now `chronicle-source-result-influence/v3` and it contains 1,376
-normalized witness rows in 79,738 bytes on the same fixture. The first
+normalized witness rows in 79,802 bytes on the same fixture. The first
 Cartesian prototype (measured on the development fixture during design) emitted
 240,540 rows and 13,759,858 bytes; normalization reduces the bridge by two
 orders of magnitude while preserving lossless joins into the source-coordinate,

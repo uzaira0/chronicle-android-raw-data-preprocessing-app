@@ -511,6 +511,7 @@ const SETTINGS_ATTACKS: SettingsAttack[] = [
 
 async function assertSettings(page: Page, attack: SettingsAttack): Promise<void> {
   await tab(page, "Settings");
+  await expandSectionCard(page, "optional-cleaning");
   await expandSectionCard(page, "session-detection");
   await expandSectionCard(page, "timezone");
   for (const [id, min, max, defaultValue] of [
@@ -622,6 +623,11 @@ test.describe("4. Hostile settings", () => {
   }
 });
 
+// A rerun stamps its own datetime_of_preprocessing.
+function withoutProcessingTime(csv: string): string {
+  return csv.replace(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} UTC(?=,|$)/gm, "<processing time>");
+}
+
 const SUPPORT_ROLES = [
   { id: "filter-file-input", toggle: "useFilterFile", valid: FILTER_FILE_CSV },
   { id: "apps-forcing-screen-open-file-input", toggle: "useAppsForcingScreenOpenFile", valid: APPS_FORCING_SCREEN_OPEN_CSV },
@@ -670,7 +676,11 @@ test.describe("5. Hostile companion files", () => {
         }
         await tab(page, "Process");
         await expect(page.getByTestId("result-row")).toHaveText(beforeRow, { timeout: WAIT, useInnerText: true });
-        expect(await downloadCsv(page, "download-app-csv")).toBe(beforeCsv);
+        // The rejected extension never runs, so its CSV must match byte for
+        // byte; the recovery run is a new run with its own processing time.
+        const afterCsv = await downloadCsv(page, "download-app-csv");
+        if (attack === "unsupported extension") expect(afterCsv).toBe(beforeCsv);
+        else expect(withoutProcessingTime(afterCsv)).toBe(withoutProcessingTime(beforeCsv));
         const after = inspectClosure(await downloadClosure(page));
         expect(after.manifest.workspaceId).toBe(beforeClosure.manifest.workspaceId);
         // The recovery run appends a root to the workspace history; with no run
@@ -844,7 +854,7 @@ test.describe("6. Races", () => {
     await held(page);
     await tab(page, "Settings");
     await page.getByTestId("study-name-input").fill("edited while running");
-    await expandSectionCard(page, "session-detection");
+    await expandSectionCard(page, "optional-cleaning");
     await page.getByTestId("minimum-usage-duration-input").fill("3600");
     await release(page);
     await tab(page, "Process");
@@ -936,6 +946,9 @@ test.describe("6. Races", () => {
     await page.getByTestId("review-compare-toggle").click();
     const drawer = page.getByTestId("review-compare-drawer");
     await expect(drawer).toBeVisible({ timeout: WAIT });
+    await drawer
+      .locator('[data-section-id="optional-cleaning"] .section-card__header')
+      .click();
     await drawer.getByTestId("minimum-usage-duration-input").fill("3600");
     await holdWorkerRequests(page, ["processReviewCsvBytes", "processPersistedReview"]);
     await page.getByTestId("review-run-comparison").click();
