@@ -1335,6 +1335,10 @@ test("restores last processed results after refresh and collapses process detail
   expect(Array.from(restoredZip.keys())).toContain(
     "Raw P01 Automatically Preprocessed.csv",
   );
+  expect(JSON.parse(restoredZip.get("Build Info.json") ?? "{}")).toMatchObject({
+    contract_version: 6,
+    settings_schema_version: 16,
+  });
   expect(parseCsv(restoredZip.get("Raw P01 Automatically Preprocessed.csv") ?? "").length)
     .toBeGreaterThan(0);
 

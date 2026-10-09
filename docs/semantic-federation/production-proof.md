@@ -363,7 +363,7 @@ declared-transitive.
 
 `source-result-influence-arrow` makes those precision boundaries executable.
 Its protocol is now `chronicle-source-result-influence/v3` and it contains 1,376
-normalized witness rows in 79,738 bytes on the same fixture. The first
+normalized witness rows in 79,802 bytes on the same fixture. The first
 Cartesian prototype (measured on the development fixture during design) emitted
 240,540 rows and 13,759,858 bytes; normalization reduces the bridge by two
 orders of magnitude while preserving lossless joins into the source-coordinate,

@@ -6,6 +6,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 
 import { createZipBlob } from "@/lib/zip";
+import { BUILD_DATE, BUILD_SHA, CONTRACT_VERSION } from "@/lib/buildInfo";
+import { SETTINGS_SCHEMA_VERSION } from "@/lib/settingsPersistence";
 import type { OutputKind } from "@/lib/generatedContract";
 import type {
   BrowserProcessingOptions,
@@ -199,6 +201,17 @@ async function downloadZip(
       blob: await resolveOutputBlob(output),
     });
   }
+  // Which build made this download. preprocessor_version stays "1.0.0" in the
+  // outputs for cross-group parity, so the build identity travels separately.
+  entries.push({
+    fileName: "Build Info.json",
+    blob: new Blob([JSON.stringify({
+      app_build_commit: BUILD_SHA,
+      app_build_date: BUILD_DATE,
+      contract_version: CONTRACT_VERSION,
+      settings_schema_version: SETTINGS_SCHEMA_VERSION,
+    }, null, 2)], { type: "application/json" }),
+  });
   const zip = await createZipBlob(entries);
   downloadBlob(zipName(kind), zip);
 }
