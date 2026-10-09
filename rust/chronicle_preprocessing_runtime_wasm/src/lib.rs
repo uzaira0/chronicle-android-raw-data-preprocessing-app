@@ -13768,9 +13768,11 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         // option: its outputs-group tunes edge, its assemble_result_manifest and
         // publish.commit_workspace_bundle request field, and the contract digests
         // that move with them.
+        // Refreshed 2026-10-09 for the seven Blue Light codebook field reads
+        // (app_codebook_file.bluelight_play_store_*) in the workflow contract.
         assert_eq!(
             sha256(&bytes),
-            "sha256:ea504e7b9d46d3e55319068f67fe9b3b3b2673a26bb22021590c5f15f099bdf5"
+            "sha256:352d64554a085d049b008df5914b0e0cd614aff708bbfa17674acdfc029e552d"
         );
     }
 
