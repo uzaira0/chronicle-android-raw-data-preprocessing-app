@@ -190,7 +190,7 @@ export function ProjectsCard({
             id={nameInputId}
             className="input"
             value={name}
-            placeholder="e.g. Wave 2 child tablets"
+            placeholder="e.g. Wave 2 tablets"
             data-testid="project-name-input"
             onChange={(event) => setName(event.target.value)}
           />

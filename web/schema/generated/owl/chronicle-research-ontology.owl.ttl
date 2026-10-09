@@ -572,7 +572,7 @@ chron:ComplianceDayAssessment
         ] ;
     skos:broadMatch prov:Entity ;
     skos:definition """One participant-day row of the `compliance_csv` — the compliance measure this engine actually computes. Its slots mirror the CSV columns: the eight-field `ComplianceDayCheckpoint` (pipeline_v2.rs) plus `expected_device_count`, which the writer joins from the enrolled-devices support file at write time; `compliance_threshold_percent` is the scalar input the engine compares against (not a CSV column), and `compliance_value_basis` is this ontology's own name for the imputation distinction, present in no engine output. This term exists because AttributionStatus formerly claimed to BE the compliance denominator contract while nothing described the quantity, its denominator, or its defaults.
-WHAT THE DENOMINATOR ADMITS. `accumulate_minutes` (pipeline_v2_incremental.rs) walks the output rows and adds `duration_minutes` to the day's bucket only when the row's interaction type is App Usage or Non-Target Child App Usage AND `minimum_duration_aggregate_eligible` is set. Numerator = minutes whose username is neither blank, "nan", nor "None"; denominator = numerator plus the rest.
+WHAT THE DENOMINATOR ADMITS. `accumulate_minutes` (pipeline_v2_incremental.rs) walks the output rows and adds `duration_minutes` to the day's bucket only when the row's interaction type is App Usage or Non-Target Participant App Usage AND `minimum_duration_aggregate_eligible` is set. Numerator = minutes whose username is neither blank, "nan", nor "None"; denominator = numerator plus the rest.
 WHAT IT SILENTLY EXCLUDES, in every case without a receipt in this output: (1) Filtered App Usage — excluded packages are RELABELLED rather than deleted, keep their raw evidence, and are then absent from both numerator and denominator, so package-exclusion policy moves this measure; (2) episodes ruled ineligible by the minimum-duration disposition, so a sub-floor episode's minutes are attributed to nobody; (3) any episode whose duration is blank, which contributes 0.0; (4) every non-app row type, including End of Usage Missing — so an episode zeroed by the long-duration cap leaves the denominator entirely. The compliance percent is therefore a share of ADMITTED minutes, never a share of the participant's day.
 THE 100.0 DEFAULT IS AN IMPUTATION. When the participant is not in the device-sharing file, or when the admitted total for the day is zero, the engine writes compliance_percent = 100.0 without measuring anything, and `is_valid` then compares that literal against the threshold like any other value — so an unshared participant and a participant with no qualifying usage both count as valid days. The distinction survives only in `sharing_status` and `zero_real_usage`; compliance_value_basis is this ontology's name for it, so a summary of the percent column can state which rows it measured and which it inherited.
 The participant-day spine is every (participant, date) pair seen on any APP-output row — the screen output is not consulted — including rows contributing no minutes, so a day can appear here with a zero total and a 100.0 percent.""" ;
@@ -6896,7 +6896,7 @@ chron:AttributionAssertion
     a owl:Class ;
     rdfs:label "imputed_no_eligible_usage" ;
     rdfs:subClassOf chron:ComplianceValueBasis ;
-    skos:definition "The admitted total for the day is zero — no App Usage or Non-Target Child App Usage row survived aggregate eligibility with nonzero minutes — so the share is 0/0 and the engine writes 100.0. The day is recorded with zero_eligible_usage set, which is the only signal separating it from a genuine perfect day." ;
+    skos:definition "The admitted total for the day is zero — no App Usage or Non-Target Participant App Usage row survived aggregate eligibility with nonzero minutes — so the share is 0/0 and the engine writes 100.0. The day is recorded with zero_eligible_usage set, which is the only signal separating it from a genuine perfect day." ;
 .
 
 <https://w3id.org/chronicle-usage-ontology/core/ComplianceValueBasis#imputed_non_shared_device>
@@ -15129,7 +15129,7 @@ chron:SessionBoundaryScopeId
     ) ;
     skos:definition """Canonical identifiers for WHICH rows are numbered as one sequence of sessions. The engine partitions by `participant_id` alone, but every other dimension of the published classification key (`study_id,participant_id,possible_device_model,username`) varies WITHIN a participant: `username` is a raw per-row Chronicle column, and nothing constrains one export to a single `study_id`.
 The failure this axis addresses is a MISSED break rather than a spurious one. A foreign row landing inside a participant's silence bridges it, so the participant's session is never split. Verified against the kernel: three episodes in which study A is silent for 950 s and study B's episode sits inside that silence are numbered `[0, 0, 0]` under the 60 s rule.
-`attribute_person` already retypes a shared device's non-target rows to Non-Target Child App Usage, which grouping then excludes — but that runs only when a device-sharing file is configured. Without one, a sibling's episodes stay App Usage and are numbered into the target child's sequence.
+`attribute_person` already retypes a shared device's non-target rows to Non-Target Participant App Usage, which grouping then excludes — but that runs only when a device-sharing file is configured. Without one, a sibling's episodes stay App Usage and are numbered into the target child's sequence.
 The scopes nest, so widening can only split a sequence further and can never merge two. Unknown identifiers resolve to the narrowest scope, which is today's behaviour.""" ;
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
     linkml:permissible_values
@@ -18799,7 +18799,7 @@ chron:zero_eligible_usage
     a owl:DatatypeProperty ;
     rdfs:label "zero_eligible_usage" ;
     rdfs:range xsd:boolean ;
-    skos:definition "True when no App Usage or Non-Target Child App Usage row on this participant-day was aggregate-eligible with nonzero minutes, so the share was 0/0. The engine's zero_real_usage column." ;
+    skos:definition "True when no App Usage or Non-Target Participant App Usage row on this participant-day was aggregate-eligible with nonzero minutes, so the share was 0/0. The engine's zero_real_usage column." ;
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 

@@ -84,7 +84,7 @@ describe("buildTimelineScene", () => {
 
     // Title + legend text.
     const texts = scene.primitives.filter((p) => p.type === "text").map((p) => (p as { text: string }).text);
-    expect(texts).toContain("App Usage for P01 (Target Child Only)");
+    expect(texts).toContain("App Usage for P01 (Excluding Filtered Apps)");
     expect(texts).toContain("App Categories");
     expect(texts).toContain("Time of Day (Hours)");
   });

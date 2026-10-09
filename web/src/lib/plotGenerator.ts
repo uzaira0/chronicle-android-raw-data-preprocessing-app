@@ -409,7 +409,7 @@ function appTimelineTitle(
 ): string {
   // Always annotate the filtered-apps state both ways (mirrors the desktop
   // plot) so "unfiltered" is explicit, not merely the absence of a label.
-  const suffix = includeFiltered ? " (Including Filtered Apps)" : " (Target Child Only)";
+  const suffix = includeFiltered ? " (Including Filtered Apps)" : " (Excluding Filtered Apps)";
   return `App Usage for ${participantId}${suffix}`;
 }
 

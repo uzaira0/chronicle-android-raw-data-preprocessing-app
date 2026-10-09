@@ -1301,7 +1301,7 @@ impl SessionGapBasis {
 /// WITHIN a participant in this pipeline's own model:
 ///
 /// * `username` is a raw Chronicle column and is per-row. `attribute_person`
-///   retypes a shared device's non-target rows to `NON_TARGET_CHILD_APP_USAGE`,
+///   retypes a shared device's non-target rows to `NON_TARGET_PARTICIPANT_APP_USAGE`,
 ///   which `is_culverhouse_usage_row` then excludes — but that runs only when a
 ///   device-sharing file is configured. Without one, a sibling's episodes stay
 ///   `APP_USAGE` and are numbered into the target child's sequence.
