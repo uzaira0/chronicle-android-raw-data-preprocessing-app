@@ -2035,6 +2035,20 @@ describe("persisted Rust workspace boundary", () => {
       expect(request?.workspaceRootDigest).toBeNull();
     });
 
+    it("refuses a review query on it without deleting under a shared lock", async () => {
+      await withV1Head(() =>
+        expect(
+          queryRustReview(raw, "Raw.csv", fullOptions, {}, {
+            persistRustWorkspace: true,
+            incrementalEngine: false,
+            datetimeOfPreprocessing: "2026-07-26 00:00:00 UTC",
+          }),
+        ).rejects.toThrow(SavedByOtherAppVersionError),
+      );
+      expect(opfs.removeOpfsWorkspace).not.toHaveBeenCalled();
+      expect(kernel.execute_workspace).not.toHaveBeenCalled();
+    });
+
     it("refuses to reopen it with a message a user can act on", async () => {
       await withV1Head(() =>
         expect(verifyPersistedRustWorkspace(workspaceId)).rejects.toThrow(
