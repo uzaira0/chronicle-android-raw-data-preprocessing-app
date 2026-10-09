@@ -13,7 +13,7 @@
  * Needs `npm run build:vite` first. Fails (exit 1) on any new-build failure.
  */
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -32,7 +32,8 @@ const flag = (name: string, fallback: string) => {
 const NEW_BUILD = path.resolve(flag("--new", path.join(WEB_ROOT, "dist")));
 const LIVE = flag("--live", "https://uzaira0.github.io/chronicle-android-raw-data-preprocessing-app/");
 const SHARDS = Number(flag("--shards", "4"));
-const LIVE_CACHE = path.join(WORK_DIR, "live");
+// The live build's files, fetched once per run and shared by every shard.
+const liveCache = new Map<string, Buffer>();
 
 const TYPES: Record<string, string> = {
   ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript",
@@ -47,16 +48,24 @@ function serve(port: number, state: { root: "live" | "new" }): Promise<Server> {
     let rel = decodeURIComponent(new URL(req.url ?? "/", "http://x").pathname).replace(/^\/+/, "");
     if (rel === "" || rel.endsWith("/")) rel += "index.html";
     if (rel.split("/").includes("..")) return void res.writeHead(400).end();
-    const dir = state.root === "new" ? NEW_BUILD : LIVE_CACHE;
-    const file = path.join(dir, rel);
     try {
-      if (state.root === "live" && !existsSync(file)) {
-        const upstream = await fetch(new URL(rel, LIVE));
-        if (!upstream.ok) return void res.writeHead(upstream.status).end();
-        mkdirSync(path.dirname(file), { recursive: true });
-        writeFileSync(file, Buffer.from(await upstream.arrayBuffer()));
+      let body: Buffer;
+      if (state.root === "live") {
+        // Only ever the live site: a path such as "https:host" would otherwise
+        // resolve to another origin.
+        const url = new URL(rel, LIVE);
+        if (!url.href.startsWith(LIVE)) return void res.writeHead(400).end();
+        let cached = liveCache.get(url.href);
+        if (!cached) {
+          const upstream = await fetch(url);
+          if (!upstream.ok) return void res.writeHead(upstream.status).end();
+          cached = Buffer.from(await upstream.arrayBuffer());
+          liveCache.set(url.href, cached);
+        }
+        body = cached;
+      } else {
+        body = readFileSync(path.join(NEW_BUILD, rel));
       }
-      const body = readFileSync(file);
       res.writeHead(200, {
         "content-type": TYPES[path.extname(rel)] ?? "application/octet-stream",
         "cache-control": "no-store",
@@ -156,7 +165,6 @@ async function shard(index: number, cases: { matrixCase: Case; at: number }[], f
 if (!existsSync(path.join(NEW_BUILD, "index.html"))) {
   throw new Error(`${NEW_BUILD} has no build: run \`npm run build:vite\` first`);
 }
-rmSync(LIVE_CACHE, { recursive: true, force: true });
 const files = fixtures(CASES.length);
 const indexed = CASES.map((matrixCase, at) => ({ matrixCase, at }));
 const results = await Promise.all(
