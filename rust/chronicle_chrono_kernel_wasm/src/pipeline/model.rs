@@ -46,7 +46,7 @@ pub(super) const FILTERED_APP_USAGE: &str = "Filtered App Usage";
 
 pub(super) const FILTERED_APP_BACKGROUND_USAGE: &str = "Filtered App Background Usage";
 
-pub(super) const NON_TARGET_CHILD_APP_USAGE: &str = "Non-Target Child App Usage";
+pub(super) const NON_TARGET_PARTICIPANT_APP_USAGE: &str = "Non-Target Participant App Usage";
 
 pub(super) const END_OF_USAGE_MISSING: &str = "End of Usage Missing";
 

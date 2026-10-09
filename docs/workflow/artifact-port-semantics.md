@@ -81,7 +81,7 @@ Relabel a filtered package's output `App Usage` rows to `Filtered App Usage`, ma
 `should_filter_app`). Relabeling OUTPUT sessions is equivalent to the engine's event-level
 filtering for whole-package filters: session boundaries are unchanged because the filtered
 app already sat on the foreground timeline (it still closes other apps' sessions).
-Downstream screen-time models exclude `Filtered App Usage` (and `Non-Target Child App Usage`).
+Downstream screen-time models exclude `Filtered App Usage` (and `Non-Target Participant App Usage`).
 
 Filter-file governance: the production list is GENERATED from an app registry — never
 hand-edited.
@@ -105,7 +105,7 @@ regular, screen-gated app); it applies to the shared-tablet stream.
   session's username.
 - **Null-username fill + Non-Target marking**: remaining unlabeled usage on a shared device
   is attributed by the sharing configuration; usage attributed to someone other than the
-  target participant becomes `Non-Target Child App Usage` (excluded from screen time, kept
+  target participant becomes `Non-Target Participant App Usage` (excluded from screen time, kept
   for compliance accounting).
 - **Kids-shell on shared devices** → attributed to the target child (consistent with the
   screen-gated view that the shell is the child's surface).

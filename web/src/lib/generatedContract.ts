@@ -1434,7 +1434,7 @@ export const BROWSER_OPTION_TOOLTIPS = {
   },
   enablePersonAttribution: {
     title: "Person attribution (shared devices)",
-    body: "On shared devices, attribute each session to a person using the device-sharing table (exact participant match only) and optional usage-survey answers; usage attributed to someone other than the target becomes \"Non-Target Child App Usage\" (kept, excluded from screen time). Requires the device-sharing support file.",
+    body: "On shared devices, attribute each session to a person using the device-sharing table (exact participant match only) and optional usage-survey answers; usage attributed to someone other than the target becomes \"Non-Target Participant App Usage\" (kept, excluded from screen time). Requires the device-sharing support file.",
   },
   enableComplianceScoring: {
     title: "Compliance scoring",

@@ -2,7 +2,7 @@ use crate::pipeline_v2::{
     AHashSet, APP_USAGE, Arc, AttributionCompleteness, AttributionCompletenessDay,
     AttributionMinutes, AttributionReport, BTreeMap, BTreeSet, ComplianceDayCheckpoint,
     ComplianceResultCheckpoint, CoverageDayCheckpoint, CoverageOutput, DayCoverageCheckpoint,
-    Duration, HashMap, KIDS_SHELL_PACKAGES, LocalDateMemo, NON_TARGET_CHILD_APP_USAGE, NaiveDate,
+    Duration, HashMap, KIDS_SHELL_PACKAGES, LocalDateMemo, NON_TARGET_PARTICIPANT_APP_USAGE, NaiveDate,
     NO_ACTIVITY_PLACEHOLDER_PACKAGE,
     QueryCheckpointRecorder, ResolvedParticipantWindow, Row, SharedString, SharingEntry,
     SharingResolution, SharingResolutionValue, SharingStatus, StudyWindow, SurveyLookup, Tz,
@@ -282,7 +282,7 @@ pub(crate) fn attribute_person(
                     report.survey_relabels += 1;
                 }
                 if row.interaction_type == APP_USAGE && !is_target_child(&row.username) {
-                    row.interaction_type = NON_TARGET_CHILD_APP_USAGE.into();
+                    row.interaction_type = NON_TARGET_PARTICIPANT_APP_USAGE.into();
                     report.non_target_rows += 1;
                 }
             }
@@ -506,7 +506,7 @@ pub(crate) fn accumulate_minutes(rows: &[Row]) -> AttributionMinutes {
             .entry(row.participant_id.to_string())
             .or_default()
             .insert(row.date.to_string());
-        if row.interaction_type != APP_USAGE && row.interaction_type != NON_TARGET_CHILD_APP_USAGE {
+        if row.interaction_type != APP_USAGE && row.interaction_type != NON_TARGET_PARTICIPANT_APP_USAGE {
             continue;
         }
         if !row.minimum_duration_aggregate_eligible {
