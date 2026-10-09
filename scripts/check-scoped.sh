@@ -140,6 +140,8 @@ if (( rust_changed || web_changed )); then
   (cd web && npm run check:deploy-artifact)
   step "smoke e2e (chromium, serving that build)"
   PLAYWRIGHT_PREBUILT=1 make --no-print-directory e2e E2E_ARGS=--project=chromium
+  step "upgrade check (every option case: live production build, then this build, same browser storage)"
+  make --no-print-directory upgrade-check
 fi
 step ""
 
