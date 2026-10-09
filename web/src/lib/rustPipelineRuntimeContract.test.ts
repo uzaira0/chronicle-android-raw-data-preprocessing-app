@@ -297,7 +297,7 @@ const EXPECTED_RESULT_CELL_BYTES = 46_514;
 // its unchanged app-csv unresolved scope; native assertions pin both tuples.
 // Byte size is independently measured after the standards-valid IPC repair.
 const EXPECTED_INFLUENCE_WITNESS_ROWS = 1_376;
-const EXPECTED_INFLUENCE_WITNESS_BYTES = 79_802;
+const EXPECTED_INFLUENCE_WITNESS_BYTES = 79_738;
 
 function representativeSourceFixture(): Uint8Array {
   const rows = [
