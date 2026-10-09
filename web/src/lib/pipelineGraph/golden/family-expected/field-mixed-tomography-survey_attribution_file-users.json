@@ -4,12 +4,12 @@
   "claimBoundary": "One supplied source column, one empirically branch-activating intervention on it, crossed with every non-compound computational configuration axis the field-level workflow contract predicts can interact with that column, plus a deterministic control sample of axes it predicts cannot. For raw-column shards, Parry/Zhu/Schoedel alternates that would necessarily rebind the digest-bound capability sidecar are explicitly excluded and remain unestimated as compound raw+capability interactions; the configuration-space sourceSensitiveScientificCells domain separately proves the generic LF-sidecar to CRLF-raw Parry rebind mechanism, not every excluded pair. Under every configuration executed, every canonical output cell the intervention changes belongs to a declared output-cell family of that column, and no control axis introduces a family the base configuration did not move. Declared families no configuration moved are listed, not asserted: a declared edge no run exercised is not evidence the edge is unreal. Changed query checkpoints are recorded as context only, because a query checkpoint also moves when the query merely carries a changed field through its records.",
   "implementationReceipt": {
     "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
-    "implementationDigest": "sha256:cfa7f11b87802213388917c8b24238f947604e152a447cc69cf977511fdd40ce",
-    "planDigest": "sha256:be0258af6aafbc9a1855ae4223adcc642a8d22b5fa8bb87eb09f6b62dc3abbd0",
-    "profileDigest": "sha256:37edc9f29d368950cd2a7893c164c223723741456d189d969a0f8b630f31dfbd",
-    "profileLockDigest": "sha256:a26272e97b5ff2e578d44665643e0da0007ff701fa647eac1fdd6ec7fd6197a6",
+    "implementationDigest": "sha256:4b5fb72ce4570db1a7f25da5ead25762cefc9462eb036ae61098da23d4779762",
+    "planDigest": "sha256:5c4f19924961f6d5054899ad84a969d79cec45bd344b72f8640cc10370e00c0a",
+    "profileDigest": "sha256:8db9c35e66b7d36f54f005a0ed9414dac1de25693509450106be4a39959db664",
+    "profileLockDigest": "sha256:de5a7d9a809bb049c4fa96a91d6e97bb9ec00b818fd071df2293ad1ae424ef11",
     "runtimeAuthorityDigest": "sha256:7807fe99a35b4ede2c85d8e8868ec3dcb2accb22e8265c4643966eb9840ce4e4",
-    "productContractDigest": "sha256:81e857feb3c24afaf0b3bbbef63081e884a498cfaa8398a76fabfe23c8c5c61b"
+    "productContractDigest": "sha256:5f8586482ba8944b2cee4813d63de0096c4e4b7139eadad0ef426116921ca14d"
   },
   "fixture": {
     "corpusId": "catalog-random",
@@ -425,12 +425,11 @@
   "baseConfigurationChangedFamilies": [
     "app-csv#interaction_type",
     "app-csv#username",
-    "day-coverage-csv#status",
     "review-summary-json#/participants/*/perDay/*/*",
     "review-summary-json#/participants/*/totals/*",
     "visualization-data-json#/appRows/*/*"
   ],
-  "baseConfigurationChangedCellAddresses": 607,
+  "baseConfigurationChangedCellAddresses": 606,
   "witnessedCellFamiliesAcrossAllConfigurations": [
     "aggregate-app-co-usage-csv#app_a",
     "aggregate-app-co-usage-csv#app_b",
@@ -779,7 +778,6 @@
       "maskedFamilies": [
         "app-csv#interaction_type",
         "app-csv#username",
-        "day-coverage-csv#status",
         "review-summary-json#/participants/*/perDay/*/*",
         "review-summary-json#/participants/*/totals/*",
         "visualization-data-json#/appRows/*/*"
@@ -788,8 +786,8 @@
     {
       "axisId": "processScreenUsage=false",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -799,17 +797,15 @@
       "predictedAffected": true,
       "changedCellAddresses": 418,
       "changedCellFamilies": 5,
-      "sameFamiliesAsBaseConfiguration": false,
+      "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
-      "maskedFamilies": [
-        "day-coverage-csv#status"
-      ]
+      "maskedFamilies": []
     },
     {
       "axisId": "openerSet=resumedonly",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -817,8 +813,8 @@
     {
       "axisId": "episodeReconstructionStrategy=forward",
       "predictedAffected": true,
-      "changedCellAddresses": 245,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 244,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -826,8 +822,8 @@
     {
       "axisId": "microUseClassificationPolicy=okoshilt5s",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -835,8 +831,8 @@
     {
       "axisId": "allowStopEventReuse=true",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -844,8 +840,8 @@
     {
       "axisId": "useActivityStoppedAsFallback=false",
       "predictedAffected": true,
-      "changedCellAddresses": 557,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 556,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -853,8 +849,8 @@
     {
       "axisId": "applyThresholdToFallback=false",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -862,8 +858,8 @@
     {
       "axisId": "longDurationThresholdHours=h1",
       "predictedAffected": true,
-      "changedCellAddresses": 239,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 238,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -871,8 +867,8 @@
     {
       "axisId": "longDurationThresholdHoursExplicit=true",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -880,8 +876,8 @@
     {
       "axisId": "maximumDurationPolicy=strategynative",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -889,8 +885,8 @@
     {
       "axisId": "maximumDurationDisposition=notapplicable",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -898,8 +894,8 @@
     {
       "axisId": "maximumDurationThresholdSource=strategynative",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -907,8 +903,8 @@
     {
       "axisId": "maximumDurationThresholdNs=ns1",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -916,7 +912,7 @@
     {
       "axisId": "correctDuplicateEventTimestamps=false",
       "predictedAffected": true,
-      "changedCellAddresses": 4958,
+      "changedCellAddresses": 5006,
       "changedCellFamilies": 76,
       "sameFamiliesAsBaseConfiguration": false,
       "introducedFamilies": [
@@ -989,15 +985,16 @@
         "app-csv#valid_app_usage_time_gap_hours",
         "app-csv#weekdayMF",
         "app-csv#weekdayMTh",
-        "app-csv#weekdaySuTh"
+        "app-csv#weekdaySuTh",
+        "day-coverage-csv#status"
       ],
       "maskedFamilies": []
     },
     {
       "axisId": "deduplicateExactRows=false",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1005,8 +1002,8 @@
     {
       "axisId": "dropOutOfSourceOrderEvents=true",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1014,8 +1011,8 @@
     {
       "axisId": "selectedTimezone=america_new_york",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1023,8 +1020,8 @@
     {
       "axisId": "timezoneHandling=selected_filter",
       "predictedAffected": true,
-      "changedCellAddresses": 295,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 294,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1032,8 +1029,8 @@
     {
       "axisId": "dayBoundaryAttribution=splitmidnight",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1043,28 +1040,24 @@
       "predictedAffected": true,
       "changedCellAddresses": 692,
       "changedCellFamilies": 5,
-      "sameFamiliesAsBaseConfiguration": false,
+      "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
-      "maskedFamilies": [
-        "day-coverage-csv#status"
-      ]
+      "maskedFamilies": []
     },
     {
       "axisId": "filterMatchField=application_label",
       "predictedAffected": true,
       "changedCellAddresses": 692,
       "changedCellFamilies": 5,
-      "sameFamiliesAsBaseConfiguration": false,
+      "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
-      "maskedFamilies": [
-        "day-coverage-csv#status"
-      ]
+      "maskedFamilies": []
     },
     {
       "axisId": "applicationLabelExclusions=unknown_app",
       "predictedAffected": true,
-      "changedCellAddresses": 485,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 484,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1072,8 +1065,8 @@
     {
       "axisId": "packageExclusionPreset=honorfilterflag",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1081,8 +1074,8 @@
     {
       "axisId": "useAppsForcingScreenOpenFile=false",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1090,8 +1083,8 @@
     {
       "axisId": "useBackgroundAppsFile=false",
       "predictedAffected": true,
-      "changedCellAddresses": 245,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 244,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1099,8 +1092,8 @@
     {
       "axisId": "useAppCodebook=false",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1108,8 +1101,8 @@
     {
       "axisId": "includeCategoryColumn=false",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1117,8 +1110,8 @@
     {
       "axisId": "includeAppUsageEndReason=false",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1126,8 +1119,8 @@
     {
       "axisId": "enableAggregates=true",
       "predictedAffected": true,
-      "changedCellAddresses": 1244,
-      "changedCellFamilies": 52,
+      "changedCellAddresses": 1247,
+      "changedCellFamilies": 51,
       "sameFamiliesAsBaseConfiguration": false,
       "introducedFamilies": [
         "aggregate-app-co-usage-csv#app_a",
@@ -1182,8 +1175,8 @@
     {
       "axisId": "aggregateShape=long",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1191,8 +1184,8 @@
     {
       "axisId": "aggregateTopAppsLimit=top5",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1200,8 +1193,8 @@
     {
       "axisId": "enableParticipantAmountSummary=true",
       "predictedAffected": true,
-      "changedCellAddresses": 613,
-      "changedCellFamilies": 12,
+      "changedCellAddresses": 612,
+      "changedCellFamilies": 11,
       "sameFamiliesAsBaseConfiguration": false,
       "introducedFamilies": [
         "aggregate-participant-amount-summary-csv#daily_average_minutes",
@@ -1216,28 +1209,28 @@
     {
       "axisId": "neutralizeSpreadsheetFormulas=true",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
     },
     {
-      "axisId": "minimumUsageDuration=s0",
+      "axisId": "minimumUsageDuration=s60",
       "predictedAffected": true,
-      "changedCellAddresses": 606,
-      "changedCellFamilies": 5,
+      "changedCellAddresses": 607,
+      "changedCellFamilies": 6,
       "sameFamiliesAsBaseConfiguration": false,
-      "introducedFamilies": [],
-      "maskedFamilies": [
+      "introducedFamilies": [
         "day-coverage-csv#status"
-      ]
+      ],
+      "maskedFamilies": []
     },
     {
       "axisId": "minimumDurationComparator=inclusivele",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1245,8 +1238,8 @@
     {
       "axisId": "minimumDurationDisposition=retaincredit",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1254,8 +1247,8 @@
     {
       "axisId": "filterZeroDurationSessions=false",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1263,8 +1256,8 @@
     {
       "axisId": "intervalQualityPolicy=culverhouse",
       "predictedAffected": true,
-      "changedCellAddresses": 583,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 574,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1272,8 +1265,8 @@
     {
       "axisId": "sessionGroupingPolicy=zerrer60s",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1281,8 +1274,8 @@
     {
       "axisId": "sessionGapBasis=runningmaxstop",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1290,8 +1283,8 @@
     {
       "axisId": "sessionBoundaryScope=participantstudy",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1299,8 +1292,8 @@
     {
       "axisId": "emitSessionBreakLineage=true",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1308,8 +1301,8 @@
     {
       "axisId": "customAppEngagementDuration=s0",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1317,8 +1310,8 @@
     {
       "axisId": "longUsageDurationThresholds=empty",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1326,8 +1319,8 @@
     {
       "axisId": "longDataTimeGapThresholds=empty",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1335,8 +1328,8 @@
     {
       "axisId": "screenSessionConstructionStrategy=parrytothscreen",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1344,8 +1337,8 @@
     {
       "axisId": "screenSessionClassificationPolicy=phone_check_inclusive_15s",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1353,8 +1346,8 @@
     {
       "axisId": "screenSessionMaximumDurationMinutes=m60",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1362,8 +1355,8 @@
     {
       "axisId": "screenSessionMaximumDurationDisposition=truncate",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1371,8 +1364,8 @@
     {
       "axisId": "lockedScreenAudioDisposition=exclude_from_phone_and_app_sessions",
       "predictedAffected": true,
-      "changedCellAddresses": 301,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 300,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1380,8 +1373,8 @@
     {
       "axisId": "screenUsageAutoLockTimeoutSeconds=s0",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1389,8 +1382,8 @@
     {
       "axisId": "screenUsageAutoLockToleranceSeconds=s0",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1398,8 +1391,8 @@
     {
       "axisId": "screenUsageManualLockMaxTailGapSeconds=s0",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1407,8 +1400,8 @@
     {
       "axisId": "screenUsageKeyguardNearStopSeconds=s0",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1418,17 +1411,15 @@
       "predictedAffected": true,
       "changedCellAddresses": 438,
       "changedCellFamilies": 5,
-      "sameFamiliesAsBaseConfiguration": false,
+      "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
-      "maskedFamilies": [
-        "day-coverage-csv#status"
-      ]
+      "maskedFamilies": []
     },
     {
       "axisId": "otherInteractionTypesToStopUsageAt=empty",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1436,8 +1427,8 @@
     {
       "axisId": "modelConcurrentUsage=false",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1445,8 +1436,8 @@
     {
       "axisId": "applyMinimumUsageDurationToConcurrentSubintervals=false",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1454,8 +1445,8 @@
     {
       "axisId": "interactionTypesToRemove=none",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1463,8 +1454,8 @@
     {
       "axisId": "interactionTypeRemovalMode=unconditional",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1474,17 +1465,15 @@
       "predictedAffected": true,
       "changedCellAddresses": 346,
       "changedCellFamilies": 5,
-      "sameFamiliesAsBaseConfiguration": false,
+      "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
-      "maskedFamilies": [
-        "day-coverage-csv#status"
-      ]
+      "maskedFamilies": []
     },
     {
       "axisId": "proximityIntervalSeconds=s0",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1492,8 +1481,8 @@
     {
       "axisId": "addNoActivityPlaceholderDays=false",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1501,8 +1490,8 @@
     {
       "axisId": "enableScreenGatedCrediting=false",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1510,8 +1499,8 @@
     {
       "axisId": "screenGatingRule=screenonly",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1519,8 +1508,8 @@
     {
       "axisId": "creditedSessionCapMinutes=m0",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1528,8 +1517,8 @@
     {
       "axisId": "deviceLivenessGapToleranceMinutes=m0",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1537,8 +1526,8 @@
     {
       "axisId": "autoLockBridgeSeconds=s0",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1546,8 +1535,8 @@
     {
       "axisId": "noWitnessMinDayApps=n0",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1555,8 +1544,8 @@
     {
       "axisId": "notificationProxyRule=seencontact",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1564,8 +1553,8 @@
     {
       "axisId": "polledEmulationMethod=rosssampledgap",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1573,8 +1562,8 @@
     {
       "axisId": "polledEmulationIntervalSeconds=cadence5s",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1582,8 +1571,8 @@
     {
       "axisId": "polledEmulationGapSeconds=gap0s",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1591,8 +1580,8 @@
     {
       "axisId": "intervalExpansionMethod=behapp_start_anchored_half_open_1s_v1",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1600,8 +1589,8 @@
     {
       "axisId": "enableStudyWindowFilter=false",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1616,7 +1605,6 @@
       "maskedFamilies": [
         "app-csv#interaction_type",
         "app-csv#username",
-        "day-coverage-csv#status",
         "review-summary-json#/participants/*/perDay/*/*",
         "review-summary-json#/participants/*/totals/*",
         "visualization-data-json#/appRows/*/*"
@@ -1625,8 +1613,8 @@
     {
       "axisId": "enableComplianceScoring=false",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1634,8 +1622,8 @@
     {
       "axisId": "complianceThresholdPercent=p0",
       "predictedAffected": true,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1645,17 +1633,15 @@
       "predictedAffected": true,
       "changedCellAddresses": 606,
       "changedCellFamilies": 5,
-      "sameFamiliesAsBaseConfiguration": false,
+      "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
-      "maskedFamilies": [
-        "day-coverage-csv#status"
-      ]
+      "maskedFamilies": []
     },
     {
       "axisId": "enableParquetExport=true",
       "predictedAffected": false,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []
@@ -1663,8 +1649,8 @@
     {
       "axisId": "enableSpssExport=true",
       "predictedAffected": false,
-      "changedCellAddresses": 607,
-      "changedCellFamilies": 6,
+      "changedCellAddresses": 606,
+      "changedCellFamilies": 5,
       "sameFamiliesAsBaseConfiguration": true,
       "introducedFamilies": [],
       "maskedFamilies": []

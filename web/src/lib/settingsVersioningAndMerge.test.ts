@@ -77,6 +77,30 @@ describe("saved option sets (presets, projects, exported configs)", () => {
     expect(migrateSavedOptionSet(saved, {})).toMatchObject(saved);
   });
 
+  // User ruling 2026-10-09: when minimum usage became a cleaning step (default
+  // 60 → 0), saved presets, projects and configs holding 60 move to 0 too;
+  // anything saved by a v16+ build keeps the value it holds.
+  it("moves a saved 60 s minimum usage to 0 unless a v16+ build saved it", () => {
+    const sixty = { ...DEFAULT_BROWSER_OPTIONS, minimumUsageDuration: 60, proximityIntervalSeconds: 5 };
+    expect(DEFAULT_BROWSER_OPTIONS.minimumUsageDuration).toBe(0);
+    for (const saved of [
+      { schemaVersion: 15, savedAt: "2026-10-01T00:00:00.000Z" },
+      // An old build still open after the deploy saves v15 with a later time.
+      { schemaVersion: 15, savedAt: "2027-01-01T00:00:00.000Z" },
+      { schemaVersion: 15 },
+      { savedAt: "2026-09-01T00:00:00.000Z" },
+    ]) {
+      const migrated = migrateSavedOptionSet(sixty, saved);
+      expect(migrated.minimumUsageDuration, JSON.stringify(saved)).toBe(0);
+      expect(migrated.proximityIntervalSeconds).toBe(5);
+    }
+    expect(migrateSavedOptionSet(sixty, { schemaVersion: 16, savedAt: "2026-10-01T00:00:00.000Z" })
+      .minimumUsageDuration).toBe(60);
+    expect(migrateSavedOptionSet({ ...sixty, minimumUsageDuration: 45 }, { schemaVersion: 15 })
+      .minimumUsageDuration).toBe(45);
+    expect(migrateStoredOptions({ ...sixty }, 11).minimumUsageDuration).toBe(0);
+  });
+
   it("migrates each stored preset by its own version or save time and rewrites the library stamped", () => {
     const store = installStorage();
     store.set(PRESETS_STORAGE_KEY, JSON.stringify({

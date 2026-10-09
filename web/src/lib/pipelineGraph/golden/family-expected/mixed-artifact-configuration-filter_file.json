@@ -7,12 +7,12 @@
   },
   "implementationReceipt": {
     "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
-    "implementationDigest": "sha256:cfa7f11b87802213388917c8b24238f947604e152a447cc69cf977511fdd40ce",
-    "planDigest": "sha256:be0258af6aafbc9a1855ae4223adcc642a8d22b5fa8bb87eb09f6b62dc3abbd0",
-    "profileDigest": "sha256:37edc9f29d368950cd2a7893c164c223723741456d189d969a0f8b630f31dfbd",
-    "profileLockDigest": "sha256:a26272e97b5ff2e578d44665643e0da0007ff701fa647eac1fdd6ec7fd6197a6",
+    "implementationDigest": "sha256:4b5fb72ce4570db1a7f25da5ead25762cefc9462eb036ae61098da23d4779762",
+    "planDigest": "sha256:5c4f19924961f6d5054899ad84a969d79cec45bd344b72f8640cc10370e00c0a",
+    "profileDigest": "sha256:8db9c35e66b7d36f54f005a0ed9414dac1de25693509450106be4a39959db664",
+    "profileLockDigest": "sha256:de5a7d9a809bb049c4fa96a91d6e97bb9ec00b818fd071df2293ad1ae424ef11",
     "runtimeAuthorityDigest": "sha256:7807fe99a35b4ede2c85d8e8868ec3dcb2accb22e8265c4643966eb9840ce4e4",
-    "productContractDigest": "sha256:81e857feb3c24afaf0b3bbbef63081e884a498cfaa8398a76fabfe23c8c5c61b"
+    "productContractDigest": "sha256:5f8586482ba8944b2cee4813d63de0096c4e4b7139eadad0ef426116921ca14d"
   },
   "roleRepresentatives": {
     "filter_file": {
@@ -56,7 +56,7 @@
     "incrementalExecutions": 738,
     "totalRustExecutions": 986,
     "warmColdComparisons": 738,
-    "nonAdditiveOrMaskedPairs": 42
+    "nonAdditiveOrMaskedPairs": 56
   },
   "interactions": [
     {
@@ -148,9 +148,9 @@
       },
       "dataCellConditioning": {
         "introducedCount": 0,
-        "maskedCount": 26,
+        "maskedCount": 2441,
         "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "maskedDigest": "sha256:e2cbfbc1ced457bc1519f6a719cfbd3f4c15f4d8a4319f132b9538429f1cc282"
+        "maskedDigest": "sha256:582ebb0f6d633c8568db741cce6a1d0c50f35ddf31cde975e661c11fe93786b0"
       }
     },
     {
@@ -253,16 +253,16 @@
         ]
       },
       "configCellConditioning": {
-        "introducedCount": 1,
-        "maskedCount": 15,
-        "introducedDigest": "sha256:70d4526ed68c089173812f51461c5cf6d91e28c58f88d72519b74a95a556a877",
-        "maskedDigest": "sha256:1293c50ffa8a64937e1dab9a4f05d2402185d726258b739174a792fe8cd4506b"
+        "introducedCount": 534,
+        "maskedCount": 559,
+        "introducedDigest": "sha256:05af4ebbfd74281d7bc3dd0c07c1bcf920dcc1374dbfb3b552540b4a2525e0d5",
+        "maskedDigest": "sha256:0339abc99220644752c038b0a62105276feea1a8dbab92babfb04df6bfd05a8b"
       },
       "dataCellConditioning": {
-        "introducedCount": 1,
-        "maskedCount": 24,
-        "introducedDigest": "sha256:04cc0a889d89214f23fe44621ea25df7ff613507dcb53419a432c553b3991f2c",
-        "maskedDigest": "sha256:8469b5da91d9ab1fb097294da6df227851b5f17bfa114e499dcc1ebe537e180e"
+        "introducedCount": 0,
+        "maskedCount": 2438,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:c5e10f8edad64d970e616f2d5ace11b9dbf80afe8fa2f21b104a216269ff7296"
       }
     },
     {
@@ -365,16 +365,16 @@
         ]
       },
       "configCellConditioning": {
-        "introducedCount": 3,
-        "maskedCount": 17,
-        "introducedDigest": "sha256:34b7f7c09c526ff68d17de920d6e87eff4280dbe7692b3fcb2c260f22739c473",
-        "maskedDigest": "sha256:b2aeca11177226e6f2cc8540773bb37f73bcfcf4dccea11d1ef28da80e9e9ca8"
+        "introducedCount": 557,
+        "maskedCount": 616,
+        "introducedDigest": "sha256:5168d97da4b8ee37915cb4abb4e67eebf6998e7dc00d5b8b821f7efdfd1c4d68",
+        "maskedDigest": "sha256:34672d247ec10c7aeea392c4f06851f18a50c7818611b4e8222cfd29f28a83ad"
       },
       "dataCellConditioning": {
-        "introducedCount": 3,
-        "maskedCount": 26,
-        "introducedDigest": "sha256:0e17f417a5384facc466ef7d7fa2104bff9ae89d940984790a4db52d69167913",
-        "maskedDigest": "sha256:e2cbfbc1ced457bc1519f6a719cfbd3f4c15f4d8a4319f132b9538429f1cc282"
+        "introducedCount": 2,
+        "maskedCount": 2440,
+        "introducedDigest": "sha256:b9cee62924da2f5a73587328c1206d6a476f41748d5e9d946b33160de7d7dfb9",
+        "maskedDigest": "sha256:a9c634e554991b3dabc89c7adefd50bad53b31496c9f3a3bc007b1455477144e"
       }
     },
     {
@@ -477,16 +477,16 @@
         ]
       },
       "configCellConditioning": {
-        "introducedCount": 3,
-        "maskedCount": 17,
-        "introducedDigest": "sha256:34b7f7c09c526ff68d17de920d6e87eff4280dbe7692b3fcb2c260f22739c473",
-        "maskedDigest": "sha256:b2aeca11177226e6f2cc8540773bb37f73bcfcf4dccea11d1ef28da80e9e9ca8"
+        "introducedCount": 557,
+        "maskedCount": 616,
+        "introducedDigest": "sha256:5168d97da4b8ee37915cb4abb4e67eebf6998e7dc00d5b8b821f7efdfd1c4d68",
+        "maskedDigest": "sha256:34672d247ec10c7aeea392c4f06851f18a50c7818611b4e8222cfd29f28a83ad"
       },
       "dataCellConditioning": {
-        "introducedCount": 3,
-        "maskedCount": 26,
-        "introducedDigest": "sha256:0e17f417a5384facc466ef7d7fa2104bff9ae89d940984790a4db52d69167913",
-        "maskedDigest": "sha256:e2cbfbc1ced457bc1519f6a719cfbd3f4c15f4d8a4319f132b9538429f1cc282"
+        "introducedCount": 2,
+        "maskedCount": 2440,
+        "introducedDigest": "sha256:b9cee62924da2f5a73587328c1206d6a476f41748d5e9d946b33160de7d7dfb9",
+        "maskedDigest": "sha256:a9c634e554991b3dabc89c7adefd50bad53b31496c9f3a3bc007b1455477144e"
       }
     },
     {
@@ -589,16 +589,16 @@
         ]
       },
       "configCellConditioning": {
-        "introducedCount": 3,
-        "maskedCount": 14,
-        "introducedDigest": "sha256:34b7f7c09c526ff68d17de920d6e87eff4280dbe7692b3fcb2c260f22739c473",
-        "maskedDigest": "sha256:c728c2d3d596b8a70c19d2f2f34e12f39613bf5e515d3d6519ffac7d01eaa874"
+        "introducedCount": 537,
+        "maskedCount": 626,
+        "introducedDigest": "sha256:8baee1d54e65c0a225d668d155e24b730f8076796bbb5b4b0c7bc97170527207",
+        "maskedDigest": "sha256:5f4081220a1b77abeb920b550fc343e6e216fe320826d58e9996e318ba3b0fb4"
       },
       "dataCellConditioning": {
-        "introducedCount": 3,
-        "maskedCount": 26,
-        "introducedDigest": "sha256:8e927457afa827365f6bb623a68a636edb87cbc1bd2d36b1e3a277b276ab29a0",
-        "maskedDigest": "sha256:e2cbfbc1ced457bc1519f6a719cfbd3f4c15f4d8a4319f132b9538429f1cc282"
+        "introducedCount": 2,
+        "maskedCount": 2440,
+        "introducedDigest": "sha256:b9cee62924da2f5a73587328c1206d6a476f41748d5e9d946b33160de7d7dfb9",
+        "maskedDigest": "sha256:74095e2ad0dd0ebcd329a6f290b31bfe14bd57cba389497048376b128b680a5f"
       }
     },
     {
@@ -656,6 +656,7 @@
         "assign_usage_session_ids",
         "build_activity_witness_indexes",
         "build_participant_day_coverage",
+        "classify_compliance_days",
         "classify_episode_durations",
         "classify_person_attribution",
         "collapse_app_genre",
@@ -687,20 +688,22 @@
         "masked": []
       },
       "dataConditioning": {
-        "introduced": [],
+        "introduced": [
+          "score_compliance.payloadDigest"
+        ],
         "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 3,
-        "maskedCount": 14,
-        "introducedDigest": "sha256:1709673296a725ae57fbe3c00dd00f5bd8ea526339b9342d7c0a25158f7c76f3",
-        "maskedDigest": "sha256:ea9b808c3849463ec68eb65e670a7a25a34ca79d7c04610753a94d644bcd49e5"
+        "introducedCount": 619,
+        "maskedCount": 611,
+        "introducedDigest": "sha256:4e296ba604214a46816edbfc398af567ff8cb7c0a6148357516ec99d43dfeaa5",
+        "maskedDigest": "sha256:2f8f3332e9d3d74a46937ca75da8ed2173e16e065dfc170a2c6eac816c00071a"
       },
       "dataCellConditioning": {
-        "introducedCount": 10,
-        "maskedCount": 10,
-        "introducedDigest": "sha256:5dfa2367edcd1e2664a55789610fde4d6e81b74ff1bc0bcd7df9ef921a976418",
-        "maskedDigest": "sha256:f012267e7491f695a4a5f452538053e24f99a83b757223251f144979a757a39e"
+        "introducedCount": 818,
+        "maskedCount": 1705,
+        "introducedDigest": "sha256:9bb32f303a22e10982ee37d2b60ed2f44276bdcb8074a6d225d78220ef21b87a",
+        "maskedDigest": "sha256:f8a5d6e1ea328cf8968ed7412794dc6c1d50403933b073a49e1c79efb4eb114a"
       }
     },
     {
@@ -793,16 +796,16 @@
         "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 9,
-        "maskedCount": 5,
-        "introducedDigest": "sha256:642b5d5647b2250d883bfeaca13b5bee8c1c7599e7496a2650ca67a9c1eab62b",
-        "maskedDigest": "sha256:87305a21d8f3d7bc4fb9eb60a3c15a4a50e920284343d476bb7550d95d5616e8"
+        "introducedCount": 674,
+        "maskedCount": 661,
+        "introducedDigest": "sha256:f579fe9ee128adceecb79d7b89354020f6dcd8886a742932d63e6af08cefdd5a",
+        "maskedDigest": "sha256:2c9510d667b1d3b9b90dd0168f4d4bf98b81af94aca164a8546d6d4a6a0d2ef8"
       },
       "dataCellConditioning": {
-        "introducedCount": 10,
-        "maskedCount": 10,
-        "introducedDigest": "sha256:85034f9c9710e5b8d207d65336b70622d3011d47ece43c03b968e50fae6335dc",
-        "maskedDigest": "sha256:f012267e7491f695a4a5f452538053e24f99a83b757223251f144979a757a39e"
+        "introducedCount": 844,
+        "maskedCount": 1731,
+        "introducedDigest": "sha256:dff83a7efdcad2c79abb26818a1edd08fe3a8d83d3e3b9044a015a1768d07c5c",
+        "maskedDigest": "sha256:650a6f42e89fd425c99c0137977a7c2383d6ae03a3fd2e66a49f552165406f03"
       }
     },
     {
@@ -895,16 +898,16 @@
         "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 4,
-        "maskedCount": 10,
-        "introducedDigest": "sha256:920af9f177925b7887073860a02cb5626f1a84d59c9af1f0265f17c7e93084b2",
-        "maskedDigest": "sha256:34a344b6acd802137b4a9d1d306b41085afaacf9fe50adfb3d55b8f3cfd7257f"
+        "introducedCount": 614,
+        "maskedCount": 598,
+        "introducedDigest": "sha256:5a3576b82e94ff766d4d5b8bd1f1603646f2967120b554ef295641de36a66374",
+        "maskedDigest": "sha256:ac482d947c53d782efda8f6ba16e8b6b74f47e6b2e899f2707f1eb84bf6f47ee"
       },
       "dataCellConditioning": {
-        "introducedCount": 10,
-        "maskedCount": 10,
-        "introducedDigest": "sha256:d6ed3b7e32d12ded0f5581ea59321bb17b00ee648bd1914e0cfb03f22b19f371",
-        "maskedDigest": "sha256:f012267e7491f695a4a5f452538053e24f99a83b757223251f144979a757a39e"
+        "introducedCount": 779,
+        "maskedCount": 1723,
+        "introducedDigest": "sha256:63f3e79d7c7f9caf32946ed75933b619d10d3c05795715acad0b9e12912e1374",
+        "maskedDigest": "sha256:273931bec75c01143b4a58dbcf89ff059ec8d434b07b90942ac12e7d0d83320d"
       }
     },
     {
@@ -939,6 +942,108 @@
         "join_app_codebook",
         "match_app_episodes",
         "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_activity_witness_indexes",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "index_raw_dates",
+        "join_app_codebook",
+        "mark_app_policy_matches",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_excluded_packages",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [
+          "score_compliance.payloadDigest"
+        ],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 396,
+        "maskedCount": 377,
+        "introducedDigest": "sha256:8d300582a01dd34dbc00da2ad26c4965a8e1aea78657f75d7109676e459b2179",
+        "maskedDigest": "sha256:bfdb8860367234ab92b0719fa85596d0f14b9002515c16cb969500f55178e771"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 700,
+        "maskedCount": 1755,
+        "introducedDigest": "sha256:96651596e3bfdc6a53ab5298c25220a5251c240c0781be021f90d50550950881",
+        "maskedDigest": "sha256:e879f23fa8076e0e353559796520a442336ed36c8d274faacd4af800ac7db4dc"
+      }
+    },
+    {
+      "caseId": "filter_file:support:filter-activate-used-package×microUseClassificationPolicy=okoshilt5s",
+      "roleId": "filter_file",
+      "interventionId": "support:filter-activate-used-package",
+      "optionKey": "microUseClassificationPolicy",
+      "alternate": {
+        "label": "okoshilt5s",
+        "value": "okoshi_lt_5s"
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_participant_day_coverage",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "join_app_codebook",
         "materialize_credited_rows",
         "order_app_episodes",
         "remove_selected_interaction_types",
@@ -997,16 +1102,16 @@
         "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 5,
-        "maskedCount": 14,
-        "introducedDigest": "sha256:96bd6b01a067efdff8f00a2b3fed715d3e50806cb61f30f1861772baab615b85",
-        "maskedDigest": "sha256:5fd78d9caca5267dff51e8400333c649db76ae6c385a4dc1165366ee44777df8"
+        "introducedCount": 0,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
       "dataCellConditioning": {
-        "introducedCount": 21,
-        "maskedCount": 24,
-        "introducedDigest": "sha256:e29eadc2f5cf738caf1193addec0fb450ca8e5c15e5061ec242cce393ef3b812",
-        "maskedDigest": "sha256:a917c7effde62fd97a1c2127c09e3dba01a238f0b9d092766cefafc7ac263e88"
+        "introducedCount": 11,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:a40583dd6b7e0e923f174c7726a4ca0a754180b90b291d0f28bf95ffc3307fdc",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       }
     },
     {
@@ -1099,16 +1204,16 @@
         "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 1,
-        "maskedCount": 15,
-        "introducedDigest": "sha256:70d4526ed68c089173812f51461c5cf6d91e28c58f88d72519b74a95a556a877",
-        "maskedDigest": "sha256:1293c50ffa8a64937e1dab9a4f05d2402185d726258b739174a792fe8cd4506b"
+        "introducedCount": 534,
+        "maskedCount": 630,
+        "introducedDigest": "sha256:db635c0adc6a9959ef39d46e9c0d70e2a1396dffeb83b20a66df2c64b592c93c",
+        "maskedDigest": "sha256:7631def34b2de8a48b178a14932fbd28de47339ca08982a0ba031fa36dc5bb07"
       },
       "dataCellConditioning": {
-        "introducedCount": 2,
-        "maskedCount": 22,
-        "introducedDigest": "sha256:c19f2eb001fd918486b5f94f9a2d036c9f95eb71a291f24cc24a60df451aea82",
-        "maskedDigest": "sha256:1a978af87605c45cbf0f5333e22b4e68450e221797c60ee43d0503bf13f9d4ef"
+        "introducedCount": 1,
+        "maskedCount": 2436,
+        "introducedDigest": "sha256:ccd215cbf9893f6fcef7e723c37973f77f8ae8b909f5f15f715ced3158d1bd97",
+        "maskedDigest": "sha256:6b8850efd2d2850948dd80911f13e0ccf7007ef01ebec65eb6303baf97a7c5b8"
       }
     },
     {
@@ -1201,16 +1306,907 @@
         "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 3,
-        "maskedCount": 9,
-        "introducedDigest": "sha256:200386969cbcdbbce0276c3a3c465d63bf03b4902d3e86bd2760cae8db005068",
-        "maskedDigest": "sha256:0c07ff36853f52b1719a9e4dc7554713d285f235ae2d308e3345dcd64063192f"
+        "introducedCount": 579,
+        "maskedCount": 573,
+        "introducedDigest": "sha256:93da0e3fdbcbc18529ae7e23c2aab272d75d6b7e360d8be641e80e4cae1a70ad",
+        "maskedDigest": "sha256:e4f6433bf62c5e84752de5672d8903c20ad65945a55017204cdced04f35cb911"
       },
       "dataCellConditioning": {
-        "introducedCount": 10,
-        "maskedCount": 10,
-        "introducedDigest": "sha256:ad83c3a2ef66cde3d193bce6233e81db93e32cea90867f6382f92090dd2201c0",
-        "maskedDigest": "sha256:f012267e7491f695a4a5f452538053e24f99a83b757223251f144979a757a39e"
+        "introducedCount": 750,
+        "maskedCount": 1732,
+        "introducedDigest": "sha256:fbd1fcdb6bc28a607a7dd4c4eecb86e7a7681f635d9ff8d6f1e93f4d60c208cb",
+        "maskedDigest": "sha256:f8fa832d3e5f0bd0fb0ecd7009d0289a8b073019670844fbfa625dd4e856f024"
+      }
+    },
+    {
+      "caseId": "filter_file:support:filter-activate-used-package×maximumDurationPolicy=postreconstrictmax",
+      "roleId": "filter_file",
+      "interventionId": "support:filter-activate-used-package",
+      "optionKey": "maximumDurationPolicy",
+      "alternate": {
+        "label": "postreconstrictmax",
+        "value": "post_reconstruction_strict_max_v1"
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_participant_day_coverage",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "join_app_codebook",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_activity_witness_indexes",
+        "build_participant_day_coverage",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "index_raw_dates",
+        "join_app_codebook",
+        "mark_app_policy_matches",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_excluded_packages",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 62,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:3b4e4a979c6a407ea10e2a9fab458bb7a02f8e3ec70fec46da07880337525c66",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "caseId": "filter_file:support:filter-activate-used-package×maximumDurationDisposition=flagretain",
+      "roleId": "filter_file",
+      "interventionId": "support:filter-activate-used-package",
+      "optionKey": "maximumDurationDisposition",
+      "alternate": {
+        "label": "flagretain",
+        "value": "flag_and_retain"
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_participant_day_coverage",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "join_app_codebook",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_activity_witness_indexes",
+        "build_participant_day_coverage",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "index_raw_dates",
+        "join_app_codebook",
+        "mark_app_policy_matches",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_excluded_packages",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 62,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:3b4e4a979c6a407ea10e2a9fab458bb7a02f8e3ec70fec46da07880337525c66",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "caseId": "filter_file:support:filter-activate-used-package×maximumDurationDisposition=retainexclude",
+      "roleId": "filter_file",
+      "interventionId": "support:filter-activate-used-package",
+      "optionKey": "maximumDurationDisposition",
+      "alternate": {
+        "label": "retainexclude",
+        "value": "retain_but_exclude"
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_participant_day_coverage",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "join_app_codebook",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_activity_witness_indexes",
+        "build_participant_day_coverage",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "index_raw_dates",
+        "join_app_codebook",
+        "mark_app_policy_matches",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_excluded_packages",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 62,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:3b4e4a979c6a407ea10e2a9fab458bb7a02f8e3ec70fec46da07880337525c66",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "caseId": "filter_file:support:filter-activate-used-package×maximumDurationDisposition=truncate",
+      "roleId": "filter_file",
+      "interventionId": "support:filter-activate-used-package",
+      "optionKey": "maximumDurationDisposition",
+      "alternate": {
+        "label": "truncate",
+        "value": "truncate_to_threshold"
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_participant_day_coverage",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "join_app_codebook",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_activity_witness_indexes",
+        "build_participant_day_coverage",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "index_raw_dates",
+        "join_app_codebook",
+        "mark_app_policy_matches",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_excluded_packages",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 62,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:3b4e4a979c6a407ea10e2a9fab458bb7a02f8e3ec70fec46da07880337525c66",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "caseId": "filter_file:support:filter-activate-used-package×maximumDurationDisposition=droprow",
+      "roleId": "filter_file",
+      "interventionId": "support:filter-activate-used-package",
+      "optionKey": "maximumDurationDisposition",
+      "alternate": {
+        "label": "droprow",
+        "value": "drop_row"
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_participant_day_coverage",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "join_app_codebook",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_activity_witness_indexes",
+        "build_participant_day_coverage",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "index_raw_dates",
+        "join_app_codebook",
+        "mark_app_policy_matches",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_excluded_packages",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 62,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:3b4e4a979c6a407ea10e2a9fab458bb7a02f8e3ec70fec46da07880337525c66",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "caseId": "filter_file:support:filter-activate-used-package×maximumDurationThresholdSource=fixedparameter",
+      "roleId": "filter_file",
+      "interventionId": "support:filter-activate-used-package",
+      "optionKey": "maximumDurationThresholdSource",
+      "alternate": {
+        "label": "fixedparameter",
+        "value": "fixed_parameter"
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_participant_day_coverage",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "join_app_codebook",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_activity_witness_indexes",
+        "build_participant_day_coverage",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "index_raw_dates",
+        "join_app_codebook",
+        "mark_app_policy_matches",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_excluded_packages",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 62,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:3b4e4a979c6a407ea10e2a9fab458bb7a02f8e3ec70fec46da07880337525c66",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "caseId": "filter_file:support:filter-activate-used-package×maximumDurationThresholdNs=ns1",
+      "roleId": "filter_file",
+      "interventionId": "support:filter-activate-used-package",
+      "optionKey": "maximumDurationThresholdNs",
+      "alternate": {
+        "label": "ns1",
+        "value": "1"
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_participant_day_coverage",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "join_app_codebook",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_activity_witness_indexes",
+        "build_participant_day_coverage",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "index_raw_dates",
+        "join_app_codebook",
+        "mark_app_policy_matches",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_excluded_packages",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 62,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:3b4e4a979c6a407ea10e2a9fab458bb7a02f8e3ec70fec46da07880337525c66",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "caseId": "filter_file:support:filter-activate-used-package×maximumDurationThresholdNs=ns1h",
+      "roleId": "filter_file",
+      "interventionId": "support:filter-activate-used-package",
+      "optionKey": "maximumDurationThresholdNs",
+      "alternate": {
+        "label": "ns1h",
+        "value": "3600000000000"
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_participant_day_coverage",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "join_app_codebook",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_activity_witness_indexes",
+        "build_participant_day_coverage",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "index_raw_dates",
+        "join_app_codebook",
+        "mark_app_policy_matches",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_excluded_packages",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 68,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:da6a1680dc719e27f170c26410356c6f04f052e53499caba2e809916e69f8f9a",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "caseId": "filter_file:support:filter-activate-used-package×maximumDurationThresholdNs=ns12h",
+      "roleId": "filter_file",
+      "interventionId": "support:filter-activate-used-package",
+      "optionKey": "maximumDurationThresholdNs",
+      "alternate": {
+        "label": "ns12h",
+        "value": "43200000000000"
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_participant_day_coverage",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "join_app_codebook",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_activity_witness_indexes",
+        "build_participant_day_coverage",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "index_raw_dates",
+        "join_app_codebook",
+        "mark_app_policy_matches",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_excluded_packages",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 62,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:3b4e4a979c6a407ea10e2a9fab458bb7a02f8e3ec70fec46da07880337525c66",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       }
     },
     {
@@ -1234,7 +2230,6 @@
         "build_activity_witness_indexes",
         "build_app_event_index",
         "build_participant_day_coverage",
-        "classify_compliance_days",
         "classify_episode_durations",
         "classify_person_attribution",
         "classify_screen_sessions",
@@ -1315,16 +2310,16 @@
         "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 5,
-        "maskedCount": 18,
-        "introducedDigest": "sha256:30151dcbd946477b1bd8e1f4f235b91da6d2047ba9aa2c2997c76a81ece6b7b2",
-        "maskedDigest": "sha256:86e5de75ffe4adb5ec86f150bc557f02e3191aa9b8dd8e4f87d4af798ac132f3"
+        "introducedCount": 552,
+        "maskedCount": 715,
+        "introducedDigest": "sha256:079aad17bffc2bdaadcd056b64bda03d7e167dfe889b16fdb3215accabab48bb",
+        "maskedDigest": "sha256:a5efdc28a8506b27f3876f5c9495c5cd404a3072b7990722367b43fa1313e5d6"
       },
       "dataCellConditioning": {
         "introducedCount": 7,
-        "maskedCount": 24,
-        "introducedDigest": "sha256:514527cf74063ae2c071bca776400a3370fd88dd751f1d729047b86ca59df725",
-        "maskedDigest": "sha256:116d34446796bd75af8f7739566d41c02afd5b00dda2fc14467d9a6b6a060dab"
+        "maskedCount": 2439,
+        "introducedDigest": "sha256:4b5246fcbba458ff7e9ca1d37b710698c67cbe2b9ca247cd85e369ea5128b881",
+        "maskedDigest": "sha256:2a82732738032404e74223d4bb0a2cb69b06856814f04140707ab793931ee2a7"
       }
     },
     {
@@ -1435,16 +2430,16 @@
         "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 2,
-        "maskedCount": 20,
-        "introducedDigest": "sha256:bd5a9125f54b1ef6979ff7d26042393315172e09c247ffc0a0a66644c521d0a9",
-        "maskedDigest": "sha256:7a59d0b44a1111edcab949b464af97d02d47e434705db6f4286ba251450ca328"
+        "introducedCount": 6,
+        "maskedCount": 32,
+        "introducedDigest": "sha256:5e89b50b2841e803642925e38cdb2084145cf6366cacd1a698dbe2d5c2747150",
+        "maskedDigest": "sha256:893f49c0eb76f2bf26d63c8f3b73706a49d687d48de799ac5dfda93abc96ac63"
       },
       "dataCellConditioning": {
-        "introducedCount": 13,
-        "maskedCount": 13,
-        "introducedDigest": "sha256:d60306dc17f6600c2ffc03a3fd698f9f739d5d0fbbc49d22648955cef03c68ec",
-        "maskedDigest": "sha256:423b4ff10d041ebc430ae08295ad1575b423723e6b30cf87f4cdc1e109bc6d90"
+        "introducedCount": 15,
+        "maskedCount": 27,
+        "introducedDigest": "sha256:3ef809c1f451284a12a4c76902c8423d5cf2a5ccbbbcfe7867e827a03be5ef2b",
+        "maskedDigest": "sha256:3103e33e08aa519a9684aeb71699a237e2690f81dd658ed728e5e63560f518c7"
       }
     },
     {
@@ -1554,16 +2549,16 @@
         "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 4,
-        "maskedCount": 14,
-        "introducedDigest": "sha256:c7ce485e8927daacfa396a456f9a9bc4217aad83c2a5b8b9e636af975680f6f6",
-        "maskedDigest": "sha256:a2e47dd2ef6fb8e3174112b256ffdd2332b1169f8f2057e8406808f5783910b6"
+        "introducedCount": 549,
+        "maskedCount": 549,
+        "introducedDigest": "sha256:6044438ce26b1cd1d5c0a1dd8d88a573b73db61ae2cd74982a4a105c69225a17",
+        "maskedDigest": "sha256:2ac4758665d3bbe928ca32b8f491de0f4b9cde062ba10508861b7620561c7a47"
       },
       "dataCellConditioning": {
-        "introducedCount": 11,
-        "maskedCount": 13,
-        "introducedDigest": "sha256:69d1c30525512082150bb64183110da3e30a4012ac9ab5e056189405ee288db5",
-        "maskedDigest": "sha256:065f754ead7a6572eca7229a35813331dbe916ce554c09407452cc4dff813c2d"
+        "introducedCount": 532,
+        "maskedCount": 1783,
+        "introducedDigest": "sha256:97ef3ebc5c7465fad3d15c74ddd120244b51ea18851a4ec539925791fe7a888d",
+        "maskedDigest": "sha256:dd282d7c18ac338f56141178abd5ce23d130ded7409b6f0c851d30c8003ff1dd"
       }
     },
     {
@@ -1673,16 +2668,16 @@
         "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 4,
-        "maskedCount": 14,
-        "introducedDigest": "sha256:c7ce485e8927daacfa396a456f9a9bc4217aad83c2a5b8b9e636af975680f6f6",
-        "maskedDigest": "sha256:a2e47dd2ef6fb8e3174112b256ffdd2332b1169f8f2057e8406808f5783910b6"
+        "introducedCount": 549,
+        "maskedCount": 549,
+        "introducedDigest": "sha256:6044438ce26b1cd1d5c0a1dd8d88a573b73db61ae2cd74982a4a105c69225a17",
+        "maskedDigest": "sha256:2ac4758665d3bbe928ca32b8f491de0f4b9cde062ba10508861b7620561c7a47"
       },
       "dataCellConditioning": {
-        "introducedCount": 11,
-        "maskedCount": 13,
-        "introducedDigest": "sha256:69d1c30525512082150bb64183110da3e30a4012ac9ab5e056189405ee288db5",
-        "maskedDigest": "sha256:065f754ead7a6572eca7229a35813331dbe916ce554c09407452cc4dff813c2d"
+        "introducedCount": 532,
+        "maskedCount": 1783,
+        "introducedDigest": "sha256:97ef3ebc5c7465fad3d15c74ddd120244b51ea18851a4ec539925791fe7a888d",
+        "maskedDigest": "sha256:dd282d7c18ac338f56141178abd5ce23d130ded7409b6f0c851d30c8003ff1dd"
       }
     },
     {
@@ -1761,16 +2756,16 @@
         ]
       },
       "configCellConditioning": {
-        "introducedCount": 18,
-        "maskedCount": 3,
-        "introducedDigest": "sha256:2d8a973051a9433a9dac90920592c80cf2f9a62b8d4d1196a3ea85c177aca60e",
-        "maskedDigest": "sha256:69b0a2124a4dc0e4961e035d8b91e43a94c9606046f7d71149cf04e24056e027"
+        "introducedCount": 618,
+        "maskedCount": 354,
+        "introducedDigest": "sha256:dfac2f49fc944b18c555972325191e01c8ab1d2ba77d6a28a47e3fd7e79c351e",
+        "maskedDigest": "sha256:e3441eb157efda66dfbe59d4f57c368b63a292b6cc8090de7b90281f8302361e"
       },
       "dataCellConditioning": {
         "introducedCount": 0,
-        "maskedCount": 26,
+        "maskedCount": 2441,
         "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "maskedDigest": "sha256:e2cbfbc1ced457bc1519f6a719cfbd3f4c15f4d8a4319f132b9538429f1cc282"
+        "maskedDigest": "sha256:582ebb0f6d633c8568db741cce6a1d0c50f35ddf31cde975e661c11fe93786b0"
       }
     },
     {
@@ -1849,16 +2844,16 @@
         ]
       },
       "configCellConditioning": {
-        "introducedCount": 18,
-        "maskedCount": 3,
-        "introducedDigest": "sha256:2d8a973051a9433a9dac90920592c80cf2f9a62b8d4d1196a3ea85c177aca60e",
-        "maskedDigest": "sha256:69b0a2124a4dc0e4961e035d8b91e43a94c9606046f7d71149cf04e24056e027"
+        "introducedCount": 618,
+        "maskedCount": 354,
+        "introducedDigest": "sha256:dfac2f49fc944b18c555972325191e01c8ab1d2ba77d6a28a47e3fd7e79c351e",
+        "maskedDigest": "sha256:e3441eb157efda66dfbe59d4f57c368b63a292b6cc8090de7b90281f8302361e"
       },
       "dataCellConditioning": {
         "introducedCount": 0,
-        "maskedCount": 26,
+        "maskedCount": 2441,
         "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "maskedDigest": "sha256:e2cbfbc1ced457bc1519f6a719cfbd3f4c15f4d8a4319f132b9538429f1cc282"
+        "maskedDigest": "sha256:582ebb0f6d633c8568db741cce6a1d0c50f35ddf31cde975e661c11fe93786b0"
       }
     },
     {
@@ -1951,16 +2946,16 @@
         "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 10,
-        "maskedCount": 3,
-        "introducedDigest": "sha256:d118a0ca22cdcdb4bd4b48e0a864e519efdd146cc26d04766edf0ff7c266c01f",
-        "maskedDigest": "sha256:1120fe413a2e98e4b509f9893d2ec314d8d9ae00b801e1ded431b5477f950a9f"
+        "introducedCount": 743,
+        "maskedCount": 759,
+        "introducedDigest": "sha256:3d2d7efe341c05e7ecac7d957c7ab24847d8383365de935ad6b1156ac078439d",
+        "maskedDigest": "sha256:13992c212e7d6cc884a23c2093f526c632e63eea5c78d917a42817098cb380b6"
       },
       "dataCellConditioning": {
-        "introducedCount": 10,
-        "maskedCount": 10,
-        "introducedDigest": "sha256:c9dab782964c92a34f74c67d333d53862a25f3f6b4b145d0f4dae69e5fefa417",
-        "maskedDigest": "sha256:f012267e7491f695a4a5f452538053e24f99a83b757223251f144979a757a39e"
+        "introducedCount": 851,
+        "maskedCount": 1323,
+        "introducedDigest": "sha256:722f0c66921e5e6ff6a56c1236b7406a98cc884f1912b0b18eb1817e4af3822c",
+        "maskedDigest": "sha256:19ae237d05a35ca38ef40c6293209d5e2621a8857eca9d04c848ff400710f978"
       }
     },
     {
@@ -2039,16 +3034,16 @@
         ]
       },
       "configCellConditioning": {
-        "introducedCount": 16,
-        "maskedCount": 3,
-        "introducedDigest": "sha256:f425b6d42c70db17cb612963499007c8e7b0e1cb7c76c427c145b1070e82430d",
-        "maskedDigest": "sha256:9ab3b052e4abcc5464092947753f65610a90dfc8c18a7eeb7aa00469f1623c30"
+        "introducedCount": 570,
+        "maskedCount": 389,
+        "introducedDigest": "sha256:2aa06851417933276894e8356580025122b79db13b4b51e7f70fac2c0be2bd62",
+        "maskedDigest": "sha256:5c95402c891d2773b30a5571eb7e4cb3098cc3eb0622cb4b81ed240b0954f256"
       },
       "dataCellConditioning": {
         "introducedCount": 0,
-        "maskedCount": 26,
+        "maskedCount": 2441,
         "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "maskedDigest": "sha256:e2cbfbc1ced457bc1519f6a719cfbd3f4c15f4d8a4319f132b9538429f1cc282"
+        "maskedDigest": "sha256:582ebb0f6d633c8568db741cce6a1d0c50f35ddf31cde975e661c11fe93786b0"
       }
     },
     {
@@ -2142,16 +3137,253 @@
         "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 4,
-        "maskedCount": 10,
-        "introducedDigest": "sha256:920af9f177925b7887073860a02cb5626f1a84d59c9af1f0265f17c7e93084b2",
-        "maskedDigest": "sha256:34a344b6acd802137b4a9d1d306b41085afaacf9fe50adfb3d55b8f3cfd7257f"
+        "introducedCount": 616,
+        "maskedCount": 610,
+        "introducedDigest": "sha256:78bf7f96197d88840726a86a92fec5963316e6a7e38d929e5e3cc1980ff94aa0",
+        "maskedDigest": "sha256:66a8eae67d3ed0594be472d3695872e3cf49747eb8dc78d8c8b0009908c5ff01"
       },
       "dataCellConditioning": {
-        "introducedCount": 10,
-        "maskedCount": 10,
-        "introducedDigest": "sha256:d6ed3b7e32d12ded0f5581ea59321bb17b00ee648bd1914e0cfb03f22b19f371",
-        "maskedDigest": "sha256:f012267e7491f695a4a5f452538053e24f99a83b757223251f144979a757a39e"
+        "introducedCount": 802,
+        "maskedCount": 1721,
+        "introducedDigest": "sha256:f408a84df6acc39add15bcbc02891ca75ae70cf8086d48937e8a1c6dbcd1369e",
+        "maskedDigest": "sha256:dc61fb17640027cd02c0e16a57a78c7dee90512ea4b0ce675d356903a6de2bd1"
+      }
+    },
+    {
+      "caseId": "filter_file:support:filter-activate-used-package×useAppCodebook=false",
+      "roleId": "filter_file",
+      "interventionId": "support:filter-activate-used-package",
+      "optionKey": "useAppCodebook",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_participant_day_coverage",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "join_app_codebook",
+        "materialize_credited_rows",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_activity_witness_indexes",
+        "build_participant_day_coverage",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "index_raw_dates",
+        "join_app_codebook",
+        "mark_app_policy_matches",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_excluded_packages",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 799,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:e7f65b01908226e68140950645aa01c86547e6b092ed0f19d7bd758ab15568ae"
+      }
+    },
+    {
+      "caseId": "filter_file:support:filter-activate-used-package×includeCategoryColumn=false",
+      "roleId": "filter_file",
+      "interventionId": "support:filter-activate-used-package",
+      "optionKey": "includeCategoryColumn",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataActualSteps": [
+        "assemble_result_manifest"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_activity_witness_indexes",
+        "build_participant_day_coverage",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "index_raw_dates",
+        "join_app_codebook",
+        "mark_app_policy_matches",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_excluded_packages",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 47,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:c3b6b1cce75de5a994a4737aba641a4cc9611b64c859e6efbe4f063ffc72543d"
+      }
+    },
+    {
+      "caseId": "filter_file:support:filter-activate-used-package×includeAppUsageEndReason=false",
+      "roleId": "filter_file",
+      "interventionId": "support:filter-activate-used-package",
+      "optionKey": "includeAppUsageEndReason",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataActualSteps": [
+        "assemble_result_manifest"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_activity_witness_indexes",
+        "build_participant_day_coverage",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "index_raw_dates",
+        "join_app_codebook",
+        "mark_app_policy_matches",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_excluded_packages",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 33,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:b6f769fcabd3cfe2379c65b77f13e2a7bfcab700e49ee07013ca84dfe40bc6eb"
       }
     },
     {
@@ -2221,18 +3453,18 @@
       "dataCellConditioning": {
         "introducedCount": 23,
         "maskedCount": 0,
-        "introducedDigest": "sha256:d349d5daf280923ea7471e343eff46c4569437793151d9e3e2bdfc6f76a56c05",
+        "introducedDigest": "sha256:80625225eb9fdd2420c9a6a677f97daea5abfbf764a55e248dcd6abfc82ea728",
         "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       }
     },
     {
-      "caseId": "filter_file:support:filter-activate-used-package×minimumUsageDuration=s0",
+      "caseId": "filter_file:support:filter-activate-used-package×minimumUsageDuration=s60",
       "roleId": "filter_file",
       "interventionId": "support:filter-activate-used-package",
       "optionKey": "minimumUsageDuration",
       "alternate": {
-        "label": "s0",
-        "value": 0
+        "label": "s60",
+        "value": 60
       },
       "configAfterDataActualSteps": [
         "aggregate_attribution_minutes",
@@ -2319,10 +3551,10 @@
         "maskedDigest": "sha256:1f565b487a49708d8a10afb5a787f7e10bed42426d99b3eaf992ea8082769df7"
       },
       "dataCellConditioning": {
-        "introducedCount": 2421,
-        "maskedCount": 6,
-        "introducedDigest": "sha256:dad7f1115dd3b7df4f1a33c23a00c4cbe2a7ecfadfe268d8de84e127a4d0e1ed",
-        "maskedDigest": "sha256:7f8fd09ba1e67c975a359cc8d165fac17af37d868c23230351466c814fc430f3"
+        "introducedCount": 6,
+        "maskedCount": 2421,
+        "introducedDigest": "sha256:7f8fd09ba1e67c975a359cc8d165fac17af37d868c23230351466c814fc430f3",
+        "maskedDigest": "sha256:dad7f1115dd3b7df4f1a33c23a00c4cbe2a7ecfadfe268d8de84e127a4d0e1ed"
       }
     },
     {
@@ -2335,135 +3567,8 @@
         "value": "inclusive_le"
       },
       "configAfterDataActualSteps": [
-        "aggregate_attribution_minutes",
-        "apply_app_inclusion_policy",
-        "apply_episode_flags",
-        "apply_participant_windows",
-        "assemble_credit_outputs",
         "assemble_result_manifest",
-        "assess_screen_evidence_capability",
-        "assign_usage_session_ids",
-        "build_participant_day_coverage",
-        "classify_compliance_days",
-        "classify_episode_durations",
-        "classify_person_attribution",
-        "collapse_app_genre",
-        "compute_attribution_completeness",
-        "derive_broad_category",
-        "derive_credited_intervals",
-        "derive_engagement_basis",
-        "divide_sessions_at_day_boundary",
-        "identify_credit_eligible_sessions",
-        "join_app_codebook",
-        "materialize_credited_rows",
-        "order_app_episodes",
-        "remove_selected_interaction_types",
-        "remove_zero_duration_rows",
-        "resolve_participant_windows",
-        "resolve_sharing_status",
-        "segment_concurrent_usage",
-        "summarize_daily_apps",
-        "suppress_excluded_timing",
-        "synthesize_placeholder_rows"
-      ],
-      "configAfterDataDeactivatedSteps": [],
-      "dataAfterConfigActualSteps": [
-        "aggregate_attribution_minutes",
-        "apply_app_inclusion_policy",
-        "apply_episode_flags",
-        "apply_participant_windows",
-        "assemble_credit_outputs",
-        "assemble_result_manifest",
-        "assess_screen_evidence_capability",
-        "assign_usage_session_ids",
-        "build_activity_witness_indexes",
-        "build_participant_day_coverage",
-        "classify_episode_durations",
-        "classify_person_attribution",
-        "collapse_app_genre",
-        "compute_attribution_completeness",
-        "derive_broad_category",
-        "derive_credited_intervals",
-        "derive_engagement_basis",
-        "divide_sessions_at_day_boundary",
-        "identify_credit_eligible_sessions",
-        "index_raw_dates",
-        "join_app_codebook",
-        "mark_app_policy_matches",
-        "materialize_candidate_episodes",
-        "materialize_credited_rows",
-        "order_app_episodes",
-        "remove_selected_interaction_types",
-        "remove_zero_duration_rows",
-        "resolve_excluded_packages",
-        "resolve_participant_windows",
-        "resolve_sharing_status",
-        "segment_concurrent_usage",
-        "summarize_daily_apps",
-        "suppress_excluded_timing",
-        "synthesize_placeholder_rows"
-      ],
-      "dataAfterConfigDeactivatedSteps": [],
-      "configConditioning": {
-        "introduced": [],
-        "masked": []
-      },
-      "dataConditioning": {
-        "introduced": [],
-        "masked": []
-      },
-      "configCellConditioning": {
-        "introducedCount": 7,
-        "maskedCount": 7,
-        "introducedDigest": "sha256:036894474413198b2bfbba9ed6799ac8648ba2f4ce65bab161d1d83b259400cd",
-        "maskedDigest": "sha256:50bd1da1e5f2f194089129692a3efff482462b1e223fa7e4a228cf9fddb48baa"
-      },
-      "dataCellConditioning": {
-        "introducedCount": 10,
-        "maskedCount": 10,
-        "introducedDigest": "sha256:fd933f51aabc4cbd93894caac911cde4d5cdf2e444e20acda13f05076db2837b",
-        "maskedDigest": "sha256:f012267e7491f695a4a5f452538053e24f99a83b757223251f144979a757a39e"
-      }
-    },
-    {
-      "caseId": "filter_file:support:filter-activate-used-package×minimumDurationDisposition=retainexclude",
-      "roleId": "filter_file",
-      "interventionId": "support:filter-activate-used-package",
-      "optionKey": "minimumDurationDisposition",
-      "alternate": {
-        "label": "retainexclude",
-        "value": "retain_but_exclude"
-      },
-      "configAfterDataActualSteps": [
-        "aggregate_attribution_minutes",
-        "apply_app_inclusion_policy",
-        "apply_episode_flags",
-        "apply_participant_windows",
-        "assemble_credit_outputs",
-        "assemble_result_manifest",
-        "assess_screen_evidence_capability",
-        "assign_usage_session_ids",
-        "build_participant_day_coverage",
-        "classify_episode_durations",
-        "classify_person_attribution",
-        "collapse_app_genre",
-        "compute_attribution_completeness",
-        "derive_broad_category",
-        "derive_credited_intervals",
-        "derive_engagement_basis",
-        "divide_sessions_at_day_boundary",
-        "identify_credit_eligible_sessions",
-        "join_app_codebook",
-        "materialize_credited_rows",
-        "order_app_episodes",
-        "remove_selected_interaction_types",
-        "remove_zero_duration_rows",
-        "resolve_participant_windows",
-        "resolve_sharing_status",
-        "segment_concurrent_usage",
-        "summarize_daily_apps",
-        "suppress_excluded_timing",
-        "synthesize_placeholder_rows"
+        "classify_episode_durations"
       ],
       "configAfterDataDeactivatedSteps": [],
       "dataAfterConfigActualSteps": [
@@ -2518,52 +3623,24 @@
         "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
       "dataCellConditioning": {
-        "introducedCount": 0,
-        "maskedCount": 2,
-        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "maskedDigest": "sha256:71c80dd2c04730e2d1568cf4f34873d6749f49375a02de1e51d784dd428c7b8f"
+        "introducedCount": 62,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:503951b220dc1307c9905cee69f80fe147ac39ca7de89dd8238fe0fc63016d14",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       }
     },
     {
-      "caseId": "filter_file:support:filter-activate-used-package×minimumDurationDisposition=droprow",
+      "caseId": "filter_file:support:filter-activate-used-package×minimumDurationDisposition=retaincredit",
       "roleId": "filter_file",
       "interventionId": "support:filter-activate-used-package",
       "optionKey": "minimumDurationDisposition",
       "alternate": {
-        "label": "droprow",
-        "value": "drop_row"
+        "label": "retaincredit",
+        "value": "retain_and_credit"
       },
       "configAfterDataActualSteps": [
-        "aggregate_attribution_minutes",
-        "apply_app_inclusion_policy",
-        "apply_episode_flags",
-        "apply_participant_windows",
-        "assemble_credit_outputs",
         "assemble_result_manifest",
-        "assess_screen_evidence_capability",
-        "assign_usage_session_ids",
-        "build_participant_day_coverage",
-        "classify_compliance_days",
-        "classify_episode_durations",
-        "classify_person_attribution",
-        "collapse_app_genre",
-        "compute_attribution_completeness",
-        "derive_broad_category",
-        "derive_credited_intervals",
-        "derive_engagement_basis",
-        "divide_sessions_at_day_boundary",
-        "identify_credit_eligible_sessions",
-        "join_app_codebook",
-        "materialize_credited_rows",
-        "order_app_episodes",
-        "remove_selected_interaction_types",
-        "remove_zero_duration_rows",
-        "resolve_participant_windows",
-        "resolve_sharing_status",
-        "segment_concurrent_usage",
-        "summarize_daily_apps",
-        "suppress_excluded_timing",
-        "synthesize_placeholder_rows"
+        "classify_episode_durations"
       ],
       "configAfterDataDeactivatedSteps": [],
       "dataAfterConfigActualSteps": [
@@ -2609,27 +3686,163 @@
       },
       "dataConditioning": {
         "introduced": [],
-        "masked": [
-          "attribute_person.temporalStateDigest",
-          "categorize_apps.temporalStateDigest",
-          "day_coverage.temporalStateDigest",
-          "episode_annotations.temporalStateDigest",
-          "interval_cleaning.temporalStateDigest",
-          "observation_window.temporalStateDigest",
-          "reconstruct_episodes.temporalStateDigest"
-        ]
+        "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 3,
-        "maskedCount": 14,
-        "introducedDigest": "sha256:f12b86768ebe9a853bb076239b76682d691a2327a9b8de0c20f0e579e76a52fe",
-        "maskedDigest": "sha256:c728c2d3d596b8a70c19d2f2f34e12f39613bf5e515d3d6519ffac7d01eaa874"
+        "introducedCount": 0,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
       "dataCellConditioning": {
-        "introducedCount": 1,
-        "maskedCount": 24,
-        "introducedDigest": "sha256:eeb6bbdf88c4aaba0c86feb73aed25ae2edf685709bb7b41a607beb30c2cf567",
-        "maskedDigest": "sha256:116d34446796bd75af8f7739566d41c02afd5b00dda2fc14467d9a6b6a060dab"
+        "introducedCount": 62,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:503951b220dc1307c9905cee69f80fe147ac39ca7de89dd8238fe0fc63016d14",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "caseId": "filter_file:support:filter-activate-used-package×minimumDurationDisposition=retainexclude",
+      "roleId": "filter_file",
+      "interventionId": "support:filter-activate-used-package",
+      "optionKey": "minimumDurationDisposition",
+      "alternate": {
+        "label": "retainexclude",
+        "value": "retain_but_exclude"
+      },
+      "configAfterDataActualSteps": [
+        "assemble_result_manifest",
+        "classify_episode_durations"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_activity_witness_indexes",
+        "build_participant_day_coverage",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "index_raw_dates",
+        "join_app_codebook",
+        "mark_app_policy_matches",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_excluded_packages",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 62,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:503951b220dc1307c9905cee69f80fe147ac39ca7de89dd8238fe0fc63016d14",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "caseId": "filter_file:support:filter-activate-used-package×minimumDurationDisposition=droprow",
+      "roleId": "filter_file",
+      "interventionId": "support:filter-activate-used-package",
+      "optionKey": "minimumDurationDisposition",
+      "alternate": {
+        "label": "droprow",
+        "value": "drop_row"
+      },
+      "configAfterDataActualSteps": [
+        "assemble_result_manifest",
+        "classify_episode_durations"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_activity_witness_indexes",
+        "build_participant_day_coverage",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "index_raw_dates",
+        "join_app_codebook",
+        "mark_app_policy_matches",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_excluded_packages",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 62,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:503951b220dc1307c9905cee69f80fe147ac39ca7de89dd8238fe0fc63016d14",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       }
     },
     {
@@ -2711,16 +3924,16 @@
         "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 9,
-        "maskedCount": 10,
-        "introducedDigest": "sha256:f998e7ed554270dc223484c4d1317d1b669004528212f00cc156a5def3902d36",
-        "maskedDigest": "sha256:77a3aa34c129838a63811937df1a67b5f8fb7ece9cea9a32a9ed7720653bd153"
+        "introducedCount": 548,
+        "maskedCount": 525,
+        "introducedDigest": "sha256:052d72b9c0ed81b23dace72e12424e5a6aaeba4819a7e4c8e3ecadc544b78b9e",
+        "maskedDigest": "sha256:b4987f24a8a62b238f878a77748dc842a190f363ffe5acf6d3add1fe96f6cc05"
       },
       "dataCellConditioning": {
-        "introducedCount": 8,
-        "maskedCount": 14,
-        "introducedDigest": "sha256:42803e21365e302bbb2fe6d6b8120f04b4b8c2146fdae755c503a540d2180f91",
-        "maskedDigest": "sha256:0529cd375a0691ce4d3060b692fd13f90a4968e268b93788f96baebb60522efb"
+        "introducedCount": 612,
+        "maskedCount": 682,
+        "introducedDigest": "sha256:93b9f93f8f84f30421377a4853ce4489f79c407219f4202560a5aa3ac060ccc3",
+        "maskedDigest": "sha256:8b66dc96c87627ba601c834c33bae8ba2b7ea98c7cc9a9db399fd913ae1b1145"
       }
     },
     {
@@ -2804,9 +4017,9 @@
         "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
       "dataCellConditioning": {
-        "introducedCount": 2,
+        "introducedCount": 8,
         "maskedCount": 0,
-        "introducedDigest": "sha256:f22edd87188ca825a92bf4687fc0b5c4c0f142ee780e56d0f77a0213a6baa17f",
+        "introducedDigest": "sha256:193ec6445b7083d88e25fca0d68bc519b3f20286cd4f6ab857b45d2c7b30ba53",
         "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       }
     },
@@ -2891,9 +4104,9 @@
         "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
       "dataCellConditioning": {
-        "introducedCount": 294,
+        "introducedCount": 285,
         "maskedCount": 0,
-        "introducedDigest": "sha256:e42fa5ae2122e6fd284ea451cc715ebdea3e045bbfc4124af1ac4c21a73803a3",
+        "introducedDigest": "sha256:d2ac34046f0b81beeea7ef941a4341da0a258d354763341e2b28c270cabf4769",
         "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       }
     },
@@ -2978,9 +4191,9 @@
         "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
       "dataCellConditioning": {
-        "introducedCount": 294,
+        "introducedCount": 283,
         "maskedCount": 0,
-        "introducedDigest": "sha256:e42fa5ae2122e6fd284ea451cc715ebdea3e045bbfc4124af1ac4c21a73803a3",
+        "introducedDigest": "sha256:53bd927e386dff18b6424e7dedf35a749285b4e4abf1ad842f1135d9a914000d",
         "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       }
     },
@@ -3065,9 +4278,9 @@
         "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
       "dataCellConditioning": {
-        "introducedCount": 294,
+        "introducedCount": 195,
         "maskedCount": 0,
-        "introducedDigest": "sha256:e42fa5ae2122e6fd284ea451cc715ebdea3e045bbfc4124af1ac4c21a73803a3",
+        "introducedDigest": "sha256:38eecefbcbdb43d0e34e2f262d8faead7b8dc5db5960e4903e9f4aeb5ae07af7",
         "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       }
     },
@@ -3157,10 +4370,101 @@
         "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
       "dataCellConditioning": {
-        "introducedCount": 2,
-        "maskedCount": 4,
-        "introducedDigest": "sha256:16a6278a9397aa76a7e8bc1477352409afe7193e19c513edad52c543e9dab4ac",
-        "maskedDigest": "sha256:950712a7ea2f946666de874f2e774397099a5cb52829408caabf36dffebf67b9"
+        "introducedCount": 196,
+        "maskedCount": 104,
+        "introducedDigest": "sha256:424a75271a2120b5867e51dcd0f4dbb70a116e6cb6172704beadc69b13922a60",
+        "maskedDigest": "sha256:5d449342de0ec2309798b2e0b978c2dcbe14eb6a83a4aa5b946bdf6eb7609c87"
+      }
+    },
+    {
+      "caseId": "filter_file:support:filter-activate-used-package×longUsageDurationThresholds=empty",
+      "roleId": "filter_file",
+      "interventionId": "support:filter-activate-used-package",
+      "optionKey": "longUsageDurationThresholds",
+      "alternate": {
+        "label": "empty",
+        "value": []
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_participant_day_coverage",
+        "classify_person_attribution",
+        "compute_attribution_completeness",
+        "derive_credited_intervals",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "materialize_credited_rows",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_activity_witness_indexes",
+        "build_participant_day_coverage",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "index_raw_dates",
+        "join_app_codebook",
+        "mark_app_policy_matches",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_excluded_packages",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 7,
+        "maskedCount": 7,
+        "introducedDigest": "sha256:f8bb9775cf85bc1d44fbf25690682226e6fbf656047343aa433d2d0af4459e47",
+        "maskedDigest": "sha256:8055a17247eaf8fc9a4a4dde658d7f63252d0fe4a98e5d4026a0d2d648a57355"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 14,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:b3c91e51538701d7a637d7f2ebb9db1954e5071832075ab16922cba9db07af38"
       }
     },
     {
@@ -3254,9 +4558,9 @@
       },
       "dataCellConditioning": {
         "introducedCount": 0,
-        "maskedCount": 26,
+        "maskedCount": 2441,
         "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "maskedDigest": "sha256:e2cbfbc1ced457bc1519f6a719cfbd3f4c15f4d8a4319f132b9538429f1cc282"
+        "maskedDigest": "sha256:582ebb0f6d633c8568db741cce6a1d0c50f35ddf31cde975e661c11fe93786b0"
       }
     },
     {
@@ -3362,16 +4666,16 @@
         "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 912,
-        "maskedCount": 772,
-        "introducedDigest": "sha256:6744861ce80472e584709cc8e549696cdae797014eca2b0a649c6c563c514aca",
-        "maskedDigest": "sha256:b7d6728d84f8780119d04ffbcb1a2ee1fdc6f12a031156e95bb01d50c18f5974"
+        "introducedCount": 1132,
+        "maskedCount": 916,
+        "introducedDigest": "sha256:c1fff58b2e411a3ee3f7ad5c7a3e1660a0a446d3123ef69abb0ef0502342f4ac",
+        "maskedDigest": "sha256:f0b1d5c6c542ac8899be2991c3d7c8c383417e75f25d03c5b13aee2cc8b4b58d"
       },
       "dataCellConditioning": {
-        "introducedCount": 3555,
-        "maskedCount": 18,
-        "introducedDigest": "sha256:702ae58ac5b5993c7b90bb0aa262fcd12243b40a73f4d1d4cd63fd646e7f9b10",
-        "maskedDigest": "sha256:93736a5bc65b58830ec14c0d45b15f9fb00748e67075574de9eae8b5c0f09a25"
+        "introducedCount": 3601,
+        "maskedCount": 1573,
+        "introducedDigest": "sha256:51cf9c33fbd5523805142adec84db89c8272b33d74381f87bebac7ade6e5207c",
+        "maskedDigest": "sha256:ab1100cdd8b62f735dbfb09041e5edd55afb50cece59a5e52841acf08a959b5a"
       }
     },
     {
@@ -3466,113 +4770,16 @@
         "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 6,
-        "maskedCount": 12,
-        "introducedDigest": "sha256:ab7902f69667c8904f80a2913b7616460306d325edb9a2eea2d27ffa9315fa12",
-        "maskedDigest": "sha256:20c73fbf8c6cb452e59177ba8245f622b8309e12299dec7c68f54e698a3b3c75"
+        "introducedCount": 835,
+        "maskedCount": 840,
+        "introducedDigest": "sha256:7ff7d78242f276f592218360f6f7379561165433ce2c7814a07c823a4fb6266d",
+        "maskedDigest": "sha256:d56b6a3759b58c20f1758abb5837fc1752551b7437d81a19e968f92f394dc635"
       },
       "dataCellConditioning": {
-        "introducedCount": 11,
-        "maskedCount": 13,
-        "introducedDigest": "sha256:9ad655b6c237658d7653a8ed8772acd6885580a3aa4d630b7a79a16c5422cb43",
-        "maskedDigest": "sha256:065f754ead7a6572eca7229a35813331dbe916ce554c09407452cc4dff813c2d"
-      }
-    },
-    {
-      "caseId": "filter_file:support:filter-activate-used-package×applyMinimumUsageDurationToConcurrentSubintervals=false",
-      "roleId": "filter_file",
-      "interventionId": "support:filter-activate-used-package",
-      "optionKey": "applyMinimumUsageDurationToConcurrentSubintervals",
-      "alternate": {
-        "label": "false",
-        "value": false
-      },
-      "configAfterDataActualSteps": [
-        "aggregate_attribution_minutes",
-        "apply_episode_flags",
-        "apply_participant_windows",
-        "assemble_credit_outputs",
-        "assemble_result_manifest",
-        "assess_screen_evidence_capability",
-        "assign_usage_session_ids",
-        "build_participant_day_coverage",
-        "classify_compliance_days",
-        "classify_person_attribution",
-        "collapse_app_genre",
-        "compute_attribution_completeness",
-        "derive_broad_category",
-        "derive_credited_intervals",
-        "derive_engagement_basis",
-        "divide_sessions_at_day_boundary",
-        "identify_credit_eligible_sessions",
-        "join_app_codebook",
-        "materialize_credited_rows",
-        "remove_selected_interaction_types",
-        "remove_zero_duration_rows",
-        "resolve_participant_windows",
-        "resolve_sharing_status",
-        "segment_concurrent_usage",
-        "summarize_daily_apps",
-        "suppress_excluded_timing",
-        "synthesize_placeholder_rows"
-      ],
-      "configAfterDataDeactivatedSteps": [],
-      "dataAfterConfigActualSteps": [
-        "aggregate_attribution_minutes",
-        "apply_app_inclusion_policy",
-        "apply_episode_flags",
-        "apply_participant_windows",
-        "assemble_credit_outputs",
-        "assemble_result_manifest",
-        "assess_screen_evidence_capability",
-        "assign_usage_session_ids",
-        "build_activity_witness_indexes",
-        "build_participant_day_coverage",
-        "classify_episode_durations",
-        "classify_person_attribution",
-        "collapse_app_genre",
-        "compute_attribution_completeness",
-        "derive_broad_category",
-        "derive_credited_intervals",
-        "derive_engagement_basis",
-        "divide_sessions_at_day_boundary",
-        "identify_credit_eligible_sessions",
-        "index_raw_dates",
-        "join_app_codebook",
-        "mark_app_policy_matches",
-        "materialize_candidate_episodes",
-        "materialize_credited_rows",
-        "order_app_episodes",
-        "remove_selected_interaction_types",
-        "remove_zero_duration_rows",
-        "resolve_excluded_packages",
-        "resolve_participant_windows",
-        "resolve_sharing_status",
-        "segment_concurrent_usage",
-        "summarize_daily_apps",
-        "suppress_excluded_timing",
-        "synthesize_placeholder_rows"
-      ],
-      "dataAfterConfigDeactivatedSteps": [],
-      "configConditioning": {
-        "introduced": [],
-        "masked": []
-      },
-      "dataConditioning": {
-        "introduced": [],
-        "masked": []
-      },
-      "configCellConditioning": {
-        "introducedCount": 7,
-        "maskedCount": 5,
-        "introducedDigest": "sha256:53101c7a7d495b379454fc88146a6e6f2d92615b0b84034fac491d2154760ecb",
-        "maskedDigest": "sha256:2721a566cbf50938cb4dcaf3cda88d2d8310a797c5b23b49bcb1e648543ae86a"
-      },
-      "dataCellConditioning": {
-        "introducedCount": 10,
-        "maskedCount": 10,
-        "introducedDigest": "sha256:a87a95df37e241067e04ebe92d9e305f8bcd4312f751741ca44eb21dd4825e9a",
-        "maskedDigest": "sha256:f012267e7491f695a4a5f452538053e24f99a83b757223251f144979a757a39e"
+        "introducedCount": 959,
+        "maskedCount": 1500,
+        "introducedDigest": "sha256:70be3c258b3c165183145a263fa10f7e7018cc821fd44179efefd63728c42956",
+        "maskedDigest": "sha256:e8243a2275ac60f9354f441025029cafb4cb57d14a2c542f8c91a363ad492850"
       }
     },
     {
@@ -3652,16 +4859,16 @@
         "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 4,
-        "maskedCount": 8,
-        "introducedDigest": "sha256:d656287a7ce8f4e29804034eaaa4b8c0784881840d4883d949eeb041639751a9",
-        "maskedDigest": "sha256:0fde6544a2eb90bb59a44931fb58e1e961fc782f176e6f5328236182de7c2c62"
+        "introducedCount": 2,
+        "maskedCount": 4,
+        "introducedDigest": "sha256:af9dfd7c7aea6a2e71a6fec3235888a9f94c53f28331502ac0dd5d3cd5cb6608",
+        "maskedDigest": "sha256:a75d71cc416a4dd287b586bac80dd9694be51e388fd6f497d0be9c14b2228a74"
       },
       "dataCellConditioning": {
-        "introducedCount": 6,
-        "maskedCount": 6,
-        "introducedDigest": "sha256:117d90afdd6657811b6adddc36c799141a3f0757e26b942ccf588ec46819d0d3",
-        "maskedDigest": "sha256:2a5b14b9169e6d462048093e727a9b0687fb5ab2e77b15f28f13a0931dd2f50c"
+        "introducedCount": 3,
+        "maskedCount": 3,
+        "introducedDigest": "sha256:987006650246d5493fd08947205ebe0129983571a542ed6116b7077c508aea6e",
+        "maskedDigest": "sha256:ee12ce189e758adc5ef5cceb0e6a7752c9823e76b41afa61d9089a4bf8e2f180"
       }
     },
     {
@@ -3778,16 +4985,16 @@
         "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 7,
-        "maskedCount": 7,
-        "introducedDigest": "sha256:399e4e9097dd7768719133a9986a6d6a75cb73a379f1165e3ff51e77a3e77b77",
-        "maskedDigest": "sha256:e001b3f36e9859e1a7c7e5c9b022d78470f143bdbf24cadb1268bc21f753dcee"
+        "introducedCount": 542,
+        "maskedCount": 525,
+        "introducedDigest": "sha256:d369ce35ece002a8423b711f8a433675a83a7f797191f342a2bb7ecbafe97d24",
+        "maskedDigest": "sha256:3363a22ff413ac37fa15e56ffa944bea38aed586c1219004339bdcae013bea1e"
       },
       "dataCellConditioning": {
-        "introducedCount": 12,
-        "maskedCount": 9,
-        "introducedDigest": "sha256:b13b6d18d4945cb7b5acb9c47f9eac96071f920527e92e3e92be7b3e5e16ed6e",
-        "maskedDigest": "sha256:b57494c44f86a4fd7dcee9cdace1244150603ae015dcc5a48d5fbde3f481b02c"
+        "introducedCount": 723,
+        "maskedCount": 596,
+        "introducedDigest": "sha256:18e0c1ed7885483a46fffb5d2368ba270c158c40224d9b3776cb8cbd7ad29d5a",
+        "maskedDigest": "sha256:4c52afcab21a35ebafbd1713f4c6d171b1048d14d8948d7190d67d1fa6a0e2da"
       }
     },
     {
@@ -3854,15 +5061,15 @@
       },
       "configCellConditioning": {
         "introducedCount": 2,
-        "maskedCount": 18,
+        "maskedCount": 22,
         "introducedDigest": "sha256:bd5a9125f54b1ef6979ff7d26042393315172e09c247ffc0a0a66644c521d0a9",
-        "maskedDigest": "sha256:77b15ac69b1d3d362735071ff8909b04b35418a60de975e9b59a44b483ccca98"
+        "maskedDigest": "sha256:5310037d8f68bcf622818ca499bd10d3fed0388851a562f718051c6afef71721"
       },
       "dataCellConditioning": {
-        "introducedCount": 12,
-        "maskedCount": 12,
-        "introducedDigest": "sha256:0cf7eeed53aab9384c076813733985b1b8be053c6f74e873166ccef761d7855f",
-        "maskedDigest": "sha256:9773cdf30a33f1a1b31049a5e40aeda5c8f4503b69d7ce5fb071a096349c00eb"
+        "introducedCount": 14,
+        "maskedCount": 14,
+        "introducedDigest": "sha256:2808940346d138f00eeca306a5ed098ceee998a189715d8fd2eac99e2d001538",
+        "maskedDigest": "sha256:768ee2b5053d5ecbc09c296dd4de4d36fc8979ae72488c98fec069d63bc28b1a"
       }
     },
     {
@@ -3934,9 +5141,9 @@
       },
       "dataCellConditioning": {
         "introducedCount": 0,
-        "maskedCount": 10,
+        "maskedCount": 2423,
         "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "maskedDigest": "sha256:f012267e7491f695a4a5f452538053e24f99a83b757223251f144979a757a39e"
+        "maskedDigest": "sha256:f08b546179ada39d4ea0490bf1e96a18523dbd5788d143387dbaca78f5d816e5"
       }
     },
     {
@@ -4001,16 +5208,16 @@
         "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 9,
-        "maskedCount": 3,
-        "introducedDigest": "sha256:e60d1ec1c4fdc3109a42830a2b5834950166913db140ee6f0f37e64c962204f2",
-        "maskedDigest": "sha256:7a1ee77c1df42ae83a50c0508882bf74f80e892818097aa5c013023f358daa81"
+        "introducedCount": 410,
+        "maskedCount": 451,
+        "introducedDigest": "sha256:0ac4d4e72e082aea19164904873164ab06a97f793c9c5adc2532b95f1ee43732",
+        "maskedDigest": "sha256:152b9ce154416ddc4f66c26d67e8eda487e213dd72ab5cc82555118dbefa91b6"
       },
       "dataCellConditioning": {
-        "introducedCount": 10,
-        "maskedCount": 10,
-        "introducedDigest": "sha256:25c571a06a5c8ef63c314af73e3aba6d7a8fa9256cebb5fd6c765c5d95798bcc",
-        "maskedDigest": "sha256:f012267e7491f695a4a5f452538053e24f99a83b757223251f144979a757a39e"
+        "introducedCount": 895,
+        "maskedCount": 2071,
+        "introducedDigest": "sha256:453991365d5f5803103c2a50aeaa54aee753a3743ec4e11e009b5fd6f553988e",
+        "maskedDigest": "sha256:079495cb67b27ad91e68a5149d5581ec917f6e96693f1d3fa3e648d8399feac6"
       }
     },
     {
@@ -4075,16 +5282,16 @@
         "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 9,
-        "maskedCount": 3,
-        "introducedDigest": "sha256:e60d1ec1c4fdc3109a42830a2b5834950166913db140ee6f0f37e64c962204f2",
-        "maskedDigest": "sha256:7a1ee77c1df42ae83a50c0508882bf74f80e892818097aa5c013023f358daa81"
+        "introducedCount": 410,
+        "maskedCount": 451,
+        "introducedDigest": "sha256:0ac4d4e72e082aea19164904873164ab06a97f793c9c5adc2532b95f1ee43732",
+        "maskedDigest": "sha256:152b9ce154416ddc4f66c26d67e8eda487e213dd72ab5cc82555118dbefa91b6"
       },
       "dataCellConditioning": {
-        "introducedCount": 10,
-        "maskedCount": 10,
-        "introducedDigest": "sha256:25c571a06a5c8ef63c314af73e3aba6d7a8fa9256cebb5fd6c765c5d95798bcc",
-        "maskedDigest": "sha256:f012267e7491f695a4a5f452538053e24f99a83b757223251f144979a757a39e"
+        "introducedCount": 895,
+        "maskedCount": 2071,
+        "introducedDigest": "sha256:453991365d5f5803103c2a50aeaa54aee753a3743ec4e11e009b5fd6f553988e",
+        "maskedDigest": "sha256:079495cb67b27ad91e68a5149d5581ec917f6e96693f1d3fa3e648d8399feac6"
       }
     },
     {
@@ -4149,18 +5356,18 @@
         "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 5,
-        "maskedCount": 10,
-        "introducedDigest": "sha256:4cce631557c96ecab13a0baa2067ed63cc7d8ee9639e36200abba99a3c63785c",
-        "maskedDigest": "sha256:551805367045e7121df7d2e54f550906a3ae415c5056316638a4779a0a3fbcec"
+        "introducedCount": 589,
+        "maskedCount": 590,
+        "introducedDigest": "sha256:2c97a15909fb1f290a47626605a4d13a263390bc4fc74df26da6764d96ed6940",
+        "maskedDigest": "sha256:5ff38f7e060cb59c43844a71c08619eb5dab51bcfc27a21c0419e7d15dd6ffc2"
       },
       "dataCellConditioning": {
-        "introducedCount": 10,
-        "maskedCount": 10,
-        "introducedDigest": "sha256:8a3ca4f4b1cb50a289b3a184030e1cee4676653487efa11988e04944d7f48f50",
-        "maskedDigest": "sha256:f012267e7491f695a4a5f452538053e24f99a83b757223251f144979a757a39e"
+        "introducedCount": 658,
+        "maskedCount": 623,
+        "introducedDigest": "sha256:84037855839d14ce954a07414e6c23ede76455b6ded3b986ac565ab2bfda171d",
+        "maskedDigest": "sha256:a24a3a1256d85b62ab567990577d2d8adf54f9bbe044a110093765086822c4eb"
       }
     }
   ],
-  "caseSetDigest": "sha256:237a0bd93b9fe6723406b5da0fe138f31c838b8efd5eaee7f5ddec20ce884a74"
+  "caseSetDigest": "sha256:3498d2fccb3b1340a5c3cecbcbaa2e1018ad372e8610759ccf1e950a070fce64"
 }

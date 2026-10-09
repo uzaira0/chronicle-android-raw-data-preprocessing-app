@@ -13770,9 +13770,12 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         // that move with them.
         // Refreshed 2026-10-09 for the seven Blue Light codebook field reads
         // (app_codebook_file.bluelight_play_store_*) in the workflow contract.
+        // Refreshed 2026-10-09 for contract v6: the study-window step's
+        // "clean" section, the 0 s minimum-usage default and the
+        // Non-Target Participant App Usage label.
         assert_eq!(
             sha256(&bytes),
-            "sha256:352d64554a085d049b008df5914b0e0cd614aff708bbfa17674acdfc029e552d"
+            "sha256:f773d8d3b3558777b9c2e7bb69ed7c256ef45d924408b29e81b32facfe9b8808"
         );
     }
 

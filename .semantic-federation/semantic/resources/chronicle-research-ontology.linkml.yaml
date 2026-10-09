@@ -229,7 +229,7 @@ enums:
       sits inside that silence are numbered `[0, 0, 0]` under the 60 s rule.
 
       `attribute_person` already retypes a shared device's non-target rows to
-      Non-Target Child App Usage, which grouping then excludes — but that runs
+      Non-Target Participant App Usage, which grouping then excludes — but that runs
       only when a device-sharing file is configured. Without one, a sibling's
       episodes stay App Usage and are numbered into the target child's sequence.
 
@@ -688,7 +688,7 @@ enums:
     permissible_values:
       measured_share: {description: "known_minutes / (known_minutes + unknown_minutes), rounded to two decimals. Produced only when the participant is shared AND the day admitted a positive total."}
       imputed_non_shared_device: {description: "The participant is not in the device-sharing file, so no attribution question arises and the engine writes 100.0. Nothing about this day's attribution was measured."}
-      imputed_no_eligible_usage: {description: "The admitted total for the day is zero — no App Usage or Non-Target Child App Usage row survived aggregate eligibility with nonzero minutes — so the share is 0/0 and the engine writes 100.0. The day is recorded with zero_eligible_usage set, which is the only signal separating it from a genuine perfect day."}
+      imputed_no_eligible_usage: {description: "The admitted total for the day is zero — no App Usage or Non-Target Participant App Usage row survived aggregate eligibility with nonzero minutes — so the share is 0/0 and the engine writes 100.0. The day is recorded with zero_eligible_usage set, which is the only signal separating it from a genuine perfect day."}
 
   QueryExecutionStatus:
     description: Observed state of one physical query in a runtime execution.
@@ -2420,7 +2420,7 @@ classes:
       WHAT THE DENOMINATOR ADMITS. `accumulate_minutes`
       (pipeline_v2_incremental.rs) walks the output rows and adds
       `duration_minutes` to the day's bucket only when the row's interaction type
-      is App Usage or Non-Target Child App Usage AND
+      is App Usage or Non-Target Participant App Usage AND
       `minimum_duration_aggregate_eligible` is set. Numerator = minutes whose
       username is neither blank, "nan", nor "None"; denominator = numerator plus
       the rest.
@@ -3401,7 +3401,7 @@ slots:
   unknown_minutes: {description: "Admitted minutes on this participant-day with no resolved person. In the denominator, never in the numerator, and never dropped.", range: float}
   compliance_percent: {description: "known_minutes / (known_minutes + unknown_minutes) as a percentage rounded to two decimals — OR the literal 100.0 imputed for a non-shared participant or a day with no admitted minutes. Always read with compliance_value_basis.", range: float}
   compliance_value_basis: {description: "Whether compliance_percent was measured or imputed, and which imputation applied.", range: ComplianceValueBasis}
-  zero_eligible_usage: {description: "True when no App Usage or Non-Target Child App Usage row on this participant-day was aggregate-eligible with nonzero minutes, so the share was 0/0. The engine's zero_real_usage column.", range: boolean}
+  zero_eligible_usage: {description: "True when no App Usage or Non-Target Participant App Usage row on this participant-day was aggregate-eligible with nonzero minutes, so the share was 0/0. The engine's zero_real_usage column.", range: boolean}
   compliance_threshold_percent: {description: "The percent a day must reach to count as valid. Study-specific; the product default is 70.", range: float}
   meets_compliance_threshold: {description: "compliance_percent >= compliance_threshold_percent. The engine's is_valid column, computed over imputed 100.0 values exactly as over measured ones.", range: boolean}
   expected_device_count: {description: "Enrolled device count for the participant, joined from the enrolled-devices support file; blank when the participant is absent from it. Reported alongside the measure, not used in it.", range: integer}

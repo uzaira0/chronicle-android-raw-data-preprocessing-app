@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
+
 import {
   compileNativeMethodProfileCampaign,
   compileNativeMethodProfile,
@@ -389,7 +391,9 @@ method_setting_role: "provenance",
         contract_bindings: [],
       })),
     });
-    const compiled = compileNativeMethodProfile(profile);
+    // A 60 s floor in the starting settings, so the adapter's override is observable.
+    const withFloor = { ...DEFAULT_BROWSER_OPTIONS, minimumUsageDuration: 60 };
+    const compiled = compileNativeMethodProfile(profile, withFloor);
     expect(compiled).toMatchObject({
       ok: true,
       options: { minimumUsageDuration: 0, filterZeroDurationSessions: false },
@@ -427,7 +431,7 @@ method_setting_role: "provenance",
         },
       ],
     });
-    expect(compileNativeMethodProfile(unrelated)).toMatchObject({
+    expect(compileNativeMethodProfile(unrelated, withFloor)).toMatchObject({
       ok: true,
       options: { minimumUsageDuration: 60 },
     });

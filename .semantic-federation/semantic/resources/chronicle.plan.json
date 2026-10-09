@@ -897,8 +897,8 @@
     },
     {
       "query_group_id": "observation_window",
-      "label": "Observation-window assessment",
-      "section": "analyze",
+      "label": "Study-window filter",
+      "section": "clean",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/observation_window/v1",
       "input_query_groups": [
         "device_state_timeline",

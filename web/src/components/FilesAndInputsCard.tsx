@@ -8,13 +8,7 @@ import { ToggleField } from "@/components/ToggleField";
 import { Tooltip } from "@/components/Tooltip";
 import { TOOLTIPS } from "@/lib/tooltipText";
 import { anyOptionModified, isOptionDefault, type OptionKey } from "@/lib/optionDefaults";
-import {
-  DEFAULT_BROWSER_OPTIONS,
-  FILTER_MATCH_FIELD_VALUES,
-  PACKAGE_EXCLUSION_PRESET_VALUES,
-  type FilterMatchField,
-  type PackageExclusionPreset,
-} from "@/lib/generatedContract";
+import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import { SUPPORT_FILE_ACCEPT } from "@/lib/validation";
 import { createSupportFilePickHandler } from "@/components/supportFilePick";
 import {
@@ -23,42 +17,19 @@ import {
 } from "@/lib/demoDisplay";
 import type { BrowserProcessingOptions } from "@/lib/types";
 import defaultAppCodebookUrl from "@/assets/defaults/unified_app_codebook.csv?url";
-import defaultAppsToFilterUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv?url";
 import defaultAppsForcingScreenOpenUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv?url";
 import defaultBackgroundAppsUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_background_apps.csv?url";
 
 const KEYS: readonly OptionKey[] = [
-  "useFilterFile",
-  "filterMatchField",
-  "applicationLabelExclusions",
-  "packageExclusionPreset",
   "useAppsForcingScreenOpenFile",
   "useBackgroundAppsFile",
   "useAppCodebook",
   "includeCategoryColumn",
 ];
 
-const PACKAGE_EXCLUSION_PRESET_LABELS = {
-  all_supplied_rows: "Every row in the file (default)",
-  honor_filter_flag: "Only rows whose filter flag is on",
-  system_scope_only: "Only system and system-defensive rows",
-} satisfies Record<PackageExclusionPreset, string>;
-
-const PACKAGE_EXCLUSION_PRESETS = PACKAGE_EXCLUSION_PRESET_VALUES.map((value) => ({
-  value,
-  label: PACKAGE_EXCLUSION_PRESET_LABELS[value],
-}));
-
-const FILTER_MATCH_FIELD_LABELS = {
-  app_package_name: "Package name (default)",
-  application_label: "Application label (exact case-sensitive match)",
-} satisfies Record<FilterMatchField, string>;
-
 type Props = {
   options: BrowserProcessingOptions;
   setOptions: Dispatch<SetStateAction<BrowserProcessingOptions>>;
-  filterFile: File | null;
-  setFilterFile: (file: File | null) => void;
   appsForcingScreenOpenFile: File | null;
   setAppsForcingScreenOpenFile: (file: File | null) => void;
   backgroundAppsFile: File | null;
@@ -75,8 +46,6 @@ export function FilesAndInputsCard(props: Props): ReactElement {
   const {
     options,
     setOptions,
-    filterFile,
-    setFilterFile,
     appsForcingScreenOpenFile,
     setAppsForcingScreenOpenFile,
     backgroundAppsFile,
@@ -105,100 +74,6 @@ export function FilesAndInputsCard(props: Props): ReactElement {
         files on or off using the switch beside each input.
       </p>
 
-      <SupportFileRow
-        displayMasker={displayMasker}
-        title="Filter file"
-        accept={SUPPORT_FILE_ACCEPT}
-        file={filterFile}
-        onFileChange={setFilterFile}
-        toggleLabel="Use filter file"
-        toggleKey="useFilterFile"
-        checked={options.useFilterFile}
-        modified={!isOptionDefault("useFilterFile", options.useFilterFile)}
-        onToggle={(value) => update("useFilterFile", value)}
-        onResetToggle={() => reset("useFilterFile")}
-        testId="filter-file-input"
-        defaultUrl={defaultAppsToFilterUrl}
-      />
-      <SettingsField
-        label="Filter rows by"
-        htmlFor="filter-match-field-select"
-        tooltip={TOOLTIPS.filterMatchField}
-        modified={!isOptionDefault("filterMatchField", options.filterMatchField)}
-        onReset={() => reset("filterMatchField")}
-      >
-        <select
-          id="filter-match-field-select"
-          data-testid="filter-match-field-select"
-          className="select"
-          value={options.filterMatchField}
-          onChange={(event) =>
-            update(
-              "filterMatchField",
-              event.target.value as BrowserProcessingOptions["filterMatchField"],
-            )
-          }
-        >
-          {FILTER_MATCH_FIELD_VALUES.map((value) => (
-            <option key={value} value={value}>{FILTER_MATCH_FIELD_LABELS[value]}</option>
-          ))}
-        </select>
-      </SettingsField>
-      <SettingsField
-        label="Exact application labels to exclude"
-        htmlFor="application-label-exclusions-input"
-        tooltip={TOOLTIPS.applicationLabelExclusions}
-        modified={!isOptionDefault(
-          "applicationLabelExclusions",
-          options.applicationLabelExclusions,
-        )}
-        onReset={() => reset("applicationLabelExclusions")}
-      >
-        <textarea
-          id="application-label-exclusions-input"
-          data-testid="application-label-exclusions-input"
-          className="input"
-          rows={4}
-          value={options.applicationLabelExclusions.join("\n")}
-          placeholder="One exact, case-sensitive application label per line"
-          onChange={(event) =>
-            update(
-              "applicationLabelExclusions",
-              event.target.value
-                .split("\n")
-                .map((label) => label.trim())
-                .filter(Boolean),
-            )
-          }
-        />
-      </SettingsField>
-      <SettingsField
-        label="Which rows exclude a package"
-        htmlFor="package-exclusion-preset-select"
-        tooltip={TOOLTIPS.packageExclusionPreset}
-        modified={!isOptionDefault("packageExclusionPreset", options.packageExclusionPreset)}
-        onReset={() => reset("packageExclusionPreset")}
-      >
-        <select
-          id="package-exclusion-preset-select"
-          data-testid="package-exclusion-preset-select"
-          className="select"
-          value={options.packageExclusionPreset}
-          disabled={!options.useFilterFile}
-          onChange={(event) =>
-            update(
-              "packageExclusionPreset",
-              event.target.value as BrowserProcessingOptions["packageExclusionPreset"],
-            )
-          }
-        >
-          {PACKAGE_EXCLUSION_PRESETS.map((preset) => (
-            <option key={preset.value} value={preset.value}>
-              {preset.label}
-            </option>
-          ))}
-        </select>
-      </SettingsField>
       <SupportFileRow
         displayMasker={displayMasker}
         title="Apps forcing the screen open"
@@ -261,13 +136,13 @@ export function FilesAndInputsCard(props: Props): ReactElement {
   );
 }
 
-type SupportFileRowProps = {
+export type SupportFileRowProps<Key extends keyof typeof TOOLTIPS = keyof typeof TOOLTIPS> = {
   title: string;
   accept: string;
   file: File | null;
   onFileChange: (next: File | null) => void;
   toggleLabel: string;
-  toggleKey: "useFilterFile" | "useAppsForcingScreenOpenFile" | "useBackgroundAppsFile" | "useAppCodebook";
+  toggleKey: Key;
   checked: boolean;
   modified: boolean;
   onToggle: (value: boolean) => void;
@@ -277,7 +152,9 @@ type SupportFileRowProps = {
   displayMasker: DemoDisplayMasker;
 };
 
-function SupportFileRow(props: SupportFileRowProps): ReactElement {
+export function SupportFileRow<Key extends keyof typeof TOOLTIPS>(
+  props: SupportFileRowProps<Key>,
+): ReactElement {
   // A format the runtime refuses must be refused here, while the user is still
   // looking at the picker. `accept` is only a dialog hint: drag-and-drop and
   // the "All files" filter walk straight past it, and the run would then fail

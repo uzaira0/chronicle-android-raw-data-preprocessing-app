@@ -150,7 +150,7 @@ use model::{
     GESIS_START_EVENTS, GESIS_STOP_EVENTS, GESIS_UNMATCHABLE_STOP_EVENTS, InlineLineageDigest,
     KIDS_SHELL_PACKAGES, LOCK_SCREEN_EVENTS, MEANINGFUL_ACTIVITY_EVENTS,
     MORRISON_LOCK_TIMEOUT_NS, MergedMatcherOutput, NO_ACTIVITY_PLACEHOLDER_PACKAGE,
-    NON_TARGET_CHILD_APP_USAGE, NOTIFICATION_INTERRUPTION, NOTIFICATION_OUTSIDE_USAGE_FLAG,
+    NON_TARGET_PARTICIPANT_APP_USAGE, NOTIFICATION_INTERRUPTION, NOTIFICATION_OUTSIDE_USAGE_FLAG,
     NOTIFICATION_PROXY_FLAG_PREFIX, NOTIFICATION_SEEN, NOTIFICATION_WITHIN_USAGE_FLAG,
     NotificationContactCounts, NotificationContactOutput, OKOSHI_MICRO_USE_THRESHOLD_NS, ObservedUsageSpanGroup, ObservedUsageSpans,
     POLLED_EMULATION_FLAG_PREFIX, POLLED_EMULATION_FORCED_TERMINAL_FLAG,
@@ -5758,7 +5758,7 @@ mod tests {
         assert!(parsed.application_label_exclusions.value().is_empty());
         assert_eq!(*parsed.aggregate_top_apps_limit.value(), 0);
         assert_eq!(parsed.micro_use_classification_policy.value(), "none");
-        assert_eq!(*parsed.minimum_usage_duration.value(), 60.0);
+        assert_eq!(*parsed.minimum_usage_duration.value(), 0.0);
         assert_eq!(parsed.minimum_duration_comparator.value(), "strict_lt");
         assert_eq!(
             parsed.minimum_duration_disposition.value(),
@@ -8277,7 +8277,7 @@ mod tests {
         .expect("attribution run");
         let output = String::from_utf8(result.app_csv_bytes.to_vec()).unwrap();
         assert!(output.contains("Other (From Survey)"));
-        assert!(output.contains(NON_TARGET_CHILD_APP_USAGE));
+        assert!(output.contains(NON_TARGET_PARTICIPANT_APP_USAGE));
         assert!(output.contains("Target Child"));
     }
 
@@ -11585,7 +11585,7 @@ mod tests {
                 "P01",
                 "2026-03-07",
                 "Sibling",
-                NON_TARGET_CHILD_APP_USAGE,
+                NON_TARGET_PARTICIPANT_APP_USAGE,
                 Some(10.0),
             ),
             // A non-usage row still marks the day as seen but contributes no
@@ -11737,7 +11737,7 @@ mod tests {
                 ("Target Child".to_string(), APP_USAGE.to_string()),
                 ("Target Child".to_string(), APP_USAGE.to_string()),
                 ("Parent".to_string(), APP_USAGE.to_string()),
-                ("None".to_string(), NON_TARGET_CHILD_APP_USAGE.to_string()),
+                ("None".to_string(), NON_TARGET_PARTICIPANT_APP_USAGE.to_string()),
                 ("Target Child".to_string(), APP_USAGE.to_string()),
                 // The survey names this row's user, which also rescues it from
                 // being retyped.
