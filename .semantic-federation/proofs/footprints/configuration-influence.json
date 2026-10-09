@@ -64,11 +64,11 @@
     },
     {
       "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/model.rs",
-      "digest": "sha256:7914864792b0e7e08414aa1175f4d4e1d4aa11f06db5bf0f65b1a92b0d6a7143"
+      "digest": "sha256:81d61520a2ee598acbe024bd79246c96468ff913da0d80f9e70b507e585b8a6d"
     },
     {
       "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/options.rs",
-      "digest": "sha256:de4af8e93bdc61c2fa6df51590e1237e31a2ca5f1655301bc81c9e4b5250e327"
+      "digest": "sha256:8f485e0c1b3d6d6e91f53f6a071be1a120be4aee63cf30604d45d8e5710e9c4e"
     },
     {
       "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/output.rs",
@@ -100,7 +100,7 @@
     },
     {
       "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/stages/attribution.rs",
-      "digest": "sha256:2cbac7d692d558ffa2cda9bb1ca8664f38c0704efb804bd5136339dc9d0bc7c0"
+      "digest": "sha256:af2b901741706393a51f5f7f443011fb9fe3032aedc9bb107fa4593bf2206c72"
     },
     {
       "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/stages/credit.rs",
@@ -132,7 +132,7 @@
     },
     {
       "path": "rust/chronicle_chrono_kernel_wasm/src/workflow_contract.rs",
-      "digest": "sha256:82848b5d31131aefcf2ff4abb9ac79bc12f771cfffa98180b87b257b97601267"
+      "digest": "sha256:87a1bc0a29c8e3d105cb5b7030fe55f946f8dfddeef506d2b9f688e2581607ec"
     },
     {
       "path": "rust/chronicle_preprocessing_runtime_wasm/src/binary_exports.rs",
@@ -202,8 +202,8 @@
     ]
   },
   "manifestClosureDigest": "sha256:a6b7d5ef50091aea58cb024735e0964219f159587cc7b01fee41cb3d14b2d49b",
-  "harnessDigest": "sha256:b04281c7c461cf66e915bafc290a1471dc6d9164a4fd37ea54bb7239b45a167b",
-  "contractDigest": "sha256:e906b08c2caa66a9277fe55b8cec913c7811b2a2154eb700f8b44aea865c2fff",
+  "harnessDigest": "sha256:b9af80717157493ad59940ab1cbc5dee0c9564890c165569e0b21c248ddc6039",
+  "contractDigest": "sha256:089a7a77bf56762f0fe823d1a97b4e53068ad8f480975b7906b17af4c0e766cb",
   "toolchain": "rustc 1.97.0-nightly (36ba2c771 2026-04-23) | binary: rustc",
   "claimBoundary": "Executed-production-file set for this record-mode campaign under LLVM coverage; each file pinned by the digest of its test-stripped normalized source. Conditions the right to inherit this campaign's committed ledger payload without re-measuring; never consulted for runtime invalidation."
 }

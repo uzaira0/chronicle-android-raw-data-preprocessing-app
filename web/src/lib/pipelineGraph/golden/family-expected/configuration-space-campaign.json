@@ -577,7 +577,7 @@
           "protocolVersion": "chronicle-runtime-scientific-preflight/v2",
           "key": {
             "protocolVersion": "chronicle-runtime-scientific-preflight/v2",
-            "optionsDigest": "sha256:40f3454b428fc7dc1908f53c523235efb4502802b5fd28953989a8a4b5dff0d1",
+            "optionsDigest": "sha256:56a82598dcb7580ad69f115803b70cb029bc6ec017cca60181ea4f35f2a2ef9d",
             "inputDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
             "inputSizeBytes": 15325,
             "activeIngressRoles": {
@@ -610,8 +610,8 @@
                 "assignmentId": "sha256:5fb6d3d806b301164beea401c9826d0168ecdfeac7d0cccd9ae7542b16dbd8b0"
               },
               "processing_options": {
-                "artifactDigest": "sha256:40f3454b428fc7dc1908f53c523235efb4502802b5fd28953989a8a4b5dff0d1",
-                "assignmentId": "sha256:8a3b7bf65c7a1d6adf0a15dbd0ac86a595a61d12fd03b655a730567010fdc473"
+                "artifactDigest": "sha256:56a82598dcb7580ad69f115803b70cb029bc6ec017cca60181ea4f35f2a2ef9d",
+                "assignmentId": "sha256:1cdbd9f0fe0d6e4960bfb392e842a0bed76507e82931a468dd307ff70c11ee6e"
               },
               "raw_chronicle_csv": {
                 "artifactDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
@@ -629,11 +629,11 @@
             "fragmentedParticipantCount": 0,
             "fragmentedParticipantTokenScopeDigest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
           },
-          "keyDigest": "sha256:aa70dec9f507e93096031c2c8010abace6f835690560586fe70f23ddd86a2ab6",
+          "keyDigest": "sha256:a27b9348a5bd2a5b7bf6952196781742ffd7cf9d226a52c5bb42b2644488421d",
           "b05Schoedel": {
             "protocolVersion": "chronicle-b05-schoedel-preflight/v1",
             "disposition": "executable",
-            "optionsDigest": "sha256:71fb909372ae24daccd540c334b4dd7a7907e0816759c8e010a47a0aab4942c2",
+            "optionsDigest": "sha256:85b417cda3145408f80089fa1b1b2fba46dde67e9ec5ed0db78639f89fe5efeb",
             "componentOptionsDigest": "sha256:a0d9c6229f444cf975ec463d05494b4bc5f0c4ea76fa2d3f53c473081c846460",
             "screenComponentOptionsDigest": "sha256:f6fe2b21e7d64fa43955a4c1d5aab17d69a0fd29e61a63b86359ac02fb81a1ca",
             "schoedelComponentOptionsDigest": "sha256:5c14c77d757de9e36ba79ab48bd1864c8c1c5deb60b92bb149ea7a203dd4fc27",
@@ -653,12 +653,12 @@
             },
             "schoedelApplicability": null
           },
-          "b05SchoedelDigest": "sha256:8a5e5af825b5f873a2e3dddf4a7fb93f181e6edbc4c0ec25b8da62a7544e4166",
+          "b05SchoedelDigest": "sha256:6fe0b3f5d717d26381c4d3bc5b95f0aa1b4750eda662ad25c7d658d4261df361",
           "eyesInputPartition": {
             "protocolVersion": "chronicle-eyes-input-partition-preflight/v2",
             "disposition": "not_applicable",
             "inputDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
-            "optionsDigest": "sha256:71fb909372ae24daccd540c334b4dd7a7907e0816759c8e010a47a0aab4942c2",
+            "optionsDigest": "sha256:85b417cda3145408f80089fa1b1b2fba46dde67e9ec5ed0db78639f89fe5efeb",
             "optionsDigestOrigin": "verified_request_jcs",
             "requestedEpisodeStrategyId": "fused_matcher",
             "effectiveEpisodeStrategyId": null,
@@ -666,12 +666,12 @@
             "refusalReason": null,
             "refusalDetail": null,
             "fragmentedParticipantCount": 0,
-            "resolutionDigest": "sha256:f08a18989e63befa4d2dbd3224047b36625f1c5ffad88e106a9ce2734362d07f"
+            "resolutionDigest": "sha256:73dc9a5d592afb90f8f5fd79063c5ff4c697f91c7aeb1f674ca2f38be442cf7b"
           },
-          "eyesInputPartitionDigest": "sha256:0a3f03649b7471a0632f67ae71870ed0f904a7a0255864a06568bf16e574b344",
-          "commitDigest": "sha256:3d8dfcf0f6b294443dada97cbe2463edb63c685896c82175fde43cfce748d5ad"
+          "eyesInputPartitionDigest": "sha256:61d316e333ecf921da050e0bbf4f6f9dc1c72c56eb52d32035912e904fb234a0",
+          "commitDigest": "sha256:cfb11d1fcf72b6a34fd8be06378696bb333eb6dd3688f2a3f7346ad3e5644416"
         },
-        "workspaceRootDigest": "sha256:f836c406d42c1cbbc628d54bfb3a91ac6c95ed01e003f40e155e4cbb1b17e805",
+        "workspaceRootDigest": "sha256:ccbd62404f5290ef3eec8a421cd432b8b8cf1463590e7a03ff3d89431d7918dc",
         "refusal": null,
         "validationError": null,
         "rawRebind": null,
@@ -687,7 +687,7 @@
           "protocolVersion": "chronicle-runtime-scientific-preflight/v2",
           "key": {
             "protocolVersion": "chronicle-runtime-scientific-preflight/v2",
-            "optionsDigest": "sha256:7400d9390cf1ac7c074540f1b3d65157a342706ce2997ded3bd5f8ce87de0c7b",
+            "optionsDigest": "sha256:181b83fcf96094f93c968d6359d84d7de8f7a20909fc02bcd456ac1fc505ce5f",
             "inputDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
             "inputSizeBytes": 15325,
             "activeIngressRoles": {
@@ -720,8 +720,8 @@
                 "assignmentId": "sha256:5fb6d3d806b301164beea401c9826d0168ecdfeac7d0cccd9ae7542b16dbd8b0"
               },
               "processing_options": {
-                "artifactDigest": "sha256:7400d9390cf1ac7c074540f1b3d65157a342706ce2997ded3bd5f8ce87de0c7b",
-                "assignmentId": "sha256:6d7a3e5177353374f459b52fdd613b12418bfbc2b8f5c7e1e4b44cc81942c42e"
+                "artifactDigest": "sha256:181b83fcf96094f93c968d6359d84d7de8f7a20909fc02bcd456ac1fc505ce5f",
+                "assignmentId": "sha256:f2f47ed8c8d3e7d84d63c0369cd10c55c067a3bafceb3f8af0a6a8e7cd9218a9"
               },
               "raw_chronicle_csv": {
                 "artifactDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
@@ -739,11 +739,11 @@
             "fragmentedParticipantCount": 0,
             "fragmentedParticipantTokenScopeDigest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
           },
-          "keyDigest": "sha256:d54fa4753067beba26cb23a764a640bc6fe1fa6a1239964e27e8aae25de759c7",
+          "keyDigest": "sha256:c4474af929c625252d84101529599563f9e63c08428edfd915649ff1ed403b0d",
           "b05Schoedel": {
             "protocolVersion": "chronicle-b05-schoedel-preflight/v1",
             "disposition": "executable",
-            "optionsDigest": "sha256:65752cf9e8663dbd76799cdd85fdeaeb1d35eaea20f7cb216d22e847630aa92c",
+            "optionsDigest": "sha256:3c696d67e0d2bbe86172cda9901a328c5f8ac83d718988060b69ae51b5921538",
             "componentOptionsDigest": "sha256:ccbecd31cd7996eb7c62dea315796f5e40995d6ce520b4b550906c2666e417b4",
             "screenComponentOptionsDigest": "sha256:b0bf9ec345b2d61a1f71596aa04360ab1f74b5f3b7061413e0412c457a5f478b",
             "schoedelComponentOptionsDigest": "sha256:2424a7f1885869f54c24645df94e99242ff145c30a2bdeba7b0d97fe5f9e8382",
@@ -763,12 +763,12 @@
             },
             "schoedelApplicability": null
           },
-          "b05SchoedelDigest": "sha256:25f19db09d7d993543812293c93511bb3b8d7adb45d1137792a734da31b8872b",
+          "b05SchoedelDigest": "sha256:87be74d5f12d6d2b37fec06a49c031a6d8513be06d96f15c19567c24f6eca264",
           "eyesInputPartition": {
             "protocolVersion": "chronicle-eyes-input-partition-preflight/v2",
             "disposition": "not_applicable",
             "inputDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
-            "optionsDigest": "sha256:65752cf9e8663dbd76799cdd85fdeaeb1d35eaea20f7cb216d22e847630aa92c",
+            "optionsDigest": "sha256:3c696d67e0d2bbe86172cda9901a328c5f8ac83d718988060b69ae51b5921538",
             "optionsDigestOrigin": "verified_request_jcs",
             "requestedEpisodeStrategyId": "fused_matcher",
             "effectiveEpisodeStrategyId": null,
@@ -776,12 +776,12 @@
             "refusalReason": null,
             "refusalDetail": null,
             "fragmentedParticipantCount": 0,
-            "resolutionDigest": "sha256:389ae11bb23874229b7233d562a25c63e85e11af3b58689079d7758f5bbb7202"
+            "resolutionDigest": "sha256:c489f804e965111212ecab1a2a91f3802aff902cca9c1eb54da8f99f3b232d77"
           },
-          "eyesInputPartitionDigest": "sha256:6fb76fbaf512a98eedd25f35edc2940ad24351554df464364027f856322e6837",
-          "commitDigest": "sha256:e02cccc7b1964e14b13125b4b629aa6972b5be89075db9852c826546ebc21611"
+          "eyesInputPartitionDigest": "sha256:0134519702c8bb4a54b9a73d72fa892646bbcebf59c6de7569e714db6cc6dc27",
+          "commitDigest": "sha256:1b2711a93b1dfeb33f57e86355e694aae84f20d10d9ed6aa66d43e9c48b3e667"
         },
-        "workspaceRootDigest": "sha256:8291d1bcb4767f9a6f992b8a1ffa718104cda368ca35a8076a008e71f2d85f41",
+        "workspaceRootDigest": "sha256:cf2afcef4fa51c8645eb10a1342ebc9532085b8ba4ba7ef9a958c21a8fac6f70",
         "refusal": null,
         "validationError": null,
         "rawRebind": null,
@@ -797,7 +797,7 @@
           "protocolVersion": "chronicle-runtime-scientific-preflight/v2",
           "key": {
             "protocolVersion": "chronicle-runtime-scientific-preflight/v2",
-            "optionsDigest": "sha256:0826b147a1bfa1b7915cbe57553f9e45106fd77f90038d7306efaef915f232d4",
+            "optionsDigest": "sha256:93bde8c8596141c1e4fa2d3c4606eb0e4618fd8ef6a6c4b01c1bc227758421c6",
             "inputDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
             "inputSizeBytes": 15325,
             "activeIngressRoles": {
@@ -830,8 +830,8 @@
                 "assignmentId": "sha256:5fb6d3d806b301164beea401c9826d0168ecdfeac7d0cccd9ae7542b16dbd8b0"
               },
               "processing_options": {
-                "artifactDigest": "sha256:0826b147a1bfa1b7915cbe57553f9e45106fd77f90038d7306efaef915f232d4",
-                "assignmentId": "sha256:d4465f58cde21e3b439bd9b30be9af9dd7c00064255f85d9e44993ecbc4af908"
+                "artifactDigest": "sha256:93bde8c8596141c1e4fa2d3c4606eb0e4618fd8ef6a6c4b01c1bc227758421c6",
+                "assignmentId": "sha256:f8497a704c31a01203980908a92fddd3f463cf0caeb74a0dbea431bcc741c7e3"
               },
               "raw_chronicle_csv": {
                 "artifactDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
@@ -849,11 +849,11 @@
             "fragmentedParticipantCount": 0,
             "fragmentedParticipantTokenScopeDigest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
           },
-          "keyDigest": "sha256:9180b7fe7a8a295e325d16f861d14b743f27ca4c4bc2b2b6781acebf643a1798",
+          "keyDigest": "sha256:2e52334ebe3c16d581fdda90a0f4cdb6821a6d53d97f7406a04e06b1a562e2fa",
           "b05Schoedel": {
             "protocolVersion": "chronicle-b05-schoedel-preflight/v1",
             "disposition": "executable",
-            "optionsDigest": "sha256:21eb70a34122ba7042cea8f2468ee8a66f2ea3c1da5baba6354a09176f070f24",
+            "optionsDigest": "sha256:c57b9c29c64d50b0c951ef01deb8956e0549eea976b319a2e213697e47b788a9",
             "componentOptionsDigest": "sha256:f86d5b2781f9140442c9a983ee1b94ade731fba63b98da91c32f7aaea18aaad4",
             "screenComponentOptionsDigest": "sha256:8808b3d36f00ef8cd7059a26f898e253e5705c80c5d73fb2209699241609acc9",
             "schoedelComponentOptionsDigest": "sha256:2915d8b4dbc18eafb67b1c184b880efb64762e8e6fd166d3c6e9d9eb3ef6a83e",
@@ -879,12 +879,12 @@
               "refusalDetail": null
             }
           },
-          "b05SchoedelDigest": "sha256:026304b4a66e3a7e38a667fbb893cfa224fceb9ca76dfe560c9502e8486ecace",
+          "b05SchoedelDigest": "sha256:961bca4424dff0ed3c082597ccc3a611f996fa33b8e668a8a76eb1390ce215c3",
           "eyesInputPartition": {
             "protocolVersion": "chronicle-eyes-input-partition-preflight/v2",
             "disposition": "not_applicable",
             "inputDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
-            "optionsDigest": "sha256:21eb70a34122ba7042cea8f2468ee8a66f2ea3c1da5baba6354a09176f070f24",
+            "optionsDigest": "sha256:c57b9c29c64d50b0c951ef01deb8956e0549eea976b319a2e213697e47b788a9",
             "optionsDigestOrigin": "verified_request_jcs",
             "requestedEpisodeStrategyId": "schoedel_2026_app_within_screen_prose_v1",
             "effectiveEpisodeStrategyId": null,
@@ -892,12 +892,12 @@
             "refusalReason": null,
             "refusalDetail": null,
             "fragmentedParticipantCount": 0,
-            "resolutionDigest": "sha256:6ffc747993f263b2eff48432884b787e733b948d93e92328850bc7098422cea0"
+            "resolutionDigest": "sha256:7db558895a223c2f8d7f7e059bb44b9d59c509aa0ebbb4dbc0810f08584dcf71"
           },
-          "eyesInputPartitionDigest": "sha256:a4e763d44939f8d0fede36c89d39b2db218da136333e83cdbed8849647a3b283",
-          "commitDigest": "sha256:dbe8f365bf6c7b8b3f626086d88f2c2653ebd999a80cf6bf1ef78ec6e152f768"
+          "eyesInputPartitionDigest": "sha256:aedf850dbf46745d6678fe1a1408b5faba57adfd45803f7fa30ece407316055d",
+          "commitDigest": "sha256:59b666c1ca529db589cddb29fefc1a2f3475b0a346478fa7d65bc53602980553"
         },
-        "workspaceRootDigest": "sha256:d1bcb240a5b4461d20e6c2a506a3e4c7457d63bb1fba01ae00127db262e2c59b",
+        "workspaceRootDigest": "sha256:ae34b44b7a50d72a8e5d9e52676220e84bd6d70c4c3cfb611f6b7ec3b07116fd",
         "refusal": null,
         "validationError": null,
         "rawRebind": null,
@@ -913,7 +913,7 @@
           "protocolVersion": "chronicle-runtime-scientific-preflight/v2",
           "key": {
             "protocolVersion": "chronicle-runtime-scientific-preflight/v2",
-            "optionsDigest": "sha256:40f3454b428fc7dc1908f53c523235efb4502802b5fd28953989a8a4b5dff0d1",
+            "optionsDigest": "sha256:56a82598dcb7580ad69f115803b70cb029bc6ec017cca60181ea4f35f2a2ef9d",
             "inputDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
             "inputSizeBytes": 15325,
             "activeIngressRoles": {
@@ -942,8 +942,8 @@
                 "assignmentId": "sha256:aed7983f4d72f03c57cd967d9b92bbb7a3b70df744158d8399270e6affe10578"
               },
               "processing_options": {
-                "artifactDigest": "sha256:40f3454b428fc7dc1908f53c523235efb4502802b5fd28953989a8a4b5dff0d1",
-                "assignmentId": "sha256:8a3b7bf65c7a1d6adf0a15dbd0ac86a595a61d12fd03b655a730567010fdc473"
+                "artifactDigest": "sha256:56a82598dcb7580ad69f115803b70cb029bc6ec017cca60181ea4f35f2a2ef9d",
+                "assignmentId": "sha256:1cdbd9f0fe0d6e4960bfb392e842a0bed76507e82931a468dd307ff70c11ee6e"
               },
               "raw_chronicle_csv": {
                 "artifactDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
@@ -961,11 +961,11 @@
             "fragmentedParticipantCount": 0,
             "fragmentedParticipantTokenScopeDigest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
           },
-          "keyDigest": "sha256:7c2d4bbb60da0dd0b3be08ba4be3d21adba9cbd644d9b349022013b89443bc47",
+          "keyDigest": "sha256:1ca516c95ad91c7c37bce23d1cf5079d07590457022f450157a4a278e1edaeeb",
           "b05Schoedel": {
             "protocolVersion": "chronicle-b05-schoedel-preflight/v1",
             "disposition": "refused",
-            "optionsDigest": "sha256:71fb909372ae24daccd540c334b4dd7a7907e0816759c8e010a47a0aab4942c2",
+            "optionsDigest": "sha256:85b417cda3145408f80089fa1b1b2fba46dde67e9ec5ed0db78639f89fe5efeb",
             "componentOptionsDigest": "sha256:a0d9c6229f444cf975ec463d05494b4bc5f0c4ea76fa2d3f53c473081c846460",
             "screenComponentOptionsDigest": "sha256:f6fe2b21e7d64fa43955a4c1d5aab17d69a0fd29e61a63b86359ac02fb81a1ca",
             "schoedelComponentOptionsDigest": "sha256:5c14c77d757de9e36ba79ab48bd1864c8c1c5deb60b92bb149ea7a203dd4fc27",
@@ -985,12 +985,12 @@
             },
             "schoedelApplicability": null
           },
-          "b05SchoedelDigest": "sha256:2481ab56e93e3f211c3a6b3f9534f3efd161bff6457623787bacd2744fbf699c",
+          "b05SchoedelDigest": "sha256:af57e5a8138155b8fc08168529b26c39bc38e3252b56ac3357654b6a949dfd02",
           "eyesInputPartition": {
             "protocolVersion": "chronicle-eyes-input-partition-preflight/v2",
             "disposition": "not_applicable",
             "inputDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
-            "optionsDigest": "sha256:71fb909372ae24daccd540c334b4dd7a7907e0816759c8e010a47a0aab4942c2",
+            "optionsDigest": "sha256:85b417cda3145408f80089fa1b1b2fba46dde67e9ec5ed0db78639f89fe5efeb",
             "optionsDigestOrigin": "verified_request_jcs",
             "requestedEpisodeStrategyId": "fused_matcher",
             "effectiveEpisodeStrategyId": null,
@@ -998,10 +998,10 @@
             "refusalReason": null,
             "refusalDetail": null,
             "fragmentedParticipantCount": 0,
-            "resolutionDigest": "sha256:f08a18989e63befa4d2dbd3224047b36625f1c5ffad88e106a9ce2734362d07f"
+            "resolutionDigest": "sha256:73dc9a5d592afb90f8f5fd79063c5ff4c697f91c7aeb1f674ca2f38be442cf7b"
           },
-          "eyesInputPartitionDigest": "sha256:0a3f03649b7471a0632f67ae71870ed0f904a7a0255864a06568bf16e574b344",
-          "commitDigest": "sha256:582285e0311e37d99ec836aa7476aa10704506d086444f327eb808987b0e74ff"
+          "eyesInputPartitionDigest": "sha256:61d316e333ecf921da050e0bbf4f6f9dc1c72c56eb52d32035912e904fb234a0",
+          "commitDigest": "sha256:50fd15c044a2656a6a2a2696e95572b54bf94172008cce7daf30aa0e786d1dae"
         },
         "workspaceRootDigest": null,
         "refusal": {
@@ -1023,7 +1023,7 @@
           "protocolVersion": "chronicle-runtime-scientific-preflight/v2",
           "key": {
             "protocolVersion": "chronicle-runtime-scientific-preflight/v2",
-            "optionsDigest": "sha256:7400d9390cf1ac7c074540f1b3d65157a342706ce2997ded3bd5f8ce87de0c7b",
+            "optionsDigest": "sha256:181b83fcf96094f93c968d6359d84d7de8f7a20909fc02bcd456ac1fc505ce5f",
             "inputDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
             "inputSizeBytes": 15325,
             "activeIngressRoles": {
@@ -1056,8 +1056,8 @@
                 "assignmentId": "sha256:b8ceb74ad47ae5fa366a4aec5f611056f90c06ebfce0d3c654c8e637ce77d73a"
               },
               "processing_options": {
-                "artifactDigest": "sha256:7400d9390cf1ac7c074540f1b3d65157a342706ce2997ded3bd5f8ce87de0c7b",
-                "assignmentId": "sha256:6d7a3e5177353374f459b52fdd613b12418bfbc2b8f5c7e1e4b44cc81942c42e"
+                "artifactDigest": "sha256:181b83fcf96094f93c968d6359d84d7de8f7a20909fc02bcd456ac1fc505ce5f",
+                "assignmentId": "sha256:f2f47ed8c8d3e7d84d63c0369cd10c55c067a3bafceb3f8af0a6a8e7cd9218a9"
               },
               "raw_chronicle_csv": {
                 "artifactDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
@@ -1075,11 +1075,11 @@
             "fragmentedParticipantCount": 0,
             "fragmentedParticipantTokenScopeDigest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
           },
-          "keyDigest": "sha256:12e6f30c9d39774d22ff261bfbe85603db83a41755979caf92d25944200363d2",
+          "keyDigest": "sha256:daa93d806585f9db84810f1dc4cac465725a947b0cb822a640a4aa4b105beaa5",
           "b05Schoedel": {
             "protocolVersion": "chronicle-b05-schoedel-preflight/v1",
             "disposition": "refused",
-            "optionsDigest": "sha256:65752cf9e8663dbd76799cdd85fdeaeb1d35eaea20f7cb216d22e847630aa92c",
+            "optionsDigest": "sha256:3c696d67e0d2bbe86172cda9901a328c5f8ac83d718988060b69ae51b5921538",
             "componentOptionsDigest": "sha256:ccbecd31cd7996eb7c62dea315796f5e40995d6ce520b4b550906c2666e417b4",
             "screenComponentOptionsDigest": "sha256:b0bf9ec345b2d61a1f71596aa04360ab1f74b5f3b7061413e0412c457a5f478b",
             "schoedelComponentOptionsDigest": "sha256:2424a7f1885869f54c24645df94e99242ff145c30a2bdeba7b0d97fe5f9e8382",
@@ -1099,12 +1099,12 @@
             },
             "schoedelApplicability": null
           },
-          "b05SchoedelDigest": "sha256:13136b084391477360d63c6cae0ec33ed80513a39b3bc652fe52590e2d85743b",
+          "b05SchoedelDigest": "sha256:7ba43fa7c50a84e025f6be2e1830ffe044401012885fced0c6a51a1a3d8ddc2b",
           "eyesInputPartition": {
             "protocolVersion": "chronicle-eyes-input-partition-preflight/v2",
             "disposition": "not_applicable",
             "inputDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
-            "optionsDigest": "sha256:65752cf9e8663dbd76799cdd85fdeaeb1d35eaea20f7cb216d22e847630aa92c",
+            "optionsDigest": "sha256:3c696d67e0d2bbe86172cda9901a328c5f8ac83d718988060b69ae51b5921538",
             "optionsDigestOrigin": "verified_request_jcs",
             "requestedEpisodeStrategyId": "fused_matcher",
             "effectiveEpisodeStrategyId": null,
@@ -1112,10 +1112,10 @@
             "refusalReason": null,
             "refusalDetail": null,
             "fragmentedParticipantCount": 0,
-            "resolutionDigest": "sha256:389ae11bb23874229b7233d562a25c63e85e11af3b58689079d7758f5bbb7202"
+            "resolutionDigest": "sha256:c489f804e965111212ecab1a2a91f3802aff902cca9c1eb54da8f99f3b232d77"
           },
-          "eyesInputPartitionDigest": "sha256:6fb76fbaf512a98eedd25f35edc2940ad24351554df464364027f856322e6837",
-          "commitDigest": "sha256:a9a4d2da57f5d3655bebd24127cb4a5355c376f92d1ae08dd647d06d8cd827e9"
+          "eyesInputPartitionDigest": "sha256:0134519702c8bb4a54b9a73d72fa892646bbcebf59c6de7569e714db6cc6dc27",
+          "commitDigest": "sha256:d2865062a659110c65e39989f8dc0566bd8c72c3f99a7014d682f616e8109374"
         },
         "workspaceRootDigest": null,
         "refusal": {
@@ -1137,7 +1137,7 @@
           "protocolVersion": "chronicle-runtime-scientific-preflight/v2",
           "key": {
             "protocolVersion": "chronicle-runtime-scientific-preflight/v2",
-            "optionsDigest": "sha256:0826b147a1bfa1b7915cbe57553f9e45106fd77f90038d7306efaef915f232d4",
+            "optionsDigest": "sha256:93bde8c8596141c1e4fa2d3c4606eb0e4618fd8ef6a6c4b01c1bc227758421c6",
             "inputDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
             "inputSizeBytes": 15325,
             "activeIngressRoles": {
@@ -1170,8 +1170,8 @@
                 "assignmentId": "sha256:b8ceb74ad47ae5fa366a4aec5f611056f90c06ebfce0d3c654c8e637ce77d73a"
               },
               "processing_options": {
-                "artifactDigest": "sha256:0826b147a1bfa1b7915cbe57553f9e45106fd77f90038d7306efaef915f232d4",
-                "assignmentId": "sha256:d4465f58cde21e3b439bd9b30be9af9dd7c00064255f85d9e44993ecbc4af908"
+                "artifactDigest": "sha256:93bde8c8596141c1e4fa2d3c4606eb0e4618fd8ef6a6c4b01c1bc227758421c6",
+                "assignmentId": "sha256:f8497a704c31a01203980908a92fddd3f463cf0caeb74a0dbea431bcc741c7e3"
               },
               "raw_chronicle_csv": {
                 "artifactDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
@@ -1189,11 +1189,11 @@
             "fragmentedParticipantCount": 0,
             "fragmentedParticipantTokenScopeDigest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
           },
-          "keyDigest": "sha256:9f94e18ff8d2441c0316203e562046968e3d1023c39380495a811023c8bbc406",
+          "keyDigest": "sha256:32c95ecd4326456f19f26a611a7ee6f274075c1913373ba8a73313b6fd2cdce7",
           "b05Schoedel": {
             "protocolVersion": "chronicle-b05-schoedel-preflight/v1",
             "disposition": "refused",
-            "optionsDigest": "sha256:21eb70a34122ba7042cea8f2468ee8a66f2ea3c1da5baba6354a09176f070f24",
+            "optionsDigest": "sha256:c57b9c29c64d50b0c951ef01deb8956e0549eea976b319a2e213697e47b788a9",
             "componentOptionsDigest": "sha256:f86d5b2781f9140442c9a983ee1b94ade731fba63b98da91c32f7aaea18aaad4",
             "screenComponentOptionsDigest": "sha256:8808b3d36f00ef8cd7059a26f898e253e5705c80c5d73fb2209699241609acc9",
             "schoedelComponentOptionsDigest": "sha256:2915d8b4dbc18eafb67b1c184b880efb64762e8e6fd166d3c6e9d9eb3ef6a83e",
@@ -1219,12 +1219,12 @@
               "refusalDetail": "capability_evidence_not_bound_to_input"
             }
           },
-          "b05SchoedelDigest": "sha256:d2c7db8680dad63a22f4b57291951783d42181c2660f9155a3bbe10d65d90433",
+          "b05SchoedelDigest": "sha256:5618106b13fe4662cb2b592a07bd1acdc3ed2f662f01f18fe178908e29c171ac",
           "eyesInputPartition": {
             "protocolVersion": "chronicle-eyes-input-partition-preflight/v2",
             "disposition": "not_applicable",
             "inputDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
-            "optionsDigest": "sha256:21eb70a34122ba7042cea8f2468ee8a66f2ea3c1da5baba6354a09176f070f24",
+            "optionsDigest": "sha256:c57b9c29c64d50b0c951ef01deb8956e0549eea976b319a2e213697e47b788a9",
             "optionsDigestOrigin": "verified_request_jcs",
             "requestedEpisodeStrategyId": "schoedel_2026_app_within_screen_prose_v1",
             "effectiveEpisodeStrategyId": null,
@@ -1232,10 +1232,10 @@
             "refusalReason": null,
             "refusalDetail": null,
             "fragmentedParticipantCount": 0,
-            "resolutionDigest": "sha256:6ffc747993f263b2eff48432884b787e733b948d93e92328850bc7098422cea0"
+            "resolutionDigest": "sha256:7db558895a223c2f8d7f7e059bb44b9d59c509aa0ebbb4dbc0810f08584dcf71"
           },
-          "eyesInputPartitionDigest": "sha256:a4e763d44939f8d0fede36c89d39b2db218da136333e83cdbed8849647a3b283",
-          "commitDigest": "sha256:5eee863f7f16bab5e3c2ce25986829315428564fce74efe75d6b0543e58e075d"
+          "eyesInputPartitionDigest": "sha256:aedf850dbf46745d6678fe1a1408b5faba57adfd45803f7fa30ece407316055d",
+          "commitDigest": "sha256:b2a24f2981a7e81380e2ed95ca0fffb3cbf92c7e17203b0c55f1ede832770492"
         },
         "workspaceRootDigest": null,
         "refusal": {
@@ -1257,7 +1257,7 @@
           "protocolVersion": "chronicle-runtime-scientific-preflight/v2",
           "key": {
             "protocolVersion": "chronicle-runtime-scientific-preflight/v2",
-            "optionsDigest": "sha256:40f3454b428fc7dc1908f53c523235efb4502802b5fd28953989a8a4b5dff0d1",
+            "optionsDigest": "sha256:56a82598dcb7580ad69f115803b70cb029bc6ec017cca60181ea4f35f2a2ef9d",
             "inputDigest": "sha256:6062e324b73b295a83b42b36d59e006036ab83649a9770a973ea9d4058da1779",
             "inputSizeBytes": 15411,
             "activeIngressRoles": {
@@ -1290,8 +1290,8 @@
                 "assignmentId": "sha256:d7be8184209b62853fc74ad4e1ce4a9a79dfb4274b5cb01839526f809e5df2f0"
               },
               "processing_options": {
-                "artifactDigest": "sha256:40f3454b428fc7dc1908f53c523235efb4502802b5fd28953989a8a4b5dff0d1",
-                "assignmentId": "sha256:8a3b7bf65c7a1d6adf0a15dbd0ac86a595a61d12fd03b655a730567010fdc473"
+                "artifactDigest": "sha256:56a82598dcb7580ad69f115803b70cb029bc6ec017cca60181ea4f35f2a2ef9d",
+                "assignmentId": "sha256:1cdbd9f0fe0d6e4960bfb392e842a0bed76507e82931a468dd307ff70c11ee6e"
               },
               "raw_chronicle_csv": {
                 "artifactDigest": "sha256:6062e324b73b295a83b42b36d59e006036ab83649a9770a973ea9d4058da1779",
@@ -1309,11 +1309,11 @@
             "fragmentedParticipantCount": 0,
             "fragmentedParticipantTokenScopeDigest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
           },
-          "keyDigest": "sha256:c3388b0404b13f444dbb0921f69131f9a920a94bec2a289bce79166c907191cb",
+          "keyDigest": "sha256:b272b64d29480576daaf96a5b3d95c9246b3d0f50a8832861519fd6bd2aa92d6",
           "b05Schoedel": {
             "protocolVersion": "chronicle-b05-schoedel-preflight/v1",
             "disposition": "executable",
-            "optionsDigest": "sha256:71fb909372ae24daccd540c334b4dd7a7907e0816759c8e010a47a0aab4942c2",
+            "optionsDigest": "sha256:85b417cda3145408f80089fa1b1b2fba46dde67e9ec5ed0db78639f89fe5efeb",
             "componentOptionsDigest": "sha256:a0d9c6229f444cf975ec463d05494b4bc5f0c4ea76fa2d3f53c473081c846460",
             "screenComponentOptionsDigest": "sha256:f6fe2b21e7d64fa43955a4c1d5aab17d69a0fd29e61a63b86359ac02fb81a1ca",
             "schoedelComponentOptionsDigest": "sha256:5c14c77d757de9e36ba79ab48bd1864c8c1c5deb60b92bb149ea7a203dd4fc27",
@@ -1333,12 +1333,12 @@
             },
             "schoedelApplicability": null
           },
-          "b05SchoedelDigest": "sha256:8a5e5af825b5f873a2e3dddf4a7fb93f181e6edbc4c0ec25b8da62a7544e4166",
+          "b05SchoedelDigest": "sha256:6fe0b3f5d717d26381c4d3bc5b95f0aa1b4750eda662ad25c7d658d4261df361",
           "eyesInputPartition": {
             "protocolVersion": "chronicle-eyes-input-partition-preflight/v2",
             "disposition": "not_applicable",
             "inputDigest": "sha256:6062e324b73b295a83b42b36d59e006036ab83649a9770a973ea9d4058da1779",
-            "optionsDigest": "sha256:71fb909372ae24daccd540c334b4dd7a7907e0816759c8e010a47a0aab4942c2",
+            "optionsDigest": "sha256:85b417cda3145408f80089fa1b1b2fba46dde67e9ec5ed0db78639f89fe5efeb",
             "optionsDigestOrigin": "verified_request_jcs",
             "requestedEpisodeStrategyId": "fused_matcher",
             "effectiveEpisodeStrategyId": null,
@@ -1346,12 +1346,12 @@
             "refusalReason": null,
             "refusalDetail": null,
             "fragmentedParticipantCount": 0,
-            "resolutionDigest": "sha256:fe2cae6bcfd270bae4f0c8ec445db63c167f36261de7af1b084530768fdd01a7"
+            "resolutionDigest": "sha256:aa4108d7213a40c60bb059b4aceac76aa7226f4cf225b527ae6fadd3049336e7"
           },
-          "eyesInputPartitionDigest": "sha256:3c931ab3a12697b5ec05e9a41ea1489b85eaedb6fa85beb12ccaea28c5c97ffb",
-          "commitDigest": "sha256:588766ad2588e7a8f10cf2f2c2cc9ce3e2842e278b847a448da1686fe06708ab"
+          "eyesInputPartitionDigest": "sha256:921c66dea8357d0700f93f0429595bdd463ec2d98706289e867d07a737b9b0b0",
+          "commitDigest": "sha256:3282a3d5b5b491f081cceaeedddc17baa234c6722ae9a1878e060bcd30c5c18f"
         },
-        "workspaceRootDigest": "sha256:1625b0e73c1617ba1b01bb3c221cb0a292e668c679809430fea9bf2c8270eecd",
+        "workspaceRootDigest": "sha256:24f5285aee707b8ed8a3a4cea68eb9b90dc0843b05dd6bba9ec73a23d562cf24",
         "refusal": null,
         "validationError": null,
         "rawRebind": {
@@ -1372,7 +1372,7 @@
           "protocolVersion": "chronicle-runtime-scientific-preflight/v2",
           "key": {
             "protocolVersion": "chronicle-runtime-scientific-preflight/v2",
-            "optionsDigest": "sha256:40f3454b428fc7dc1908f53c523235efb4502802b5fd28953989a8a4b5dff0d1",
+            "optionsDigest": "sha256:56a82598dcb7580ad69f115803b70cb029bc6ec017cca60181ea4f35f2a2ef9d",
             "inputDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
             "inputSizeBytes": 15325,
             "activeIngressRoles": {
@@ -1405,8 +1405,8 @@
                 "assignmentId": "sha256:c082241ad205893aff3edd120eeb13074712bbe20ded17560c53f40a0c21128b"
               },
               "processing_options": {
-                "artifactDigest": "sha256:40f3454b428fc7dc1908f53c523235efb4502802b5fd28953989a8a4b5dff0d1",
-                "assignmentId": "sha256:8a3b7bf65c7a1d6adf0a15dbd0ac86a595a61d12fd03b655a730567010fdc473"
+                "artifactDigest": "sha256:56a82598dcb7580ad69f115803b70cb029bc6ec017cca60181ea4f35f2a2ef9d",
+                "assignmentId": "sha256:1cdbd9f0fe0d6e4960bfb392e842a0bed76507e82931a468dd307ff70c11ee6e"
               },
               "raw_chronicle_csv": {
                 "artifactDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
@@ -1424,11 +1424,11 @@
             "fragmentedParticipantCount": 0,
             "fragmentedParticipantTokenScopeDigest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
           },
-          "keyDigest": "sha256:5f058d54bbf589aed8ca448cf289aa38003fdcece8656bf238f111daf49a4fa6",
+          "keyDigest": "sha256:fcc315a16c0fc4194e6c63872cdb877e6108be3f0a3bfd55489046c77c3d483c",
           "b05Schoedel": {
             "protocolVersion": "chronicle-b05-schoedel-preflight/v1",
             "disposition": "executable",
-            "optionsDigest": "sha256:71fb909372ae24daccd540c334b4dd7a7907e0816759c8e010a47a0aab4942c2",
+            "optionsDigest": "sha256:85b417cda3145408f80089fa1b1b2fba46dde67e9ec5ed0db78639f89fe5efeb",
             "componentOptionsDigest": "sha256:a0d9c6229f444cf975ec463d05494b4bc5f0c4ea76fa2d3f53c473081c846460",
             "screenComponentOptionsDigest": "sha256:f6fe2b21e7d64fa43955a4c1d5aab17d69a0fd29e61a63b86359ac02fb81a1ca",
             "schoedelComponentOptionsDigest": "sha256:5c14c77d757de9e36ba79ab48bd1864c8c1c5deb60b92bb149ea7a203dd4fc27",
@@ -1448,12 +1448,12 @@
             },
             "schoedelApplicability": null
           },
-          "b05SchoedelDigest": "sha256:8a5e5af825b5f873a2e3dddf4a7fb93f181e6edbc4c0ec25b8da62a7544e4166",
+          "b05SchoedelDigest": "sha256:6fe0b3f5d717d26381c4d3bc5b95f0aa1b4750eda662ad25c7d658d4261df361",
           "eyesInputPartition": {
             "protocolVersion": "chronicle-eyes-input-partition-preflight/v2",
             "disposition": "not_applicable",
             "inputDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
-            "optionsDigest": "sha256:71fb909372ae24daccd540c334b4dd7a7907e0816759c8e010a47a0aab4942c2",
+            "optionsDigest": "sha256:85b417cda3145408f80089fa1b1b2fba46dde67e9ec5ed0db78639f89fe5efeb",
             "optionsDigestOrigin": "verified_request_jcs",
             "requestedEpisodeStrategyId": "fused_matcher",
             "effectiveEpisodeStrategyId": null,
@@ -1461,12 +1461,12 @@
             "refusalReason": null,
             "refusalDetail": null,
             "fragmentedParticipantCount": 0,
-            "resolutionDigest": "sha256:f08a18989e63befa4d2dbd3224047b36625f1c5ffad88e106a9ce2734362d07f"
+            "resolutionDigest": "sha256:73dc9a5d592afb90f8f5fd79063c5ff4c697f91c7aeb1f674ca2f38be442cf7b"
           },
-          "eyesInputPartitionDigest": "sha256:0a3f03649b7471a0632f67ae71870ed0f904a7a0255864a06568bf16e574b344",
-          "commitDigest": "sha256:20b8ea0cff307231642ecc391f6f20bd639566c09d58c923da026b0a9b6d2aa5"
+          "eyesInputPartitionDigest": "sha256:61d316e333ecf921da050e0bbf4f6f9dc1c72c56eb52d32035912e904fb234a0",
+          "commitDigest": "sha256:e3916f6b462c8267d116e5a4291997f0201c4a9fd7db35cc10864a3aeb339894"
         },
-        "workspaceRootDigest": "sha256:b408e4ae51502f725d9f41866f4d7b3cf5e789258aacfaf1db21374c47f6f066",
+        "workspaceRootDigest": "sha256:99b4ead79fff13af13b55c04ec9d363f4e877d2819f60630455851ebf8a3bcb6",
         "refusal": null,
         "validationError": null,
         "rawRebind": null,
@@ -1500,7 +1500,7 @@
           "protocolVersion": "chronicle-runtime-scientific-preflight/v2",
           "key": {
             "protocolVersion": "chronicle-runtime-scientific-preflight/v2",
-            "optionsDigest": "sha256:40f3454b428fc7dc1908f53c523235efb4502802b5fd28953989a8a4b5dff0d1",
+            "optionsDigest": "sha256:56a82598dcb7580ad69f115803b70cb029bc6ec017cca60181ea4f35f2a2ef9d",
             "inputDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
             "inputSizeBytes": 15325,
             "activeIngressRoles": {
@@ -1533,8 +1533,8 @@
                 "assignmentId": "sha256:d70c95e1f37c730f49a0d0d32a4bc45be34222f60cd819f37240005f8578299a"
               },
               "processing_options": {
-                "artifactDigest": "sha256:40f3454b428fc7dc1908f53c523235efb4502802b5fd28953989a8a4b5dff0d1",
-                "assignmentId": "sha256:8a3b7bf65c7a1d6adf0a15dbd0ac86a595a61d12fd03b655a730567010fdc473"
+                "artifactDigest": "sha256:56a82598dcb7580ad69f115803b70cb029bc6ec017cca60181ea4f35f2a2ef9d",
+                "assignmentId": "sha256:1cdbd9f0fe0d6e4960bfb392e842a0bed76507e82931a468dd307ff70c11ee6e"
               },
               "raw_chronicle_csv": {
                 "artifactDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
@@ -1552,11 +1552,11 @@
             "fragmentedParticipantCount": 0,
             "fragmentedParticipantTokenScopeDigest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
           },
-          "keyDigest": "sha256:6e0676b9e66a6ede9e0b32736d5afc11244263751b848732fb9546e7bfd838ef",
+          "keyDigest": "sha256:3a8a824b0584c9d1232ef3d30cf6bdc305a9abb3c542d34154fb2f02661a5f65",
           "b05Schoedel": {
             "protocolVersion": "chronicle-b05-schoedel-preflight/v1",
             "disposition": "executable",
-            "optionsDigest": "sha256:71fb909372ae24daccd540c334b4dd7a7907e0816759c8e010a47a0aab4942c2",
+            "optionsDigest": "sha256:85b417cda3145408f80089fa1b1b2fba46dde67e9ec5ed0db78639f89fe5efeb",
             "componentOptionsDigest": "sha256:a0d9c6229f444cf975ec463d05494b4bc5f0c4ea76fa2d3f53c473081c846460",
             "screenComponentOptionsDigest": "sha256:f6fe2b21e7d64fa43955a4c1d5aab17d69a0fd29e61a63b86359ac02fb81a1ca",
             "schoedelComponentOptionsDigest": "sha256:5c14c77d757de9e36ba79ab48bd1864c8c1c5deb60b92bb149ea7a203dd4fc27",
@@ -1576,12 +1576,12 @@
             },
             "schoedelApplicability": null
           },
-          "b05SchoedelDigest": "sha256:8a5e5af825b5f873a2e3dddf4a7fb93f181e6edbc4c0ec25b8da62a7544e4166",
+          "b05SchoedelDigest": "sha256:6fe0b3f5d717d26381c4d3bc5b95f0aa1b4750eda662ad25c7d658d4261df361",
           "eyesInputPartition": {
             "protocolVersion": "chronicle-eyes-input-partition-preflight/v2",
             "disposition": "not_applicable",
             "inputDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
-            "optionsDigest": "sha256:71fb909372ae24daccd540c334b4dd7a7907e0816759c8e010a47a0aab4942c2",
+            "optionsDigest": "sha256:85b417cda3145408f80089fa1b1b2fba46dde67e9ec5ed0db78639f89fe5efeb",
             "optionsDigestOrigin": "verified_request_jcs",
             "requestedEpisodeStrategyId": "fused_matcher",
             "effectiveEpisodeStrategyId": null,
@@ -1589,12 +1589,12 @@
             "refusalReason": null,
             "refusalDetail": null,
             "fragmentedParticipantCount": 0,
-            "resolutionDigest": "sha256:f08a18989e63befa4d2dbd3224047b36625f1c5ffad88e106a9ce2734362d07f"
+            "resolutionDigest": "sha256:73dc9a5d592afb90f8f5fd79063c5ff4c697f91c7aeb1f674ca2f38be442cf7b"
           },
-          "eyesInputPartitionDigest": "sha256:0a3f03649b7471a0632f67ae71870ed0f904a7a0255864a06568bf16e574b344",
-          "commitDigest": "sha256:8be16c9690d99d209f7195f40ba6910ade47b9b4575e338508030dbe4dfa82c4"
+          "eyesInputPartitionDigest": "sha256:61d316e333ecf921da050e0bbf4f6f9dc1c72c56eb52d32035912e904fb234a0",
+          "commitDigest": "sha256:774ed1f9df9516b74eb3c7c4d01212379c9f190175b356bf3b82cf759ddf0228"
         },
-        "workspaceRootDigest": "sha256:69a0452921b13909162836d5ff654c5d7aad0f933e0aab4aebde64c0733ae53c",
+        "workspaceRootDigest": "sha256:1c569d4b7f8ff94db51ad806ae87582a7c094988edad0bdb7aa83df64a9891d1",
         "refusal": null,
         "validationError": null,
         "rawRebind": null,
@@ -1610,7 +1610,7 @@
           "protocolVersion": "chronicle-runtime-scientific-preflight/v2",
           "key": {
             "protocolVersion": "chronicle-runtime-scientific-preflight/v2",
-            "optionsDigest": "sha256:40f3454b428fc7dc1908f53c523235efb4502802b5fd28953989a8a4b5dff0d1",
+            "optionsDigest": "sha256:56a82598dcb7580ad69f115803b70cb029bc6ec017cca60181ea4f35f2a2ef9d",
             "inputDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
             "inputSizeBytes": 15325,
             "activeIngressRoles": {
@@ -1643,8 +1643,8 @@
                 "assignmentId": "sha256:5ac4d0b978dee3cd9e10f04d847859154ffcfee7fa64f73ef24cb68e3e5a6860"
               },
               "processing_options": {
-                "artifactDigest": "sha256:40f3454b428fc7dc1908f53c523235efb4502802b5fd28953989a8a4b5dff0d1",
-                "assignmentId": "sha256:8a3b7bf65c7a1d6adf0a15dbd0ac86a595a61d12fd03b655a730567010fdc473"
+                "artifactDigest": "sha256:56a82598dcb7580ad69f115803b70cb029bc6ec017cca60181ea4f35f2a2ef9d",
+                "assignmentId": "sha256:1cdbd9f0fe0d6e4960bfb392e842a0bed76507e82931a468dd307ff70c11ee6e"
               },
               "raw_chronicle_csv": {
                 "artifactDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
@@ -1662,11 +1662,11 @@
             "fragmentedParticipantCount": 0,
             "fragmentedParticipantTokenScopeDigest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
           },
-          "keyDigest": "sha256:53f2c32419f59d85a2ac6c5771cde1613fda76aeed924d0ba913faf083d8a083",
+          "keyDigest": "sha256:03639e5fecaee2daf52a8ebec773cdd18acf4c886f8fb7b8374d0f8f40b57b6b",
           "b05Schoedel": {
             "protocolVersion": "chronicle-b05-schoedel-preflight/v1",
             "disposition": "executable",
-            "optionsDigest": "sha256:71fb909372ae24daccd540c334b4dd7a7907e0816759c8e010a47a0aab4942c2",
+            "optionsDigest": "sha256:85b417cda3145408f80089fa1b1b2fba46dde67e9ec5ed0db78639f89fe5efeb",
             "componentOptionsDigest": "sha256:a0d9c6229f444cf975ec463d05494b4bc5f0c4ea76fa2d3f53c473081c846460",
             "screenComponentOptionsDigest": "sha256:f6fe2b21e7d64fa43955a4c1d5aab17d69a0fd29e61a63b86359ac02fb81a1ca",
             "schoedelComponentOptionsDigest": "sha256:5c14c77d757de9e36ba79ab48bd1864c8c1c5deb60b92bb149ea7a203dd4fc27",
@@ -1686,12 +1686,12 @@
             },
             "schoedelApplicability": null
           },
-          "b05SchoedelDigest": "sha256:8a5e5af825b5f873a2e3dddf4a7fb93f181e6edbc4c0ec25b8da62a7544e4166",
+          "b05SchoedelDigest": "sha256:6fe0b3f5d717d26381c4d3bc5b95f0aa1b4750eda662ad25c7d658d4261df361",
           "eyesInputPartition": {
             "protocolVersion": "chronicle-eyes-input-partition-preflight/v2",
             "disposition": "not_applicable",
             "inputDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
-            "optionsDigest": "sha256:71fb909372ae24daccd540c334b4dd7a7907e0816759c8e010a47a0aab4942c2",
+            "optionsDigest": "sha256:85b417cda3145408f80089fa1b1b2fba46dde67e9ec5ed0db78639f89fe5efeb",
             "optionsDigestOrigin": "verified_request_jcs",
             "requestedEpisodeStrategyId": "fused_matcher",
             "effectiveEpisodeStrategyId": null,
@@ -1699,12 +1699,12 @@
             "refusalReason": null,
             "refusalDetail": null,
             "fragmentedParticipantCount": 0,
-            "resolutionDigest": "sha256:f08a18989e63befa4d2dbd3224047b36625f1c5ffad88e106a9ce2734362d07f"
+            "resolutionDigest": "sha256:73dc9a5d592afb90f8f5fd79063c5ff4c697f91c7aeb1f674ca2f38be442cf7b"
           },
-          "eyesInputPartitionDigest": "sha256:0a3f03649b7471a0632f67ae71870ed0f904a7a0255864a06568bf16e574b344",
-          "commitDigest": "sha256:00d30742a3c259677b36e6d5f0c53ba56f9a234fc23b11b15bd6a1fa029b289e"
+          "eyesInputPartitionDigest": "sha256:61d316e333ecf921da050e0bbf4f6f9dc1c72c56eb52d32035912e904fb234a0",
+          "commitDigest": "sha256:38cad499780cc8ef3af75ead7ec168a3adde5e1e0afe00bddeff5d98ebd7bf09"
         },
-        "workspaceRootDigest": "sha256:86ee38a58136087234b1595e22a1fbe6412d6eb5d2a1d2126088d2b82f05f1f6",
+        "workspaceRootDigest": "sha256:c2d0c763d339f903d73b14e514f338a560f3f1d0e48828300971349ea02164b2",
         "refusal": null,
         "validationError": null,
         "rawRebind": null,
@@ -1720,7 +1720,7 @@
           "protocolVersion": "chronicle-runtime-scientific-preflight/v2",
           "key": {
             "protocolVersion": "chronicle-runtime-scientific-preflight/v2",
-            "optionsDigest": "sha256:40f3454b428fc7dc1908f53c523235efb4502802b5fd28953989a8a4b5dff0d1",
+            "optionsDigest": "sha256:56a82598dcb7580ad69f115803b70cb029bc6ec017cca60181ea4f35f2a2ef9d",
             "inputDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
             "inputSizeBytes": 15325,
             "activeIngressRoles": {
@@ -1753,8 +1753,8 @@
                 "assignmentId": "sha256:fe409d89fa860930a2209f2d65d54aae620d16831912a52e47deda8aecafe4ef"
               },
               "processing_options": {
-                "artifactDigest": "sha256:40f3454b428fc7dc1908f53c523235efb4502802b5fd28953989a8a4b5dff0d1",
-                "assignmentId": "sha256:8a3b7bf65c7a1d6adf0a15dbd0ac86a595a61d12fd03b655a730567010fdc473"
+                "artifactDigest": "sha256:56a82598dcb7580ad69f115803b70cb029bc6ec017cca60181ea4f35f2a2ef9d",
+                "assignmentId": "sha256:1cdbd9f0fe0d6e4960bfb392e842a0bed76507e82931a468dd307ff70c11ee6e"
               },
               "raw_chronicle_csv": {
                 "artifactDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
@@ -1772,11 +1772,11 @@
             "fragmentedParticipantCount": 0,
             "fragmentedParticipantTokenScopeDigest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
           },
-          "keyDigest": "sha256:4890f7be29eec42610efa12db62eacfd57d7aca9136ec07e2bc29d720d153bc4",
+          "keyDigest": "sha256:ed44730b049dad997355511e2384a61833da35917aa2b3f500c08338d6b33891",
           "b05Schoedel": {
             "protocolVersion": "chronicle-b05-schoedel-preflight/v1",
             "disposition": "executable",
-            "optionsDigest": "sha256:71fb909372ae24daccd540c334b4dd7a7907e0816759c8e010a47a0aab4942c2",
+            "optionsDigest": "sha256:85b417cda3145408f80089fa1b1b2fba46dde67e9ec5ed0db78639f89fe5efeb",
             "componentOptionsDigest": "sha256:a0d9c6229f444cf975ec463d05494b4bc5f0c4ea76fa2d3f53c473081c846460",
             "screenComponentOptionsDigest": "sha256:f6fe2b21e7d64fa43955a4c1d5aab17d69a0fd29e61a63b86359ac02fb81a1ca",
             "schoedelComponentOptionsDigest": "sha256:5c14c77d757de9e36ba79ab48bd1864c8c1c5deb60b92bb149ea7a203dd4fc27",
@@ -1796,12 +1796,12 @@
             },
             "schoedelApplicability": null
           },
-          "b05SchoedelDigest": "sha256:8a5e5af825b5f873a2e3dddf4a7fb93f181e6edbc4c0ec25b8da62a7544e4166",
+          "b05SchoedelDigest": "sha256:6fe0b3f5d717d26381c4d3bc5b95f0aa1b4750eda662ad25c7d658d4261df361",
           "eyesInputPartition": {
             "protocolVersion": "chronicle-eyes-input-partition-preflight/v2",
             "disposition": "not_applicable",
             "inputDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
-            "optionsDigest": "sha256:71fb909372ae24daccd540c334b4dd7a7907e0816759c8e010a47a0aab4942c2",
+            "optionsDigest": "sha256:85b417cda3145408f80089fa1b1b2fba46dde67e9ec5ed0db78639f89fe5efeb",
             "optionsDigestOrigin": "verified_request_jcs",
             "requestedEpisodeStrategyId": "fused_matcher",
             "effectiveEpisodeStrategyId": null,
@@ -1809,12 +1809,12 @@
             "refusalReason": null,
             "refusalDetail": null,
             "fragmentedParticipantCount": 0,
-            "resolutionDigest": "sha256:f08a18989e63befa4d2dbd3224047b36625f1c5ffad88e106a9ce2734362d07f"
+            "resolutionDigest": "sha256:73dc9a5d592afb90f8f5fd79063c5ff4c697f91c7aeb1f674ca2f38be442cf7b"
           },
-          "eyesInputPartitionDigest": "sha256:0a3f03649b7471a0632f67ae71870ed0f904a7a0255864a06568bf16e574b344",
-          "commitDigest": "sha256:9c183997843091db8f9715d5ad33ac4f270460b3ead883833d96706ff0c666a8"
+          "eyesInputPartitionDigest": "sha256:61d316e333ecf921da050e0bbf4f6f9dc1c72c56eb52d32035912e904fb234a0",
+          "commitDigest": "sha256:c0ac0c821edd0c7348ff7fdd23f068ad86771a575303143dd9bbbbc935031e58"
         },
-        "workspaceRootDigest": "sha256:e535c37fe79b717ac98263b480d9df028722419f1f69b621f881fdd6662c1f19",
+        "workspaceRootDigest": "sha256:38354c5c601407760fe6a5ad61d24e5f930773cfd1702980cd33d9d7b2923d95",
         "refusal": null,
         "validationError": null,
         "rawRebind": null,
@@ -1830,7 +1830,7 @@
           "protocolVersion": "chronicle-runtime-scientific-preflight/v2",
           "key": {
             "protocolVersion": "chronicle-runtime-scientific-preflight/v2",
-            "optionsDigest": "sha256:40f3454b428fc7dc1908f53c523235efb4502802b5fd28953989a8a4b5dff0d1",
+            "optionsDigest": "sha256:56a82598dcb7580ad69f115803b70cb029bc6ec017cca60181ea4f35f2a2ef9d",
             "inputDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
             "inputSizeBytes": 15325,
             "activeIngressRoles": {
@@ -1863,8 +1863,8 @@
                 "assignmentId": "sha256:2d63b812c54bfab0912499731e4014073b644c8bf54fa6cb969225496fa2f470"
               },
               "processing_options": {
-                "artifactDigest": "sha256:40f3454b428fc7dc1908f53c523235efb4502802b5fd28953989a8a4b5dff0d1",
-                "assignmentId": "sha256:8a3b7bf65c7a1d6adf0a15dbd0ac86a595a61d12fd03b655a730567010fdc473"
+                "artifactDigest": "sha256:56a82598dcb7580ad69f115803b70cb029bc6ec017cca60181ea4f35f2a2ef9d",
+                "assignmentId": "sha256:1cdbd9f0fe0d6e4960bfb392e842a0bed76507e82931a468dd307ff70c11ee6e"
               },
               "raw_chronicle_csv": {
                 "artifactDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
@@ -1882,11 +1882,11 @@
             "fragmentedParticipantCount": 0,
             "fragmentedParticipantTokenScopeDigest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
           },
-          "keyDigest": "sha256:84a3228ad46d547673e1f64d649ee691a273abd0e59e41dbba802f32bd32fd75",
+          "keyDigest": "sha256:b70fc45a00df9a2a9b6d195f5906cffc00331db1829cbd2de84bf67759f7d97f",
           "b05Schoedel": {
             "protocolVersion": "chronicle-b05-schoedel-preflight/v1",
             "disposition": "refused",
-            "optionsDigest": "sha256:71fb909372ae24daccd540c334b4dd7a7907e0816759c8e010a47a0aab4942c2",
+            "optionsDigest": "sha256:85b417cda3145408f80089fa1b1b2fba46dde67e9ec5ed0db78639f89fe5efeb",
             "componentOptionsDigest": "sha256:a0d9c6229f444cf975ec463d05494b4bc5f0c4ea76fa2d3f53c473081c846460",
             "screenComponentOptionsDigest": "sha256:f6fe2b21e7d64fa43955a4c1d5aab17d69a0fd29e61a63b86359ac02fb81a1ca",
             "schoedelComponentOptionsDigest": "sha256:5c14c77d757de9e36ba79ab48bd1864c8c1c5deb60b92bb149ea7a203dd4fc27",
@@ -1906,12 +1906,12 @@
             },
             "schoedelApplicability": null
           },
-          "b05SchoedelDigest": "sha256:abc4df3e8e088f7d4147f47dd03c16c424b99d3ff9df9c7ef4db8e31c1ee0cdd",
+          "b05SchoedelDigest": "sha256:128ce42651b776f0f3397862b1ecffcecd1536768c8e9ba33f8d9edc24476f99",
           "eyesInputPartition": {
             "protocolVersion": "chronicle-eyes-input-partition-preflight/v2",
             "disposition": "not_applicable",
             "inputDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
-            "optionsDigest": "sha256:71fb909372ae24daccd540c334b4dd7a7907e0816759c8e010a47a0aab4942c2",
+            "optionsDigest": "sha256:85b417cda3145408f80089fa1b1b2fba46dde67e9ec5ed0db78639f89fe5efeb",
             "optionsDigestOrigin": "verified_request_jcs",
             "requestedEpisodeStrategyId": "fused_matcher",
             "effectiveEpisodeStrategyId": null,
@@ -1919,10 +1919,10 @@
             "refusalReason": null,
             "refusalDetail": null,
             "fragmentedParticipantCount": 0,
-            "resolutionDigest": "sha256:f08a18989e63befa4d2dbd3224047b36625f1c5ffad88e106a9ce2734362d07f"
+            "resolutionDigest": "sha256:73dc9a5d592afb90f8f5fd79063c5ff4c697f91c7aeb1f674ca2f38be442cf7b"
           },
-          "eyesInputPartitionDigest": "sha256:0a3f03649b7471a0632f67ae71870ed0f904a7a0255864a06568bf16e574b344",
-          "commitDigest": "sha256:1bba149dd7d0588aab2887f9a3b4fc0f37ba970efb74c327bbf341ad368aa2b9"
+          "eyesInputPartitionDigest": "sha256:61d316e333ecf921da050e0bbf4f6f9dc1c72c56eb52d32035912e904fb234a0",
+          "commitDigest": "sha256:408601aadf97bbb36bcd0bb6ddf943c9df67aaba1f1fcfe7cdefc115d2c9bd96"
         },
         "workspaceRootDigest": null,
         "refusal": {
@@ -1944,7 +1944,7 @@
           "protocolVersion": "chronicle-runtime-scientific-preflight/v2",
           "key": {
             "protocolVersion": "chronicle-runtime-scientific-preflight/v2",
-            "optionsDigest": "sha256:40f3454b428fc7dc1908f53c523235efb4502802b5fd28953989a8a4b5dff0d1",
+            "optionsDigest": "sha256:56a82598dcb7580ad69f115803b70cb029bc6ec017cca60181ea4f35f2a2ef9d",
             "inputDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
             "inputSizeBytes": 15325,
             "activeIngressRoles": {
@@ -1977,8 +1977,8 @@
                 "assignmentId": "sha256:214332c2b989488cf6645c487bbf43c3fdb1d0104244ed76f5e25fcb627369d8"
               },
               "processing_options": {
-                "artifactDigest": "sha256:40f3454b428fc7dc1908f53c523235efb4502802b5fd28953989a8a4b5dff0d1",
-                "assignmentId": "sha256:8a3b7bf65c7a1d6adf0a15dbd0ac86a595a61d12fd03b655a730567010fdc473"
+                "artifactDigest": "sha256:56a82598dcb7580ad69f115803b70cb029bc6ec017cca60181ea4f35f2a2ef9d",
+                "assignmentId": "sha256:1cdbd9f0fe0d6e4960bfb392e842a0bed76507e82931a468dd307ff70c11ee6e"
               },
               "raw_chronicle_csv": {
                 "artifactDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
@@ -1996,11 +1996,11 @@
             "fragmentedParticipantCount": 0,
             "fragmentedParticipantTokenScopeDigest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
           },
-          "keyDigest": "sha256:c3f7ec4ee6bdae2289ab6b97f21cde8c50797f45853e0a970b1f08133b22aba1",
+          "keyDigest": "sha256:9523b261b231f9289929a83249089b7c5c83fd9cd18cf542fbe406ff5d3733e8",
           "b05Schoedel": {
             "protocolVersion": "chronicle-b05-schoedel-preflight/v1",
             "disposition": "executable",
-            "optionsDigest": "sha256:71fb909372ae24daccd540c334b4dd7a7907e0816759c8e010a47a0aab4942c2",
+            "optionsDigest": "sha256:85b417cda3145408f80089fa1b1b2fba46dde67e9ec5ed0db78639f89fe5efeb",
             "componentOptionsDigest": "sha256:a0d9c6229f444cf975ec463d05494b4bc5f0c4ea76fa2d3f53c473081c846460",
             "screenComponentOptionsDigest": "sha256:f6fe2b21e7d64fa43955a4c1d5aab17d69a0fd29e61a63b86359ac02fb81a1ca",
             "schoedelComponentOptionsDigest": "sha256:5c14c77d757de9e36ba79ab48bd1864c8c1c5deb60b92bb149ea7a203dd4fc27",
@@ -2020,12 +2020,12 @@
             },
             "schoedelApplicability": null
           },
-          "b05SchoedelDigest": "sha256:8a5e5af825b5f873a2e3dddf4a7fb93f181e6edbc4c0ec25b8da62a7544e4166",
+          "b05SchoedelDigest": "sha256:6fe0b3f5d717d26381c4d3bc5b95f0aa1b4750eda662ad25c7d658d4261df361",
           "eyesInputPartition": {
             "protocolVersion": "chronicle-eyes-input-partition-preflight/v2",
             "disposition": "not_applicable",
             "inputDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
-            "optionsDigest": "sha256:71fb909372ae24daccd540c334b4dd7a7907e0816759c8e010a47a0aab4942c2",
+            "optionsDigest": "sha256:85b417cda3145408f80089fa1b1b2fba46dde67e9ec5ed0db78639f89fe5efeb",
             "optionsDigestOrigin": "verified_request_jcs",
             "requestedEpisodeStrategyId": "fused_matcher",
             "effectiveEpisodeStrategyId": null,
@@ -2033,12 +2033,12 @@
             "refusalReason": null,
             "refusalDetail": null,
             "fragmentedParticipantCount": 0,
-            "resolutionDigest": "sha256:f08a18989e63befa4d2dbd3224047b36625f1c5ffad88e106a9ce2734362d07f"
+            "resolutionDigest": "sha256:73dc9a5d592afb90f8f5fd79063c5ff4c697f91c7aeb1f674ca2f38be442cf7b"
           },
-          "eyesInputPartitionDigest": "sha256:0a3f03649b7471a0632f67ae71870ed0f904a7a0255864a06568bf16e574b344",
-          "commitDigest": "sha256:685cced5b29ea192fee4a58aa06b4a8fcb3539d4642ebe350b22b43faa9d71a8"
+          "eyesInputPartitionDigest": "sha256:61d316e333ecf921da050e0bbf4f6f9dc1c72c56eb52d32035912e904fb234a0",
+          "commitDigest": "sha256:bc94584601eea23f18454ff33be9376a5efdc400e61af83035388c0c06b4f5b4"
         },
-        "workspaceRootDigest": "sha256:d7d9ae21ccf816dac8071cf42c10058760df041a3eb223d11b05dc5b0e78c34e",
+        "workspaceRootDigest": "sha256:63df191573410b2cdd7fe0d8a252d2394cc2ace4e23b3a47b27ba90f0114e0fa",
         "refusal": null,
         "validationError": null,
         "rawRebind": null,
@@ -2054,7 +2054,7 @@
           "protocolVersion": "chronicle-runtime-scientific-preflight/v2",
           "key": {
             "protocolVersion": "chronicle-runtime-scientific-preflight/v2",
-            "optionsDigest": "sha256:40f3454b428fc7dc1908f53c523235efb4502802b5fd28953989a8a4b5dff0d1",
+            "optionsDigest": "sha256:56a82598dcb7580ad69f115803b70cb029bc6ec017cca60181ea4f35f2a2ef9d",
             "inputDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
             "inputSizeBytes": 15325,
             "activeIngressRoles": {
@@ -2087,8 +2087,8 @@
                 "assignmentId": "sha256:8fbb0f07ea113e7a4eab41d4add1e87a1dd91f705f906b02ea44002b201e0365"
               },
               "processing_options": {
-                "artifactDigest": "sha256:40f3454b428fc7dc1908f53c523235efb4502802b5fd28953989a8a4b5dff0d1",
-                "assignmentId": "sha256:8a3b7bf65c7a1d6adf0a15dbd0ac86a595a61d12fd03b655a730567010fdc473"
+                "artifactDigest": "sha256:56a82598dcb7580ad69f115803b70cb029bc6ec017cca60181ea4f35f2a2ef9d",
+                "assignmentId": "sha256:1cdbd9f0fe0d6e4960bfb392e842a0bed76507e82931a468dd307ff70c11ee6e"
               },
               "raw_chronicle_csv": {
                 "artifactDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
@@ -2106,11 +2106,11 @@
             "fragmentedParticipantCount": 0,
             "fragmentedParticipantTokenScopeDigest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
           },
-          "keyDigest": "sha256:35eb38520ddbb6e924b3d937e8f90e47afa1b572a24be6c60bcda74693366848",
+          "keyDigest": "sha256:10dc90cb551b664137bd1e7c44cfe8adbd407620dd41d515f14649f7dbe03cff",
           "b05Schoedel": {
             "protocolVersion": "chronicle-b05-schoedel-preflight/v1",
             "disposition": "executable",
-            "optionsDigest": "sha256:71fb909372ae24daccd540c334b4dd7a7907e0816759c8e010a47a0aab4942c2",
+            "optionsDigest": "sha256:85b417cda3145408f80089fa1b1b2fba46dde67e9ec5ed0db78639f89fe5efeb",
             "componentOptionsDigest": "sha256:a0d9c6229f444cf975ec463d05494b4bc5f0c4ea76fa2d3f53c473081c846460",
             "screenComponentOptionsDigest": "sha256:f6fe2b21e7d64fa43955a4c1d5aab17d69a0fd29e61a63b86359ac02fb81a1ca",
             "schoedelComponentOptionsDigest": "sha256:5c14c77d757de9e36ba79ab48bd1864c8c1c5deb60b92bb149ea7a203dd4fc27",
@@ -2130,12 +2130,12 @@
             },
             "schoedelApplicability": null
           },
-          "b05SchoedelDigest": "sha256:8a5e5af825b5f873a2e3dddf4a7fb93f181e6edbc4c0ec25b8da62a7544e4166",
+          "b05SchoedelDigest": "sha256:6fe0b3f5d717d26381c4d3bc5b95f0aa1b4750eda662ad25c7d658d4261df361",
           "eyesInputPartition": {
             "protocolVersion": "chronicle-eyes-input-partition-preflight/v2",
             "disposition": "not_applicable",
             "inputDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
-            "optionsDigest": "sha256:71fb909372ae24daccd540c334b4dd7a7907e0816759c8e010a47a0aab4942c2",
+            "optionsDigest": "sha256:85b417cda3145408f80089fa1b1b2fba46dde67e9ec5ed0db78639f89fe5efeb",
             "optionsDigestOrigin": "verified_request_jcs",
             "requestedEpisodeStrategyId": "fused_matcher",
             "effectiveEpisodeStrategyId": null,
@@ -2143,12 +2143,12 @@
             "refusalReason": null,
             "refusalDetail": null,
             "fragmentedParticipantCount": 0,
-            "resolutionDigest": "sha256:f08a18989e63befa4d2dbd3224047b36625f1c5ffad88e106a9ce2734362d07f"
+            "resolutionDigest": "sha256:73dc9a5d592afb90f8f5fd79063c5ff4c697f91c7aeb1f674ca2f38be442cf7b"
           },
-          "eyesInputPartitionDigest": "sha256:0a3f03649b7471a0632f67ae71870ed0f904a7a0255864a06568bf16e574b344",
-          "commitDigest": "sha256:35bea01549e1ff7e28cee53ba73170b05f7d1194ddbc825eb54a970360e7796b"
+          "eyesInputPartitionDigest": "sha256:61d316e333ecf921da050e0bbf4f6f9dc1c72c56eb52d32035912e904fb234a0",
+          "commitDigest": "sha256:1c00536ee038a84bd06982be939dc24f524066a4d5f1cd1fc9e44aa61595d35e"
         },
-        "workspaceRootDigest": "sha256:f94e82ecf48a8fab8a5c6aae9fe2fd089e7f74f58317841d5c45a62f4521b048",
+        "workspaceRootDigest": "sha256:8a740d128ae4440053b52cf0cbaaaeeda35021486742b6c00cbb04112cc362c4",
         "refusal": null,
         "validationError": null,
         "rawRebind": null,
@@ -2164,7 +2164,7 @@
           "protocolVersion": "chronicle-runtime-scientific-preflight/v2",
           "key": {
             "protocolVersion": "chronicle-runtime-scientific-preflight/v2",
-            "optionsDigest": "sha256:40f3454b428fc7dc1908f53c523235efb4502802b5fd28953989a8a4b5dff0d1",
+            "optionsDigest": "sha256:56a82598dcb7580ad69f115803b70cb029bc6ec017cca60181ea4f35f2a2ef9d",
             "inputDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
             "inputSizeBytes": 15325,
             "activeIngressRoles": {
@@ -2197,8 +2197,8 @@
                 "assignmentId": "sha256:5b1b1c18c7234aa1e6421e7780e707b843cbe1f92bd23cedf42599c27c585ff0"
               },
               "processing_options": {
-                "artifactDigest": "sha256:40f3454b428fc7dc1908f53c523235efb4502802b5fd28953989a8a4b5dff0d1",
-                "assignmentId": "sha256:8a3b7bf65c7a1d6adf0a15dbd0ac86a595a61d12fd03b655a730567010fdc473"
+                "artifactDigest": "sha256:56a82598dcb7580ad69f115803b70cb029bc6ec017cca60181ea4f35f2a2ef9d",
+                "assignmentId": "sha256:1cdbd9f0fe0d6e4960bfb392e842a0bed76507e82931a468dd307ff70c11ee6e"
               },
               "raw_chronicle_csv": {
                 "artifactDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
@@ -2216,11 +2216,11 @@
             "fragmentedParticipantCount": 0,
             "fragmentedParticipantTokenScopeDigest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
           },
-          "keyDigest": "sha256:aea9c2b038cc250bc9d30cc4fea5722fe3061a45f0f895ef34fc4289b7a7104c",
+          "keyDigest": "sha256:607b9d275b40e85e0c25eda0254033fb7258d184fa209e6a0918f83a944268dc",
           "b05Schoedel": {
             "protocolVersion": "chronicle-b05-schoedel-preflight/v1",
             "disposition": "executable",
-            "optionsDigest": "sha256:71fb909372ae24daccd540c334b4dd7a7907e0816759c8e010a47a0aab4942c2",
+            "optionsDigest": "sha256:85b417cda3145408f80089fa1b1b2fba46dde67e9ec5ed0db78639f89fe5efeb",
             "componentOptionsDigest": "sha256:a0d9c6229f444cf975ec463d05494b4bc5f0c4ea76fa2d3f53c473081c846460",
             "screenComponentOptionsDigest": "sha256:f6fe2b21e7d64fa43955a4c1d5aab17d69a0fd29e61a63b86359ac02fb81a1ca",
             "schoedelComponentOptionsDigest": "sha256:5c14c77d757de9e36ba79ab48bd1864c8c1c5deb60b92bb149ea7a203dd4fc27",
@@ -2240,12 +2240,12 @@
             },
             "schoedelApplicability": null
           },
-          "b05SchoedelDigest": "sha256:8a5e5af825b5f873a2e3dddf4a7fb93f181e6edbc4c0ec25b8da62a7544e4166",
+          "b05SchoedelDigest": "sha256:6fe0b3f5d717d26381c4d3bc5b95f0aa1b4750eda662ad25c7d658d4261df361",
           "eyesInputPartition": {
             "protocolVersion": "chronicle-eyes-input-partition-preflight/v2",
             "disposition": "not_applicable",
             "inputDigest": "sha256:f8f0679d7a8239f80e60b09f64723777f589681a2744173f513955f4617ad040",
-            "optionsDigest": "sha256:71fb909372ae24daccd540c334b4dd7a7907e0816759c8e010a47a0aab4942c2",
+            "optionsDigest": "sha256:85b417cda3145408f80089fa1b1b2fba46dde67e9ec5ed0db78639f89fe5efeb",
             "optionsDigestOrigin": "verified_request_jcs",
             "requestedEpisodeStrategyId": "fused_matcher",
             "effectiveEpisodeStrategyId": null,
@@ -2253,12 +2253,12 @@
             "refusalReason": null,
             "refusalDetail": null,
             "fragmentedParticipantCount": 0,
-            "resolutionDigest": "sha256:f08a18989e63befa4d2dbd3224047b36625f1c5ffad88e106a9ce2734362d07f"
+            "resolutionDigest": "sha256:73dc9a5d592afb90f8f5fd79063c5ff4c697f91c7aeb1f674ca2f38be442cf7b"
           },
-          "eyesInputPartitionDigest": "sha256:0a3f03649b7471a0632f67ae71870ed0f904a7a0255864a06568bf16e574b344",
-          "commitDigest": "sha256:bbc0b07f2a2bbb570e682f427aeea6ea78954d2a643dfb3a036379cdb50093d2"
+          "eyesInputPartitionDigest": "sha256:61d316e333ecf921da050e0bbf4f6f9dc1c72c56eb52d32035912e904fb234a0",
+          "commitDigest": "sha256:27b7e78eafbdd234b92d90b3b52718ef3c9908b249da7320ba2d804658b32a26"
         },
-        "workspaceRootDigest": "sha256:88bcea94c62e9b046ddd7fd5e51bbcc578c738b59fa0752b34e6370468d9cc0c",
+        "workspaceRootDigest": "sha256:06e3dacd5bd358eb682062ce136f6515ce61631cca9fba277347fe61f61821b0",
         "refusal": null,
         "validationError": null,
         "rawRebind": null,
@@ -13569,5 +13569,5 @@
       }
     }
   ],
-  "caseSetDigest": "sha256:0cbd416558d68fe2e47a72fe39029b45c788090eb5b375c441203afb559d891e"
+  "caseSetDigest": "sha256:29b4ef63ff4abf5a717ec06daaff6672d03a7b6279747799ca6261a1d7ce59cd"
 }

@@ -7,12 +7,12 @@
   },
   "implementationReceipt": {
     "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
-    "implementationDigest": "sha256:cfa7f11b87802213388917c8b24238f947604e152a447cc69cf977511fdd40ce",
-    "planDigest": "sha256:be0258af6aafbc9a1855ae4223adcc642a8d22b5fa8bb87eb09f6b62dc3abbd0",
-    "profileDigest": "sha256:37edc9f29d368950cd2a7893c164c223723741456d189d969a0f8b630f31dfbd",
-    "profileLockDigest": "sha256:a26272e97b5ff2e578d44665643e0da0007ff701fa647eac1fdd6ec7fd6197a6",
+    "implementationDigest": "sha256:4b5fb72ce4570db1a7f25da5ead25762cefc9462eb036ae61098da23d4779762",
+    "planDigest": "sha256:5c4f19924961f6d5054899ad84a969d79cec45bd344b72f8640cc10370e00c0a",
+    "profileDigest": "sha256:8db9c35e66b7d36f54f005a0ed9414dac1de25693509450106be4a39959db664",
+    "profileLockDigest": "sha256:de5a7d9a809bb049c4fa96a91d6e97bb9ec00b818fd071df2293ad1ae424ef11",
     "runtimeAuthorityDigest": "sha256:7807fe99a35b4ede2c85d8e8868ec3dcb2accb22e8265c4643966eb9840ce4e4",
-    "productContractDigest": "sha256:81e857feb3c24afaf0b3bbbef63081e884a498cfaa8398a76fabfe23c8c5c61b"
+    "productContractDigest": "sha256:5f8586482ba8944b2cee4813d63de0096c4e4b7139eadad0ef426116921ca14d"
   },
   "roleRepresentatives": {
     "device_sharing_file": {
@@ -56,7 +56,7 @@
     "incrementalExecutions": 738,
     "totalRustExecutions": 986,
     "warmColdComparisons": 738,
-    "nonAdditiveOrMaskedPairs": 30
+    "nonAdditiveOrMaskedPairs": 29
   },
   "interactions": [
     {
@@ -938,7 +938,6 @@
         "build_activity_witness_indexes",
         "build_app_event_index",
         "build_participant_day_coverage",
-        "classify_compliance_days",
         "classify_episode_durations",
         "classify_person_attribution",
         "classify_screen_sessions",
@@ -1685,81 +1684,6 @@
       }
     },
     {
-      "caseId": "device_sharing_file:support:sharing-shared-to-nonshared×minimumDurationDisposition=droprow",
-      "roleId": "device_sharing_file",
-      "interventionId": "support:sharing-shared-to-nonshared",
-      "optionKey": "minimumDurationDisposition",
-      "alternate": {
-        "label": "droprow",
-        "value": "drop_row"
-      },
-      "configAfterDataActualSteps": [
-        "aggregate_attribution_minutes",
-        "apply_app_inclusion_policy",
-        "apply_episode_flags",
-        "apply_participant_windows",
-        "assemble_credit_outputs",
-        "assemble_result_manifest",
-        "assess_screen_evidence_capability",
-        "assign_usage_session_ids",
-        "build_participant_day_coverage",
-        "classify_compliance_days",
-        "classify_episode_durations",
-        "classify_person_attribution",
-        "collapse_app_genre",
-        "compute_attribution_completeness",
-        "derive_broad_category",
-        "derive_credited_intervals",
-        "derive_engagement_basis",
-        "divide_sessions_at_day_boundary",
-        "identify_credit_eligible_sessions",
-        "join_app_codebook",
-        "materialize_credited_rows",
-        "order_app_episodes",
-        "remove_selected_interaction_types",
-        "remove_zero_duration_rows",
-        "resolve_participant_windows",
-        "resolve_sharing_status",
-        "segment_concurrent_usage",
-        "summarize_daily_apps",
-        "suppress_excluded_timing",
-        "synthesize_placeholder_rows"
-      ],
-      "configAfterDataDeactivatedSteps": [],
-      "dataAfterConfigActualSteps": [
-        "aggregate_attribution_minutes",
-        "assemble_result_manifest",
-        "build_participant_day_coverage",
-        "classify_compliance_days",
-        "classify_person_attribution",
-        "compute_attribution_completeness",
-        "divide_sessions_at_day_boundary",
-        "resolve_sharing_status",
-        "synthesize_placeholder_rows"
-      ],
-      "dataAfterConfigDeactivatedSteps": [],
-      "configConditioning": {
-        "introduced": [],
-        "masked": []
-      },
-      "dataConditioning": {
-        "introduced": [],
-        "masked": []
-      },
-      "configCellConditioning": {
-        "introducedCount": 0,
-        "maskedCount": 116,
-        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "maskedDigest": "sha256:a71f3e8e040ab0419356e69609d1902ff4a2f373adfc97782071b575215c1f84"
-      },
-      "dataCellConditioning": {
-        "introducedCount": 42,
-        "maskedCount": 154,
-        "introducedDigest": "sha256:87409045e46ded2f994d46eae9df27f4583e1d72e04c582a2398437f46d50a96",
-        "maskedDigest": "sha256:dd4267f19c7e23137828f61439b557d6cbeab508af4a3d2ab837cb9e3eb14196"
-      }
-    },
-    {
       "caseId": "device_sharing_file:support:sharing-shared-to-nonshared×intervalQualityPolicy=culverhouse",
       "roleId": "device_sharing_file",
       "interventionId": "support:sharing-shared-to-nonshared",
@@ -1814,15 +1738,15 @@
       },
       "configCellConditioning": {
         "introducedCount": 0,
-        "maskedCount": 100,
+        "maskedCount": 102,
         "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "maskedDigest": "sha256:ef8c24026f595cb2b515c11ee316bdf0620c6e7d9d45f868403fd2632296717f"
+        "maskedDigest": "sha256:3b714be825cc31fc7c1b67223e2fec85670659a02706c1c90350e3f15c8c52ee"
       },
       "dataCellConditioning": {
         "introducedCount": 48,
-        "maskedCount": 60,
-        "introducedDigest": "sha256:0210dc825ce1817a1df00926659ad43469c4de76d0d46ba97973419458d6a221",
-        "maskedDigest": "sha256:5026e9437a24c41b0826e9d6172e75a842f35e1da6553201b04d380b93688bcf"
+        "maskedCount": 64,
+        "introducedDigest": "sha256:aa30bdb2861ac9da6dce75e7184b93509513733341a7435aed80b71b4b87ad75",
+        "maskedDigest": "sha256:c86cbf732c45d2a46484a3498bb2ad298772106605be71139827a0aafd516eb8"
       }
     },
     {
@@ -2373,5 +2297,5 @@
       }
     }
   ],
-  "caseSetDigest": "sha256:2b468f4c7016634c6adcee5b1145f9efc4298b25f37136f47d2fe6151d0d3ae3"
+  "caseSetDigest": "sha256:77a51484104c1d81654b7ad26afa09f9812d15cf4b5b61d170077df6035bac7b"
 }

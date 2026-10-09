@@ -8,19 +8,19 @@
   },
   "implementationReceipt": {
     "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
-    "implementationDigest": "sha256:cfa7f11b87802213388917c8b24238f947604e152a447cc69cf977511fdd40ce",
-    "planDigest": "sha256:be0258af6aafbc9a1855ae4223adcc642a8d22b5fa8bb87eb09f6b62dc3abbd0",
-    "profileDigest": "sha256:37edc9f29d368950cd2a7893c164c223723741456d189d969a0f8b630f31dfbd",
-    "profileLockDigest": "sha256:a26272e97b5ff2e578d44665643e0da0007ff701fa647eac1fdd6ec7fd6197a6",
+    "implementationDigest": "sha256:4b5fb72ce4570db1a7f25da5ead25762cefc9462eb036ae61098da23d4779762",
+    "planDigest": "sha256:5c4f19924961f6d5054899ad84a969d79cec45bd344b72f8640cc10370e00c0a",
+    "profileDigest": "sha256:8db9c35e66b7d36f54f005a0ed9414dac1de25693509450106be4a39959db664",
+    "profileLockDigest": "sha256:de5a7d9a809bb049c4fa96a91d6e97bb9ec00b818fd071df2293ad1ae424ef11",
     "runtimeAuthorityDigest": "sha256:7807fe99a35b4ede2c85d8e8868ec3dcb2accb22e8265c4643966eb9840ce4e4",
-    "productContractDigest": "sha256:81e857feb3c24afaf0b3bbbef63081e884a498cfaa8398a76fabfe23c8c5c61b"
+    "productContractDigest": "sha256:5f8586482ba8944b2cee4813d63de0096c4e4b7139eadad0ef426116921ca14d"
   },
   "cellEvidence": {
     "protocolVersion": "chronicle-output-cell-correspondence/v2",
     "path": "artifact-output-cell-correspondence.json.gz",
-    "contentDigest": "sha256:5c9f6cf68d12a4d551f60d24af313ea920a39109a3a13b58810fb75ca814859d",
+    "contentDigest": "sha256:0246a2dd468a6e8ea764ca557fb23c6e655800f6acb6f32b455d3de1e18cee4e",
     "cases": 192,
-    "changedCellAddresses": 226605
+    "changedCellAddresses": 246069
   },
   "fixtures": [
     {
@@ -598,6 +598,7 @@
         "mark_app_policy_matches",
         "mask_excluded_app_events",
         "materialize_candidate_episodes",
+        "materialize_credited_rows",
         "order_app_episodes",
         "order_source_records",
         "remove_missing_timestamps",
@@ -678,6 +679,9 @@
         ],
         "materialize_candidate_episodes": [
           "classificationDigest"
+        ],
+        "materialize_credited_rows": [
+          "payloadDigest"
         ],
         "order_app_episodes": [
           "classificationDigest"
@@ -777,8 +781,8 @@
         "source-coordinate-index-arrow",
         "source-result-influence-arrow"
       ],
-      "changedOutputCellCount": 21,
-      "changedOutputCellAddressDigest": "sha256:46c6047a2abb026708e1b6c1cf9325c0d4ae21a073b0f6117eeeebc0f234d687",
+      "changedOutputCellCount": 24,
+      "changedOutputCellAddressDigest": "sha256:53543c99d80f231d54953cb548de7e0db86cc68f205cf904981dc6b3c4e12dfb",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/study_id"
@@ -796,7 +800,10 @@
           "/participants/*/perDay/*/screenSessionCount",
           "/participants/*/perDay/*/screenUsageMinutes",
           "/participants/*/studyId",
-          "/participants/*/topAppsByDate",
+          "/participants/*/topAppsByDate/2026-02-16/*/appPackageName",
+          "/participants/*/topAppsByDate/2026-02-16/*/applicationLabel",
+          "/participants/*/topAppsByDate/2026-02-16/*/category",
+          "/participants/*/topAppsByDate/2026-02-16/*/minutes",
           "/participants/*/totals/appSessionCount",
           "/participants/*/totals/appUsageMinutes",
           "/participants/*/totals/backgroundAppUsageMinutes",
@@ -1023,6 +1030,7 @@
         "construct_screen_intervals",
         "decode_source_records",
         "derive_broad_category",
+        "derive_credited_intervals",
         "derive_engagement_basis",
         "derive_time_gap_evidence",
         "disambiguate_duplicate_timestamps",
@@ -1046,6 +1054,7 @@
         "resolve_timezone_strategy",
         "segment_concurrent_usage",
         "standardize_event_clock",
+        "summarize_daily_apps",
         "summarize_duplicate_groups",
         "suppress_excluded_timing",
         "synthesize_placeholder_rows"
@@ -1145,6 +1154,9 @@
           "rowOrderDigest",
           "temporalStateDigest"
         ],
+        "derive_credited_intervals": [
+          "payloadDigest"
+        ],
         "derive_engagement_basis": [
           "classificationDigest",
           "rowMembershipDigest",
@@ -1242,6 +1254,9 @@
         "standardize_event_clock": [
           "classificationDigest"
         ],
+        "summarize_daily_apps": [
+          "payloadDigest"
+        ],
         "summarize_duplicate_groups": [
           "payloadDigest"
         ],
@@ -1330,8 +1345,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 5479,
-      "changedOutputCellAddressDigest": "sha256:177879d447e745a62f789c4cbb75fc8ab538386e04ce6d72924591b3a5768fa1",
+      "changedOutputCellCount": 7948,
+      "changedOutputCellAddressDigest": "sha256:d9d766370a98a8c7afbda3933f7c7fec208405c4817d4020496c3652b30b4ff8",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -1423,18 +1438,54 @@
           "/rows/*/any_app_new_engage_30s",
           "/rows/*/any_app_new_engage_custom_300s",
           "/rows/*/any_app_switched_app",
+          "/rows/*/any_app_usage_flags",
           "/rows/*/any_app_usage_time_gap_hours",
+          "/rows/*/app_package_name",
           "/rows/*/app_usage_end_reason",
+          "/rows/*/application_label",
+          "/rows/*/babyemu_broad_app_category",
+          "/rows/*/babyemu_fine_app_category",
+          "/rows/*/babyemu_genreId_manual",
+          "/rows/*/babyemu_genreId_scraped",
+          "/rows/*/babyemu_medium_app_category",
+          "/rows/*/bcm_cnrc_categorization_source",
+          "/rows/*/bcm_cnrc_heuristic_category",
+          "/rows/*/bcm_play_store_broad_app_category",
+          "/rows/*/bcm_play_store_developer",
+          "/rows/*/bcm_play_store_downloads",
+          "/rows/*/bcm_play_store_free",
+          "/rows/*/bcm_play_store_genre",
+          "/rows/*/bcm_play_store_genreId",
+          "/rows/*/bcm_play_store_rating",
+          "/rows/*/broad_app_category",
+          "/rows/*/codebook_application_label",
+          "/rows/*/codebook_dataset",
+          "/rows/*/data_time_gap_hours",
+          "/rows/*/date",
+          "/rows/*/day",
+          "/rows/*/duration_minutes",
+          "/rows/*/duration_seconds",
           "/rows/*/event_timestamp",
+          "/rows/*/genreId_scraped",
+          "/rows/*/hour",
           "/rows/*/interaction_type",
           "/rows/*/participant_id",
           "/rows/*/start_timestamp",
           "/rows/*/stop_timestamp",
+          "/rows/*/umich_adult_app_category",
+          "/rows/*/umich_adult_app_category_code",
+          "/rows/*/umich_child_app_category",
+          "/rows/*/umich_child_app_category_code",
+          "/rows/*/umich_free",
           "/rows/*/usage_layer",
+          "/rows/*/usc_broad_app_category",
+          "/rows/*/usc_genreId",
           "/rows/*/valid_app_new_engage_30s",
           "/rows/*/valid_app_new_engage_custom_300s",
           "/rows/*/valid_app_switched_app",
-          "/rows/*/valid_app_usage_time_gap_hours"
+          "/rows/*/valid_app_usage_time_gap_hours",
+          "/rows/*/weekdayMF",
+          "/rows/*/weekdayMTh"
         ],
         "day-coverage-csv": [
           "/rows/*/date",
@@ -1799,6 +1850,7 @@
         "mark_app_policy_matches",
         "mask_excluded_app_events",
         "materialize_candidate_episodes",
+        "materialize_credited_rows",
         "order_app_episodes",
         "order_source_records",
         "remove_missing_timestamps",
@@ -1880,6 +1932,9 @@
         ],
         "materialize_candidate_episodes": [
           "classificationDigest"
+        ],
+        "materialize_credited_rows": [
+          "payloadDigest"
         ],
         "order_app_episodes": [
           "classificationDigest"
@@ -1981,7 +2036,7 @@
         "visualization-data-json"
       ],
       "changedOutputCellCount": 7,
-      "changedOutputCellAddressDigest": "sha256:94b4c53d8c65ac9a726687a4dbb581c9d05fd19e192fd9a3acfdd7b0ff80c42d",
+      "changedOutputCellAddressDigest": "sha256:b5716d2155fcc416a24653f1cda6e634b9eb392a1798f1964f5787666f96632a",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/interaction_type",
@@ -2181,6 +2236,7 @@
         "mark_app_policy_matches",
         "mask_excluded_app_events",
         "materialize_candidate_episodes",
+        "materialize_credited_rows",
         "order_app_episodes",
         "order_source_records",
         "remove_missing_timestamps",
@@ -2261,6 +2317,9 @@
         ],
         "materialize_candidate_episodes": [
           "classificationDigest"
+        ],
+        "materialize_credited_rows": [
+          "payloadDigest"
         ],
         "order_app_episodes": [
           "classificationDigest"
@@ -2361,7 +2420,7 @@
         "visualization-data-json"
       ],
       "changedOutputCellCount": 3,
-      "changedOutputCellAddressDigest": "sha256:da350a41919947f37e2f8a52afa20fe1f8568fb19ccde6ac17002b17b5eaedc2",
+      "changedOutputCellAddressDigest": "sha256:ccd7da9a741bbedc584793f971383be6412c3d911d06ecdd5de73cfa60315219",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/application_label"
@@ -2559,6 +2618,7 @@
         ]
       },
       "changedQueries": [
+        "aggregate_attribution_minutes",
         "apply_app_inclusion_policy",
         "apply_episode_flags",
         "apply_participant_windows",
@@ -2575,6 +2635,7 @@
         "construct_screen_intervals",
         "decode_source_records",
         "derive_broad_category",
+        "derive_credited_intervals",
         "derive_engagement_basis",
         "derive_time_gap_evidence",
         "disambiguate_duplicate_timestamps",
@@ -2586,6 +2647,7 @@
         "mask_excluded_app_events",
         "match_app_episodes",
         "materialize_candidate_episodes",
+        "materialize_credited_rows",
         "order_app_episodes",
         "order_source_records",
         "remove_missing_timestamps",
@@ -2594,10 +2656,14 @@
         "resolve_timezone_strategy",
         "segment_concurrent_usage",
         "standardize_event_clock",
+        "summarize_daily_apps",
         "suppress_excluded_timing",
         "synthesize_placeholder_rows"
       ],
       "queryCheckpointComponentChanges": {
+        "aggregate_attribution_minutes": [
+          "payloadDigest"
+        ],
         "apply_app_inclusion_policy": [
           "classificationDigest",
           "rowMembershipDigest",
@@ -2671,6 +2737,9 @@
           "rowOrderDigest",
           "temporalStateDigest"
         ],
+        "derive_credited_intervals": [
+          "payloadDigest"
+        ],
         "derive_engagement_basis": [
           "classificationDigest",
           "rowMembershipDigest",
@@ -2716,6 +2785,9 @@
           "rowOrderDigest",
           "temporalStateDigest"
         ],
+        "materialize_credited_rows": [
+          "payloadDigest"
+        ],
         "order_app_episodes": [
           "classificationDigest",
           "rowMembershipDigest",
@@ -2751,6 +2823,9 @@
         ],
         "standardize_event_clock": [
           "classificationDigest"
+        ],
+        "summarize_daily_apps": [
+          "payloadDigest"
         ],
         "suppress_excluded_timing": [
           "classificationDigest",
@@ -2834,8 +2909,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 39,
-      "changedOutputCellAddressDigest": "sha256:2b3495671534cca7514b0a2333e3b9f2d1282f0a49fd2fc73360211f26739d77",
+      "changedOutputCellCount": 2442,
+      "changedOutputCellAddressDigest": "sha256:74bd4e5346deac1d28a2fc3a4ccc4114149f00149f13ffc6b8d85591998597fb",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -2843,6 +2918,8 @@
           "/rows/*/any_app_switched_app",
           "/rows/*/any_app_usage_time_gap_hours",
           "/rows/*/app_usage_end_reason",
+          "/rows/*/duration_minutes",
+          "/rows/*/duration_seconds",
           "/rows/*/interaction_type",
           "/rows/*/start_timestamp",
           "/rows/*/stop_timestamp",
@@ -2856,16 +2933,53 @@
           "/rows/*/any_app_new_engage_30s",
           "/rows/*/any_app_new_engage_custom_300s",
           "/rows/*/any_app_switched_app",
+          "/rows/*/any_app_usage_flags",
           "/rows/*/any_app_usage_time_gap_hours",
+          "/rows/*/app_package_name",
           "/rows/*/app_usage_end_reason",
+          "/rows/*/application_label",
+          "/rows/*/babyemu_broad_app_category",
+          "/rows/*/babyemu_fine_app_category",
+          "/rows/*/babyemu_genreId_manual",
+          "/rows/*/babyemu_genreId_scraped",
+          "/rows/*/babyemu_medium_app_category",
+          "/rows/*/bcm_cnrc_categorization_source",
+          "/rows/*/bcm_cnrc_heuristic_category",
+          "/rows/*/bcm_play_store_broad_app_category",
+          "/rows/*/bcm_play_store_developer",
+          "/rows/*/bcm_play_store_downloads",
+          "/rows/*/bcm_play_store_free",
+          "/rows/*/bcm_play_store_genre",
+          "/rows/*/bcm_play_store_genreId",
+          "/rows/*/bcm_play_store_rating",
+          "/rows/*/broad_app_category",
+          "/rows/*/codebook_application_label",
+          "/rows/*/codebook_dataset",
+          "/rows/*/data_time_gap_hours",
+          "/rows/*/date",
+          "/rows/*/day",
+          "/rows/*/duration_minutes",
+          "/rows/*/duration_seconds",
+          "/rows/*/event_timestamp",
+          "/rows/*/genreId_scraped",
+          "/rows/*/hour",
           "/rows/*/interaction_type",
           "/rows/*/start_timestamp",
           "/rows/*/stop_timestamp",
+          "/rows/*/umich_adult_app_category",
+          "/rows/*/umich_adult_app_category_code",
+          "/rows/*/umich_child_app_category",
+          "/rows/*/umich_child_app_category_code",
+          "/rows/*/umich_free",
           "/rows/*/usage_layer",
+          "/rows/*/usc_broad_app_category",
+          "/rows/*/usc_genreId",
           "/rows/*/valid_app_new_engage_30s",
           "/rows/*/valid_app_new_engage_custom_300s",
           "/rows/*/valid_app_switched_app",
-          "/rows/*/valid_app_usage_time_gap_hours"
+          "/rows/*/valid_app_usage_time_gap_hours",
+          "/rows/*/weekdayMF",
+          "/rows/*/weekdayMTh"
         ],
         "review-summary-json": [
           "/participants/*/perDay/*/appSessionCount",
@@ -3067,6 +3181,7 @@
         ]
       },
       "changedQueries": [
+        "aggregate_attribution_minutes",
         "apply_app_inclusion_policy",
         "apply_episode_flags",
         "apply_participant_windows",
@@ -3083,6 +3198,7 @@
         "construct_screen_intervals",
         "decode_source_records",
         "derive_broad_category",
+        "derive_credited_intervals",
         "derive_engagement_basis",
         "derive_time_gap_evidence",
         "disambiguate_duplicate_timestamps",
@@ -3094,6 +3210,7 @@
         "mask_excluded_app_events",
         "match_app_episodes",
         "materialize_candidate_episodes",
+        "materialize_credited_rows",
         "order_app_episodes",
         "order_source_records",
         "remove_missing_timestamps",
@@ -3102,10 +3219,14 @@
         "resolve_timezone_strategy",
         "segment_concurrent_usage",
         "standardize_event_clock",
+        "summarize_daily_apps",
         "suppress_excluded_timing",
         "synthesize_placeholder_rows"
       ],
       "queryCheckpointComponentChanges": {
+        "aggregate_attribution_minutes": [
+          "payloadDigest"
+        ],
         "apply_app_inclusion_policy": [
           "classificationDigest",
           "rowMembershipDigest",
@@ -3178,6 +3299,9 @@
           "rowOrderDigest",
           "temporalStateDigest"
         ],
+        "derive_credited_intervals": [
+          "payloadDigest"
+        ],
         "derive_engagement_basis": [
           "classificationDigest",
           "rowMembershipDigest",
@@ -3223,6 +3347,9 @@
           "rowOrderDigest",
           "temporalStateDigest"
         ],
+        "materialize_credited_rows": [
+          "payloadDigest"
+        ],
         "order_app_episodes": [
           "classificationDigest",
           "rowMembershipDigest",
@@ -3258,6 +3385,9 @@
         ],
         "standardize_event_clock": [
           "classificationDigest"
+        ],
+        "summarize_daily_apps": [
+          "payloadDigest"
         ],
         "suppress_excluded_timing": [
           "classificationDigest",
@@ -3341,8 +3471,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 49,
-      "changedOutputCellAddressDigest": "sha256:311829eb8a8ba6179f24d7673cb7c399fe5ec40b39449b0009df3557740f2208",
+      "changedOutputCellCount": 2447,
+      "changedOutputCellAddressDigest": "sha256:eb1ec1ad49e5db9cc112f0cfc6c9258b3b3216dc8485071a31b89828dcf388ef",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -3356,6 +3486,8 @@
           "/rows/*/broad_app_category",
           "/rows/*/codebook_application_label",
           "/rows/*/codebook_dataset",
+          "/rows/*/duration_minutes",
+          "/rows/*/duration_seconds",
           "/rows/*/interaction_type",
           "/rows/*/stop_timestamp",
           "/rows/*/usage_layer",
@@ -3368,21 +3500,53 @@
           "/rows/*/any_app_new_engage_30s",
           "/rows/*/any_app_new_engage_custom_300s",
           "/rows/*/any_app_switched_app",
+          "/rows/*/any_app_usage_flags",
           "/rows/*/any_app_usage_time_gap_hours",
           "/rows/*/app_package_name",
           "/rows/*/app_usage_end_reason",
+          "/rows/*/application_label",
+          "/rows/*/babyemu_broad_app_category",
+          "/rows/*/babyemu_fine_app_category",
+          "/rows/*/babyemu_genreId_manual",
+          "/rows/*/babyemu_genreId_scraped",
+          "/rows/*/babyemu_medium_app_category",
           "/rows/*/bcm_cnrc_categorization_source",
           "/rows/*/bcm_cnrc_heuristic_category",
+          "/rows/*/bcm_play_store_broad_app_category",
+          "/rows/*/bcm_play_store_developer",
+          "/rows/*/bcm_play_store_downloads",
+          "/rows/*/bcm_play_store_free",
+          "/rows/*/bcm_play_store_genre",
+          "/rows/*/bcm_play_store_genreId",
+          "/rows/*/bcm_play_store_rating",
           "/rows/*/broad_app_category",
           "/rows/*/codebook_application_label",
           "/rows/*/codebook_dataset",
+          "/rows/*/data_time_gap_hours",
+          "/rows/*/date",
+          "/rows/*/day",
+          "/rows/*/duration_minutes",
+          "/rows/*/duration_seconds",
+          "/rows/*/event_timestamp",
+          "/rows/*/genreId_scraped",
+          "/rows/*/hour",
           "/rows/*/interaction_type",
+          "/rows/*/start_timestamp",
           "/rows/*/stop_timestamp",
+          "/rows/*/umich_adult_app_category",
+          "/rows/*/umich_adult_app_category_code",
+          "/rows/*/umich_child_app_category",
+          "/rows/*/umich_child_app_category_code",
+          "/rows/*/umich_free",
           "/rows/*/usage_layer",
+          "/rows/*/usc_broad_app_category",
+          "/rows/*/usc_genreId",
           "/rows/*/valid_app_new_engage_30s",
           "/rows/*/valid_app_new_engage_custom_300s",
           "/rows/*/valid_app_switched_app",
-          "/rows/*/valid_app_usage_time_gap_hours"
+          "/rows/*/valid_app_usage_time_gap_hours",
+          "/rows/*/weekdayMF",
+          "/rows/*/weekdayMTh"
         ],
         "review-summary-json": [
           "/participants/*/perDay/*/appSessionCount",
@@ -3638,6 +3802,7 @@
         "resolve_timezone_strategy",
         "segment_concurrent_usage",
         "standardize_event_clock",
+        "summarize_daily_apps",
         "summarize_duplicate_groups",
         "suppress_excluded_timing",
         "synthesize_placeholder_rows"
@@ -3832,6 +3997,9 @@
           "rowOrderDigest",
           "temporalStateDigest"
         ],
+        "summarize_daily_apps": [
+          "payloadDigest"
+        ],
         "summarize_duplicate_groups": [
           "payloadDigest"
         ],
@@ -3920,8 +4088,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 10119,
-      "changedOutputCellAddressDigest": "sha256:bfc4862841cbcaea06887fbc7cb095dbee285c57162733f2bed9607b488cb27f",
+      "changedOutputCellCount": 11216,
+      "changedOutputCellAddressDigest": "sha256:bd592315a9702b72ffe988c35cdc5e29b53ecefb4d5f77112959499214579dff",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -5102,8 +5270,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 7649,
-      "changedOutputCellAddressDigest": "sha256:ecfed73143f50f8858cc0aa19a7259377a6973d6d3e74bd30af3edf78e4d4395",
+      "changedOutputCellCount": 6701,
+      "changedOutputCellAddressDigest": "sha256:99110c4895555d7d77615f9a83007a2e90eb7a32360b068487f1324db7f905de",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -5499,6 +5667,7 @@
         ]
       },
       "changedQueries": [
+        "aggregate_attribution_minutes",
         "apply_app_inclusion_policy",
         "apply_episode_flags",
         "apply_participant_windows",
@@ -5516,6 +5685,7 @@
         "construct_screen_intervals",
         "decode_source_records",
         "derive_broad_category",
+        "derive_credited_intervals",
         "derive_engagement_basis",
         "derive_time_gap_evidence",
         "disambiguate_duplicate_timestamps",
@@ -5536,12 +5706,16 @@
         "resolve_timezone_strategy",
         "segment_concurrent_usage",
         "standardize_event_clock",
+        "summarize_daily_apps",
         "summarize_duplicate_groups",
         "summarize_row_selection",
         "suppress_excluded_timing",
         "synthesize_placeholder_rows"
       ],
       "queryCheckpointComponentChanges": {
+        "aggregate_attribution_minutes": [
+          "payloadDigest"
+        ],
         "apply_app_inclusion_policy": [
           "classificationDigest",
           "rowMembershipDigest",
@@ -5626,6 +5800,9 @@
           "rowMembershipDigest",
           "rowOrderDigest",
           "temporalStateDigest"
+        ],
+        "derive_credited_intervals": [
+          "payloadDigest"
         ],
         "derive_engagement_basis": [
           "classificationDigest",
@@ -5732,6 +5909,9 @@
           "rowOrderDigest",
           "temporalStateDigest"
         ],
+        "summarize_daily_apps": [
+          "payloadDigest"
+        ],
         "summarize_duplicate_groups": [
           "payloadDigest"
         ],
@@ -5820,8 +6000,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 6905,
-      "changedOutputCellAddressDigest": "sha256:4c7fc639e16d3734ec41b9540f7c8d3d15809a43a1861dfc8f78662ad104098b",
+      "changedOutputCellCount": 8637,
+      "changedOutputCellAddressDigest": "sha256:274fdd4bfa027a9e47a7f6e2b32b418a66f6bbc34e86a95c8426f93a0b4e973b",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -7079,6 +7259,7 @@
         ]
       },
       "changedQueries": [
+        "aggregate_attribution_minutes",
         "apply_app_inclusion_policy",
         "apply_episode_flags",
         "apply_participant_windows",
@@ -7089,20 +7270,26 @@
         "classify_person_attribution",
         "collapse_app_genre",
         "derive_broad_category",
+        "derive_credited_intervals",
         "derive_engagement_basis",
         "divide_sessions_at_day_boundary",
         "identify_credit_eligible_sessions",
         "join_app_codebook",
         "mark_app_policy_matches",
+        "materialize_credited_rows",
         "order_app_episodes",
         "remove_selected_interaction_types",
         "remove_zero_duration_rows",
         "resolve_excluded_packages",
         "segment_concurrent_usage",
+        "summarize_daily_apps",
         "suppress_excluded_timing",
         "synthesize_placeholder_rows"
       ],
       "queryCheckpointComponentChanges": {
+        "aggregate_attribution_minutes": [
+          "payloadDigest"
+        ],
         "apply_app_inclusion_policy": [
           "classificationDigest",
           "temporalStateDigest"
@@ -7141,6 +7328,9 @@
           "classificationDigest",
           "temporalStateDigest"
         ],
+        "derive_credited_intervals": [
+          "payloadDigest"
+        ],
         "derive_engagement_basis": [
           "classificationDigest",
           "temporalStateDigest"
@@ -7158,6 +7348,9 @@
         ],
         "mark_app_policy_matches": [
           "classificationDigest"
+        ],
+        "materialize_credited_rows": [
+          "payloadDigest"
         ],
         "order_app_episodes": [
           "classificationDigest",
@@ -7177,6 +7370,9 @@
         "segment_concurrent_usage": [
           "classificationDigest",
           "temporalStateDigest"
+        ],
+        "summarize_daily_apps": [
+          "payloadDigest"
         ],
         "suppress_excluded_timing": [
           "classificationDigest",
@@ -7229,14 +7425,17 @@
         "credited-app-csv",
         "result-cell-correspondence-arrow",
         "review-summary-json",
+        "row-lineage-arrow",
         "source-coordinate-index-arrow",
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 26,
-      "changedOutputCellAddressDigest": "sha256:e2cbfbc1ced457bc1519f6a719cfbd3f4c15f4d8a4319f132b9538429f1cc282",
+      "changedOutputCellCount": 2441,
+      "changedOutputCellAddressDigest": "sha256:582ebb0f6d633c8568db741cce6a1d0c50f35ddf31cde975e661c11fe93786b0",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
+          "/rows/*/duration_minutes",
+          "/rows/*/duration_seconds",
           "/rows/*/interaction_type",
           "/rows/*/start_timestamp",
           "/rows/*/stop_timestamp",
@@ -7247,14 +7446,56 @@
           "/rows/*/valid_app_usage_time_gap_hours"
         ],
         "credited-app-csv": [
+          "/rows/*/any_app_new_engage_30s",
+          "/rows/*/any_app_new_engage_custom_300s",
+          "/rows/*/any_app_switched_app",
+          "/rows/*/any_app_usage_flags",
+          "/rows/*/any_app_usage_time_gap_hours",
+          "/rows/*/app_package_name",
+          "/rows/*/app_usage_end_reason",
+          "/rows/*/application_label",
+          "/rows/*/babyemu_broad_app_category",
+          "/rows/*/babyemu_fine_app_category",
+          "/rows/*/babyemu_genreId_manual",
+          "/rows/*/babyemu_genreId_scraped",
+          "/rows/*/babyemu_medium_app_category",
+          "/rows/*/bcm_cnrc_categorization_source",
+          "/rows/*/bcm_cnrc_heuristic_category",
+          "/rows/*/bcm_play_store_broad_app_category",
+          "/rows/*/bcm_play_store_developer",
+          "/rows/*/bcm_play_store_downloads",
+          "/rows/*/bcm_play_store_free",
+          "/rows/*/bcm_play_store_genre",
+          "/rows/*/bcm_play_store_genreId",
+          "/rows/*/bcm_play_store_rating",
+          "/rows/*/broad_app_category",
+          "/rows/*/codebook_application_label",
+          "/rows/*/codebook_dataset",
+          "/rows/*/data_time_gap_hours",
+          "/rows/*/date",
+          "/rows/*/day",
+          "/rows/*/duration_minutes",
+          "/rows/*/duration_seconds",
+          "/rows/*/event_timestamp",
+          "/rows/*/genreId_scraped",
+          "/rows/*/hour",
           "/rows/*/interaction_type",
           "/rows/*/start_timestamp",
           "/rows/*/stop_timestamp",
+          "/rows/*/umich_adult_app_category",
+          "/rows/*/umich_adult_app_category_code",
+          "/rows/*/umich_child_app_category",
+          "/rows/*/umich_child_app_category_code",
+          "/rows/*/umich_free",
           "/rows/*/usage_layer",
+          "/rows/*/usc_broad_app_category",
+          "/rows/*/usc_genreId",
           "/rows/*/valid_app_new_engage_30s",
           "/rows/*/valid_app_new_engage_custom_300s",
           "/rows/*/valid_app_switched_app",
-          "/rows/*/valid_app_usage_time_gap_hours"
+          "/rows/*/valid_app_usage_time_gap_hours",
+          "/rows/*/weekdayMF",
+          "/rows/*/weekdayMTh"
         ],
         "review-summary-json": [
           "/participants/*/perDay/*/appSessionCount",
@@ -7798,8 +8039,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 20032,
-      "changedOutputCellAddressDigest": "sha256:354eaca5e2eecd89ad3f050bdfa4838ed1c128f909ea3c44dba375f1a4d7b7d9",
+      "changedOutputCellCount": 20012,
+      "changedOutputCellAddressDigest": "sha256:a222be8d946e41012761d709d89498ba13951807ccbc97e651f3409655bb7dee",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -8211,7 +8452,7 @@
         "source-result-influence-arrow"
       ],
       "changedOutputCellCount": 58,
-      "changedOutputCellAddressDigest": "sha256:5129eee84d02b15b1821b9398c863fb42fb232e9eaec518912e09b128c5c7698",
+      "changedOutputCellAddressDigest": "sha256:39a79c205ba310f8ff624c086c8c3660f5c57cee8d4c1aa5db5ff0bf96dfd04b",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/bcm_play_store_genreId"
@@ -8441,8 +8682,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 6758,
-      "changedOutputCellAddressDigest": "sha256:d71fbc02a2f5a4331e56e3183653b2f7e9bd1503073cf3d7395db7c445cb3134",
+      "changedOutputCellCount": 6816,
+      "changedOutputCellAddressDigest": "sha256:a22f9bf9b22eca045a318cec68597f4f225968f492e160048b555d7b7f2bfc2e",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -8889,8 +9130,7 @@
           "classificationDigest"
         ],
         "day_coverage": [
-          "classificationDigest",
-          "payloadDigest"
+          "classificationDigest"
         ],
         "outputs": [
           "payloadDigest"
@@ -8898,7 +9138,6 @@
       },
       "changedQueries": [
         "assemble_result_manifest",
-        "build_participant_day_coverage",
         "classify_person_attribution",
         "divide_sessions_at_day_boundary",
         "index_survey_responses",
@@ -8906,9 +9145,6 @@
       ],
       "queryCheckpointComponentChanges": {
         "assemble_result_manifest": [
-          "payloadDigest"
-        ],
-        "build_participant_day_coverage": [
           "payloadDigest"
         ],
         "classify_person_attribution": [
@@ -8938,22 +9174,18 @@
       "deactivatedQueries": [],
       "changedOutputArtifactKinds": [
         "app-csv",
-        "day-coverage-csv",
         "result-cell-correspondence-arrow",
         "review-summary-json",
         "source-coordinate-index-arrow",
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 607,
-      "changedOutputCellAddressDigest": "sha256:37426a7d8c05b4989d80198e0f53f7aa178308565601649d3ba9919ff46554d7",
+      "changedOutputCellCount": 606,
+      "changedOutputCellAddressDigest": "sha256:f309576656efe1115a4b69c22541c2ab004bb8372c1ec33a85ba4c606dd0becd",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/interaction_type",
           "/rows/*/username"
-        ],
-        "day-coverage-csv": [
-          "/rows/*/status"
         ],
         "review-summary-json": [
           "/participants/*/perDay/*/appSessionCount",
@@ -10267,6 +10499,7 @@
         "mark_app_policy_matches",
         "mask_excluded_app_events",
         "materialize_candidate_episodes",
+        "materialize_credited_rows",
         "order_app_episodes",
         "order_source_records",
         "remove_missing_timestamps",
@@ -10347,6 +10580,9 @@
         ],
         "materialize_candidate_episodes": [
           "classificationDigest"
+        ],
+        "materialize_credited_rows": [
+          "payloadDigest"
         ],
         "order_app_episodes": [
           "classificationDigest"
@@ -10446,8 +10682,8 @@
         "source-coordinate-index-arrow",
         "source-result-influence-arrow"
       ],
-      "changedOutputCellCount": 21,
-      "changedOutputCellAddressDigest": "sha256:f0a7a402d1472cc4a15c61ad2d58033229191f0d2c2bd424d126110f791a7cb9",
+      "changedOutputCellCount": 24,
+      "changedOutputCellAddressDigest": "sha256:60545d231974ccc21fe5ead01158d447330c0b176dd7b972fc061461688be5e0",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/study_id"
@@ -10465,7 +10701,10 @@
           "/participants/*/perDay/*/screenSessionCount",
           "/participants/*/perDay/*/screenUsageMinutes",
           "/participants/*/studyId",
-          "/participants/*/topAppsByDate",
+          "/participants/*/topAppsByDate/2026-04-05/*/appPackageName",
+          "/participants/*/topAppsByDate/2026-04-05/*/applicationLabel",
+          "/participants/*/topAppsByDate/2026-04-05/*/category",
+          "/participants/*/topAppsByDate/2026-04-05/*/minutes",
           "/participants/*/totals/appSessionCount",
           "/participants/*/totals/appUsageMinutes",
           "/participants/*/totals/backgroundAppUsageMinutes",
@@ -10690,6 +10929,7 @@
         "construct_screen_intervals",
         "decode_source_records",
         "derive_broad_category",
+        "derive_credited_intervals",
         "derive_engagement_basis",
         "derive_time_gap_evidence",
         "disambiguate_duplicate_timestamps",
@@ -10713,6 +10953,7 @@
         "resolve_timezone_strategy",
         "segment_concurrent_usage",
         "standardize_event_clock",
+        "summarize_daily_apps",
         "summarize_duplicate_groups",
         "suppress_excluded_timing",
         "synthesize_placeholder_rows"
@@ -10809,6 +11050,9 @@
           "rowMembershipDigest",
           "rowOrderDigest",
           "temporalStateDigest"
+        ],
+        "derive_credited_intervals": [
+          "payloadDigest"
         ],
         "derive_engagement_basis": [
           "classificationDigest",
@@ -10907,6 +11151,9 @@
         "standardize_event_clock": [
           "classificationDigest"
         ],
+        "summarize_daily_apps": [
+          "payloadDigest"
+        ],
         "summarize_duplicate_groups": [
           "payloadDigest"
         ],
@@ -10994,8 +11241,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 4676,
-      "changedOutputCellAddressDigest": "sha256:e1a166a1b622377b839bff454ce73e2f8aadca4ce6fd107026b84357340c5d7c",
+      "changedOutputCellCount": 6334,
+      "changedOutputCellAddressDigest": "sha256:1bdece57987e51e3781a071466851c8f314fb1343189f2039387fb888398cead",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -11087,14 +11334,46 @@
           "/rows/*/any_app_new_engage_30s",
           "/rows/*/any_app_new_engage_custom_300s",
           "/rows/*/any_app_switched_app",
+          "/rows/*/any_app_usage_flags",
           "/rows/*/any_app_usage_time_gap_hours",
+          "/rows/*/app_package_name",
           "/rows/*/app_usage_end_reason",
+          "/rows/*/application_label",
+          "/rows/*/babyemu_broad_app_category",
+          "/rows/*/babyemu_fine_app_category",
+          "/rows/*/babyemu_genreId_manual",
+          "/rows/*/babyemu_genreId_scraped",
+          "/rows/*/babyemu_medium_app_category",
+          "/rows/*/bcm_cnrc_categorization_source",
+          "/rows/*/bcm_cnrc_heuristic_category",
+          "/rows/*/bcm_play_store_broad_app_category",
+          "/rows/*/bcm_play_store_developer",
+          "/rows/*/bcm_play_store_downloads",
+          "/rows/*/bcm_play_store_free",
+          "/rows/*/bcm_play_store_genre",
+          "/rows/*/bcm_play_store_genreId",
+          "/rows/*/bcm_play_store_rating",
+          "/rows/*/broad_app_category",
+          "/rows/*/codebook_application_label",
+          "/rows/*/codebook_dataset",
+          "/rows/*/data_time_gap_hours",
+          "/rows/*/duration_minutes",
+          "/rows/*/duration_seconds",
           "/rows/*/event_timestamp",
+          "/rows/*/genreId_scraped",
+          "/rows/*/hour",
           "/rows/*/interaction_type",
           "/rows/*/participant_id",
           "/rows/*/start_timestamp",
           "/rows/*/stop_timestamp",
+          "/rows/*/umich_adult_app_category",
+          "/rows/*/umich_adult_app_category_code",
+          "/rows/*/umich_child_app_category",
+          "/rows/*/umich_child_app_category_code",
+          "/rows/*/umich_free",
           "/rows/*/usage_layer",
+          "/rows/*/usc_broad_app_category",
+          "/rows/*/usc_genreId",
           "/rows/*/valid_app_new_engage_30s",
           "/rows/*/valid_app_new_engage_custom_300s",
           "/rows/*/valid_app_switched_app",
@@ -11457,6 +11736,7 @@
         "mark_app_policy_matches",
         "mask_excluded_app_events",
         "materialize_candidate_episodes",
+        "materialize_credited_rows",
         "order_app_episodes",
         "order_source_records",
         "remove_missing_timestamps",
@@ -11538,6 +11818,9 @@
         ],
         "materialize_candidate_episodes": [
           "classificationDigest"
+        ],
+        "materialize_credited_rows": [
+          "payloadDigest"
         ],
         "order_app_episodes": [
           "classificationDigest"
@@ -11639,7 +11922,7 @@
         "visualization-data-json"
       ],
       "changedOutputCellCount": 7,
-      "changedOutputCellAddressDigest": "sha256:aec7f01d4e16355adc6c007290a01bfd432799d3cfc20d8a7b6396ca0ca5a863",
+      "changedOutputCellAddressDigest": "sha256:db6bf378653d282d86ba244dec22c52ee4193876a74f82f452fcdbd2f4e87d15",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/interaction_type",
@@ -11839,6 +12122,7 @@
         "mark_app_policy_matches",
         "mask_excluded_app_events",
         "materialize_candidate_episodes",
+        "materialize_credited_rows",
         "order_app_episodes",
         "order_source_records",
         "remove_missing_timestamps",
@@ -11919,6 +12203,9 @@
         ],
         "materialize_candidate_episodes": [
           "classificationDigest"
+        ],
+        "materialize_credited_rows": [
+          "payloadDigest"
         ],
         "order_app_episodes": [
           "classificationDigest"
@@ -12019,7 +12306,7 @@
         "visualization-data-json"
       ],
       "changedOutputCellCount": 3,
-      "changedOutputCellAddressDigest": "sha256:6b3f93d5058b5989a93d3e99886865c48573dde7edcc64a349889385a0b655bb",
+      "changedOutputCellAddressDigest": "sha256:607bd56c29cf3066d98b0f7e6dc07662508acdc906d1a818d1b5c70e3ec8637b",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/application_label"
@@ -12212,6 +12499,7 @@
         ]
       },
       "changedQueries": [
+        "aggregate_attribution_minutes",
         "apply_app_inclusion_policy",
         "apply_episode_flags",
         "apply_participant_windows",
@@ -12227,6 +12515,7 @@
         "construct_screen_intervals",
         "decode_source_records",
         "derive_broad_category",
+        "derive_credited_intervals",
         "derive_engagement_basis",
         "derive_time_gap_evidence",
         "disambiguate_duplicate_timestamps",
@@ -12237,6 +12526,7 @@
         "mask_excluded_app_events",
         "match_app_episodes",
         "materialize_candidate_episodes",
+        "materialize_credited_rows",
         "order_app_episodes",
         "order_source_records",
         "remove_missing_timestamps",
@@ -12245,10 +12535,14 @@
         "resolve_timezone_strategy",
         "segment_concurrent_usage",
         "standardize_event_clock",
+        "summarize_daily_apps",
         "suppress_excluded_timing",
         "synthesize_placeholder_rows"
       ],
       "queryCheckpointComponentChanges": {
+        "aggregate_attribution_minutes": [
+          "payloadDigest"
+        ],
         "apply_app_inclusion_policy": [
           "classificationDigest",
           "rowMembershipDigest",
@@ -12318,6 +12612,9 @@
           "rowOrderDigest",
           "temporalStateDigest"
         ],
+        "derive_credited_intervals": [
+          "payloadDigest"
+        ],
         "derive_engagement_basis": [
           "classificationDigest",
           "rowMembershipDigest",
@@ -12360,6 +12657,9 @@
           "rowOrderDigest",
           "temporalStateDigest"
         ],
+        "materialize_credited_rows": [
+          "payloadDigest"
+        ],
         "order_app_episodes": [
           "classificationDigest",
           "rowMembershipDigest",
@@ -12395,6 +12695,9 @@
         ],
         "standardize_event_clock": [
           "classificationDigest"
+        ],
+        "summarize_daily_apps": [
+          "payloadDigest"
         ],
         "suppress_excluded_timing": [
           "classificationDigest",
@@ -12477,8 +12780,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 39,
-      "changedOutputCellAddressDigest": "sha256:f16d8c862d45c994007001c79ec05eebeef2a378cc7ca952a420b5902420e872",
+      "changedOutputCellCount": 1637,
+      "changedOutputCellAddressDigest": "sha256:f9eccb8e22d03d68eb41b130eeba4d1320eddae955d0ceb4b0f5f0fbaf0b183d",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -12486,6 +12789,8 @@
           "/rows/*/any_app_switched_app",
           "/rows/*/any_app_usage_time_gap_hours",
           "/rows/*/app_usage_end_reason",
+          "/rows/*/duration_minutes",
+          "/rows/*/duration_seconds",
           "/rows/*/interaction_type",
           "/rows/*/start_timestamp",
           "/rows/*/stop_timestamp",
@@ -12499,12 +12804,45 @@
           "/rows/*/any_app_new_engage_30s",
           "/rows/*/any_app_new_engage_custom_300s",
           "/rows/*/any_app_switched_app",
+          "/rows/*/any_app_usage_flags",
           "/rows/*/any_app_usage_time_gap_hours",
+          "/rows/*/app_package_name",
           "/rows/*/app_usage_end_reason",
+          "/rows/*/application_label",
+          "/rows/*/babyemu_broad_app_category",
+          "/rows/*/babyemu_fine_app_category",
+          "/rows/*/babyemu_genreId_manual",
+          "/rows/*/babyemu_genreId_scraped",
+          "/rows/*/babyemu_medium_app_category",
+          "/rows/*/bcm_cnrc_categorization_source",
+          "/rows/*/bcm_cnrc_heuristic_category",
+          "/rows/*/bcm_play_store_broad_app_category",
+          "/rows/*/bcm_play_store_developer",
+          "/rows/*/bcm_play_store_downloads",
+          "/rows/*/bcm_play_store_free",
+          "/rows/*/bcm_play_store_genre",
+          "/rows/*/bcm_play_store_genreId",
+          "/rows/*/bcm_play_store_rating",
+          "/rows/*/broad_app_category",
+          "/rows/*/codebook_application_label",
+          "/rows/*/codebook_dataset",
+          "/rows/*/data_time_gap_hours",
+          "/rows/*/duration_minutes",
+          "/rows/*/duration_seconds",
+          "/rows/*/event_timestamp",
+          "/rows/*/genreId_scraped",
+          "/rows/*/hour",
           "/rows/*/interaction_type",
           "/rows/*/start_timestamp",
           "/rows/*/stop_timestamp",
+          "/rows/*/umich_adult_app_category",
+          "/rows/*/umich_adult_app_category_code",
+          "/rows/*/umich_child_app_category",
+          "/rows/*/umich_child_app_category_code",
+          "/rows/*/umich_free",
           "/rows/*/usage_layer",
+          "/rows/*/usc_broad_app_category",
+          "/rows/*/usc_genreId",
           "/rows/*/valid_app_new_engage_30s",
           "/rows/*/valid_app_new_engage_custom_300s",
           "/rows/*/valid_app_switched_app",
@@ -12700,6 +13038,7 @@
         ]
       },
       "changedQueries": [
+        "aggregate_attribution_minutes",
         "apply_app_inclusion_policy",
         "apply_episode_flags",
         "apply_participant_windows",
@@ -12715,6 +13054,7 @@
         "construct_screen_intervals",
         "decode_source_records",
         "derive_broad_category",
+        "derive_credited_intervals",
         "derive_engagement_basis",
         "derive_time_gap_evidence",
         "disambiguate_duplicate_timestamps",
@@ -12725,6 +13065,7 @@
         "mask_excluded_app_events",
         "match_app_episodes",
         "materialize_candidate_episodes",
+        "materialize_credited_rows",
         "order_app_episodes",
         "order_source_records",
         "remove_missing_timestamps",
@@ -12733,10 +13074,14 @@
         "resolve_timezone_strategy",
         "segment_concurrent_usage",
         "standardize_event_clock",
+        "summarize_daily_apps",
         "suppress_excluded_timing",
         "synthesize_placeholder_rows"
       ],
       "queryCheckpointComponentChanges": {
+        "aggregate_attribution_minutes": [
+          "payloadDigest"
+        ],
         "apply_app_inclusion_policy": [
           "classificationDigest",
           "rowMembershipDigest",
@@ -12806,6 +13151,9 @@
           "rowOrderDigest",
           "temporalStateDigest"
         ],
+        "derive_credited_intervals": [
+          "payloadDigest"
+        ],
         "derive_engagement_basis": [
           "classificationDigest",
           "rowMembershipDigest",
@@ -12848,6 +13196,9 @@
           "rowOrderDigest",
           "temporalStateDigest"
         ],
+        "materialize_credited_rows": [
+          "payloadDigest"
+        ],
         "order_app_episodes": [
           "classificationDigest",
           "rowMembershipDigest",
@@ -12883,6 +13234,9 @@
         ],
         "standardize_event_clock": [
           "classificationDigest"
+        ],
+        "summarize_daily_apps": [
+          "payloadDigest"
         ],
         "suppress_excluded_timing": [
           "classificationDigest",
@@ -12965,8 +13319,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 54,
-      "changedOutputCellAddressDigest": "sha256:ca638d444c5bc55a6611347571774966b172ac1164aedaa52e3065a8cb038849",
+      "changedOutputCellCount": 1647,
+      "changedOutputCellAddressDigest": "sha256:2aec2a5bbe8c2980f978199c837bac85aa25138df49e60c87d9660f00afb62d7",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -12981,6 +13335,8 @@
           "/rows/*/broad_app_category",
           "/rows/*/codebook_application_label",
           "/rows/*/codebook_dataset",
+          "/rows/*/duration_minutes",
+          "/rows/*/duration_seconds",
           "/rows/*/genreId_scraped",
           "/rows/*/interaction_type",
           "/rows/*/stop_timestamp",
@@ -12994,19 +13350,45 @@
           "/rows/*/any_app_new_engage_30s",
           "/rows/*/any_app_new_engage_custom_300s",
           "/rows/*/any_app_switched_app",
+          "/rows/*/any_app_usage_flags",
           "/rows/*/any_app_usage_time_gap_hours",
           "/rows/*/app_package_name",
           "/rows/*/app_usage_end_reason",
+          "/rows/*/application_label",
           "/rows/*/babyemu_broad_app_category",
           "/rows/*/babyemu_fine_app_category",
+          "/rows/*/babyemu_genreId_manual",
+          "/rows/*/babyemu_genreId_scraped",
           "/rows/*/babyemu_medium_app_category",
+          "/rows/*/bcm_cnrc_categorization_source",
+          "/rows/*/bcm_cnrc_heuristic_category",
+          "/rows/*/bcm_play_store_broad_app_category",
+          "/rows/*/bcm_play_store_developer",
+          "/rows/*/bcm_play_store_downloads",
+          "/rows/*/bcm_play_store_free",
+          "/rows/*/bcm_play_store_genre",
+          "/rows/*/bcm_play_store_genreId",
+          "/rows/*/bcm_play_store_rating",
           "/rows/*/broad_app_category",
           "/rows/*/codebook_application_label",
           "/rows/*/codebook_dataset",
+          "/rows/*/data_time_gap_hours",
+          "/rows/*/duration_minutes",
+          "/rows/*/duration_seconds",
+          "/rows/*/event_timestamp",
           "/rows/*/genreId_scraped",
+          "/rows/*/hour",
           "/rows/*/interaction_type",
+          "/rows/*/start_timestamp",
           "/rows/*/stop_timestamp",
+          "/rows/*/umich_adult_app_category",
+          "/rows/*/umich_adult_app_category_code",
+          "/rows/*/umich_child_app_category",
+          "/rows/*/umich_child_app_category_code",
+          "/rows/*/umich_free",
           "/rows/*/usage_layer",
+          "/rows/*/usc_broad_app_category",
+          "/rows/*/usc_genreId",
           "/rows/*/valid_app_new_engage_30s",
           "/rows/*/valid_app_new_engage_custom_300s",
           "/rows/*/valid_app_switched_app",
@@ -13213,6 +13595,7 @@
         ]
       },
       "changedQueries": [
+        "aggregate_attribution_minutes",
         "apply_app_inclusion_policy",
         "apply_episode_flags",
         "apply_participant_windows",
@@ -13230,6 +13613,7 @@
         "construct_screen_intervals",
         "decode_source_records",
         "derive_broad_category",
+        "derive_credited_intervals",
         "derive_engagement_basis",
         "derive_time_gap_evidence",
         "disambiguate_duplicate_timestamps",
@@ -13250,11 +13634,15 @@
         "resolve_timezone_strategy",
         "segment_concurrent_usage",
         "standardize_event_clock",
+        "summarize_daily_apps",
         "summarize_duplicate_groups",
         "suppress_excluded_timing",
         "synthesize_placeholder_rows"
       ],
       "queryCheckpointComponentChanges": {
+        "aggregate_attribution_minutes": [
+          "payloadDigest"
+        ],
         "apply_app_inclusion_policy": [
           "classificationDigest",
           "rowMembershipDigest",
@@ -13334,6 +13722,9 @@
           "rowMembershipDigest",
           "rowOrderDigest",
           "temporalStateDigest"
+        ],
+        "derive_credited_intervals": [
+          "payloadDigest"
         ],
         "derive_engagement_basis": [
           "classificationDigest",
@@ -13426,6 +13817,9 @@
           "rowOrderDigest",
           "temporalStateDigest"
         ],
+        "summarize_daily_apps": [
+          "payloadDigest"
+        ],
         "summarize_duplicate_groups": [
           "payloadDigest"
         ],
@@ -13511,8 +13905,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 6252,
-      "changedOutputCellAddressDigest": "sha256:38cc2261e6e882888b09837ac8220df16fc26396c5d45878500be751f1a86186",
+      "changedOutputCellCount": 7109,
+      "changedOutputCellAddressDigest": "sha256:add472ee7dde651d36676b60e4b31ac2559dbd0d9dd2e02a336e89c263498189",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -14607,7 +15001,7 @@
         "visualization-data-json"
       ],
       "changedOutputCellCount": 2194,
-      "changedOutputCellAddressDigest": "sha256:440cd5430ef2e95c3ae79ef2bb96628ffc1633a13c52b1f9af239a5ed7752532",
+      "changedOutputCellAddressDigest": "sha256:d218995623afa685682fa56deee7f763006182c2e5734d88e7634e20eddec311",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -14995,6 +15389,7 @@
         ]
       },
       "changedQueries": [
+        "aggregate_attribution_minutes",
         "apply_app_inclusion_policy",
         "apply_episode_flags",
         "apply_participant_windows",
@@ -15012,6 +15407,7 @@
         "construct_screen_intervals",
         "decode_source_records",
         "derive_broad_category",
+        "derive_credited_intervals",
         "derive_engagement_basis",
         "derive_time_gap_evidence",
         "disambiguate_duplicate_timestamps",
@@ -15032,12 +15428,16 @@
         "resolve_timezone_strategy",
         "segment_concurrent_usage",
         "standardize_event_clock",
+        "summarize_daily_apps",
         "summarize_duplicate_groups",
         "summarize_row_selection",
         "suppress_excluded_timing",
         "synthesize_placeholder_rows"
       ],
       "queryCheckpointComponentChanges": {
+        "aggregate_attribution_minutes": [
+          "payloadDigest"
+        ],
         "apply_app_inclusion_policy": [
           "classificationDigest",
           "rowMembershipDigest",
@@ -15120,6 +15520,9 @@
           "rowMembershipDigest",
           "rowOrderDigest",
           "temporalStateDigest"
+        ],
+        "derive_credited_intervals": [
+          "payloadDigest"
         ],
         "derive_engagement_basis": [
           "classificationDigest",
@@ -15226,6 +15629,9 @@
           "rowOrderDigest",
           "temporalStateDigest"
         ],
+        "summarize_daily_apps": [
+          "payloadDigest"
+        ],
         "summarize_duplicate_groups": [
           "payloadDigest"
         ],
@@ -15313,8 +15719,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 6352,
-      "changedOutputCellAddressDigest": "sha256:9d940f45e73100dcac58c3b7da4e9a5bab5c083e2498bd883c4a3ab142556d6e",
+      "changedOutputCellCount": 7209,
+      "changedOutputCellAddressDigest": "sha256:14ce2b8d0949b8ad90cb831360d010fd8c14fb92db7a35d94133e5b884037913",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -16140,6 +16546,7 @@
         "construct_screen_intervals",
         "decode_source_records",
         "derive_broad_category",
+        "derive_credited_intervals",
         "derive_engagement_basis",
         "derive_time_gap_evidence",
         "disambiguate_duplicate_timestamps",
@@ -16246,6 +16653,9 @@
           "rowMembershipDigest",
           "rowOrderDigest",
           "temporalStateDigest"
+        ],
+        "derive_credited_intervals": [
+          "payloadDigest"
         ],
         "derive_engagement_basis": [
           "classificationDigest",
@@ -16430,8 +16840,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 1415,
-      "changedOutputCellAddressDigest": "sha256:e2f27bc69341627fc85b07a01b4b3432ba6d635c9dd44fd90c8c63e9236aaca0",
+      "changedOutputCellCount": 2626,
+      "changedOutputCellAddressDigest": "sha256:3708c69d442bf83723a62e5cc913684487637a9cb89a2145990633270511c1d3",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -16746,6 +17156,7 @@
         ]
       },
       "changedQueries": [
+        "aggregate_attribution_minutes",
         "apply_app_inclusion_policy",
         "apply_episode_flags",
         "apply_participant_windows",
@@ -16756,20 +17167,26 @@
         "classify_person_attribution",
         "collapse_app_genre",
         "derive_broad_category",
+        "derive_credited_intervals",
         "derive_engagement_basis",
         "divide_sessions_at_day_boundary",
         "identify_credit_eligible_sessions",
         "join_app_codebook",
         "mark_app_policy_matches",
+        "materialize_credited_rows",
         "order_app_episodes",
         "remove_selected_interaction_types",
         "remove_zero_duration_rows",
         "resolve_excluded_packages",
         "segment_concurrent_usage",
+        "summarize_daily_apps",
         "suppress_excluded_timing",
         "synthesize_placeholder_rows"
       ],
       "queryCheckpointComponentChanges": {
+        "aggregate_attribution_minutes": [
+          "payloadDigest"
+        ],
         "apply_app_inclusion_policy": [
           "classificationDigest",
           "temporalStateDigest"
@@ -16808,6 +17225,9 @@
           "classificationDigest",
           "temporalStateDigest"
         ],
+        "derive_credited_intervals": [
+          "payloadDigest"
+        ],
         "derive_engagement_basis": [
           "classificationDigest",
           "temporalStateDigest"
@@ -16825,6 +17245,9 @@
         ],
         "mark_app_policy_matches": [
           "classificationDigest"
+        ],
+        "materialize_credited_rows": [
+          "payloadDigest"
         ],
         "order_app_episodes": [
           "classificationDigest",
@@ -16844,6 +17267,9 @@
         "segment_concurrent_usage": [
           "classificationDigest",
           "temporalStateDigest"
+        ],
+        "summarize_daily_apps": [
+          "payloadDigest"
         ],
         "suppress_excluded_timing": [
           "classificationDigest",
@@ -16896,14 +17322,17 @@
         "credited-app-csv",
         "result-cell-correspondence-arrow",
         "review-summary-json",
+        "row-lineage-arrow",
         "source-coordinate-index-arrow",
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 28,
-      "changedOutputCellAddressDigest": "sha256:9b73bfc3828395c0da3ca53806a4e91d2d7fb9fcf5dc82acb9a1eb8245533f86",
+      "changedOutputCellCount": 1640,
+      "changedOutputCellAddressDigest": "sha256:8fac2ba8f1935051958c1e01d365294993dd2f90fb9afce4499249a0924303b1",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
+          "/rows/*/duration_minutes",
+          "/rows/*/duration_seconds",
           "/rows/*/interaction_type",
           "/rows/*/start_timestamp",
           "/rows/*/stop_timestamp",
@@ -16914,10 +17343,48 @@
           "/rows/*/valid_app_usage_time_gap_hours"
         ],
         "credited-app-csv": [
+          "/rows/*/any_app_new_engage_30s",
+          "/rows/*/any_app_new_engage_custom_300s",
+          "/rows/*/any_app_switched_app",
+          "/rows/*/any_app_usage_flags",
+          "/rows/*/any_app_usage_time_gap_hours",
+          "/rows/*/app_package_name",
+          "/rows/*/app_usage_end_reason",
+          "/rows/*/application_label",
+          "/rows/*/babyemu_broad_app_category",
+          "/rows/*/babyemu_fine_app_category",
+          "/rows/*/babyemu_genreId_manual",
+          "/rows/*/babyemu_genreId_scraped",
+          "/rows/*/babyemu_medium_app_category",
+          "/rows/*/bcm_cnrc_categorization_source",
+          "/rows/*/bcm_cnrc_heuristic_category",
+          "/rows/*/bcm_play_store_broad_app_category",
+          "/rows/*/bcm_play_store_developer",
+          "/rows/*/bcm_play_store_downloads",
+          "/rows/*/bcm_play_store_free",
+          "/rows/*/bcm_play_store_genre",
+          "/rows/*/bcm_play_store_genreId",
+          "/rows/*/bcm_play_store_rating",
+          "/rows/*/broad_app_category",
+          "/rows/*/codebook_application_label",
+          "/rows/*/codebook_dataset",
+          "/rows/*/data_time_gap_hours",
+          "/rows/*/duration_minutes",
+          "/rows/*/duration_seconds",
+          "/rows/*/event_timestamp",
+          "/rows/*/genreId_scraped",
+          "/rows/*/hour",
           "/rows/*/interaction_type",
           "/rows/*/start_timestamp",
           "/rows/*/stop_timestamp",
+          "/rows/*/umich_adult_app_category",
+          "/rows/*/umich_adult_app_category_code",
+          "/rows/*/umich_child_app_category",
+          "/rows/*/umich_child_app_category_code",
+          "/rows/*/umich_free",
           "/rows/*/usage_layer",
+          "/rows/*/usc_broad_app_category",
+          "/rows/*/usc_genreId",
           "/rows/*/valid_app_new_engage_30s",
           "/rows/*/valid_app_new_engage_custom_300s",
           "/rows/*/valid_app_switched_app",
@@ -17274,7 +17741,6 @@
         "remove_selected_interaction_types",
         "remove_zero_duration_rows",
         "segment_concurrent_usage",
-        "summarize_daily_apps",
         "suppress_excluded_timing",
         "synthesize_placeholder_rows"
       ],
@@ -17406,9 +17872,6 @@
           "rowOrderDigest",
           "temporalStateDigest"
         ],
-        "summarize_daily_apps": [
-          "payloadDigest"
-        ],
         "suppress_excluded_timing": [
           "classificationDigest",
           "rowMembershipDigest",
@@ -17469,8 +17932,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 8503,
-      "changedOutputCellAddressDigest": "sha256:09d57c27a2893bcb964f22617392758ccd8c006f3bfc23410863a07ec07d190e",
+      "changedOutputCellCount": 8279,
+      "changedOutputCellAddressDigest": "sha256:a09d3aec1d306f89974ae0b0d4ebf0d5c2b5cb397f98b9c60b75b807368a9bb0",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -17626,12 +18089,14 @@
         "review-summary-json": [
           "/participants/*/perDay/*/appSessionCount",
           "/participants/*/perDay/*/appUsageMinutes",
+          "/participants/*/perDay/*/backgroundAppUsageMinutes",
           "/participants/*/topAppsByDate/2026-04-05/*/appPackageName",
           "/participants/*/topAppsByDate/2026-04-05/*/applicationLabel",
           "/participants/*/topAppsByDate/2026-04-05/*/category",
           "/participants/*/topAppsByDate/2026-04-05/*/minutes",
           "/participants/*/totals/appSessionCount",
-          "/participants/*/totals/appUsageMinutes"
+          "/participants/*/totals/appUsageMinutes",
+          "/participants/*/totals/backgroundAppUsageMinutes"
         ],
         "visualization-data-json": [
           "/appRows/*/*"
@@ -17881,7 +18346,7 @@
         "source-result-influence-arrow"
       ],
       "changedOutputCellCount": 52,
-      "changedOutputCellAddressDigest": "sha256:606144c9ed88328514e724e31a49bf671478db6b053ead3d4a5843dd9af9504e",
+      "changedOutputCellAddressDigest": "sha256:3f44bc041de50da1dbf3707157d71f9d2d1d303b2ba6528df06712a34ba421f9",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/bcm_play_store_genreId"
@@ -18343,8 +18808,7 @@
           "classificationDigest"
         ],
         "day_coverage": [
-          "classificationDigest",
-          "payloadDigest"
+          "classificationDigest"
         ],
         "outputs": [
           "payloadDigest"
@@ -18352,7 +18816,6 @@
       },
       "changedQueries": [
         "assemble_result_manifest",
-        "build_participant_day_coverage",
         "classify_person_attribution",
         "divide_sessions_at_day_boundary",
         "index_survey_responses",
@@ -18360,9 +18823,6 @@
       ],
       "queryCheckpointComponentChanges": {
         "assemble_result_manifest": [
-          "payloadDigest"
-        ],
-        "build_participant_day_coverage": [
           "payloadDigest"
         ],
         "classify_person_attribution": [
@@ -18392,22 +18852,18 @@
       "deactivatedQueries": [],
       "changedOutputArtifactKinds": [
         "app-csv",
-        "day-coverage-csv",
         "result-cell-correspondence-arrow",
         "review-summary-json",
         "source-coordinate-index-arrow",
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 313,
-      "changedOutputCellAddressDigest": "sha256:7e636eba7291a74d19edd4b34c6889001d7bda64d5840bc56e2b9af500c2a841",
+      "changedOutputCellCount": 312,
+      "changedOutputCellAddressDigest": "sha256:6a28a0769f1a291769597aa867d6a7481d9778b9d4299edf28b96660cf57afc0",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/interaction_type",
           "/rows/*/username"
-        ],
-        "day-coverage-csv": [
-          "/rows/*/status"
         ],
         "review-summary-json": [
           "/participants/*/perDay/*/appSessionCount",
@@ -19900,7 +20356,7 @@
         "source-result-influence-arrow"
       ],
       "changedOutputCellCount": 2,
-      "changedOutputCellAddressDigest": "sha256:a1af79bb721fbd2dfa28f55b7b8fe93d2dd63231a2086b9685e81882dbb6f820",
+      "changedOutputCellAddressDigest": "sha256:2d9ba51384f08876753a470b713cdc46b52ada42d53aaafc70fd9c72a75d23b1",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/study_id"
@@ -20378,8 +20834,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 4216,
-      "changedOutputCellAddressDigest": "sha256:7fcadce88bac1f187feab03a5004465153291ce8bd030168d1e2aaf26056203a",
+      "changedOutputCellCount": 4270,
+      "changedOutputCellAddressDigest": "sha256:ea9c8942c07087a3b979a39ae99ba3c130a4c3eabde1e6324f301c004552f6de",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -20944,7 +21400,7 @@
         "source-result-influence-arrow"
       ],
       "changedOutputCellCount": 1,
-      "changedOutputCellAddressDigest": "sha256:0c776839cd9b7edefbda605e6db1de58c00d6c76a9941cc98ba7aae0e7b9f560",
+      "changedOutputCellAddressDigest": "sha256:e90c14a04baa5560ea5ac0717dfeb61669dff78baf7c57ab614adaaad79d9d94",
       "changedOutputCellScopesByArtifact": {
         "credited-app-csv": [
           "/rows/*/username"
@@ -21313,7 +21769,7 @@
         "visualization-data-json"
       ],
       "changedOutputCellCount": 3,
-      "changedOutputCellAddressDigest": "sha256:a1251282701c152b4abe7ff0c817cffdb54b2bf2f1cc946f815b4b0105d50a03",
+      "changedOutputCellAddressDigest": "sha256:d2f89f3582b03d60b747964829e1ab030e2923add739769a4947ee3e3cf307a6",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/application_label"
@@ -21771,7 +22227,7 @@
         "visualization-data-json"
       ],
       "changedOutputCellCount": 8,
-      "changedOutputCellAddressDigest": "sha256:d9a7d6fba3f50aafe8f5589024c0dbb6d2aa55c8f23309b992c1aa324a402ab1",
+      "changedOutputCellAddressDigest": "sha256:aad5b6734b4f5a5c66f0348588a72099dd1cf6df561c082c1bded08c51a2728c",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/app_usage_end_reason",
@@ -22155,7 +22611,7 @@
         "visualization-data-json"
       ],
       "changedOutputCellCount": 9,
-      "changedOutputCellAddressDigest": "sha256:89c350e7d92121a377b63f12865bb9b89f26ef983f4336981fb1fe801a17a29f",
+      "changedOutputCellAddressDigest": "sha256:89a42aed3f42b29c276d22d4af5865756f79773ac3b113a8177345fafc4f4c38",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/app_package_name",
@@ -22687,8 +23143,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 6141,
-      "changedOutputCellAddressDigest": "sha256:4d0b022aef41a5c5de6a6bab876846274aa7f02b7bdbcd5aed6600d65cf40419",
+      "changedOutputCellCount": 5641,
+      "changedOutputCellAddressDigest": "sha256:b91b94c42d866cf282b31725452c1524a7a5710a6a1c93bd224537851b5ae029",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -22819,13 +23275,8 @@
           "/rows/*/umich_child_app_category",
           "/rows/*/umich_child_app_category_code",
           "/rows/*/umich_free",
-          "/rows/*/usage_layer",
           "/rows/*/usc_broad_app_category",
           "/rows/*/usc_genreId",
-          "/rows/*/valid_app_new_engage_30s",
-          "/rows/*/valid_app_new_engage_custom_300s",
-          "/rows/*/valid_app_switched_app",
-          "/rows/*/valid_app_usage_time_gap_hours",
           "/rows/*/weekdayMF",
           "/rows/*/weekdayMTh",
           "/rows/*/weekdaySuTh"
@@ -23839,8 +24290,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 2345,
-      "changedOutputCellAddressDigest": "sha256:93267553e86ceb9e5326002f6c261527a6a5aff5690e10cebe64aa0d3460f835",
+      "changedOutputCellCount": 2353,
+      "changedOutputCellAddressDigest": "sha256:b8ecb615e2a1c79d9a89cfb59d55e0b913e9a46215915bdbfa1f16956a862e3e",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -24548,8 +24999,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 5961,
-      "changedOutputCellAddressDigest": "sha256:aed84bf90ad839619abd78a9fb74ba159ce65e6cd00626538e5bcafb2f258d31",
+      "changedOutputCellCount": 5453,
+      "changedOutputCellAddressDigest": "sha256:2be2b4f1b9fc99ab8908985923bdb4c08374a516cb8f3a36323620b512e8f3c1",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -25668,8 +26119,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 776,
-      "changedOutputCellAddressDigest": "sha256:7ee2398b712d2fa42086aa70cb5cd7ea50b565604f980e8a9af271d354e7efee",
+      "changedOutputCellCount": 2192,
+      "changedOutputCellAddressDigest": "sha256:116b33643873de7b6876f9a8218a96c4f57e853ad1da4785aac7e4e49c5a3967",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -26118,7 +26569,7 @@
         "visualization-data-json"
       ],
       "changedOutputCellCount": 3,
-      "changedOutputCellAddressDigest": "sha256:3269ee327e1f3ca70f6434da25f29d8750928a07e8886ce374bdbef1fc850ee6",
+      "changedOutputCellAddressDigest": "sha256:5c6ce6dba4b603d50d217834003d4c301b16984ad5e5566d4744e5d5129c27ce",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/start_timestamp"
@@ -26641,7 +27092,7 @@
         "visualization-data-json"
       ],
       "changedOutputCellCount": 67,
-      "changedOutputCellAddressDigest": "sha256:672bdd3f84ad441b1d1bab94ff91034302abc35e94e1b69fd0fabf34c4c9c6fc",
+      "changedOutputCellAddressDigest": "sha256:ebb6339aa7e22393f409c390d7f6297ec4347d8c2c2a2b59aa905c4d2450a426",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -26923,7 +27374,7 @@
         "source-result-influence-arrow"
       ],
       "changedOutputCellCount": 4,
-      "changedOutputCellAddressDigest": "sha256:eb8f91dafe59d1f522cfd1b5d50363372c3128f9c2e23d5a49b3469042e5fe65",
+      "changedOutputCellAddressDigest": "sha256:d8ece024c59573dd6798d191ab74b2db150ce900cf9e9ff8473349b65374ff6b",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/genreId_scraped"
@@ -27154,8 +27605,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 10366,
-      "changedOutputCellAddressDigest": "sha256:8a9b4a8d0bb35039c968bab7f775d078a0b3176706a5b5732389eaae90cc8b18",
+      "changedOutputCellCount": 10392,
+      "changedOutputCellAddressDigest": "sha256:cd5670f1c06c95426a93e6629b3df1481ecbf43c85a230cecdbeb49b81a5297b",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -27676,8 +28127,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 3889,
-      "changedOutputCellAddressDigest": "sha256:34f311b305c9949dfdf48560cc2acbece46cdb3ad7625592993c0cf059702040",
+      "changedOutputCellCount": 3940,
+      "changedOutputCellAddressDigest": "sha256:52e7d18f64a22e6a3c5a785558543be051f390a61fd953e5e1a75e0a538d12bb",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -29673,8 +30124,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 1301,
-      "changedOutputCellAddressDigest": "sha256:6539a152d74cd2c0918e0eb5886083e5b28dcbfcd360fe3df4c5e92c071e396d",
+      "changedOutputCellCount": 1362,
+      "changedOutputCellAddressDigest": "sha256:4e3ea77d6cf3dc9269c3c2ca20a46cc36df0b7dda185bfcbc026245489f5957f",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -29782,6 +30233,10 @@
           "/participants/*/perDay/*/screenUsageMinutes",
           "/participants/*/studyId",
           "/participants/*/topAppsByDate",
+          "/participants/*/topAppsByDate/2026-10-31/*/appPackageName",
+          "/participants/*/topAppsByDate/2026-10-31/*/applicationLabel",
+          "/participants/*/topAppsByDate/2026-10-31/*/category",
+          "/participants/*/topAppsByDate/2026-10-31/*/minutes",
           "/participants/*/topAppsByDate/2026-11-01/*/appPackageName",
           "/participants/*/topAppsByDate/2026-11-01/*/applicationLabel",
           "/participants/*/topAppsByDate/2026-11-01/*/category",
@@ -30948,8 +31403,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 864,
-      "changedOutputCellAddressDigest": "sha256:2909208bb259c3d9066c95f6de4970f2f7406a1dc072f506716165b58fa7fddb",
+      "changedOutputCellCount": 792,
+      "changedOutputCellAddressDigest": "sha256:fddcefcf7c3105282e5a574de23ac39869a4dc8a4f091d1a53c4d4887d75093b",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -32013,8 +32468,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 5949,
-      "changedOutputCellAddressDigest": "sha256:eef06f98d22be5aa19165060d6533aca269fb41b6a957becf32c41c1b860835c",
+      "changedOutputCellCount": 6025,
+      "changedOutputCellAddressDigest": "sha256:dbc0b11f8f9c161f83c5f1d4ba3db942d970f3c1a55ea58b9ac874aa05e36cf3",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -33109,8 +33564,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 3678,
-      "changedOutputCellAddressDigest": "sha256:7c24e3638a8ed2f1c697e5b56f279db7a304236bd7aa1436848bbb22b1542dda",
+      "changedOutputCellCount": 2648,
+      "changedOutputCellAddressDigest": "sha256:7f3037b95af2ccf0948aa172a56b4e884668a32bcf9c1ab5a412ad6a7518dd53",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -33811,7 +34266,7 @@
         "visualization-data-json"
       ],
       "changedOutputCellCount": 25,
-      "changedOutputCellAddressDigest": "sha256:98fdec472b64a39cc76e2a52d818e53dbaf91c1d6408bc4272d0afacf9e601b6",
+      "changedOutputCellAddressDigest": "sha256:bb677fb52e37131f24ad117195b3945d85b383d5d1a2944584e4a777bb0d6066",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/data_time_gap_hours"
@@ -34778,8 +35233,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 1238,
-      "changedOutputCellAddressDigest": "sha256:67f152d3abb9cb5c72c86fafcfa8074d3ace3bbbcddc138761261f30ba9d0076",
+      "changedOutputCellCount": 2623,
+      "changedOutputCellAddressDigest": "sha256:4acf5bb1b69dfb69ef3c24b8ff9155446f64c1b8a72a31be472e415ece0292e4",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -35279,8 +35734,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 1400,
-      "changedOutputCellAddressDigest": "sha256:811afa66a31681332cc53fcfdb78de7db1811b26f7edd3b1527234fe48a1cc47",
+      "changedOutputCellCount": 1738,
+      "changedOutputCellAddressDigest": "sha256:7d47b036b871acccd255052ecd61522bb8a8f7d3431826314141b36179e92d67",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/duration_minutes",
@@ -35907,8 +36362,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 3946,
-      "changedOutputCellAddressDigest": "sha256:b8c009520fe72425b042b048cfbe4f4ea1ecb1151202ce7220ba649b1f2af97f",
+      "changedOutputCellCount": 3320,
+      "changedOutputCellAddressDigest": "sha256:d3d70ab3d38dd8d2aab2df09e43a4ade076e446169d02c1d402c109affe732ff",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -36065,6 +36520,10 @@
           "/participants/*/perDay/*/appSessionCount",
           "/participants/*/perDay/*/appUsageMinutes",
           "/participants/*/perDay/*/backgroundAppUsageMinutes",
+          "/participants/*/topAppsByDate/2026-11-02/*/appPackageName",
+          "/participants/*/topAppsByDate/2026-11-02/*/applicationLabel",
+          "/participants/*/topAppsByDate/2026-11-02/*/category",
+          "/participants/*/topAppsByDate/2026-11-02/*/minutes",
           "/participants/*/topAppsByDate/2026-11-03/*/appPackageName",
           "/participants/*/topAppsByDate/2026-11-03/*/applicationLabel",
           "/participants/*/topAppsByDate/2026-11-03/*/category",
@@ -36320,7 +36779,7 @@
         "source-result-influence-arrow"
       ],
       "changedOutputCellCount": 54,
-      "changedOutputCellAddressDigest": "sha256:97acbeece05cb51422099ce8817bb240bc3b36462dd0afd450bf74748bb1c791",
+      "changedOutputCellAddressDigest": "sha256:c10e1fb8fead9792c9d4ec12ba7c4a9d5ed7b22be6691ca763c08461e5150198",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/bcm_play_store_genreId"
@@ -36551,8 +37010,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 12673,
-      "changedOutputCellAddressDigest": "sha256:ac6172c991ffffa6836ce1de7d1aa3484bb91400e98521d0ddc790951a483bb3",
+      "changedOutputCellCount": 12704,
+      "changedOutputCellAddressDigest": "sha256:183357598b3f510991171f14c1f35a734972b0ef44104275929a2c6b4e9e07c4",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -36654,6 +37113,10 @@
           "/participants/*/perDay/*/flags",
           "/participants/*/perDay/*/screenSessionCount",
           "/participants/*/perDay/*/screenUsageMinutes",
+          "/participants/*/topAppsByDate/2026-10-31/*/appPackageName",
+          "/participants/*/topAppsByDate/2026-10-31/*/applicationLabel",
+          "/participants/*/topAppsByDate/2026-10-31/*/category",
+          "/participants/*/topAppsByDate/2026-10-31/*/minutes",
           "/participants/*/topAppsByDate/2026-11-01/*/appPackageName",
           "/participants/*/topAppsByDate/2026-11-01/*/applicationLabel",
           "/participants/*/topAppsByDate/2026-11-01/*/category",
@@ -37073,8 +37536,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 4582,
-      "changedOutputCellAddressDigest": "sha256:f2ee72566873f3a762fdedb065a885ee957f72a26123445ace49709a84fae54c",
+      "changedOutputCellCount": 4656,
+      "changedOutputCellAddressDigest": "sha256:4edb35ee48cab2923fe2f389306dec52aa637878d7629799e5462b4a33fc2915",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -38647,7 +39110,7 @@
         "source-result-influence-arrow"
       ],
       "changedOutputCellCount": 2,
-      "changedOutputCellAddressDigest": "sha256:1ac0c4b6a1ae43d754199686af029ef073d539b5885b5616022d6b32e07713d7",
+      "changedOutputCellAddressDigest": "sha256:32eb5560cb067e57c8dab4a9150f08ef9d61326836d1afcae3440edd64d23674",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/study_id"
@@ -39144,8 +39607,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 4875,
-      "changedOutputCellAddressDigest": "sha256:4e4f1b586c662558ba7a33e7bb47e6d7423fd7ea312139adebad9ea955e06260",
+      "changedOutputCellCount": 4979,
+      "changedOutputCellAddressDigest": "sha256:7ddbbced4b69c87c38c48e88135d2370b0e2371315c587a7989f7d47636ce358",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -39760,7 +40223,7 @@
         "source-result-influence-arrow"
       ],
       "changedOutputCellCount": 1,
-      "changedOutputCellAddressDigest": "sha256:6f84a8a77129c2211daa48f44f6ef78909f2ed760bf307ad91f8b75d54a28a06",
+      "changedOutputCellAddressDigest": "sha256:be6b87658fd4eb87fe396d2fed0f403951691503d898514844749e63b8d6bbd2",
       "changedOutputCellScopesByArtifact": {
         "credited-app-csv": [
           "/rows/*/username"
@@ -40129,7 +40592,7 @@
         "visualization-data-json"
       ],
       "changedOutputCellCount": 3,
-      "changedOutputCellAddressDigest": "sha256:e18d8500f3e0c222452f2687beee855923f35821f62deda7ed4e5bd281314076",
+      "changedOutputCellAddressDigest": "sha256:d094dae0d8a11d1c455f4f73d50b607d97d9530dbacab988dde22d1551f98c30",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/application_label"
@@ -40602,7 +41065,7 @@
         "visualization-data-json"
       ],
       "changedOutputCellCount": 13,
-      "changedOutputCellAddressDigest": "sha256:f0d9a187b3d53dd664b782d08daef9c5f446bf698000aed13e9a510d0778f9b3",
+      "changedOutputCellAddressDigest": "sha256:266c994ef2228261b46f12ded3be490c50b8a584e14dfad979298b921dc931c6",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/app_usage_end_reason",
@@ -41006,7 +41469,7 @@
         "visualization-data-json"
       ],
       "changedOutputCellCount": 29,
-      "changedOutputCellAddressDigest": "sha256:5a39b9ccadb4f7caf8dd3aadda6f5f1fd313dc5169cfbaa1d2d32429d88f7311",
+      "changedOutputCellAddressDigest": "sha256:b25e777b72853ba904f1a0b1125c6050cfb7f3bdc316a63bd3a1268fc79ee351",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/app_package_name",
@@ -41544,8 +42007,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 4734,
-      "changedOutputCellAddressDigest": "sha256:ecfb814239ac2a4f362bab4f338e5bdea262e5ca6b3ba0bfb7f0d80e022d7fdd",
+      "changedOutputCellCount": 4790,
+      "changedOutputCellAddressDigest": "sha256:c9774c1aa4df934d95f838deb2e2845eb07d499e642ba77641b870a6956e6e85",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -42675,8 +43138,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 4166,
-      "changedOutputCellAddressDigest": "sha256:9128af72ae7d4bc11f707e4a8c12f0f6c55ccacf6cf6d1066f671fb97c68e200",
+      "changedOutputCellCount": 3653,
+      "changedOutputCellAddressDigest": "sha256:6c1025979a6d3b6aacd3767777360ba6ab9ce166d983e7f03cabd7cb23a3944d",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -42833,6 +43296,7 @@
           "/participants/*/topAppsByDate/2026-06-17/*/minutes",
           "/participants/*/totals/appSessionCount",
           "/participants/*/totals/appUsageMinutes",
+          "/participants/*/totals/backgroundAppUsageMinutes",
           "/participants/*/totals/totalDays"
         ],
         "visualization-data-json": [
@@ -43363,8 +43827,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 6386,
-      "changedOutputCellAddressDigest": "sha256:d4fb9ad1374fe8ed09b1c92028a1d0a6c51c67c33dfd8ae638360a24084b9d29",
+      "changedOutputCellCount": 5861,
+      "changedOutputCellAddressDigest": "sha256:2553f08a26e7ef9bb55c307bf420360cf33ff62b32adccd0bb1ab5c44a3eadab",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -44489,7 +44953,7 @@
         "visualization-data-json"
       ],
       "changedOutputCellCount": 152,
-      "changedOutputCellAddressDigest": "sha256:927978d370bacf4b674847b22f2864ef6e2f126d862bed7077835f459250f139",
+      "changedOutputCellAddressDigest": "sha256:402c119908bdd8ed935c3391d200d63e5131d034ce1d9d66fb237c2ef36cd250",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_usage_time_gap_hours",
@@ -44832,7 +45296,7 @@
         "visualization-data-json"
       ],
       "changedOutputCellCount": 3,
-      "changedOutputCellAddressDigest": "sha256:4d65282cf0b5007ddbd258e3a51a68a2d1a9a8117fe890cb2272e3313c44e649",
+      "changedOutputCellAddressDigest": "sha256:b80d0437b20b1e372aadf0615a6f08dd7f2b3e7de5cd91a09f892d1329165bb6",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/start_timestamp"
@@ -45387,8 +45851,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 8143,
-      "changedOutputCellAddressDigest": "sha256:6c63e3deeed98ed45f868ade5df6e874344d9e606b1d7a3152e925e35b7b9d94",
+      "changedOutputCellCount": 7647,
+      "changedOutputCellAddressDigest": "sha256:55c64af3ab65ea51394ec6bd83f0cc9687f78eccae41810596fbe87571757a1f",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -45805,7 +46269,7 @@
         "source-result-influence-arrow"
       ],
       "changedOutputCellCount": 58,
-      "changedOutputCellAddressDigest": "sha256:f4970ca4260aabdf9f95d8313ec020c55fcab55d6d89b4ce479c4be489852827",
+      "changedOutputCellAddressDigest": "sha256:d071dd0e32b4e0dfad5e55a97c1049848d5f27ef1e8808ff68832491a680bfcd",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/bcm_play_store_genreId"
@@ -46036,8 +46500,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 10651,
-      "changedOutputCellAddressDigest": "sha256:7a63a672fe6b3fabc11852ea93115934161931493b11985c28a5c74d0f5d0188",
+      "changedOutputCellCount": 10663,
+      "changedOutputCellAddressDigest": "sha256:09409c486fd693e08e47e41b7c4b187f2bb7e9d79a14f21e0fe10730242b0abb",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -46558,8 +47022,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 4644,
-      "changedOutputCellAddressDigest": "sha256:0299729c2d1aaa03342a297971cd3da875d12cfaa38ef915e77f99ce696b598d",
+      "changedOutputCellCount": 4697,
+      "changedOutputCellAddressDigest": "sha256:e4424bb69c8bcc5ab5403ebbb80fa4b6cd54b7d724d3d7134ebb412cc9dee351",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -48655,8 +49119,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 3328,
-      "changedOutputCellAddressDigest": "sha256:e2070dcbfcf530fe808834baadd7a141f138d6019c6854909952c685157a5081",
+      "changedOutputCellCount": 3193,
+      "changedOutputCellAddressDigest": "sha256:2c269c3b1d6708b4eec8df05519175fb0e0449d982d1b909086ec4d9bdee8691",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -50180,8 +50644,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 2354,
-      "changedOutputCellAddressDigest": "sha256:24255922cb57a2645ca8df45b47fb537c8af508556a4aa18b0eaa7677141f3a4",
+      "changedOutputCellCount": 2185,
+      "changedOutputCellAddressDigest": "sha256:bb4f9b50197fbaf90e10049ced82cc27b0b76132b1b86b874095154211aa82f7",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -50838,8 +51302,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 2358,
-      "changedOutputCellAddressDigest": "sha256:96a4a1507bde77246acab0cfb142217e15afbd3512d9bf1e00ef8b289afbee56",
+      "changedOutputCellCount": 2189,
+      "changedOutputCellAddressDigest": "sha256:8dc471eae20b72cda0fce855a800de1b1c771675aa246262aad87348b287b3bf",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -51505,8 +51969,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 3878,
-      "changedOutputCellAddressDigest": "sha256:3cbc141b750aad3af3c460895c2f1557a0a8f9b0c1707b4e40867e9d6ac760a1",
+      "changedOutputCellCount": 3711,
+      "changedOutputCellAddressDigest": "sha256:b763e15f36eea1776a47ef3cfe38bfba4b9a50b5912a8d232383f5f2789f04f2",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -53390,7 +53854,7 @@
         "visualization-data-json"
       ],
       "changedOutputCellCount": 129,
-      "changedOutputCellAddressDigest": "sha256:74ca0a8be5777d78a9b82c11d8f64f7f912e7c4dc51d17aad67008acc2f46bda",
+      "changedOutputCellAddressDigest": "sha256:90d16081517864e94c8bab47588f3b626a7d24dea309fadc853a655fe86be0e0",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -54731,8 +55195,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 2358,
-      "changedOutputCellAddressDigest": "sha256:2d689b192b58228f4a27d392ef7ff6c13f6942bacd353b7ff4850a28792d18f1",
+      "changedOutputCellCount": 2185,
+      "changedOutputCellAddressDigest": "sha256:7a61c70d511237df21e0e01fe4367368dbe45c042d447444fcd62c271a561482",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -55236,6 +55700,7 @@
         "join_app_codebook",
         "match_app_episodes",
         "materialize_candidate_episodes",
+        "materialize_credited_rows",
         "order_app_episodes",
         "remove_selected_interaction_types",
         "remove_zero_duration_rows",
@@ -55331,6 +55796,9 @@
           "rowOrderDigest",
           "temporalStateDigest"
         ],
+        "materialize_credited_rows": [
+          "payloadDigest"
+        ],
         "order_app_episodes": [
           "classificationDigest",
           "rowMembershipDigest",
@@ -55413,7 +55881,7 @@
         "visualization-data-json"
       ],
       "changedOutputCellCount": 13,
-      "changedOutputCellAddressDigest": "sha256:36565fece888d0c7730dad032b9b07517088755db8a3a5875fb6330ac915a97f",
+      "changedOutputCellAddressDigest": "sha256:ff485b2812da856187bf061370279a239797872579039d397df2dbfa85de8473",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -55679,7 +56147,7 @@
         "source-result-influence-arrow"
       ],
       "changedOutputCellCount": 4,
-      "changedOutputCellAddressDigest": "sha256:47513b2d4dac44eea3ca14f725c44fcf7c320f96d02b1024e93d6fd37eca4dbf",
+      "changedOutputCellAddressDigest": "sha256:51b3f889dc767223849eb76594d54228db444b1cd8a601a2445cdc2c491bcee8",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/genreId_scraped"
@@ -55910,8 +56378,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 6173,
-      "changedOutputCellAddressDigest": "sha256:a69e6e74714ad05b2978fbe893ce508930256505f0ceddc48acfff2516aae2c3",
+      "changedOutputCellCount": 6189,
+      "changedOutputCellAddressDigest": "sha256:25dd7f51561fa3eccc7492a3fcf0332d6d5a4a61e00e06b852109f415ea5d438",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -56437,8 +56905,8 @@
         "source-result-influence-arrow",
         "visualization-data-json"
       ],
-      "changedOutputCellCount": 1749,
-      "changedOutputCellAddressDigest": "sha256:85b893a793f154c5672bc69f70bf46b25665618f3b1654abceb6266ad06ea5c9",
+      "changedOutputCellCount": 1765,
+      "changedOutputCellAddressDigest": "sha256:959cdcd0e64f0488659b9aabf45d19aeaa96553a7e32e218b4f1f18d3ff4e166",
       "changedOutputCellScopesByArtifact": {
         "app-csv": [
           "/rows/*/any_app_new_engage_30s",
@@ -57732,5 +58200,5 @@
       ]
     }
   ],
-  "caseSetDigest": "sha256:14fea17ec7227e9bb8c8127e7eb9c582fdad919ddb08e1e0679a35812d3f9f55"
+  "caseSetDigest": "sha256:0a21016e1e7cae08526246b2274930193e58cc87f01e999e2fb79a73f301f0a3"
 }
