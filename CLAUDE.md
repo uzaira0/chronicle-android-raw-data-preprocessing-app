@@ -110,8 +110,9 @@ npm run typecheck      # THREE tsc --noEmit passes (root + tsconfig.node.json fo
 npm run test           # scripts/run_test_suite.mjs: test:unit (vitest, the four golden
                        # campaign suites excluded) + the fail-closed config-space contract slice
 npm run test:e2e:smoke # playwright @smoke tests
-node scripts/run-clean-env.mjs vitest run src/lib/foo.test.ts -t 'name'  # one test file / case
-node scripts/run-clean-env.mjs playwright test e2e/foo.spec.ts           # one e2e spec
+npm exec -- node scripts/run-clean-env.mjs vitest run src/lib/foo.test.ts -t 'name'  # one test file / case
+npm exec -- node scripts/run-clean-env.mjs playwright test e2e/foo.spec.ts           # one e2e spec
+# (bare `node scripts/run-clean-env.mjs vitest` fails `spawn vitest ENOENT`: it needs npm's PATH)
 npm run check:contract # regenerate + validate the generated contract (see below)
 npm run build:wasm     # rebuild the WASM packages used by the app and tests
 ```

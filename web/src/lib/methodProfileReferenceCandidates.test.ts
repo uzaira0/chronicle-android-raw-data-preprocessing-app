@@ -6,6 +6,7 @@ import { resolve } from "node:path";
 import { expect } from "vitest";
 import { itWithPrivateCorpus } from "@/testSupport/privateCorpusGates";
 import { privateCorpusPath } from "@/testSupport/privateCorpus";
+import { linkmlPython } from "@/testSupport/linkmlPython";
 import { loadResearchMethodSelection, saveResearchMethodSelection } from "@/lib/lastRunStore";
 import { compileNativeMethodProfile, parseStudyMethodProfileLibrary, requiresConfigurationSelection } from "@/lib/methodProfiles";
 
@@ -161,7 +162,7 @@ for (const [file, pin, atomCount, operationCount] of [
       // Existing generated ontology shape, not only the more permissive runtime parser.
       const schema = JSON.parse(readFileSync(resolve(import.meta.dirname,
         "../../schema/generated/json-schema/chronicle-research-ontology.schema.json"), "utf8")) as { $defs: Record<string, unknown> };
-      const shapeCheck = execFileSync("python3", ["-c", [
+      const shapeCheck = execFileSync(linkmlPython(), ["-c", [
         "import json,sys",
         "from jsonschema import Draft202012Validator",
         "payload=json.load(sys.stdin)",
