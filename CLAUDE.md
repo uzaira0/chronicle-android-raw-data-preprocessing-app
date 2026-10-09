@@ -275,11 +275,15 @@ screen time for the TECH / GNSM studies — see the consumer-coupling warning ab
 screen-gated crediting layer (status below). Captured here so the matcher's behavior
 and the paradigm mapping are both on the record.
 
-**Locked config (the consumer's frozen `PreprocessingOptions` for app-usage):**
-`long_duration_threshold_hours=6` (engine default is 12), `proximity_interval_seconds=2`,
-`minimum_usage_duration=60`, `allow_stop_event_reuse=off`,
-`use_activity_stopped_as_fallback=on`, `apply_threshold_to_activity_stopped_fallback=on`,
-`use_filter_file=on`, plus a post-engine Amazon-Kids-as-launcher relabel. `proximity=2 s`
+**Locked config (TECH / GNSM, `research-pipeline` `v1_engine.py` knobs on the frozen
+July-16 Python engine):** `proximity_interval_seconds=2`, `minimum_usage_duration=60`,
+`allow_stop_event_reuse=off`, `use_activity_stopped_as_fallback=on`,
+`apply_threshold_to_activity_stopped_fallback=on`, `use_filter_file=on`,
+`correct_duplicate_event_timestamps=on`, timezone America/Chicago. Personal phones (§14):
+`long_duration_threshold_hours=1e6` (never fires) plus the §14 credit (truncate at 6 h,
+credit screen-ON ∩ device-alive minutes), Amazon Kids counted as a regular app. GNSM
+study tablets: `long_duration_threshold_hours=6`, no credit. This app's defaults differ
+on the filter (off), the cap (12 h) and screen-gated credit (off). `proximity=2 s`
 is load-bearing (off fragments video teardown-churn below the 60 s floor). The tablet
 stream also requires `proximity=2 s` (stock prox0 collapses PBS sessions).
 
