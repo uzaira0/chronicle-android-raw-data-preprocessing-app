@@ -878,7 +878,7 @@ beforeEach(() => {
 });
 
 describe("persisted Rust workspace boundary", () => {
-  it("rejects a digest-valid full-recovery head missing its closure digest without falling back", async () => {
+  it("discards a digest-valid full-recovery head missing its closure digest without falling back", async () => {
     const malformedBytes = enc.encode(
       JSON.stringify(
         Object.fromEntries(
@@ -967,9 +967,10 @@ describe("persisted Rust workspace boundary", () => {
         {},
         { persistRustWorkspace: true, incrementalEngine: false },
       ),
-    ).rejects.toThrow(/root digest/);
+      // Past recovery: the run reaches its own request validation.
+    ).rejects.toThrow(/datetimeOfPreprocessing is required/);
     expect(opfs.recoverRuntimeWorkspace).not.toHaveBeenCalled();
-    expect(kernel.execute_workspace).not.toHaveBeenCalled();
+    expect(opfs.removeOpfsWorkspace).toHaveBeenCalledTimes(1);
   });
 
   it("verifies a portable archive without importing it", async () => {
@@ -1964,8 +1965,11 @@ describe("persisted Rust workspace boundary", () => {
       expect(opfs.removeOpfsWorkspace).not.toHaveBeenCalled();
     });
 
-    it("keeps the damaged-head error when recovery offers no different slot", async () => {
+    it("discards the damaged head and processes fresh when recovery offers no different slot", async () => {
       await serveFixtureUnderRunWorkspace();
+      kernel.execute_workspace.mockImplementation(() => {
+        throw new Error("full execution reached Rust");
+      });
       for (const fallback of [undefined, headSlot]) {
         opfs.recoverRuntimeWorkspace.mockResolvedValueOnce(fallback);
         await expect(
@@ -1974,10 +1978,10 @@ describe("persisted Rust workspace boundary", () => {
             incrementalEngine: false,
             datetimeOfPreprocessing: "2026-07-26 00:00:00 UTC",
           }),
-        ).rejects.toThrow(`corrupt OPFS object: ${damagedDigest}`);
+        ).rejects.toThrow(/full execution reached Rust/);
       }
       expect(opfs.recoverRuntimeWorkspace).toHaveBeenCalledTimes(2);
-      expect(kernel.execute_workspace).not.toHaveBeenCalled();
+      expect(opfs.removeOpfsWorkspace).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -2029,6 +2033,42 @@ describe("persisted Rust workspace boundary", () => {
           }),
         ).rejects.toThrow(/full execution reached Rust/),
       );
+      expect(opfs.removeOpfsWorkspace).toHaveBeenCalledWith(
+        await runtimeWorkspaceId("Raw.csv", raw),
+      );
+      expect(request?.workspaceRootDigest).toBeNull();
+    });
+
+    it("processes the file fresh over a saved run from another workflow contract", async () => {
+      // Any kernel change that moves the workflow contract (the Blue Light
+      // codebook columns did) leaves every saved run unverifiable by the new
+      // build. A full run must discard it, never refuse the file.
+      let request: { workspaceRootDigest?: unknown } | undefined;
+      kernel.execute_workspace.mockImplementationOnce((requestJson: string) => {
+        request = JSON.parse(requestJson) as typeof request;
+        throw new Error("full execution reached Rust");
+      });
+      const current = bytesByDigest.get(rootDigest)!;
+      bytesByDigest.set(
+        rootDigest,
+        enc.encode(
+          JSON.stringify({
+            ...validCommit,
+            workflowCompatibilityDigest: `sha256:${"cd".repeat(32)}`,
+          }),
+        ),
+      );
+      try {
+        await expect(
+          executeRustRuntime(raw, "Raw.csv", fullOptions, {}, {
+            persistRustWorkspace: true,
+            incrementalEngine: false,
+            datetimeOfPreprocessing: "2026-07-26 00:00:00 UTC",
+          }),
+        ).rejects.toThrow(/full execution reached Rust/);
+      } finally {
+        bytesByDigest.set(rootDigest, current);
+      }
       expect(opfs.removeOpfsWorkspace).toHaveBeenCalledWith(
         await runtimeWorkspaceId("Raw.csv", raw),
       );
@@ -2160,14 +2200,14 @@ describe("persisted Rust workspace boundary", () => {
     ],
     [
       { ...validCommit, workflowModelVersion: "workflow-v2" },
-      /workflow identity is invalid/,
+      /earlier version of the app/,
     ],
     [
       {
         ...validCommit,
         workflowCompatibilityDigest: `sha256:${"cd".repeat(32)}`,
       },
-      /workflow identity is invalid/,
+      /earlier version of the app/,
     ],
     [
       { ...validCommit, workspaceId: `sha256:${"8".repeat(64)}` },
