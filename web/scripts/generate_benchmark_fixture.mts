@@ -196,7 +196,9 @@ function generateRealisticCorpus(
 const args = parseArgs(process.argv.slice(2));
 const defaults = path.resolve("src/assets/defaults");
 const [codebookCsv, filterCsv, backgroundCsv, forcingScreenOpenCsv] = await Promise.all([
-  readFile(path.join(defaults, "unified_app_codebook.csv"), "utf8"),
+  // Frozen catalog (see generate_b06_omission_fixtures.mts): sampling must not
+  // move when the shipped codebook gains rows.
+  readFile(path.resolve("src/testSupport/fixtures/synthetic-catalog-app-codebook.csv"), "utf8"),
   readFile(
     path.join(defaults, "Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv"),
     "utf8",

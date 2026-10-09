@@ -962,7 +962,7 @@ pub(super) fn encode_row_checkpoint_parts<I: CheckpointSink, T: CheckpointSink, 
     if Arc::ptr_eq(codebook_fields, empty_codebook_fields_ref()) {
         // The overwhelmingly common no-codebook case has a fixed exact
         // encoding: the u64 sequence length followed by one zero tag per
-        // absent field. Append it as one block instead of 28 tiny writes.
+        // absent field. Append it as one block instead of one write per field.
         let mut encoded = [0_u8; 8 + CODEBOOK_RENAME_PAIRS.len()];
         encoded[..8].copy_from_slice(&(CODEBOOK_RENAME_PAIRS.len() as u64).to_le_bytes());
         checkpoint_update(classification, &encoded);

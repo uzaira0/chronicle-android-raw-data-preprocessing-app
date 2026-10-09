@@ -720,18 +720,18 @@ pub fn validate_pipeline_v2_options_with(
 ) -> Result<(), PipelineV2OptionsValidationError> {
     checked_minimum_duration_threshold_ns(options.minimum_usage_duration)?;
     validate_option_real_numbers(options)?;
-    if !matches!(
-        (
-            options.screen_session_maximum_duration_disposition,
-            options.screen_session_maximum_duration_minutes,
-        ),
+    let disposition = options.screen_session_maximum_duration_disposition;
+    let minutes = options.screen_session_maximum_duration_minutes;
+    let off = matches!(
+        (disposition, minutes),
         (ScreenSessionMaximumDurationDisposition::None, 0.0)
-    ) && !(matches!(
-        options.screen_session_maximum_duration_disposition,
+    );
+    let bounded = matches!(
+        disposition,
         ScreenSessionMaximumDurationDisposition::Truncate
             | ScreenSessionMaximumDurationDisposition::ExcludeParticipant
-    ) && options.screen_session_maximum_duration_minutes > 0.0)
-    {
+    ) && minutes > 0.0;
+    if !(off || bounded) {
         return Err(PipelineV2OptionsValidationError::ScreenSessionMaximumDurationShape);
     }
     match (maximum_duration, resolve_maximum_duration(options)) {

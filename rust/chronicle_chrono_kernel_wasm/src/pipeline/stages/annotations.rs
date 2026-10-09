@@ -8,7 +8,7 @@ use crate::pipeline_v2::{
     CULVERHOUSE_SAME_APP_COLLAPSE_NS, CodebookEntry, DayBoundaryAttribution, FILTERED_APP_USAGE,
     FILTERED_STOPPED, HashMap, IntervalQualityPolicy, LocalDateMemo, NaiveDate, Row,
     SessionBoundaryScope, SessionGapBasis, SessionGapThreshold, SessionGroupingRules, SharedString,
-    TimeZone, Tz, codebook_col_index, empty_codebook_fields, format_threshold, js_number_to_string,
+    TimeZone, Tz, BROAD_CATEGORY_COLUMNS, GENRE_ID_COLUMNS, codebook_col_indices, empty_codebook_fields, format_threshold, js_number_to_string,
     populate_time_columns, ts_to_local,
 };
 
@@ -44,32 +44,20 @@ pub(crate) fn derive_broad_category(rows: &mut [Row], enabled: bool) {
     if !enabled {
         return;
     }
-    let bcm_play_store_broad_idx = codebook_col_index("bcm_play_store_broad_app_category").unwrap();
-    let usc_broad_idx = codebook_col_index("usc_broad_app_category").unwrap();
-    let babyemu_broad_idx = codebook_col_index("babyemu_broad_app_category").unwrap();
-    let bcm_broad_idx = codebook_col_index("bcm_cnrc_heuristic_category").unwrap();
-
-    let indices = [
-        bcm_play_store_broad_idx,
-        usc_broad_idx,
-        babyemu_broad_idx,
-        bcm_broad_idx,
-    ];
+    let indices = codebook_col_indices(BROAD_CATEGORY_COLUMNS);
     for row in rows.iter_mut() {
         derive_broad_category_row(row, indices);
     }
 }
 
-pub(crate) fn derive_broad_category_row(row: &mut Row, indices: [usize; 4]) {
-    let candidates = [
-        row.codebook_fields[indices[0]].as_deref(),
-        row.codebook_fields[indices[1]].as_deref(),
-        row.codebook_fields[indices[2]].as_deref(),
-        row.codebook_fields[indices[3]].as_deref(),
-        row.broad_app_category.as_deref(),
-    ];
-    let chosen = candidates
+pub(crate) fn derive_broad_category_row(
+    row: &mut Row,
+    indices: [usize; BROAD_CATEGORY_COLUMNS.len()],
+) {
+    let chosen = indices
         .iter()
+        .map(|&index| row.codebook_fields[index].as_deref())
+        .chain(std::iter::once(row.broad_app_category.as_deref()))
         .find_map(|candidate| candidate.filter(|value| !value.trim().is_empty()))
         .map(String::from);
     let category = Some(chosen.unwrap_or_else(|| "Unknown".to_string()).into());
@@ -82,23 +70,13 @@ pub(crate) fn collapse_app_genre(rows: &mut [Row], enabled: bool) {
     if !enabled {
         return;
     }
-    let babyemu_scraped_idx = codebook_col_index("babyemu_genreId_scraped").unwrap();
-    let babyemu_manual_idx = codebook_col_index("babyemu_genreId_manual").unwrap();
-    let bcm_play_store_genre_idx = codebook_col_index("bcm_play_store_genreId").unwrap();
-    let usc_genre_idx = codebook_col_index("usc_genreId").unwrap();
-
-    let indices = [
-        babyemu_scraped_idx,
-        babyemu_manual_idx,
-        bcm_play_store_genre_idx,
-        usc_genre_idx,
-    ];
+    let indices = codebook_col_indices(GENRE_ID_COLUMNS);
     for row in rows.iter_mut() {
         collapse_app_genre_row(row, indices);
     }
 }
 
-pub(crate) fn collapse_app_genre_row(row: &mut Row, indices: [usize; 4]) {
+pub(crate) fn collapse_app_genre_row(row: &mut Row, indices: [usize; GENRE_ID_COLUMNS.len()]) {
     let genre_values = indices
         .into_iter()
         .filter_map(|index| row.codebook_fields[index].as_ref())
@@ -137,18 +115,8 @@ pub(crate) fn apply_codebook_annotations(
     if !enabled {
         return;
     }
-    let broad_indices = [
-        codebook_col_index("bcm_play_store_broad_app_category").unwrap(),
-        codebook_col_index("usc_broad_app_category").unwrap(),
-        codebook_col_index("babyemu_broad_app_category").unwrap(),
-        codebook_col_index("bcm_cnrc_heuristic_category").unwrap(),
-    ];
-    let genre_indices = [
-        codebook_col_index("babyemu_genreId_scraped").unwrap(),
-        codebook_col_index("babyemu_genreId_manual").unwrap(),
-        codebook_col_index("bcm_play_store_genreId").unwrap(),
-        codebook_col_index("usc_genreId").unwrap(),
-    ];
+    let broad_indices = codebook_col_indices(BROAD_CATEGORY_COLUMNS);
+    let genre_indices = codebook_col_indices(GENRE_ID_COLUMNS);
     for row in rows {
         join_codebook_row(row, codebook_map);
         derive_broad_category_row(row, broad_indices);
@@ -1291,22 +1259,8 @@ pub(crate) fn apply_static_review_annotations_fused(
     // carries sequential state (previous_any/previous_valid) across rows.
     // After each row's engagement columns are computed, flags + clear run.
     let has_junk = !filtered_packages.is_empty();
-    let broad_indices = codebook_enabled.then(|| {
-        [
-            codebook_col_index("bcm_play_store_broad_app_category").unwrap(),
-            codebook_col_index("usc_broad_app_category").unwrap(),
-            codebook_col_index("babyemu_broad_app_category").unwrap(),
-            codebook_col_index("bcm_cnrc_heuristic_category").unwrap(),
-        ]
-    });
-    let genre_indices = codebook_enabled.then(|| {
-        [
-            codebook_col_index("babyemu_genreId_scraped").unwrap(),
-            codebook_col_index("babyemu_genreId_manual").unwrap(),
-            codebook_col_index("bcm_play_store_genreId").unwrap(),
-            codebook_col_index("usc_genreId").unwrap(),
-        ]
-    });
+    let broad_indices = codebook_enabled.then(|| codebook_col_indices(BROAD_CATEGORY_COLUMNS));
+    let genre_indices = codebook_enabled.then(|| codebook_col_indices(GENRE_ID_COLUMNS));
     let thresholds = prepare_usage_flags(
         long_data_time_gap_thresholds,
         long_usage_duration_thresholds,

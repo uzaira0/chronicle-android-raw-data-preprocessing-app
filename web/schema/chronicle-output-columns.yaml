@@ -193,6 +193,41 @@ output_columns:
     value_type: string
     present_when: use_app_codebook
     column_description: BCM CNRC codebook — which source produced the heuristic category.
+  - column_name: bluelight_play_store_genreId
+    column_outputs: [app]
+    value_type: string
+    present_when: use_app_codebook
+    column_description: Blue Light dataset — Play-Store genre id for the package.
+  - column_name: bluelight_play_store_genre
+    column_outputs: [app]
+    value_type: string
+    present_when: use_app_codebook
+    column_description: Blue Light dataset — Play-Store genre name.
+  - column_name: bluelight_play_store_broad_app_category
+    column_outputs: [app]
+    value_type: string
+    present_when: use_app_codebook
+    column_description: Blue Light dataset — broad category derived from the Play-Store genre.
+  - column_name: bluelight_play_store_developer
+    column_outputs: [app]
+    value_type: string
+    present_when: use_app_codebook
+    column_description: Blue Light dataset — Play-Store developer name.
+  - column_name: bluelight_play_store_free
+    column_outputs: [app]
+    value_type: string
+    present_when: use_app_codebook
+    column_description: Blue Light dataset — whether the Play-Store listing is free.
+  - column_name: bluelight_play_store_rating
+    column_outputs: [app]
+    value_type: string
+    present_when: use_app_codebook
+    column_description: Blue Light dataset — Play-Store average star rating.
+  - column_name: bluelight_play_store_downloads
+    column_outputs: [app]
+    value_type: string
+    present_when: use_app_codebook
+    column_description: Blue Light dataset — Play-Store install-count bracket.
   - column_name: codebook_dataset
     column_outputs: [app]
     value_type: string
