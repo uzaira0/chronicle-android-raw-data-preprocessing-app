@@ -737,9 +737,11 @@ mod tests {
         // option: its outputs-group tunes edge, its assemble_result_manifest and
         // publish.commit_workspace_bundle request field, and the contract digests
         // that move with them.
+        // Refreshed 2026-10-09 for the seven Blue Light codebook field reads
+        // (app_codebook_file.bluelight_play_store_*) in the workflow contract.
         assert_eq!(
             sha256(&bytes),
-            "sha256:1975aeb8a8e59bee5c53974e94b2c1bf15da1a8fd5ec6270ddda6d293616326e"
+            "sha256:bf009b15a9a7cc03276cb9e2cb83e15dbf1fac774aded7913a04de8793055679"
         );
     }
 }
