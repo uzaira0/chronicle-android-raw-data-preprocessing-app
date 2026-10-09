@@ -4346,8 +4346,10 @@ async function executeRustRuntimeUnlocked(
           // A head saved under another runtime protocol can be neither read
           // nor chained onto, and refusing it failed every run of a file the
           // August build had processed until site data was cleared. Nothing
-          // in that workspace is readable by this build, so it is cleared and
-          // the file runs as if never processed here.
+          // in that workspace is readable by this build, so a full run (which
+          // holds the exclusive lock) clears it and runs as if never processed
+          // here. Review queries hold only a shared lock and must not delete.
+          if (materialization !== "full") throw new SavedByOtherAppVersionError();
           await removePersistedRustWorkspaceUnlocked(workspaceId);
           opfsRoot = await persistenceAdapter.openRoot(workspaceId);
           recoveredRoot = undefined;
