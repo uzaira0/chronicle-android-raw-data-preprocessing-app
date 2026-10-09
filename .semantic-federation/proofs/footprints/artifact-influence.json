@@ -64,15 +64,15 @@
     },
     {
       "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/model.rs",
-      "digest": "sha256:e377f5f263ddacb119e9f2879aa5b8e54e3efd6b273be851ca84b39c96570b08"
+      "digest": "sha256:7914864792b0e7e08414aa1175f4d4e1d4aa11f06db5bf0f65b1a92b0d6a7143"
     },
     {
       "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/options.rs",
-      "digest": "sha256:fbc9dd7056a427f3ea2315c61b24791cef475926ab6b9ccce917c2b559ca1cad"
+      "digest": "sha256:de4af8e93bdc61c2fa6df51590e1237e31a2ca5f1655301bc81c9e4b5250e327"
     },
     {
       "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/output.rs",
-      "digest": "sha256:a07e9a13f7a37b9c6210c4a214430a335c8d028d0907825ca93bb087f8c58471"
+      "digest": "sha256:59d18f81caeafe13369979222d0631fdab7634bb8ae17f45a95172271129e765"
     },
     {
       "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/payload.rs",
@@ -96,7 +96,7 @@
     },
     {
       "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/stages/annotations.rs",
-      "digest": "sha256:4f87c96325ec7b2f71e7509fb37338003e8964467bb79fb2c4205edb9feb853f"
+      "digest": "sha256:2fa9b90e662d621e97f03e9f89d89a417a0d60d74821665f7cf8f66eb001660b"
     },
     {
       "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/stages/attribution.rs",
@@ -124,7 +124,7 @@
     },
     {
       "path": "rust/chronicle_chrono_kernel_wasm/src/workflow_contract.rs",
-      "digest": "sha256:05ae63fff21accf54e3a6541e5b34996e4605f87394ce97d2ef4fa514956484d"
+      "digest": "sha256:82848b5d31131aefcf2ff4abb9ac79bc12f771cfffa98180b87b257b97601267"
     },
     {
       "path": "rust/chronicle_preprocessing_runtime_wasm/src/binary_exports.rs",
@@ -183,19 +183,19 @@
       "digest": "sha256:929cadea9813dbd23eb198e4f4c6f9c765c926ab032d0982748645a1ecfa6dcd"
     }
   ],
-  "untrackedTouchedFiles": [
-    "/rustc/913e4bea83424658d76712fee9c52452a3a9ef0e/library/std/src/sys/thread_local/no_threads.rs"
-  ],
+  "untrackedTouchedFiles": [],
   "externallyPinnedFiles": {
     "registry": [
       "/cargo-home/registry/src/index.crates.io-1949cf8c6b5b557f/salsa-macro-rules-0.28.5/src/setup_input_struct.rs",
       "/cargo-home/registry/src/index.crates.io-1949cf8c6b5b557f/salsa-macro-rules-0.28.5/src/setup_tracked_fn.rs"
     ],
-    "toolchain": []
+    "toolchain": [
+      "/rust-toolchain/lib/rustlib/src/rust/library/std/src/sys/thread_local/no_threads.rs"
+    ]
   },
   "manifestClosureDigest": "sha256:a6b7d5ef50091aea58cb024735e0964219f159587cc7b01fee41cb3d14b2d49b",
-  "harnessDigest": "sha256:075d181be1be6c051e511d5c4c4a4d3c3bcb2b86830349773fd718d78f6ed976",
-  "contractDigest": "sha256:890037158a2eac9f0c834e1192b32b25de068e0e1675fc36d0b5907b08fb2917",
-  "toolchain": "rustc 1.97.0-nightly (913e4bea8 2026-04-22) | binary: rustc",
+  "harnessDigest": "sha256:b04281c7c461cf66e915bafc290a1471dc6d9164a4fd37ea54bb7239b45a167b",
+  "contractDigest": "sha256:e906b08c2caa66a9277fe55b8cec913c7811b2a2154eb700f8b44aea865c2fff",
+  "toolchain": "rustc 1.97.0-nightly (36ba2c771 2026-04-23) | binary: rustc",
   "claimBoundary": "Executed-production-file set for this record-mode campaign under LLVM coverage; each file pinned by the digest of its test-stripped normalized source. Conditions the right to inherit this campaign's committed ledger payload without re-measuring; never consulted for runtime invalidation."
 }

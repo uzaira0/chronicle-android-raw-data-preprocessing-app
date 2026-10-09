@@ -38,7 +38,7 @@
   },
   "supportCatalogs": {
     "authority": [
-      "web/src/assets/defaults/unified_app_codebook.csv",
+      "web/src/testSupport/fixtures/synthetic-catalog-app-codebook.csv",
       "web/src/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv",
       "web/src/assets/defaults/Chronicle_Android_raw_data_preprocessor_background_apps.csv",
       "web/src/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv"
@@ -671,7 +671,7 @@
           "eyesInputPartitionDigest": "sha256:0a3f03649b7471a0632f67ae71870ed0f904a7a0255864a06568bf16e574b344",
           "commitDigest": "sha256:3d8dfcf0f6b294443dada97cbe2463edb63c685896c82175fde43cfce748d5ad"
         },
-        "workspaceRootDigest": "sha256:890057ad36d3a559f2043286975b2c559cde58d80704e6d90e21d644d0a58ce0",
+        "workspaceRootDigest": "sha256:f836c406d42c1cbbc628d54bfb3a91ac6c95ed01e003f40e155e4cbb1b17e805",
         "refusal": null,
         "validationError": null,
         "rawRebind": null,
@@ -781,7 +781,7 @@
           "eyesInputPartitionDigest": "sha256:6fb76fbaf512a98eedd25f35edc2940ad24351554df464364027f856322e6837",
           "commitDigest": "sha256:e02cccc7b1964e14b13125b4b629aa6972b5be89075db9852c826546ebc21611"
         },
-        "workspaceRootDigest": "sha256:6ec4237a42b230cbb7cf823b8adda3daffddebd1b737679104b4e6232f425d40",
+        "workspaceRootDigest": "sha256:8291d1bcb4767f9a6f992b8a1ffa718104cda368ca35a8076a008e71f2d85f41",
         "refusal": null,
         "validationError": null,
         "rawRebind": null,
@@ -897,7 +897,7 @@
           "eyesInputPartitionDigest": "sha256:a4e763d44939f8d0fede36c89d39b2db218da136333e83cdbed8849647a3b283",
           "commitDigest": "sha256:dbe8f365bf6c7b8b3f626086d88f2c2653ebd999a80cf6bf1ef78ec6e152f768"
         },
-        "workspaceRootDigest": "sha256:0788ff339d13ffdf75b8dbb2ceafe2c9a4739388f98ce2f512bfad636456e221",
+        "workspaceRootDigest": "sha256:d1bcb240a5b4461d20e6c2a506a3e4c7457d63bb1fba01ae00127db262e2c59b",
         "refusal": null,
         "validationError": null,
         "rawRebind": null,
@@ -1351,7 +1351,7 @@
           "eyesInputPartitionDigest": "sha256:3c931ab3a12697b5ec05e9a41ea1489b85eaedb6fa85beb12ccaea28c5c97ffb",
           "commitDigest": "sha256:588766ad2588e7a8f10cf2f2c2cc9ce3e2842e278b847a448da1686fe06708ab"
         },
-        "workspaceRootDigest": "sha256:c3e22d8b823ce4c84670edba800efb48c37710d5c830e286d48094061860318e",
+        "workspaceRootDigest": "sha256:1625b0e73c1617ba1b01bb3c221cb0a292e668c679809430fea9bf2c8270eecd",
         "refusal": null,
         "validationError": null,
         "rawRebind": {
@@ -1466,7 +1466,7 @@
           "eyesInputPartitionDigest": "sha256:0a3f03649b7471a0632f67ae71870ed0f904a7a0255864a06568bf16e574b344",
           "commitDigest": "sha256:20b8ea0cff307231642ecc391f6f20bd639566c09d58c923da026b0a9b6d2aa5"
         },
-        "workspaceRootDigest": "sha256:0e22bf52357e9909bc0a5345d02f1062da1b65f22b0acd3da395b05e6eb4e817",
+        "workspaceRootDigest": "sha256:b408e4ae51502f725d9f41866f4d7b3cf5e789258aacfaf1db21374c47f6f066",
         "refusal": null,
         "validationError": null,
         "rawRebind": null,
@@ -1594,7 +1594,7 @@
           "eyesInputPartitionDigest": "sha256:0a3f03649b7471a0632f67ae71870ed0f904a7a0255864a06568bf16e574b344",
           "commitDigest": "sha256:8be16c9690d99d209f7195f40ba6910ade47b9b4575e338508030dbe4dfa82c4"
         },
-        "workspaceRootDigest": "sha256:e98bd5af1e22908efc8fe780d6f3eda597d650787af0da1989a27371ccc6829e",
+        "workspaceRootDigest": "sha256:69a0452921b13909162836d5ff654c5d7aad0f933e0aab4aebde64c0733ae53c",
         "refusal": null,
         "validationError": null,
         "rawRebind": null,
@@ -1704,7 +1704,7 @@
           "eyesInputPartitionDigest": "sha256:0a3f03649b7471a0632f67ae71870ed0f904a7a0255864a06568bf16e574b344",
           "commitDigest": "sha256:00d30742a3c259677b36e6d5f0c53ba56f9a234fc23b11b15bd6a1fa029b289e"
         },
-        "workspaceRootDigest": "sha256:eb98125d8f6b89f6ab54504c65e3b007d01c436ef29efece8c0fbfa8ad223d28",
+        "workspaceRootDigest": "sha256:86ee38a58136087234b1595e22a1fbe6412d6eb5d2a1d2126088d2b82f05f1f6",
         "refusal": null,
         "validationError": null,
         "rawRebind": null,
@@ -1814,7 +1814,7 @@
           "eyesInputPartitionDigest": "sha256:0a3f03649b7471a0632f67ae71870ed0f904a7a0255864a06568bf16e574b344",
           "commitDigest": "sha256:9c183997843091db8f9715d5ad33ac4f270460b3ead883833d96706ff0c666a8"
         },
-        "workspaceRootDigest": "sha256:c93642b514a9d6f81a9839c5a8d9c17ffcee2c0dbf677c49a5dfb42a7de8642f",
+        "workspaceRootDigest": "sha256:e535c37fe79b717ac98263b480d9df028722419f1f69b621f881fdd6662c1f19",
         "refusal": null,
         "validationError": null,
         "rawRebind": null,
@@ -2038,7 +2038,7 @@
           "eyesInputPartitionDigest": "sha256:0a3f03649b7471a0632f67ae71870ed0f904a7a0255864a06568bf16e574b344",
           "commitDigest": "sha256:685cced5b29ea192fee4a58aa06b4a8fcb3539d4642ebe350b22b43faa9d71a8"
         },
-        "workspaceRootDigest": "sha256:7701ef29d7f358810bba0570deb7249ee38bb0a760a46bc34001ff67fc9b6295",
+        "workspaceRootDigest": "sha256:d7d9ae21ccf816dac8071cf42c10058760df041a3eb223d11b05dc5b0e78c34e",
         "refusal": null,
         "validationError": null,
         "rawRebind": null,
@@ -2148,7 +2148,7 @@
           "eyesInputPartitionDigest": "sha256:0a3f03649b7471a0632f67ae71870ed0f904a7a0255864a06568bf16e574b344",
           "commitDigest": "sha256:35bea01549e1ff7e28cee53ba73170b05f7d1194ddbc825eb54a970360e7796b"
         },
-        "workspaceRootDigest": "sha256:3bd4231510bee21838230a1f5e5f7032f082baa9ea8b65c7ecf54412ad8ad1d8",
+        "workspaceRootDigest": "sha256:f94e82ecf48a8fab8a5c6aae9fe2fd089e7f74f58317841d5c45a62f4521b048",
         "refusal": null,
         "validationError": null,
         "rawRebind": null,
@@ -2258,7 +2258,7 @@
           "eyesInputPartitionDigest": "sha256:0a3f03649b7471a0632f67ae71870ed0f904a7a0255864a06568bf16e574b344",
           "commitDigest": "sha256:bbc0b07f2a2bbb570e682f427aeea6ea78954d2a643dfb3a036379cdb50093d2"
         },
-        "workspaceRootDigest": "sha256:2404dade4c762c9069a6078ed423a6e0186ec2cda288e610d5cd945c50dc7af1",
+        "workspaceRootDigest": "sha256:88bcea94c62e9b046ddd7fd5e51bbcc578c738b59fa0752b34e6370468d9cc0c",
         "refusal": null,
         "validationError": null,
         "rawRebind": null,
@@ -13569,5 +13569,5 @@
       }
     }
   ],
-  "caseSetDigest": "sha256:f2c4c2ec03dacdddb94f6a7654bb32e57a4aba722476ac457c9c9b875c6f26ac"
+  "caseSetDigest": "sha256:0cbd416558d68fe2e47a72fe39029b45c788090eb5b375c441203afb559d891e"
 }
