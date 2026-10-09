@@ -4403,6 +4403,13 @@ const CODEBOOK_JOIN_FIELD_READS: &[&str] = &[
     "app_codebook_file.babyemu_kids",
     "app_codebook_file.bcm_cnrc_heuristic_category",
     "app_codebook_file.bcm_cnrc_categorization_source",
+    "app_codebook_file.bluelight_play_store_genreId",
+    "app_codebook_file.bluelight_play_store_genre",
+    "app_codebook_file.bluelight_play_store_broad_app_category",
+    "app_codebook_file.bluelight_play_store_developer",
+    "app_codebook_file.bluelight_play_store_free",
+    "app_codebook_file.bluelight_play_store_rating",
+    "app_codebook_file.bluelight_play_store_downloads",
     "app_codebook_file.dataset",
 ];
 
@@ -4445,6 +4452,13 @@ const NOTIFICATION_CONTACT_ASSEMBLY_FIELD_READS: &[&str] = &[
     "app_codebook_file.babyemu_kids",
     "app_codebook_file.bcm_cnrc_heuristic_category",
     "app_codebook_file.bcm_cnrc_categorization_source",
+    "app_codebook_file.bluelight_play_store_genreId",
+    "app_codebook_file.bluelight_play_store_genre",
+    "app_codebook_file.bluelight_play_store_broad_app_category",
+    "app_codebook_file.bluelight_play_store_developer",
+    "app_codebook_file.bluelight_play_store_free",
+    "app_codebook_file.bluelight_play_store_rating",
+    "app_codebook_file.bluelight_play_store_downloads",
     "app_codebook_file.dataset",
 ];
 

@@ -29,6 +29,11 @@ pub(super) fn codebook_col_index(name: &str) -> Option<usize> {
     CODEBOOK_RENAME_PAIRS.iter().position(|(_, v)| *v == name)
 }
 
+/// Positions of declared codebook output columns, in the order given.
+pub(super) fn codebook_col_indices<const N: usize>(names: [&str; N]) -> [usize; N] {
+    names.map(|name| codebook_col_index(name).expect("declared codebook column"))
+}
+
 // ---- tz formatters ------------------------------------------------------
 
 pub(super) fn ts_to_local(ts_ns: i64, tz: Tz) -> DateTime<Tz> {

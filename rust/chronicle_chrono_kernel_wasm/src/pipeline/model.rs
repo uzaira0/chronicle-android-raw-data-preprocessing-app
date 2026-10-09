@@ -228,10 +228,41 @@ pub(super) const CODEBOOK_RENAME_PAIRS: &[(&str, &str)] = &[
         "bcm_cnrc_categorization_source",
         "bcm_cnrc_categorization_source",
     ),
+    ("bluelight_play_store_genreId", "bluelight_play_store_genreId"),
+    ("bluelight_play_store_genre", "bluelight_play_store_genre"),
+    (
+        "bluelight_play_store_broad_app_category",
+        "bluelight_play_store_broad_app_category",
+    ),
+    ("bluelight_play_store_developer", "bluelight_play_store_developer"),
+    ("bluelight_play_store_free", "bluelight_play_store_free"),
+    ("bluelight_play_store_rating", "bluelight_play_store_rating"),
+    ("bluelight_play_store_downloads", "bluelight_play_store_downloads"),
     ("dataset", "codebook_dataset"),
 ];
 
-pub(super) const COLLAPSED_GENRE_FIELD_INDICES: [usize; 4] = [1, 9, 17, 18];
+/// Codebook output columns whose first non-blank value becomes
+/// `broad_app_category`, highest precedence first.
+pub(super) const BROAD_CATEGORY_COLUMNS: [&str; 5] = [
+    "bcm_play_store_broad_app_category",
+    "bluelight_play_store_broad_app_category",
+    "usc_broad_app_category",
+    "babyemu_broad_app_category",
+    "bcm_cnrc_heuristic_category",
+];
+
+/// Codebook genre-id columns `collapse_app_genre` collapses into
+/// `genre_id_scraped` when every non-blank one agrees.
+pub(super) const GENRE_ID_COLUMNS: [&str; 5] = [
+    "babyemu_genreId_scraped",
+    "babyemu_genreId_manual",
+    "bcm_play_store_genreId",
+    "usc_genreId",
+    "bluelight_play_store_genreId",
+];
+
+/// Positions of `GENRE_ID_COLUMNS` in `CODEBOOK_RENAME_PAIRS` (pinned by a test).
+pub(super) const COLLAPSED_GENRE_FIELD_INDICES: [usize; 5] = [1, 9, 17, 18, 26];
 
 pub(super) const FOUNDATIONAL_SEMANTICS_CHECKPOINT: &str = "episode_materialized_pre_concurrency";
 
