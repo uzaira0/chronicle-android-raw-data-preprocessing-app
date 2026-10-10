@@ -1323,6 +1323,9 @@ test("restores last processed results after refresh and collapses process detail
   await expect(page.getByRole("heading", { name: "Chronicle Android Raw Data Preprocessor" })).toBeVisible();
   await expect(page.getByTestId("result-panel")).toBeVisible();
   await expect(page.getByTestId("result-panel")).toContainText("1 file processed");
+  await expect(page.getByTestId("result-file-table")).toContainText(
+    "No cleaning applied",
+  );
   await expect(page.locator("#process-details")).toBeHidden();
   await expect(page.getByRole("button", { name: "Show processing details" })).toBeVisible();
   // The restore is lightweight: the browser-only blobs and per-session timeline
@@ -1341,6 +1344,9 @@ test("restores last processed results after refresh and collapses process detail
   expect(JSON.parse(restoredZip.get("Build Info.json") ?? "{}")).toMatchObject({
     contract_version: 6,
     settings_schema_version: 16,
+  });
+  expect(JSON.parse(restoredZip.get("Cleaning Summary.json") ?? "{}")).toEqual({
+    files: [{ input_file_name: "Raw P01.csv", steps: [] }],
   });
   expect(parseCsv(restoredZip.get("Raw P01 Automatically Preprocessed.csv") ?? "").length)
     .toBeGreaterThan(0);

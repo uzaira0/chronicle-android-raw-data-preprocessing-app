@@ -1204,6 +1204,17 @@ impl SourceDataRows {
 }
 
 /// Internal Rust-side result; not directly returned across the boundary.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CleaningCounts {
+    pub filter_relabeled_rows: u32,
+    pub out_of_order_events_dropped: u32,
+    pub culverhouse_bounded_intervals: u32,
+    pub culverhouse_flagged_days: u32,
+    pub screen_sessions_capped: u32,
+    pub screen_duration_excluded_participants: u32,
+}
+
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct PipelineV2Result {
     /// Output artifacts are budgeted payload chunks, never a second
@@ -1251,6 +1262,7 @@ pub struct PipelineV2Result {
     pub interval_expansion_row_count: u32,
     pub duplicate_timestamps_corrected: u32,
     pub exact_duplicate_rows_removed: u32,
+    pub cleaning_counts: CleaningCounts,
     pub available_timezones: Vec<String>,
     pub timezone: String,
     pub timezone_action: String,

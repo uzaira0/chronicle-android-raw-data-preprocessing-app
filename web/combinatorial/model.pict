@@ -72,6 +72,7 @@ screenGatingRule: screenandliveness, screenonly, strictvisualonly, livenessonly
 creditedSessionCapMinutes: m360, m0
 deviceLivenessGapToleranceMinutes: m120, m0
 autoLockBridgeSeconds: s120, s0
+bridgeScreenOffToSessionEnd: true, false
 noWitnessMinDayApps: n2, n0
 notificationProxyRule: none, seencontact, interruptioncontact, anynotificationcontact
 polledEmulationMethod: none, rosssampledgap, ceritsamplecount

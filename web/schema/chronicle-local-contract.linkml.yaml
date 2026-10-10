@@ -178,6 +178,7 @@ classes:
       - credited_session_cap_minutes
       - device_liveness_gap_tolerance_minutes
       - auto_lock_bridge_seconds
+      - bridge_screen_off_to_session_end
       - no_witness_min_day_apps
       - notification_proxy_rule
       - polled_emulation_method
@@ -1244,6 +1245,17 @@ slots:
       credit bridges across it (screen bounce, not a real lock).
     example: "default 120 seconds"
     default: 120
+  bridge_screen_off_to_session_end:
+    range: boolean
+    required: true
+    title: "Measure screen-off only up to the session end"
+    description: >-
+      When deciding whether a screen-OFF gap is short enough to bridge,
+      measure only the part inside the app session instead of up to when the
+      screen comes back on. This is the TECH/GNSM studies' rule: a screen-off
+      that starts just before a session ends is bridged to the session end even
+      when the screen stays off afterwards. Off by default.
+    default: false
   no_witness_min_day_apps:
     range: integer
     required: true

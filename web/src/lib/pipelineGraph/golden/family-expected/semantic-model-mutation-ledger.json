@@ -7,27 +7,27 @@
   },
   "implementationReceipt": {
     "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
-    "implementationDigest": "sha256:4b5fb72ce4570db1a7f25da5ead25762cefc9462eb036ae61098da23d4779762",
-    "planDigest": "sha256:5c4f19924961f6d5054899ad84a969d79cec45bd344b72f8640cc10370e00c0a",
-    "profileDigest": "sha256:8db9c35e66b7d36f54f005a0ed9414dac1de25693509450106be4a39959db664",
-    "profileLockDigest": "sha256:de5a7d9a809bb049c4fa96a91d6e97bb9ec00b818fd071df2293ad1ae424ef11",
+    "implementationDigest": "sha256:113423c17bccc0c41e7389eb8080cbd92e2420b143f8e7ab737b60ad34fe53ff",
+    "planDigest": "sha256:f1aa89e312e4f8f8df44e6f4eaf05f83d61a51ffd6d72ff4400f98fcf6459e4c",
+    "profileDigest": "sha256:c81d3308467f9539535b463458224fd58d2436c3b2e2c26c821da16c51e8d9ce",
+    "profileLockDigest": "sha256:07708734f7197da7e65aa27ea83a030f29224cb9e406778ef7e6dd47f36a6fb5",
     "runtimeAuthorityDigest": "sha256:7807fe99a35b4ede2c85d8e8868ec3dcb2accb22e8265c4643966eb9840ce4e4",
-    "productContractDigest": "sha256:5f8586482ba8944b2cee4813d63de0096c4e4b7139eadad0ef426116921ca14d"
+    "productContractDigest": "sha256:21394e6d3c8d701186812fb8da708f1444b9081a0811afc603261ee24b769bbd"
   },
   "sourceLedgers": {
-    "configurationCaseSetDigest": "sha256:9e8dc95bd23d3f1420bf7d6df094bf026227cbe0b2d8937dc57ce6194c4af1f2",
-    "artifactCaseSetDigest": "sha256:0a21016e1e7cae08526246b2274930193e58cc87f01e999e2fb79a73f301f0a3",
+    "configurationCaseSetDigest": "sha256:be35c691083f813847a9566c656ce35fba6aafca9100b903b777b6621c4f0b27",
+    "artifactCaseSetDigest": "sha256:49d2012d4301dcfbb3323411d2d870354aabbc68eedf631a83e0d5c41e49e96a",
     "rawBoundaryCaseSetDigest": "sha256:ec1de40ab26498224de78d9bb7a5fd7188be5fb7e38f1bb132e3d9cea6268ffa"
   },
-  "observationCount": 4846,
+  "observationCount": 4870,
   "counts": {
-    "total": 588,
-    "killed": 588,
+    "total": 590,
+    "killed": 590,
     "survived": 0,
     "byClass": {
       "remove-edge": 173,
       "reverse-edge": 173,
-      "remove-option-binding": 219,
+      "remove-option-binding": 221,
       "remove-role-binding": 23
     },
     "structuralCycles": 88,
@@ -4809,6 +4809,24 @@
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
       "witnessId": "configuration:autoLockBridgeSeconds:active:s120:s0:support-intersections"
+    },
+    {
+      "mutantId": "remove-option-binding:bridgeScreenOffToSessionEnd->derive_credited_intervals",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "bridgeScreenOffToSessionEnd",
+      "targetId": "derive_credited_intervals",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:bridgeScreenOffToSessionEnd:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:bridgeScreenOffToSessionEnd->assemble_result_manifest",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "bridgeScreenOffToSessionEnd",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:bridgeScreenOffToSessionEnd:active:true:false:catalog-random"
     },
     {
       "mutantId": "remove-option-binding:noWitnessMinDayApps->derive_credited_intervals",

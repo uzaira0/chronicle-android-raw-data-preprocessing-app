@@ -3899,6 +3899,11 @@ export function buildRustV2Options(
     device_liveness_gap_tolerance_minutes:
       options.deviceLivenessGapToleranceMinutes,
     auto_lock_bridge_seconds: options.autoLockBridgeSeconds,
+    // Sent only when on, like neutralize_spreadsheet_formulas, so an off
+    // request keeps the digests it had before the option existed.
+    ...(options.bridgeScreenOffToSessionEnd === true
+      ? { bridge_screen_off_to_session_end: true }
+      : {}),
     no_witness_min_day_apps: options.noWitnessMinDayApps,
     screen_gating_rule: options.screenGatingRule,
     day_boundary_attribution: options.dayBoundaryAttribution,

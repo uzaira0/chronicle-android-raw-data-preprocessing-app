@@ -3,9 +3,10 @@
 use chronicle_chrono_kernel_wasm::payload_store::{current_store, MemorySpillBackend, PayloadStore};
 use chronicle_chrono_kernel_wasm::pipeline_v2::{
     run_pipeline_v2_with_supports_and_dependencies, IncrementalPipelineV2Engine,
-    PipelineV2Options, PipelineV2OptionsJson, PipelineV2Result, PipelineV2SupportFiles,
+    CleaningCounts, IntervalQualityPolicy, PipelineV2Options, PipelineV2OptionsJson,
+    PipelineV2Result, PipelineV2SupportFiles,
     Row, ScreenClassificationSettings, ScreenSessionClose, ScreenSessionClassificationPolicy,
-    StageFunctions, UsageSessionMode,
+    ScreenSessionMaximumDurationDisposition, StageFunctions, UsageSessionMode,
 };
 use std::collections::{BTreeMap, HashMap};
 use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
@@ -66,6 +67,122 @@ fn accounting(store: &PayloadStore) -> (u64, u64, u64, u64, u64, u64) {
 fn bytes(result: &PipelineV2Result) -> Vec<u8> {
     // Includes all artifacts, aggregate bytes, lineage, metadata and checkpoints.
     serde_json::to_vec(result).unwrap()
+}
+
+fn cleaning_count_pair(raw: &[u8], options: &PipelineV2Options) -> CleaningCounts {
+    let sequential = run_pipeline_v2_with_supports_and_dependencies(
+        StageFunctions::production(),
+        store(),
+        raw,
+        options,
+        PipelineV2SupportFiles::default(),
+    )
+    .expect("sequential pipeline succeeds");
+    let mut engine = IncrementalPipelineV2Engine::with_dependencies(
+        StageFunctions::production(),
+        store(),
+    );
+    let incremental = engine
+        .execute(raw, options, PipelineV2SupportFiles::default())
+        .expect("incremental pipeline succeeds");
+    assert_eq!(sequential.cleaning_counts, incremental.result.cleaning_counts);
+    sequential.cleaning_counts
+}
+
+fn app_cleaning_options() -> PipelineV2Options {
+    let mut options = options();
+    options.usage_session_mode = UsageSessionMode::AppUsage;
+    options.include_app_output = true;
+    options.include_screen_output = false;
+    options
+}
+
+const APP_EPISODE: &[u8] = concat!(
+    "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+    "Study,P01,Target Child,App A,Activity Resumed,app.a,2026-03-07 10:00:00,UTC\n",
+    "Study,P01,Target Child,App A,Activity Paused,app.a,2026-03-07 10:05:00,UTC\n",
+).as_bytes();
+
+const SCREEN_EPISODE: &[u8] = concat!(
+    "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+    "Study,P01,Target Child,,Screen Interactive,android,2026-03-07 10:00:00,UTC\n",
+    "Study,P01,Target Child,,Screen Non-Interactive,android,2026-03-07 10:30:00,UTC\n",
+).as_bytes();
+
+#[test]
+fn cleaning_count_filter_relabeled_rows_matches_both_schedulers() {
+    let raw = concat!(
+        "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+        "Study,P01,Target Child,,Screen Interactive,android,2026-03-07 09:00:00,UTC\n",
+        "Study,P01,Target Child,App A,Activity Resumed,app.a,2026-03-07 10:00:00,UTC\n",
+        "Study,P01,Target Child,App A,Activity Paused,app.a,2026-03-07 10:05:00,UTC\n",
+        "Study,P01,Target Child,,Screen Non-Interactive,android,2026-03-07 10:30:00,UTC\n",
+    ).as_bytes();
+    let mut options = app_cleaning_options();
+    options.application_label_exclusions = vec!["App A".into()];
+    assert_eq!(cleaning_count_pair(raw, &options).filter_relabeled_rows, 1);
+}
+
+#[test]
+fn cleaning_count_out_of_order_events_matches_both_schedulers() {
+    let raw = concat!(
+        "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+        "Study,P01,Target Child,App A,Activity Resumed,app.a,2026-03-07 10:00:00,UTC\n",
+        "Study,P01,Target Child,App A,Activity Paused,app.a,2026-03-07 10:05:00,UTC\n",
+        "Study,P01,Target Child,App A,Activity Paused,app.a,2026-03-07 10:03:00,UTC\n",
+    ).as_bytes();
+    let mut options = app_cleaning_options();
+    options.drop_out_of_source_order_events = true;
+    assert_eq!(cleaning_count_pair(raw, &options).out_of_order_events_dropped, 1);
+}
+
+#[test]
+fn cleaning_count_culverhouse_bounded_intervals_matches_both_schedulers() {
+    let raw = concat!(
+        "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+        "Study,P01,Target Child,App A,Activity Resumed,app.a,2026-03-07 10:00:00,UTC\n",
+        "Study,P01,Target Child,App A,Activity Paused,app.a,2026-03-07 17:00:00,UTC\n",
+    ).as_bytes();
+    let mut options = app_cleaning_options();
+    options.application_label_exclusions = vec!["App A".into()];
+    options.interval_quality_policy = IntervalQualityPolicy::CulverhouseTrimAndLog;
+    assert_eq!(cleaning_count_pair(raw, &options).culverhouse_bounded_intervals, 1);
+}
+
+#[test]
+fn cleaning_count_culverhouse_flagged_days_matches_both_schedulers() {
+    let mut options = app_cleaning_options();
+    options.application_label_exclusions = vec!["App A".into()];
+    options.interval_quality_policy = IntervalQualityPolicy::CulverhouseTrimAndLog;
+    assert_eq!(cleaning_count_pair(APP_EPISODE, &options).culverhouse_flagged_days, 1);
+}
+
+#[test]
+fn cleaning_count_screen_sessions_capped_matches_both_schedulers() {
+    let mut options = options();
+    options.usage_session_mode = UsageSessionMode::ScreenUsage;
+    options.include_app_output = false;
+    options.include_screen_output = true;
+    options.screen_session_maximum_duration_minutes = 10.0;
+    options.screen_session_maximum_duration_disposition =
+        ScreenSessionMaximumDurationDisposition::Truncate;
+    assert_eq!(cleaning_count_pair(SCREEN_EPISODE, &options).screen_sessions_capped, 1);
+}
+
+#[test]
+fn cleaning_count_screen_duration_excluded_participants_matches_both_schedulers() {
+    let mut options = options();
+    options.usage_session_mode = UsageSessionMode::ScreenUsage;
+    options.include_app_output = false;
+    options.include_screen_output = true;
+    options.screen_session_maximum_duration_minutes = 10.0;
+    options.screen_session_maximum_duration_disposition =
+        ScreenSessionMaximumDurationDisposition::ExcludeParticipant;
+    assert_eq!(
+        cleaning_count_pair(SCREEN_EPISODE, &options)
+            .screen_duration_excluded_participants,
+        1
+    );
 }
 
 #[test]

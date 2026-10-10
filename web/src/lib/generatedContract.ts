@@ -494,6 +494,7 @@ export const BROWSER_PROCESSING_OPTION_KEYS = [
   "creditedSessionCapMinutes",
   "deviceLivenessGapToleranceMinutes",
   "autoLockBridgeSeconds",
+  "bridgeScreenOffToSessionEnd",
   "noWitnessMinDayApps",
   "notificationProxyRule",
   "polledEmulationMethod",
@@ -583,6 +584,7 @@ export const COMPUTATIONAL_BROWSER_OPTION_KEYS = [
   "creditedSessionCapMinutes",
   "deviceLivenessGapToleranceMinutes",
   "autoLockBridgeSeconds",
+  "bridgeScreenOffToSessionEnd",
   "noWitnessMinDayApps",
   "notificationProxyRule",
   "polledEmulationMethod",
@@ -684,6 +686,7 @@ export const BROWSER_REQUIRED_PROCESSING_OPTION_KEYS = [
   "creditedSessionCapMinutes",
   "deviceLivenessGapToleranceMinutes",
   "autoLockBridgeSeconds",
+  "bridgeScreenOffToSessionEnd",
   "noWitnessMinDayApps",
   "notificationProxyRule",
   "polledEmulationMethod",
@@ -857,6 +860,7 @@ export type BrowserProcessingOptions = {
   creditedSessionCapMinutes: number;
   deviceLivenessGapToleranceMinutes: number;
   autoLockBridgeSeconds: number;
+  bridgeScreenOffToSessionEnd: boolean;
   noWitnessMinDayApps: number;
   notificationProxyRule: NotificationProxyRule;
   polledEmulationMethod: PolledEmulationMethod;
@@ -904,6 +908,7 @@ export const BOOLEAN_BROWSER_OPTION_KEYS = [
   "applyMinimumUsageDurationToConcurrentSubintervals",
   "addNoActivityPlaceholderDays",
   "enableScreenGatedCrediting",
+  "bridgeScreenOffToSessionEnd",
   "enableStudyWindowFilter",
   "enablePersonAttribution",
   "enableComplianceScoring",
@@ -1053,6 +1058,7 @@ export const DEFAULT_BROWSER_OPTIONS: BrowserProcessingOptions = {
   creditedSessionCapMinutes: 360,
   deviceLivenessGapToleranceMinutes: 120,
   autoLockBridgeSeconds: 120,
+  bridgeScreenOffToSessionEnd: false,
   noWitnessMinDayApps: 2,
   notificationProxyRule: "none",
   polledEmulationMethod: "none",
@@ -1400,6 +1406,10 @@ export const BROWSER_OPTION_TOOLTIPS = {
     title: "Auto-lock bridge (seconds)",
     body: "A screen-OFF blip shorter than this cannot be the device auto-lock, so credit bridges across it (screen bounce, not a real lock).",
     example: "default 120 seconds",
+  },
+  bridgeScreenOffToSessionEnd: {
+    title: "Measure screen-off only up to the session end",
+    body: "When deciding whether a screen-OFF gap is short enough to bridge, measure only the part inside the app session instead of up to when the screen comes back on. This is the TECH/GNSM studies' rule: a screen-off that starts just before a session ends is bridged to the session end even when the screen stays off afterwards. Off by default.",
   },
   noWitnessMinDayApps: {
     title: "No-witness fallback: min distinct apps per day",

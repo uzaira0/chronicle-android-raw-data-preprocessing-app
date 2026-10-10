@@ -64,6 +64,7 @@ const KEYS: readonly OptionKey[] = [
   "creditedSessionCapMinutes",
   "deviceLivenessGapToleranceMinutes",
   "autoLockBridgeSeconds",
+  "bridgeScreenOffToSessionEnd",
   "noWitnessMinDayApps",
   "enableStudyWindowFilter",
   "interactionTypesToRemove",
@@ -707,6 +708,15 @@ export function CleaningSettingsCard({
               onChange={(event) => update("autoLockBridgeSeconds", Number(event.target.value))}
             />
           </SettingsField>
+          <ToggleField
+            label="Measure screen-off only up to the session end"
+            tooltip={TOOLTIPS.bridgeScreenOffToSessionEnd}
+            checked={options.bridgeScreenOffToSessionEnd}
+            onChange={(value) => update("bridgeScreenOffToSessionEnd", value)}
+            testId="toggle-bridgeScreenOffToSessionEnd"
+            modified={isMod("bridgeScreenOffToSessionEnd")}
+            onReset={() => reset("bridgeScreenOffToSessionEnd")}
+          />
           <SettingsField
             label="No-witness fallback: min distinct apps per day"
             tooltip={TOOLTIPS.noWitnessMinDayApps}

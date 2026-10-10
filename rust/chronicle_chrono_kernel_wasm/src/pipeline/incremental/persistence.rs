@@ -93,9 +93,9 @@ use super::{
     // v17: B06 row fields (maximum_duration_*, effective_endpoint_reason).
     // v18 removes the output-only preprocessing timestamp checkpoint and key.
     // v19 adds interval-wide app-observation evidence to serialized RowData.
-    pub(crate) const REVIEW_BASE_PROTOCOL: &str = "chronicle-review-base/v19";
+    pub(crate) const REVIEW_BASE_PROTOCOL: &str = "chronicle-review-base/v20";
 
-    pub(crate) const REVIEW_BASE_MAGIC: &[u8; 8] = b"CHRRB019";
+    pub(crate) const REVIEW_BASE_MAGIC: &[u8; 8] = b"CHRRB020";
 
     pub(crate) const REVIEW_BASE_HEADER_BYTES: usize = REVIEW_BASE_MAGIC.len() + 4 + 32 + 32 + 32;
 
@@ -109,9 +109,9 @@ use super::{
     // v23: B06 row fields, binding request, and the optional B06 receipt.
     // v24 carries the v18 early metadata without an output timestamp.
     // v25 adds interval-wide app-observation evidence to serialized RowData.
-    pub(crate) const RECONSTRUCTION_BASE_PROTOCOL: &str = "chronicle-reconstruction-base/v25";
+    pub(crate) const RECONSTRUCTION_BASE_PROTOCOL: &str = "chronicle-reconstruction-base/v26";
 
-    pub(crate) const RECONSTRUCTION_BASE_MAGIC: &[u8; 8] = b"CHRRX025";
+    pub(crate) const RECONSTRUCTION_BASE_MAGIC: &[u8; 8] = b"CHRRX026";
 
     pub(crate) const RECONSTRUCTION_BASE_HEADER_BYTES: usize = RECONSTRUCTION_BASE_MAGIC.len() + 4 + 32 + 32;
 
@@ -129,6 +129,7 @@ use super::{
         pub(crate) rows_after_timezone_handling: u32,
         pub(crate) duplicate_timestamps_corrected: u32,
         pub(crate) exact_duplicate_rows_removed: u32,
+        pub(crate) out_of_order_events_dropped: u32,
         pub(crate) available_timezones: Vec<String>,
         pub(crate) timezone: String,
         pub(crate) timezone_action: String,
@@ -2069,6 +2070,7 @@ use super::{
             .map(|checkpoint| (checkpoint.subject_id.clone(), checkpoint))
             .collect::<BTreeMap<_, _>>();
 
+        let canonical = canonicalize_source_rows(db, raw, early)?;
         let sorted = order_source_records(db, raw, early)?;
         let decoded_raw_row_count = decode_source_records(db, raw)?.value.len() as u32;
         let selected = resolve_timezone_strategy(db, raw, early)?;
@@ -2112,6 +2114,8 @@ use super::{
                 0
             },
             exact_duplicate_rows_removed: restamped.value.len().saturating_sub(deduped.value.len())
+                as u32,
+            out_of_order_events_dropped: canonical.value.len().saturating_sub(sorted.value.len())
                 as u32,
             available_timezones: timezones_payload.iter().cloned().collect(),
             timezone: selected_payload.target_timezone.clone(),

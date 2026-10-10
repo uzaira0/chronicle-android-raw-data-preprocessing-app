@@ -125,7 +125,7 @@ pub use model::{
     EyesTaggedFauValidationStatus, FoundationalSemanticsEvidence, LineageSearchDigest,
     LineageSearchEvidence, MicroUseReceipt, MinimumDurationExcludedEpisode,
     MinimumDurationReceipt, OpenerSetEvidence, PREPROCESSOR_VERSION, ParticipantInputBoundary,
-    PipelineRowLineage, PipelineV2Result, RETAINED_RAW_INPUT_REQUIRED_FOR_DECODE_ERROR,
+    CleaningCounts, PipelineRowLineage, PipelineV2Result, RETAINED_RAW_INPUT_REQUIRED_FOR_DECODE_ERROR,
     ScientificPreflightDisposition, ScreenIntervalLineage, SourceDataRowRange,
     TIMEZONE_HANDLING_MODES, WorkflowCheckpoint, ZeroDurationCleanupEvidence,
     ZeroDurationCleanupReceipt, ZeroDurationRemovedRow,
@@ -5883,6 +5883,10 @@ mod tests {
                 parsed.neutralize_spreadsheet_formulas.unwrap_or(false),
             ),
             (
+                "bridge_screen_off_to_session_end",
+                parsed.bridge_screen_off_to_session_end.unwrap_or(false),
+            ),
+            (
                 "enable_interactive_timeline",
                 parsed.enable_interactive_timeline,
             ),
@@ -6465,6 +6469,7 @@ mod tests {
                 credited_session_cap_minutes,
                 device_liveness_gap_tolerance_minutes,
                 auto_lock_bridge_seconds,
+                bridge_screen_off_to_session_end,
                 no_witness_min_day_apps,
                 screen_session_construction_strategy,
                 screen_session_construction_strategy_explicit,
@@ -6588,6 +6593,7 @@ mod tests {
                     device_liveness_gap_tolerance_minutes,
                 ),
                 real("auto_lock_bridge_seconds", auto_lock_bridge_seconds),
+                not_real(bridge_screen_off_to_session_end),
                 not_real(no_witness_min_day_apps),
                 not_real(screen_session_construction_strategy),
                 not_real(screen_session_construction_strategy_explicit),
@@ -7141,6 +7147,7 @@ mod tests {
             credited_session_cap_minutes: 360.0,
             device_liveness_gap_tolerance_minutes: 120.0,
             auto_lock_bridge_seconds: 120.0,
+            bridge_screen_off_to_session_end: false,
             no_witness_min_day_apps: 2,
             screen_gating_rule: ScreenGatingRule::default(),
             day_boundary_attribution: DayBoundaryAttribution::default(),
@@ -13842,19 +13849,19 @@ P01,2026-03-02,2026-03-31,2026-03-08,2026-03-08,exam_week_8\n";
 
         // No screen witness at all: nothing is creditable, which is what makes
         // the no-witness fallback options necessary.
-        assert_eq!(creditable_intervals(&[], 0, 100, bridge), Vec::new());
+        assert_eq!(creditable_intervals(&[], 0, 100, bridge, false), Vec::new());
         // A screen state established before the session covers the session.
         assert_eq!(
-            creditable_intervals(&[credit_point(-5, On)], 0, 100, bridge),
+            creditable_intervals(&[credit_point(-5, On)], 0, 100, bridge, false),
             vec![(0, 100)]
         );
         assert_eq!(
-            creditable_intervals(&[credit_point(-5, Off)], 0, 100, bridge),
+            creditable_intervals(&[credit_point(-5, Off)], 0, 100, bridge, false),
             Vec::new()
         );
         // Screen turns on mid-session: only the lit tail is credited.
         assert_eq!(
-            creditable_intervals(&[credit_point(20, On)], 0, 100, bridge),
+            creditable_intervals(&[credit_point(20, On)], 0, 100, bridge, false),
             vec![(20, 100)]
         );
         // A lock at or past the auto-lock closes the interval.
@@ -13863,7 +13870,7 @@ P01,2026-03-02,2026-03-31,2026-03-08,2026-03-08,exam_week_8\n";
                 &[credit_point(0, On), credit_point(50, Off)],
                 0,
                 100,
-                bridge
+                bridge, false
             ),
             vec![(0, 50)]
         );
@@ -13876,7 +13883,7 @@ P01,2026-03-02,2026-03-31,2026-03-08,2026-03-08,exam_week_8\n";
                 ],
                 0,
                 100,
-                bridge
+                bridge, false
             ),
             vec![(0, 50), (60, 100)],
             "an OFF span exactly as long as the auto-lock is a real lock"
@@ -13891,7 +13898,7 @@ P01,2026-03-02,2026-03-31,2026-03-08,2026-03-08,exam_week_8\n";
                 ],
                 0,
                 100,
-                bridge
+                bridge, false
             ),
             vec![(0, 100)]
         );
@@ -13907,14 +13914,14 @@ P01,2026-03-02,2026-03-31,2026-03-08,2026-03-08,exam_week_8\n";
                 ],
                 0,
                 100,
-                bridge
+                bridge, false
             ),
             vec![(0, 100)]
         );
         // The session window clips both ends, and a point beyond the end is
         // never consulted.
         assert_eq!(
-            creditable_intervals(&[credit_point(0, On), credit_point(50, Off)], 0, 40, bridge),
+            creditable_intervals(&[credit_point(0, On), credit_point(50, Off)], 0, 40, bridge, false),
             vec![(0, 40)]
         );
         assert_eq!(
@@ -13922,7 +13929,7 @@ P01,2026-03-02,2026-03-31,2026-03-08,2026-03-08,exam_week_8\n";
                 &[credit_point(0, On), credit_point(50, Off)],
                 20,
                 40,
-                bridge
+                bridge, false
             ),
             vec![(20, 40)]
         );
@@ -13934,7 +13941,7 @@ P01,2026-03-02,2026-03-31,2026-03-08,2026-03-08,exam_week_8\n";
                 &[credit_point(0, On), credit_point(95, Off), credit_point(102, On)],
                 0,
                 100,
-                bridge
+                bridge, false
             ),
             vec![(0, 100)]
         );
@@ -13945,7 +13952,7 @@ P01,2026-03-02,2026-03-31,2026-03-08,2026-03-08,exam_week_8\n";
                 &[credit_point(0, On), credit_point(95, Off), credit_point(125, On)],
                 0,
                 100,
-                bridge
+                bridge, false
             ),
             vec![(0, 95)]
         );
@@ -13956,13 +13963,13 @@ P01,2026-03-02,2026-03-31,2026-03-08,2026-03-08,exam_week_8\n";
                 &[credit_point(0, On), credit_point(95, Off)],
                 0,
                 100,
-                bridge
+                bridge, false
             ),
             vec![(0, 95)]
         );
         // A zero-length window credits nothing whatever the screen was doing.
         assert_eq!(
-            creditable_intervals(&[credit_point(0, On)], 50, 50, bridge),
+            creditable_intervals(&[credit_point(0, On)], 50, 50, bridge, false),
             Vec::new()
         );
         // With no bridge allowance every OFF span is a lock.
@@ -13975,7 +13982,7 @@ P01,2026-03-02,2026-03-31,2026-03-08,2026-03-08,exam_week_8\n";
                 ],
                 0,
                 100,
-                0
+                0, false
             ),
             vec![(0, 50), (51, 100)]
         );
@@ -13991,9 +13998,37 @@ P01,2026-03-02,2026-03-31,2026-03-08,2026-03-08,exam_week_8\n";
                 ],
                 0,
                 100,
-                0
+                0, false
             ),
             vec![(0, 100)]
+        );
+        // The TECH/GNSM studies' rule measures an OFF only up to the session
+        // end: the same clipped OFF that is a lock above lasts 5 inside the
+        // session, so it is bridged, and so is one the recording never ends.
+        assert_eq!(
+            creditable_intervals(
+                &[credit_point(0, On), credit_point(95, Off), credit_point(125, On)],
+                0,
+                100,
+                bridge,
+                true
+            ),
+            vec![(0, 100)]
+        );
+        assert_eq!(
+            creditable_intervals(&[credit_point(0, On), credit_point(95, Off)], 0, 100, bridge, true),
+            vec![(0, 100)]
+        );
+        // Inside the session the two rules agree: a full-length lock still ends credit.
+        assert_eq!(
+            creditable_intervals(
+                &[credit_point(0, On), credit_point(50, Off), credit_point(60, On)],
+                0,
+                100,
+                bridge,
+                true
+            ),
+            vec![(0, 50), (60, 100)]
         );
     }
 
@@ -14645,6 +14680,7 @@ mod output_contract {
             credited_session_cap_minutes: 360.0,
             device_liveness_gap_tolerance_minutes: 120.0,
             auto_lock_bridge_seconds: 120.0,
+            bridge_screen_off_to_session_end: false,
             no_witness_min_day_apps: 2,
             screen_gating_rule: ScreenGatingRule::default(),
             day_boundary_attribution: DayBoundaryAttribution::default(),

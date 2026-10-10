@@ -7,16 +7,16 @@
   "equivalenceClassAuthority": "web/scripts/generate_combinatorial_model.mts",
   "implementationReceipt": {
     "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
-    "implementationDigest": "sha256:4b5fb72ce4570db1a7f25da5ead25762cefc9462eb036ae61098da23d4779762",
-    "planDigest": "sha256:5c4f19924961f6d5054899ad84a969d79cec45bd344b72f8640cc10370e00c0a",
-    "profileDigest": "sha256:8db9c35e66b7d36f54f005a0ed9414dac1de25693509450106be4a39959db664",
-    "profileLockDigest": "sha256:de5a7d9a809bb049c4fa96a91d6e97bb9ec00b818fd071df2293ad1ae424ef11",
+    "implementationDigest": "sha256:113423c17bccc0c41e7389eb8080cbd92e2420b143f8e7ab737b60ad34fe53ff",
+    "planDigest": "sha256:f1aa89e312e4f8f8df44e6f4eaf05f83d61a51ffd6d72ff4400f98fcf6459e4c",
+    "profileDigest": "sha256:c81d3308467f9539535b463458224fd58d2436c3b2e2c26c821da16c51e8d9ce",
+    "profileLockDigest": "sha256:07708734f7197da7e65aa27ea83a030f29224cb9e406778ef7e6dd47f36a6fb5",
     "runtimeAuthorityDigest": "sha256:7807fe99a35b4ede2c85d8e8868ec3dcb2accb22e8265c4643966eb9840ce4e4",
-    "productContractDigest": "sha256:5f8586482ba8944b2cee4813d63de0096c4e4b7139eadad0ef426116921ca14d"
+    "productContractDigest": "sha256:21394e6d3c8d701186812fb8da708f1444b9081a0811afc603261ee24b769bbd"
   },
-  "computationalDomainDigest": "sha256:f19469dc6f5f0483d378e44b70efb9f5d3b52853659ca3ab371f8c226b73ac1d",
-  "computationalOptionCount": 83,
-  "equivalenceClassValueCount": 207,
+  "computationalDomainDigest": "sha256:a0d72d351bf47b1b260776ad76197ae20bcfc85636e57324835d82b77898d84f",
+  "computationalOptionCount": 84,
+  "equivalenceClassValueCount": 209,
   "syntheticCorpora": [
     {
       "id": "catalog-random",
@@ -119,17 +119,17 @@
     }
   ],
   "executionCounts": {
-    "requirementEvaluations": 2514,
-    "coldExecutions": 2498,
-    "orderedTransitions": 4572,
-    "incrementalExecutions": 9000,
-    "totalRustExecutions": 11498
+    "requirementEvaluations": 2538,
+    "coldExecutions": 2522,
+    "orderedTransitions": 4596,
+    "incrementalExecutions": 9048,
+    "totalRustExecutions": 11570
   },
   "exactPercolationProof": {
     "workflowQueryGroupCount": 17,
     "workflowQueryCount": 67,
-    "warmColdCheckpointComparisons": 4572,
-    "warmColdQueryCheckpointComparisons": 306324,
+    "warmColdCheckpointComparisons": 4596,
+    "warmColdQueryCheckpointComparisons": 307932,
     "staleCheckpointCases": 0,
     "unjustifiedExecutionCases": 0,
     "selfContradictingBadgeCases": 0
@@ -144,6 +144,7 @@
     "applyMinimumUsageDurationToConcurrentSubintervals",
     "applyThresholdToFallback",
     "autoLockBridgeSeconds",
+    "bridgeScreenOffToSessionEnd",
     "complianceThresholdPercent",
     "correctDuplicateEventTimestamps",
     "creditedSessionCapMinutes",
@@ -294,6 +295,7 @@
     "creditedSessionCapMinutes",
     "deviceLivenessGapToleranceMinutes",
     "autoLockBridgeSeconds",
+    "bridgeScreenOffToSessionEnd",
     "noWitnessMinDayApps",
     "notificationProxyRule",
     "polledEmulationMethod",
@@ -902,6 +904,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -1373,6 +1376,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -1844,6 +1848,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -2315,6 +2320,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -2786,6 +2792,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -3257,6 +3264,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -3814,6 +3822,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -4364,6 +4373,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -4914,6 +4924,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -5464,6 +5475,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -6014,6 +6026,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -6564,6 +6577,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -16548,6 +16562,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -16951,6 +16966,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -17354,6 +17370,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -17763,6 +17780,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -18166,6 +18184,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -18576,6 +18595,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -26267,6 +26287,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -26670,6 +26691,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -27073,6 +27095,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -27482,6 +27505,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -27885,6 +27909,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -28295,6 +28320,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -28706,6 +28732,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -29108,6 +29135,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -29511,6 +29539,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -29920,6 +29949,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -30324,6 +30354,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -30734,6 +30765,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -31145,6 +31177,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -31547,6 +31580,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -31950,6 +31984,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -32359,6 +32394,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -32763,6 +32799,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -33173,6 +33210,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -33582,6 +33620,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -33986,6 +34025,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -34389,6 +34429,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -34798,6 +34839,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -35202,6 +35244,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -35612,6 +35655,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -38450,6 +38494,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -38852,6 +38897,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -39255,6 +39301,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -39664,6 +39711,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -40068,6 +40116,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -40478,6 +40527,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -46430,6 +46480,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -46832,6 +46883,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -47235,6 +47287,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -47644,6 +47697,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -48048,6 +48102,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -48458,6 +48513,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -54412,6 +54468,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -54816,6 +54873,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -55219,6 +55277,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -55628,6 +55687,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -56032,6 +56092,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -56442,6 +56503,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -83067,6 +83129,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -84630,6 +84693,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -85418,6 +85482,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -86204,6 +86269,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -86594,6 +86660,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -87772,6 +87839,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -89736,6 +89804,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -90133,6 +90202,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -90926,6 +90996,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -91329,6 +91400,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -92511,6 +92583,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -94073,6 +94146,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -94853,6 +94927,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -95632,6 +95707,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -96021,6 +96097,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -99143,6 +99220,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -100336,6 +100414,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -100738,6 +100817,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -101138,6 +101218,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -101926,6 +102007,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -102712,6 +102794,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -103102,6 +103185,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -103497,6 +103581,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -104277,6 +104362,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -105056,6 +105142,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -105445,6 +105532,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -105840,6 +105928,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -106616,6 +106705,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -107397,6 +107487,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -107787,6 +107878,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -108188,6 +108280,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -108587,6 +108680,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -108990,6 +109084,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -109786,6 +109881,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -110190,6 +110286,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -111372,6 +111469,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -115262,6 +115360,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -116038,6 +116137,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -116819,6 +116919,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -117209,6 +117310,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -118005,6 +118107,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -119200,6 +119303,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -119603,6 +119707,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -120403,6 +120508,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -120800,6 +120906,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -121593,6 +121700,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -121996,6 +122104,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -122795,6 +122904,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -123988,6 +124098,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -124390,6 +124501,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -124795,6 +124907,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -125194,6 +125307,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -125597,6 +125711,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -126393,6 +126508,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -126797,6 +126913,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -127597,6 +127714,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -128792,6 +128910,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -129195,6 +129314,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "eyesEvidence",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -294065,6 +294185,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "duplicateTimestampsCorrected",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -294499,6 +294620,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "duplicateTimestampsCorrected",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -296757,6 +296879,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "duplicateTimestampsCorrected",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -297191,6 +297314,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "duplicateTimestampsCorrected",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -305025,6 +305149,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "duplicateTimestampsCorrected",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -305603,6 +305728,7 @@
                     "screen"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "duplicateTimestampsCorrected",
                     "exactDuplicateRowsRemoved",
                     "openerSetReceipt",
@@ -306186,6 +306312,7 @@
                     "screen"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "duplicateTimestampsCorrected",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -306714,6 +306841,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "duplicateTimestampsCorrected",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -307403,6 +307531,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "duplicateTimestampsCorrected",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -307981,6 +308110,7 @@
                     "screen"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "duplicateTimestampsCorrected",
                     "exactDuplicateRowsRemoved",
                     "openerSetReceipt",
@@ -308564,6 +308694,7 @@
                     "screen"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "duplicateTimestampsCorrected",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -309092,6 +309223,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "duplicateTimestampsCorrected",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -309531,6 +309663,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "duplicateTimestampsCorrected",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -309763,6 +309896,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "duplicateTimestampsCorrected",
                     "exactDuplicateRowsRemoved",
                     "provenanceDigest",
@@ -309996,6 +310130,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "duplicateTimestampsCorrected",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -310228,6 +310363,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "duplicateTimestampsCorrected",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -310701,6 +310837,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "duplicateTimestampsCorrected",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -310933,6 +311070,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "duplicateTimestampsCorrected",
                     "exactDuplicateRowsRemoved",
                     "provenanceDigest",
@@ -311166,6 +311304,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "duplicateTimestampsCorrected",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -311398,6 +311537,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "duplicateTimestampsCorrected",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -322262,6 +322402,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -322811,6 +322952,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "duplicateTimestampsCorrected",
                     "exactDuplicateRowsRemoved",
                     "openerSetReceipt",
@@ -323362,6 +323504,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "duplicateTimestampsCorrected",
                     "exactDuplicateRowsRemoved",
                     "openerSetReceipt",
@@ -324459,6 +324602,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "exactDuplicateRowsRemoved",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -324997,6 +325141,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -326036,6 +326181,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -326585,6 +326731,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "duplicateTimestampsCorrected",
                     "exactDuplicateRowsRemoved",
                     "openerSetReceipt",
@@ -327136,6 +327283,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "duplicateTimestampsCorrected",
                     "exactDuplicateRowsRemoved",
                     "openerSetReceipt",
@@ -328233,6 +328381,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "exactDuplicateRowsRemoved",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -328771,6 +328920,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -329323,6 +329473,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -329872,6 +330023,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "duplicateTimestampsCorrected",
                     "exactDuplicateRowsRemoved",
                     "openerSetReceipt",
@@ -330423,6 +330575,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "duplicateTimestampsCorrected",
                     "exactDuplicateRowsRemoved",
                     "openerSetReceipt",
@@ -331520,6 +331673,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "exactDuplicateRowsRemoved",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -332058,6 +332212,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -332610,6 +332765,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -333159,6 +333315,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "duplicateTimestampsCorrected",
                     "exactDuplicateRowsRemoved",
                     "openerSetReceipt",
@@ -333710,6 +333867,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "duplicateTimestampsCorrected",
                     "exactDuplicateRowsRemoved",
                     "openerSetReceipt",
@@ -334807,6 +334965,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "exactDuplicateRowsRemoved",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -335345,6 +335504,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -336871,6 +337031,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -337420,6 +337581,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "duplicateTimestampsCorrected",
                     "exactDuplicateRowsRemoved",
                     "openerSetReceipt",
@@ -337971,6 +338133,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "duplicateTimestampsCorrected",
                     "exactDuplicateRowsRemoved",
                     "openerSetReceipt",
@@ -339068,6 +339231,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "exactDuplicateRowsRemoved",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -339606,6 +339770,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -340158,6 +340323,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -340707,6 +340873,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "duplicateTimestampsCorrected",
                     "exactDuplicateRowsRemoved",
                     "openerSetReceipt",
@@ -341258,6 +341425,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "duplicateTimestampsCorrected",
                     "exactDuplicateRowsRemoved",
                     "openerSetReceipt",
@@ -342355,6 +342523,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "exactDuplicateRowsRemoved",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -342893,6 +343062,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -343445,6 +343615,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -343994,6 +344165,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "duplicateTimestampsCorrected",
                     "exactDuplicateRowsRemoved",
                     "openerSetReceipt",
@@ -344545,6 +344717,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "duplicateTimestampsCorrected",
                     "exactDuplicateRowsRemoved",
                     "openerSetReceipt",
@@ -345642,6 +345815,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "exactDuplicateRowsRemoved",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -346180,6 +346354,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -347219,6 +347394,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -347768,6 +347944,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "duplicateTimestampsCorrected",
                     "exactDuplicateRowsRemoved",
                     "openerSetReceipt",
@@ -348319,6 +348496,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "duplicateTimestampsCorrected",
                     "exactDuplicateRowsRemoved",
                     "openerSetReceipt",
@@ -349416,6 +349594,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "exactDuplicateRowsRemoved",
                     "openerSetReceipt",
                     "provenanceDigest",
@@ -349954,6 +350133,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -366377,6 +366557,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -366772,6 +366953,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -367177,6 +367359,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -367576,6 +367759,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -367975,6 +368159,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -368374,6 +368559,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -368780,6 +368966,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -369175,6 +369362,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -369580,6 +369768,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -369979,6 +370168,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -370378,6 +370568,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -370777,6 +370968,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -372876,6 +373068,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -373269,6 +373462,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -373672,6 +373866,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -374069,6 +374264,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -374466,6 +374662,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -374863,6 +375060,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -375267,6 +375465,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -375660,6 +375859,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -376063,6 +376263,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -376460,6 +376661,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -376857,6 +377059,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -377254,6 +377457,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -379140,6 +379344,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -379511,6 +379716,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -379882,6 +380088,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -380253,6 +380460,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -380624,6 +380832,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -380950,6 +381159,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -381328,6 +381538,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -381699,6 +381910,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -382070,6 +382282,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -382441,6 +382654,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -382812,6 +383026,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -383138,6 +383353,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -385475,6 +385691,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -385868,6 +386085,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -386271,6 +386489,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -386668,6 +386887,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -387065,6 +387285,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -387462,6 +387683,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -388281,6 +388503,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -388674,6 +388897,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -389077,6 +389301,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -389474,6 +389699,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -389871,6 +390097,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -390268,6 +390495,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -390672,6 +390900,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -391065,6 +391294,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -391468,6 +391698,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -391865,6 +392096,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -392262,6 +392494,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -392659,6 +392892,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -393063,6 +393297,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -393456,6 +393691,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -393859,6 +394095,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -394256,6 +394493,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -394653,6 +394891,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -395050,6 +395289,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -402314,6 +402554,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -402705,6 +402946,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -403067,6 +403309,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -403462,6 +403705,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -403857,6 +404101,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -404219,6 +404464,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -404617,6 +404863,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -405008,6 +405255,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -405370,6 +405618,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -405765,6 +406014,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -406160,6 +406410,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -406522,6 +406773,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -456055,6 +456307,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -456274,6 +456527,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -457376,6 +457630,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -457595,6 +457850,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -457975,6 +458231,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -458236,6 +458493,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -458497,6 +458755,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -458758,6 +459017,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -459000,6 +459260,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -459260,6 +459521,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -459528,6 +459790,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -459789,6 +460052,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -460050,6 +460314,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -460311,6 +460576,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -460553,6 +460819,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -460813,6 +461080,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -547863,6 +548131,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -547991,6 +548260,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -548119,6 +548389,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -548247,6 +548518,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -548375,6 +548647,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -548503,6 +548776,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -548638,6 +548912,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -548766,6 +549041,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -548894,6 +549170,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -549022,6 +549299,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -549150,6 +549428,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -549278,6 +549557,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -550996,6 +551276,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -551124,6 +551405,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -551252,6 +551534,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -551380,6 +551663,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -551508,6 +551792,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -551636,6 +551921,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -552044,6 +552330,7 @@
                     "screen"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -552465,6 +552752,7 @@
                     "screen"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -552886,6 +553174,7 @@
                     "screen"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -553307,6 +553596,7 @@
                     "screen"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -553728,6 +554018,7 @@
                     "screen"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -554149,6 +554440,7 @@
                     "screen"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -554304,6 +554596,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -554432,6 +554725,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -554560,6 +554854,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -554688,6 +554983,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -554816,6 +555112,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -554944,6 +555241,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -555351,6 +555649,7 @@
                     "screen"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -555771,6 +556070,7 @@
                     "screen"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -556191,6 +556491,7 @@
                     "screen"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -556611,6 +556912,7 @@
                     "screen"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -557031,6 +557333,7 @@
                     "screen"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -557451,6 +557754,7 @@
                     "screen"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -557879,6 +558183,7 @@
                     "screen"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -558300,6 +558605,7 @@
                     "screen"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -558721,6 +559027,7 @@
                     "screen"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -559142,6 +559449,7 @@
                     "screen"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -559563,6 +559871,7 @@
                     "screen"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -559984,6 +560293,7 @@
                     "screen"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -560411,6 +560721,7 @@
                     "screen"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -560831,6 +561142,7 @@
                     "screen"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -561251,6 +561563,7 @@
                     "screen"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -561671,6 +561984,7 @@
                     "screen"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -562091,6 +562405,7 @@
                     "screen"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -562511,6 +562826,7 @@
                     "screen"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -563373,6 +563689,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -563520,6 +563837,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -563667,6 +563985,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -563814,6 +564133,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -563961,6 +564281,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -564108,6 +564429,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -564964,6 +565286,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -565110,6 +565433,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -565256,6 +565580,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -565402,6 +565727,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -565548,6 +565874,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -565694,6 +566021,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -565842,6 +566170,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -565983,6 +566312,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -566124,6 +566454,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -566265,6 +566596,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -566406,6 +566738,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -566547,6 +566880,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -566694,6 +567028,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -566834,6 +567169,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -566974,6 +567310,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -567114,6 +567451,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -567254,6 +567592,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -567394,6 +567733,7 @@
                     "processed"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -567932,6 +568272,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -568277,6 +568618,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -568648,6 +568990,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -569019,6 +569362,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -569391,6 +569735,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -569790,6 +570135,7 @@
                     "screen"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -570169,6 +570515,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -570514,6 +570861,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -570885,6 +571233,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -571256,6 +571605,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -571628,6 +571978,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -572027,6 +572378,7 @@
                     "screen"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "provenanceDigest",
                     "publishedOutputsDigest",
                     "scientificEvidence",
@@ -584655,6 +585007,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -585105,6 +585458,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -585563,6 +585917,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -586027,6 +586382,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -586485,6 +586841,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -586900,6 +587257,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -587309,6 +587667,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -587759,6 +588118,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -588217,6 +588577,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -588681,6 +589042,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -589139,6 +589501,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -589554,6 +589917,7 @@
                   ],
                   "changedCountFields": [],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -594732,6 +595096,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -596830,6 +597195,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -599052,6 +599418,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -601109,6 +601476,7 @@
                     "app"
                   ],
                   "changedProcessingSummaryFields": [
+                    "cleaningCounts",
                     "openerSetReceipt",
                     "provenanceDigest",
                     "publishedOutputsDigest",
@@ -656115,6 +656483,2310 @@
                   "corpusId": "configuration-influence-probes",
                   "changedRustRequestFields": [
                     "auto_lock_bridge_seconds"
+                  ],
+                  "newlyApplicableQueries": [],
+                  "changedCompatibilityInputKeyNodes": [
+                    "effective_usage",
+                    "outputs"
+                  ],
+                  "actualExecutedGroups": [
+                    "outputs"
+                  ],
+                  "actualExecutedQueries": [
+                    "assemble_result_manifest"
+                  ],
+                  "changedSemanticOutputNodes": [
+                    "outputs"
+                  ],
+                  "changedQueries": [
+                    "assemble_result_manifest"
+                  ],
+                  "checkpointComponentChanges": {
+                    "outputs": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "queryCheckpointComponentChanges": {
+                    "assemble_result_manifest": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "changedArtifactKinds": [
+                    "source-coordinate-index-arrow",
+                    "source-result-influence-arrow"
+                  ],
+                  "changedCountFields": [],
+                  "changedProcessingSummaryFields": [
+                    "provenanceDigest",
+                    "scientificEvidence",
+                    "workflowQueryCheckpoints",
+                    "workflowQueryDigests",
+                    "workflowQueryGroupCheckpoints",
+                    "workflowQueryGroupDigests"
+                  ],
+                  "changedBoundRoles": [],
+                  "changedRoleStates": [],
+                  "changedQueryGroupStates": [],
+                  "openObligations": {
+                    "source": [],
+                    "target": []
+                  },
+                  "warmExecution": [
+                    {
+                      "nodeId": "app_policy",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "device_state_timeline",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "reconstruct_episodes",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "categorize_apps",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "episode_annotations",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "interval_cleaning",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "effective_usage",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "notification_proxy",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "polled_emulation",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "observation_window",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "attribute_person",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "day_coverage",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "score_compliance",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "outputs",
+                      "status": "recomputed"
+                    }
+                  ]
+                }
+              ],
+              "corpusRefusals": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "optionKey": "bridgeScreenOffToSessionEnd",
+      "classes": [
+        {
+          "label": "true",
+          "value": true
+        },
+        {
+          "label": "false",
+          "value": false
+        }
+      ],
+      "declaredBinders": [
+        "effective_usage",
+        "outputs"
+      ],
+      "declaredQueryBinders": [
+        "assemble_result_manifest",
+        "derive_credited_intervals"
+      ],
+      "declaredRuntimeArtifactBindings": [],
+      "declaredCone": [
+        "effective_usage",
+        "outputs"
+      ],
+      "observedCompatibilityInputKeyNodes": [
+        "effective_usage",
+        "outputs"
+      ],
+      "observedExecutedGroups": [
+        "effective_usage",
+        "outputs"
+      ],
+      "observedSemanticOutputNodes": [
+        "outputs"
+      ],
+      "observedChangedQueries": [
+        "assemble_result_manifest"
+      ],
+      "observedArtifactKinds": [
+        "source-coordinate-index-arrow",
+        "source-result-influence-arrow"
+      ],
+      "observedRoleStateKeys": [],
+      "observedQueryGroupStateKeys": [],
+      "contexts": [
+        {
+          "contextId": "active",
+          "contextProjectionDigest": "sha256:208ef8fc48f175748c330c340d8e751ff1f091c152524088d32f9e3bfe1a9663",
+          "eligibleClasses": [
+            "true",
+            "false"
+          ],
+          "transitions": [
+            {
+              "from": "true",
+              "to": "false",
+              "corpusObservations": [
+                {
+                  "corpusId": "catalog-random",
+                  "changedRustRequestFields": [
+                    "bridge_screen_off_to_session_end"
+                  ],
+                  "newlyApplicableQueries": [],
+                  "changedCompatibilityInputKeyNodes": [
+                    "effective_usage",
+                    "outputs"
+                  ],
+                  "actualExecutedGroups": [
+                    "effective_usage",
+                    "outputs"
+                  ],
+                  "actualExecutedQueries": [
+                    "assemble_result_manifest",
+                    "derive_credited_intervals"
+                  ],
+                  "changedSemanticOutputNodes": [
+                    "outputs"
+                  ],
+                  "changedQueries": [
+                    "assemble_result_manifest"
+                  ],
+                  "checkpointComponentChanges": {
+                    "outputs": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "queryCheckpointComponentChanges": {
+                    "assemble_result_manifest": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "changedArtifactKinds": [
+                    "source-coordinate-index-arrow",
+                    "source-result-influence-arrow"
+                  ],
+                  "changedCountFields": [],
+                  "changedProcessingSummaryFields": [
+                    "provenanceDigest",
+                    "scientificEvidence",
+                    "workflowQueryCheckpoints",
+                    "workflowQueryDigests",
+                    "workflowQueryGroupCheckpoints",
+                    "workflowQueryGroupDigests"
+                  ],
+                  "changedBoundRoles": [],
+                  "changedRoleStates": [],
+                  "changedQueryGroupStates": [],
+                  "openObligations": {
+                    "source": [],
+                    "target": []
+                  },
+                  "warmExecution": [
+                    {
+                      "nodeId": "effective_usage",
+                      "status": "recomputed"
+                    },
+                    {
+                      "nodeId": "notification_proxy",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "polled_emulation",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "outputs",
+                      "status": "recomputed"
+                    }
+                  ]
+                },
+                {
+                  "corpusId": "support-intersections",
+                  "changedRustRequestFields": [
+                    "bridge_screen_off_to_session_end"
+                  ],
+                  "newlyApplicableQueries": [],
+                  "changedCompatibilityInputKeyNodes": [
+                    "effective_usage",
+                    "outputs"
+                  ],
+                  "actualExecutedGroups": [
+                    "effective_usage",
+                    "outputs"
+                  ],
+                  "actualExecutedQueries": [
+                    "assemble_result_manifest",
+                    "derive_credited_intervals"
+                  ],
+                  "changedSemanticOutputNodes": [
+                    "outputs"
+                  ],
+                  "changedQueries": [
+                    "assemble_result_manifest"
+                  ],
+                  "checkpointComponentChanges": {
+                    "outputs": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "queryCheckpointComponentChanges": {
+                    "assemble_result_manifest": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "changedArtifactKinds": [
+                    "source-coordinate-index-arrow",
+                    "source-result-influence-arrow"
+                  ],
+                  "changedCountFields": [],
+                  "changedProcessingSummaryFields": [
+                    "provenanceDigest",
+                    "scientificEvidence",
+                    "workflowQueryCheckpoints",
+                    "workflowQueryDigests",
+                    "workflowQueryGroupCheckpoints",
+                    "workflowQueryGroupDigests"
+                  ],
+                  "changedBoundRoles": [],
+                  "changedRoleStates": [],
+                  "changedQueryGroupStates": [],
+                  "openObligations": {
+                    "source": [],
+                    "target": []
+                  },
+                  "warmExecution": [
+                    {
+                      "nodeId": "effective_usage",
+                      "status": "recomputed"
+                    },
+                    {
+                      "nodeId": "notification_proxy",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "polled_emulation",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "outputs",
+                      "status": "recomputed"
+                    }
+                  ]
+                },
+                {
+                  "corpusId": "temporal-pathologies",
+                  "changedRustRequestFields": [
+                    "bridge_screen_off_to_session_end"
+                  ],
+                  "newlyApplicableQueries": [],
+                  "changedCompatibilityInputKeyNodes": [
+                    "effective_usage",
+                    "outputs"
+                  ],
+                  "actualExecutedGroups": [
+                    "effective_usage",
+                    "outputs"
+                  ],
+                  "actualExecutedQueries": [
+                    "assemble_result_manifest",
+                    "derive_credited_intervals"
+                  ],
+                  "changedSemanticOutputNodes": [
+                    "outputs"
+                  ],
+                  "changedQueries": [
+                    "assemble_result_manifest"
+                  ],
+                  "checkpointComponentChanges": {
+                    "outputs": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "queryCheckpointComponentChanges": {
+                    "assemble_result_manifest": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "changedArtifactKinds": [
+                    "source-coordinate-index-arrow",
+                    "source-result-influence-arrow"
+                  ],
+                  "changedCountFields": [],
+                  "changedProcessingSummaryFields": [
+                    "provenanceDigest",
+                    "scientificEvidence",
+                    "workflowQueryCheckpoints",
+                    "workflowQueryDigests",
+                    "workflowQueryGroupCheckpoints",
+                    "workflowQueryGroupDigests"
+                  ],
+                  "changedBoundRoles": [],
+                  "changedRoleStates": [],
+                  "changedQueryGroupStates": [],
+                  "openObligations": {
+                    "source": [],
+                    "target": []
+                  },
+                  "warmExecution": [
+                    {
+                      "nodeId": "effective_usage",
+                      "status": "recomputed"
+                    },
+                    {
+                      "nodeId": "notification_proxy",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "polled_emulation",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "outputs",
+                      "status": "recomputed"
+                    }
+                  ]
+                },
+                {
+                  "corpusId": "interaction-pathologies",
+                  "changedRustRequestFields": [
+                    "bridge_screen_off_to_session_end"
+                  ],
+                  "newlyApplicableQueries": [],
+                  "changedCompatibilityInputKeyNodes": [
+                    "effective_usage",
+                    "outputs"
+                  ],
+                  "actualExecutedGroups": [
+                    "effective_usage",
+                    "outputs"
+                  ],
+                  "actualExecutedQueries": [
+                    "assemble_result_manifest",
+                    "derive_credited_intervals"
+                  ],
+                  "changedSemanticOutputNodes": [
+                    "outputs"
+                  ],
+                  "changedQueries": [
+                    "assemble_result_manifest"
+                  ],
+                  "checkpointComponentChanges": {
+                    "outputs": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "queryCheckpointComponentChanges": {
+                    "assemble_result_manifest": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "changedArtifactKinds": [
+                    "source-coordinate-index-arrow",
+                    "source-result-influence-arrow"
+                  ],
+                  "changedCountFields": [],
+                  "changedProcessingSummaryFields": [
+                    "provenanceDigest",
+                    "scientificEvidence",
+                    "workflowQueryCheckpoints",
+                    "workflowQueryDigests",
+                    "workflowQueryGroupCheckpoints",
+                    "workflowQueryGroupDigests"
+                  ],
+                  "changedBoundRoles": [],
+                  "changedRoleStates": [],
+                  "changedQueryGroupStates": [],
+                  "openObligations": {
+                    "source": [],
+                    "target": []
+                  },
+                  "warmExecution": [
+                    {
+                      "nodeId": "effective_usage",
+                      "status": "recomputed"
+                    },
+                    {
+                      "nodeId": "notification_proxy",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "polled_emulation",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "outputs",
+                      "status": "recomputed"
+                    }
+                  ]
+                },
+                {
+                  "corpusId": "threshold-boundaries",
+                  "changedRustRequestFields": [
+                    "bridge_screen_off_to_session_end"
+                  ],
+                  "newlyApplicableQueries": [],
+                  "changedCompatibilityInputKeyNodes": [
+                    "effective_usage",
+                    "outputs"
+                  ],
+                  "actualExecutedGroups": [
+                    "effective_usage",
+                    "outputs"
+                  ],
+                  "actualExecutedQueries": [
+                    "assemble_result_manifest",
+                    "derive_credited_intervals"
+                  ],
+                  "changedSemanticOutputNodes": [
+                    "outputs"
+                  ],
+                  "changedQueries": [
+                    "assemble_result_manifest"
+                  ],
+                  "checkpointComponentChanges": {
+                    "outputs": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "queryCheckpointComponentChanges": {
+                    "assemble_result_manifest": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "changedArtifactKinds": [
+                    "source-coordinate-index-arrow",
+                    "source-result-influence-arrow"
+                  ],
+                  "changedCountFields": [],
+                  "changedProcessingSummaryFields": [
+                    "provenanceDigest",
+                    "scientificEvidence",
+                    "workflowQueryCheckpoints",
+                    "workflowQueryDigests",
+                    "workflowQueryGroupCheckpoints",
+                    "workflowQueryGroupDigests"
+                  ],
+                  "changedBoundRoles": [],
+                  "changedRoleStates": [],
+                  "changedQueryGroupStates": [],
+                  "openObligations": {
+                    "source": [],
+                    "target": []
+                  },
+                  "warmExecution": [
+                    {
+                      "nodeId": "effective_usage",
+                      "status": "recomputed"
+                    },
+                    {
+                      "nodeId": "notification_proxy",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "polled_emulation",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "outputs",
+                      "status": "recomputed"
+                    }
+                  ]
+                },
+                {
+                  "corpusId": "configuration-influence-probes",
+                  "changedRustRequestFields": [
+                    "bridge_screen_off_to_session_end"
+                  ],
+                  "newlyApplicableQueries": [],
+                  "changedCompatibilityInputKeyNodes": [
+                    "effective_usage",
+                    "outputs"
+                  ],
+                  "actualExecutedGroups": [
+                    "effective_usage",
+                    "outputs"
+                  ],
+                  "actualExecutedQueries": [
+                    "assemble_result_manifest",
+                    "derive_credited_intervals"
+                  ],
+                  "changedSemanticOutputNodes": [
+                    "outputs"
+                  ],
+                  "changedQueries": [
+                    "assemble_result_manifest"
+                  ],
+                  "checkpointComponentChanges": {
+                    "outputs": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "queryCheckpointComponentChanges": {
+                    "assemble_result_manifest": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "changedArtifactKinds": [
+                    "source-coordinate-index-arrow",
+                    "source-result-influence-arrow"
+                  ],
+                  "changedCountFields": [],
+                  "changedProcessingSummaryFields": [
+                    "provenanceDigest",
+                    "scientificEvidence",
+                    "workflowQueryCheckpoints",
+                    "workflowQueryDigests",
+                    "workflowQueryGroupCheckpoints",
+                    "workflowQueryGroupDigests"
+                  ],
+                  "changedBoundRoles": [],
+                  "changedRoleStates": [],
+                  "changedQueryGroupStates": [],
+                  "openObligations": {
+                    "source": [],
+                    "target": []
+                  },
+                  "warmExecution": [
+                    {
+                      "nodeId": "effective_usage",
+                      "status": "recomputed"
+                    },
+                    {
+                      "nodeId": "notification_proxy",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "polled_emulation",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "outputs",
+                      "status": "recomputed"
+                    }
+                  ]
+                }
+              ],
+              "corpusRefusals": []
+            },
+            {
+              "from": "false",
+              "to": "true",
+              "corpusObservations": [
+                {
+                  "corpusId": "catalog-random",
+                  "changedRustRequestFields": [
+                    "bridge_screen_off_to_session_end"
+                  ],
+                  "newlyApplicableQueries": [],
+                  "changedCompatibilityInputKeyNodes": [
+                    "effective_usage",
+                    "outputs"
+                  ],
+                  "actualExecutedGroups": [
+                    "effective_usage",
+                    "outputs"
+                  ],
+                  "actualExecutedQueries": [
+                    "assemble_result_manifest",
+                    "derive_credited_intervals"
+                  ],
+                  "changedSemanticOutputNodes": [
+                    "outputs"
+                  ],
+                  "changedQueries": [
+                    "assemble_result_manifest"
+                  ],
+                  "checkpointComponentChanges": {
+                    "outputs": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "queryCheckpointComponentChanges": {
+                    "assemble_result_manifest": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "changedArtifactKinds": [
+                    "source-coordinate-index-arrow",
+                    "source-result-influence-arrow"
+                  ],
+                  "changedCountFields": [],
+                  "changedProcessingSummaryFields": [
+                    "provenanceDigest",
+                    "scientificEvidence",
+                    "workflowQueryCheckpoints",
+                    "workflowQueryDigests",
+                    "workflowQueryGroupCheckpoints",
+                    "workflowQueryGroupDigests"
+                  ],
+                  "changedBoundRoles": [],
+                  "changedRoleStates": [],
+                  "changedQueryGroupStates": [],
+                  "openObligations": {
+                    "source": [],
+                    "target": []
+                  },
+                  "warmExecution": [
+                    {
+                      "nodeId": "effective_usage",
+                      "status": "recomputed"
+                    },
+                    {
+                      "nodeId": "notification_proxy",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "polled_emulation",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "outputs",
+                      "status": "recomputed"
+                    }
+                  ]
+                },
+                {
+                  "corpusId": "support-intersections",
+                  "changedRustRequestFields": [
+                    "bridge_screen_off_to_session_end"
+                  ],
+                  "newlyApplicableQueries": [],
+                  "changedCompatibilityInputKeyNodes": [
+                    "effective_usage",
+                    "outputs"
+                  ],
+                  "actualExecutedGroups": [
+                    "effective_usage",
+                    "outputs"
+                  ],
+                  "actualExecutedQueries": [
+                    "assemble_result_manifest",
+                    "derive_credited_intervals"
+                  ],
+                  "changedSemanticOutputNodes": [
+                    "outputs"
+                  ],
+                  "changedQueries": [
+                    "assemble_result_manifest"
+                  ],
+                  "checkpointComponentChanges": {
+                    "outputs": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "queryCheckpointComponentChanges": {
+                    "assemble_result_manifest": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "changedArtifactKinds": [
+                    "source-coordinate-index-arrow",
+                    "source-result-influence-arrow"
+                  ],
+                  "changedCountFields": [],
+                  "changedProcessingSummaryFields": [
+                    "provenanceDigest",
+                    "scientificEvidence",
+                    "workflowQueryCheckpoints",
+                    "workflowQueryDigests",
+                    "workflowQueryGroupCheckpoints",
+                    "workflowQueryGroupDigests"
+                  ],
+                  "changedBoundRoles": [],
+                  "changedRoleStates": [],
+                  "changedQueryGroupStates": [],
+                  "openObligations": {
+                    "source": [],
+                    "target": []
+                  },
+                  "warmExecution": [
+                    {
+                      "nodeId": "effective_usage",
+                      "status": "recomputed"
+                    },
+                    {
+                      "nodeId": "notification_proxy",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "polled_emulation",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "outputs",
+                      "status": "recomputed"
+                    }
+                  ]
+                },
+                {
+                  "corpusId": "temporal-pathologies",
+                  "changedRustRequestFields": [
+                    "bridge_screen_off_to_session_end"
+                  ],
+                  "newlyApplicableQueries": [],
+                  "changedCompatibilityInputKeyNodes": [
+                    "effective_usage",
+                    "outputs"
+                  ],
+                  "actualExecutedGroups": [
+                    "effective_usage",
+                    "outputs"
+                  ],
+                  "actualExecutedQueries": [
+                    "assemble_result_manifest",
+                    "derive_credited_intervals"
+                  ],
+                  "changedSemanticOutputNodes": [
+                    "outputs"
+                  ],
+                  "changedQueries": [
+                    "assemble_result_manifest"
+                  ],
+                  "checkpointComponentChanges": {
+                    "outputs": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "queryCheckpointComponentChanges": {
+                    "assemble_result_manifest": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "changedArtifactKinds": [
+                    "source-coordinate-index-arrow",
+                    "source-result-influence-arrow"
+                  ],
+                  "changedCountFields": [],
+                  "changedProcessingSummaryFields": [
+                    "provenanceDigest",
+                    "scientificEvidence",
+                    "workflowQueryCheckpoints",
+                    "workflowQueryDigests",
+                    "workflowQueryGroupCheckpoints",
+                    "workflowQueryGroupDigests"
+                  ],
+                  "changedBoundRoles": [],
+                  "changedRoleStates": [],
+                  "changedQueryGroupStates": [],
+                  "openObligations": {
+                    "source": [],
+                    "target": []
+                  },
+                  "warmExecution": [
+                    {
+                      "nodeId": "effective_usage",
+                      "status": "recomputed"
+                    },
+                    {
+                      "nodeId": "notification_proxy",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "polled_emulation",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "outputs",
+                      "status": "recomputed"
+                    }
+                  ]
+                },
+                {
+                  "corpusId": "interaction-pathologies",
+                  "changedRustRequestFields": [
+                    "bridge_screen_off_to_session_end"
+                  ],
+                  "newlyApplicableQueries": [],
+                  "changedCompatibilityInputKeyNodes": [
+                    "effective_usage",
+                    "outputs"
+                  ],
+                  "actualExecutedGroups": [
+                    "effective_usage",
+                    "outputs"
+                  ],
+                  "actualExecutedQueries": [
+                    "assemble_result_manifest",
+                    "derive_credited_intervals"
+                  ],
+                  "changedSemanticOutputNodes": [
+                    "outputs"
+                  ],
+                  "changedQueries": [
+                    "assemble_result_manifest"
+                  ],
+                  "checkpointComponentChanges": {
+                    "outputs": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "queryCheckpointComponentChanges": {
+                    "assemble_result_manifest": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "changedArtifactKinds": [
+                    "source-coordinate-index-arrow",
+                    "source-result-influence-arrow"
+                  ],
+                  "changedCountFields": [],
+                  "changedProcessingSummaryFields": [
+                    "provenanceDigest",
+                    "scientificEvidence",
+                    "workflowQueryCheckpoints",
+                    "workflowQueryDigests",
+                    "workflowQueryGroupCheckpoints",
+                    "workflowQueryGroupDigests"
+                  ],
+                  "changedBoundRoles": [],
+                  "changedRoleStates": [],
+                  "changedQueryGroupStates": [],
+                  "openObligations": {
+                    "source": [],
+                    "target": []
+                  },
+                  "warmExecution": [
+                    {
+                      "nodeId": "effective_usage",
+                      "status": "recomputed"
+                    },
+                    {
+                      "nodeId": "notification_proxy",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "polled_emulation",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "outputs",
+                      "status": "recomputed"
+                    }
+                  ]
+                },
+                {
+                  "corpusId": "threshold-boundaries",
+                  "changedRustRequestFields": [
+                    "bridge_screen_off_to_session_end"
+                  ],
+                  "newlyApplicableQueries": [],
+                  "changedCompatibilityInputKeyNodes": [
+                    "effective_usage",
+                    "outputs"
+                  ],
+                  "actualExecutedGroups": [
+                    "effective_usage",
+                    "outputs"
+                  ],
+                  "actualExecutedQueries": [
+                    "assemble_result_manifest",
+                    "derive_credited_intervals"
+                  ],
+                  "changedSemanticOutputNodes": [
+                    "outputs"
+                  ],
+                  "changedQueries": [
+                    "assemble_result_manifest"
+                  ],
+                  "checkpointComponentChanges": {
+                    "outputs": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "queryCheckpointComponentChanges": {
+                    "assemble_result_manifest": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "changedArtifactKinds": [
+                    "source-coordinate-index-arrow",
+                    "source-result-influence-arrow"
+                  ],
+                  "changedCountFields": [],
+                  "changedProcessingSummaryFields": [
+                    "provenanceDigest",
+                    "scientificEvidence",
+                    "workflowQueryCheckpoints",
+                    "workflowQueryDigests",
+                    "workflowQueryGroupCheckpoints",
+                    "workflowQueryGroupDigests"
+                  ],
+                  "changedBoundRoles": [],
+                  "changedRoleStates": [],
+                  "changedQueryGroupStates": [],
+                  "openObligations": {
+                    "source": [],
+                    "target": []
+                  },
+                  "warmExecution": [
+                    {
+                      "nodeId": "effective_usage",
+                      "status": "recomputed"
+                    },
+                    {
+                      "nodeId": "notification_proxy",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "polled_emulation",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "outputs",
+                      "status": "recomputed"
+                    }
+                  ]
+                },
+                {
+                  "corpusId": "configuration-influence-probes",
+                  "changedRustRequestFields": [
+                    "bridge_screen_off_to_session_end"
+                  ],
+                  "newlyApplicableQueries": [],
+                  "changedCompatibilityInputKeyNodes": [
+                    "effective_usage",
+                    "outputs"
+                  ],
+                  "actualExecutedGroups": [
+                    "effective_usage",
+                    "outputs"
+                  ],
+                  "actualExecutedQueries": [
+                    "assemble_result_manifest",
+                    "derive_credited_intervals"
+                  ],
+                  "changedSemanticOutputNodes": [
+                    "outputs"
+                  ],
+                  "changedQueries": [
+                    "assemble_result_manifest"
+                  ],
+                  "checkpointComponentChanges": {
+                    "outputs": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "queryCheckpointComponentChanges": {
+                    "assemble_result_manifest": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "changedArtifactKinds": [
+                    "source-coordinate-index-arrow",
+                    "source-result-influence-arrow"
+                  ],
+                  "changedCountFields": [],
+                  "changedProcessingSummaryFields": [
+                    "provenanceDigest",
+                    "scientificEvidence",
+                    "workflowQueryCheckpoints",
+                    "workflowQueryDigests",
+                    "workflowQueryGroupCheckpoints",
+                    "workflowQueryGroupDigests"
+                  ],
+                  "changedBoundRoles": [],
+                  "changedRoleStates": [],
+                  "changedQueryGroupStates": [],
+                  "openObligations": {
+                    "source": [],
+                    "target": []
+                  },
+                  "warmExecution": [
+                    {
+                      "nodeId": "effective_usage",
+                      "status": "recomputed"
+                    },
+                    {
+                      "nodeId": "notification_proxy",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "polled_emulation",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "outputs",
+                      "status": "recomputed"
+                    }
+                  ]
+                }
+              ],
+              "corpusRefusals": []
+            }
+          ]
+        },
+        {
+          "contextId": "inactive",
+          "contextProjectionDigest": "sha256:116b8d973701cf7e2394bcd65cb82cd795c069bff0ad4b4f4d2217b4441ea5e7",
+          "eligibleClasses": [
+            "true",
+            "false"
+          ],
+          "transitions": [
+            {
+              "from": "true",
+              "to": "false",
+              "corpusObservations": [
+                {
+                  "corpusId": "catalog-random",
+                  "changedRustRequestFields": [
+                    "bridge_screen_off_to_session_end"
+                  ],
+                  "newlyApplicableQueries": [],
+                  "changedCompatibilityInputKeyNodes": [
+                    "effective_usage",
+                    "outputs"
+                  ],
+                  "actualExecutedGroups": [
+                    "outputs"
+                  ],
+                  "actualExecutedQueries": [
+                    "assemble_result_manifest"
+                  ],
+                  "changedSemanticOutputNodes": [
+                    "outputs"
+                  ],
+                  "changedQueries": [
+                    "assemble_result_manifest"
+                  ],
+                  "checkpointComponentChanges": {
+                    "outputs": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "queryCheckpointComponentChanges": {
+                    "assemble_result_manifest": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "changedArtifactKinds": [
+                    "source-coordinate-index-arrow",
+                    "source-result-influence-arrow"
+                  ],
+                  "changedCountFields": [],
+                  "changedProcessingSummaryFields": [
+                    "provenanceDigest",
+                    "scientificEvidence",
+                    "workflowQueryCheckpoints",
+                    "workflowQueryDigests",
+                    "workflowQueryGroupCheckpoints",
+                    "workflowQueryGroupDigests"
+                  ],
+                  "changedBoundRoles": [],
+                  "changedRoleStates": [],
+                  "changedQueryGroupStates": [],
+                  "openObligations": {
+                    "source": [],
+                    "target": []
+                  },
+                  "warmExecution": [
+                    {
+                      "nodeId": "app_policy",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "device_state_timeline",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "reconstruct_episodes",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "categorize_apps",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "episode_annotations",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "interval_cleaning",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "effective_usage",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "notification_proxy",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "polled_emulation",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "observation_window",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "attribute_person",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "day_coverage",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "score_compliance",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "outputs",
+                      "status": "recomputed"
+                    }
+                  ]
+                },
+                {
+                  "corpusId": "support-intersections",
+                  "changedRustRequestFields": [
+                    "bridge_screen_off_to_session_end"
+                  ],
+                  "newlyApplicableQueries": [],
+                  "changedCompatibilityInputKeyNodes": [
+                    "effective_usage",
+                    "outputs"
+                  ],
+                  "actualExecutedGroups": [
+                    "outputs"
+                  ],
+                  "actualExecutedQueries": [
+                    "assemble_result_manifest"
+                  ],
+                  "changedSemanticOutputNodes": [
+                    "outputs"
+                  ],
+                  "changedQueries": [
+                    "assemble_result_manifest"
+                  ],
+                  "checkpointComponentChanges": {
+                    "outputs": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "queryCheckpointComponentChanges": {
+                    "assemble_result_manifest": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "changedArtifactKinds": [
+                    "source-coordinate-index-arrow",
+                    "source-result-influence-arrow"
+                  ],
+                  "changedCountFields": [],
+                  "changedProcessingSummaryFields": [
+                    "provenanceDigest",
+                    "scientificEvidence",
+                    "workflowQueryCheckpoints",
+                    "workflowQueryDigests",
+                    "workflowQueryGroupCheckpoints",
+                    "workflowQueryGroupDigests"
+                  ],
+                  "changedBoundRoles": [],
+                  "changedRoleStates": [],
+                  "changedQueryGroupStates": [],
+                  "openObligations": {
+                    "source": [],
+                    "target": []
+                  },
+                  "warmExecution": [
+                    {
+                      "nodeId": "app_policy",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "device_state_timeline",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "reconstruct_episodes",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "categorize_apps",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "episode_annotations",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "interval_cleaning",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "effective_usage",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "notification_proxy",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "polled_emulation",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "observation_window",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "attribute_person",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "day_coverage",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "score_compliance",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "outputs",
+                      "status": "recomputed"
+                    }
+                  ]
+                },
+                {
+                  "corpusId": "temporal-pathologies",
+                  "changedRustRequestFields": [
+                    "bridge_screen_off_to_session_end"
+                  ],
+                  "newlyApplicableQueries": [],
+                  "changedCompatibilityInputKeyNodes": [
+                    "effective_usage",
+                    "outputs"
+                  ],
+                  "actualExecutedGroups": [
+                    "outputs"
+                  ],
+                  "actualExecutedQueries": [
+                    "assemble_result_manifest"
+                  ],
+                  "changedSemanticOutputNodes": [
+                    "outputs"
+                  ],
+                  "changedQueries": [
+                    "assemble_result_manifest"
+                  ],
+                  "checkpointComponentChanges": {
+                    "outputs": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "queryCheckpointComponentChanges": {
+                    "assemble_result_manifest": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "changedArtifactKinds": [
+                    "source-coordinate-index-arrow",
+                    "source-result-influence-arrow"
+                  ],
+                  "changedCountFields": [],
+                  "changedProcessingSummaryFields": [
+                    "provenanceDigest",
+                    "scientificEvidence",
+                    "workflowQueryCheckpoints",
+                    "workflowQueryDigests",
+                    "workflowQueryGroupCheckpoints",
+                    "workflowQueryGroupDigests"
+                  ],
+                  "changedBoundRoles": [],
+                  "changedRoleStates": [],
+                  "changedQueryGroupStates": [],
+                  "openObligations": {
+                    "source": [],
+                    "target": []
+                  },
+                  "warmExecution": [
+                    {
+                      "nodeId": "app_policy",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "device_state_timeline",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "reconstruct_episodes",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "categorize_apps",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "episode_annotations",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "interval_cleaning",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "effective_usage",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "notification_proxy",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "polled_emulation",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "observation_window",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "attribute_person",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "day_coverage",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "score_compliance",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "outputs",
+                      "status": "recomputed"
+                    }
+                  ]
+                },
+                {
+                  "corpusId": "interaction-pathologies",
+                  "changedRustRequestFields": [
+                    "bridge_screen_off_to_session_end"
+                  ],
+                  "newlyApplicableQueries": [],
+                  "changedCompatibilityInputKeyNodes": [
+                    "effective_usage",
+                    "outputs"
+                  ],
+                  "actualExecutedGroups": [
+                    "outputs"
+                  ],
+                  "actualExecutedQueries": [
+                    "assemble_result_manifest"
+                  ],
+                  "changedSemanticOutputNodes": [
+                    "outputs"
+                  ],
+                  "changedQueries": [
+                    "assemble_result_manifest"
+                  ],
+                  "checkpointComponentChanges": {
+                    "outputs": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "queryCheckpointComponentChanges": {
+                    "assemble_result_manifest": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "changedArtifactKinds": [
+                    "source-coordinate-index-arrow",
+                    "source-result-influence-arrow"
+                  ],
+                  "changedCountFields": [],
+                  "changedProcessingSummaryFields": [
+                    "provenanceDigest",
+                    "scientificEvidence",
+                    "workflowQueryCheckpoints",
+                    "workflowQueryDigests",
+                    "workflowQueryGroupCheckpoints",
+                    "workflowQueryGroupDigests"
+                  ],
+                  "changedBoundRoles": [],
+                  "changedRoleStates": [],
+                  "changedQueryGroupStates": [],
+                  "openObligations": {
+                    "source": [],
+                    "target": []
+                  },
+                  "warmExecution": [
+                    {
+                      "nodeId": "app_policy",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "device_state_timeline",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "reconstruct_episodes",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "categorize_apps",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "episode_annotations",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "interval_cleaning",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "effective_usage",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "notification_proxy",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "polled_emulation",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "observation_window",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "attribute_person",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "day_coverage",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "score_compliance",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "outputs",
+                      "status": "recomputed"
+                    }
+                  ]
+                },
+                {
+                  "corpusId": "threshold-boundaries",
+                  "changedRustRequestFields": [
+                    "bridge_screen_off_to_session_end"
+                  ],
+                  "newlyApplicableQueries": [],
+                  "changedCompatibilityInputKeyNodes": [
+                    "effective_usage",
+                    "outputs"
+                  ],
+                  "actualExecutedGroups": [
+                    "outputs"
+                  ],
+                  "actualExecutedQueries": [
+                    "assemble_result_manifest"
+                  ],
+                  "changedSemanticOutputNodes": [
+                    "outputs"
+                  ],
+                  "changedQueries": [
+                    "assemble_result_manifest"
+                  ],
+                  "checkpointComponentChanges": {
+                    "outputs": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "queryCheckpointComponentChanges": {
+                    "assemble_result_manifest": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "changedArtifactKinds": [
+                    "source-coordinate-index-arrow",
+                    "source-result-influence-arrow"
+                  ],
+                  "changedCountFields": [],
+                  "changedProcessingSummaryFields": [
+                    "provenanceDigest",
+                    "scientificEvidence",
+                    "workflowQueryCheckpoints",
+                    "workflowQueryDigests",
+                    "workflowQueryGroupCheckpoints",
+                    "workflowQueryGroupDigests"
+                  ],
+                  "changedBoundRoles": [],
+                  "changedRoleStates": [],
+                  "changedQueryGroupStates": [],
+                  "openObligations": {
+                    "source": [],
+                    "target": []
+                  },
+                  "warmExecution": [
+                    {
+                      "nodeId": "app_policy",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "device_state_timeline",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "reconstruct_episodes",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "categorize_apps",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "episode_annotations",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "interval_cleaning",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "effective_usage",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "notification_proxy",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "polled_emulation",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "observation_window",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "attribute_person",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "day_coverage",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "score_compliance",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "outputs",
+                      "status": "recomputed"
+                    }
+                  ]
+                },
+                {
+                  "corpusId": "configuration-influence-probes",
+                  "changedRustRequestFields": [
+                    "bridge_screen_off_to_session_end"
+                  ],
+                  "newlyApplicableQueries": [],
+                  "changedCompatibilityInputKeyNodes": [
+                    "effective_usage",
+                    "outputs"
+                  ],
+                  "actualExecutedGroups": [
+                    "outputs"
+                  ],
+                  "actualExecutedQueries": [
+                    "assemble_result_manifest"
+                  ],
+                  "changedSemanticOutputNodes": [
+                    "outputs"
+                  ],
+                  "changedQueries": [
+                    "assemble_result_manifest"
+                  ],
+                  "checkpointComponentChanges": {
+                    "outputs": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "queryCheckpointComponentChanges": {
+                    "assemble_result_manifest": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "changedArtifactKinds": [
+                    "source-coordinate-index-arrow",
+                    "source-result-influence-arrow"
+                  ],
+                  "changedCountFields": [],
+                  "changedProcessingSummaryFields": [
+                    "provenanceDigest",
+                    "scientificEvidence",
+                    "workflowQueryCheckpoints",
+                    "workflowQueryDigests",
+                    "workflowQueryGroupCheckpoints",
+                    "workflowQueryGroupDigests"
+                  ],
+                  "changedBoundRoles": [],
+                  "changedRoleStates": [],
+                  "changedQueryGroupStates": [],
+                  "openObligations": {
+                    "source": [],
+                    "target": []
+                  },
+                  "warmExecution": [
+                    {
+                      "nodeId": "app_policy",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "device_state_timeline",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "reconstruct_episodes",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "categorize_apps",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "episode_annotations",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "interval_cleaning",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "effective_usage",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "notification_proxy",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "polled_emulation",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "observation_window",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "attribute_person",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "day_coverage",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "score_compliance",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "outputs",
+                      "status": "recomputed"
+                    }
+                  ]
+                }
+              ],
+              "corpusRefusals": []
+            },
+            {
+              "from": "false",
+              "to": "true",
+              "corpusObservations": [
+                {
+                  "corpusId": "catalog-random",
+                  "changedRustRequestFields": [
+                    "bridge_screen_off_to_session_end"
+                  ],
+                  "newlyApplicableQueries": [],
+                  "changedCompatibilityInputKeyNodes": [
+                    "effective_usage",
+                    "outputs"
+                  ],
+                  "actualExecutedGroups": [
+                    "outputs"
+                  ],
+                  "actualExecutedQueries": [
+                    "assemble_result_manifest"
+                  ],
+                  "changedSemanticOutputNodes": [
+                    "outputs"
+                  ],
+                  "changedQueries": [
+                    "assemble_result_manifest"
+                  ],
+                  "checkpointComponentChanges": {
+                    "outputs": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "queryCheckpointComponentChanges": {
+                    "assemble_result_manifest": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "changedArtifactKinds": [
+                    "source-coordinate-index-arrow",
+                    "source-result-influence-arrow"
+                  ],
+                  "changedCountFields": [],
+                  "changedProcessingSummaryFields": [
+                    "provenanceDigest",
+                    "scientificEvidence",
+                    "workflowQueryCheckpoints",
+                    "workflowQueryDigests",
+                    "workflowQueryGroupCheckpoints",
+                    "workflowQueryGroupDigests"
+                  ],
+                  "changedBoundRoles": [],
+                  "changedRoleStates": [],
+                  "changedQueryGroupStates": [],
+                  "openObligations": {
+                    "source": [],
+                    "target": []
+                  },
+                  "warmExecution": [
+                    {
+                      "nodeId": "app_policy",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "device_state_timeline",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "reconstruct_episodes",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "categorize_apps",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "episode_annotations",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "interval_cleaning",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "effective_usage",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "notification_proxy",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "polled_emulation",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "observation_window",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "attribute_person",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "day_coverage",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "score_compliance",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "outputs",
+                      "status": "recomputed"
+                    }
+                  ]
+                },
+                {
+                  "corpusId": "support-intersections",
+                  "changedRustRequestFields": [
+                    "bridge_screen_off_to_session_end"
+                  ],
+                  "newlyApplicableQueries": [],
+                  "changedCompatibilityInputKeyNodes": [
+                    "effective_usage",
+                    "outputs"
+                  ],
+                  "actualExecutedGroups": [
+                    "outputs"
+                  ],
+                  "actualExecutedQueries": [
+                    "assemble_result_manifest"
+                  ],
+                  "changedSemanticOutputNodes": [
+                    "outputs"
+                  ],
+                  "changedQueries": [
+                    "assemble_result_manifest"
+                  ],
+                  "checkpointComponentChanges": {
+                    "outputs": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "queryCheckpointComponentChanges": {
+                    "assemble_result_manifest": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "changedArtifactKinds": [
+                    "source-coordinate-index-arrow",
+                    "source-result-influence-arrow"
+                  ],
+                  "changedCountFields": [],
+                  "changedProcessingSummaryFields": [
+                    "provenanceDigest",
+                    "scientificEvidence",
+                    "workflowQueryCheckpoints",
+                    "workflowQueryDigests",
+                    "workflowQueryGroupCheckpoints",
+                    "workflowQueryGroupDigests"
+                  ],
+                  "changedBoundRoles": [],
+                  "changedRoleStates": [],
+                  "changedQueryGroupStates": [],
+                  "openObligations": {
+                    "source": [],
+                    "target": []
+                  },
+                  "warmExecution": [
+                    {
+                      "nodeId": "app_policy",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "device_state_timeline",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "reconstruct_episodes",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "categorize_apps",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "episode_annotations",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "interval_cleaning",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "effective_usage",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "notification_proxy",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "polled_emulation",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "observation_window",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "attribute_person",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "day_coverage",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "score_compliance",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "outputs",
+                      "status": "recomputed"
+                    }
+                  ]
+                },
+                {
+                  "corpusId": "temporal-pathologies",
+                  "changedRustRequestFields": [
+                    "bridge_screen_off_to_session_end"
+                  ],
+                  "newlyApplicableQueries": [],
+                  "changedCompatibilityInputKeyNodes": [
+                    "effective_usage",
+                    "outputs"
+                  ],
+                  "actualExecutedGroups": [
+                    "outputs"
+                  ],
+                  "actualExecutedQueries": [
+                    "assemble_result_manifest"
+                  ],
+                  "changedSemanticOutputNodes": [
+                    "outputs"
+                  ],
+                  "changedQueries": [
+                    "assemble_result_manifest"
+                  ],
+                  "checkpointComponentChanges": {
+                    "outputs": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "queryCheckpointComponentChanges": {
+                    "assemble_result_manifest": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "changedArtifactKinds": [
+                    "source-coordinate-index-arrow",
+                    "source-result-influence-arrow"
+                  ],
+                  "changedCountFields": [],
+                  "changedProcessingSummaryFields": [
+                    "provenanceDigest",
+                    "scientificEvidence",
+                    "workflowQueryCheckpoints",
+                    "workflowQueryDigests",
+                    "workflowQueryGroupCheckpoints",
+                    "workflowQueryGroupDigests"
+                  ],
+                  "changedBoundRoles": [],
+                  "changedRoleStates": [],
+                  "changedQueryGroupStates": [],
+                  "openObligations": {
+                    "source": [],
+                    "target": []
+                  },
+                  "warmExecution": [
+                    {
+                      "nodeId": "app_policy",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "device_state_timeline",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "reconstruct_episodes",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "categorize_apps",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "episode_annotations",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "interval_cleaning",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "effective_usage",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "notification_proxy",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "polled_emulation",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "observation_window",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "attribute_person",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "day_coverage",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "score_compliance",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "outputs",
+                      "status": "recomputed"
+                    }
+                  ]
+                },
+                {
+                  "corpusId": "interaction-pathologies",
+                  "changedRustRequestFields": [
+                    "bridge_screen_off_to_session_end"
+                  ],
+                  "newlyApplicableQueries": [],
+                  "changedCompatibilityInputKeyNodes": [
+                    "effective_usage",
+                    "outputs"
+                  ],
+                  "actualExecutedGroups": [
+                    "outputs"
+                  ],
+                  "actualExecutedQueries": [
+                    "assemble_result_manifest"
+                  ],
+                  "changedSemanticOutputNodes": [
+                    "outputs"
+                  ],
+                  "changedQueries": [
+                    "assemble_result_manifest"
+                  ],
+                  "checkpointComponentChanges": {
+                    "outputs": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "queryCheckpointComponentChanges": {
+                    "assemble_result_manifest": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "changedArtifactKinds": [
+                    "source-coordinate-index-arrow",
+                    "source-result-influence-arrow"
+                  ],
+                  "changedCountFields": [],
+                  "changedProcessingSummaryFields": [
+                    "provenanceDigest",
+                    "scientificEvidence",
+                    "workflowQueryCheckpoints",
+                    "workflowQueryDigests",
+                    "workflowQueryGroupCheckpoints",
+                    "workflowQueryGroupDigests"
+                  ],
+                  "changedBoundRoles": [],
+                  "changedRoleStates": [],
+                  "changedQueryGroupStates": [],
+                  "openObligations": {
+                    "source": [],
+                    "target": []
+                  },
+                  "warmExecution": [
+                    {
+                      "nodeId": "app_policy",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "device_state_timeline",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "reconstruct_episodes",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "categorize_apps",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "episode_annotations",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "interval_cleaning",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "effective_usage",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "notification_proxy",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "polled_emulation",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "observation_window",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "attribute_person",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "day_coverage",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "score_compliance",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "outputs",
+                      "status": "recomputed"
+                    }
+                  ]
+                },
+                {
+                  "corpusId": "threshold-boundaries",
+                  "changedRustRequestFields": [
+                    "bridge_screen_off_to_session_end"
+                  ],
+                  "newlyApplicableQueries": [],
+                  "changedCompatibilityInputKeyNodes": [
+                    "effective_usage",
+                    "outputs"
+                  ],
+                  "actualExecutedGroups": [
+                    "outputs"
+                  ],
+                  "actualExecutedQueries": [
+                    "assemble_result_manifest"
+                  ],
+                  "changedSemanticOutputNodes": [
+                    "outputs"
+                  ],
+                  "changedQueries": [
+                    "assemble_result_manifest"
+                  ],
+                  "checkpointComponentChanges": {
+                    "outputs": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "queryCheckpointComponentChanges": {
+                    "assemble_result_manifest": [
+                      "payloadDigest"
+                    ]
+                  },
+                  "changedArtifactKinds": [
+                    "source-coordinate-index-arrow",
+                    "source-result-influence-arrow"
+                  ],
+                  "changedCountFields": [],
+                  "changedProcessingSummaryFields": [
+                    "provenanceDigest",
+                    "scientificEvidence",
+                    "workflowQueryCheckpoints",
+                    "workflowQueryDigests",
+                    "workflowQueryGroupCheckpoints",
+                    "workflowQueryGroupDigests"
+                  ],
+                  "changedBoundRoles": [],
+                  "changedRoleStates": [],
+                  "changedQueryGroupStates": [],
+                  "openObligations": {
+                    "source": [],
+                    "target": []
+                  },
+                  "warmExecution": [
+                    {
+                      "nodeId": "app_policy",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "device_state_timeline",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "reconstruct_episodes",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "categorize_apps",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "episode_annotations",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "interval_cleaning",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "effective_usage",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "notification_proxy",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "polled_emulation",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "observation_window",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "attribute_person",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "day_coverage",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "score_compliance",
+                      "status": "bypassed"
+                    },
+                    {
+                      "nodeId": "outputs",
+                      "status": "recomputed"
+                    }
+                  ]
+                },
+                {
+                  "corpusId": "configuration-influence-probes",
+                  "changedRustRequestFields": [
+                    "bridge_screen_off_to_session_end"
                   ],
                   "newlyApplicableQueries": [],
                   "changedCompatibilityInputKeyNodes": [
@@ -715096,5 +717768,5 @@
       ]
     }
   ],
-  "caseSetDigest": "sha256:9e8dc95bd23d3f1420bf7d6df094bf026227cbe0b2d8937dc57ce6194c4af1f2"
+  "caseSetDigest": "sha256:be35c691083f813847a9566c656ce35fba6aafca9100b903b777b6621c4f0b27"
 }

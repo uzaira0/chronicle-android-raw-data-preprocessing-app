@@ -217,6 +217,8 @@ use super::{
         #[returns(copy)]
         pub(crate) auto_lock_bridge_seconds: f64,
         #[returns(copy)]
+        pub(crate) bridge_screen_off_to_session_end: bool,
+        #[returns(copy)]
         pub(crate) no_witness_min_day_apps: u32,
         #[returns(copy)]
         pub(crate) screen_gating_rule: ScreenGatingRule,
@@ -457,6 +459,7 @@ use super::{
                     options.credited_session_cap_minutes,
                     options.device_liveness_gap_tolerance_minutes,
                     options.auto_lock_bridge_seconds,
+                    options.bridge_screen_off_to_session_end,
                     options.no_witness_min_day_apps,
                     options.screen_gating_rule,
                     options.notification_proxy_rule,
@@ -1038,6 +1041,12 @@ use super::{
                 auto_lock_bridge_seconds,
                 set_auto_lock_bridge_seconds,
                 options.auto_lock_bridge_seconds
+            );
+            set_if_changed!(
+                self.late,
+                bridge_screen_off_to_session_end,
+                set_bridge_screen_off_to_session_end,
+                options.bridge_screen_off_to_session_end
             );
             set_if_changed!(
                 self.late,

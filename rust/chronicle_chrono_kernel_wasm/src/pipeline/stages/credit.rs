@@ -333,6 +333,7 @@ pub(crate) fn creditable_intervals(
     start: i64,
     end: i64,
     auto_lock_ns: i64,
+    off_measured_to_session_end: bool,
 ) -> Vec<CreditInterval> {
     let first_point_after_start = points.partition_point(|point| point.timestamp_ns <= start);
     let mut state = first_point_after_start
@@ -355,14 +356,20 @@ pub(crate) fn creditable_intervals(
                         None => (cursor, segment_end),
                     });
                 }
-                // The blip is measured to the screen's actual return, not to
-                // the session end that clips it: an OFF that outlasts the
-                // session, or never ends, is a real lock and is not bridged.
+                // By default the blip is measured to the screen's actual
+                // return, not to the session end that clips it: an OFF that
+                // outlasts the session, or never ends, is a real lock and is
+                // not bridged. The TECH/GNSM studies' rule measures only the
+                // part inside the session (`bridge_screen_off_to_session_end`).
                 Some(ScreenCreditState::Off)
                     if current.is_some()
-                        && points
-                            .get(point_index)
-                            .is_some_and(|next| next.timestamp_ns - cursor < auto_lock_ns) =>
+                        && if off_measured_to_session_end {
+                            segment_end - cursor < auto_lock_ns
+                        } else {
+                            points
+                                .get(point_index)
+                                .is_some_and(|next| next.timestamp_ns - cursor < auto_lock_ns)
+                        } =>
                 {
                     current = current.map(|(left, _)| (left, segment_end));
                 }
@@ -513,6 +520,7 @@ pub(crate) fn derive_credited_intervals(
     credited_session_cap_minutes: f64,
     device_liveness_gap_tolerance_minutes: f64,
     auto_lock_bridge_seconds: f64,
+    bridge_screen_off_to_session_end: bool,
     no_witness_min_day_apps: u32,
     screen_gating_rule: ScreenGatingRule,
 ) -> Vec<CreditDecision> {
@@ -594,7 +602,13 @@ pub(crate) fn derive_credited_intervals(
                         }
                     }
                 } else {
-                    let screen = creditable_intervals(points, start, end, auto_lock_ns);
+                    let screen = creditable_intervals(
+                        points,
+                        start,
+                        end,
+                        auto_lock_ns,
+                        bridge_screen_off_to_session_end,
+                    );
                     // The shipped rule is the intersection of the two
                     // observations; the other two values keep one conjunct.
                     let credited = match screen_gating_rule {

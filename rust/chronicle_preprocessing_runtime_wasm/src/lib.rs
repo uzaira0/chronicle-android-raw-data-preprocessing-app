@@ -130,7 +130,7 @@ use chronicle_chrono_kernel_wasm::pipeline_v2::{
     b05_schoedel_is_active, reconstruction_base_is_reusable,
     validate_supplied_communication_relationships,
     EyesInputPartitionOptionsDigestOrigin, EyesInputPartitionPreflightResult,
-    EyesTaggedFauValidationReceipt, IncrementalPipelineV2Engine, IncrementalPipelineV2Execution,
+    CleaningCounts, EyesTaggedFauValidationReceipt, IncrementalPipelineV2Engine, IncrementalPipelineV2Execution,
     MaximumDurationValidation,
     MicroUseReceipt, MinimumDurationComparator, MinimumDurationDisposition, MinimumDurationReceipt,
     OpenerSetEvidence, OpenerStrategyRelation, PersistedReviewBaseSelection, PipelineV2Options,
@@ -3372,6 +3372,7 @@ pub struct RuntimeProcessingSummary {
     pub scientific_evidence: RuntimeScientificEvidenceSummary,
     pub duplicate_timestamps_corrected: u32,
     pub exact_duplicate_rows_removed: u32,
+    pub cleaning_counts: CleaningCounts,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -3586,6 +3587,7 @@ pub struct ReviewRuntimeManifest {
     pub rows_removed_by_timezone: u32,
     pub duplicate_timestamps_corrected: u32,
     pub exact_duplicate_rows_removed: u32,
+    pub cleaning_counts: CleaningCounts,
     pub query_group_executions: Vec<QueryGroupExecution>,
     pub query_executions: Vec<RuntimeQueryExecution>,
     pub cache_sources: Vec<String>,
@@ -3928,6 +3930,7 @@ struct PipelineResultProvenance<'a> {
     screen: u32,
     duplicate_timestamps_corrected: u32,
     exact_duplicate_rows_removed: u32,
+    cleaning_counts: &'a CleaningCounts,
     available_timezones: &'a [String],
     timezone: &'a str,
     timezone_action: &'a str,
@@ -3987,6 +3990,7 @@ fn derived_pipeline_result_digest(
             screen: result.screen_row_count,
             duplicate_timestamps_corrected: result.duplicate_timestamps_corrected,
             exact_duplicate_rows_removed: result.exact_duplicate_rows_removed,
+            cleaning_counts: &result.cleaning_counts,
             available_timezones: &result.available_timezones,
             timezone: &result.timezone,
             timezone_action: &result.timezone_action,
@@ -4059,6 +4063,7 @@ fn compute_pipeline_result_digest_with_scientific(
             "exactDuplicateRowsRemoved",
             &result.exact_duplicate_rows_removed,
         ),
+        canonical_member("cleaningCounts", &result.cleaning_counts),
         canonical_member("availableTimezones", &result.available_timezones),
         canonical_member("timezone", &result.timezone),
         canonical_member("timezoneAction", &result.timezone_action),
@@ -4340,6 +4345,9 @@ fn semantic_options_value(options: &PipelineV2OptionsJson) -> Result<Value, Stri
     // request keeps its exact bytes; the certified projection binds `false`.
     object
         .entry("neutralize_spreadsheet_formulas")
+        .or_insert_with(|| Value::Bool(false));
+    object
+        .entry("bridge_screen_off_to_session_end")
         .or_insert_with(|| Value::Bool(false));
     for (key, value) in [
         (
@@ -6571,6 +6579,7 @@ fn execute_prepared_workspace_closure(
                 "reviewSummaryDigest": review_summary_digest,
                 "eyesEvidence": &eyes_evidence_summary,
                 "scientificEvidence": &scientific_evidence_summary,
+                "cleaningCounts": result.cleaning_counts,
             }))
             .map_err(|error| format!("canonicalize review comparison digest: {error}"))?,
         );
@@ -6657,6 +6666,7 @@ fn execute_prepared_workspace_closure(
             rows_removed_by_timezone: result.rows_removed_by_timezone,
             duplicate_timestamps_corrected: result.duplicate_timestamps_corrected,
             exact_duplicate_rows_removed: result.exact_duplicate_rows_removed,
+            cleaning_counts: result.cleaning_counts,
             query_group_executions,
             query_executions,
             cache_sources,
@@ -7412,6 +7422,7 @@ fn execute_prepared_workspace_closure(
             scientific_evidence: scientific_evidence_summary,
             duplicate_timestamps_corrected: result.duplicate_timestamps_corrected,
             exact_duplicate_rows_removed: result.exact_duplicate_rows_removed,
+            cleaning_counts: result.cleaning_counts,
         },
         journal_digest,
     };
@@ -13773,9 +13784,13 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         // Refreshed 2026-10-09 for contract v6: the study-window step's
         // "clean" section, the 0 s minimum-usage default and the
         // Non-Target Participant App Usage label.
+        // Refreshed 2026-10-09 for the opt-in bridge_screen_off_to_session_end
+        // option: its credit tunes edge, its derive_credited_intervals and
+        // assemble_result_manifest request field, and the contract digests
+        // that move with them.
         assert_eq!(
             sha256(&bytes),
-            "sha256:f773d8d3b3558777b9c2e7bb69ed7c256ef45d924408b29e81b32facfe9b8808"
+            "sha256:090b6d8473b2c8b34cee60516a167701bc220efb58492321e34f284360cd31da"
         );
     }
 

@@ -1,7 +1,7 @@
 use crate::pipeline_v2::InteractionTypeRemovalMode;
 use chrono::Offset;
 use crate::pipeline_v2::{
-    ACTIVITY_STOPPED, AHashMap, AHashSet, APP_USAGE, BTreeSet, CULVERHOUSE_BAD_APP_CAP_FLAG,
+    ACTIVITY_STOPPED, AHashMap, AHashSet, APP_USAGE, BTreeSet, CleaningCounts, CULVERHOUSE_BAD_APP_CAP_FLAG,
     CULVERHOUSE_BAD_APP_CAP_NS, CULVERHOUSE_COLLAPSED_FLAG, CULVERHOUSE_DST_DAY_FLAG,
     CULVERHOUSE_LONG_3H_FLAG, CULVERHOUSE_LONG_3H_NS, CULVERHOUSE_LONG_6H_FLAG,
     CULVERHOUSE_LONG_6H_NS, CULVERHOUSE_PARTIAL_DAY_FLAG, CULVERHOUSE_PARTIAL_DAY_GAP_HOURS,
@@ -19,6 +19,34 @@ pub(crate) fn is_zero_duration_cleanup_candidate(row: &Row) -> bool {
         || (row.raw_episode_duration_ns.is_none()
             && row.interaction_type == APP_USAGE
             && row.duration_seconds == Some(0.0))
+}
+
+const CULVERHOUSE_TRUNCATED_FLAG_PREFIX: &str = "CULVERHOUSE TRUNCATED ";
+
+/// The cleaning effects visible in the final App Usage rows, so both
+/// schedulers count exactly what the export carries: rows the filter file or
+/// label exclusions marked, Culverhouse-truncated rows, and the
+/// participant-days Culverhouse flagged.
+pub(crate) fn record_app_output_cleaning_counts(rows: &[Row], counts: &mut CleaningCounts) {
+    counts.filter_relabeled_rows = rows
+        .iter()
+        .filter(|row| {
+            row.interaction_type == FILTERED_APP_USAGE || row.interaction_type == FILTERED_STOPPED
+        })
+        .count() as u32;
+    counts.culverhouse_bounded_intervals = rows
+        .iter()
+        .filter(|row| row.any_app_usage_flags.contains(CULVERHOUSE_TRUNCATED_FLAG_PREFIX))
+        .count() as u32;
+    counts.culverhouse_flagged_days = rows
+        .iter()
+        .filter(|row| {
+            row.any_app_usage_flags.contains(CULVERHOUSE_PARTIAL_DAY_FLAG)
+                || row.any_app_usage_flags.contains(CULVERHOUSE_DST_DAY_FLAG)
+        })
+        .map(|row| (row.participant_id.clone(), row.date.clone()))
+        .collect::<BTreeSet<_>>()
+        .len() as u32;
 }
 
 pub(crate) fn join_codebook(rows: &mut [Row], enabled: bool, codebook_map: &HashMap<String, CodebookEntry>) {
@@ -520,7 +548,7 @@ pub(crate) fn push_truncation_flag(row: &mut Row, truncated_ns: i64) {
     let seconds = truncated_ns as f64 / 1_000_000_000.0;
     push_row_flag(
         row,
-        &format!("CULVERHOUSE TRUNCATED {} S", js_number_to_string(seconds)),
+        &format!("{CULVERHOUSE_TRUNCATED_FLAG_PREFIX}{} S", js_number_to_string(seconds)),
     );
 }
 

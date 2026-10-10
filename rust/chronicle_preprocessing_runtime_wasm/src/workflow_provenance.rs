@@ -739,9 +739,13 @@ mod tests {
         // that move with them.
         // Refreshed 2026-10-09 for the seven Blue Light codebook field reads
         // (app_codebook_file.bluelight_play_store_*) in the workflow contract.
+        // Refreshed 2026-10-09 for the opt-in bridge_screen_off_to_session_end
+        // option: its credit tunes edge, its derive_credited_intervals and
+        // assemble_result_manifest request field, and the contract digests
+        // that move with them.
         assert_eq!(
             sha256(&bytes),
-            "sha256:bf009b15a9a7cc03276cb9e2cb83e15dbf1fac774aded7913a04de8793055679"
+            "sha256:530bf8068d691b89464b423d290d4b2ed01fb29d914a8cbddd12bcb4c86c9a58"
         );
     }
 }

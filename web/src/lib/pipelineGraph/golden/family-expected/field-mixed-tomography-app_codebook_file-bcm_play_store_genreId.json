@@ -4,12 +4,12 @@
   "claimBoundary": "One supplied source column, one empirically branch-activating intervention on it, crossed with every non-compound computational configuration axis the field-level workflow contract predicts can interact with that column, plus a deterministic control sample of axes it predicts cannot. For raw-column shards, Parry/Zhu/Schoedel alternates that would necessarily rebind the digest-bound capability sidecar are explicitly excluded and remain unestimated as compound raw+capability interactions; the configuration-space sourceSensitiveScientificCells domain separately proves the generic LF-sidecar to CRLF-raw Parry rebind mechanism, not every excluded pair. Under every configuration executed, every canonical output cell the intervention changes belongs to a declared output-cell family of that column, and no control axis introduces a family the base configuration did not move. Declared families no configuration moved are listed, not asserted: a declared edge no run exercised is not evidence the edge is unreal. Changed query checkpoints are recorded as context only, because a query checkpoint also moves when the query merely carries a changed field through its records.",
   "implementationReceipt": {
     "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
-    "implementationDigest": "sha256:4b5fb72ce4570db1a7f25da5ead25762cefc9462eb036ae61098da23d4779762",
-    "planDigest": "sha256:5c4f19924961f6d5054899ad84a969d79cec45bd344b72f8640cc10370e00c0a",
-    "profileDigest": "sha256:8db9c35e66b7d36f54f005a0ed9414dac1de25693509450106be4a39959db664",
-    "profileLockDigest": "sha256:de5a7d9a809bb049c4fa96a91d6e97bb9ec00b818fd071df2293ad1ae424ef11",
+    "implementationDigest": "sha256:113423c17bccc0c41e7389eb8080cbd92e2420b143f8e7ab737b60ad34fe53ff",
+    "planDigest": "sha256:f1aa89e312e4f8f8df44e6f4eaf05f83d61a51ffd6d72ff4400f98fcf6459e4c",
+    "profileDigest": "sha256:c81d3308467f9539535b463458224fd58d2436c3b2e2c26c821da16c51e8d9ce",
+    "profileLockDigest": "sha256:07708734f7197da7e65aa27ea83a030f29224cb9e406778ef7e6dd47f36a6fb5",
     "runtimeAuthorityDigest": "sha256:7807fe99a35b4ede2c85d8e8868ec3dcb2accb22e8265c4643966eb9840ce4e4",
-    "productContractDigest": "sha256:5f8586482ba8944b2cee4813d63de0096c4e4b7139eadad0ef426116921ca14d"
+    "productContractDigest": "sha256:21394e6d3c8d701186812fb8da708f1444b9081a0811afc603261ee24b769bbd"
   },
   "fixture": {
     "corpusId": "catalog-random",
@@ -411,15 +411,15 @@
     "visualization-data-json#/screenRows/*/*"
   ],
   "coverage": {
-    "computationalAxes": 83,
-    "directlyCrossedAxes": 83,
+    "computationalAxes": 84,
+    "directlyCrossedAxes": 84,
     "sourceSensitiveCompoundAxes": [],
-    "predictedAffectedAxes": 81,
+    "predictedAffectedAxes": 82,
     "predictedUnaffectedAxes": 2,
     "controlAxesExecuted": 2,
     "activationExecutions": 2,
-    "crossExecutions": 168,
-    "totalRustExecutions": 170
+    "crossExecutions": 170,
+    "totalRustExecutions": 172
   },
   "baseConfigurationChangedFamilies": [
     "app-csv#bcm_play_store_genreId",
@@ -1408,6 +1408,15 @@
     },
     {
       "axisId": "autoLockBridgeSeconds=s0",
+      "predictedAffected": true,
+      "changedCellAddresses": 58,
+      "changedCellFamilies": 2,
+      "sameFamiliesAsBaseConfiguration": true,
+      "introducedFamilies": [],
+      "maskedFamilies": []
+    },
+    {
+      "axisId": "bridgeScreenOffToSessionEnd=true",
       "predictedAffected": true,
       "changedCellAddresses": 58,
       "changedCellFamilies": 2,

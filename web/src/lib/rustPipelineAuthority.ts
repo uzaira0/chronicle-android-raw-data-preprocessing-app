@@ -9,6 +9,7 @@ import {
   generateAllScreenPlotSvgs,
 } from "@/lib/plotGenerator";
 import { buildTimelineViewerHtml } from "@/lib/timelineViewer";
+import { buildCleaningSummary } from "@/lib/cleaningSummary";
 import {
   executeRustRuntime,
   queryPersistedRustReview,
@@ -974,6 +975,13 @@ export async function processRawCsvWithRustAuthority(
       manifest.processingSummary.duplicateTimestampsCorrected,
     exactDuplicateRowsRemoved:
       manifest.processingSummary.exactDuplicateRowsRemoved,
+    cleaningSummary: buildCleaningSummary(
+      options,
+      manifest.processingSummary.cleaningCounts,
+      manifest.processingSummary.scientificEvidence,
+      manifest.processingSummary.maximumDurationReceipt,
+      manifest.artifacts.find(({ kind }) => kind === "credited-app-csv")?.rowCount ?? 0,
+    ),
     ...(skippedOutputs.length ? { skippedOutputs } : {}),
     timelineView,
     persistedPlotRequest,

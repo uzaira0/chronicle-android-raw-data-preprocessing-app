@@ -73,6 +73,7 @@ screenGatingRule (enum): screenandliveness,screenonly,strictvisualonly,livenesso
 creditedSessionCapMinutes (enum): m360,m0
 deviceLivenessGapToleranceMinutes (enum): m120,m0
 autoLockBridgeSeconds (enum): s120,s0
+bridgeScreenOffToSessionEnd (boolean): true,false
 noWitnessMinDayApps (enum): n2,n0
 notificationProxyRule (enum): none,seencontact,interruptioncontact,anynotificationcontact
 polledEmulationMethod (enum): none,rosssampledgap,ceritsamplecount

@@ -190,6 +190,7 @@ function buildBatchWarnings(input: {
 async function downloadZip(
   kind: "all" | OutputKind,
   outputs: BatchOutput[],
+  results: ProcessedFileResult[],
 ): Promise<void> {
   const entries: Array<{ fileName: string; blob: Blob }> = [];
   // Receipt-pinned OPFS reads can be very large. Resolve one at a time instead
@@ -210,6 +211,15 @@ async function downloadZip(
       app_build_date: BUILD_DATE,
       contract_version: CONTRACT_VERSION,
       settings_schema_version: SETTINGS_SCHEMA_VERSION,
+    }, null, 2)], { type: "application/json" }),
+  });
+  entries.push({
+    fileName: "Cleaning Summary.json",
+    blob: new Blob([JSON.stringify({
+      files: results.map((result) => ({
+        input_file_name: result.inputFileName,
+        steps: result.cleaningSummary ?? null,
+      })),
     }, null, 2)], { type: "application/json" }),
   });
   const zip = await createZipBlob(entries);
@@ -422,7 +432,7 @@ export function ResultPanel({
       if (!entries.length && firstSkipped) {
         throw new Error(firstSkipped.reason);
       }
-      await downloadZip(id, entries);
+      await downloadZip(id, entries, results);
       if (resultsRef.current === results) setDownloadSkipped(skipped);
     });
   };
@@ -707,6 +717,7 @@ export function ResultPanel({
                   {showAppColumns ? <th scope="col">App</th> : null}
                   {showScreenColumns ? <th scope="col">Screen</th> : null}
                   <th scope="col">Timezone</th>
+                  <th scope="col">Cleaning applied</th>
                   <th scope="col">Outputs</th>
                 </tr>
               </thead>
@@ -761,6 +772,24 @@ export function ResultPanel({
                         {result.timezone
                           ? displayMasker.timezone(result.timezone)
                           : "—"}
+                      </td>
+                      <td>
+                        {result.cleaningSummary === undefined ? (
+                          "—"
+                        ) : result.cleaningSummary.length ? (
+                          <ul
+                            className="result-table__downloads"
+                            aria-label="Cleaning applied"
+                          >
+                            {result.cleaningSummary.map((step) => (
+                              <li key={step.step}>
+                                <strong>{step.step}</strong>: {step.detail}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <span className="text-faint">No cleaning applied</span>
+                        )}
                       </td>
                       <td className="result-table__outputs">
                         {outputCounts.length ? (

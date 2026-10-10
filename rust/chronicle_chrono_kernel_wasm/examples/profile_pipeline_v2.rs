@@ -280,6 +280,7 @@ fn options() -> PipelineV2Options {
         credited_session_cap_minutes: 360.0,
         device_liveness_gap_tolerance_minutes: 120.0,
         auto_lock_bridge_seconds: 120.0,
+        bridge_screen_off_to_session_end: false,
         no_witness_min_day_apps: 2,
         screen_gating_rule: Default::default(),
         day_boundary_attribution: Default::default(),

@@ -866,7 +866,7 @@ describe("two-factor interaction tomography", () => {
           ),
       0,
     );
-    expect(expectedPairContrasts).toBe(7_560);
+    expect(expectedPairContrasts).toBe(7_684);
     expect(pairContrastOrdinal).toBe(expectedPairContrasts);
     const expectedShardPairContrasts = Math.max(
       0,
@@ -874,17 +874,17 @@ describe("two-factor interaction tomography", () => {
     );
     expect(enumeratedPairContrasts).toBe(expectedShardPairContrasts);
     const axisPairs = (keys.length * (keys.length - 1)) / 2;
-    expect(axisPairs).toBe(3_403);
+    expect(axisPairs).toBe(3_486);
     // The value oracle runs on the first executed pair of the shard. A shard
     // that executed a pair and still recorded no comparison means the capture
     // was skipped, which would make the assertions above vacuous rather than
     // absent. Deliberately not part of `evidence` -- adding a field there would
     // move the recorded ledger and force a dependency-evidence re-record.
-    // 128 of the 7,560 pair contrasts are invalid or typed-refused
-    // census-wide and the parallel runner caps shards at 12 (>= 630 contrasts
+    // 130 of the 7,684 pair contrasts are invalid or typed-refused
+    // census-wide and the parallel runner caps shards at 12 (>= 640 contrasts
     // each), so every supported shard executes pairs and `0 === 0` for an
     // empty shard is not evidence. The unconditional form is proven safe for
-    // SHARD_COUNT <= 49 (min shard >= 154 contrasts > 128 non-executable);
+    // SHARD_COUNT <= 49 (min shard >= 156 contrasts > 130 non-executable);
     // finer dev slicing can legitimately produce an empty shard, so only
     // there does the guard fall back to the degenerate-tolerant form.
     if (SHARD_COUNT <= 49) {

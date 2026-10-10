@@ -336,6 +336,14 @@ function manifest(artifacts: RuntimeManifest["artifacts"]): RuntimeManifest {
       scientificEvidence,
       duplicateTimestampsCorrected: 2,
       exactDuplicateRowsRemoved: 1,
+      cleaningCounts: {
+        filterRelabeledRows: 0,
+        outOfOrderEventsDropped: 0,
+        culverhouseBoundedIntervals: 0,
+        culverhouseFlaggedDays: 0,
+        screenSessionsCapped: 0,
+        screenDurationExcludedParticipants: 0,
+      },
     },
   };
 }

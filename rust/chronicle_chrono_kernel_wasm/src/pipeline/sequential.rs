@@ -10,7 +10,7 @@ use crate::pipeline_v2::{
     EyesInputPartitionPreflightResult, EyesTaggedFauValidationContext,
     FoundationalSemanticsEvidence, HashMap, MicroUseClassificationPolicy,
     NotificationContactOutput, OpenerSetEvidence, PayloadBytes, PipelineV2Options,
-    PipelineV2Result, PipelineV2SupportFiles, PolledEmulationOutput, PreflightRows, RawRow, Row,
+    CleaningCounts, PipelineV2Result, PipelineV2SupportFiles, PolledEmulationOutput, PreflightRows, RawRow, Row,
     RowCheckpointParts, SchoedelValidationWitness, ScientificPreflightDisposition,
     ScreenCreditOutput, ScreenSessionConstructionStrategyId, Sha256,
     UsageSessionMode, WorkflowCheckpoint, add_app_usage_detail_columns,
@@ -219,7 +219,7 @@ pub(crate) fn parse_raw_rows(
     raw_rows: Vec<RawRow>,
     opts: &PipelineV2Options,
     query_checkpoints: &mut QueryCheckpointRecorder<'_>,
-) -> Result<(Vec<Row>, String), String> {
+) -> Result<(Vec<Row>, String, u32), String> {
     let interaction_remap = source::validate_remap_rules(&opts.interaction_type_remap);
     query_checkpoints.value("validate_remap_rules", &interaction_remap)?;
     query_checkpoints.value("decode_source_records", &raw_rows)?;
@@ -237,12 +237,14 @@ pub(crate) fn parse_raw_rows(
     )?;
     query_checkpoints.rows("canonicalize_source_rows", &rows);
 
+    let rows_before_ordering = rows.len();
     let rows = source::order_source_records_with_policy(rows, opts.drop_out_of_source_order_events);
+    let out_of_order_events_dropped = rows_before_ordering.saturating_sub(rows.len()) as u32;
     query_checkpoints.rows("order_source_records", &rows);
     let available_timezones = source::collect_timezone_observations(&rows);
     query_checkpoints.value("collect_timezone_observations", &available_timezones)?;
 
-    Ok((rows, opts.timezone.clone()))
+    Ok((rows, opts.timezone.clone(), out_of_order_events_dropped))
 }
 
 #[allow(clippy::too_many_arguments, clippy::type_complexity)]
@@ -509,6 +511,7 @@ pub(crate) fn apply_screen_gated_credit_incremental(
         opts.credited_session_cap_minutes,
         opts.device_liveness_gap_tolerance_minutes,
         opts.auto_lock_bridge_seconds,
+        opts.bridge_screen_off_to_session_end,
         opts.no_witness_min_day_apps,
         opts.screen_gating_rule,
     );
@@ -1166,7 +1169,12 @@ pub fn run_prepared_sequential(
         last_canonical_order: None,
     };
     // 1. parse + sort + canonicalize
-    let (mut rows, _tz) = parse_raw_rows(stages, (*raw_rows).clone(), opts, &mut query_checkpoints)?;
+    let (mut rows, _tz, out_of_order_events_dropped) =
+        parse_raw_rows(stages, (*raw_rows).clone(), opts, &mut query_checkpoints)?;
+    let mut cleaning_counts = CleaningCounts {
+        out_of_order_events_dropped,
+        ..CleaningCounts::default()
+    };
     record_workflow_checkpoint(
         &mut workflow_query_group_digests,
         &mut workflow_query_group_checkpoints,
@@ -1509,6 +1517,9 @@ pub fn run_prepared_sequential(
         None
     };
     let screen_row_count = screen_rows.len() as u32;
+    cleaning_counts.screen_sessions_capped = screen::capped_screen_session_count(&screen_rows);
+    cleaning_counts.screen_duration_excluded_participants =
+        screen_duration_excluded_participants.len() as u32;
 
     if matches!(
         opts.usage_session_mode,
@@ -2063,6 +2074,7 @@ pub fn run_prepared_sequential(
         );
 
         app_row_count = rows.len() as u32;
+        annotations::record_app_output_cleaning_counts(&rows, &mut cleaning_counts);
         app_rows_for_review = rows.clone();
         app_csv_bytes = if opts.include_app_output {
             write_app_csv(&rows, opts, include_aliases)
@@ -2366,6 +2378,7 @@ pub fn run_prepared_sequential(
         interval_expansion_row_count,
         duplicate_timestamps_corrected: dupes_corrected,
         exact_duplicate_rows_removed,
+        cleaning_counts,
         available_timezones,
         timezone: opts.timezone.clone(),
         timezone_action: timezone_action.into(),
