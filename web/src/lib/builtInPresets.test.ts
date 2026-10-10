@@ -23,6 +23,7 @@ describe("built-in presets", () => {
         !== JSON.stringify(DEFAULT_BROWSER_OPTIONS[key as keyof typeof DEFAULT_BROWSER_OPTIONS]))
       .sort();
     expect(changed).toEqual([
+      "bridgeScreenOffToSessionEnd",
       "enableScreenGatedCrediting",
       "longDurationThresholdHours",
       "minimumUsageDuration",

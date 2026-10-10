@@ -220,6 +220,7 @@ components:
         - creditedSessionCapMinutes
         - deviceLivenessGapToleranceMinutes
         - autoLockBridgeSeconds
+        - bridgeScreenOffToSessionEnd
         - noWitnessMinDayApps
         - notificationProxyRule
         - polledEmulationMethod
@@ -1063,6 +1064,14 @@ components:
           type: integer
           description: A screen-OFF blip shorter than this cannot be the device auto-lock,
             so credit bridges across it (screen bounce, not a real lock).
+        bridgeScreenOffToSessionEnd:
+          type: boolean
+          description: "When deciding whether a screen-OFF gap is short enough to bridge,
+            measure only the part inside the app session instead of up to when
+            the screen comes back on. This is the TECH/GNSM studies' rule: a
+            screen-off that starts just before a session ends is bridged to the
+            session end even when the screen stays off afterwards. Off by
+            default."
         noWitnessMinDayApps:
           type: integer
           description: When a session has no screen witness at all, credit its alive time

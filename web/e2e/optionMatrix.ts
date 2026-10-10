@@ -73,6 +73,7 @@ const PARENT: Record<string, Options> = {
   creditedSessionCapMinutes: { enableScreenGatedCrediting: true },
   deviceLivenessGapToleranceMinutes: { enableScreenGatedCrediting: true },
   autoLockBridgeSeconds: { enableScreenGatedCrediting: true },
+  bridgeScreenOffToSessionEnd: { enableScreenGatedCrediting: true },
   noWitnessMinDayApps: { enableScreenGatedCrediting: true },
   polledEmulationIntervalSeconds: { polledEmulationMethod: "ross_2025_sampled_gap_v1" },
   polledEmulationGapSeconds: { polledEmulationMethod: "ross_2025_sampled_gap_v1" },

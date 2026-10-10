@@ -1908,6 +1908,10 @@ pub fn query_group_config_dependencies(group_id: &str) -> &'static [ConfigDepend
                 edge: "tunes",
             },
             ConfigDependencyDefinition {
+                option_key: "bridge_screen_off_to_session_end",
+                edge: "tunes",
+            },
+            ConfigDependencyDefinition {
                 option_key: "no_witness_min_day_apps",
                 edge: "tunes",
             },
@@ -3017,6 +3021,7 @@ pub fn query_request_fields(query_id: &str) -> &'static [&'static str] {
             "credited_session_cap_minutes",
             "device_liveness_gap_tolerance_minutes",
             "auto_lock_bridge_seconds",
+            "bridge_screen_off_to_session_end",
             "no_witness_min_day_apps",
             "screen_gating_rule",
         ],
@@ -3073,6 +3078,7 @@ pub fn query_request_fields(query_id: &str) -> &'static [&'static str] {
             "auto_lock_bridge_seconds",
             "b06_legacy_threshold_hours_canonical",
             "b06_legacy_threshold_ns_canonical",
+            "bridge_screen_off_to_session_end",
             "compliance_threshold_percent",
             "correct_duplicate_event_timestamps",
             "credited_session_cap_minutes",
@@ -3182,6 +3188,7 @@ pub const OPTIONAL_REQUEST_FIELDS: &[&str] = &[
     // Sent only when on, so an off request is byte-identical to one built
     // before the option existed.
     "neutralize_spreadsheet_formulas",
+    "bridge_screen_off_to_session_end",
 ];
 
 /// Request fields consumed only while materializing derived browser/export
@@ -6135,7 +6142,10 @@ fn operation_direct_request_fields(operation: &OperationSpec) -> &'static [&'sta
         "policy.flag_long_gaps" => &["long_data_time_gap_thresholds"],
         "credit.cap_candidate_intervals" => &["credited_session_cap_minutes"],
         "credit.derive_device_live_spans" => &["device_liveness_gap_tolerance_minutes"],
-        "credit.derive_screen_creditable_spans" => &["auto_lock_bridge_seconds"],
+        "credit.derive_screen_creditable_spans" => &[
+            "auto_lock_bridge_seconds",
+            "bridge_screen_off_to_session_end",
+        ],
         "policy.assign_usage_session_ids" => &[
             "session_grouping_policy",
             "session_gap_basis",
@@ -8440,6 +8450,7 @@ mod tests {
                 serde_json::json!("43200000000000"),
             ),
             ("neutralize_spreadsheet_formulas", serde_json::json!(true)),
+            ("bridge_screen_off_to_session_end", serde_json::json!(true)),
         ] {
             request
                 .as_object_mut()

@@ -502,6 +502,8 @@ pub(crate) fn classify_screen_sessions(
     sessions
 }
 
+const DURATION_CAP_END_REASON: &str = "duration_cap";
+
 pub(crate) fn apply_screen_session_policies(
     mut sessions: Vec<Row>,
     classification_policy: ScreenSessionClassificationPolicy,
@@ -547,7 +549,7 @@ pub(crate) fn apply_screen_session_policies(
                     let classification = session.edit_classification();
                     // Whole-bout evidence is not evidence for a shortened interval.
                     *classification.screen_usage_app_observed = None;
-                    *classification.screen_usage_end_reason = Some("duration_cap".into());
+                    *classification.screen_usage_end_reason = Some(DURATION_CAP_END_REASON.into());
                     *classification.screen_usage_end_reason_confidence = Some(1.0);
                     *classification.screen_usage_stop_event_type = None;
                 }
@@ -646,6 +648,12 @@ pub(crate) fn screen_duration_excluded_participants(
         })
         .map(|interval| interval.participant_id.clone())
         .collect()
+}
+
+pub(crate) fn capped_screen_session_count(rows: &[Row]) -> u32 {
+    rows.iter()
+        .filter(|row| row.screen_usage_end_reason.as_deref() == Some(DURATION_CAP_END_REASON))
+        .count() as u32
 }
 
 pub(crate) fn remove_participants(mut rows: Vec<Row>, excluded: &BTreeSet<String>) -> Vec<Row> {

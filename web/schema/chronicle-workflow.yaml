@@ -617,6 +617,7 @@ workflow_operations:
       - derive_credited_intervals
     workflow_config_dependency_ids:
       - auto_lock_bridge_seconds
+      - bridge_screen_off_to_session_end
       - enable_screen_gated_crediting
       - process_app_usage
   - workflow_id: credit.intersect_evidence

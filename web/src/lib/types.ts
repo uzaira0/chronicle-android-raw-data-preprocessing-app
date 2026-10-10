@@ -582,6 +582,12 @@ export type PayloadSpillStats = {
 /** An output that could not be generated or read and was left out, with why. */
 export type SkippedOutput = { outputFileName: string; reason: string };
 
+export type CleaningSummaryStep = {
+  step: string;
+  detail: string;
+  count: number;
+};
+
 export type ProcessedFileResult = {
   inputFileName: string;
   outputs: ProcessedOutputFileResult[];
@@ -601,6 +607,8 @@ export type ProcessedFileResult = {
   duplicateTimestampsCorrected: number;
   /** Count of fully-identical raw rows collapsed by {@link dedupeExactRows}. */
   exactDuplicateRowsRemoved: number;
+  /** Cleaning settings applied during full processing, with their affected counts. */
+  cleaningSummary?: CleaningSummaryStep[];
   /**
    * SHA-256 (hex) of the raw input file, computed in the worker where the
    * bytes live (the parallel path transfers them off the main thread). Used

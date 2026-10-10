@@ -233,7 +233,7 @@ try {
   // Declared once. The message used to repeat the three numbers as literal
   // text, so updating the check without updating the prose left the failure
   // naming values that were no longer expected anywhere.
-  const EXPECTED_CENSUS = { axes: 83, axisPairs: 3_403, pairContrasts: 7_560 };
+  const EXPECTED_CENSUS = { axes: 84, axisPairs: 3_486, pairContrasts: 7_684 };
   if (
     firstCoverage.axes !== EXPECTED_CENSUS.axes ||
     firstCoverage.axisPairs !== EXPECTED_CENSUS.axisPairs ||

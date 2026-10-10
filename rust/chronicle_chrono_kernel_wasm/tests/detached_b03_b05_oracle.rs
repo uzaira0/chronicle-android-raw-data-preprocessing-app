@@ -1,8 +1,8 @@
 #![recursion_limit = "256"]
 
 use chronicle_chrono_kernel_wasm::pipeline_v2::{
-    run_pipeline_v2_with_supports, EpisodeReconstructionStrategy, OpenerSet, PipelineV2Options,
-    PipelineV2OptionsJson, PipelineV2Result, PipelineV2SupportFiles,
+    run_pipeline_v2_with_supports, CleaningCounts, EpisodeReconstructionStrategy, OpenerSet,
+    PipelineV2Options, PipelineV2OptionsJson, PipelineV2Result, PipelineV2SupportFiles,
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -1103,4 +1103,33 @@ fn detached_chronicle_screen_matches_080801a_before_explicit_default() {
         historical_members,
         "explicit B03-B05 defaults changed detached Chronicle screen bytes",
     );
+}
+
+#[test]
+fn default_cleaning_counts_are_zero_and_detached_app_and_screen_bytes_are_unchanged() {
+    let inventory = inventory();
+    let app_case = oracle_case(&inventory, "app/fused_matcher/strategy_defined");
+    let app_request = b02_request("fused_matcher", "strategy_defined");
+    let app_options = parse_options(&app_request);
+    let (_, app_raw) = app_fixture("fused_matcher");
+    let app = run_pipeline_v2_with_supports(
+        &app_raw,
+        &app_options,
+        PipelineV2SupportFiles::default(),
+    )
+    .expect("default app run succeeds");
+    assert_eq!(app.cleaning_counts, CleaningCounts::default());
+    assert_detached_members_first(&app, app_case, PrimaryMember::App);
+
+    let screen_case = oracle_case(&inventory, "screen/chronicle-default");
+    let screen_request = historical_default_request("screen_usage", false, true);
+    let screen_options = parse_options(&screen_request);
+    let screen = run_pipeline_v2_with_supports(
+        &screen_fixture(),
+        &screen_options,
+        PipelineV2SupportFiles::default(),
+    )
+    .expect("default screen run succeeds");
+    assert_eq!(screen.cleaning_counts, CleaningCounts::default());
+    assert_detached_members_first(&screen, screen_case, PrimaryMember::Screen);
 }
