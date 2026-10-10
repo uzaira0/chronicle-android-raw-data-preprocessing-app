@@ -27,8 +27,11 @@ function builtIn(
  * `v1_engine.py` (TECH_KNOBS / GNSM_KNOBS) runs it on the frozen July-16
  * engine: proximity 2 s, 60 s minimum usage, filter file on, no maximum
  * session length (1,000,000 h never fires) with the §14 screen-gated credit
- * truncating at 6 h, America/Chicago. Every other value is the default, which
- * already matches those knobs.
+ * truncating at 6 h, America/Chicago, and §14's screen-off bridge measured
+ * only up to the session end (research-pipeline `s14_credit.py`
+ * `creditable_intervals`). Every other value is the default, which already
+ * matches those knobs. Checked 2026-10-09 against v1_engine.py on 16 TECH and
+ * GNSM devices: every credited interval matched to under 1 ms.
  */
 export const TECH_GNSM_OPTIONS: BrowserProcessingOptions = {
   ...DEFAULT_BROWSER_OPTIONS,
@@ -41,6 +44,7 @@ export const TECH_GNSM_OPTIONS: BrowserProcessingOptions = {
   longDurationThresholdHours: 1_000_000,
   enableScreenGatedCrediting: true,
   creditedSessionCapMinutes: 360,
+  bridgeScreenOffToSessionEnd: true,
 };
 
 export const BUILT_IN_PRESETS: readonly BuiltInPreset[] = [
@@ -53,7 +57,7 @@ export const BUILT_IN_PRESETS: readonly BuiltInPreset[] = [
   builtIn(
     "built-in:tech-gnsm",
     "TECH/GNSM (personal phones)",
-    "The TECH and GNSM studies' settings: 60 s minimum usage, filter file, no maximum session length, screen-gated credit truncated at 6 h, America/Chicago. Not yet checked against the studies' own credited minutes. GNSM study tablets used a 6 h maximum and no credit instead.",
+    "The TECH and GNSM studies' settings: 60 s minimum usage, filter file, no maximum session length, screen-gated credit truncated at 6 h with the studies' screen-off rule, America/Chicago. Reproduces the studies' credited minutes from their own engine; their later study-window and shared-device steps are not included. GNSM study tablets used a 6 h maximum and no credit instead.",
     TECH_GNSM_OPTIONS,
   ),
 ];

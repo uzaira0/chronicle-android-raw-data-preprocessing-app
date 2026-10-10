@@ -89,6 +89,10 @@ pub struct PipelineV2Options {
     pub credited_session_cap_minutes: f64,
     pub device_liveness_gap_tolerance_minutes: f64,
     pub auto_lock_bridge_seconds: f64,
+    /// Measure a screen-OFF gap only up to the session's end when deciding
+    /// whether to bridge it (the TECH/GNSM studies' rule) instead of to the
+    /// screen's actual return.
+    pub bridge_screen_off_to_session_end: bool,
     pub no_witness_min_day_apps: u32,
     pub screen_session_construction_strategy: ScreenSessionConstructionStrategyId,
     /// Preserves omitted-versus-explicit baseline selection so the B05 receipt
@@ -866,6 +870,7 @@ pub(super) fn validate_option_real_numbers(
         credited_session_cap_minutes,
         device_liveness_gap_tolerance_minutes,
         auto_lock_bridge_seconds,
+        bridge_screen_off_to_session_end,
         no_witness_min_day_apps,
         screen_session_construction_strategy,
         screen_session_construction_strategy_explicit,
@@ -989,6 +994,7 @@ pub(super) fn validate_option_real_numbers(
         *device_liveness_gap_tolerance_minutes,
     )?;
     finite_real("auto_lock_bridge_seconds", *auto_lock_bridge_seconds)?;
+    not_a_real_number(bridge_screen_off_to_session_end);
     not_a_real_number(no_witness_min_day_apps);
     not_a_real_number(screen_session_construction_strategy);
     not_a_real_number(screen_session_construction_strategy_explicit);
@@ -2235,6 +2241,11 @@ pub struct PipelineV2OptionsJson {
     pub device_liveness_gap_tolerance_minutes: f64,
     #[serde(default = "default_auto_lock_bridge_seconds")]
     pub auto_lock_bridge_seconds: f64,
+    /// Optional wire field like `neutralize_spreadsheet_formulas`: the
+    /// browser sends it only when on, so an off request keeps the exact bytes,
+    /// options digest and receipts it had before the key existed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bridge_screen_off_to_session_end: Option<bool>,
     #[serde(default = "default_no_witness_min_day_apps")]
     pub no_witness_min_day_apps: u32,
     /// Canonical `OpenerSetId`. A missing or null value preserves each
@@ -2621,6 +2632,9 @@ impl PipelineV2OptionsJson {
             credited_session_cap_minutes: self.credited_session_cap_minutes,
             device_liveness_gap_tolerance_minutes: self.device_liveness_gap_tolerance_minutes,
             auto_lock_bridge_seconds: self.auto_lock_bridge_seconds,
+            bridge_screen_off_to_session_end: self
+                .bridge_screen_off_to_session_end
+                .unwrap_or(false),
             no_witness_min_day_apps: self.no_witness_min_day_apps,
             screen_session_construction_strategy,
             screen_session_construction_strategy_explicit,

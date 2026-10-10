@@ -28,6 +28,15 @@ export type B05RefusalReason = "input_capability_evidence_absent" | "capability_
 
 export type B05SchoedelValidationStatus = "invalid_unvalidated" | "not_applicable" | "screen_validated" | "screen_and_schoedel_validated";
 
+export type CleaningCounts = {
+  filterRelabeledRows: number;
+  outOfOrderEventsDropped: number;
+  culverhouseBoundedIntervals: number;
+  culverhouseFlaggedDays: number;
+  screenSessionsCapped: number;
+  screenDurationExcludedParticipants: number;
+};
+
 export type ConcurrentSubintervalFloorReceipt = {
   protocolVersion: string;
   requestedApplied: boolean;
@@ -317,6 +326,7 @@ export type ReviewRuntimeManifest = {
   rowsRemovedByTimezone: number;
   duplicateTimestampsCorrected: number;
   exactDuplicateRowsRemoved: number;
+  cleaningCounts: CleaningCounts;
   queryGroupExecutions: QueryGroupExecution[];
   queryExecutions: RuntimeQueryExecution[];
   cacheSources: string[];
@@ -498,6 +508,7 @@ export type RuntimeProcessingSummary = {
   scientificEvidence: RuntimeScientificEvidenceSummary;
   duplicateTimestampsCorrected: number;
   exactDuplicateRowsRemoved: number;
+  cleaningCounts: CleaningCounts;
 };
 
 export type RuntimeQueryExecution = {
@@ -755,6 +766,53 @@ export const RUNTIME_BOUNDARY_MODEL: BoundaryModel = {
         "screen_validated",
         "screen_and_schoedel_validated"
       ]
+    },
+    "CleaningCounts": {
+      "fields": [
+        {
+          "name": "filterRelabeledRows",
+          "rustName": "filter_relabeled_rows",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "outOfOrderEventsDropped",
+          "rustName": "out_of_order_events_dropped",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "culverhouseBoundedIntervals",
+          "rustName": "culverhouse_bounded_intervals",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "culverhouseFlaggedDays",
+          "rustName": "culverhouse_flagged_days",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "screenSessionsCapped",
+          "rustName": "screen_sessions_capped",
+          "value": {
+            "kind": "integer"
+          }
+        },
+        {
+          "name": "screenDurationExcludedParticipants",
+          "rustName": "screen_duration_excluded_participants",
+          "value": {
+            "kind": "integer"
+          }
+        }
+      ],
+      "kind": "struct"
     },
     "ConcurrentSubintervalFloorReceipt": {
       "fields": [
@@ -2572,6 +2630,14 @@ export const RUNTIME_BOUNDARY_MODEL: BoundaryModel = {
           }
         },
         {
+          "name": "cleaningCounts",
+          "rustName": "cleaning_counts",
+          "value": {
+            "kind": "struct",
+            "name": "CleaningCounts"
+          }
+        },
+        {
           "name": "queryGroupExecutions",
           "rustName": "query_group_executions",
           "value": {
@@ -3800,6 +3866,14 @@ export const RUNTIME_BOUNDARY_MODEL: BoundaryModel = {
           "rustName": "exact_duplicate_rows_removed",
           "value": {
             "kind": "integer"
+          }
+        },
+        {
+          "name": "cleaningCounts",
+          "rustName": "cleaning_counts",
+          "value": {
+            "kind": "struct",
+            "name": "CleaningCounts"
           }
         }
       ],

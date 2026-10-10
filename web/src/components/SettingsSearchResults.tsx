@@ -119,6 +119,7 @@ export const SECTION_BY_KEY: Record<string, SectionKey> = {
   creditedSessionCapMinutes: "cleaning",
   deviceLivenessGapToleranceMinutes: "cleaning",
   autoLockBridgeSeconds: "cleaning",
+  bridgeScreenOffToSessionEnd: "cleaning",
   noWitnessMinDayApps: "cleaning",
   notificationProxyRule: "study",
   polledEmulationMethod: "study",

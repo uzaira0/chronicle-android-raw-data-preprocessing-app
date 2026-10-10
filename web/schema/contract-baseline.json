@@ -357,6 +357,10 @@
       "type": "number",
       "default": 120
     },
+    "bridgeScreenOffToSessionEnd": {
+      "type": "boolean",
+      "default": false
+    },
     "noWitnessMinDayApps": {
       "type": "number",
       "default": 2

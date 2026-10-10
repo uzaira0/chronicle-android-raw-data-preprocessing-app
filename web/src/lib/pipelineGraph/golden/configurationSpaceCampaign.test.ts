@@ -137,40 +137,46 @@ const INPUT_DEPENDENT_REFUSALS_EXPECTED = {
   // produce none. The counts are the receipt-bound outcome of the one-shot
   // Rust preflight on each corpus.
   coveringArrayT3: {
-    "interaction-pathologies": 204,
-    "support-intersections": 204,
-    "temporal-pathologies": 204,
-    "threshold-boundaries": 204,
+    "interaction-pathologies": 208,
+    "support-intersections": 208,
+    "temporal-pathologies": 208,
+    "threshold-boundaries": 208,
   } as Record<string, number>,
   seededHighOrder: {
-    "interaction-pathologies": 81,
+    "interaction-pathologies": 86,
   } as Record<string, number>,
   qualification: {
-    "qualification-chicago-only": 204,
+    "qualification-chicago-only": 208,
   } as Record<string, number>,
 };
 const QUALIFICATION_STRUCTURAL_IDS = [
-  "pict_15",
-  "pict_46",
-  "pict_126",
+  "pict_51",
+  "pict_59",
+  "pict_102",
+  "pict_115",
+  "pict_122",
+  "pict_128",
+  "pict_159",
   "pict_176",
-  "pict_177",
-  "pict_197",
-  "pict_216",
-  "pict_230",
-  "pict_268",
-  "pict_270",
-  "pict_321",
+  "pict_183",
+  "pict_212",
+  "pict_214",
+  "pict_244",
+  "pict_271",
+  "pict_275",
+  "pict_285",
+  "pict_303",
+  "pict_319",
 ] as const;
 const QUALIFICATION_PREFLIGHT_STRUCTURAL_IDS = [
-  "pict_15",
-  "pict_126",
-  "pict_176",
-  "pict_177",
-  "pict_197",
-  "pict_216",
-  "pict_230",
-  "pict_268",
+  "pict_51",
+  "pict_59",
+  "pict_115",
+  "pict_212",
+  "pict_214",
+  "pict_244",
+  "pict_271",
+  "pict_275",
 ] as const;
 const encoder = new TextEncoder();
 
@@ -1592,7 +1598,7 @@ describe("Rust/WASM configuration-space campaign", () => {
       // nosemgrep: semgrep.chronicle-ts-console-log -- explicit re-pin dump
       console.log("CHRONICLE_PINS_QUAL_PREFLIGHT " + JSON.stringify(refused));
     }
-    expect(classified.executable).toHaveLength(306);
+    expect(classified.executable).toHaveLength(314);
     expect(structural).toEqual(QUALIFICATION_PREFLIGHT_STRUCTURAL_IDS);
     expect(refused).toEqual(
       classified.executable
@@ -1603,7 +1609,7 @@ describe("Rust/WASM configuration-space campaign", () => {
         )
         .map(({ id }) => id),
     );
-    expect(refused).toHaveLength(204);
+    expect(refused).toHaveLength(208);
   });
 
   it("executes complete t=3 coverage across every valid synthetic profile plus a high-order sample", async () => {
@@ -1687,43 +1693,41 @@ describe("Rust/WASM configuration-space campaign", () => {
         ({ configurationId }) => configurationId,
       ),
     ).toEqual([
-      "pict_1",
-      "pict_10",
-      "pict_44",
-      "pict_47",
-      "pict_63",
-      "pict_64",
-      "pict_70",
-      "pict_74",
-      "pict_86",
-      "pict_96",
-      "pict_132",
-      "pict_159",
-      "pict_182",
-      "pict_209",
-      "pict_223",
+      "pict_7",
+      "pict_9",
+      "pict_19",
+      "pict_37",
+      "pict_66",
+      "pict_139",
+      "pict_144",
+      "pict_156",
+      "pict_160",
+      "pict_163",
+      "pict_165",
+      "pict_190",
+      "pict_195",
+      "pict_233",
       "pict_237",
-      "pict_264",
-      "pict_280",
+      "pict_254",
+      "pict_257",
+      "pict_263",
+      "pict_265",
+      "pict_282",
+      "pict_283",
+      "pict_322",
+      "pict_334",
     ]);
     expect(
       seededClassification.refusalReceipts.map(
         ({ configurationId }) => configurationId,
       ),
     ).toEqual([
-      "seeded_00c0ffee_2",
-      "seeded_00c0ffee_10",
-      "seeded_00c0ffee_30",
-      "seeded_00c0ffee_41",
-      "seeded_00c0ffee_45",
-      "seeded_00c0ffee_50",
-      "seeded_00c0ffee_51",
-      "seeded_00c0ffee_65",
-      "seeded_00c0ffee_79",
-      "seeded_00c0ffee_120",
+      "seeded_00c0ffee_15",
+      "seeded_00c0ffee_84",
+      "seeded_00c0ffee_90",
     ]);
-    expect(t3Classification.executable).toHaveLength(306);
-    expect(seededClassification.executable).toHaveLength(118);
+    expect(t3Classification.executable).toHaveLength(314);
+    expect(seededClassification.executable).toHaveLength(125);
     const sourceSensitiveScientificCells =
       await runSourceSensitiveScientificCells();
     expect(
@@ -2514,14 +2518,14 @@ describe("Rust/WASM configuration-space campaign", () => {
       qualificationSuccesses.length +
         structuralInvalidRows.length +
         inputDependentRefusals.filter((r) => r.family === "qualification").length,
-    ).toBe(306);
+    ).toBe(314);
     expect(
       coldDense.size +
         coldDenseRefusals.size +
         coldDenseStructuralErrors.size,
-    ).toBe(306);
+    ).toBe(314);
     expect(coldExecutions).toBe(
-      corpora.length * 306 +
+      corpora.length * 314 +
         seededClassification.executable.length -
         coldRefusals -
         coldStructuralErrors,

@@ -8,14 +8,14 @@
   "sources": {
     "rust_workflow_contract": {
       "path": "rust/chronicle_chrono_kernel_wasm/src/workflow_contract.rs",
-      "digest": "sha256:44e17e85f4994e482ae73b924ae8056942f27ad808831c6d6fa9567cf665fcaf",
+      "digest": "sha256:221a8aa4dc3923e9b8bdf906a169b33c6e566b526608f69bfaa24d8f1f385c26",
       "executable": false,
       "production_authority": true,
       "purpose": "declares the Rust query registry and dependency edges"
     },
     "structural_projection": {
       "path": "web/schema/chronicle-workflow.yaml",
-      "digest": "sha256:ba7fa4b911959af52246e1258233c3fd7802de050c70960a3fc44916c9f916cc",
+      "digest": "sha256:20918f3c6d96c8203ebe9252778646cfbf3142805842940822e9f93a399b8922",
       "executable": false
     },
     "rust_migration_base": {
@@ -49,7 +49,7 @@
         "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "rust/chronicle_chrono_kernel_wasm/src/workflow_contract.rs"
       ],
-      "digest": "sha256:ef5a6431a03ee1e973466406818036953f808bb9922a9b9e4be154225705fef4",
+      "digest": "sha256:3e3e42e12705af72c3939045b8f4b634fd7d245e52a8e940ff8833eb4474ea88",
       "coverage": "active-query-registry-plus-fused-cold-test-oracle"
     },
     "rust_product_runtime": {
@@ -60,7 +60,7 @@
         "rust/chronicle_preprocessing_runtime_wasm/src/execution/state.rs",
         "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs"
       ],
-      "digest": "sha256:f8cb4e0387480bc15eb47c51a7747ee4d166a997008282a58a37355a0f343384",
+      "digest": "sha256:b036e41227028beeb0a638b6194beaf72c3bcd37246e13574ab8958b7ee82c7b",
       "coverage": "production-worker-authority"
     }
   },
@@ -90,7 +90,7 @@
       "actual_query_execution_event_ids": 67
     },
     "dependency_surface": {
-      "cache_relevant_options": 85,
+      "cache_relevant_options": 86,
       "excluded_options": 7,
       "root_roles": 11,
       "unclassified_options": 0,
@@ -420,7 +420,7 @@
   "runtime_authority_surface_count": 24,
   "dependency_certificate": {
     "path": ".semantic-federation/proofs/dependency-certificate.json",
-    "digest": "sha256:0df4a77de5cd1c4d3c3b82c75ed3f1425c2afe9e9619f2157fd6bc1b5a3620b2",
+    "digest": "sha256:97ab066e31779f89237c930acd64d4857a5641971a9082a034eac9c3f59180ae",
     "fallback": "full-logical-recompute"
   },
   "resolved_baseline_findings": [

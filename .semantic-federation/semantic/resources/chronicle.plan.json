@@ -763,6 +763,10 @@
           "edge": "tunes"
         },
         {
+          "option_key": "bridge_screen_off_to_session_end",
+          "edge": "tunes"
+        },
+        {
           "option_key": "no_witness_min_day_apps",
           "edge": "tunes"
         },
@@ -2546,6 +2550,7 @@
         "credited_session_cap_minutes",
         "device_liveness_gap_tolerance_minutes",
         "auto_lock_bridge_seconds",
+        "bridge_screen_off_to_session_end",
         "no_witness_min_day_apps",
         "screen_gating_rule"
       ],
@@ -3506,6 +3511,7 @@
         "auto_lock_bridge_seconds",
         "b06_legacy_threshold_hours_canonical",
         "b06_legacy_threshold_ns_canonical",
+        "bridge_screen_off_to_session_end",
         "compliance_threshold_percent",
         "correct_duplicate_event_timestamps",
         "credited_session_cap_minutes",

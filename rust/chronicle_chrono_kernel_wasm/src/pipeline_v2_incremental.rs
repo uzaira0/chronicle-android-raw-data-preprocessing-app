@@ -3498,6 +3498,7 @@ mod tests {
             cap_minutes,
             tolerance_minutes,
             bridge_seconds,
+            false,
             min_day_apps,
             screen_gating_rule,
         );
@@ -3705,6 +3706,7 @@ mod tests {
             360.0,
             120.0,
             120.0,
+            false,
             1,
             ScreenGatingRule::DeviceLivenessOnly,
         );
@@ -7804,6 +7806,7 @@ pub(super) mod tracked {
             late.credited_session_cap_minutes(db),
             tolerance_minutes,
             late.auto_lock_bridge_seconds(db),
+            late.bridge_screen_off_to_session_end(db),
             late.no_witness_min_day_apps(db),
             late.screen_gating_rule(db),
         );
@@ -8943,6 +8946,7 @@ pub(super) mod tracked {
             credited_session_cap_minutes: late.credited_session_cap_minutes(db),
             device_liveness_gap_tolerance_minutes: late.device_liveness_gap_tolerance_minutes(db),
             auto_lock_bridge_seconds: late.auto_lock_bridge_seconds(db),
+            bridge_screen_off_to_session_end: late.bridge_screen_off_to_session_end(db),
             no_witness_min_day_apps: late.no_witness_min_day_apps(db),
             opener_set: if include_late_outputs {
                 config.opener_set(db)
@@ -9564,6 +9568,7 @@ pub(super) mod tracked {
         rows_after_timezone_handling: u32,
         duplicate_timestamps_corrected: u32,
         exact_duplicate_rows_removed: u32,
+        out_of_order_events_dropped: u32,
         available_timezones: Vec<String>,
         timezone: String,
         timezone_action: String,
@@ -9642,6 +9647,8 @@ pub(super) mod tracked {
                 0
             },
             exact_duplicate_rows_removed: restamped.value.len().saturating_sub(deduped.value.len())
+                as u32,
+            out_of_order_events_dropped: canonical.value.len().saturating_sub(sorted.value.len())
                 as u32,
             available_timezones: timezones_payload.iter().cloned().collect(),
             timezone: selected_payload.target_timezone.clone(),
@@ -9899,6 +9906,7 @@ pub(super) mod tracked {
                     rows_after_timezone_handling: metadata.rows_after_timezone_handling,
                     duplicate_timestamps_corrected: metadata.duplicate_timestamps_corrected,
                     exact_duplicate_rows_removed: metadata.exact_duplicate_rows_removed,
+                    out_of_order_events_dropped: metadata.out_of_order_events_dropped,
                     available_timezones: metadata.available_timezones.clone(),
                     timezone: metadata.timezone.clone(),
                     timezone_action: metadata.timezone_action.clone(),
@@ -10123,6 +10131,23 @@ pub(super) mod tracked {
         };
 
         let screen_row_count = screen_rows.len() as u32;
+        let mut cleaning_counts = CleaningCounts {
+            out_of_order_events_dropped: early_state.out_of_order_events_dropped,
+            screen_sessions_capped: super::screen::capped_screen_session_count(&screen_rows),
+            ..CleaningCounts::default()
+        };
+        if options.screen_session_maximum_duration_disposition
+            == ScreenSessionMaximumDurationDisposition::ExcludeParticipant
+        {
+            let construction = construct_screen_intervals(db, raw, early, usage, usage_support)?;
+            cleaning_counts.screen_duration_excluded_participants =
+                super::screen_duration_excluded_participants(
+                    &*construction.value.lease()?,
+                    options.screen_session_maximum_duration_disposition,
+                    options.screen_session_maximum_duration_minutes,
+                )
+                .len() as u32;
+        }
         let app_mode = matches!(
             options.usage_session_mode,
             UsageSessionMode::AppUsage | UsageSessionMode::AppAndScreenUsage
@@ -10514,6 +10539,10 @@ pub(super) mod tracked {
                 )?;
                 insert_checkpoint(&mut query_checkpoints, &placeholders.checkpoint);
                 app_row_count = placeholders.value.len() as u32;
+                super::annotations::record_app_output_cleaning_counts(
+                    &placeholders.value.lease()?,
+                    &mut cleaning_counts,
+                );
                 if materialize_full_outputs {
                     let raw_dates = index_raw_dates(db, raw, early, usage, usage_support)?;
                     insert_checkpoint(&mut query_checkpoints, &raw_dates.checkpoint);
@@ -10977,6 +11006,7 @@ pub(super) mod tracked {
             interval_expansion_row_count: assembled.value.lease()?.interval_expansion_row_count,
             duplicate_timestamps_corrected: early_state.duplicate_timestamps_corrected,
             exact_duplicate_rows_removed: early_state.exact_duplicate_rows_removed,
+            cleaning_counts,
             available_timezones: early_state.available_timezones.clone(),
             timezone: early_state.timezone.clone(),
             timezone_action: early_state.timezone_action.clone(),
@@ -11151,6 +11181,7 @@ pub(super) mod tracked {
                     360.0,
                     120.0,
                     120.0,
+                    false,
                     2,
                     ScreenGatingRule::default(),
                     NotificationProxyRule::AnyNotificationContactV1,
@@ -11460,6 +11491,7 @@ pub(super) mod tracked {
                 credited_session_cap_minutes: 360.0,
                 device_liveness_gap_tolerance_minutes: 120.0,
                 auto_lock_bridge_seconds: 120.0,
+                bridge_screen_off_to_session_end: false,
                 no_witness_min_day_apps: 2,
                 screen_gating_rule: ScreenGatingRule::default(),
             }
@@ -14171,7 +14203,7 @@ pub(super) mod tracked {
                 .expect_err("a review base with foreign magic");
             assert!(invalid.contains("invalid header"), "{invalid}");
             let mut prior_protocol = review.clone();
-            prior_protocol[..REVIEW_BASE_MAGIC.len()].copy_from_slice(b"CHRRB018");
+            prior_protocol[..REVIEW_BASE_MAGIC.len()].copy_from_slice(b"CHRRB019");
             let invalid = verify_review_base_payload(&prior_protocol)
                 .expect_err("the prior review-base protocol must not be reused");
             assert!(invalid.contains("invalid header"), "{invalid}");
@@ -14224,7 +14256,7 @@ pub(super) mod tracked {
                 .expect_err("a reconstruction base with foreign magic");
             assert!(invalid.contains("invalid header"), "{invalid}");
             let mut prior_protocol = reconstruction.clone();
-            prior_protocol[..RECONSTRUCTION_BASE_MAGIC.len()].copy_from_slice(b"CHRRX024");
+            prior_protocol[..RECONSTRUCTION_BASE_MAGIC.len()].copy_from_slice(b"CHRRX025");
             let invalid = verify_reconstruction_base_payload(&prior_protocol)
                 .expect_err("the prior reconstruction-base protocol must not be reused");
             assert!(invalid.contains("invalid header"), "{invalid}");
@@ -21673,6 +21705,7 @@ pub(super) mod tracked {
                     interval_expansion_row_count,
                     duplicate_timestamps_corrected,
                     exact_duplicate_rows_removed,
+                    cleaning_counts,
                     available_timezones,
                     timezone,
                     timezone_action,
@@ -21781,6 +21814,7 @@ pub(super) mod tracked {
                     exact_duplicate_rows_removed,
                     &expected.exact_duplicate_rows_removed
                 );
+                assert_eq!(cleaning_counts, &expected.cleaning_counts);
 
                 assert_eq!(available_timezones, &expected.available_timezones);
                 assert_eq!(timezone, &expected.timezone);
@@ -22490,6 +22524,7 @@ pub(super) mod tracked {
                 credited_session_cap_minutes,
                 device_liveness_gap_tolerance_minutes,
                 auto_lock_bridge_seconds,
+                bridge_screen_off_to_session_end,
                 no_witness_min_day_apps,
                 screen_session_construction_strategy,
                 screen_session_construction_strategy_explicit,
@@ -22824,6 +22859,11 @@ pub(super) mod tracked {
                     auto_lock_bridge_seconds,
                     Observation::Executes,
                     |o: &mut PipelineV2Options| { o.auto_lock_bridge_seconds = 5.0 }
+                ),
+                option_edit!(
+                    bridge_screen_off_to_session_end,
+                    Observation::Executes,
+                    |o: &mut PipelineV2Options| { o.bridge_screen_off_to_session_end = true }
                 ),
                 option_edit!(
                     no_witness_min_day_apps,
