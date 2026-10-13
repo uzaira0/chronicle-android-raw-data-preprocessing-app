@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#111318" />
+    <meta name="description" content="Chronicle Android Raw Data Preprocessor — offline fallback. Files stay on this device." />
+    <title>Chronicle — Offline</title>
+    <!-- Inline favicon: the offline fallback must not trigger any network
+         request (a missing /favicon.ico 404s and logs a console error). -->
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%234d5ff1'/%3E%3C/svg%3E"
+    />
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 100dvh;
+        background: #111318;
+        color: #e5e7eb;
+        font-family: system-ui, -apple-system, sans-serif;
+        gap: 1.25rem;
+        padding: 2rem;
+        text-align: center;
+      }
+      svg { opacity: 0.8; }
+      h1 { font-size: 1.5rem; font-weight: 600; }
+      p { font-size: 0.9375rem; color: #9ca3af; max-width: 28rem; line-height: 1.6; }
+      button {
+        margin-top: 0.5rem;
+        padding: 0.5rem 1.5rem;
+        border-radius: 0.375rem;
+        border: none;
+        background: #1d4ed8;
+        color: #fff;
+        font-size: 0.875rem;
+        cursor: pointer;
+      }
+      button:hover { background: #1e40af; }
+    </style>
+  </head>
+  <body>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="80" height="80" fill="none" aria-hidden="true">
+      <rect width="256" height="256" rx="48" fill="#1a1d24"/>
+      <path d="M52 176L96 88L128 144L160 64L204 176" stroke="#73F0C5" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="160" cy="64" r="18" fill="#F4B266"/>
+    </svg>
+    <h1>You're offline</h1>
+    <p>Chronicle hasn't finished loading yet. Connect to the internet once to cache the app — after that it works entirely offline.</p>
+    <button type="button" onclick="window.location.reload()">Try again</button>
+  </body>
+</html>
