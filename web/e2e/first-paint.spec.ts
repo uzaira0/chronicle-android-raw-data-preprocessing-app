@@ -57,12 +57,12 @@ test("@smoke the first screen does not wait for the method-profile registries", 
   await expect(page.getByTestId("method-profile-file-input")).toBeAttached();
 });
 
-// The two cards sit above Saved projects and the rest of the settings. A
+// The method-profile card sits above Saved projects and the rest of the settings. A
 // placeholder that is much shorter than the card moves everything below it
 // when the card arrives, so a click aimed at "Load" in that moment landed on
 // whatever had moved under the pointer (measured: 524 px at 1280 wide, 860 px at 320).
 for (const width of [1280, 768, 375, 320]) {
-  test(`@smoke the method-profile cards barely move the settings below them when they load (${width} px)`, async ({ page }) => {
+  test(`@smoke the method-profile card barely moves the settings below them when they load (${width} px)`, async ({ page }) => {
     let release!: () => void;
     const held = new Promise<void>((resolve) => (release = resolve));
     await page.route(/android-method-profile-runtime-registry-[0-9a-f]+\.json\.pack$/, async (route) => {
@@ -74,14 +74,14 @@ for (const width of [1280, 768, 375, 320]) {
     const projects = page.getByRole("region", { name: "Saved projects" });
     await expect(projects).toBeVisible();
     const busyCards = page.locator('[data-settings-anchor][aria-busy="true"]');
-    await expect(busyCards).toHaveCount(2);
+    await expect(busyCards).toHaveCount(1);
     const top = async () => (await projects.boundingBox())?.y ?? Number.NaN;
     const before = await top();
 
     release();
     await expect(busyCards).toHaveCount(0);
     const moved = (await top()) - before;
-    // The placeholders reserve no more than the cards take (to within the
+    // The placeholder reserves no more than the card takes (to within the
     // sub-pixel rounding of the measured heights), so the content below only
     // ever moves down, and by less than one line of controls.
     expect(moved).toBeGreaterThanOrEqual(-1);

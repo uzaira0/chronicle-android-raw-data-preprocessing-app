@@ -149,8 +149,8 @@ export async function gotoApp(page: Page): Promise<void> {
 }
 
 /**
- * The research-method-profile and sleep-diary cards load after first paint.
- * Until they do, App renders a "Loading…" placeholder that carries the same
+ * The research-method-profile card loads after first paint.
+ * Until it does, App renders a "Loading…" placeholder that carries the same
  * `data-settings-anchor` as the card, so a negative assertion such as
  * `expect(card).not.toContainText("Task occurrences")` passes against the
  * placeholder without ever seeing the restored card. Wait until each anchor
@@ -158,7 +158,7 @@ export async function gotoApp(page: Page): Promise<void> {
  * wait rather than passing it).
  */
 async function expectLazySettingsCardsLoaded(page: Page): Promise<void> {
-  for (const anchor of ["research-method-profile", "sleep-diary-replication"]) {
+  for (const anchor of ["research-method-profile"]) {
     await expect(page.locator(`[data-settings-anchor="${anchor}"]`)).not.toHaveAttribute("aria-busy", "true");
   }
 }

@@ -117,9 +117,10 @@ export function ScreenDetectionCard({ options, setOptions }: Props): ReactElemen
           role="note"
           data-testid="screen-capability-evidence-note"
         >
-          This source-sensitive rule needs a digest-bound Input capability evidence CSV from
-          Study inputs. Missing or insufficient evidence produces a typed scientific refusal;
-          Chronicle never substitutes its default screen rule.
+          This rule builds screen sessions from unlock and lock events, which not every phone
+          records. In Study inputs, upload an “Input capability evidence” file confirming that each
+          participant’s phone records them. Without it, processing stops and says why; it does not
+          switch to the default screen rule.
         </p>
       ) : null}
       <div className="settings-grid-1">
