@@ -1,0 +1,217 @@
+{
+  "_android-method-profile-runtime-registry-3db1e1be89423898.json.pack": {
+    "file": "assets/android-method-profile-runtime-registry-3db1e1be89423898.json.pack",
+    "src": "_android-method-profile-runtime-registry-3db1e1be89423898.json.pack"
+  },
+  "_browser-contract-literals-9bb95212e19f7254.json.pack": {
+    "file": "assets/browser-contract-literals-9bb95212e19f7254.json.pack",
+    "src": "_browser-contract-literals-9bb95212e19f7254.json.pack"
+  },
+  "_canonicalJson-2fSVuOh4.js": {
+    "file": "assets/canonicalJson-2fSVuOh4.js",
+    "name": "canonicalJson",
+    "imports": [
+      "index.html"
+    ]
+  },
+  "_chronicle_preprocessing_runtime_wasm_bg-074f7377b7ee0b6e.wasm": {
+    "file": "assets/chronicle_preprocessing_runtime_wasm_bg-074f7377b7ee0b6e.wasm",
+    "src": "_chronicle_preprocessing_runtime_wasm_bg-074f7377b7ee0b6e.wasm"
+  },
+  "_literature-external-executor-registry-14349e4c9ae6fea2.json.pack": {
+    "file": "assets/literature-external-executor-registry-14349e4c9ae6fea2.json.pack",
+    "src": "_literature-external-executor-registry-14349e4c9ae6fea2.json.pack"
+  },
+  "_literature-input-adapter-contract-e34b6c031dd886b1.json.pack": {
+    "file": "assets/literature-input-adapter-contract-e34b6c031dd886b1.json.pack",
+    "src": "_literature-input-adapter-contract-e34b6c031dd886b1.json.pack"
+  },
+  "_method-profile-literals-6436e2a8404c455b.json.pack": {
+    "file": "assets/method-profile-literals-6436e2a8404c455b.json.pack",
+    "src": "_method-profile-literals-6436e2a8404c455b.json.pack"
+  },
+  "_papaparse.min-B8prYDZ9.js": {
+    "file": "assets/papaparse.min-B8prYDZ9.js",
+    "name": "papaparse.min",
+    "imports": [
+      "index.html"
+    ]
+  },
+  "_runtime-boundary-literals-2b5bcae24be91d5c.json.pack": {
+    "file": "assets/runtime-boundary-literals-2b5bcae24be91d5c.json.pack",
+    "src": "_runtime-boundary-literals-2b5bcae24be91d5c.json.pack"
+  },
+  "_rustPipelineAuthority-3OhHuOwj.js": {
+    "file": "assets/rustPipelineAuthority-3OhHuOwj.js",
+    "name": "rustPipelineAuthority",
+    "imports": [
+      "index.html",
+      "src/lib/rustPipelineRuntime.ts"
+    ]
+  },
+  "_sleep-diary-catalog.bridge-e9ea2369e84fb3b6.json.pack": {
+    "file": "assets/sleep-diary-catalog.bridge-e9ea2369e84fb3b6.json.pack",
+    "src": "_sleep-diary-catalog.bridge-e9ea2369e84fb3b6.json.pack"
+  },
+  "_source-artifact-provenance-registry-3e9aaae20fa8f235.json.pack": {
+    "file": "assets/source-artifact-provenance-registry-3e9aaae20fa8f235.json.pack",
+    "src": "_source-artifact-provenance-registry-3e9aaae20fa8f235.json.pack"
+  },
+  "_sourceArtifactProvenanceRegistry-PuSeYZtb.js": {
+    "file": "assets/sourceArtifactProvenanceRegistry-PuSeYZtb.js",
+    "name": "sourceArtifactProvenanceRegistry",
+    "imports": [
+      "index.html",
+      "_canonicalJson-2fSVuOh4.js"
+    ]
+  },
+  "index.html": {
+    "file": "assets/index-B4fxzHFJ.js",
+    "name": "index",
+    "src": "index.html",
+    "isEntry": true,
+    "dynamicImports": [
+      "src/wasm/chronicle_semantic_index_wasm/pkg/chronicle_semantic_index_wasm.js",
+      "src/lib/methodReceiptValidation.ts",
+      "src/lib/rustPipelineRuntime.ts",
+      "src/components/GraphPanel/GraphPanel.tsx",
+      "src/components/ResultPanel.tsx",
+      "src/components/LiteratureComponentResultPanel.tsx",
+      "src/components/ViewPanel.tsx",
+      "src/components/ResearchMethodProfileCard.tsx",
+      "src/lib/rustPipelineRuntime.ts"
+    ],
+    "css": [
+      "assets/index-BRo04HhS.css"
+    ],
+    "assets": [
+      "assets/unified_app_codebook-BZu9Y0sP.csv",
+      "assets/Chronicle_Android_raw_data_preprocessor_apps_to_filter-D-pZHx6E.csv",
+      "assets/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open-COCFzoQU.csv",
+      "assets/Chronicle_Android_raw_data_preprocessor_background_apps-BWU10mG6.csv"
+    ]
+  },
+  "src/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv": {
+    "file": "assets/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open-COCFzoQU.csv",
+    "src": "src/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv"
+  },
+  "src/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv": {
+    "file": "assets/Chronicle_Android_raw_data_preprocessor_apps_to_filter-D-pZHx6E.csv",
+    "src": "src/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv"
+  },
+  "src/assets/defaults/Chronicle_Android_raw_data_preprocessor_background_apps.csv": {
+    "file": "assets/Chronicle_Android_raw_data_preprocessor_background_apps-BWU10mG6.csv",
+    "src": "src/assets/defaults/Chronicle_Android_raw_data_preprocessor_background_apps.csv"
+  },
+  "src/assets/defaults/unified_app_codebook.csv": {
+    "file": "assets/unified_app_codebook-BZu9Y0sP.csv",
+    "src": "src/assets/defaults/unified_app_codebook.csv"
+  },
+  "src/components/GraphPanel/GraphPanel.tsx": {
+    "file": "assets/GraphPanel-BPTZlIHh.js",
+    "name": "GraphPanel",
+    "src": "src/components/GraphPanel/GraphPanel.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html"
+    ],
+    "css": [
+      "assets/GraphPanel-BnuhLJ6X.css"
+    ]
+  },
+  "src/components/LiteratureComponentResultPanel.tsx": {
+    "file": "assets/LiteratureComponentResultPanel-CT9KT3x1.js",
+    "name": "LiteratureComponentResultPanel",
+    "src": "src/components/LiteratureComponentResultPanel.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html",
+      "src/lib/rustPipelineRuntime.ts",
+      "_canonicalJson-2fSVuOh4.js"
+    ]
+  },
+  "src/components/ResearchMethodProfileCard.tsx": {
+    "file": "assets/ResearchMethodProfileCard-C7bY8pO3.js",
+    "name": "ResearchMethodProfileCard",
+    "src": "src/components/ResearchMethodProfileCard.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html",
+      "_canonicalJson-2fSVuOh4.js",
+      "_sourceArtifactProvenanceRegistry-PuSeYZtb.js"
+    ]
+  },
+  "src/components/ResultPanel.tsx": {
+    "file": "assets/ResultPanel-B17dof4R.js",
+    "name": "ResultPanel",
+    "src": "src/components/ResultPanel.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html",
+      "_rustPipelineAuthority-3OhHuOwj.js",
+      "src/lib/rustPipelineRuntime.ts",
+      "_canonicalJson-2fSVuOh4.js"
+    ]
+  },
+  "src/components/ViewPanel.tsx": {
+    "file": "assets/ViewPanel-BC27kE5T.js",
+    "name": "ViewPanel",
+    "src": "src/components/ViewPanel.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html",
+      "_rustPipelineAuthority-3OhHuOwj.js",
+      "_papaparse.min-B8prYDZ9.js",
+      "src/lib/rustPipelineRuntime.ts",
+      "_canonicalJson-2fSVuOh4.js"
+    ]
+  },
+  "src/lib/methodReceiptValidation.ts": {
+    "file": "assets/methodReceiptValidation-DlO-PeTU.js",
+    "name": "methodReceiptValidation",
+    "src": "src/lib/methodReceiptValidation.ts",
+    "isDynamicEntry": true,
+    "imports": [
+      "_canonicalJson-2fSVuOh4.js",
+      "_sourceArtifactProvenanceRegistry-PuSeYZtb.js",
+      "_papaparse.min-B8prYDZ9.js",
+      "index.html"
+    ]
+  },
+  "src/lib/rustPipelineRuntime.ts": {
+    "file": "assets/rustPipelineRuntime-8hR7xmiU.js",
+    "name": "rustPipelineRuntime",
+    "src": "src/lib/rustPipelineRuntime.ts",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html",
+      "_canonicalJson-2fSVuOh4.js"
+    ],
+    "dynamicImports": [
+      "src/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm.js",
+      "src/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm.js"
+    ]
+  },
+  "src/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm.js": {
+    "file": "assets/chronicle_preprocessing_runtime_wasm-BE1ONj5w.js",
+    "name": "chronicle_preprocessing_runtime_wasm",
+    "src": "src/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html"
+    ]
+  },
+  "src/wasm/chronicle_semantic_index_wasm/pkg/chronicle_semantic_index_wasm.js": {
+    "file": "assets/chronicle_semantic_index_wasm-A2VWV1xq.js",
+    "name": "chronicle_semantic_index_wasm",
+    "src": "src/wasm/chronicle_semantic_index_wasm/pkg/chronicle_semantic_index_wasm.js",
+    "isDynamicEntry": true,
+    "assets": [
+      "assets/chronicle_semantic_index_wasm_bg-nuubr12_.wasm"
+    ]
+  },
+  "src/wasm/chronicle_semantic_index_wasm/pkg/chronicle_semantic_index_wasm_bg.wasm": {
+    "file": "assets/chronicle_semantic_index_wasm_bg-nuubr12_.wasm",
+    "src": "src/wasm/chronicle_semantic_index_wasm/pkg/chronicle_semantic_index_wasm_bg.wasm"
+  }
+}

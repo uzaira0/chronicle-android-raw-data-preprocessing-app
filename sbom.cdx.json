@@ -1,0 +1,3163 @@
+{
+ "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
+ "bomFormat": "CycloneDX",
+ "components": [
+  {
+   "bom-ref": "pkg:cargo/adler2@2.0.1",
+   "cpe": "cpe:2.3:a:adler2:adler2:2.0.1:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "adler2",
+   "purl": "pkg:cargo/adler2@2.0.1",
+   "type": "library",
+   "version": "2.0.1"
+  },
+  {
+   "bom-ref": "pkg:cargo/ahash@0.8.12",
+   "cpe": "cpe:2.3:a:ahash:ahash:0.8.12:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "ahash",
+   "purl": "pkg:cargo/ahash@0.8.12",
+   "type": "library",
+   "version": "0.8.12"
+  },
+  {
+   "bom-ref": "pkg:cargo/aho-corasick@1.1.4",
+   "cpe": "cpe:2.3:a:aho-corasick:aho-corasick:1.1.4:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "aho-corasick",
+   "purl": "pkg:cargo/aho-corasick@1.1.4",
+   "type": "library",
+   "version": "1.1.4"
+  },
+  {
+   "bom-ref": "pkg:cargo/aho-corasick@1.1.5",
+   "cpe": "cpe:2.3:a:aho-corasick:aho-corasick:1.1.5:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "aho-corasick",
+   "purl": "pkg:cargo/aho-corasick@1.1.5",
+   "type": "library",
+   "version": "1.1.5"
+  },
+  {
+   "bom-ref": "pkg:cargo/allocator-api2@0.2.21",
+   "cpe": "cpe:2.3:a:allocator-api2:allocator-api2:0.2.21:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "allocator-api2",
+   "purl": "pkg:cargo/allocator-api2@0.2.21",
+   "type": "library",
+   "version": "0.2.21"
+  },
+  {
+   "bom-ref": "pkg:cargo/anyhow@1.0.104",
+   "cpe": "cpe:2.3:a:anyhow:anyhow:1.0.104:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "anyhow",
+   "purl": "pkg:cargo/anyhow@1.0.104",
+   "type": "library",
+   "version": "1.0.104"
+  },
+  {
+   "bom-ref": "pkg:cargo/arrayref@0.3.9",
+   "cpe": "cpe:2.3:a:arrayref:arrayref:0.3.9:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "arrayref",
+   "purl": "pkg:cargo/arrayref@0.3.9",
+   "type": "library",
+   "version": "0.3.9"
+  },
+  {
+   "bom-ref": "pkg:cargo/arrayvec@0.7.8",
+   "cpe": "cpe:2.3:a:arrayvec:arrayvec:0.7.8:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "arrayvec",
+   "purl": "pkg:cargo/arrayvec@0.7.8",
+   "type": "library",
+   "version": "0.7.8"
+  },
+  {
+   "bom-ref": "pkg:cargo/arrow-array@59.1.0",
+   "cpe": "cpe:2.3:a:arrow-array:arrow-array:59.1.0:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "arrow-array",
+   "purl": "pkg:cargo/arrow-array@59.1.0",
+   "type": "library",
+   "version": "59.1.0"
+  },
+  {
+   "bom-ref": "pkg:cargo/arrow-buffer@59.1.0",
+   "cpe": "cpe:2.3:a:arrow-buffer:arrow-buffer:59.1.0:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "arrow-buffer",
+   "purl": "pkg:cargo/arrow-buffer@59.1.0",
+   "type": "library",
+   "version": "59.1.0"
+  },
+  {
+   "bom-ref": "pkg:cargo/arrow-data@59.1.0",
+   "cpe": "cpe:2.3:a:arrow-data:arrow-data:59.1.0:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "arrow-data",
+   "purl": "pkg:cargo/arrow-data@59.1.0",
+   "type": "library",
+   "version": "59.1.0"
+  },
+  {
+   "bom-ref": "pkg:cargo/arrow-ipc@59.1.0",
+   "cpe": "cpe:2.3:a:arrow-ipc:arrow-ipc:59.1.0:*:*:*:*:*:*:*",
+   "name": "arrow-ipc",
+   "purl": "pkg:cargo/arrow-ipc@59.1.0",
+   "type": "library",
+   "version": "59.1.0"
+  },
+  {
+   "bom-ref": "pkg:cargo/arrow-schema@59.1.0",
+   "cpe": "cpe:2.3:a:arrow-schema:arrow-schema:59.1.0:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "arrow-schema",
+   "purl": "pkg:cargo/arrow-schema@59.1.0",
+   "type": "library",
+   "version": "59.1.0"
+  },
+  {
+   "bom-ref": "pkg:cargo/arrow-select@59.1.0",
+   "cpe": "cpe:2.3:a:arrow-select:arrow-select:59.1.0:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "arrow-select",
+   "purl": "pkg:cargo/arrow-select@59.1.0",
+   "type": "library",
+   "version": "59.1.0"
+  },
+  {
+   "bom-ref": "pkg:cargo/atoi_simd@0.18.1",
+   "cpe": "cpe:2.3:a:atoi-simd:atoi-simd:0.18.1:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "atoi_simd",
+   "purl": "pkg:cargo/atoi_simd@0.18.1",
+   "type": "library",
+   "version": "0.18.1"
+  },
+  {
+   "bom-ref": "pkg:cargo/bitflags@2.13.1",
+   "cpe": "cpe:2.3:a:bitflags:bitflags:2.13.1:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "bitflags",
+   "purl": "pkg:cargo/bitflags@2.13.1",
+   "type": "library",
+   "version": "2.13.1"
+  },
+  {
+   "bom-ref": "pkg:cargo/blake3@1.8.5",
+   "cpe": "cpe:2.3:a:blake3:blake3:1.8.5:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "blake3",
+   "purl": "pkg:cargo/blake3@1.8.5",
+   "type": "library",
+   "version": "1.8.5"
+  },
+  {
+   "bom-ref": "pkg:cargo/blake3@1.8.6",
+   "cpe": "cpe:2.3:a:blake3:blake3:1.8.6:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "blake3",
+   "purl": "pkg:cargo/blake3@1.8.6",
+   "type": "library",
+   "version": "1.8.6"
+  },
+  {
+   "bom-ref": "pkg:cargo/block-buffer@0.10.4",
+   "cpe": "cpe:2.3:a:block-buffer:block-buffer:0.10.4:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "block-buffer",
+   "purl": "pkg:cargo/block-buffer@0.10.4",
+   "type": "library",
+   "version": "0.10.4"
+  },
+  {
+   "bom-ref": "pkg:cargo/block-buffer@0.12.1",
+   "cpe": "cpe:2.3:a:block-buffer:block-buffer:0.12.1:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "block-buffer",
+   "purl": "pkg:cargo/block-buffer@0.12.1",
+   "type": "library",
+   "version": "0.12.1"
+  },
+  {
+   "bom-ref": "pkg:cargo/boxcar@0.2.14",
+   "cpe": "cpe:2.3:a:boxcar:boxcar:0.2.14:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "boxcar",
+   "purl": "pkg:cargo/boxcar@0.2.14",
+   "type": "library",
+   "version": "0.2.14"
+  },
+  {
+   "bom-ref": "pkg:cargo/bumpalo@3.20.3",
+   "cpe": "cpe:2.3:a:bumpalo:bumpalo:3.20.3:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "bumpalo",
+   "purl": "pkg:cargo/bumpalo@3.20.3",
+   "type": "library",
+   "version": "3.20.3"
+  },
+  {
+   "bom-ref": "pkg:cargo/byteorder@1.5.0",
+   "cpe": "cpe:2.3:a:byteorder:byteorder:1.5.0:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "byteorder",
+   "purl": "pkg:cargo/byteorder@1.5.0",
+   "type": "library",
+   "version": "1.5.0"
+  },
+  {
+   "bom-ref": "pkg:cargo/bytes@1.12.1",
+   "cpe": "cpe:2.3:a:bytes:bytes:1.12.1:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "bytes",
+   "purl": "pkg:cargo/bytes@1.12.1",
+   "type": "library",
+   "version": "1.12.1"
+  },
+  {
+   "bom-ref": "pkg:cargo/calamine@0.36.0",
+   "cpe": "cpe:2.3:a:calamine:calamine:0.36.0:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "calamine",
+   "purl": "pkg:cargo/calamine@0.36.0",
+   "type": "library",
+   "version": "0.36.0"
+  },
+  {
+   "bom-ref": "pkg:cargo/cfg-if@1.0.4",
+   "cpe": "cpe:2.3:a:cfg-if:cfg-if:1.0.4:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "cfg-if",
+   "purl": "pkg:cargo/cfg-if@1.0.4",
+   "type": "library",
+   "version": "1.0.4"
+  },
+  {
+   "bom-ref": "pkg:cargo/chacha20@0.10.2",
+   "cpe": "cpe:2.3:a:chacha20:chacha20:0.10.2:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "chacha20",
+   "purl": "pkg:cargo/chacha20@0.10.2",
+   "type": "library",
+   "version": "0.10.2"
+  },
+  {
+   "bom-ref": "pkg:cargo/chrono-tz@0.10.4",
+   "cpe": "cpe:2.3:a:chrono-tz:chrono-tz:0.10.4:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "chrono-tz",
+   "purl": "pkg:cargo/chrono-tz@0.10.4",
+   "type": "library",
+   "version": "0.10.4"
+  },
+  {
+   "bom-ref": "pkg:cargo/chrono@0.4.45",
+   "cpe": "cpe:2.3:a:chrono:chrono:0.4.45:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "chrono",
+   "purl": "pkg:cargo/chrono@0.4.45",
+   "type": "library",
+   "version": "0.4.45"
+  },
+  {
+   "bom-ref": "pkg:cargo/chumsky@0.13.0",
+   "cpe": "cpe:2.3:a:chumsky:chumsky:0.13.0:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "chumsky",
+   "purl": "pkg:cargo/chumsky@0.13.0",
+   "type": "library",
+   "version": "0.13.0"
+  },
+  {
+   "bom-ref": "pkg:cargo/ciborium-io@0.2.2",
+   "cpe": "cpe:2.3:a:ciborium-io:ciborium-io:0.2.2:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "ciborium-io",
+   "purl": "pkg:cargo/ciborium-io@0.2.2",
+   "type": "library",
+   "version": "0.2.2"
+  },
+  {
+   "bom-ref": "pkg:cargo/ciborium-ll@0.2.2",
+   "cpe": "cpe:2.3:a:ciborium-ll:ciborium-ll:0.2.2:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "ciborium-ll",
+   "purl": "pkg:cargo/ciborium-ll@0.2.2",
+   "type": "library",
+   "version": "0.2.2"
+  },
+  {
+   "bom-ref": "pkg:cargo/ciborium@0.2.2",
+   "cpe": "cpe:2.3:a:ciborium:ciborium:0.2.2:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "ciborium",
+   "purl": "pkg:cargo/ciborium@0.2.2",
+   "type": "library",
+   "version": "0.2.2"
+  },
+  {
+   "bom-ref": "pkg:cargo/cobs@0.3.0",
+   "cpe": "cpe:2.3:a:cobs:cobs:0.3.0:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "cobs",
+   "purl": "pkg:cargo/cobs@0.3.0",
+   "type": "library",
+   "version": "0.3.0"
+  },
+  {
+   "bom-ref": "pkg:cargo/codepage@0.1.2",
+   "cpe": "cpe:2.3:a:codepage:codepage:0.1.2:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "codepage",
+   "purl": "pkg:cargo/codepage@0.1.2",
+   "type": "library",
+   "version": "0.1.2"
+  },
+  {
+   "bom-ref": "pkg:cargo/console_error_panic_hook@0.1.7",
+   "cpe": "cpe:2.3:a:console-error-panic-hook:console-error-panic-hook:0.1.7:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "console_error_panic_hook",
+   "purl": "pkg:cargo/console_error_panic_hook@0.1.7",
+   "type": "library",
+   "version": "0.1.7"
+  },
+  {
+   "bom-ref": "pkg:cargo/const-oid@0.10.2",
+   "cpe": "cpe:2.3:a:const-oid:const-oid:0.10.2:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "const-oid",
+   "purl": "pkg:cargo/const-oid@0.10.2",
+   "type": "library",
+   "version": "0.10.2"
+  },
+  {
+   "bom-ref": "pkg:cargo/const-random@0.1.18",
+   "cpe": "cpe:2.3:a:const-random:const-random:0.1.18:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "const-random",
+   "purl": "pkg:cargo/const-random@0.1.18",
+   "type": "library",
+   "version": "0.1.18"
+  },
+  {
+   "bom-ref": "pkg:cargo/constant_time_eq@0.4.2",
+   "cpe": "cpe:2.3:a:constant-time-eq:constant-time-eq:0.4.2:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "constant_time_eq",
+   "purl": "pkg:cargo/constant_time_eq@0.4.2",
+   "type": "library",
+   "version": "0.4.2"
+  },
+  {
+   "bom-ref": "pkg:cargo/crc32fast@1.5.0",
+   "cpe": "cpe:2.3:a:crc32fast:crc32fast:1.5.0:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "crc32fast",
+   "purl": "pkg:cargo/crc32fast@1.5.0",
+   "type": "library",
+   "version": "1.5.0"
+  },
+  {
+   "bom-ref": "pkg:cargo/crossbeam-queue@0.3.13",
+   "cpe": "cpe:2.3:a:crossbeam-queue:crossbeam-queue:0.3.13:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "crossbeam-queue",
+   "purl": "pkg:cargo/crossbeam-queue@0.3.13",
+   "type": "library",
+   "version": "0.3.13"
+  },
+  {
+   "bom-ref": "pkg:cargo/crossbeam-utils@0.8.22",
+   "cpe": "cpe:2.3:a:crossbeam-utils:crossbeam-utils:0.8.22:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "crossbeam-utils",
+   "purl": "pkg:cargo/crossbeam-utils@0.8.22",
+   "type": "library",
+   "version": "0.8.22"
+  },
+  {
+   "bom-ref": "pkg:cargo/crypto-common@0.1.7",
+   "cpe": "cpe:2.3:a:crypto-common:crypto-common:0.1.7:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "crypto-common",
+   "purl": "pkg:cargo/crypto-common@0.1.7",
+   "type": "library",
+   "version": "0.1.7"
+  },
+  {
+   "bom-ref": "pkg:cargo/crypto-common@0.2.2",
+   "cpe": "cpe:2.3:a:crypto-common:crypto-common:0.2.2:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "crypto-common",
+   "purl": "pkg:cargo/crypto-common@0.2.2",
+   "type": "library",
+   "version": "0.2.2"
+  },
+  {
+   "bom-ref": "pkg:cargo/csv-core@0.1.13",
+   "cpe": "cpe:2.3:a:csv-core:csv-core:0.1.13:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "csv-core",
+   "purl": "pkg:cargo/csv-core@0.1.13",
+   "type": "library",
+   "version": "0.1.13"
+  },
+  {
+   "bom-ref": "pkg:cargo/csv@1.4.0",
+   "cpe": "cpe:2.3:a:csv:csv:1.4.0:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "csv",
+   "purl": "pkg:cargo/csv@1.4.0",
+   "type": "library",
+   "version": "1.4.0"
+  },
+  {
+   "bom-ref": "pkg:cargo/dashmap@6.2.1",
+   "cpe": "cpe:2.3:a:dashmap:dashmap:6.2.1:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "dashmap",
+   "purl": "pkg:cargo/dashmap@6.2.1",
+   "type": "library",
+   "version": "6.2.1"
+  },
+  {
+   "bom-ref": "pkg:cargo/debug_unsafe@0.1.4",
+   "cpe": "cpe:2.3:a:debug-unsafe:debug-unsafe:0.1.4:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "debug_unsafe",
+   "purl": "pkg:cargo/debug_unsafe@0.1.4",
+   "type": "library",
+   "version": "0.1.4"
+  },
+  {
+   "bom-ref": "pkg:cargo/digest@0.10.7",
+   "cpe": "cpe:2.3:a:digest:digest:0.10.7:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "digest",
+   "purl": "pkg:cargo/digest@0.10.7",
+   "type": "library",
+   "version": "0.10.7"
+  },
+  {
+   "bom-ref": "pkg:cargo/digest@0.11.3",
+   "cpe": "cpe:2.3:a:digest:digest:0.11.3:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "digest",
+   "purl": "pkg:cargo/digest@0.11.3",
+   "type": "library",
+   "version": "0.11.3"
+  },
+  {
+   "bom-ref": "pkg:cargo/embedded-io@0.4.0",
+   "cpe": "cpe:2.3:a:embedded-io:embedded-io:0.4.0:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "embedded-io",
+   "purl": "pkg:cargo/embedded-io@0.4.0",
+   "type": "library",
+   "version": "0.4.0"
+  },
+  {
+   "bom-ref": "pkg:cargo/embedded-io@0.6.1",
+   "cpe": "cpe:2.3:a:embedded-io:embedded-io:0.6.1:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "embedded-io",
+   "purl": "pkg:cargo/embedded-io@0.6.1",
+   "type": "library",
+   "version": "0.6.1"
+  },
+  {
+   "bom-ref": "pkg:cargo/encoding_rs@0.8.35",
+   "cpe": "cpe:2.3:a:encoding-rs:encoding-rs:0.8.35:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "encoding_rs",
+   "purl": "pkg:cargo/encoding_rs@0.8.35",
+   "type": "library",
+   "version": "0.8.35"
+  },
+  {
+   "bom-ref": "pkg:cargo/equivalent@1.0.2",
+   "cpe": "cpe:2.3:a:equivalent:equivalent:1.0.2:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "equivalent",
+   "purl": "pkg:cargo/equivalent@1.0.2",
+   "type": "library",
+   "version": "1.0.2"
+  },
+  {
+   "bom-ref": "pkg:cargo/fast-float2@0.2.3",
+   "cpe": "cpe:2.3:a:fast-float2:fast-float2:0.2.3:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "fast-float2",
+   "purl": "pkg:cargo/fast-float2@0.2.3",
+   "type": "library",
+   "version": "0.2.3"
+  },
+  {
+   "bom-ref": "pkg:cargo/fixedbitset@0.5.7",
+   "cpe": "cpe:2.3:a:fixedbitset:fixedbitset:0.5.7:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "fixedbitset",
+   "purl": "pkg:cargo/fixedbitset@0.5.7",
+   "type": "library",
+   "version": "0.5.7"
+  },
+  {
+   "bom-ref": "pkg:cargo/flatbuffers@25.12.19",
+   "cpe": "cpe:2.3:a:google:flatbuffers:25.12.19:*:*:*:*:rust:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "flatbuffers",
+   "purl": "pkg:cargo/flatbuffers@25.12.19",
+   "type": "library",
+   "version": "25.12.19"
+  },
+  {
+   "bom-ref": "pkg:cargo/flate2@1.1.9",
+   "cpe": "cpe:2.3:a:flate2:flate2:1.1.9:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "flate2",
+   "purl": "pkg:cargo/flate2@1.1.9",
+   "type": "library",
+   "version": "1.1.9"
+  },
+  {
+   "bom-ref": "pkg:cargo/foldhash@0.1.5",
+   "cpe": "cpe:2.3:a:foldhash:foldhash:0.1.5:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "foldhash",
+   "purl": "pkg:cargo/foldhash@0.1.5",
+   "type": "library",
+   "version": "0.1.5"
+  },
+  {
+   "bom-ref": "pkg:cargo/foldhash@0.2.0",
+   "cpe": "cpe:2.3:a:foldhash:foldhash:0.2.0:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "foldhash",
+   "purl": "pkg:cargo/foldhash@0.2.0",
+   "type": "library",
+   "version": "0.2.0"
+  },
+  {
+   "bom-ref": "pkg:cargo/futures-core@0.3.33",
+   "cpe": "cpe:2.3:a:futures-core:futures-core:0.3.33:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "futures-core",
+   "purl": "pkg:cargo/futures-core@0.3.33",
+   "type": "library",
+   "version": "0.3.33"
+  },
+  {
+   "bom-ref": "pkg:cargo/futures-task@0.3.33",
+   "cpe": "cpe:2.3:a:rust-lang:futures-task:0.3.33:*:*:*:*:rust:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "futures-task",
+   "purl": "pkg:cargo/futures-task@0.3.33",
+   "type": "library",
+   "version": "0.3.33"
+  },
+  {
+   "bom-ref": "pkg:cargo/futures-util@0.3.33",
+   "cpe": "cpe:2.3:a:futures-util:futures-util:0.3.33:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "futures-util",
+   "purl": "pkg:cargo/futures-util@0.3.33",
+   "type": "library",
+   "version": "0.3.33"
+  },
+  {
+   "bom-ref": "pkg:cargo/generic-array@0.14.7",
+   "cpe": "cpe:2.3:a:generic-array_project:generic-array:0.14.7:*:*:*:*:rust:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "generic-array",
+   "purl": "pkg:cargo/generic-array@0.14.7",
+   "type": "library",
+   "version": "0.14.7"
+  },
+  {
+   "bom-ref": "pkg:cargo/getrandom@0.3.4",
+   "cpe": "cpe:2.3:a:getrandom_project:getrandom:0.3.4:*:*:*:*:rust:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "getrandom",
+   "purl": "pkg:cargo/getrandom@0.3.4",
+   "type": "library",
+   "version": "0.3.4"
+  },
+  {
+   "bom-ref": "pkg:cargo/getrandom@0.4.3",
+   "cpe": "cpe:2.3:a:getrandom_project:getrandom:0.4.3:*:*:*:*:rust:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "getrandom",
+   "purl": "pkg:cargo/getrandom@0.4.3",
+   "type": "library",
+   "version": "0.4.3"
+  },
+  {
+   "bom-ref": "pkg:cargo/half@2.7.1",
+   "cpe": "cpe:2.3:a:half:half:2.7.1:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "half",
+   "purl": "pkg:cargo/half@2.7.1",
+   "type": "library",
+   "version": "2.7.1"
+  },
+  {
+   "bom-ref": "pkg:cargo/hashbrown@0.14.5",
+   "cpe": "cpe:2.3:a:hashbrown:hashbrown:0.14.5:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "hashbrown",
+   "purl": "pkg:cargo/hashbrown@0.14.5",
+   "type": "library",
+   "version": "0.14.5"
+  },
+  {
+   "bom-ref": "pkg:cargo/hashbrown@0.15.5",
+   "cpe": "cpe:2.3:a:hashbrown:hashbrown:0.15.5:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "hashbrown",
+   "purl": "pkg:cargo/hashbrown@0.15.5",
+   "type": "library",
+   "version": "0.15.5"
+  },
+  {
+   "bom-ref": "pkg:cargo/hashbrown@0.17.1",
+   "cpe": "cpe:2.3:a:hashbrown:hashbrown:0.17.1:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "hashbrown",
+   "purl": "pkg:cargo/hashbrown@0.17.1",
+   "type": "library",
+   "version": "0.17.1"
+  },
+  {
+   "bom-ref": "pkg:cargo/hashlink@0.12.1",
+   "cpe": "cpe:2.3:a:hashlink:hashlink:0.12.1:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "hashlink",
+   "purl": "pkg:cargo/hashlink@0.12.1",
+   "type": "library",
+   "version": "0.12.1"
+  },
+  {
+   "bom-ref": "pkg:cargo/hex@0.4.3",
+   "cpe": "cpe:2.3:a:hex:hex:0.4.3:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "hex",
+   "purl": "pkg:cargo/hex@0.4.3",
+   "type": "library",
+   "version": "0.4.3"
+  },
+  {
+   "bom-ref": "pkg:cargo/hybrid-array@0.4.13",
+   "cpe": "cpe:2.3:a:hybrid-array:hybrid-array:0.4.13:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "hybrid-array",
+   "purl": "pkg:cargo/hybrid-array@0.4.13",
+   "type": "library",
+   "version": "0.4.13"
+  },
+  {
+   "bom-ref": "pkg:cargo/hybrid-array@0.4.14",
+   "cpe": "cpe:2.3:a:hybrid-array:hybrid-array:0.4.14:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "hybrid-array",
+   "purl": "pkg:cargo/hybrid-array@0.4.14",
+   "type": "library",
+   "version": "0.4.14"
+  },
+  {
+   "bom-ref": "pkg:cargo/indexmap@2.14.0",
+   "cpe": "cpe:2.3:a:indexmap:indexmap:2.14.0:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "indexmap",
+   "purl": "pkg:cargo/indexmap@2.14.0",
+   "type": "library",
+   "version": "2.14.0"
+  },
+  {
+   "bom-ref": "pkg:cargo/intrusive-collections@0.10.2",
+   "cpe": "cpe:2.3:a:intrusive-collections:intrusive-collections:0.10.2:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "intrusive-collections",
+   "purl": "pkg:cargo/intrusive-collections@0.10.2",
+   "type": "library",
+   "version": "0.10.2"
+  },
+  {
+   "bom-ref": "pkg:cargo/intrusive-collections@0.10.3",
+   "cpe": "cpe:2.3:a:intrusive-collections:intrusive-collections:0.10.3:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "intrusive-collections",
+   "purl": "pkg:cargo/intrusive-collections@0.10.3",
+   "type": "library",
+   "version": "0.10.3"
+  },
+  {
+   "bom-ref": "pkg:cargo/itoa@1.0.18",
+   "cpe": "cpe:2.3:a:itoa:itoa:1.0.18:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "itoa",
+   "purl": "pkg:cargo/itoa@1.0.18",
+   "type": "library",
+   "version": "1.0.18"
+  },
+  {
+   "bom-ref": "pkg:cargo/js-sys@0.3.103",
+   "cpe": "cpe:2.3:a:js-sys:js-sys:0.3.103:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "js-sys",
+   "purl": "pkg:cargo/js-sys@0.3.103",
+   "type": "library",
+   "version": "0.3.103"
+  },
+  {
+   "bom-ref": "pkg:cargo/json-event-parser@0.2.3",
+   "cpe": "cpe:2.3:a:json-event-parser:json-event-parser:0.2.3:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "json-event-parser",
+   "purl": "pkg:cargo/json-event-parser@0.2.3",
+   "type": "library",
+   "version": "0.2.3"
+  },
+  {
+   "bom-ref": "pkg:cargo/libc@0.2.187",
+   "cpe": "cpe:2.3:a:libc:libc:0.2.187:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "libc",
+   "purl": "pkg:cargo/libc@0.2.187",
+   "type": "library",
+   "version": "0.2.187"
+  },
+  {
+   "bom-ref": "pkg:cargo/libm@0.2.16",
+   "cpe": "cpe:2.3:a:libm:libm:0.2.16:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "libm",
+   "purl": "pkg:cargo/libm@0.2.16",
+   "type": "library",
+   "version": "0.2.16"
+  },
+  {
+   "bom-ref": "pkg:cargo/lock_api@0.4.14",
+   "cpe": "cpe:2.3:a:lock_api_project:lock_api:0.4.14:*:*:*:*:rust:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "lock_api",
+   "purl": "pkg:cargo/lock_api@0.4.14",
+   "type": "library",
+   "version": "0.4.14"
+  },
+  {
+   "bom-ref": "pkg:cargo/log@0.4.33",
+   "cpe": "cpe:2.3:a:log:log:0.4.33:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "log",
+   "purl": "pkg:cargo/log@0.4.33",
+   "type": "library",
+   "version": "0.4.33"
+  },
+  {
+   "bom-ref": "pkg:cargo/logos@0.16.1",
+   "cpe": "cpe:2.3:a:logos:logos:0.16.1:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "logos",
+   "purl": "pkg:cargo/logos@0.16.1",
+   "type": "library",
+   "version": "0.16.1"
+  },
+  {
+   "bom-ref": "pkg:cargo/lz4_flex@0.13.1",
+   "cpe": "cpe:2.3:a:pseitz:lz4_flex:0.13.1:*:*:*:*:rust:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "lz4_flex",
+   "purl": "pkg:cargo/lz4_flex@0.13.1",
+   "type": "library",
+   "version": "0.13.1"
+  },
+  {
+   "bom-ref": "pkg:cargo/md-5@0.10.6",
+   "cpe": "cpe:2.3:a:md-5:md-5:0.10.6:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "md-5",
+   "purl": "pkg:cargo/md-5@0.10.6",
+   "type": "library",
+   "version": "0.10.6"
+  },
+  {
+   "bom-ref": "pkg:cargo/memchr@2.8.3",
+   "cpe": "cpe:2.3:a:memchr:memchr:2.8.3:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "memchr",
+   "purl": "pkg:cargo/memchr@2.8.3",
+   "type": "library",
+   "version": "2.8.3"
+  },
+  {
+   "bom-ref": "pkg:cargo/memoffset@0.9.1",
+   "cpe": "cpe:2.3:a:memoffset:memoffset:0.9.1:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "memoffset",
+   "purl": "pkg:cargo/memoffset@0.9.1",
+   "type": "library",
+   "version": "0.9.1"
+  },
+  {
+   "bom-ref": "pkg:cargo/miniz_oxide@0.8.9",
+   "cpe": "cpe:2.3:a:miniz-oxide:miniz-oxide:0.8.9:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "miniz_oxide",
+   "purl": "pkg:cargo/miniz_oxide@0.8.9",
+   "type": "library",
+   "version": "0.8.9"
+  },
+  {
+   "bom-ref": "pkg:cargo/num-bigint@0.4.8",
+   "cpe": "cpe:2.3:a:num-bigint:num-bigint:0.4.8:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "num-bigint",
+   "purl": "pkg:cargo/num-bigint@0.4.8",
+   "type": "library",
+   "version": "0.4.8"
+  },
+  {
+   "bom-ref": "pkg:cargo/num-complex@0.4.6",
+   "cpe": "cpe:2.3:a:num-complex:num-complex:0.4.6:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "num-complex",
+   "purl": "pkg:cargo/num-complex@0.4.6",
+   "type": "library",
+   "version": "0.4.6"
+  },
+  {
+   "bom-ref": "pkg:cargo/num-integer@0.1.46",
+   "cpe": "cpe:2.3:a:num-integer:num-integer:0.1.46:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "num-integer",
+   "purl": "pkg:cargo/num-integer@0.1.46",
+   "type": "library",
+   "version": "0.1.46"
+  },
+  {
+   "bom-ref": "pkg:cargo/num-traits@0.2.19",
+   "cpe": "cpe:2.3:a:num-traits:num-traits:0.2.19:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "num-traits",
+   "purl": "pkg:cargo/num-traits@0.2.19",
+   "type": "library",
+   "version": "0.2.19"
+  },
+  {
+   "bom-ref": "pkg:cargo/once_cell@1.21.4",
+   "cpe": "cpe:2.3:a:once-cell:once-cell:1.21.4:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "once_cell",
+   "purl": "pkg:cargo/once_cell@1.21.4",
+   "type": "library",
+   "version": "1.21.4"
+  },
+  {
+   "bom-ref": "pkg:cargo/oxigraph@0.6.0-dev",
+   "cpe": "cpe:2.3:a:oxigraph:oxigraph:0.6.0-dev:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "git+https://github.com/oxigraph/oxigraph.git?rev=d14ac0b5c4fa67b15d03af945d8669e3497c25a9#d14ac0b5c4fa67b15d03af945d8669e3497c25a9"
+    }
+   ],
+   "name": "oxigraph",
+   "purl": "pkg:cargo/oxigraph@0.6.0-dev",
+   "type": "library",
+   "version": "0.6.0-dev"
+  },
+  {
+   "bom-ref": "pkg:cargo/oxilangtag@0.1.6",
+   "cpe": "cpe:2.3:a:oxilangtag:oxilangtag:0.1.6:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "oxilangtag",
+   "purl": "pkg:cargo/oxilangtag@0.1.6",
+   "type": "library",
+   "version": "0.1.6"
+  },
+  {
+   "bom-ref": "pkg:cargo/oxiri@0.3.0",
+   "cpe": "cpe:2.3:a:oxiri:oxiri:0.3.0:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "oxiri",
+   "purl": "pkg:cargo/oxiri@0.3.0",
+   "type": "library",
+   "version": "0.3.0"
+  },
+  {
+   "bom-ref": "pkg:cargo/oxjsonld@0.3.0-dev",
+   "cpe": "cpe:2.3:a:oxjsonld:oxjsonld:0.3.0-dev:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "git+https://github.com/oxigraph/oxigraph.git?rev=d14ac0b5c4fa67b15d03af945d8669e3497c25a9#d14ac0b5c4fa67b15d03af945d8669e3497c25a9"
+    }
+   ],
+   "name": "oxjsonld",
+   "purl": "pkg:cargo/oxjsonld@0.3.0-dev",
+   "type": "library",
+   "version": "0.3.0-dev"
+  },
+  {
+   "bom-ref": "pkg:cargo/oxrdf@0.4.0-dev",
+   "cpe": "cpe:2.3:a:oxrdf:oxrdf:0.4.0-dev:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "git+https://github.com/oxigraph/oxigraph.git?rev=d14ac0b5c4fa67b15d03af945d8669e3497c25a9#d14ac0b5c4fa67b15d03af945d8669e3497c25a9"
+    }
+   ],
+   "name": "oxrdf",
+   "purl": "pkg:cargo/oxrdf@0.4.0-dev",
+   "type": "library",
+   "version": "0.4.0-dev"
+  },
+  {
+   "bom-ref": "pkg:cargo/oxrdfio@0.3.0-dev",
+   "cpe": "cpe:2.3:a:oxrdfio:oxrdfio:0.3.0-dev:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "git+https://github.com/oxigraph/oxigraph.git?rev=d14ac0b5c4fa67b15d03af945d8669e3497c25a9#d14ac0b5c4fa67b15d03af945d8669e3497c25a9"
+    }
+   ],
+   "name": "oxrdfio",
+   "purl": "pkg:cargo/oxrdfio@0.3.0-dev",
+   "type": "library",
+   "version": "0.3.0-dev"
+  },
+  {
+   "bom-ref": "pkg:cargo/oxrdfxml@0.3.0-dev",
+   "cpe": "cpe:2.3:a:oxrdfxml:oxrdfxml:0.3.0-dev:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "git+https://github.com/oxigraph/oxigraph.git?rev=d14ac0b5c4fa67b15d03af945d8669e3497c25a9#d14ac0b5c4fa67b15d03af945d8669e3497c25a9"
+    }
+   ],
+   "name": "oxrdfxml",
+   "purl": "pkg:cargo/oxrdfxml@0.3.0-dev",
+   "type": "library",
+   "version": "0.3.0-dev"
+  },
+  {
+   "bom-ref": "pkg:cargo/oxsdatatypes@0.3.0-dev",
+   "cpe": "cpe:2.3:a:oxsdatatypes:oxsdatatypes:0.3.0-dev:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "git+https://github.com/oxigraph/oxigraph.git?rev=d14ac0b5c4fa67b15d03af945d8669e3497c25a9#d14ac0b5c4fa67b15d03af945d8669e3497c25a9"
+    }
+   ],
+   "name": "oxsdatatypes",
+   "purl": "pkg:cargo/oxsdatatypes@0.3.0-dev",
+   "type": "library",
+   "version": "0.3.0-dev"
+  },
+  {
+   "bom-ref": "pkg:cargo/oxttl@0.3.0-dev",
+   "cpe": "cpe:2.3:a:oxttl:oxttl:0.3.0-dev:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "git+https://github.com/oxigraph/oxigraph.git?rev=d14ac0b5c4fa67b15d03af945d8669e3497c25a9#d14ac0b5c4fa67b15d03af945d8669e3497c25a9"
+    }
+   ],
+   "name": "oxttl",
+   "purl": "pkg:cargo/oxttl@0.3.0-dev",
+   "type": "library",
+   "version": "0.3.0-dev"
+  },
+  {
+   "bom-ref": "pkg:cargo/parking_lot@0.12.5",
+   "cpe": "cpe:2.3:a:parking-lot:parking-lot:0.12.5:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "parking_lot",
+   "purl": "pkg:cargo/parking_lot@0.12.5",
+   "type": "library",
+   "version": "0.12.5"
+  },
+  {
+   "bom-ref": "pkg:cargo/parking_lot_core@0.9.12",
+   "cpe": "cpe:2.3:a:parking-lot-core:parking-lot-core:0.9.12:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "parking_lot_core",
+   "purl": "pkg:cargo/parking_lot_core@0.9.12",
+   "type": "library",
+   "version": "0.9.12"
+  },
+  {
+   "bom-ref": "pkg:cargo/parquet@59.1.0",
+   "cpe": "cpe:2.3:a:parquet:parquet:59.1.0:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "parquet",
+   "purl": "pkg:cargo/parquet@59.1.0",
+   "type": "library",
+   "version": "59.1.0"
+  },
+  {
+   "bom-ref": "pkg:cargo/petgraph@0.8.3",
+   "cpe": "cpe:2.3:a:petgraph:petgraph:0.8.3:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "petgraph",
+   "purl": "pkg:cargo/petgraph@0.8.3",
+   "type": "library",
+   "version": "0.8.3"
+  },
+  {
+   "bom-ref": "pkg:cargo/phf@0.12.1",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "phf",
+   "purl": "pkg:cargo/phf@0.12.1",
+   "type": "library",
+   "version": "0.12.1"
+  },
+  {
+   "bom-ref": "pkg:cargo/phf_shared@0.12.1",
+   "cpe": "cpe:2.3:a:phf-shared:phf-shared:0.12.1:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "phf_shared",
+   "purl": "pkg:cargo/phf_shared@0.12.1",
+   "type": "library",
+   "version": "0.12.1"
+  },
+  {
+   "bom-ref": "pkg:cargo/pin-project-lite@0.2.17",
+   "cpe": "cpe:2.3:a:pin-project-lite:pin-project-lite:0.2.17:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "pin-project-lite",
+   "purl": "pkg:cargo/pin-project-lite@0.2.17",
+   "type": "library",
+   "version": "0.2.17"
+  },
+  {
+   "bom-ref": "pkg:cargo/portable-atomic@1.14.0",
+   "cpe": "cpe:2.3:a:portable-atomic:portable-atomic:1.14.0:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "portable-atomic",
+   "purl": "pkg:cargo/portable-atomic@1.14.0",
+   "type": "library",
+   "version": "1.14.0"
+  },
+  {
+   "bom-ref": "pkg:cargo/portable-atomic@1.15.0",
+   "cpe": "cpe:2.3:a:portable-atomic:portable-atomic:1.15.0:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "portable-atomic",
+   "purl": "pkg:cargo/portable-atomic@1.15.0",
+   "type": "library",
+   "version": "1.15.0"
+  },
+  {
+   "bom-ref": "pkg:cargo/postcard@1.1.3",
+   "cpe": "cpe:2.3:a:postcard:postcard:1.1.3:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "postcard",
+   "purl": "pkg:cargo/postcard@1.1.3",
+   "type": "library",
+   "version": "1.1.3"
+  },
+  {
+   "bom-ref": "pkg:cargo/psm@0.1.31",
+   "cpe": "cpe:2.3:a:psm:psm:0.1.31:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "psm",
+   "purl": "pkg:cargo/psm@0.1.31",
+   "type": "library",
+   "version": "0.1.31"
+  },
+  {
+   "bom-ref": "pkg:cargo/quick-xml@0.41.0",
+   "cpe": "cpe:2.3:a:quick-xml:quick-xml:0.41.0:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "quick-xml",
+   "purl": "pkg:cargo/quick-xml@0.41.0",
+   "type": "library",
+   "version": "0.41.0"
+  },
+  {
+   "bom-ref": "pkg:cargo/rand@0.10.2",
+   "cpe": "cpe:2.3:a:rand_project:rand:0.10.2:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "rand",
+   "purl": "pkg:cargo/rand@0.10.2",
+   "type": "library",
+   "version": "0.10.2"
+  },
+  {
+   "bom-ref": "pkg:cargo/rand_core@0.10.1",
+   "cpe": "cpe:2.3:a:rand_core_project:rand_core:0.10.1:*:*:*:*:rust:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "rand_core",
+   "purl": "pkg:cargo/rand_core@0.10.1",
+   "type": "library",
+   "version": "0.10.1"
+  },
+  {
+   "bom-ref": "pkg:cargo/regex-automata@0.4.16",
+   "cpe": "cpe:2.3:a:regex-automata:regex-automata:0.4.16:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "regex-automata",
+   "purl": "pkg:cargo/regex-automata@0.4.16",
+   "type": "library",
+   "version": "0.4.16"
+  },
+  {
+   "bom-ref": "pkg:cargo/regex-automata@0.4.18",
+   "cpe": "cpe:2.3:a:regex-automata:regex-automata:0.4.18:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "regex-automata",
+   "purl": "pkg:cargo/regex-automata@0.4.18",
+   "type": "library",
+   "version": "0.4.18"
+  },
+  {
+   "bom-ref": "pkg:cargo/regex-syntax@0.8.11",
+   "cpe": "cpe:2.3:a:regex-syntax:regex-syntax:0.8.11:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "regex-syntax",
+   "purl": "pkg:cargo/regex-syntax@0.8.11",
+   "type": "library",
+   "version": "0.8.11"
+  },
+  {
+   "bom-ref": "pkg:cargo/regex@1.13.1",
+   "cpe": "cpe:2.3:a:regex:regex:1.13.1:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "regex",
+   "purl": "pkg:cargo/regex@1.13.1",
+   "type": "library",
+   "version": "1.13.1"
+  },
+  {
+   "bom-ref": "pkg:cargo/rustc-hash@2.1.3",
+   "cpe": "cpe:2.3:a:rustc-hash:rustc-hash:2.1.3:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "rustc-hash",
+   "purl": "pkg:cargo/rustc-hash@2.1.3",
+   "type": "library",
+   "version": "2.1.3"
+  },
+  {
+   "bom-ref": "pkg:cargo/ryu-js@0.2.2",
+   "cpe": "cpe:2.3:a:ryu-js:ryu-js:0.2.2:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "ryu-js",
+   "purl": "pkg:cargo/ryu-js@0.2.2",
+   "type": "library",
+   "version": "0.2.2"
+  },
+  {
+   "bom-ref": "pkg:cargo/ryu-js@1.0.3",
+   "cpe": "cpe:2.3:a:ryu-js:ryu-js:1.0.3:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "ryu-js",
+   "purl": "pkg:cargo/ryu-js@1.0.3",
+   "type": "library",
+   "version": "1.0.3"
+  },
+  {
+   "bom-ref": "pkg:cargo/ryu@1.0.23",
+   "cpe": "cpe:2.3:a:ryu:ryu:1.0.23:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "ryu",
+   "purl": "pkg:cargo/ryu@1.0.23",
+   "type": "library",
+   "version": "1.0.23"
+  },
+  {
+   "bom-ref": "pkg:cargo/salsa-macro-rules@0.28.5",
+   "cpe": "cpe:2.3:a:salsa-macro-rules:salsa-macro-rules:0.28.5:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "salsa-macro-rules",
+   "purl": "pkg:cargo/salsa-macro-rules@0.28.5",
+   "type": "library",
+   "version": "0.28.5"
+  },
+  {
+   "bom-ref": "pkg:cargo/salsa@0.28.5",
+   "cpe": "cpe:2.3:a:salsa:salsa:0.28.5:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "salsa",
+   "purl": "pkg:cargo/salsa@0.28.5",
+   "type": "library",
+   "version": "0.28.5"
+  },
+  {
+   "bom-ref": "pkg:cargo/same-file@1.0.6",
+   "cpe": "cpe:2.3:a:same-file:same-file:1.0.6:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "same-file",
+   "purl": "pkg:cargo/same-file@1.0.6",
+   "type": "library",
+   "version": "1.0.6"
+  },
+  {
+   "bom-ref": "pkg:cargo/scopeguard@1.2.0",
+   "cpe": "cpe:2.3:a:scopeguard:scopeguard:1.2.0:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "scopeguard",
+   "purl": "pkg:cargo/scopeguard@1.2.0",
+   "type": "library",
+   "version": "1.2.0"
+  },
+  {
+   "bom-ref": "pkg:cargo/semprof-core@0.1.0",
+   "cpe": "cpe:2.3:a:semprof-core:semprof-core:0.1.0:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "git+https://github.com/uzaira0/semantic-profile-toolchain?rev=d46708a14c49143e783b3ec251850a13c5623533#d46708a14c49143e783b3ec251850a13c5623533"
+    }
+   ],
+   "name": "semprof-core",
+   "purl": "pkg:cargo/semprof-core@0.1.0",
+   "type": "library",
+   "version": "0.1.0"
+  },
+  {
+   "bom-ref": "pkg:cargo/semprof-materialize@0.1.0",
+   "cpe": "cpe:2.3:a:semprof-materialize:semprof-materialize:0.1.0:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "git+https://github.com/uzaira0/semantic-profile-toolchain?rev=d46708a14c49143e783b3ec251850a13c5623533#d46708a14c49143e783b3ec251850a13c5623533"
+    }
+   ],
+   "name": "semprof-materialize",
+   "purl": "pkg:cargo/semprof-materialize@0.1.0",
+   "type": "library",
+   "version": "0.1.0"
+  },
+  {
+   "bom-ref": "pkg:cargo/semver@1.0.28",
+   "cpe": "cpe:2.3:a:semver:semver:1.0.28:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "semver",
+   "purl": "pkg:cargo/semver@1.0.28",
+   "type": "library",
+   "version": "1.0.28"
+  },
+  {
+   "bom-ref": "pkg:cargo/serde-wasm-bindgen@0.6.5",
+   "cpe": "cpe:2.3:a:serde-wasm-bindgen:serde-wasm-bindgen:0.6.5:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "serde-wasm-bindgen",
+   "purl": "pkg:cargo/serde-wasm-bindgen@0.6.5",
+   "type": "library",
+   "version": "0.6.5"
+  },
+  {
+   "bom-ref": "pkg:cargo/serde@1.0.229",
+   "cpe": "cpe:2.3:a:serde:serde:1.0.229:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "serde",
+   "purl": "pkg:cargo/serde@1.0.229",
+   "type": "library",
+   "version": "1.0.229"
+  },
+  {
+   "bom-ref": "pkg:cargo/serde_core@1.0.229",
+   "cpe": "cpe:2.3:a:serde-core:serde-core:1.0.229:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "serde_core",
+   "purl": "pkg:cargo/serde_core@1.0.229",
+   "type": "library",
+   "version": "1.0.229"
+  },
+  {
+   "bom-ref": "pkg:cargo/serde_jcs@0.2.0",
+   "cpe": "cpe:2.3:a:serde-jcs:serde-jcs:0.2.0:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "serde_jcs",
+   "purl": "pkg:cargo/serde_jcs@0.2.0",
+   "type": "library",
+   "version": "0.2.0"
+  },
+  {
+   "bom-ref": "pkg:cargo/serde_json@1.0.151",
+   "cpe": "cpe:2.3:a:serde-json:serde-json:1.0.151:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "serde_json",
+   "purl": "pkg:cargo/serde_json@1.0.151",
+   "type": "library",
+   "version": "1.0.151"
+  },
+  {
+   "bom-ref": "pkg:cargo/sha1@0.10.7",
+   "cpe": "cpe:2.3:a:sha1:sha1:0.10.7:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "sha1",
+   "purl": "pkg:cargo/sha1@0.10.7",
+   "type": "library",
+   "version": "0.10.7"
+  },
+  {
+   "bom-ref": "pkg:cargo/sha2@0.10.9",
+   "cpe": "cpe:2.3:a:sha2_project:sha2:0.10.9:*:*:*:*:rust:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "sha2",
+   "purl": "pkg:cargo/sha2@0.10.9",
+   "type": "library",
+   "version": "0.10.9"
+  },
+  {
+   "bom-ref": "pkg:cargo/sha2@0.11.0",
+   "cpe": "cpe:2.3:a:sha2_project:sha2:0.11.0:*:*:*:*:rust:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "sha2",
+   "purl": "pkg:cargo/sha2@0.11.0",
+   "type": "library",
+   "version": "0.11.0"
+  },
+  {
+   "bom-ref": "pkg:cargo/simd-adler32@0.3.10",
+   "cpe": "cpe:2.3:a:simd-adler32:simd-adler32:0.3.10:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "simd-adler32",
+   "purl": "pkg:cargo/simd-adler32@0.3.10",
+   "type": "library",
+   "version": "0.3.10"
+  },
+  {
+   "bom-ref": "pkg:cargo/siphasher@1.0.3",
+   "cpe": "cpe:2.3:a:siphasher:siphasher:1.0.3:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "siphasher",
+   "purl": "pkg:cargo/siphasher@1.0.3",
+   "type": "library",
+   "version": "1.0.3"
+  },
+  {
+   "bom-ref": "pkg:cargo/slab@0.4.12",
+   "cpe": "cpe:2.3:a:slab:slab:0.4.12:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "slab",
+   "purl": "pkg:cargo/slab@0.4.12",
+   "type": "library",
+   "version": "0.4.12"
+  },
+  {
+   "bom-ref": "pkg:cargo/smallvec@1.15.2",
+   "cpe": "cpe:2.3:a:servo:smallvec:1.15.2:*:*:*:*:rust:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "smallvec",
+   "purl": "pkg:cargo/smallvec@1.15.2",
+   "type": "library",
+   "version": "1.15.2"
+  },
+  {
+   "bom-ref": "pkg:cargo/sparesults@0.4.0-dev",
+   "cpe": "cpe:2.3:a:sparesults:sparesults:0.4.0-dev:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "git+https://github.com/oxigraph/oxigraph.git?rev=d14ac0b5c4fa67b15d03af945d8669e3497c25a9#d14ac0b5c4fa67b15d03af945d8669e3497c25a9"
+    }
+   ],
+   "name": "sparesults",
+   "purl": "pkg:cargo/sparesults@0.4.0-dev",
+   "type": "library",
+   "version": "0.4.0-dev"
+  },
+  {
+   "bom-ref": "pkg:cargo/spareval@0.3.0-dev",
+   "cpe": "cpe:2.3:a:spareval:spareval:0.3.0-dev:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "git+https://github.com/oxigraph/oxigraph.git?rev=d14ac0b5c4fa67b15d03af945d8669e3497c25a9#d14ac0b5c4fa67b15d03af945d8669e3497c25a9"
+    }
+   ],
+   "name": "spareval",
+   "purl": "pkg:cargo/spareval@0.3.0-dev",
+   "type": "library",
+   "version": "0.3.0-dev"
+  },
+  {
+   "bom-ref": "pkg:cargo/spargebra@0.5.0-dev",
+   "cpe": "cpe:2.3:a:spargebra:spargebra:0.5.0-dev:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "git+https://github.com/oxigraph/oxigraph.git?rev=d14ac0b5c4fa67b15d03af945d8669e3497c25a9#d14ac0b5c4fa67b15d03af945d8669e3497c25a9"
+    }
+   ],
+   "name": "spargebra",
+   "purl": "pkg:cargo/spargebra@0.5.0-dev",
+   "type": "library",
+   "version": "0.5.0-dev"
+  },
+  {
+   "bom-ref": "pkg:cargo/sparopt@0.4.0-dev",
+   "cpe": "cpe:2.3:a:sparopt:sparopt:0.4.0-dev:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "git+https://github.com/oxigraph/oxigraph.git?rev=d14ac0b5c4fa67b15d03af945d8669e3497c25a9#d14ac0b5c4fa67b15d03af945d8669e3497c25a9"
+    }
+   ],
+   "name": "sparopt",
+   "purl": "pkg:cargo/sparopt@0.4.0-dev",
+   "type": "library",
+   "version": "0.4.0-dev"
+  },
+  {
+   "bom-ref": "pkg:cargo/stacker@0.1.24",
+   "cpe": "cpe:2.3:a:stacker:stacker:0.1.24:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "stacker",
+   "purl": "pkg:cargo/stacker@0.1.24",
+   "type": "library",
+   "version": "0.1.24"
+  },
+  {
+   "bom-ref": "pkg:cargo/thin-vec@0.2.18",
+   "cpe": "cpe:2.3:a:thin-vec:thin-vec:0.2.18:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "thin-vec",
+   "purl": "pkg:cargo/thin-vec@0.2.18",
+   "type": "library",
+   "version": "0.2.18"
+  },
+  {
+   "bom-ref": "pkg:cargo/thin-vec@0.2.19",
+   "cpe": "cpe:2.3:a:thin-vec:thin-vec:0.2.19:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "thin-vec",
+   "purl": "pkg:cargo/thin-vec@0.2.19",
+   "type": "library",
+   "version": "0.2.19"
+  },
+  {
+   "bom-ref": "pkg:cargo/thiserror@2.0.19",
+   "cpe": "cpe:2.3:a:thiserror:thiserror:2.0.19:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "thiserror",
+   "purl": "pkg:cargo/thiserror@2.0.19",
+   "type": "library",
+   "version": "2.0.19"
+  },
+  {
+   "bom-ref": "pkg:cargo/tracing-core@0.1.36",
+   "cpe": "cpe:2.3:a:tracing-core:tracing-core:0.1.36:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "tracing-core",
+   "purl": "pkg:cargo/tracing-core@0.1.36",
+   "type": "library",
+   "version": "0.1.36"
+  },
+  {
+   "bom-ref": "pkg:cargo/tracing@0.1.44",
+   "cpe": "cpe:2.3:a:tracing:tracing:0.1.44:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "tracing",
+   "purl": "pkg:cargo/tracing@0.1.44",
+   "type": "library",
+   "version": "0.1.44"
+  },
+  {
+   "bom-ref": "pkg:cargo/tsify@0.5.8",
+   "cpe": "cpe:2.3:a:tsify:tsify:0.5.8:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "tsify",
+   "purl": "pkg:cargo/tsify@0.5.8",
+   "type": "library",
+   "version": "0.5.8"
+  },
+  {
+   "bom-ref": "pkg:cargo/twox-hash@2.1.3",
+   "cpe": "cpe:2.3:a:twox-hash:twox-hash:2.1.3:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "twox-hash",
+   "purl": "pkg:cargo/twox-hash@2.1.3",
+   "type": "library",
+   "version": "2.1.3"
+  },
+  {
+   "bom-ref": "pkg:cargo/typed-path@0.12.3",
+   "cpe": "cpe:2.3:a:typed-path:typed-path:0.12.3:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "typed-path",
+   "purl": "pkg:cargo/typed-path@0.12.3",
+   "type": "library",
+   "version": "0.12.3"
+  },
+  {
+   "bom-ref": "pkg:cargo/typeid@1.0.3",
+   "cpe": "cpe:2.3:a:typeid:typeid:1.0.3:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "typeid",
+   "purl": "pkg:cargo/typeid@1.0.3",
+   "type": "library",
+   "version": "1.0.3"
+  },
+  {
+   "bom-ref": "pkg:cargo/typenum@1.20.1",
+   "cpe": "cpe:2.3:a:typenum:typenum:1.20.1:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "typenum",
+   "purl": "pkg:cargo/typenum@1.20.1",
+   "type": "library",
+   "version": "1.20.1"
+  },
+  {
+   "bom-ref": "pkg:cargo/unicode-ident@1.0.24",
+   "cpe": "cpe:2.3:a:unicode-ident:unicode-ident:1.0.24:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "unicode-ident",
+   "purl": "pkg:cargo/unicode-ident@1.0.24",
+   "type": "library",
+   "version": "1.0.24"
+  },
+  {
+   "bom-ref": "pkg:cargo/unicode-segmentation@1.13.3",
+   "cpe": "cpe:2.3:a:unicode-segmentation:unicode-segmentation:1.13.3:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "unicode-segmentation",
+   "purl": "pkg:cargo/unicode-segmentation@1.13.3",
+   "type": "library",
+   "version": "1.13.3"
+  },
+  {
+   "bom-ref": "pkg:cargo/walkdir@2.5.0",
+   "cpe": "cpe:2.3:a:walkdir:walkdir:2.5.0:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "walkdir",
+   "purl": "pkg:cargo/walkdir@2.5.0",
+   "type": "library",
+   "version": "2.5.0"
+  },
+  {
+   "bom-ref": "pkg:cargo/wasm-bindgen-shared@0.2.126",
+   "cpe": "cpe:2.3:a:wasm-bindgen-shared:wasm-bindgen-shared:0.2.126:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "wasm-bindgen-shared",
+   "purl": "pkg:cargo/wasm-bindgen-shared@0.2.126",
+   "type": "library",
+   "version": "0.2.126"
+  },
+  {
+   "bom-ref": "pkg:cargo/wasm-bindgen@0.2.126",
+   "cpe": "cpe:2.3:a:wasm-bindgen:wasm-bindgen:0.2.126:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "wasm-bindgen",
+   "purl": "pkg:cargo/wasm-bindgen@0.2.126",
+   "type": "library",
+   "version": "0.2.126"
+  },
+  {
+   "bom-ref": "pkg:cargo/xxhash-rust@0.8.18",
+   "cpe": "cpe:2.3:a:xxhash-rust:xxhash-rust:0.8.18:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "xxhash-rust",
+   "purl": "pkg:cargo/xxhash-rust@0.8.18",
+   "type": "library",
+   "version": "0.8.18"
+  },
+  {
+   "bom-ref": "pkg:cargo/zerocopy@0.8.55",
+   "cpe": "cpe:2.3:a:zerocopy:zerocopy:0.8.55:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "zerocopy",
+   "purl": "pkg:cargo/zerocopy@0.8.55",
+   "type": "library",
+   "version": "0.8.55"
+  },
+  {
+   "bom-ref": "pkg:cargo/zerocopy@0.8.56",
+   "cpe": "cpe:2.3:a:zerocopy:zerocopy:0.8.56:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "zerocopy",
+   "purl": "pkg:cargo/zerocopy@0.8.56",
+   "type": "library",
+   "version": "0.8.56"
+  },
+  {
+   "bom-ref": "pkg:cargo/zeroize@1.9.0",
+   "cpe": "cpe:2.3:a:zeroize:zeroize:1.9.0:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "zeroize",
+   "purl": "pkg:cargo/zeroize@1.9.0",
+   "type": "library",
+   "version": "1.9.0"
+  },
+  {
+   "bom-ref": "pkg:cargo/zip@8.6.0",
+   "cpe": "cpe:2.3:a:zip:zip:8.6.0:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "zip",
+   "purl": "pkg:cargo/zip@8.6.0",
+   "type": "library",
+   "version": "8.6.0"
+  },
+  {
+   "bom-ref": "pkg:cargo/zlib-rs@0.6.6",
+   "cpe": "cpe:2.3:a:zlib-rs:zlib-rs:0.6.6:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "zlib-rs",
+   "purl": "pkg:cargo/zlib-rs@0.6.6",
+   "type": "library",
+   "version": "0.6.6"
+  },
+  {
+   "bom-ref": "pkg:cargo/zlib-rs@0.6.7",
+   "cpe": "cpe:2.3:a:zlib-rs:zlib-rs:0.6.7:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "zlib-rs",
+   "purl": "pkg:cargo/zlib-rs@0.6.7",
+   "type": "library",
+   "version": "0.6.7"
+  },
+  {
+   "bom-ref": "pkg:cargo/zmij@1.0.23",
+   "cpe": "cpe:2.3:a:zmij:zmij:1.0.23:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "zmij",
+   "purl": "pkg:cargo/zmij@1.0.23",
+   "type": "library",
+   "version": "1.0.23"
+  },
+  {
+   "bom-ref": "pkg:cargo/zopfli@0.8.3",
+   "cpe": "cpe:2.3:a:zopfli:zopfli:0.8.3:*:*:*:*:*:*:*",
+   "externalReferences": [
+    {
+     "type": "distribution",
+     "url": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+   ],
+   "name": "zopfli",
+   "purl": "pkg:cargo/zopfli@0.8.3",
+   "type": "library",
+   "version": "0.8.3"
+  },
+  {
+   "bom-ref": "pkg:npm/%40dagrejs/dagre@3.0.0",
+   "cpe": "cpe:2.3:a:\\@dagrejs\\/dagre:\\@dagrejs\\/dagre:3.0.0:*:*:*:*:*:*:*",
+   "licenses": [
+    {
+     "license": {
+      "id": "MIT"
+     }
+    }
+   ],
+   "name": "@dagrejs/dagre",
+   "purl": "pkg:npm/%40dagrejs/dagre@3.0.0",
+   "type": "library",
+   "version": "3.0.0"
+  },
+  {
+   "bom-ref": "pkg:npm/%40dagrejs/graphlib@4.0.1",
+   "cpe": "cpe:2.3:a:\\@dagrejs\\/graphlib:\\@dagrejs\\/graphlib:4.0.1:*:*:*:*:*:*:*",
+   "licenses": [
+    {
+     "license": {
+      "id": "MIT"
+     }
+    }
+   ],
+   "name": "@dagrejs/graphlib",
+   "purl": "pkg:npm/%40dagrejs/graphlib@4.0.1",
+   "type": "library",
+   "version": "4.0.1"
+  },
+  {
+   "bom-ref": "pkg:npm/%40tanstack/react-virtual@3.14.8",
+   "cpe": "cpe:2.3:a:\\@tanstack\\/react-virtual:\\@tanstack\\/react-virtual:3.14.8:*:*:*:*:*:*:*",
+   "licenses": [
+    {
+     "license": {
+      "id": "MIT"
+     }
+    }
+   ],
+   "name": "@tanstack/react-virtual",
+   "purl": "pkg:npm/%40tanstack/react-virtual@3.14.8",
+   "type": "library",
+   "version": "3.14.8"
+  },
+  {
+   "bom-ref": "pkg:npm/%40tanstack/virtual-core@3.17.6",
+   "cpe": "cpe:2.3:a:\\@tanstack\\/virtual-core:\\@tanstack\\/virtual-core:3.17.6:*:*:*:*:*:*:*",
+   "licenses": [
+    {
+     "license": {
+      "id": "MIT"
+     }
+    }
+   ],
+   "name": "@tanstack/virtual-core",
+   "purl": "pkg:npm/%40tanstack/virtual-core@3.17.6",
+   "type": "library",
+   "version": "3.17.6"
+  },
+  {
+   "bom-ref": "pkg:npm/%40types/d3-color@3.1.3",
+   "cpe": "cpe:2.3:a:\\@types\\/d3-color:\\@types\\/d3-color:3.1.3:*:*:*:*:*:*:*",
+   "licenses": [
+    {
+     "license": {
+      "id": "MIT"
+     }
+    }
+   ],
+   "name": "@types/d3-color",
+   "purl": "pkg:npm/%40types/d3-color@3.1.3",
+   "type": "library",
+   "version": "3.1.3"
+  },
+  {
+   "bom-ref": "pkg:npm/%40types/d3-drag@3.0.7",
+   "cpe": "cpe:2.3:a:\\@types\\/d3-drag:\\@types\\/d3-drag:3.0.7:*:*:*:*:*:*:*",
+   "licenses": [
+    {
+     "license": {
+      "id": "MIT"
+     }
+    }
+   ],
+   "name": "@types/d3-drag",
+   "purl": "pkg:npm/%40types/d3-drag@3.0.7",
+   "type": "library",
+   "version": "3.0.7"
+  },
+  {
+   "bom-ref": "pkg:npm/%40types/d3-interpolate@3.0.4",
+   "cpe": "cpe:2.3:a:\\@types\\/d3-interpolate:\\@types\\/d3-interpolate:3.0.4:*:*:*:*:*:*:*",
+   "licenses": [
+    {
+     "license": {
+      "id": "MIT"
+     }
+    }
+   ],
+   "name": "@types/d3-interpolate",
+   "purl": "pkg:npm/%40types/d3-interpolate@3.0.4",
+   "type": "library",
+   "version": "3.0.4"
+  },
+  {
+   "bom-ref": "pkg:npm/%40types/d3-selection@3.0.11",
+   "cpe": "cpe:2.3:a:\\@types\\/d3-selection:\\@types\\/d3-selection:3.0.11:*:*:*:*:*:*:*",
+   "licenses": [
+    {
+     "license": {
+      "id": "MIT"
+     }
+    }
+   ],
+   "name": "@types/d3-selection",
+   "purl": "pkg:npm/%40types/d3-selection@3.0.11",
+   "type": "library",
+   "version": "3.0.11"
+  },
+  {
+   "bom-ref": "pkg:npm/%40types/d3-transition@3.0.9",
+   "cpe": "cpe:2.3:a:\\@types\\/d3-transition:\\@types\\/d3-transition:3.0.9:*:*:*:*:*:*:*",
+   "licenses": [
+    {
+     "license": {
+      "id": "MIT"
+     }
+    }
+   ],
+   "name": "@types/d3-transition",
+   "purl": "pkg:npm/%40types/d3-transition@3.0.9",
+   "type": "library",
+   "version": "3.0.9"
+  },
+  {
+   "bom-ref": "pkg:npm/%40types/d3-zoom@3.0.8",
+   "cpe": "cpe:2.3:a:\\@types\\/d3-zoom:\\@types\\/d3-zoom:3.0.8:*:*:*:*:*:*:*",
+   "licenses": [
+    {
+     "license": {
+      "id": "MIT"
+     }
+    }
+   ],
+   "name": "@types/d3-zoom",
+   "purl": "pkg:npm/%40types/d3-zoom@3.0.8",
+   "type": "library",
+   "version": "3.0.8"
+  },
+  {
+   "bom-ref": "pkg:npm/%40types/react-dom@19.2.3",
+   "cpe": "cpe:2.3:a:\\@types\\/react-dom:\\@types\\/react-dom:19.2.3:*:*:*:*:*:*:*",
+   "licenses": [
+    {
+     "license": {
+      "id": "MIT"
+     }
+    }
+   ],
+   "name": "@types/react-dom",
+   "purl": "pkg:npm/%40types/react-dom@19.2.3",
+   "type": "library",
+   "version": "19.2.3"
+  },
+  {
+   "bom-ref": "pkg:npm/%40types/react@19.2.14",
+   "cpe": "cpe:2.3:a:\\@types\\/react:\\@types\\/react:19.2.14:*:*:*:*:*:*:*",
+   "licenses": [
+    {
+     "license": {
+      "id": "MIT"
+     }
+    }
+   ],
+   "name": "@types/react",
+   "purl": "pkg:npm/%40types/react@19.2.14",
+   "type": "library",
+   "version": "19.2.14"
+  },
+  {
+   "bom-ref": "pkg:npm/%40xyflow/react@12.11.2",
+   "cpe": "cpe:2.3:a:\\@xyflow\\/react:\\@xyflow\\/react:12.11.2:*:*:*:*:*:*:*",
+   "licenses": [
+    {
+     "license": {
+      "id": "MIT"
+     }
+    }
+   ],
+   "name": "@xyflow/react",
+   "purl": "pkg:npm/%40xyflow/react@12.11.2",
+   "type": "library",
+   "version": "12.11.2"
+  },
+  {
+   "bom-ref": "pkg:npm/%40xyflow/system@0.0.79",
+   "cpe": "cpe:2.3:a:\\@xyflow\\/system:\\@xyflow\\/system:0.0.79:*:*:*:*:*:*:*",
+   "licenses": [
+    {
+     "license": {
+      "id": "MIT"
+     }
+    }
+   ],
+   "name": "@xyflow/system",
+   "purl": "pkg:npm/%40xyflow/system@0.0.79",
+   "type": "library",
+   "version": "0.0.79"
+  },
+  {
+   "bom-ref": "pkg:npm/classcat@5.0.5",
+   "cpe": "cpe:2.3:a:classcat:classcat:5.0.5:*:*:*:*:*:*:*",
+   "licenses": [
+    {
+     "license": {
+      "id": "MIT"
+     }
+    }
+   ],
+   "name": "classcat",
+   "purl": "pkg:npm/classcat@5.0.5",
+   "type": "library",
+   "version": "5.0.5"
+  },
+  {
+   "bom-ref": "pkg:npm/comlink@4.4.2",
+   "cpe": "cpe:2.3:a:comlink:comlink:4.4.2:*:*:*:*:*:*:*",
+   "licenses": [
+    {
+     "license": {
+      "id": "Apache-2.0"
+     }
+    }
+   ],
+   "name": "comlink",
+   "purl": "pkg:npm/comlink@4.4.2",
+   "type": "library",
+   "version": "4.4.2"
+  },
+  {
+   "bom-ref": "pkg:npm/csstype@3.2.3",
+   "cpe": "cpe:2.3:a:csstype:csstype:3.2.3:*:*:*:*:*:*:*",
+   "licenses": [
+    {
+     "license": {
+      "id": "MIT"
+     }
+    }
+   ],
+   "name": "csstype",
+   "purl": "pkg:npm/csstype@3.2.3",
+   "type": "library",
+   "version": "3.2.3"
+  },
+  {
+   "bom-ref": "pkg:npm/d3-color@3.1.0",
+   "cpe": "cpe:2.3:a:d3-color:d3-color:3.1.0:*:*:*:*:*:*:*",
+   "licenses": [
+    {
+     "license": {
+      "id": "ISC"
+     }
+    }
+   ],
+   "name": "d3-color",
+   "purl": "pkg:npm/d3-color@3.1.0",
+   "type": "library",
+   "version": "3.1.0"
+  },
+  {
+   "bom-ref": "pkg:npm/d3-dispatch@3.0.1",
+   "cpe": "cpe:2.3:a:d3-dispatch:d3-dispatch:3.0.1:*:*:*:*:*:*:*",
+   "licenses": [
+    {
+     "license": {
+      "id": "ISC"
+     }
+    }
+   ],
+   "name": "d3-dispatch",
+   "purl": "pkg:npm/d3-dispatch@3.0.1",
+   "type": "library",
+   "version": "3.0.1"
+  },
+  {
+   "bom-ref": "pkg:npm/d3-drag@3.0.0",
+   "cpe": "cpe:2.3:a:d3-drag:d3-drag:3.0.0:*:*:*:*:*:*:*",
+   "licenses": [
+    {
+     "license": {
+      "id": "ISC"
+     }
+    }
+   ],
+   "name": "d3-drag",
+   "purl": "pkg:npm/d3-drag@3.0.0",
+   "type": "library",
+   "version": "3.0.0"
+  },
+  {
+   "bom-ref": "pkg:npm/d3-ease@3.0.1",
+   "cpe": "cpe:2.3:a:d3-ease:d3-ease:3.0.1:*:*:*:*:*:*:*",
+   "licenses": [
+    {
+     "license": {
+      "id": "BSD-3-Clause"
+     }
+    }
+   ],
+   "name": "d3-ease",
+   "purl": "pkg:npm/d3-ease@3.0.1",
+   "type": "library",
+   "version": "3.0.1"
+  },
+  {
+   "bom-ref": "pkg:npm/d3-interpolate@3.0.1",
+   "cpe": "cpe:2.3:a:d3-interpolate:d3-interpolate:3.0.1:*:*:*:*:*:*:*",
+   "licenses": [
+    {
+     "license": {
+      "id": "ISC"
+     }
+    }
+   ],
+   "name": "d3-interpolate",
+   "purl": "pkg:npm/d3-interpolate@3.0.1",
+   "type": "library",
+   "version": "3.0.1"
+  },
+  {
+   "bom-ref": "pkg:npm/d3-selection@3.0.0",
+   "cpe": "cpe:2.3:a:d3-selection:d3-selection:3.0.0:*:*:*:*:*:*:*",
+   "licenses": [
+    {
+     "license": {
+      "id": "ISC"
+     }
+    }
+   ],
+   "name": "d3-selection",
+   "purl": "pkg:npm/d3-selection@3.0.0",
+   "type": "library",
+   "version": "3.0.0"
+  },
+  {
+   "bom-ref": "pkg:npm/d3-timer@3.0.1",
+   "cpe": "cpe:2.3:a:d3-timer:d3-timer:3.0.1:*:*:*:*:*:*:*",
+   "licenses": [
+    {
+     "license": {
+      "id": "ISC"
+     }
+    }
+   ],
+   "name": "d3-timer",
+   "purl": "pkg:npm/d3-timer@3.0.1",
+   "type": "library",
+   "version": "3.0.1"
+  },
+  {
+   "bom-ref": "pkg:npm/d3-transition@3.0.1",
+   "cpe": "cpe:2.3:a:d3-transition:d3-transition:3.0.1:*:*:*:*:*:*:*",
+   "licenses": [
+    {
+     "license": {
+      "id": "ISC"
+     }
+    }
+   ],
+   "name": "d3-transition",
+   "purl": "pkg:npm/d3-transition@3.0.1",
+   "type": "library",
+   "version": "3.0.1"
+  },
+  {
+   "bom-ref": "pkg:npm/d3-zoom@3.0.0",
+   "cpe": "cpe:2.3:a:d3-zoom:d3-zoom:3.0.0:*:*:*:*:*:*:*",
+   "licenses": [
+    {
+     "license": {
+      "id": "ISC"
+     }
+    }
+   ],
+   "name": "d3-zoom",
+   "purl": "pkg:npm/d3-zoom@3.0.0",
+   "type": "library",
+   "version": "3.0.0"
+  },
+  {
+   "bom-ref": "pkg:npm/papaparse@5.5.3",
+   "cpe": "cpe:2.3:a:papaparse:papaparse:5.5.3:*:*:*:*:*:*:*",
+   "licenses": [
+    {
+     "license": {
+      "id": "MIT"
+     }
+    }
+   ],
+   "name": "papaparse",
+   "purl": "pkg:npm/papaparse@5.5.3",
+   "type": "library",
+   "version": "5.5.3"
+  },
+  {
+   "bom-ref": "pkg:npm/react-dom@19.2.5",
+   "cpe": "cpe:2.3:a:react-dom:react-dom:19.2.5:*:*:*:*:*:*:*",
+   "licenses": [
+    {
+     "license": {
+      "id": "MIT"
+     }
+    }
+   ],
+   "name": "react-dom",
+   "purl": "pkg:npm/react-dom@19.2.5",
+   "type": "library",
+   "version": "19.2.5"
+  },
+  {
+   "bom-ref": "pkg:npm/react@19.2.5",
+   "cpe": "cpe:2.3:a:react:react:19.2.5:*:*:*:*:*:*:*",
+   "licenses": [
+    {
+     "license": {
+      "id": "MIT"
+     }
+    }
+   ],
+   "name": "react",
+   "purl": "pkg:npm/react@19.2.5",
+   "type": "library",
+   "version": "19.2.5"
+  },
+  {
+   "bom-ref": "pkg:npm/scheduler@0.27.0",
+   "cpe": "cpe:2.3:a:scheduler:scheduler:0.27.0:*:*:*:*:*:*:*",
+   "licenses": [
+    {
+     "license": {
+      "id": "MIT"
+     }
+    }
+   ],
+   "name": "scheduler",
+   "purl": "pkg:npm/scheduler@0.27.0",
+   "type": "library",
+   "version": "0.27.0"
+  },
+  {
+   "bom-ref": "pkg:npm/use-sync-external-store@1.6.0",
+   "cpe": "cpe:2.3:a:use-sync-external-store:use-sync-external-store:1.6.0:*:*:*:*:*:*:*",
+   "licenses": [
+    {
+     "license": {
+      "id": "MIT"
+     }
+    }
+   ],
+   "name": "use-sync-external-store",
+   "purl": "pkg:npm/use-sync-external-store@1.6.0",
+   "type": "library",
+   "version": "1.6.0"
+  },
+  {
+   "bom-ref": "pkg:npm/zustand@4.5.7",
+   "cpe": "cpe:2.3:a:zustand:zustand:4.5.7:*:*:*:*:*:*:*",
+   "licenses": [
+    {
+     "license": {
+      "id": "MIT"
+     }
+    }
+   ],
+   "name": "zustand",
+   "purl": "pkg:npm/zustand@4.5.7",
+   "type": "library",
+   "version": "4.5.7"
+  }
+ ],
+ "dependencies": [
+  {
+   "dependsOn": [
+    "pkg:cargo/adler2@2.0.1",
+    "pkg:cargo/ahash@0.8.12",
+    "pkg:cargo/aho-corasick@1.1.4",
+    "pkg:cargo/aho-corasick@1.1.5",
+    "pkg:cargo/allocator-api2@0.2.21",
+    "pkg:cargo/anyhow@1.0.104",
+    "pkg:cargo/arrayref@0.3.9",
+    "pkg:cargo/arrayvec@0.7.8",
+    "pkg:cargo/arrow-array@59.1.0",
+    "pkg:cargo/arrow-buffer@59.1.0",
+    "pkg:cargo/arrow-data@59.1.0",
+    "pkg:cargo/arrow-ipc@59.1.0",
+    "pkg:cargo/arrow-schema@59.1.0",
+    "pkg:cargo/arrow-select@59.1.0",
+    "pkg:cargo/atoi_simd@0.18.1",
+    "pkg:cargo/bitflags@2.13.1",
+    "pkg:cargo/blake3@1.8.5",
+    "pkg:cargo/blake3@1.8.6",
+    "pkg:cargo/block-buffer@0.10.4",
+    "pkg:cargo/block-buffer@0.12.1",
+    "pkg:cargo/boxcar@0.2.14",
+    "pkg:cargo/bumpalo@3.20.3",
+    "pkg:cargo/byteorder@1.5.0",
+    "pkg:cargo/bytes@1.12.1",
+    "pkg:cargo/calamine@0.36.0",
+    "pkg:cargo/cfg-if@1.0.4",
+    "pkg:cargo/chacha20@0.10.2",
+    "pkg:cargo/chrono-tz@0.10.4",
+    "pkg:cargo/chrono@0.4.45",
+    "pkg:cargo/chumsky@0.13.0",
+    "pkg:cargo/ciborium-io@0.2.2",
+    "pkg:cargo/ciborium-ll@0.2.2",
+    "pkg:cargo/ciborium@0.2.2",
+    "pkg:cargo/cobs@0.3.0",
+    "pkg:cargo/codepage@0.1.2",
+    "pkg:cargo/console_error_panic_hook@0.1.7",
+    "pkg:cargo/const-oid@0.10.2",
+    "pkg:cargo/const-random@0.1.18",
+    "pkg:cargo/constant_time_eq@0.4.2",
+    "pkg:cargo/crc32fast@1.5.0",
+    "pkg:cargo/crossbeam-queue@0.3.13",
+    "pkg:cargo/crossbeam-utils@0.8.22",
+    "pkg:cargo/crypto-common@0.1.7",
+    "pkg:cargo/crypto-common@0.2.2",
+    "pkg:cargo/csv-core@0.1.13",
+    "pkg:cargo/csv@1.4.0",
+    "pkg:cargo/dashmap@6.2.1",
+    "pkg:cargo/debug_unsafe@0.1.4",
+    "pkg:cargo/digest@0.10.7",
+    "pkg:cargo/digest@0.11.3",
+    "pkg:cargo/embedded-io@0.4.0",
+    "pkg:cargo/embedded-io@0.6.1",
+    "pkg:cargo/encoding_rs@0.8.35",
+    "pkg:cargo/equivalent@1.0.2",
+    "pkg:cargo/fast-float2@0.2.3",
+    "pkg:cargo/fixedbitset@0.5.7",
+    "pkg:cargo/flatbuffers@25.12.19",
+    "pkg:cargo/flate2@1.1.9",
+    "pkg:cargo/foldhash@0.1.5",
+    "pkg:cargo/foldhash@0.2.0",
+    "pkg:cargo/futures-core@0.3.33",
+    "pkg:cargo/futures-task@0.3.33",
+    "pkg:cargo/futures-util@0.3.33",
+    "pkg:cargo/generic-array@0.14.7",
+    "pkg:cargo/getrandom@0.3.4",
+    "pkg:cargo/getrandom@0.4.3",
+    "pkg:cargo/half@2.7.1",
+    "pkg:cargo/hashbrown@0.14.5",
+    "pkg:cargo/hashbrown@0.15.5",
+    "pkg:cargo/hashbrown@0.17.1",
+    "pkg:cargo/hashlink@0.12.1",
+    "pkg:cargo/hex@0.4.3",
+    "pkg:cargo/hybrid-array@0.4.13",
+    "pkg:cargo/hybrid-array@0.4.14",
+    "pkg:cargo/indexmap@2.14.0",
+    "pkg:cargo/intrusive-collections@0.10.2",
+    "pkg:cargo/intrusive-collections@0.10.3",
+    "pkg:cargo/itoa@1.0.18",
+    "pkg:cargo/js-sys@0.3.103",
+    "pkg:cargo/json-event-parser@0.2.3",
+    "pkg:cargo/libc@0.2.187",
+    "pkg:cargo/libm@0.2.16",
+    "pkg:cargo/lock_api@0.4.14",
+    "pkg:cargo/log@0.4.33",
+    "pkg:cargo/logos@0.16.1",
+    "pkg:cargo/lz4_flex@0.13.1",
+    "pkg:cargo/md-5@0.10.6",
+    "pkg:cargo/memchr@2.8.3",
+    "pkg:cargo/memoffset@0.9.1",
+    "pkg:cargo/miniz_oxide@0.8.9",
+    "pkg:cargo/num-bigint@0.4.8",
+    "pkg:cargo/num-complex@0.4.6",
+    "pkg:cargo/num-integer@0.1.46",
+    "pkg:cargo/num-traits@0.2.19",
+    "pkg:cargo/once_cell@1.21.4",
+    "pkg:cargo/oxigraph@0.6.0-dev",
+    "pkg:cargo/oxilangtag@0.1.6",
+    "pkg:cargo/oxiri@0.3.0",
+    "pkg:cargo/oxjsonld@0.3.0-dev",
+    "pkg:cargo/oxrdf@0.4.0-dev",
+    "pkg:cargo/oxrdfio@0.3.0-dev",
+    "pkg:cargo/oxrdfxml@0.3.0-dev",
+    "pkg:cargo/oxsdatatypes@0.3.0-dev",
+    "pkg:cargo/oxttl@0.3.0-dev",
+    "pkg:cargo/parking_lot@0.12.5",
+    "pkg:cargo/parking_lot_core@0.9.12",
+    "pkg:cargo/parquet@59.1.0",
+    "pkg:cargo/petgraph@0.8.3",
+    "pkg:cargo/phf@0.12.1",
+    "pkg:cargo/phf_shared@0.12.1",
+    "pkg:cargo/pin-project-lite@0.2.17",
+    "pkg:cargo/portable-atomic@1.14.0",
+    "pkg:cargo/portable-atomic@1.15.0",
+    "pkg:cargo/postcard@1.1.3",
+    "pkg:cargo/psm@0.1.31",
+    "pkg:cargo/quick-xml@0.41.0",
+    "pkg:cargo/rand@0.10.2",
+    "pkg:cargo/rand_core@0.10.1",
+    "pkg:cargo/regex-automata@0.4.16",
+    "pkg:cargo/regex-automata@0.4.18",
+    "pkg:cargo/regex-syntax@0.8.11",
+    "pkg:cargo/regex@1.13.1",
+    "pkg:cargo/rustc-hash@2.1.3",
+    "pkg:cargo/ryu-js@0.2.2",
+    "pkg:cargo/ryu-js@1.0.3",
+    "pkg:cargo/ryu@1.0.23",
+    "pkg:cargo/salsa-macro-rules@0.28.5",
+    "pkg:cargo/salsa@0.28.5",
+    "pkg:cargo/same-file@1.0.6",
+    "pkg:cargo/scopeguard@1.2.0",
+    "pkg:cargo/semprof-core@0.1.0",
+    "pkg:cargo/semprof-materialize@0.1.0",
+    "pkg:cargo/semver@1.0.28",
+    "pkg:cargo/serde-wasm-bindgen@0.6.5",
+    "pkg:cargo/serde@1.0.229",
+    "pkg:cargo/serde_core@1.0.229",
+    "pkg:cargo/serde_jcs@0.2.0",
+    "pkg:cargo/serde_json@1.0.151",
+    "pkg:cargo/sha1@0.10.7",
+    "pkg:cargo/sha2@0.10.9",
+    "pkg:cargo/sha2@0.11.0",
+    "pkg:cargo/simd-adler32@0.3.10",
+    "pkg:cargo/siphasher@1.0.3",
+    "pkg:cargo/slab@0.4.12",
+    "pkg:cargo/smallvec@1.15.2",
+    "pkg:cargo/sparesults@0.4.0-dev",
+    "pkg:cargo/spareval@0.3.0-dev",
+    "pkg:cargo/spargebra@0.5.0-dev",
+    "pkg:cargo/sparopt@0.4.0-dev",
+    "pkg:cargo/stacker@0.1.24",
+    "pkg:cargo/thin-vec@0.2.18",
+    "pkg:cargo/thin-vec@0.2.19",
+    "pkg:cargo/thiserror@2.0.19",
+    "pkg:cargo/tracing-core@0.1.36",
+    "pkg:cargo/tracing@0.1.44",
+    "pkg:cargo/tsify@0.5.8",
+    "pkg:cargo/twox-hash@2.1.3",
+    "pkg:cargo/typed-path@0.12.3",
+    "pkg:cargo/typeid@1.0.3",
+    "pkg:cargo/typenum@1.20.1",
+    "pkg:cargo/unicode-ident@1.0.24",
+    "pkg:cargo/unicode-segmentation@1.13.3",
+    "pkg:cargo/walkdir@2.5.0",
+    "pkg:cargo/wasm-bindgen-shared@0.2.126",
+    "pkg:cargo/wasm-bindgen@0.2.126",
+    "pkg:cargo/xxhash-rust@0.8.18",
+    "pkg:cargo/zerocopy@0.8.55",
+    "pkg:cargo/zerocopy@0.8.56",
+    "pkg:cargo/zeroize@1.9.0",
+    "pkg:cargo/zip@8.6.0",
+    "pkg:cargo/zlib-rs@0.6.6",
+    "pkg:cargo/zlib-rs@0.6.7",
+    "pkg:cargo/zmij@1.0.23",
+    "pkg:cargo/zopfli@0.8.3",
+    "pkg:npm/%40dagrejs/dagre@3.0.0",
+    "pkg:npm/%40dagrejs/graphlib@4.0.1",
+    "pkg:npm/%40tanstack/react-virtual@3.14.8",
+    "pkg:npm/%40tanstack/virtual-core@3.17.6",
+    "pkg:npm/%40types/d3-color@3.1.3",
+    "pkg:npm/%40types/d3-drag@3.0.7",
+    "pkg:npm/%40types/d3-interpolate@3.0.4",
+    "pkg:npm/%40types/d3-selection@3.0.11",
+    "pkg:npm/%40types/d3-transition@3.0.9",
+    "pkg:npm/%40types/d3-zoom@3.0.8",
+    "pkg:npm/%40types/react-dom@19.2.3",
+    "pkg:npm/%40types/react@19.2.14",
+    "pkg:npm/%40xyflow/react@12.11.2",
+    "pkg:npm/%40xyflow/system@0.0.79",
+    "pkg:npm/classcat@5.0.5",
+    "pkg:npm/comlink@4.4.2",
+    "pkg:npm/csstype@3.2.3",
+    "pkg:npm/d3-color@3.1.0",
+    "pkg:npm/d3-dispatch@3.0.1",
+    "pkg:npm/d3-drag@3.0.0",
+    "pkg:npm/d3-ease@3.0.1",
+    "pkg:npm/d3-interpolate@3.0.1",
+    "pkg:npm/d3-selection@3.0.0",
+    "pkg:npm/d3-timer@3.0.1",
+    "pkg:npm/d3-transition@3.0.1",
+    "pkg:npm/d3-zoom@3.0.0",
+    "pkg:npm/papaparse@5.5.3",
+    "pkg:npm/react-dom@19.2.5",
+    "pkg:npm/react@19.2.5",
+    "pkg:npm/scheduler@0.27.0",
+    "pkg:npm/use-sync-external-store@1.6.0",
+    "pkg:npm/zustand@4.5.7"
+   ],
+   "ref": "chronicle-android-raw-data-preprocessing-app"
+  }
+ ],
+ "metadata": {
+  "component": {
+   "bom-ref": "chronicle-android-raw-data-preprocessing-app",
+   "externalReferences": [
+    {
+     "type": "vcs",
+     "url": "https://github.com/uzaira0/chronicle-android-raw-data-preprocessing-app"
+    }
+   ],
+   "licenses": [
+    {
+     "license": {
+      "id": "GPL-3.0-only"
+     }
+    }
+   ],
+   "name": "chronicle-android-raw-data-preprocessing-app",
+   "type": "application",
+   "version": "1.0.0"
+  },
+  "timestamp": "2026-10-13T17:13:15Z",
+  "tools": {
+   "components": [
+    {
+     "author": "anchore",
+     "name": "syft",
+     "type": "application",
+     "version": "1.45.1"
+    }
+   ]
+  }
+ },
+ "serialNumber": "urn:uuid:51d3a52a-b9ca-5f99-9e42-6b5ea756aea2",
+ "specVersion": "1.6",
+ "version": 1
+}
