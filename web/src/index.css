@@ -429,23 +429,9 @@ a:hover {
   min-height: 221px;
 }
 
-.settings-card-loading--sleep-diary-replication {
-  min-height: 463px;
-}
-
 @media (max-width: 1100px) {
   .settings-card-loading--research-method-profile {
     min-height: 240px;
-  }
-
-  .settings-card-loading--sleep-diary-replication {
-    min-height: 483px;
-  }
-}
-
-@media (max-width: 720px) {
-  .settings-card-loading--sleep-diary-replication {
-    min-height: 505px;
   }
 }
 
@@ -453,19 +439,11 @@ a:hover {
   .settings-card-loading--research-method-profile {
     min-height: 302px;
   }
-
-  .settings-card-loading--sleep-diary-replication {
-    min-height: 634px;
-  }
 }
 
 @media (max-width: 320px) {
   .settings-card-loading--research-method-profile {
     min-height: 321px;
-  }
-
-  .settings-card-loading--sleep-diary-replication {
-    min-height: 699px;
   }
 }
 

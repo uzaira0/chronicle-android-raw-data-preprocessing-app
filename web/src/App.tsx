@@ -196,19 +196,13 @@ const ResearchMethodProfileCard = lazy(() =>
     loadMethodReceiptValidation(),
   ]).then(([module]) => ({ default: module.ResearchMethodProfileCard })),
 );
-const SleepDiaryReplicationCard = lazy(() =>
-  Promise.all([
-    import("@/components/SleepDiaryReplicationCard"),
-    loadMethodReceiptValidation(),
-  ]).then(([module]) => ({ default: module.SleepDiaryReplicationCard })),
-);
 
 /** Stands in for a lazily loaded settings card while its code loads. */
 function SettingsCardLoading({
   anchor,
   title,
 }: {
-  anchor: "research-method-profile" | "sleep-diary-replication";
+  anchor: "research-method-profile";
   title: string;
 }): ReactElement {
   return (
@@ -3670,18 +3664,6 @@ export default function App(): ReactElement {
                   }}
                   onComponentSelected={selectLiteratureComponent}
                   componentRunning={isLiteratureComponentRunning}
-                  onStatus={(message, isError = false) =>
-                    setToast({ message, isError })
-                  }
-                />
-              </Suspense>
-              <Suspense fallback={<SettingsCardLoading anchor="sleep-diary-replication" title="Sleep diary replication" />}>
-                <SleepDiaryReplicationCard
-                  methodProfileReceipt={activeMethodProfileReceipts.sleepDiary ?? null}
-                  onBound={(receipt) => setActiveMethodProfileReceipts((current) => ({
-                    ...current,
-                    sleepDiary: receipt ?? undefined,
-                  }))}
                   onStatus={(message, isError = false) =>
                     setToast({ message, isError })
                   }

@@ -86,7 +86,6 @@ describe("first-paint import graph", () => {
     "lib/rustPipelineAuthority.ts",
     "lib/plotGenerator.ts",
     "components/ResearchMethodProfileCard.tsx",
-    "components/SleepDiaryReplicationCard.tsx",
     "components/ResultPanel.tsx",
     "components/ViewPanel.tsx",
     "components/LiteratureComponentResultPanel.tsx",
