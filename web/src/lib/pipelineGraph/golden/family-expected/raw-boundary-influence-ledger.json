@@ -96196,5 +96196,11 @@
       ]
     }
   ],
-  "caseSetDigest": "sha256:ec1de40ab26498224de78d9bb7a5fd7188be5fb7e38f1bb132e3d9cea6268ffa"
+  "caseSetDigest": "sha256:ec1de40ab26498224de78d9bb7a5fd7188be5fb7e38f1bb132e3d9cea6268ffa",
+  "footprintInheritance": {
+    "measuredOnImplementationDigest": "sha256:d513c2f44d3ed0de10dea94108fc10306810dbac138b6fcf31fa9a9889cb9714",
+    "inheritedAtImplementationDigest": "sha256:d513c2f44d3ed0de10dea94108fc10306810dbac138b6fcf31fa9a9889cb9714",
+    "footprintProof": ".semantic-federation/proofs/footprints/raw-boundary-influence.json",
+    "footprintProofDigest": "sha256:43dcc9e5f721169885b149d437a49889d8ae6a9c3706cc994ae25811c885a114"
+  }
 }
