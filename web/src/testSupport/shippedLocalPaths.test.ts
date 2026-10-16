@@ -36,9 +36,14 @@ function localPathLeaks(text: string): string[] {
 
 // Tracked files plus new files not yet added; ignored build/cache output
 // (for example a local __pycache__ under schema/generated) never ships.
+// A git hook exports GIT_DIR, and with GIT_DIR set git takes the current
+// directory (web/) as the top of the work tree: the repository's .gitignore
+// is never read and every file is listed as new. Locate the repository from
+// webRoot instead.
+const gitEnv = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("GIT_")));
 function shippedFiles(): string[] {
   return execFileSync("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", ...shippedRoots],
-    { cwd: webRoot, encoding: "utf8" }).split("\0").filter(Boolean);
+    { cwd: webRoot, encoding: "utf8", env: gitEnv }).split("\0").filter(Boolean);
 }
 
 describe("shipped web files carry no local machine paths", () => {
