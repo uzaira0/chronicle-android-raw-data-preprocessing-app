@@ -336,7 +336,8 @@ function manifestClosureDigest(perFileDigests) {
  *   manifest-closure digest already gates — recorded informationally, never
  *   untracked.
  * - "toolchain": rust stdlib source, pinned by the recorded toolchain
- *   identity — same treatment.
+ *   identity — same treatment. The prebuilt stdlib's own paths
+ *   (/rustc/<commit>/library/...) are not touched by any remap.
  *
  * @param {string} filename @param {string} repositoryRoot
  * @returns {{kind: "repository", key: string} | {kind: "registry" | "toolchain", key: string}}
@@ -350,7 +351,10 @@ export function classifyCoverageFile(filename, repositoryRoot) {
   }
   if (
     filename.startsWith("/rust-toolchain/") ||
-    filename.includes("/lib/rustlib/src/rust/")
+    filename.includes("/lib/rustlib/src/rust/") ||
+    // The prebuilt stdlib records its sources as /rustc/<commit>/library/...;
+    // the commit is the one in the recorded toolchain identity.
+    /^\/rustc\/[0-9a-f]{40}\/library\//.test(filename)
   ) {
     return { kind: "toolchain", key: filename };
   }
@@ -409,10 +413,16 @@ export function campaignVerdict({ campaign, basis, repositoryRoot }) {
   if (footprint.schema !== FOOTPRINT_SCHEMA) {
     return { verdict: "dirty", reason: `footprint schema ${footprint.schema}` };
   }
-  if (footprint.untrackedTouchedFiles?.length) {
+  // Classified again, so a footprint recorded before a path form was known
+  // (the prebuilt stdlib's /rustc/<commit>/ sources) is not dirty forever.
+  /** @type {string[]} */
+  const untracked = (footprint.untrackedTouchedFiles ?? []).filter(
+    (/** @type {string} */ file) => classifyCoverageFile(file, repositoryRoot).kind === "repository",
+  );
+  if (untracked.length) {
     return {
       verdict: "dirty",
-      reason: `prior run touched files outside the digest map: ${footprint.untrackedTouchedFiles.join(", ")}`,
+      reason: `prior run touched files outside the digest map: ${untracked.join(", ")}`,
     };
   }
   if (footprint.manifestClosureDigest !== basis.manifestClosureDigest) {
