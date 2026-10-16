@@ -314,5 +314,11 @@
       "nonAdditiveOrMaskedPairs": 4,
       "caseSetDigest": "sha256:1b6546957b146c5fc8a9abb1df5305e4a6eab491b4f6aebde5fb2b45abe02195"
     }
-  ]
+  ],
+  "footprintInheritance": {
+    "measuredOnImplementationDigest": "sha256:d513c2f44d3ed0de10dea94108fc10306810dbac138b6fcf31fa9a9889cb9714",
+    "inheritedAtImplementationDigest": "sha256:d513c2f44d3ed0de10dea94108fc10306810dbac138b6fcf31fa9a9889cb9714",
+    "footprintProof": ".semantic-federation/proofs/footprints/mixed-artifact-configuration.json",
+    "footprintProofDigest": "sha256:9eae549640a3b5846de90420faff758826e68b04e41026fdcb0e3e72d43eaf83"
+  }
 }
