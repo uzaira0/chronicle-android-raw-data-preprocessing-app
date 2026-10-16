@@ -166,6 +166,21 @@ describe("campaign footprint verdicts", () => {
     ).toEqual({ verdict: "clean" });
   });
 
+  it("does not hold a footprint dirty for stdlib files recorded as untracked before their path form was known", () => {
+    const repositoryRoot = temporaryRepository();
+    const stdlib =
+      "/rustc/913e4bea83424658d76712fee9c52452a3a9ef0e/library/std/src/sys/thread_local/no_threads.rs";
+    writeFootprint(repositoryRoot, { untrackedTouchedFiles: [stdlib] });
+    expect(campaignVerdict({ campaign: CAMPAIGN, basis: MATCHING_BASIS, repositoryRoot })).toEqual({
+      verdict: "clean",
+    });
+    writeFootprint(repositoryRoot, { untrackedTouchedFiles: [stdlib, "rust/unknown.rs"] });
+    expect(campaignVerdict({ campaign: CAMPAIGN, basis: MATCHING_BASIS, repositoryRoot })).toEqual({
+      verdict: "dirty",
+      reason: "prior run touched files outside the digest map: rust/unknown.rs",
+    });
+  });
+
   it("dirties every remaining conditioning axis: removal, schema, untracked, manifests, harness, contract, toolchain, empty coverage", () => {
     const repositoryRoot = temporaryRepository();
     const cases: Array<{
@@ -270,6 +285,8 @@ describe("coverage filename classification", () => {
     for (const filename of [
       "/rust-toolchain/lib/rustlib/src/rust/library/std/src/sys/thread_local/no_threads.rs",
       "/opt/rust/lib/rustlib/src/rust/library/core/src/option.rs",
+      // What coverage actually reports: the prebuilt stdlib's own path form.
+      "/rustc/913e4bea83424658d76712fee9c52452a3a9ef0e/library/std/src/sys/thread_local/no_threads.rs",
     ]) {
       expect(classifyCoverageFile(filename, repositoryRoot)).toEqual({
         kind: "toolchain",
@@ -283,6 +300,10 @@ describe("coverage filename classification", () => {
       kind: "repository",
       key: "/somewhere/else.rs",
     });
+    // Only a full commit hash followed by library/ is the stdlib.
+    for (const filename of ["/rustc/913e4bea8/library/std/src/lib.rs", "/rustc/notahash/src/main.rs"]) {
+      expect(classifyCoverageFile(filename, repositoryRoot).kind).toBe("repository");
+    }
   });
 });
 
