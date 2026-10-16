@@ -131,11 +131,11 @@ pub fn parse_integer_screen_state_csv(
         };
 
         events.push(RawB05Event {
-            participant_id: device_id.to_owned(),
+            participant_id: std::sync::Arc::new(device_id.to_owned()),
             timestamp_ns: Some(timestamp_ns),
             source_data_row,
             source_data_rows: vec![source_data_row],
-            raw_interaction_type: screen_status.to_owned(),
+            raw_interaction_type: std::sync::Arc::new(screen_status.to_owned()),
             signal,
             package_name: None,
             app_opener_eligible: false,

@@ -1731,6 +1731,90 @@ describe("shared worker successful routing and WASM compilation", () => {
     compile.mockRestore();
   });
 
+  it("retires the shared worker once idle after a large input, and routes new work to a fresh one", async () => {
+    const compileStreaming = vi
+      .spyOn(WebAssembly, "compileStreaming")
+      .mockResolvedValue({});
+    let finishVersion: (value: string) => void = () => undefined;
+    const api = {
+      initializeRuntime: vi.fn(() => Promise.resolve()),
+      splitRawCsvByStudy: vi.fn(() => Promise.resolve([])),
+      runtimeVersion: vi.fn(
+        () => new Promise<string>((resolve) => { finishVersion = resolve; }),
+      ),
+    } as unknown as RemoteApi;
+    const client = await loadFreshWorkerClient(
+      api,
+      new Response(new Uint8Array([0, 97, 115, 109]), {
+        headers: { "content-type": "application/wasm" },
+      }),
+    );
+    try {
+      const spawned = FakeWorker.instances.length;
+      await client.splitRawCsvByStudy(new ArrayBuffer(1024));
+      const first = lastWorker();
+      expect(FakeWorker.instances.length).toBe(spawned + 1);
+      expect(first.terminated).toBe(false);
+
+      // A call still in flight keeps the worker until it settles.
+      const version = client.getRuntimeVersion();
+      await vi.waitFor(() => expect(api.runtimeVersion).toHaveBeenCalledTimes(1));
+      await client.splitRawCsvByStudy(new ArrayBuffer(64 * 1024 * 1024));
+      expect(first.terminated).toBe(false);
+      // New work goes to a fresh worker meanwhile.
+      await client.splitRawCsvByStudy(new ArrayBuffer(1024));
+      expect(FakeWorker.instances.length).toBe(spawned + 2);
+      expect(lastWorker()).not.toBe(first);
+      finishVersion("runtime-v1");
+      await expect(version).resolves.toBe("runtime-v1");
+      expect(first.terminated).toBe(true);
+      expect(lastWorker().terminated).toBe(false);
+    } finally {
+      compileStreaming.mockRestore();
+    }
+  });
+
+  it("re-registers an inspection batch on whichever worker inspects, so retirement cannot strand it", async () => {
+    const compileStreaming = vi
+      .spyOn(WebAssembly, "compileStreaming")
+      .mockResolvedValue({});
+    const batchId = `sha256:${"b".repeat(64)}`;
+    const calls: string[] = [];
+    const api = {
+      initializeRuntime: vi.fn(() => Promise.resolve()),
+      beginRawInspectionBatch: vi.fn(() => {
+        calls.push("begin");
+        return Promise.resolve(batchId);
+      }),
+      inspectRawCsvBytes: vi.fn(() => {
+        calls.push("inspect");
+        return Promise.resolve({ rowCount: 1 });
+      }),
+    } as unknown as RemoteApi;
+    const client = await loadFreshWorkerClient(
+      api,
+      new Response(new Uint8Array([0, 97, 115, 109]), {
+        headers: { "content-type": "application/wasm" },
+      }),
+    );
+    try {
+      const secret = new Uint8Array(32).fill(3);
+      await client.inspectRawCsvBytes("a.csv", 1, new ArrayBuffer(64 * 1024 * 1024), "d", batchId, secret);
+      const first = lastWorker();
+      expect(first.terminated).toBe(true);
+      await client.inspectRawCsvBytes("b.csv", 1, new ArrayBuffer(1), "d", batchId, secret);
+      expect(lastWorker()).not.toBe(first);
+      expect(calls).toEqual(["begin", "inspect", "begin", "inspect"]);
+      // The caller keeps its secret; the worker gets a copy.
+      expect(secret).toEqual(new Uint8Array(32).fill(3));
+      await expect(
+        client.inspectRawCsvBytes("c.csv", 1, new ArrayBuffer(1), "d", `sha256:${"c".repeat(64)}`, secret),
+      ).rejects.toThrow("raw inspection batch secret does not match its batch");
+    } finally {
+      compileStreaming.mockRestore();
+    }
+  });
+
   it("transfers a mixed-study upload to the worker splitter and returns its per-study files", async () => {
     const compileStreaming = vi
       .spyOn(WebAssembly, "compileStreaming")

@@ -80,6 +80,7 @@ const packages = [
         "method:free(): void;",
         "method:manifest_json(): string;",
         "method:take_artifact_bytes(index: number): Uint8Array;",
+        "method:take_artifact_chunk(index: number): Uint8Array | undefined;",
         "readonly:readonly artifact_count: number;",
       ],
       RuntimeSupportFiles: [

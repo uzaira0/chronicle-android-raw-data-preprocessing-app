@@ -1877,14 +1877,17 @@ pub(super) fn emit_csv_float(out: &mut Vec<u8>, value: f64, first: &mut bool) {
     }
 }
 
+#[cfg(test)]
 pub(super) fn write_app_csv(rows: &[Row], opts: &PipelineV2Options, include_aliases: bool) -> Vec<u8> {
     write_app_csv_from_iter(rows.iter(), opts, include_aliases)
 }
 
 /// Counts what a writer would emit, so a buffer is sized to its content
 /// instead of an estimate's slack or a doubling copy.
+#[cfg(test)]
 pub(super) struct CountingSink(pub(super) usize);
 
+#[cfg(test)]
 impl std::io::Write for CountingSink {
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
         self.0 += bytes.len();
@@ -1895,6 +1898,7 @@ impl std::io::Write for CountingSink {
     }
 }
 
+#[cfg(test)]
 pub(super) fn write_app_csv_from_iter<'a>(
     rows: impl Iterator<Item = &'a Row> + Clone,
     opts: &PipelineV2Options,

@@ -178,8 +178,11 @@ export async function openPayloadSpill(
       stats.putBytes += bytes.byteLength;
       if (written !== bytes.byteLength) {
         free.push(region);
+        // Chromium has answered an over-quota write (in-memory profile, a
+        // 606 MB export) with a count of 4294967288 instead of throwing.
         throw new Error(
-          `payload spill wrote ${written} of ${bytes.byteLength} bytes`,
+          `payload spill wrote ${written} of ${bytes.byteLength} bytes: the browser's ` +
+            "storage for this site is full. Free disk space and process the file again.",
         );
       }
       regions.set(id, region);

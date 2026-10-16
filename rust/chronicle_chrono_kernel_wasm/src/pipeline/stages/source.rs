@@ -2,7 +2,7 @@ use chrono::Timelike;
 use crate::pipeline_v2::{
     ACTIVITY_PAUSED, ACTIVITY_RESUMED, AHashMap, AHashSet, AMAZON_APPS, Arc, BTreeMap, BTreeSet,
     CsvReader, Datelike, HashMap, LocalDateMemo, RawRow, ReadFieldResult, Row, RowCountReport,
-    RowData, SharedString, SharedStringPool, SourceDataRows, TimezoneSelection, Tz, b06,
+    EpisodeTiming, RowData, RowEpisodeTiming, SharedString, SharedStringPool, SourceDataRows, TimezoneSelection, Tz, b06,
     ecma_round_fixed_f64, empty_codebook_fields, empty_lineage_searches,
     parse_chronicle_timestamp_ns, parse_csv_to_records_with_physical_rows, source, ts_to_local,
     weekday_chronicle,
@@ -31,9 +31,9 @@ pub fn canonical_raw_participant_keys(csv_bytes: &[u8]) -> BTreeSet<(String, Str
         .map(|row| {
             let study = match &only_study {
                 Some(study) if row.study_id.is_empty() => study.clone(),
-                _ => row.study_id.clone(),
+                _ => row.study_id.to_string(),
             };
-            (study, row.participant_id.clone())
+            (study, row.participant_id.to_string())
         })
         .collect()
 }
@@ -43,7 +43,7 @@ pub fn canonical_raw_participant_keys(csv_bytes: &[u8]) -> BTreeSet<(String, Str
 pub fn canonical_raw_participant_ids(csv_bytes: &[u8]) -> BTreeSet<String> {
     source::decode_source_records(csv_bytes)
         .into_iter()
-        .filter_map(|row| (!row.participant_id.is_empty()).then_some(row.participant_id))
+        .filter_map(|row| (!row.participant_id.is_empty()).then(|| row.participant_id.to_string()))
         .collect()
 }
 
@@ -439,6 +439,7 @@ pub(crate) fn decode_source_records(csv_bytes: &[u8]) -> Vec<RawRow> {
     // vector that reaches ~200 bytes per row on real exports.
     let estimated_rows = input.iter().filter(|&&byte| byte == b'\n').count();
     let mut raw_rows = Vec::with_capacity(estimated_rows.min(4_000_000));
+    let mut strings = SharedStringPool::default();
     loop {
         let (result, consumed, produced) = reader.read_field(input, &mut field_buf);
         input = &input[consumed..];
@@ -471,13 +472,13 @@ pub(crate) fn decode_source_records(csv_bytes: &[u8]) -> Vec<RawRow> {
                     raw_rows.push(RawRow {
                         source_data_row,
                         event_timestamp: get(event).trim().to_string(),
-                        timezone: get(timezone).trim().to_string(),
-                        app_package_name: get(package).trim().to_string(),
-                        interaction_type: get(interaction).trim().to_string(),
-                        application_label: get(label).trim().to_string(),
-                        study_id: get(study).trim().to_string(),
-                        participant_id: get(participant).trim().to_string(),
-                        username: get(username).trim().to_string(),
+                        timezone: strings.intern(get(timezone).trim()),
+                        app_package_name: strings.intern(get(package).trim()),
+                        interaction_type: strings.intern(get(interaction).trim()),
+                        application_label: strings.intern(get(label).trim()),
+                        study_id: strings.intern(get(study).trim()),
+                        participant_id: strings.intern(get(participant).trim()),
+                        username: strings.intern(get(username).trim()),
                     });
                     for value in &mut row_values {
                         value.clear();
@@ -502,7 +503,7 @@ pub(crate) fn attach_device_models(raw_rows: &[RawRow]) -> BTreeMap<String, Stri
     let mut models = BTreeMap::new();
     for row in raw_rows {
         let model = models
-            .entry(row.participant_id.clone())
+            .entry(row.participant_id.to_string())
             .or_insert_with(|| "Android".to_owned());
         if model != "Amazon Fire"
             && AMAZON_APPS
@@ -537,7 +538,7 @@ pub(crate) fn canonicalize_source_rows(
         .map(|(index, raw)| {
             let possible_device_model = strings.intern(
                 possible_device_models
-                    .get(&raw.participant_id)
+                    .get(raw.participant_id.as_str())
                     .map(String::as_str)
                     .unwrap_or("Android"),
             );
@@ -558,7 +559,7 @@ pub(crate) fn canonicalize_source_rows(
             } else {
                 raw.timezone.as_str()
             };
-            let interaction_type = match interaction_remap.get(&raw.interaction_type) {
+            let interaction_type = match interaction_remap.get(raw.interaction_type.as_str()) {
                 Some(mapped) => mapped.as_str(),
                 None => normalize_interaction_type_local(&raw.interaction_type),
             };
@@ -586,24 +587,30 @@ pub(crate) fn canonicalize_source_rows(
                 weekday_su_th: 0,
                 hour: 0,
                 quarter: 0,
-                start_timestamp_ns: None,
-                stop_timestamp_ns: None,
-                duration_seconds: None,
-                duration_minutes: None,
-                raw_episode_start_timestamp_ns: None,
-                raw_episode_stop_timestamp_ns: None,
-                raw_episode_duration_ns: None,
+                // Written field by field so this constructor still names every
+                // carried field; an all-empty value allocates no box.
+                episode_timing: EpisodeTiming::from(RowEpisodeTiming {
+                    start_timestamp_ns: None,
+                    stop_timestamp_ns: None,
+                    duration_seconds: None,
+                    duration_minutes: None,
+                    raw_episode_start_timestamp_ns: None,
+                    raw_episode_stop_timestamp_ns: None,
+                    raw_episode_duration_ns: None,
+                    minimum_duration_qualified: None,
+                    minimum_duration_aggregate_eligible: true,
+                    minimum_duration_blank_applied: false,
+                    concurrent_subinterval_floor_blank_applied: false,
+                    minimum_duration_drop_pending: false,
+                    maximum_duration_qualified: None,
+                    maximum_duration_aggregate_eligible: true,
+                    maximum_duration_drop_pending: false,
+                    maximum_duration_trimmed_ns: None,
+                    effective_endpoint_reason: None,
+                    screen_usage_last_activity_timestamp_ns: None,
+                    screen_usage_tail_gap_seconds: None,
+                }),
                 micro_use_classification: None,
-                minimum_duration_qualified: None,
-                minimum_duration_aggregate_eligible: true,
-                minimum_duration_blank_applied: false,
-                concurrent_subinterval_floor_blank_applied: false,
-                minimum_duration_drop_pending: false,
-                maximum_duration_qualified: None,
-                maximum_duration_aggregate_eligible: true,
-                maximum_duration_drop_pending: false,
-                maximum_duration_trimmed_ns: None,
-                effective_endpoint_reason: None,
                 screen_usage_end_reason: None,
                 app_usage_end_reason: None,
                 screen_interval_id: None,
@@ -611,8 +618,6 @@ pub(crate) fn canonicalize_source_rows(
                 usage_session_id: None,
                 screen_usage_end_reason_confidence: None,
                 screen_usage_stop_event_type: None,
-                screen_usage_last_activity_timestamp_ns: None,
-                screen_usage_tail_gap_seconds: None,
                 screen_usage_foreground_app_package: None,
                 screen_usage_app_observed: None,
                 screen_usage_session_classification: None,

@@ -75,7 +75,14 @@ for (const width of [1280, 768, 375, 320]) {
     await expect(projects).toBeVisible();
     const busyCards = page.locator('[data-settings-anchor][aria-busy="true"]');
     await expect(busyCards).toHaveCount(1);
-    const top = async () => (await projects.boundingBox())?.y ?? Number.NaN;
+    // Measured from the card itself, both edges in one layout read: anything
+    // that arrives above the card (WebKit under load shows the
+    // ephemeral-storage banner late) moves both alike.
+    const top = () =>
+      page.evaluate(() => {
+        const edge = (selector: string) => document.querySelector(selector)?.getBoundingClientRect().top ?? Number.NaN;
+        return edge('[data-testid="projects-card"]') - edge('[data-settings-anchor="research-method-profile"]');
+      });
     const before = await top();
 
     release();

@@ -240,6 +240,34 @@ export class RuntimeHandle {
             wasm.__wbindgen_add_to_stack_pointer(16);
         }
     }
+    /**
+     * The artifact's next stored chunk, or `undefined` once it is drained.
+     * Only that chunk is reloaded and copied out, so a large output never
+     * needs an artifact-sized buffer in the worker's 4 GiB address space.
+     * @param {number} index
+     * @returns {Uint8Array | undefined}
+     */
+    take_artifact_chunk(index) {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.runtimehandle_take_artifact_chunk(retptr, this.__wbg_ptr, index);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+            var r3 = getDataViewMemory0().getInt32(retptr + 4 * 3, true);
+            if (r3) {
+                throw takeObject(r2);
+            }
+            let v1;
+            if (r0 !== 0) {
+                v1 = getArrayU8FromWasm0(r0, r1).slice();
+                wasm.__wbindgen_export4(r0, r1 * 1, 1);
+            }
+            return v1;
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
+    }
 }
 if (Symbol.dispose) RuntimeHandle.prototype[Symbol.dispose] = RuntimeHandle.prototype.free;
 

@@ -100,8 +100,8 @@ fn loneliness_source_screen_vocabulary_maps_at_parsed_event_boundary_only() {
     for (event, expected) in events.iter().zip(&fixture.expected_events) {
         assert_eq!(event.source_data_row, expected.source_data_row);
         assert_eq!(event.timestamp_ns, Some(expected.timestamp_ns));
-        assert_eq!(event.participant_id, expected.device_id);
-        assert_eq!(event.raw_interaction_type, expected.source_status);
+        assert_eq!(*event.participant_id, expected.device_id);
+        assert_eq!(*event.raw_interaction_type, expected.source_status);
         assert_eq!(event.signal.canonical_id(), expected.canonical_signal);
     }
     assert_eq!(

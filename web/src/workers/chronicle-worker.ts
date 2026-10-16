@@ -6,6 +6,7 @@ import {
   type PayloadSpill,
 } from "./payloadSpill";
 import { MAX_PAYLOAD_BUDGET_BYTES } from "@/lib/concurrency";
+import { outOfMemoryRefusal } from "@/lib/inputLimits";
 import { WORKER_BACKGROUND_FAILURE_MESSAGE } from "@/lib/workerBackgroundFailure";
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import {
@@ -469,6 +470,8 @@ const api = {
           ),
       });
     } catch (error) {
+      const outOfMemory = outOfMemoryRefusal(error, inputFileName, rustWasmMemoryBytes());
+      if (outOfMemory) throw new Error(outOfMemory, { cause: error });
       throwSerializableScientificPreflightRefusal(error);
     }
     result.inputSha256 = inputSha256;

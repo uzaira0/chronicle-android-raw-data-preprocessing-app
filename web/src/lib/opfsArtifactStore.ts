@@ -5,6 +5,8 @@ import {
   type RuntimeClosureManifest,
 } from "./workflowClosureProtocol";
 
+import { StreamingSha256 } from "./streamingSha256";
+
 export type { RuntimeClosureManifest } from "./workflowClosureProtocol";
 
 /**
@@ -342,8 +344,45 @@ async function writeFile(
   name: string,
   bytes: Uint8Array,
 ): Promise<void> {
+  const chunks = [bytes][Symbol.iterator]();
+  await writeFileChunks(directory, name, () => chunks.next().value);
+}
+
+/**
+ * Write the chunks `next()` yields until it returns undefined. Nothing is
+ * committed unless every chunk arrived and, when given, they total
+ * `expectedBytes`: a failure aborts the write instead of closing it.
+ */
+async function writeFileChunks(
+  directory: FileSystemDirectoryHandle,
+  name: string,
+  next: () => Uint8Array | undefined,
+  expected?: { kind: string; size: number },
+): Promise<void> {
   const handle = await directory.getFileHandle(name, { create: true });
   const writable = await handle.createWritable();
+  try {
+    let written = 0;
+    for (let bytes = next(); bytes !== undefined; bytes = next()) {
+      await writeChunk(writable, bytes);
+      written += bytes.byteLength;
+    }
+    if (expected && written !== expected.size) {
+      throw new Error(`artifact size mismatch for ${expected.kind}`);
+    }
+  } catch (error) {
+    // The failed write is the error to report; an abort that also fails only
+    // means the stream is already closed.
+    await writable.abort().catch(() => undefined);
+    throw error;
+  }
+  await writable.close();
+}
+
+async function writeChunk(
+  writable: FileSystemWritableFileStream,
+  bytes: Uint8Array,
+): Promise<void> {
   let copy: Uint8Array<ArrayBuffer> | undefined;
   try {
     // Copy unless the view already spans its whole buffer. Two engine facts
@@ -363,12 +402,39 @@ async function writeFile(
         : (copy = new Uint8Array(bytes));
     await writable.write(owned);
   } finally {
+    copy?.fill(0);
+  }
+}
+
+/** Objects above this are hashed as a stream rather than read whole. */
+const STREAMED_DIGEST_BYTES = 256 * 1024 * 1024;
+
+/**
+ * Size and digest of a stored file. A large one is hashed in pieces: reading
+ * it whole holds it, plus the copy `crypto.subtle.digest` makes, at once.
+ */
+export async function storedFileDigest(
+  directory: FileSystemDirectoryHandle,
+  name: string,
+  streamedAbove = STREAMED_DIGEST_BYTES,
+): Promise<{ size: number; digest: string }> {
+  const file = await (await directory.getFileHandle(name)).getFile();
+  if (file.size <= streamedAbove) {
+    const bytes = new Uint8Array(await file.arrayBuffer());
     try {
-      await writable.close();
+      return { size: bytes.byteLength, digest: await sha256(bytes) };
     } finally {
-      copy?.fill(0);
+      bytes.fill(0);
     }
   }
+  const hasher = new StreamingSha256();
+  const reader = file.stream().getReader();
+  let size = 0;
+  for (let read = await reader.read(); !read.done; read = await reader.read()) {
+    hasher.update(read.value);
+    size += read.value.byteLength;
+  }
+  return { size, digest: hasher.digest() };
 }
 
 async function readFile(
@@ -436,21 +502,7 @@ async function writeVerifiedObject(
         throw new Error(`artifact digest mismatch for ${artifact.kind}`);
       }
     }
-    try {
-      const existing = await readFile(directory, name);
-      try {
-        if (
-          existing.byteLength === artifact.size &&
-          (await sha256(existing)) === artifact.digest
-        ) {
-          return true;
-        }
-      } finally {
-        existing.fill(0);
-      }
-    } catch {
-      // Missing or unreadable objects are repaired by the verified write below.
-    }
+    if (await storedObjectMatches(directory, name, artifact)) return true;
     await writeFile(directory, name, bytes);
     return false;
   } finally {
@@ -464,24 +516,69 @@ async function putObject(
 ): Promise<void> {
   const { directory, name } = await objectDirectory(objects, artifact.digest, true);
   if (await writeVerifiedObject(directory, name, artifact)) return;
-  const stored = await readFile(directory, name);
+  await verifyStoredObject(directory, name, artifact);
+}
+
+/** True when the object is already stored intact; a missing or bad one is rewritten. */
+async function storedObjectMatches(
+  directory: FileSystemDirectoryHandle,
+  name: string,
+  artifact: PersistedRuntimeArtifactMetadata,
+): Promise<boolean> {
   try {
-    if (stored.byteLength !== artifact.size) {
-      // Naming the observed size is what turned a WebKit corruption into a
-      // one-line diagnosis: "wrote 812, read back 6291456" is the engine storing
-      // a view's whole backing buffer, not a random I/O fault.
-      throw new Error(
-        `OPFS verification failed for ${artifact.kind}: wrote ${artifact.size} bytes, read back ${stored.byteLength}`,
-      );
-    }
-    if ((await sha256(stored)) !== artifact.digest) {
-      throw new Error(
-        `OPFS verification failed for ${artifact.kind}: ${artifact.size} bytes stored with a different digest`,
-      );
-    }
-  } finally {
-    stored.fill(0);
+    const stored = await storedFileDigest(directory, name);
+    return stored.size === artifact.size && stored.digest === artifact.digest;
+  } catch {
+    // Missing or unreadable objects are repaired by the verified write.
+    return false;
   }
+}
+
+async function verifyStoredObject(
+  directory: FileSystemDirectoryHandle,
+  name: string,
+  artifact: PersistedRuntimeArtifactMetadata,
+): Promise<void> {
+  const stored = await storedFileDigest(directory, name);
+  if (stored.size !== artifact.size) {
+    // Naming the observed size is what turned a WebKit corruption into a
+    // one-line diagnosis: "wrote 812, read back 6291456" is the engine storing
+    // a view's whole backing buffer, not a random I/O fault.
+    throw new Error(
+      `OPFS verification failed for ${artifact.kind}: wrote ${artifact.size} bytes, read back ${stored.size}`,
+    );
+  }
+  if (stored.digest !== artifact.digest) {
+    throw new Error(
+      `OPFS verification failed for ${artifact.kind}: ${artifact.size} bytes stored with a different digest`,
+    );
+  }
+}
+
+/**
+ * Place one object the runtime already digested, written chunk by chunk as
+ * `next()` hands them over, so it is never whole in JavaScript. The stored
+ * copy is verified like every other object.
+ */
+export async function persistRuntimeObjectChunks(
+  root: FileSystemDirectoryHandle,
+  artifact: PersistedRuntimeArtifactMetadata & { digestVerified: true },
+  next: () => Uint8Array | undefined,
+): Promise<void> {
+  const { objects } = await storeDirectories(root);
+  const { directory, name } = await objectDirectory(objects, artifact.digest, true);
+  if (await storedObjectMatches(directory, name, artifact)) {
+    // Drain it anyway, which releases the chunks, and hold the source to its
+    // declared size as the whole-buffer path does.
+    let drained = 0;
+    for (let bytes = next(); bytes !== undefined; bytes = next()) drained += bytes.byteLength;
+    if (drained !== artifact.size) {
+      throw new Error(`artifact size mismatch for ${artifact.kind}`);
+    }
+    return;
+  }
+  await writeFileChunks(directory, name, next, artifact);
+  await verifyStoredObject(directory, name, artifact);
 }
 
 /** Verify and place one immutable object without advancing a workspace root. */

@@ -510,7 +510,7 @@ those hashes protect checkpoint and artifact identity and remain intact.
 
 ## Deploy artifact
 
-The deploy build occupies 15,052,781 bytes on disk (2026-10-03 working-tree build;
+The deploy build occupies 15,060,066 bytes on disk (2026-10-03 working-tree build;
 480,690 of those bytes are `THIRD-PARTY-NOTICES.txt` and 83,539 are the CycloneDX
 SBOM `sbom.cdx.json`, neither of which the app fetches or precaches; they are served
 only when someone opens them).
@@ -529,11 +529,11 @@ timing/RSS benchmark.
 
 | Asset | Bytes |
 |---|---:|
-| preprocessing runtime WASM | 6,018,210 |
-| decoded preprocessing runtime WASM | 15,622,895 |
-| semantic index WASM | 2,907,468 |
+| preprocessing runtime WASM | 6,016,655 |
+| decoded preprocessing runtime WASM | 15,617,714 |
+| semantic index WASM | 2,907,425 |
 | bundled app codebook | 2,147,719 |
-| main JavaScript | 496,891 |
+| main JavaScript | 500,927 |
 | graph JavaScript | 240,510 |
 
 The historical 2026-08-27 deploy capture on the verification-sweep-endgame
@@ -1020,8 +1020,8 @@ expected to exhaust the worker, and the upload inspection warned above a
 provisional `BROWSER_ENGINE_ROW_CEILING` of 380,000 rows. The budgeted
 payload store below removed most of the retained per-row state, and the
 browser run of this fixture (measured in the next subsection) completes on
-both engines at 2.0 GiB; the ceiling is now 950,000 rows, derived from that
-measurement.
+both engines at 2.0 GiB; the ceiling became 950,000 rows, derived from that
+measurement (since raised; see "Real-size exports").
 
 ### Budgeted payload residency (2026-09-14, node-z, Ubuntu 24.04)
 
@@ -1227,8 +1227,9 @@ budget is 512 MiB. The browser's high-water mark sits about 0.4 GiB above
 the native peak at the same budget; the linear memory never shrinks and the
 wasm32 allocator's fragmentation is not measured here, so that gap is
 recorded, not attributed. 2,097,741,824 / 580,793 is about 3.6 KB per raw
-row; `BROWSER_ENGINE_ROW_CEILING` is 950,000 rows (about 3.3 GiB at that
-rate, inside the 4 GiB a wasm32 worker can address).
+row; `BROWSER_ENGINE_ROW_CEILING` was set to 950,000 rows (about 3.3 GiB at
+that rate, inside the 4 GiB a wasm32 worker can address; since raised, see
+"Real-size exports").
 
 The Playwright Firefox row is not a Firefox figure. Its worker reported
 (`ProcessedFileResult.workerPayloadSpill`) 4,519 spills / 4,509 reloads,
@@ -1246,3 +1247,74 @@ That build runs WASM on the baseline compiler only. Engine comparisons use a
 stock Firefox through `MEASURE_FIREFOX_CHANNEL=moz-firefox` (harness option),
 and every Firefox WASM timing taken on the Playwright build before this note
 is a test-build artifact.
+
+### Real-size exports (2026-10-15, RHEL 9 host)
+
+A study export of 605,927,956 bytes (3,544,705 rows) was refused by the
+180 MB bound above, and before this change it ran out of memory in the
+browser ("unreachable"). The fixtures here have the real export's column
+layout: `real-layout.csv` itself, prefixes of 900,000 and 1,800,000 rows, and
+copies extended by later days to 749,999,909 bytes (4,384,636 rows) and
+900,123,102 bytes (5,265,925 rows). Figures are the worker's WASM memory
+(`WebAssembly.Memory.buffer.byteLength`, a high-water mark) from the app's
+own runtime entry points under Node at the 512 MiB payload budget, sequential
+engine, with spill to disk.
+
+| Input bytes | App defaults | TECH/GNSM preset |
+|------------:|-------------:|-----------------:|
+| 154,381,598 | 1,122,631,680 | – |
+| 307,713,605 | 1,703,018,496 | – |
+| 605,927,956 | 2,632,646,656 | 3,006,201,856 |
+| 749,999,909 | 3,240,296,448 | 3,666,870,272 |
+| 900,123,102 | 3,757,047,808 | – |
+
+What changed, all with byte-identical outputs (every output file and the
+result digest compared against the unchanged engine on the 900,000-row prefix
+with the defaults, with the opt-in outputs, and with every optional output,
+and on a 100,000-row prefix with interval expansion and formula
+neutralization):
+
+1. The source rows are freed before the codebook join. Every later step that
+   read them (raw dates, the screen-credit witness index, notification
+   contacts, placeholder days) takes what it needs first.
+2. Raw-row and B05 event strings are shared, not copied per row.
+3. Every app-shaped CSV (app usage, credited, notification contacts, polled
+   emulation, interval expansion) is written straight into payload chunks
+   that can spill, and the runtime hands an artifact to JavaScript one chunk at
+   a time, so no output is ever held whole twice.
+
+Native peak of one execute over the 605,927,956-byte export at the 512 MiB
+budget, unchanged engine against this one, same result digest each time:
+6,357 MiB to 2,733 MiB with the app defaults, and 8,817 MiB to 4,011 MiB with
+every optional output on. Between the two largest sizes measured, the
+TECH/GNSM preset costs 4.6 bytes of worker memory per input byte
+(`WORKER_BYTES_PER_INPUT_BYTE`) and the defaults 4.2. With 512 MiB kept free
+below the 4 GiB a wasm32 worker can address, the preset reaches that line at
+about 769 MB, so the bound (`MAX_RAW_INPUT_BYTES`) is 750 MB and the row
+warning (`BROWSER_ENGINE_ROW_CEILING`) is 4,400,000 rows. A lone worker's
+payload budget shrinks with its largest input so budget plus input memory
+stays inside 4 GiB.
+
+In the built app (headless Chromium 147, on-disk profile, app defaults), the
+605,927,956-byte export reaches the results table in 139–180 s and the
+749,999,909-byte one in 161 s; the page's renderer process peaked at
+3.9–4.4 GiB and 4.5 GiB (load on this shared host moves both figures). Two
+browser-side holders had to go first:
+
+- The upload inspection ran in a long-lived shared worker whose WASM memory
+  (about 3 GB after inspecting this file) never shrinks, beside the
+  processing worker's own. The shared worker is now retired once idle after a
+  raw input of 64 MiB or more.
+- Results were taken into JavaScript two at a time, written to OPFS, and read
+  back whole to verify: with the 1,241,986,109-byte App CSV that pushed the
+  renderer to 8.5 GiB. Artifacts now go from WASM to OPFS a chunk at a time,
+  and a stored object above 256 MiB is verified with a streaming SHA-256
+  (about 208 MiB/s, against 1.8 GiB/s for `crypto.subtle`, which needs the
+  whole buffer).
+
+Every optional output at once (credit, notification contacts, placeholder
+days, day coverage, concurrent usage, aggregates, compliance, polled
+emulation, formula neutralization) still exceeds 4 GiB on the
+605,927,956-byte export: live heap peaked at 3,295,043,014 bytes, and the
+allocator's fragmentation took the rest. That run now ends with a message
+that names the file and says to turn optional outputs off or split the export.

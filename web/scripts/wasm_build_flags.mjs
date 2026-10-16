@@ -1,9 +1,61 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, realpathSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, readdirSync, realpathSync, renameSync, rmSync, symlinkSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const ENCODED_FLAG_SEPARATOR = "\x1f";
+const FIXED_HOST_RUSTC = fileURLToPath(new URL("./rustc_fixed_host.sh", import.meta.url));
+
+/**
+ * @param {string | undefined} searchPath
+ * @param {string} command
+ * @returns {string | undefined}
+ */
+function findOnPath(searchPath, command) {
+  return (searchPath ?? "")
+    .split(path.delimiter)
+    .filter(Boolean)
+    .map((directory) => path.join(directory, command))
+    .find(existsSync);
+}
+
+/**
+ * Replace every PATH directory that holds `command` with a mirror of that
+ * directory without it, so the other tools there (cargo, sed, cc, git, ...)
+ * stay reachable. Mirrors are content-addressed under `mirrorRoot` and built
+ * by rename, so concurrent builds share them safely.
+ * @param {string | undefined} searchPath
+ * @param {string} command
+ * @param {string} mirrorRoot
+ * @returns {string}
+ */
+export function pathWithoutCommand(searchPath, command, mirrorRoot) {
+  return (searchPath ?? "")
+    .split(path.delimiter)
+    .filter(Boolean)
+    .map((directory) => {
+      if (!existsSync(path.join(directory, command))) return directory;
+      const entries = readdirSync(directory).filter((name) => name !== command).sort();
+      const key = createHash("sha256").update(JSON.stringify([directory, command, entries])).digest("hex");
+      const mirror = path.join(mirrorRoot, key.slice(0, 16));
+      if (!existsSync(mirror)) {
+        const staging = `${mirror}.${process.pid}.tmp`;
+        rmSync(staging, { recursive: true, force: true });
+        mkdirSync(staging, { recursive: true });
+        for (const name of entries) symlinkSync(path.join(directory, name), path.join(staging, name));
+        try {
+          renameSync(staging, mirror);
+        } catch (error) {
+          rmSync(staging, { recursive: true, force: true });
+          if (!existsSync(mirror)) throw error;
+        }
+      }
+      return mirror;
+    })
+    .join(path.delimiter);
+}
 
 /** Reject roots anywhere in binary data, except two exact non-path statements
  * in FINESSE's preserved method definition (10.1145/3479600, PDF p8 section3.3).
@@ -119,6 +171,23 @@ export function wasmBuildOptions(repositoryRoot, env = process.env) {
   // is set. Unset, every build embeds 64 fresh random bytes in the runtime WASM.
   /** @type {NodeJS.ProcessEnv} */
   const childEnv = { ...env, CONST_RANDOM_SEED: "chronicle-wasm-build" };
+  // Cargo mixes the build host into crate metadata, so the same sources built
+  // different WASM on macOS and Linux; this rustc reports one fixed host.
+  // The real rustc is resolved on the caller's PATH, the one the sysroot remap
+  // above was read from. RUSTC is now a fixed file, so Cargo's rustc-info cache
+  // (keyed on that file) would miss a toolchain change: turn it off.
+  childEnv.CHRONICLE_REAL_RUSTC =
+    env.CHRONICLE_REAL_RUSTC || env.RUSTC || findOnPath(env.PATH, "rustc") || "rustc";
+  childEnv.RUSTC = FIXED_HOST_RUSTC;
+  childEnv.CARGO_CACHE_RUSTC_INFO = "0";
+  // wasm-pack runs the first wasm-opt on PATH and downloads its own pinned
+  // binaryen only when there is none. Binaryen versions optimize to different
+  // bytes (Homebrew's version 131 against wasm-pack 0.14's version_117).
+  childEnv.PATH = pathWithoutCommand(
+    env.PATH,
+    "wasm-opt",
+    path.join(paths.repositoryRoot, "rust", "target", "wasm-build-path"),
+  );
   // Apple's ar/ranlib cannot index minicov's WASM objects. Respect explicit
   // cross-tool overrides; otherwise use the installed Homebrew LLVM archiver.
   if (process.platform === "darwin" && ![
