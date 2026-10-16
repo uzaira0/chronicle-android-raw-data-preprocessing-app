@@ -74,3 +74,4 @@ export function classifyCoverageFile(
 ):
   | { kind: "repository"; key: string }
   | { kind: "registry" | "toolchain"; key: string };
+export function measuredLedgerText(text: string): string;

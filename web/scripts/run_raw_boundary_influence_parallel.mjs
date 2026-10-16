@@ -10,9 +10,10 @@ import {
 import path from "node:path";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { campaignWorkers } from "./campaign_workers.mjs";
+import { measuredLedgerText } from "./footprint_selection.mjs";
 
 const corpusCount = 6;
-const workerCount = campaignWorkers({ maximum: corpusCount });
+const workerCount = campaignWorkers("raw-boundary-influence", { maximum: corpusCount });
 
 const testFile = "src/lib/pipelineGraph/golden/rawBoundaryTomography.test.ts";
 const expectedFile = path.resolve(
@@ -183,7 +184,7 @@ try {
     writeFileSync(expectedFile, serialized, "utf8");
     process.stdout.write("updated raw-boundary influence evidence\n");
   } else if (
-    serialized !== readFileSync(expectedFile, "utf8") ||
+    serialized !== measuredLedgerText(readFileSync(expectedFile, "utf8")) ||
     checkedInCellEvidence !== cellEvidenceSerialized
   ) {
     throw new Error(

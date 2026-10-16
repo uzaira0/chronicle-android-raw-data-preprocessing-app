@@ -10,8 +10,9 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { campaignWorkers } from "./campaign_workers.mjs";
+import { measuredLedgerText } from "./footprint_selection.mjs";
 
-const workerCount = campaignWorkers({ maximum: 6 });
+const workerCount = campaignWorkers("artifact-influence");
 const testFile = "src/lib/pipelineGraph/golden/artifactInterventionCampaign.test.ts";
 const expectedFile = path.resolve(
   "src/lib/pipelineGraph/golden/family-expected/artifact-influence-ledger.json",
@@ -219,7 +220,7 @@ try {
     writeFileSync(expectedFile, serialized, "utf8");
     process.stdout.write("updated artifact influence evidence\n");
   } else if (
-    serialized !== readFileSync(expectedFile, "utf8") ||
+    serialized !== measuredLedgerText(readFileSync(expectedFile, "utf8")) ||
     checkedInCellEvidence !== cellEvidenceSerialized
   ) {
     throw new Error(

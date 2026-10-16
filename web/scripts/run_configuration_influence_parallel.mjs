@@ -8,11 +8,9 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { campaignWorkers } from "./campaign_workers.mjs";
+import { measuredLedgerText } from "./footprint_selection.mjs";
 
-// On the 32-core reference machine, 12 workers and 31 workers both finish in
-// about 60 seconds; 31 workers consume substantially more CPU. Keep the
-// measured efficient default while allowing explicit scaling experiments.
-const workerCount = campaignWorkers({ maximum: 32, automaticMaximum: 12 });
+const workerCount = campaignWorkers("configuration-influence");
 const testFile = "src/lib/pipelineGraph/golden/configurationSpaceCampaign.test.ts";
 const testName =
   "derives a digest-bound empirical influence map for every computational value transition";
@@ -181,7 +179,7 @@ try {
   if (process.env.UPDATE_CONFIGURATION_SPACE === "1") {
     writeFileSync(expectedFile, serialized, "utf8");
     process.stdout.write(`updated ${path.relative(process.cwd(), expectedFile)}\n`);
-  } else if (serialized !== readFileSync(expectedFile, "utf8")) {
+  } else if (serialized !== measuredLedgerText(readFileSync(expectedFile, "utf8"))) {
     throw new Error(
       "parallel configuration influence result differs from the checked-in evidence; rerun with UPDATE_CONFIGURATION_SPACE=1 only after reviewing the change",
     );

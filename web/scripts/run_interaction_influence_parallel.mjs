@@ -8,8 +8,9 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { campaignWorkers } from "./campaign_workers.mjs";
+import { measuredLedgerText } from "./footprint_selection.mjs";
 
-const workerCount = campaignWorkers({ maximum: 12 });
+const workerCount = campaignWorkers("interaction-influence");
 const testFile = "src/lib/pipelineGraph/golden/interactionTomography.test.ts";
 const testName =
   "exhausts all computational-axis pairs and proves every warm two-factor cone";
@@ -289,7 +290,7 @@ try {
       `updated ${path.relative(process.cwd(), expectedFile)}\n`,
     );
   } else {
-    const expected = readFileSync(expectedFile, "utf8");
+    const expected = measuredLedgerText(readFileSync(expectedFile, "utf8"));
     if (serialized !== expected) {
       const expectedEvidence = JSON.parse(expected);
       const actualEvidence = /** @type {Record<string, any>} */ (evidence);

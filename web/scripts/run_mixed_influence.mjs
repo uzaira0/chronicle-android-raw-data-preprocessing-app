@@ -4,6 +4,8 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
+import { campaignWorkers } from "./campaign_workers.mjs";
+import { measuredLedgerText } from "./footprint_selection.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const webRoot = resolve(here, "..");
@@ -29,7 +31,9 @@ const roles = [
   "enrolled_devices_file",
 ];
 const update = process.env.UPDATE_MIXED_INFLUENCE === "1";
-const maxParallel = Number(process.env.MIXED_MAX_PARALLEL ?? "3");
+const maxParallel = process.env.MIXED_MAX_PARALLEL
+  ? Number(process.env.MIXED_MAX_PARALLEL)
+  : campaignWorkers("mixed-artifact-configuration", { maximum: roles.length });
 if (
   !Number.isInteger(maxParallel) ||
   maxParallel < 1 ||
@@ -156,7 +160,7 @@ const aggregate = {
 const serialized = `${JSON.stringify(aggregate, null, 2)}\n`;
 if (update) {
   writeFileSync(aggregateFile, serialized, "utf8");
-} else if (serialized !== readFileSync(aggregateFile, "utf8")) {
+} else if (serialized !== measuredLedgerText(readFileSync(aggregateFile, "utf8"))) {
   throw new Error("mixed artifact/configuration aggregate ledger drift");
 }
 process.stdout.write(

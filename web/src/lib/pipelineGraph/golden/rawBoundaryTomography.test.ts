@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { measuredLedgerText } from "../../../../scripts/footprint_selection.mjs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gunzipSync, gzipSync } from "node:zlib";
@@ -779,6 +780,8 @@ describe("raw timestamp boundary tomography", () => {
       existsSync(EXPECTED_FILE),
       "missing raw-boundary influence ledger",
     ).toBe(true);
-    expect(serialized).toBe(readFileSync(EXPECTED_FILE, "utf8"));
+    // A clean campaign the refresh inherited carries a footprintInheritance
+    // record that no measurement produces; compare against the measured ledger.
+    expect(serialized).toBe(measuredLedgerText(readFileSync(EXPECTED_FILE, "utf8")));
   }, CAMPAIGN_TEST_TIMEOUT_MS);
 });

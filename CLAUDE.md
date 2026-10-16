@@ -38,10 +38,10 @@ failures behind every rule here: `docs/postmortems/2026-08-convergence-campaign.
   flips the runtime to `ConservativeFull` and ~17 warm-reuse tests fail with one cause
   (`a_stale_dependency_certificate_names_itself_…` says so by name). Heavy runs:
   `CAP_MEM=<budget> cap make dependency-evidence`, no Rust edit in flight. Campaign
-  workers follow the machine (`web/scripts/campaign_workers.mjs`): cores − 1, at most
-  one per GiB in ¾ of `CAP_MEM` (else of RAM), split across the campaigns a wave runs
-  side by side; `CHRONICLE_CAMPAIGN_WORKERS=N` overrides. 24 concurrent workers under
-  a 12 GiB cap is what SIGTERMed the 2026-08 run.
+  workers follow the machine (`web/scripts/campaign_workers.mjs`): cores − 1 and 85% of
+  `CAP_MEM` (else of RAM), shared between the campaigns a wave runs side by side by
+  each one's measured per-worker peak (1–2.5 GiB); `CHRONICLE_CAMPAIGN_WORKERS=N`
+  overrides. 24 concurrent workers under a 12 GiB cap is what SIGTERMed the 2026-08 run.
 
 ### Hard rules — each one is a measured 2026-08 failure
 
