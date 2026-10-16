@@ -11,6 +11,7 @@ import {
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
+import { gunzipSync, gzipSync } from "node:zlib";
 
 /**
  * @typedef {{id: string, stepLabel: string, ledger: string, harnessEntries: string[]}} SelectableCampaign
@@ -545,11 +546,28 @@ export function recordCampaignFootprint({
 }
 
 /**
+ * A checked-in ledger as its campaign measured it: the text with the
+ * `footprintInheritance` record that `restampInheritedLedger` adds removed.
+ * A verify-mode campaign run reproduces exactly this, never the record.
+ * @param {string} text
+ */
+export function measuredLedgerText(text) {
+  const ledger = JSON.parse(text);
+  if (!Object.hasOwn(ledger, "footprintInheritance")) return text;
+  delete ledger.footprintInheritance;
+  return `${JSON.stringify(ledger, null, 2)}\n`;
+}
+
+/**
  * Re-stamp an inherited (clean, skipped) campaign ledger with the single
  * authority receipt this refresh produced, recording the inheritance
  * explicitly. The donor receipt comes from a ledger that was freshly measured
  * in THIS run — the same origin a full run gives every ledger — so no new
  * derivation path for receipts exists. The measured payload is untouched.
+ * The files the ledger binds by digest (the cell-evidence sidecar, the mixed
+ * campaign's role shards) carry the receipt too: they are re-stamped the same
+ * way and their digests recomputed, so the inherited evidence is exactly what
+ * a fresh run would write, plus the inheritance record.
  *
  * @param {{familyExpectedDir: string, campaign: SelectableCampaign,
  *   donorReceipt: ImplementationReceipt, footprintFileDigest: string}} input
@@ -569,6 +587,29 @@ export function restampInheritedLedger({
   const measuredOn =
     ledger.footprintInheritance?.measuredOnImplementationDigest ??
     previous.implementationDigest;
+  /** @param {string} text @param {string} name */
+  const restamped = (text, name) => {
+    const value = JSON.parse(text);
+    if (!isDeepStrictEqual(value.implementationReceipt, previous)) {
+      throw new Error(`${name} does not carry ${campaign.ledger}'s implementationReceipt`);
+    }
+    value.implementationReceipt = donorReceipt;
+    return `${JSON.stringify(value, null, 2)}\n`;
+  };
+  /** @param {string} text */
+  const digest = (text) => `sha256:${createHash("sha256").update(text).digest("hex")}`;
+  if (ledger.cellEvidence?.path) {
+    const file = path.join(familyExpectedDir, ledger.cellEvidence.path);
+    const text = restamped(gunzipSync(readFileSync(file)).toString("utf8"), ledger.cellEvidence.path);
+    writeFileSync(file, gzipSync(text, { level: 9 }));
+    ledger.cellEvidence.contentDigest = digest(text);
+  }
+  for (const shard of ledger.roleShards ?? []) {
+    const file = path.join(familyExpectedDir, shard.path);
+    const text = restamped(readFileSync(file, "utf8"), shard.path);
+    writeFileSync(file, text);
+    shard.contentDigest = digest(text);
+  }
   ledger.implementationReceipt = donorReceipt;
   ledger.footprintInheritance = {
     measuredOnImplementationDigest: measuredOn,

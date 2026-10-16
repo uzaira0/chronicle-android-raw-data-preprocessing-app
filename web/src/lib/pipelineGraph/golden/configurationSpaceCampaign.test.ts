@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { measuredLedgerText } from "../../../../scripts/footprint_selection.mjs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -3387,7 +3388,9 @@ describe("Rust/WASM configuration-space campaign", () => {
       existsSync(INFLUENCE_EXPECTED_FILE),
       "missing configuration-influence evidence snapshot",
     ).toBe(true);
-    expect(serialized).toBe(readFileSync(INFLUENCE_EXPECTED_FILE, "utf8"));
+    // A clean campaign the refresh inherited carries a footprintInheritance
+    // record that no measurement produces; compare against the measured ledger.
+    expect(serialized).toBe(measuredLedgerText(readFileSync(INFLUENCE_EXPECTED_FILE, "utf8")));
     // Two influence shards exceeded the old 600s budget the first time the
     // warm transition phase ran to depth (every transition executes two full
     // runs); budget follows measured cost.
