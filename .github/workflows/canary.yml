@@ -91,4 +91,8 @@ jobs:
         with:
           name: canary-report
           path: web/playwright-report/
-          retention-days: 3
+          # One day is enough to read a failure. Reports from a canary that
+          # failed every run for six weeks (2026-08-25 to 10-03), kept for
+          # three days, held ~3.5 GB of the account's 0.5 GB artifact
+          # allowance and blocked artifact uploads in every private repo.
+          retention-days: 1
