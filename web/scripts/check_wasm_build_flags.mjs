@@ -40,15 +40,18 @@ test("macOS WASM build selects an installed LLVM archive writer", () => {
 
 test("WASM build reports one fixed rustc host, so Cargo metadata does not depend on the build machine", () => {
   const options = wasmBuildOptions(repo);
-  assert.ok(path.isAbsolute(options.env.CHRONICLE_REAL_RUSTC), options.env.CHRONICLE_REAL_RUSTC);
+  const realRustc = options.env.CHRONICLE_REAL_RUSTC;
+  const shim = options.env.RUSTC;
+  assert.ok(realRustc && path.isAbsolute(realRustc), realRustc);
+  assert.ok(shim);
   assert.equal(options.env.CARGO_CACHE_RUSTC_INFO, "0");
   const run = (/** @type {string} */ rustc, /** @type {string[]} */ args) =>
     execFileSync(rustc, args, { cwd: repo, encoding: "utf8", env: options.env });
-  const real = run(options.env.CHRONICLE_REAL_RUSTC, ["-vV"]);
+  const real = run(realRustc, ["-vV"]);
   assert.match(real, /^host: /m);
-  assert.equal(run(options.env.RUSTC, ["-vV"]), real.replace(/^host: .*$/m, "host: x86_64-unknown-linux-gnu"));
+  assert.equal(run(shim, ["-vV"]), real.replace(/^host: .*$/m, "host: x86_64-unknown-linux-gnu"));
   // Any other invocation is the real rustc, unchanged.
-  assert.equal(run(options.env.RUSTC, ["--print", "sysroot"]), run(options.env.CHRONICLE_REAL_RUSTC, ["--print", "sysroot"]));
+  assert.equal(run(shim, ["--print", "sysroot"]), run(realRustc, ["--print", "sysroot"]));
   // A build started from inside another WASM build keeps the original rustc.
   assert.equal(wasmBuildOptions(repo, options.env).env.CHRONICLE_REAL_RUSTC, options.env.CHRONICLE_REAL_RUSTC);
 });
@@ -64,12 +67,12 @@ test("WASM build hides PATH copies of wasm-opt but keeps the other tools beside 
     const [first, mirror, last] = pathWithoutCommand(["/usr/bin", withOpt, "/bin"].join(path.delimiter), "wasm-opt", mirrors)
       .split(path.delimiter);
     assert.deepEqual([first, last], ["/usr/bin", "/bin"]);
-    assert.ok(mirror.startsWith(mirrors), mirror);
+    assert.ok(mirror && mirror.startsWith(mirrors), mirror);
     assert.deepEqual(readdirSync(mirror), ["other-tool"]);
     // The same directory maps to the same mirror on the next build.
     assert.equal(pathWithoutCommand(withOpt, "wasm-opt", mirrors), mirror);
     const options = wasmBuildOptions(repo, { ...process.env, PATH: `${withOpt}${path.delimiter}${process.env.PATH}` });
-    assert.ok(!options.env.PATH.split(path.delimiter).some((directory) => existsSync(path.join(directory, "wasm-opt"))));
+    assert.ok(!(options.env.PATH ?? "").split(path.delimiter).some((directory) => existsSync(path.join(directory, "wasm-opt"))));
   } finally {
     rmSync(scratch, { recursive: true, force: true });
   }

@@ -471,7 +471,7 @@ const api = {
       });
     } catch (error) {
       const outOfMemory = outOfMemoryRefusal(error, inputFileName, rustWasmMemoryBytes());
-      if (outOfMemory) throw new Error(outOfMemory);
+      if (outOfMemory) throw new Error(outOfMemory, { cause: error });
       throwSerializableScientificPreflightRefusal(error);
     }
     result.inputSha256 = inputSha256;
