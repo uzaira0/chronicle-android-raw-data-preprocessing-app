@@ -413,12 +413,13 @@ const STREAMED_DIGEST_BYTES = 256 * 1024 * 1024;
  * Size and digest of a stored file. A large one is hashed in pieces: reading
  * it whole holds it, plus the copy `crypto.subtle.digest` makes, at once.
  */
-async function storedFileDigest(
+export async function storedFileDigest(
   directory: FileSystemDirectoryHandle,
   name: string,
+  streamedAbove = STREAMED_DIGEST_BYTES,
 ): Promise<{ size: number; digest: string }> {
   const file = await (await directory.getFileHandle(name)).getFile();
-  if (file.size <= STREAMED_DIGEST_BYTES) {
+  if (file.size <= streamedAbove) {
     const bytes = new Uint8Array(await file.arrayBuffer());
     try {
       return { size: bytes.byteLength, digest: await sha256(bytes) };
