@@ -7,7 +7,7 @@ use crate::pipeline_v2::{
     CULVERHOUSE_LONG_6H_NS, CULVERHOUSE_PARTIAL_DAY_FLAG, CULVERHOUSE_PARTIAL_DAY_GAP_HOURS,
     CULVERHOUSE_SAME_APP_COLLAPSE_NS, CodebookEntry, DayBoundaryAttribution, FILTERED_APP_USAGE,
     FILTERED_STOPPED, HashMap, IntervalQualityPolicy, LocalDateMemo, NaiveDate, Row,
-    SessionBoundaryScope, SessionGapBasis, SessionGapThreshold, SessionGroupingRules, SharedString,
+    SessionBoundaryScope, SessionGapBasis, SessionGapThreshold, SessionGroupingRules, SharedString, SharedStringPool,
     TimeZone, Tz, BROAD_CATEGORY_COLUMNS, GENRE_ID_COLUMNS, codebook_col_indices, empty_codebook_fields, format_threshold, js_number_to_string,
     populate_time_columns, ts_to_local,
 };
@@ -73,24 +73,28 @@ pub(crate) fn derive_broad_category(rows: &mut [Row], enabled: bool) {
         return;
     }
     let indices = codebook_col_indices(BROAD_CATEGORY_COLUMNS);
+    let mut strings = SharedStringPool::default();
     for row in rows.iter_mut() {
-        derive_broad_category_row(row, indices);
+        derive_broad_category_row(row, indices, &mut strings);
     }
 }
 
+/// `strings` shares one category value across the rows that carry it; a
+/// fresh string per row cost ~40 bytes a row on a multi-million-row export.
 pub(crate) fn derive_broad_category_row(
     row: &mut Row,
     indices: [usize; BROAD_CATEGORY_COLUMNS.len()],
+    strings: &mut SharedStringPool,
 ) {
     let chosen = indices
         .iter()
         .map(|&index| row.codebook_fields[index].as_deref())
         .chain(std::iter::once(row.broad_app_category.as_deref()))
         .find_map(|candidate| candidate.filter(|value| !value.trim().is_empty()))
-        .map(String::from);
-    let category = Some(chosen.unwrap_or_else(|| "Unknown".to_string()).into());
-    if row.broad_app_category != category {
-        *row.edit_classification().broad_app_category = category;
+        .unwrap_or("Unknown");
+    if row.broad_app_category.as_deref() != Some(chosen) {
+        let category = strings.intern(chosen);
+        *row.edit_classification().broad_app_category = Some(category);
     }
 }
 
@@ -99,30 +103,29 @@ pub(crate) fn collapse_app_genre(rows: &mut [Row], enabled: bool) {
         return;
     }
     let indices = codebook_col_indices(GENRE_ID_COLUMNS);
+    let mut strings = SharedStringPool::default();
     for row in rows.iter_mut() {
-        collapse_app_genre_row(row, indices);
+        collapse_app_genre_row(row, indices, &mut strings);
     }
 }
 
-pub(crate) fn collapse_app_genre_row(row: &mut Row, indices: [usize; GENRE_ID_COLUMNS.len()]) {
-    let genre_values = indices
+pub(crate) fn collapse_app_genre_row(
+    row: &mut Row,
+    indices: [usize; GENRE_ID_COLUMNS.len()],
+    strings: &mut SharedStringPool,
+) {
+    let mut genre_values = indices
         .into_iter()
-        .filter_map(|index| row.codebook_fields[index].as_ref())
-        .filter(|value| !value.trim().is_empty())
-        .cloned()
-        .collect::<Vec<_>>();
-    if genre_values.is_empty() {
+        .filter_map(|index| row.codebook_fields[index].as_deref())
+        .filter(|value| !value.trim().is_empty());
+    let Some(first) = genre_values.next() else {
         if row.genre_id_scraped.as_deref() != Some("Unknown") {
-            *row.edit_classification().genre_id_scraped = Some("Unknown".into());
+            *row.edit_classification().genre_id_scraped = Some(strings.intern("Unknown"));
         }
         return;
-    }
-    let unique = genre_values
-        .iter()
-        .map(String::as_str)
-        .collect::<AHashSet<_>>();
-    if unique.len() == 1 {
-        let genre = SharedString::from(genre_values[0].as_str());
+    };
+    if genre_values.all(|value| value == first) {
+        let genre = strings.intern(first);
         if row.genre_id_scraped.as_ref() != Some(&genre) || !row.codebook_genre_fields_cleared {
             let data = row.edit_classification();
             *data.genre_id_scraped = Some(genre);
@@ -145,10 +148,11 @@ pub(crate) fn apply_codebook_annotations(
     }
     let broad_indices = codebook_col_indices(BROAD_CATEGORY_COLUMNS);
     let genre_indices = codebook_col_indices(GENRE_ID_COLUMNS);
+    let mut strings = SharedStringPool::default();
     for row in rows {
         join_codebook_row(row, codebook_map);
-        derive_broad_category_row(row, broad_indices);
-        collapse_app_genre_row(row, genre_indices);
+        derive_broad_category_row(row, broad_indices, &mut strings);
+        collapse_app_genre_row(row, genre_indices, &mut strings);
     }
 }
 
@@ -512,10 +516,10 @@ pub(crate) fn clear_filtered_usage_timing_row(row: &mut Row) {
             || row.duration_minutes.is_some())
     {
         let data = row.edit_temporal();
-        *data.start_timestamp_ns = None;
-        *data.stop_timestamp_ns = None;
-        *data.duration_seconds = None;
-        *data.duration_minutes = None;
+        data.episode_timing.start_timestamp_ns = None;
+        data.episode_timing.stop_timestamp_ns = None;
+        data.episode_timing.duration_seconds = None;
+        data.episode_timing.duration_minutes = None;
     }
 }
 
@@ -572,10 +576,10 @@ pub(crate) fn culverhouse_truncate_row(row: &mut Row, start: i64, span_ns: i64) 
     let seconds = span_ns as f64 / 1_000_000_000.0;
     let had_duration = row.duration_seconds.is_some() || row.duration_minutes.is_some();
     let data = row.edit_temporal();
-    *data.stop_timestamp_ns = Some(start + span_ns);
+    data.episode_timing.stop_timestamp_ns = Some(start + span_ns);
     if had_duration {
-        *data.duration_seconds = Some(seconds);
-        *data.duration_minutes = Some(seconds / 60.0);
+        data.episode_timing.duration_seconds = Some(seconds);
+        data.episode_timing.duration_minutes = Some(seconds / 60.0);
     }
 }
 
@@ -588,10 +592,10 @@ pub(crate) fn culverhouse_merge_row(row: &mut Row, start: i64, span_ns: i64) {
     let seconds = span_ns as f64 / 1_000_000_000.0;
     let had_duration = row.duration_seconds.is_some() || row.duration_minutes.is_some();
     let data = row.edit_temporal();
-    *data.stop_timestamp_ns = Some(start + span_ns);
+    data.episode_timing.stop_timestamp_ns = Some(start + span_ns);
     if had_duration {
-        *data.duration_seconds = Some(seconds);
-        *data.duration_minutes = Some(seconds / 60.0);
+        data.episode_timing.duration_seconds = Some(seconds);
+        data.episode_timing.duration_minutes = Some(seconds / 60.0);
     }
 }
 
@@ -989,8 +993,8 @@ pub(crate) fn culverhouse_bound_implausible_intervals(rows: &mut [Row]) {
             // must not be reopened by downstream cleaning.
             let seconds = bound as f64 / 1_000_000_000.0;
             let data = row.edit_temporal();
-            *data.duration_seconds = Some(seconds);
-            *data.duration_minutes = Some(seconds / 60.0);
+            data.episode_timing.duration_seconds = Some(seconds);
+            data.episode_timing.duration_minutes = Some(seconds / 60.0);
         }
     }
 }
@@ -1083,15 +1087,15 @@ pub(crate) fn split_sessions_at_local_midnight(rows: Vec<Row>, rule: DayBoundary
             let mut piece = row.clone();
             piece.event_timestamp_ns = left;
             let data = piece.edit_temporal();
-            *data.start_timestamp_ns = Some(left);
-            *data.stop_timestamp_ns = Some(right);
+            data.episode_timing.start_timestamp_ns = Some(left);
+            data.episode_timing.stop_timestamp_ns = Some(right);
             if blanked {
-                *data.duration_seconds = None;
-                *data.duration_minutes = None;
+                data.episode_timing.duration_seconds = None;
+                data.episode_timing.duration_minutes = None;
             } else {
                 let seconds = (right - left) as f64 / 1_000_000_000.0;
-                *data.duration_seconds = Some(seconds);
-                *data.duration_minutes = Some(seconds / 60.0);
+                data.episode_timing.duration_seconds = Some(seconds);
+                data.episode_timing.duration_minutes = Some(seconds / 60.0);
             }
             // The first part keeps the session's own index. Later parts move
             // into a disjoint band so no two rows share an index, mirroring
@@ -1234,8 +1238,8 @@ pub(crate) fn culverhouse_trim_and_log(mut rows: Vec<Row>) -> Vec<Row> {
             row.raw_episode_stop_timestamp_ns,
         ) {
             let data = row.edit_temporal();
-            *data.start_timestamp_ns = Some(start);
-            *data.stop_timestamp_ns = Some(stop - data.maximum_duration_trimmed_ns.unwrap_or(0));
+            data.episode_timing.start_timestamp_ns = Some(start);
+            data.episode_timing.stop_timestamp_ns = Some(stop - data.episode_timing.maximum_duration_trimmed_ns.unwrap_or(0));
         }
     }
     let mut rows = culverhouse_collapse_same_app(rows);
@@ -1289,6 +1293,7 @@ pub(crate) fn apply_static_review_annotations_fused(
     let has_junk = !filtered_packages.is_empty();
     let broad_indices = codebook_enabled.then(|| codebook_col_indices(BROAD_CATEGORY_COLUMNS));
     let genre_indices = codebook_enabled.then(|| codebook_col_indices(GENRE_ID_COLUMNS));
+    let mut strings = SharedStringPool::default();
     let thresholds = prepare_usage_flags(
         long_data_time_gap_thresholds,
         long_usage_duration_thresholds,
@@ -1305,27 +1310,27 @@ pub(crate) fn apply_static_review_annotations_fused(
                 if row.interaction_type == APP_USAGE {
                     *row.edit_classification().interaction_type = FILTERED_APP_USAGE.into();
                     let temporal = row.edit_temporal();
-                    *temporal.duration_seconds = None;
-                    *temporal.duration_minutes = None;
+                    temporal.episode_timing.duration_seconds = None;
+                    temporal.episode_timing.duration_minutes = None;
                 } else if row.interaction_type == ACTIVITY_STOPPED {
                     *row.edit_classification().interaction_type = FILTERED_STOPPED.into();
                     let temporal = row.edit_temporal();
-                    *temporal.start_timestamp_ns = None;
-                    *temporal.stop_timestamp_ns = None;
-                    *temporal.duration_seconds = None;
-                    *temporal.duration_minutes = None;
+                    temporal.episode_timing.start_timestamp_ns = None;
+                    temporal.episode_timing.stop_timestamp_ns = None;
+                    temporal.episode_timing.duration_seconds = None;
+                    temporal.episode_timing.duration_minutes = None;
                 } else {
                     let temporal = row.edit_temporal();
-                    *temporal.start_timestamp_ns = None;
-                    *temporal.stop_timestamp_ns = None;
-                    *temporal.duration_seconds = None;
-                    *temporal.duration_minutes = None;
+                    temporal.episode_timing.start_timestamp_ns = None;
+                    temporal.episode_timing.stop_timestamp_ns = None;
+                    temporal.episode_timing.duration_seconds = None;
+                    temporal.episode_timing.duration_minutes = None;
                 }
             }
             if let (Some(broad), Some(genre)) = (broad_indices, genre_indices) {
                 join_codebook_row(row, codebook_map);
-                derive_broad_category_row(row, broad);
-                collapse_app_genre_row(row, genre);
+                derive_broad_category_row(row, broad, &mut strings);
+                collapse_app_genre_row(row, genre, &mut strings);
             }
         },
         |row| {

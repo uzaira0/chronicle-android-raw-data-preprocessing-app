@@ -1563,7 +1563,7 @@ pub(crate) fn materialize_candidate_episodes_in_place(
     };
     for &start_index in &result.start_indices {
         let event_timestamp_ns = rows[start_index].event_timestamp_ns;
-        *rows[start_index].edit_temporal().start_timestamp_ns = Some(event_timestamp_ns);
+        rows[start_index].edit_temporal().episode_timing.start_timestamp_ns = Some(event_timestamp_ns);
     }
     for (position, &start_index) in result.stop_start_indices.iter().enumerate() {
         let stop_index = result.stop_event_indices[position];
@@ -1616,9 +1616,9 @@ pub(crate) fn materialize_candidate_episodes_in_place(
             });
             let temporal = fragment.edit_temporal();
             if let Some(begin_ns) = fragment_start_ns {
-                *temporal.start_timestamp_ns = Some(begin_ns);
+                temporal.episode_timing.start_timestamp_ns = Some(begin_ns);
             }
-            *temporal.stop_timestamp_ns = Some(stop_timestamp_ns);
+            temporal.episode_timing.stop_timestamp_ns = Some(stop_timestamp_ns);
             if let Some(&reason) = result.stop_reasons.get(position) {
                 *fragment.edit_classification().app_usage_end_reason =
                     Some(shared_end_reason(reason));
@@ -1646,9 +1646,9 @@ pub(crate) fn materialize_candidate_episodes_in_place(
         });
         let temporal = rows[start_index].edit_temporal();
         if let Some(begin_ns) = fragment_start_ns {
-            *temporal.start_timestamp_ns = Some(begin_ns);
+            temporal.episode_timing.start_timestamp_ns = Some(begin_ns);
         }
-        *temporal.stop_timestamp_ns = Some(stop_timestamp_ns);
+        temporal.episode_timing.stop_timestamp_ns = Some(stop_timestamp_ns);
         if let Some(&reason) = result.stop_reasons.get(position) {
             *rows[start_index].edit_classification().app_usage_end_reason =
                 Some(shared_end_reason(reason));
@@ -1684,15 +1684,15 @@ pub(crate) fn materialize_candidate_episodes_in_place(
         // same pre-filter evidence seam.
         let raw_start = row.start_timestamp_ns;
         let temporal = row.edit_temporal();
-        *temporal.stop_timestamp_ns = None;
-        *temporal.duration_seconds = None;
-        *temporal.duration_minutes = None;
-        *temporal.raw_episode_start_timestamp_ns = raw_start;
-        *temporal.raw_episode_stop_timestamp_ns = None;
-        *temporal.raw_episode_duration_ns = None;
-        *temporal.minimum_duration_qualified = None;
+        temporal.episode_timing.stop_timestamp_ns = None;
+        temporal.episode_timing.duration_seconds = None;
+        temporal.episode_timing.duration_minutes = None;
+        temporal.episode_timing.raw_episode_start_timestamp_ns = raw_start;
+        temporal.episode_timing.raw_episode_stop_timestamp_ns = None;
+        temporal.episode_timing.raw_episode_duration_ns = None;
+        temporal.episode_timing.minimum_duration_qualified = None;
         if filtered_packages.contains(row.app_package_name.as_str()) {
-            *row.edit_temporal().start_timestamp_ns = None;
+            row.edit_temporal().episode_timing.start_timestamp_ns = None;
         }
     }
     // Empty unless a rule split an episode. `order_app_episodes` sorts, so
@@ -1740,11 +1740,11 @@ pub(crate) fn apply_maximum_duration_to_row(
     let exceeds = b06::qualifies(raw_duration_ns, threshold_ns);
     {
         let temporal = row.edit_temporal();
-        *temporal.maximum_duration_qualified = Some(exceeds);
-        *temporal.maximum_duration_aggregate_eligible = true;
-        *temporal.maximum_duration_drop_pending = false;
-        *temporal.maximum_duration_trimmed_ns = None;
-        *temporal.effective_endpoint_reason = None;
+        temporal.episode_timing.maximum_duration_qualified = Some(exceeds);
+        temporal.episode_timing.maximum_duration_aggregate_eligible = true;
+        temporal.episode_timing.maximum_duration_drop_pending = false;
+        temporal.episode_timing.maximum_duration_trimmed_ns = None;
+        temporal.episode_timing.effective_endpoint_reason = None;
     }
     if !exceeds {
         return Ok(false);
@@ -1753,7 +1753,7 @@ pub(crate) fn apply_maximum_duration_to_row(
         b06::MaximumDurationDisposition::NotApplicable
         | b06::MaximumDurationDisposition::FlagAndRetain => Ok(false),
         b06::MaximumDurationDisposition::RetainButExclude => {
-            *row.edit_temporal().maximum_duration_aggregate_eligible = false;
+            row.edit_temporal().episode_timing.maximum_duration_aggregate_eligible = false;
             Ok(false)
         }
         b06::MaximumDurationDisposition::TruncateToThreshold => {
@@ -1764,24 +1764,24 @@ pub(crate) fn apply_maximum_duration_to_row(
             // moves the endpoint underneath it.
             let blank_wins = row.minimum_duration_blank_applied;
             let temporal = row.edit_temporal();
-            *temporal.maximum_duration_trimmed_ns = Some(trimmed_ns);
+            temporal.episode_timing.maximum_duration_trimmed_ns = Some(trimmed_ns);
             if is_filtered {
                 // Filtered rows publish no timing at all: the trim is
                 // recorded, the endpoint stays blank, no reason is published.
                 return Ok(false);
             }
-            *temporal.stop_timestamp_ns = Some(effective_stop);
-            *temporal.effective_endpoint_reason =
+            temporal.episode_timing.stop_timestamp_ns = Some(effective_stop);
+            temporal.episode_timing.effective_endpoint_reason =
                 Some(b06::MaximumDurationEffectiveEndpointReason::MaximumDurationTruncationBoundary);
             if !blank_wins {
                 let seconds = threshold_ns as f64 / 1_000_000_000.0;
-                *temporal.duration_seconds = Some(seconds);
-                *temporal.duration_minutes = Some(seconds / 60.0);
+                temporal.episode_timing.duration_seconds = Some(seconds);
+                temporal.episode_timing.duration_minutes = Some(seconds / 60.0);
             }
             Ok(true)
         }
         b06::MaximumDurationDisposition::DropRow => {
-            *row.edit_temporal().maximum_duration_drop_pending = true;
+            row.edit_temporal().episode_timing.maximum_duration_drop_pending = true;
             Ok(false)
         }
     }
@@ -1823,10 +1823,10 @@ pub(crate) fn classify_episode_durations(
                         Some(MicroUseClassification::NotClassifiable);
                 }
                 let temporal = row.edit_temporal();
-                *temporal.raw_episode_start_timestamp_ns = raw_start;
-                *temporal.raw_episode_stop_timestamp_ns = None;
-                *temporal.raw_episode_duration_ns = None;
-                *temporal.minimum_duration_qualified = None;
+                temporal.episode_timing.raw_episode_start_timestamp_ns = raw_start;
+                temporal.episode_timing.raw_episode_stop_timestamp_ns = None;
+                temporal.episode_timing.raw_episode_duration_ns = None;
+                temporal.episode_timing.minimum_duration_qualified = None;
             }
             if row.interaction_type == ACTIVITY_RESUMED
                 || selected_nonresume_closed_indices.contains(&index)
@@ -1864,40 +1864,40 @@ pub(crate) fn classify_episode_durations(
                 });
                 {
                     let evidence = row.edit_temporal();
-                    *evidence.raw_episode_start_timestamp_ns = Some(start);
-                    *evidence.raw_episode_stop_timestamp_ns = Some(stop);
-                    *evidence.raw_episode_duration_ns = Some(duration_ns);
-                    *evidence.minimum_duration_qualified = Some(qualifies);
-                    *evidence.minimum_duration_aggregate_eligible = true;
-                    *evidence.minimum_duration_blank_applied = false;
-                    *evidence.concurrent_subinterval_floor_blank_applied = false;
-                    *evidence.minimum_duration_drop_pending = false;
+                    evidence.episode_timing.raw_episode_start_timestamp_ns = Some(start);
+                    evidence.episode_timing.raw_episode_stop_timestamp_ns = Some(stop);
+                    evidence.episode_timing.raw_episode_duration_ns = Some(duration_ns);
+                    evidence.episode_timing.minimum_duration_qualified = Some(qualifies);
+                    evidence.episode_timing.minimum_duration_aggregate_eligible = true;
+                    evidence.episode_timing.minimum_duration_blank_applied = false;
+                    evidence.episode_timing.concurrent_subinterval_floor_blank_applied = false;
+                    evidence.episode_timing.minimum_duration_drop_pending = false;
                 }
                 if is_filtered {
                     let temporal = row.edit_temporal();
-                    *temporal.start_timestamp_ns = None;
-                    *temporal.stop_timestamp_ns = None;
-                    *temporal.duration_seconds = None;
-                    *temporal.duration_minutes = None;
+                    temporal.episode_timing.start_timestamp_ns = None;
+                    temporal.episode_timing.stop_timestamp_ns = None;
+                    temporal.episode_timing.duration_seconds = None;
+                    temporal.episode_timing.duration_minutes = None;
                 } else {
                     let temporal = row.edit_temporal();
-                    *temporal.duration_seconds = Some(duration_seconds);
-                    *temporal.duration_minutes = Some(duration_seconds / 60.0);
+                    temporal.episode_timing.duration_seconds = Some(duration_seconds);
+                    temporal.episode_timing.duration_minutes = Some(duration_seconds / 60.0);
                 }
                 if qualifies {
                     let temporal = row.edit_temporal();
                     match minimum_duration_disposition {
                         MinimumDurationDisposition::ChronicleBlankKeepRow => {
-                            *temporal.duration_seconds = None;
-                            *temporal.duration_minutes = None;
-                            *temporal.minimum_duration_blank_applied = true;
+                            temporal.episode_timing.duration_seconds = None;
+                            temporal.episode_timing.duration_minutes = None;
+                            temporal.episode_timing.minimum_duration_blank_applied = true;
                         }
                         MinimumDurationDisposition::RetainAndCredit => {}
                         MinimumDurationDisposition::RetainButExclude => {
-                            *temporal.minimum_duration_aggregate_eligible = false;
+                            temporal.episode_timing.minimum_duration_aggregate_eligible = false;
                         }
                         MinimumDurationDisposition::DropRow => {
-                            *temporal.minimum_duration_drop_pending = true;
+                            temporal.episode_timing.minimum_duration_drop_pending = true;
                         }
                     }
                 }
@@ -1948,18 +1948,18 @@ pub(crate) fn apply_app_inclusion_policy(
         if row.interaction_type == APP_USAGE {
             *row.edit_classification().interaction_type = FILTERED_APP_USAGE.into();
             let temporal = row.edit_temporal();
-            *temporal.duration_seconds = None;
-            *temporal.duration_minutes = None;
+            temporal.episode_timing.duration_seconds = None;
+            temporal.episode_timing.duration_minutes = None;
             continue;
         }
         if row.interaction_type == ACTIVITY_STOPPED {
             *row.edit_classification().interaction_type = FILTERED_STOPPED.into();
         }
         let temporal = row.edit_temporal();
-        *temporal.start_timestamp_ns = None;
-        *temporal.stop_timestamp_ns = None;
-        *temporal.duration_seconds = None;
-        *temporal.duration_minutes = None;
+        temporal.episode_timing.start_timestamp_ns = None;
+        temporal.episode_timing.stop_timestamp_ns = None;
+        temporal.episode_timing.duration_seconds = None;
+        temporal.episode_timing.duration_minutes = None;
     }
     rows
 }
@@ -2033,15 +2033,15 @@ pub(crate) fn segment_concurrent_usage(
             && apply_minimum_to_subintervals
             && subinterval_threshold_ns.is_some_and(|threshold_ns| duration_ns < threshold_ns);
         let temporal = row.edit_temporal();
-        *temporal.start_timestamp_ns = Some(layered_session.start_ns);
-        *temporal.stop_timestamp_ns = Some(layered_session.stop_ns);
-        *temporal.concurrent_subinterval_floor_blank_applied = post_split_floor_blank;
+        temporal.episode_timing.start_timestamp_ns = Some(layered_session.start_ns);
+        temporal.episode_timing.stop_timestamp_ns = Some(layered_session.stop_ns);
+        temporal.episode_timing.concurrent_subinterval_floor_blank_applied = post_split_floor_blank;
         if preserve_pre_concurrency_blank || post_split_floor_blank {
-            *temporal.duration_seconds = None;
-            *temporal.duration_minutes = None;
+            temporal.episode_timing.duration_seconds = None;
+            temporal.episode_timing.duration_minutes = None;
         } else {
-            *temporal.duration_seconds = Some(duration_seconds);
-            *temporal.duration_minutes = Some(duration_seconds / 60.0);
+            temporal.episode_timing.duration_seconds = Some(duration_seconds);
+            temporal.episode_timing.duration_minutes = Some(duration_seconds / 60.0);
         }
         *row.edit_classification().usage_layer = Some(match layered_session.layer {
             UsageLayer::Primary => "primary".into(),

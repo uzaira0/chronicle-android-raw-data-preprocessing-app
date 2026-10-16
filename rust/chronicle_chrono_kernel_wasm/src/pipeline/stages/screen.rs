@@ -539,13 +539,13 @@ pub(crate) fn apply_screen_session_policies(
                 if stop.saturating_sub(start) > cap_ns {
                     let stop = start.saturating_add(cap_ns);
                     let temporal = session.edit_temporal();
-                    *temporal.stop_timestamp_ns = Some(stop);
-                    *temporal.duration_seconds = Some(maximum_duration_minutes * 60.0);
-                    *temporal.duration_minutes = Some(maximum_duration_minutes);
-                    *temporal.screen_usage_last_activity_timestamp_ns = temporal
-                        .screen_usage_last_activity_timestamp_ns
+                    temporal.episode_timing.stop_timestamp_ns = Some(stop);
+                    temporal.episode_timing.duration_seconds = Some(maximum_duration_minutes * 60.0);
+                    temporal.episode_timing.duration_minutes = Some(maximum_duration_minutes);
+                    temporal.episode_timing.screen_usage_last_activity_timestamp_ns = temporal
+                        .episode_timing.screen_usage_last_activity_timestamp_ns
                         .map(|timestamp| timestamp.min(stop));
-                    *temporal.screen_usage_tail_gap_seconds = None;
+                    temporal.episode_timing.screen_usage_tail_gap_seconds = None;
                     let classification = session.edit_classification();
                     // Whole-bout evidence is not evidence for a shortened interval.
                     *classification.screen_usage_app_observed = None;
@@ -619,10 +619,10 @@ pub(crate) fn bound_app_rows_to_interactive_screen(
         }) {
             let screen_stop = screen_stop.expect("checked as present");
             let temporal = row.edit_temporal();
-            *temporal.stop_timestamp_ns = Some(screen_stop);
+            temporal.episode_timing.stop_timestamp_ns = Some(screen_stop);
             let duration_seconds = screen_stop.saturating_sub(start) as f64 / 1e9;
-            *temporal.duration_seconds = Some(duration_seconds);
-            *temporal.duration_minutes = Some(duration_seconds / 60.0);
+            temporal.episode_timing.duration_seconds = Some(duration_seconds);
+            temporal.episode_timing.duration_minutes = Some(duration_seconds / 60.0);
         }
         row.stop_timestamp_ns.is_none_or(|stop| stop > start)
     });

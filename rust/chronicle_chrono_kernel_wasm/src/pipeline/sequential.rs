@@ -1,20 +1,20 @@
 use super::StageFunctions;
-use crate::payload_store::{PayloadStore, current_store};
+use crate::payload_store::{PayloadByteWriter, PayloadStore, current_store};
 use super::{scientific, output, checkpoint};
-use super::checkpoint::{PreviousRowState, reusable_row_components_from_parts, workflow_checkpoint_with_group_parts};
+use super::checkpoint::{PreviousRowState, reusable_row_components_from_parts, workflow_checkpoint_with_group_parts, workflow_output_checkpoint};
 use crate::pipeline_v2::{
     AHashSet, Arc, B05ComputationPhase, B05PreparedExecutionError, B05SchoedelPreflightResult,
     B05SchoedelPreparedInput, B05_RETAINED_RAW_INPUT_REQUIRED_ERROR,
-    BTreeMap, BTreeSet, BoundSchoedelReconstruction, CodebookEntry, CountingSink,
+    BTreeMap, BTreeSet, BoundSchoedelReconstruction, CodebookEntry,
     Digest, EYES_RETAINED_RAW_INPUT_REQUIRED_ERROR,
     EyesInputPartitionPreflightResult, EyesTaggedFauValidationContext,
     FoundationalSemanticsEvidence, HashMap, MicroUseClassificationPolicy,
     NotificationContactOutput, OpenerSetEvidence, PayloadBytes, PipelineV2Options,
     CleaningCounts, PipelineV2Result, PipelineV2SupportFiles, PolledEmulationOutput, PreflightRows, RawRow, Row,
     RowCheckpointParts, SchoedelValidationWitness, ScientificPreflightDisposition,
-    ScreenCreditOutput, ScreenSessionConstructionStrategyId, Sha256,
+    ScreenCreditOutput, ScreenCreditSubstrate, ScreenSessionConstructionStrategyId, Sha256,
     UsageSessionMode, WorkflowCheckpoint, add_app_usage_detail_columns,
-    add_no_activity_placeholder_rows, aggregates, annotations, attribution, apply_event_retention,
+    aggregates, annotations, attribution, apply_event_retention,
     apply_study_window, assign_usage_session_ids, attach_concurrent_subinterval_floor_evidence,
     attach_zero_duration_cleanup_evidence, attribute_person, b05, b05_identity_from_support,
     b05_schoedel_is_active, b05_schoedel_refusal_error, b06,
@@ -45,8 +45,8 @@ use crate::pipeline_v2::{
     validate_prepared_b05_schoedel_with_raw_digest, validate_verified_request_options_digest,
     value_fingerprint, workflow_checkpoint, workflow_checkpoint_with_parts,
     workflow_rows_checkpoint,
-    workflow_rows_checkpoint_reusing_last, workflow_state_checkpoint, write_app_csv,
-    write_app_csv_from_iter, write_selected_screen_csv,
+    workflow_rows_checkpoint_reusing_last, workflow_state_checkpoint,
+    write_selected_screen_csv,
 };
 
 pub(crate) struct QueryCheckpointRecorder<'a> {
@@ -235,6 +235,7 @@ pub(crate) fn parse_raw_rows(
         &interaction_remap,
         &possible_device_model,
     )?;
+    drop(raw_rows);
     query_checkpoints.rows("canonicalize_source_rows", &rows);
 
     let rows_before_ordering = rows.len();
@@ -481,12 +482,36 @@ pub(crate) fn run_schoedel_app_usage_algorithm(
     ))
 }
 
+/// An app-shaped CSV written straight into the payload store in 1 MiB
+/// chunks, neutralized while it streams when the run asks for that: the
+/// chunks count against the payload budget and can spill, and no output ever
+/// needs one contiguous buffer the size of the whole file.
+fn write_app_csv_payload<'a>(
+    rows: impl Iterator<Item = &'a Row>,
+    opts: &PipelineV2Options,
+    include_aliases: bool,
+    store: &PayloadStore,
+) -> Result<PayloadBytes, String> {
+    let writer = PayloadByteWriter::with_store(store.clone());
+    if opts.neutralize_spreadsheet_formulas {
+        let mut filter = output::SpreadsheetFormulaNeutralizer::new(writer);
+        output::write_app_csv_to(rows, opts, include_aliases, &mut filter)?;
+        Ok(filter.finish().map_err(|error| error.to_string())?.finish())
+    } else {
+        let mut writer = writer;
+        output::write_app_csv_to(rows, opts, include_aliases, &mut writer)?;
+        Ok(writer.finish())
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn apply_screen_gated_credit_incremental(
     app_rows: &[Row],
-    raw_events: &[Row],
+    substrate: Result<ScreenCreditSubstrate, String>,
     opts: &PipelineV2Options,
     include_aliases: bool,
     input_row_parts: Option<&[RowCheckpointParts]>,
+    store: &PayloadStore,
     query_checkpoints: &mut QueryCheckpointRecorder<'_>,
 ) -> Result<ScreenCreditOutput, String> {
     let partition = credit::identify_credit_eligible_sessions(app_rows, input_row_parts)?;
@@ -495,7 +520,7 @@ pub(crate) fn apply_screen_gated_credit_incremental(
         &partition.checkpoint_payload(),
     )?;
 
-    let substrate = credit::build_activity_witness_indexes(raw_events)?;
+    let substrate = substrate?;
     query_checkpoints.value("build_activity_witness_indexes", &substrate)?;
     let screen_incapable = credit::screen_incapable_participants(&partition, &substrate);
     query_checkpoints.value("assess_screen_evidence_capability", &screen_incapable)?;
@@ -553,7 +578,7 @@ pub(crate) fn apply_screen_gated_credit_incremental(
     );
     let row_count = u32::try_from(result.rows.len())
         .map_err(|_| "credited app row count exceeds u32".to_string())?;
-    let csv_bytes = write_app_csv_from_iter(result.rows.iter(), opts, include_aliases);
+    let csv_bytes = write_app_csv_payload(result.rows.iter(), opts, include_aliases, store)?;
     let row_lineage =
         build_row_lineage_from_iter("credited-app-csv", "effective_usage", result.rows.iter());
     Ok(ScreenCreditOutput {
@@ -578,14 +603,14 @@ pub(crate) fn apply_screen_gated_credit_incremental(
 /// implementation that could drift.
 pub(crate) fn derive_notification_contacts_incremental(
     app_rows: &[Row],
-    policy_rows: &[Row],
+    mut contacts: Vec<Row>,
     opts: &PipelineV2Options,
     codebook_map: &HashMap<String, CodebookEntry>,
     include_aliases: bool,
+    store: &PayloadStore,
     query_checkpoints: &mut QueryCheckpointRecorder<'_>,
 ) -> Result<NotificationContactOutput, String> {
     let rule = opts.notification_proxy_rule;
-    let mut contacts = notification::select_notification_events(policy_rows, rule);
     query_checkpoints.rows_and_value(
         "select_notification_events",
         &contacts,
@@ -623,7 +648,7 @@ pub(crate) fn derive_notification_contacts_incremental(
     );
     let row_count = u32::try_from(contacts.len())
         .map_err(|_| "notification contact row count exceeds u32".to_string())?;
-    let csv_bytes = write_app_csv_from_iter(contacts.iter(), opts, include_aliases);
+    let csv_bytes = write_app_csv_payload(contacts.iter(), opts, include_aliases, store)?;
     let row_lineage = build_row_lineage_from_iter(
         "notification-contact-csv",
         "notification_proxy",
@@ -653,6 +678,7 @@ pub(crate) fn derive_polled_emulation_incremental(
     opts: &PipelineV2Options,
     codebook_map: &HashMap<String, CodebookEntry>,
     include_aliases: bool,
+    store: &PayloadStore,
     query_checkpoints: &mut QueryCheckpointRecorder<'_>,
 ) -> Result<PolledEmulationOutput, String> {
     let method = opts.polled_emulation_method;
@@ -697,7 +723,7 @@ pub(crate) fn derive_polled_emulation_incremental(
     );
     let row_count = u32::try_from(emulated.len())
         .map_err(|_| "polled emulation row count exceeds u32".to_string())?;
-    let csv_bytes = write_app_csv_from_iter(emulated.iter(), opts, include_aliases);
+    let csv_bytes = write_app_csv_payload(emulated.iter(), opts, include_aliases, store)?;
     let row_lineage = build_row_lineage_from_iter(
         "polled-emulation-csv",
         "polled_emulation",
@@ -1152,8 +1178,18 @@ pub fn run_prepared_sequential(
         evidence: mut b05_schoedel_preflight,
         ..
     } = prepared;
-    let raw_events_for_b05 = raw_b05_events(&raw_rows);
+    let mut raw_events_for_b05 = if b05_schoedel_is_active(opts) {
+        raw_b05_events(&raw_rows)
+    } else {
+        Vec::new()
+    };
     let raw_row_count = raw_rows.len() as u64;
+    // Only a selected (non-Chronicle) B05 screen strategy reads the raw decode
+    // after the parse; every other run hands the table to the parse uncopied.
+    let raw_rows_for_b05_screen = (opts.screen_session_construction_strategy
+        != ScreenSessionConstructionStrategyId::ChronicleScreenInteractiveV1)
+        .then(|| Arc::clone(&raw_rows));
+    let raw_rows = Arc::try_unwrap(raw_rows).unwrap_or_else(|shared| (*shared).clone());
     let mut schoedel_validation_witness = None;
     let mut workflow_query_group_digests = BTreeMap::new();
     let mut workflow_query_group_checkpoints = BTreeMap::new();
@@ -1170,7 +1206,7 @@ pub fn run_prepared_sequential(
     };
     // 1. parse + sort + canonicalize
     let (mut rows, _tz, out_of_order_events_dropped) =
-        parse_raw_rows(stages, (*raw_rows).clone(), opts, &mut query_checkpoints)?;
+        parse_raw_rows(stages, raw_rows, opts, &mut query_checkpoints)?;
     let mut cleaning_counts = CleaningCounts {
         out_of_order_events_dropped,
         ..CleaningCounts::default()
@@ -1346,7 +1382,14 @@ pub fn run_prepared_sequential(
                     "b05_execution_error:prepared_screen_construction_absent".to_string()
                 })?;
             scientific_screen_rows = screen::apply_screen_session_policies(
-                materialize_b05_screen_rows(stages, construction, &raw_rows, &opts.timezone)?,
+                materialize_b05_screen_rows(
+                    stages,
+                    construction,
+                    raw_rows_for_b05_screen.as_deref().ok_or_else(|| {
+                        "b05_execution_error:raw_rows_for_selected_strategy_absent".to_string()
+                    })?,
+                    &opts.timezone,
+                )?,
                 opts.screen_session_classification_policy,
                 opts.screen_session_maximum_duration_minutes,
                 opts.screen_session_maximum_duration_disposition,
@@ -1439,10 +1482,32 @@ pub fn run_prepared_sequential(
     // when the emitted CSV bytes were otherwise identical to TypeScript.
     // The raw decode has served the parse and the B05 screen construction;
     // nothing downstream reads it again.
-    drop(raw_rows);
+    drop(raw_rows_for_b05_screen);
+    if !schoedel_is_active(opts) {
+        raw_events_for_b05 = Vec::new();
+    }
     let policy_rows = screen::remove_participants(rows.clone(), &screen_duration_excluded_participants);
     let processed_count = policy_rows.len() as u32;
     let participant_event_timestamps = participant_event_timestamps(&policy_rows);
+    // Every consumer of the source-row table reads only that table, so each
+    // takes its value here and the table is released before the session rows
+    // are edited: a second live owner would make every row edit a full copy.
+    // A step's error is held and raised where the step runs, as before.
+    let app_stages_run = !matches!(
+        opts.usage_session_mode,
+        UsageSessionMode::NoUsage | UsageSessionMode::ScreenUsage
+    );
+    let mut policy_raw_date_index =
+        app_stages_run.then(|| index_raw_dates(&policy_rows));
+    let mut policy_credit_substrate = (app_stages_run && opts.enable_screen_gated_crediting)
+        .then(|| credit::build_activity_witness_indexes(&policy_rows));
+    let mut policy_notification_events =
+        (app_stages_run && opts.notification_proxy_rule.emits_contacts()).then(|| {
+            notification::select_notification_events(&policy_rows, opts.notification_proxy_rule)
+        });
+    let mut policy_placeholder_samples = (app_stages_run && opts.add_no_activity_placeholder_days)
+        .then(|| attribution::placeholder_day_samples(&policy_rows));
+    drop(policy_rows);
     let mut aggregate_raw_date_index = None;
     let app_csv_bytes;
     let screen_csv_bytes;
@@ -1630,13 +1695,13 @@ pub fn run_prepared_sequential(
             );
         }
         app_row_count = 0;
-        app_csv_bytes = Vec::new();
+        app_csv_bytes = PayloadBytes::default();
         day_coverage_csv_bytes = Vec::new();
         compliance_csv_bytes = Vec::new();
-        credited_app_csv_bytes = Vec::new();
-        notification_contact_csv_bytes = Vec::new();
-        polled_emulation_csv_bytes = Vec::new();
-        interval_expansion_csv_bytes = Vec::new();
+        credited_app_csv_bytes = PayloadBytes::default();
+        notification_contact_csv_bytes = PayloadBytes::default();
+        polled_emulation_csv_bytes = PayloadBytes::default();
+        interval_expansion_csv_bytes = PayloadBytes::default();
         day_coverage_row_count = 0;
         compliance_row_count = 0;
         credited_app_row_count = 0;
@@ -1783,10 +1848,13 @@ pub fn run_prepared_sequential(
             let credit_input_parts = query_checkpoints.take_last_row_parts();
             let credited = apply_screen_gated_credit_incremental(
                 &rows,
-                &policy_rows,
+                policy_credit_substrate
+                    .take()
+                    .expect("the credit substrate is taken whenever crediting runs"),
                 opts,
                 include_aliases,
                 credit_input_parts.as_deref(),
+                &store,
                 &mut query_checkpoints,
             )?;
             record_workflow_checkpoint(
@@ -1813,7 +1881,7 @@ pub fn run_prepared_sequential(
                 &mut workflow_query_group_checkpoints,
                 workflow_state_checkpoint("effective_usage", "not_applicable"),
             );
-            (Vec::new(), 0)
+            (PayloadBytes::default(), 0)
         };
         credited_app_csv_bytes = credited_bytes;
         credited_app_row_count = credited_count;
@@ -1827,10 +1895,13 @@ pub fn run_prepared_sequential(
         let (contact_bytes, contact_count) = if opts.notification_proxy_rule.emits_contacts() {
             let contacts = derive_notification_contacts_incremental(
                 &rows,
-                &policy_rows,
+                policy_notification_events
+                    .take()
+                    .expect("notification events are selected whenever contacts are emitted"),
                 opts,
                 &codebook_map,
                 include_aliases,
+                &store,
                 &mut query_checkpoints,
             )?;
             record_workflow_checkpoint(
@@ -1854,7 +1925,7 @@ pub fn run_prepared_sequential(
                 &mut workflow_query_group_checkpoints,
                 workflow_state_checkpoint("notification_proxy", "not_applicable"),
             );
-            (Vec::new(), 0)
+            (PayloadBytes::default(), 0)
         };
         notification_contact_csv_bytes = contact_bytes;
         notification_contact_row_count = contact_count;
@@ -1870,6 +1941,7 @@ pub fn run_prepared_sequential(
                 opts,
                 &codebook_map,
                 include_aliases,
+                &store,
                 &mut query_checkpoints,
             )?;
             record_workflow_checkpoint(
@@ -1893,7 +1965,7 @@ pub fn run_prepared_sequential(
                 &mut workflow_query_group_checkpoints,
                 workflow_state_checkpoint("polled_emulation", "not_applicable"),
             );
-            (Vec::new(), 0)
+            (PayloadBytes::default(), 0)
         };
         polled_emulation_csv_bytes = emulation_bytes;
         polled_emulation_row_count = emulation_count;
@@ -1901,10 +1973,11 @@ pub fn run_prepared_sequential(
             let expanded = polled::materialize_behapp_half_open_seconds(&rows)?;
             interval_expansion_row_count = u32::try_from(expanded.len())
                 .map_err(|_| "interval expansion row count exceeds u32".to_string())?;
-            interval_expansion_csv_bytes = write_app_csv_from_iter(expanded.iter(), opts, include_aliases);
+            interval_expansion_csv_bytes =
+                write_app_csv_payload(expanded.iter(), opts, include_aliases, &store)?;
             interval_expansion_row_lineage = build_row_lineage_from_iter("interval-expansion-csv", "outputs", expanded.iter());
         } else {
-            interval_expansion_csv_bytes = Vec::new();
+            interval_expansion_csv_bytes = PayloadBytes::default();
             interval_expansion_row_count = 0;
         }
         let mut resolved_participant_windows = resolve_participant_windows(&rows, &study_windows);
@@ -2005,9 +2078,11 @@ pub fn run_prepared_sequential(
             &serde_json::json!({"applied": divides_sessions}),
         )?;
         if opts.add_no_activity_placeholder_days {
-            rows = add_no_activity_placeholder_rows(
+            rows = attribution::add_placeholder_rows_for_samples(
                 rows,
-                &policy_rows,
+                policy_placeholder_samples
+                    .take()
+                    .expect("placeholder samples are taken whenever placeholders are added"),
                 opts.enable_study_window_filter
                     .then_some(resolved_participant_windows.as_slice()),
             );
@@ -2017,11 +2092,12 @@ pub fn run_prepared_sequential(
             &rows,
             &serde_json::json!({"applied": opts.add_no_activity_placeholder_days}),
         )?;
-        let raw_date_index = aggregate_raw_date_index.insert(index_raw_dates(&policy_rows));
+        let raw_date_index = aggregate_raw_date_index.insert(
+            policy_raw_date_index
+                .take()
+                .expect("the raw date index is taken whenever app stages run"),
+        );
         query_checkpoints.value("index_raw_dates", &*raw_date_index)?;
-        // Every consumer of the source-row table has run; the edited session
-        // rows are the only row table from here on.
-        drop(policy_rows);
 
         let (coverage_bytes, coverage_count) = if opts.enable_day_coverage {
             build_day_coverage_csv(
@@ -2076,10 +2152,14 @@ pub fn run_prepared_sequential(
         app_row_count = rows.len() as u32;
         annotations::record_app_output_cleaning_counts(&rows, &mut cleaning_counts);
         app_rows_for_review = rows.clone();
+        // Written straight into the payload store in 1 MiB chunks, so the
+        // largest output counts against the payload budget and can spill
+        // while the later outputs are built, instead of sitting whole beside
+        // the row table. Neutralized here, the one place it is written.
         app_csv_bytes = if opts.include_app_output {
-            write_app_csv(&rows, opts, include_aliases)
+            write_app_csv_payload(rows.iter(), opts, include_aliases, &store)?
         } else {
-            Vec::new()
+            PayloadBytes::default()
         };
         screen_csv_bytes = if matches!(opts.usage_session_mode, UsageSessionMode::AppAndScreenUsage)
             && opts.include_screen_output
@@ -2135,17 +2215,13 @@ pub fn run_prepared_sequential(
             foundational_provenance,
             opts.micro_use_classification_policy != MicroUseClassificationPolicy::None,
         );
-        // Serialized twice, the first time into a counter, so the buffer is
-        // its content's size and never a doubling copy beside it.
-        let mut count = CountingSink(0);
-        serde_json::to_writer(&mut count, &data)
+        // Chunked into the payload store, like the App CSV above.
+        let mut writer = PayloadByteWriter::with_store(store.clone());
+        serde_json::to_writer(&mut writer, &data)
             .map_err(|error| format!("serialize visualization data: {error}"))?;
-        let mut bytes = Vec::with_capacity(count.0);
-        serde_json::to_writer(&mut bytes, &data)
-            .map_err(|error| format!("serialize visualization data: {error}"))?;
-        bytes
+        writer.finish()
     } else {
-        Vec::new()
+        PayloadBytes::default()
     };
     let aggregate_app_rows = headline_eligible_app_rows(&app_rows_for_review);
     let mut aggregate_csv_outputs =
@@ -2172,14 +2248,9 @@ pub fn run_prepared_sequential(
             csv
         }
     };
-    let app_csv_bytes = neutralize(app_csv_bytes);
     let screen_csv_bytes = neutralize(screen_csv_bytes);
     let day_coverage_csv_bytes = neutralize(day_coverage_csv_bytes);
     let compliance_csv_bytes = neutralize(compliance_csv_bytes);
-    let credited_app_csv_bytes = neutralize(credited_app_csv_bytes);
-    let notification_contact_csv_bytes = neutralize(notification_contact_csv_bytes);
-    let polled_emulation_csv_bytes = neutralize(polled_emulation_csv_bytes);
-    let interval_expansion_csv_bytes = neutralize(interval_expansion_csv_bytes);
     for aggregate in &mut aggregate_csv_outputs {
         aggregate.bytes = neutralize(std::mem::take(&mut aggregate.bytes));
     }
@@ -2230,9 +2301,12 @@ pub fn run_prepared_sequential(
     let preprocessing_datetime =
         source::bind_processing_timestamp(&opts.datetime_of_preprocessing);
     query_checkpoints.value("bind_processing_timestamp", &preprocessing_datetime)?;
-    let assembled_outputs_checkpoint = workflow_checkpoint(
+    let screen_csv_bytes = PayloadBytes::from_vec_with_store(screen_csv_bytes, &store);
+    let day_coverage_csv_bytes = PayloadBytes::from_vec_with_store(day_coverage_csv_bytes, &store);
+    let compliance_csv_bytes = PayloadBytes::from_vec_with_store(compliance_csv_bytes, &store);
+    let review_summary_json_bytes = PayloadBytes::from_vec_with_store(review_summary_json_bytes, &store);
+    let assembled_outputs_checkpoint = workflow_output_checkpoint(
         "assemble_result_manifest",
-        &[],
         &[
             ("app_csv", &app_csv_bytes),
             ("screen_csv", &screen_csv_bytes),
@@ -2244,10 +2318,10 @@ pub fn run_prepared_sequential(
             ("interval_expansion_csv", &interval_expansion_csv_bytes),
             ("review_summary_json", &review_summary_json_bytes),
             ("visualization_data_json", &visualization_data_json_bytes),
-            ("aggregates", &aggregate_checkpoint_bytes),
-            ("row_lineage", &row_lineage_fingerprint),
+            ("aggregates", &PayloadBytes::from_vec_with_store(aggregate_checkpoint_bytes, &store)),
+            ("row_lineage", &PayloadBytes::from_vec_with_store(row_lineage_fingerprint.to_vec(), &store)),
         ],
-    );
+    )?;
     let opener_set_evidence_fingerprint = value_fingerprint(&opener_set_evidence)
         .map_err(|error| format!("serialize opener-set evidence checkpoint: {error}"))?;
     let foundational_semantics_fingerprint = value_fingerprint(&foundational_semantics_evidence)
@@ -2337,16 +2411,16 @@ pub fn run_prepared_sequential(
     );
 
     Ok(PipelineV2Result {
-        app_csv_bytes: PayloadBytes::from_vec_with_store(app_csv_bytes, &store),
-        screen_csv_bytes: PayloadBytes::from_vec_with_store(screen_csv_bytes, &store),
-        day_coverage_csv_bytes: PayloadBytes::from_vec_with_store(day_coverage_csv_bytes, &store),
-        compliance_csv_bytes: PayloadBytes::from_vec_with_store(compliance_csv_bytes, &store),
-        credited_app_csv_bytes: PayloadBytes::from_vec_with_store(credited_app_csv_bytes, &store),
-        notification_contact_csv_bytes: PayloadBytes::from_vec_with_store(notification_contact_csv_bytes, &store),
-        polled_emulation_csv_bytes: PayloadBytes::from_vec_with_store(polled_emulation_csv_bytes, &store),
-        interval_expansion_csv_bytes: PayloadBytes::from_vec_with_store(interval_expansion_csv_bytes, &store),
-        review_summary_json_bytes: PayloadBytes::from_vec_with_store(review_summary_json_bytes, &store),
-        visualization_data_json_bytes: PayloadBytes::from_vec_with_store(visualization_data_json_bytes, &store),
+        app_csv_bytes,
+        screen_csv_bytes,
+        day_coverage_csv_bytes,
+        compliance_csv_bytes,
+        credited_app_csv_bytes,
+        notification_contact_csv_bytes,
+        polled_emulation_csv_bytes,
+        interval_expansion_csv_bytes,
+        review_summary_json_bytes,
+        visualization_data_json_bytes,
         aggregate_csv_outputs: Arc::new(
             aggregate_csv_outputs
                 .into_iter()

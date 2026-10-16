@@ -1892,12 +1892,12 @@ pub(crate) fn raw_b05_events(raw_rows: &[RawRow]) -> Vec<b05::RawB05Event> {
     raw_rows
         .iter()
         .map(|raw| {
-            b05::RawB05Event::from_raw_label(
-                raw.participant_id.clone(),
+            b05::RawB05Event::from_shared_label(
+                raw.participant_id.shared(),
                 parse_chronicle_timestamp_ns(&raw.event_timestamp),
                 raw.source_data_row,
-                raw.interaction_type.clone(),
-                (!raw.app_package_name.is_empty()).then(|| raw.app_package_name.clone()),
+                raw.interaction_type.shared(),
+                (!raw.app_package_name.is_empty()).then(|| raw.app_package_name.shared()),
             )
         })
         .collect()

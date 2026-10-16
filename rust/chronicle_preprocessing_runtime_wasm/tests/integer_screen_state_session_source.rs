@@ -167,7 +167,7 @@ fn canonical_integer_screen_schema_feeds_first_off_or_lock_constructor() {
         .map(|mapping| {
             let event = events
                 .iter()
-                .find(|event| event.raw_interaction_type == mapping.source_status)
+                .find(|event| *event.raw_interaction_type == mapping.source_status)
                 .expect("every declared status appears in the source-shaped rows");
             (
                 mapping.source_status.as_str(),

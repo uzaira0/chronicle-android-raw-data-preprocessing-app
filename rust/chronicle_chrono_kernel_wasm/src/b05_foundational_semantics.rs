@@ -536,7 +536,7 @@ pub fn validate_bound_capability_evidence(
         };
         let exact = evidence.claims.iter().find(|claim| {
             claim.raw_input_sha256 == raw_input_sha256
-                && claim.participant_id == event.participant_id
+                && claim.participant_id == *event.participant_id
                 && claim.capability_id == capability_id
         });
         let wildcard = evidence.claims.iter().find(|claim| {
@@ -1104,7 +1104,9 @@ pub fn recognize_android_usage_signal_v1(raw_label: &str) -> AndroidUsageSignal 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RawB05Event {
-    pub participant_id: String,
+    /// The three text fields share one allocation per distinct value with
+    /// the decoded raw rows; they serialize as plain strings.
+    pub participant_id: std::sync::Arc<String>,
     pub timestamp_ns: Option<i64>,
     /// One-based row number in the original raw CSV, excluding no rows and
     /// before any participant partition is materialized.
@@ -1113,9 +1115,9 @@ pub struct RawB05Event {
     /// uses one member; post-dedupe app composition can retain several while
     /// `source_data_row` remains the stable ordering key.
     pub source_data_rows: Vec<u32>,
-    pub raw_interaction_type: String,
+    pub raw_interaction_type: std::sync::Arc<String>,
     pub signal: AndroidUsageSignal,
-    pub package_name: Option<String>,
+    pub package_name: Option<std::sync::Arc<String>>,
     /// App-axis eligibility after B01 retention and B02 opener selection.
     /// B05 ignores this field. Raw adapters default it to native Android
     /// type-1 membership; composed callers may override it before Schoedel.
@@ -1130,10 +1132,26 @@ impl RawB05Event {
         raw_interaction_type: impl Into<String>,
         package_name: Option<String>,
     ) -> Self {
-        let raw_interaction_type = raw_interaction_type.into();
+        Self::from_shared_label(
+            std::sync::Arc::new(participant_id.into()),
+            timestamp_ns,
+            source_data_row,
+            std::sync::Arc::new(raw_interaction_type.into()),
+            package_name.map(std::sync::Arc::new),
+        )
+    }
+
+    /// [`Self::from_raw_label`] over text already shared with the raw rows.
+    pub fn from_shared_label(
+        participant_id: std::sync::Arc<String>,
+        timestamp_ns: Option<i64>,
+        source_data_row: u32,
+        raw_interaction_type: std::sync::Arc<String>,
+        package_name: Option<std::sync::Arc<String>>,
+    ) -> Self {
         let signal = recognize_android_usage_signal_v1(&raw_interaction_type);
         Self {
-            participant_id: participant_id.into(),
+            participant_id,
             timestamp_ns,
             source_data_row,
             source_data_rows: vec![source_data_row],
@@ -1558,7 +1576,7 @@ pub fn resolve_b05_applicability(
         }
         last_source_row = Some(event.source_data_row);
         participant_rows
-            .entry(event.participant_id.clone())
+            .entry(event.participant_id.as_str().to_owned())
             .or_default()
             .push(event);
     }
@@ -2931,7 +2949,7 @@ pub fn construct_screen_intervals(
     let mut partitions = BTreeMap::<String, Vec<&RawB05Event>>::new();
     for event in raw_events {
         partitions
-            .entry(event.participant_id.clone())
+            .entry(event.participant_id.as_str().to_owned())
             .or_default()
             .push(event);
     }
@@ -3188,7 +3206,7 @@ fn construct_chronicle_partition(
             row.signal,
             AndroidUsageSignal::ScreenNonInteractive
                 | AndroidUsageSignal::CombinedScreenNonInteractiveKeyguardHidden
-        ) || row.raw_interaction_type == "Device Screen Off";
+        ) || row.raw_interaction_type.as_str() == "Device Screen Off";
         if is_start {
             if let Some(current) = open.as_mut() {
                 current.start_source_rows.push(row.source_data_row);
@@ -3208,7 +3226,7 @@ fn construct_chronicle_partition(
                     Some(row),
                     current.start_source_rows,
                     vec![row.source_data_row],
-                    if row.raw_interaction_type == "Device Screen Off" {
+                    if row.raw_interaction_type.as_str() == "Device Screen Off" {
                         ScreenIntervalCloseReason::DeviceScreenOff
                     } else {
                         ScreenIntervalCloseReason::ScreenNonInteractive
@@ -4128,7 +4146,7 @@ pub fn reconstruct_bound_schoedel_prose(
     for event in input.raw_events {
         if event.timestamp_ns.is_some() {
             event_partitions
-                .entry(event.participant_id.clone())
+                .entry(event.participant_id.as_str().to_owned())
                 .or_default()
                 .push(event);
         }
@@ -4607,7 +4625,7 @@ fn invalid_screen_dependency(intervals: &[ScreenIntervalEvidence]) -> Option<Str
 }
 
 fn row_is_inside_interval(row: &RawB05Event, interval: &ScreenIntervalEvidence) -> bool {
-    if row.participant_id != interval.participant_id {
+    if *row.participant_id != interval.participant_id {
         return false;
     }
     let timestamp = row
@@ -4651,7 +4669,7 @@ fn reconstruct_schoedel_interval(
         if row.app_opener_eligible {
             let package = row
                 .package_name
-                .as_deref()
+                .as_deref().map(String::as_str)
                 .filter(|package| !package.is_empty());
             let Some(package) = package else {
                 issues.push(SchoedelIssue {
@@ -4685,7 +4703,7 @@ fn reconstruct_schoedel_interval(
             continue;
         }
         if let Some(current) = open.as_mut() {
-            if row.package_name.as_deref() == Some(current.package_name.as_str()) {
+            if row.package_name.as_deref().map(String::as_str) == Some(current.package_name.as_str()) {
                 current.associated_rows.push(row);
             }
         }
@@ -4800,7 +4818,7 @@ fn schoedel_decisive_equal_timestamp_groups(
         if copied_participant != Some(interval.participant_id.as_str()) {
             participant_events = events
                 .iter()
-                .filter(|event| event.participant_id == interval.participant_id)
+                .filter(|event| *event.participant_id == interval.participant_id)
                 .cloned()
                 .collect();
             copied_participant = Some(interval.participant_id.as_str());
@@ -5912,12 +5930,12 @@ mod tests {
                 for event in events {
                     if event.signal == AndroidUsageSignal::ScreenInteractive {
                         participant_screen_rows
-                            .entry(event.participant_id.clone())
+                            .entry(event.participant_id.as_str().to_owned())
                             .and_modify(|pair| pair.0 = event)
                             .or_insert((event, event));
                     } else if event.signal == AndroidUsageSignal::ScreenNonInteractive {
                         participant_screen_rows
-                            .entry(event.participant_id.clone())
+                            .entry(event.participant_id.as_str().to_owned())
                             .and_modify(|pair| pair.1 = event)
                             .or_insert((event, event));
                     }
@@ -6581,7 +6599,7 @@ mod tests {
             for participant in ["P1", "P2"] {
                 let participant_events = combined
                     .iter()
-                    .filter(|event| event.participant_id == participant)
+                    .filter(|event| event.participant_id.as_str() == participant)
                     .cloned()
                     .collect::<Vec<_>>();
                 let independent = construct_and_run_bound_schoedel(&participant_events, strategy);
@@ -7024,7 +7042,7 @@ mod tests {
         for interval in intervals {
             let participant_events = events
                 .iter()
-                .filter(|event| event.participant_id == interval.participant_id)
+                .filter(|event| *event.participant_id == interval.participant_id)
                 .collect::<Vec<_>>();
             let baseline = schoedel_interval_signature(interval, &participant_events);
             let mut boundaries =
@@ -7037,7 +7055,7 @@ mod tests {
             for (timestamp, boundary_source_row, is_start) in boundaries {
                 let boundary_is_decisive =
                     events.iter().enumerate().any(|(candidate_index, event)| {
-                        if event.participant_id != interval.participant_id
+                        if *event.participant_id != interval.participant_id
                             || event.timestamp_ns != Some(timestamp)
                             || event.source_data_row == boundary_source_row
                             || !is_schoedel_app_evidence_candidate(event)
@@ -7049,7 +7067,7 @@ mod tests {
                             counterfactual_events[candidate_index].source_data_row;
                         if let Some(boundary_index) =
                             counterfactual_events.iter().position(|candidate| {
-                                candidate.participant_id == interval.participant_id
+                                *candidate.participant_id == interval.participant_id
                                     && candidate.timestamp_ns == Some(timestamp)
                                     && candidate.source_data_row == boundary_source_row
                             })
@@ -7069,7 +7087,7 @@ mod tests {
                         }
                         let participant_counterfactual = counterfactual_events
                             .iter()
-                            .filter(|event| event.participant_id == interval.participant_id)
+                            .filter(|event| *event.participant_id == interval.participant_id)
                             .collect::<Vec<_>>();
                         schoedel_interval_signature(
                             &counterfactual_interval,
@@ -7088,7 +7106,7 @@ mod tests {
             let mut groups = BTreeMap::<i64, Vec<usize>>::new();
             for (index, event) in events.iter().enumerate() {
                 if let Some(timestamp_ns) = event.timestamp_ns {
-                    if event.participant_id == interval.participant_id
+                    if *event.participant_id == interval.participant_id
                         && is_schoedel_app_evidence_candidate(event)
                         && row_is_inside_interval(event, interval)
                     {
@@ -7108,7 +7126,7 @@ mod tests {
                     counterfactual[pair[1]].source_data_row = left_source_row;
                     let participant_counterfactual = counterfactual
                         .iter()
-                        .filter(|event| event.participant_id == interval.participant_id)
+                        .filter(|event| *event.participant_id == interval.participant_id)
                         .collect::<Vec<_>>();
                     schoedel_interval_signature(interval, &participant_counterfactual) != baseline
                 }) {
@@ -7170,7 +7188,7 @@ mod tests {
             for participant in ["P1", "P2"] {
                 let participant_rows = events
                     .iter()
-                    .filter(|row| row.participant_id == participant)
+                    .filter(|row| row.participant_id.as_str() == participant)
                     .collect::<Vec<_>>();
                 for strategy in [
                     ScreenSessionConstructionStrategyId::Zhu2018UnlockLockV1,

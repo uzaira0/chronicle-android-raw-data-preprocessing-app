@@ -5,6 +5,7 @@ use super::{B05SchoedelPreflightResult, BTreeMap, PayloadBytes, PipelineV2Option
 #[cfg(feature = "incremental-v2")]
 use super::aggregates;
 use super::{
+    AHashSet,
     Arc,
     CreditPartition,
     CreditResult,
@@ -50,7 +51,7 @@ pub(crate) fn row_table_bytes(rows: &[Row]) -> u64 {
                 0
             };
             std::mem::size_of::<Row>()
-                + owned(&row.0, 0)
+                + owned(&row.0, data.episode_timing.heap_bytes())
                 + owned(sources, sources_heap)
                 + owned(searches, searches_heap)
         })
@@ -83,6 +84,7 @@ pub(crate) fn row_table_footprint(rows: &Vec<Row>) -> RowTableFootprint {
             0
         };
         let deep_bytes = std::mem::size_of_val(&*row.0)
+            + data.episode_timing.heap_bytes()
             + std::mem::size_of_val(&**sources)
             + sources_heap
             + std::mem::size_of_val(&**searches)
@@ -96,13 +98,13 @@ pub(crate) fn row_table_footprint(rows: &Vec<Row>) -> RowTableFootprint {
     }
 }
 
-/// Heap bytes the owned field strings of a raw table hold. `RawRow`'s eight
-/// fields are independent `String` allocations built by
-/// `decode_source_records`, not interned strings shared with other tables, so
-/// charging the records alone hid roughly a third of the table from the
-/// budget — the same undercharge `row_table_bytes` documents for `Vec<Row>`.
+/// Heap bytes the field strings of a raw table hold: each row's own
+/// timestamp, and each shared string once. Charging the records alone hid
+/// roughly a third of the table from the budget — the same undercharge
+/// `row_table_bytes` documents for `Vec<Row>`.
 pub(crate) fn raw_row_string_bytes(rows: &[RawRow]) -> usize {
-    rows.iter().map(|row| row.owned_string_bytes()).sum()
+    let mut seen = AHashSet::new();
+    rows.iter().map(|row| row.owned_string_bytes(&mut seen)).sum()
 }
 
 /// Heap bytes the matcher memo's two per-episode evidence surfaces hold. Both
@@ -233,7 +235,13 @@ pub(crate) fn query_payload<T: Send + Sync + 'static>(
             + (output.stop_timestamps_ns.capacity() + output.start_timestamps_ns.capacity())
                 * std::mem::size_of::<Option<i64>>()
             + output.schoedel_candidate_rows.as_ref().map_or(0, |rows| {
-                rows.len() * (std::mem::size_of::<Row>() + std::mem::size_of::<RowInner>())
+                rows.iter()
+                    .map(|row| {
+                        std::mem::size_of::<Row>()
+                            + std::mem::size_of::<RowInner>()
+                            + row.0.data.episode_timing.heap_bytes()
+                    })
+                    .sum::<usize>()
             })
             + matcher_evidence_bytes(&output)
             + std::mem::size_of::<MatcherOutput>();

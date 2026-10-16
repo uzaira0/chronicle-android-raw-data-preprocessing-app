@@ -11,6 +11,7 @@ import {
   openOpfsRoot,
   openOpfsWorkspace,
   persistRuntimeObject,
+  persistRuntimeObjectChunks,
   persistRuntimeObjects,
   persistRuntimeWorkspace,
   probeOpfsCapability,
@@ -2492,5 +2493,47 @@ describe("OPFS content-addressed runtime workspace", () => {
         artifacts: [misdeclared],
       }),
     ).rejects.toThrow(/artifact digest mismatch for workspace-root-json/);
+  });
+});
+
+describe("persistRuntimeObjectChunks", () => {
+  const chunks = [new Uint8Array([1, 2, 3]), new Uint8Array([4, 5]), new Uint8Array([6])];
+  const source = (parts: readonly Uint8Array[]) => {
+    const queue = [...parts];
+    return () => queue.shift();
+  };
+
+  it("stores a multi-chunk object that reads back verified", async () => {
+    const root = rootHandle(new MemoryDirectoryHandle());
+    const bytes = new Uint8Array([1, 2, 3, 4, 5, 6]);
+    const metadata = { kind: "app-csv", digest: await digest(bytes), size: 6, digestVerified: true as const };
+    await persistRuntimeObjectChunks(root, metadata, source(chunks));
+    expect(await readRuntimeObject(root, metadata.digest)).toEqual(bytes);
+    // Stored already: the chunks are drained, and a short source still fails.
+    const rest = source(chunks);
+    await persistRuntimeObjectChunks(root, metadata, rest);
+    expect(rest()).toBeUndefined();
+    await expect(
+      persistRuntimeObjectChunks(root, metadata, source(chunks.slice(0, 2))),
+    ).rejects.toThrow("artifact size mismatch for app-csv");
+  });
+
+  it("commits nothing when a chunk fails or the chunks fall short", async () => {
+    const root = rootHandle(new MemoryDirectoryHandle());
+    const bytes = new Uint8Array([1, 2, 3, 4, 5, 6]);
+    const metadata = { kind: "app-csv", digest: await digest(bytes), size: 6, digestVerified: true as const };
+    const failing = source(chunks.slice(0, 1));
+    let calls = 0;
+    await expect(
+      persistRuntimeObjectChunks(root, metadata, () => {
+        calls += 1;
+        if (calls === 2) throw new Error("payload reload failed");
+        return failing();
+      }),
+    ).rejects.toThrow("payload reload failed");
+    await expect(
+      persistRuntimeObjectChunks(root, metadata, source(chunks.slice(0, 2))),
+    ).rejects.toThrow("artifact size mismatch for app-csv");
+    await expect(readRuntimeObject(root, metadata.digest)).rejects.toThrow();
   });
 });

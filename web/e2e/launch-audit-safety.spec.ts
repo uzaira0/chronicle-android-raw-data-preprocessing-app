@@ -274,12 +274,15 @@ test("@audit raw files above the size bound are refused before they are read", a
     if (!input) throw new Error("raw file input missing");
     const transfer = new DataTransfer();
     transfer.items.add(new File(["participant_id\nP1\n"], "small.csv", { type: "text/csv" }));
-    transfer.items.add(new File([new ArrayBuffer(180_000_001)], "huge.csv", { type: "text/csv" }));
+    // 750 parts that share one 1 MB blob, plus a byte: one byte over the bound without 750 MB of memory.
+    const megabyte = new Blob([new Uint8Array(1_000_000)]);
+    const parts = [...Array.from({ length: 750 }, () => megabyte), new Uint8Array(1)];
+    transfer.items.add(new File(parts, "huge.csv", { type: "text/csv" }));
     input.files = transfer.files;
     input.dispatchEvent(new Event("change", { bubbles: true }));
   });
   await expect(
-    page.getByRole("alert").filter({ hasText: "huge.csv is 180 MB, larger than the 180 MB this browser app can process" }),
+    page.getByRole("alert").filter({ hasText: "huge.csv is 750 MB, larger than the 750 MB this browser app can process" }),
   ).toBeVisible();
   await page.getByRole("tab", { name: /Files/i }).click();
   await expect(page.getByText("small.csv").first()).toBeVisible();

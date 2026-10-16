@@ -5172,6 +5172,18 @@ impl RuntimeHandle {
             .into_vec()
             .map_err(|error| JsValue::from_str(&error))
     }
+
+    /// The artifact's next stored chunk, or `undefined` once it is drained.
+    /// Only that chunk is reloaded and copied out, so a large output never
+    /// needs an artifact-sized buffer in the worker's 4 GiB address space.
+    pub fn take_artifact_chunk(&mut self, index: u32) -> Result<Option<Vec<u8>>, JsValue> {
+        self.artifacts
+            .get_mut(index as usize)
+            .ok_or_else(|| JsValue::from_str("artifact index out of range"))?
+            .bytes
+            .take_first_chunk()
+            .map_err(|error| JsValue::from_str(&error))
+    }
 }
 
 #[wasm_bindgen]

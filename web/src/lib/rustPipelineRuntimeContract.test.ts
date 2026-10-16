@@ -114,17 +114,24 @@ class MemoryFileHandle {
   createWritable(): Promise<FileSystemWritableFileStream> {
     let pending = new Uint8Array();
     return Promise.resolve({
+      // Sequential writes append, as the real stream does.
       write(data: FileSystemWriteChunkType) {
-        if (data instanceof Uint8Array) pending = Uint8Array.from(data);
-        else if (data instanceof ArrayBuffer) pending = new Uint8Array(data);
+        let chunk: Uint8Array;
+        if (data instanceof Uint8Array) chunk = data;
+        else if (data instanceof ArrayBuffer) chunk = new Uint8Array(data);
         else throw new Error("unsupported test write");
+        const next = new Uint8Array(pending.byteLength + chunk.byteLength);
+        next.set(pending);
+        next.set(chunk, pending.byteLength);
+        pending = next;
         return Promise.resolve();
       },
       close: () => {
         this.bytes = pending;
         return Promise.resolve();
       },
-    } as FileSystemWritableFileStream);
+      abort: () => Promise.resolve(),
+    } as unknown as FileSystemWritableFileStream);
   }
 }
 
@@ -736,7 +743,10 @@ function installFakeFullRuntime({
       preflightDecision,
     ),
   );
-  const executeWorkspace = vi.fn(() => ({
+  const executeWorkspace = vi.fn(() => {
+    // Each handle drains its own artifacts.
+    const drained = new Set<number>();
+    return {
     artifact_count: metadata.length,
     manifest_json: () => JSON.stringify(candidate),
     artifact_metadata_json: (index: number) => {
@@ -752,8 +762,15 @@ function installFakeFullRuntime({
       const owned = Uint8Array.from(bytes);
       return mutateArtifactBytes?.(kind, owned) ?? owned;
     },
+    take_artifact_chunk(index: number) {
+      // The fixture keeps each artifact as one chunk.
+      if (drained.has(index)) return undefined;
+      drained.add(index);
+      return this.take_artifact_bytes(index);
+    },
     free() {},
-  }));
+    };
+  });
   const fakeRuntime = {
     implementation_build_digest: () => manifest.implementationDigest,
     build_environment_digest: () => manifest.buildEnvironmentDigest,

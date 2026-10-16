@@ -121,6 +121,22 @@ export const MIN_PAYLOAD_BUDGET_BYTES = 512 * 1024 * 1024;
 export const MAX_PAYLOAD_BUDGET_BYTES = 1536 * 1024 * 1024;
 /** Heap left beside resident payloads: rows under construction, exports, WASM bookkeeping. */
 const NON_PAYLOAD_RESERVE_BYTES = 2560 * 1024 * 1024;
+/**
+ * Worker WASM memory above the payload budget per byte of raw input,
+ * measured 2026-10-15 at the 512 MiB budget (docs/perf/BASELINE.md,
+ * "Real-size exports"). The steepest supported configuration is the
+ * TECH/GNSM preset: 605,927,956 and 749,999,909 input bytes peaked at
+ * 3,006,201,856 and 3,666,870,272 bytes, a marginal 4.6 bytes per input byte
+ * (the app defaults peak lower: 2,632,646,656 and 3,240,296,448).
+ */
+export const WORKER_BYTES_PER_INPUT_BYTE = 4.6;
+/**
+ * Kept free under the address-space ceiling: the WASM heap fragments, and the
+ * payload store can briefly hold more than its budget.
+ */
+export const WORKER_HEADROOM_BYTES = 512 * 1024 * 1024;
+/** What a wasm32 worker can address. */
+export const WASM32_ADDRESS_SPACE_BYTES = 4 * 1024 * 1024 * 1024;
 
 export function adaptiveWorkerBudgetBytes(deviceMemory: number | undefined): number {
   return ADAPTIVE_WORKER_BUDGET_BYTES * deviceMemoryBudgetScale(deviceMemory);
@@ -129,12 +145,13 @@ export function adaptiveWorkerBudgetBytes(deviceMemory: number | undefined): num
 /**
  * A worker's payload spill threshold, fixed before its WASM module starts.
  * Only a lone worker rises above the 512 MiB floor, so multi-lane admission
- * is unchanged; the ceiling plus the reserve stays under the 4 GiB WASM32
- * address space (the 580,793-row export peaks 1.5 GiB above its budget).
+ * is unchanged. A large input shrinks it, so the measured memory the input
+ * needs beside the budget, plus headroom, stays inside 4 GiB.
  */
 export function payloadBudgetBytesForWorkers(
   deviceMemory: number | undefined,
   simultaneousWorkers: number,
+  largestInputBytes = 0,
 ): number {
   if (simultaneousWorkers > 1) return MIN_PAYLOAD_BUDGET_BYTES;
   return Math.max(
@@ -142,6 +159,11 @@ export function payloadBudgetBytesForWorkers(
     Math.min(
       MAX_PAYLOAD_BUDGET_BYTES,
       adaptiveWorkerBudgetBytes(deviceMemory) - NON_PAYLOAD_RESERVE_BYTES,
+      Math.floor(
+        WASM32_ADDRESS_SPACE_BYTES -
+          WORKER_HEADROOM_BYTES -
+          WORKER_BYTES_PER_INPUT_BYTE * largestInputBytes,
+      ),
     ),
   );
 }

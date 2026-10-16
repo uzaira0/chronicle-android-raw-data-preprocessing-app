@@ -1,28 +1,19 @@
 /**
  * Largest raw CSV the browser engine accepts, checked against `File.size`
- * before any byte is read (every raw read is a whole-file `arrayBuffer()`
- * that is then copied into a wasm32 worker).
+ * before any byte is read.
  *
- * Derived from the measured numbers in docs/perf/BASELINE.md ("Large-export
- * memory peak"), not guessed:
- *
- * - The 580,793-row synthetic export is 110,463,056 bytes (190.2 bytes per
- *   row). In the shipped browser build its worker's WASM memory high-water
- *   was 2,097,741,824 bytes at the 512 MiB payload budget and 2,665,611,264
- *   at 1 GiB: about 14.1–14.4 bytes of memory above the budget per input
- *   byte.
- * - A wasm32 worker addresses at most 4 GiB. `concurrency.ts` keeps
- *   NON_PAYLOAD_RESERVE_BYTES = 2.5 GiB of that beside the largest (1.5 GiB)
- *   payload budget, so 2.5 GiB / 14.4 ≈ 186 MB of input fits the reserve.
- * - `BROWSER_ENGINE_ROW_CEILING` (950,000 rows, about 3.3 GiB at the measured
- *   3.6 KB per row) at 190.2 bytes per row is ≈ 180.7 MB.
- *
- * The bound is the smaller of the two, rounded down: 180 MB. Real exports are
- * far below it (the largest of 124 measured real files has 73,568 rows).
- * A file above it would run out of memory part-way through and can take the
- * tab down with it; splitting the export by date range is the remedy.
+ * Derived from the measured numbers in docs/perf/BASELINE.md ("Real-size
+ * exports"), not guessed. At the 512 MiB payload budget a worker that
+ * processed a 749,999,909-byte export peaked at 3,240,296,448 bytes of WASM
+ * memory with the app defaults and 3,666,870,272 with the TECH/GNSM preset,
+ * the most memory-hungry preset. A wasm32 worker addresses at most 4 GiB,
+ * and `concurrency.ts` keeps WORKER_HEADROOM_BYTES (512 MiB) of that free:
+ * the preset's 4.6 bytes per input byte (`WORKER_BYTES_PER_INPUT_BYTE`)
+ * reaches that line at about 769 MB. The bound is 750 MB, the largest size
+ * measured to fit. Turning on every optional output costs more and can run
+ * out of memory below it; `outOfMemoryRefusal` names that case.
  */
-export const MAX_RAW_INPUT_BYTES = 180_000_000;
+export const MAX_RAW_INPUT_BYTES = 750_000_000;
 
 function megabytes(bytes: number): string {
   return `${(bytes / 1_000_000).toLocaleString("en-US", { maximumFractionDigits: 1 })} MB`;
@@ -56,4 +47,26 @@ export function admitRawFilesBySize<T extends { name: string; size: number }>(
     else refusals.push(refusal);
   }
   return { accepted, refusals };
+}
+
+/**
+ * Rust aborts on a failed allocation, which on wasm32 surfaces as a bare
+ * `WebAssembly.RuntimeError` ("unreachable"). A trap with the worker's memory
+ * this close to the 4 GiB a wasm32 worker can address is that abort.
+ */
+const OUT_OF_MEMORY_FLOOR_BYTES = 3.5 * 1024 ** 3;
+
+/** A plain-language message for a worker that ran out of memory, or null for any other failure. */
+export function outOfMemoryRefusal(
+  error: unknown,
+  fileName: string,
+  wasmMemoryBytes: number | null | undefined,
+): string | null {
+  if (!(error instanceof WebAssembly.RuntimeError)) return null;
+  if (!wasmMemoryBytes || wasmMemoryBytes < OUT_OF_MEMORY_FLOOR_BYTES) return null;
+  return (
+    `${fileName} ran out of memory: processing it used all of the 4 GB a browser worker can address. ` +
+    "Turn off optional outputs in Settings, or split the export into shorter date ranges " +
+    "and add the parts as separate files."
+  );
 }

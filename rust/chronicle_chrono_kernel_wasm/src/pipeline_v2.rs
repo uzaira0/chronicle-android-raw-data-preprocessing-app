@@ -131,7 +131,7 @@ pub use model::{
     ZeroDurationCleanupReceipt, ZeroDurationRemovedRow,
 };
 use model::{
-    ACTIVITY_PAUSED, ACTIVITY_RESUMED, ACTIVITY_STOPPED, AMAZON_APPS, ANDROID_PSEUDO_PACKAGE,
+    EpisodeTiming, RowEpisodeTiming, ACTIVITY_PAUSED, ACTIVITY_RESUMED, ACTIVITY_STOPPED, AMAZON_APPS, ANDROID_PSEUDO_PACKAGE,
     APP_USAGE, AttributedRows, AttributionCompleteness, AttributionCompletenessDay,
     AttributionMinutes, AttributionReport, B05RouterOptionsIdentity,
     B05SchoedelValidationContext, B05ScreenOptionsIdentity, BROAD_CATEGORY_COLUMNS,
@@ -198,14 +198,15 @@ pub use output::{
     normalize_float_string,
 };
 use output::{
-    CountingSink, LocalDateMemo, build_review_summary, build_row_lineage,
+    LocalDateMemo, build_review_summary, build_row_lineage,
     build_row_lineage_from_iter, build_screen_row_lineage, build_visualization_data,
     codebook_col_indices, csv_escape_value, ecma_round_fixed_f64,
     fmt_session_timestamp, format_cadence_seconds, format_threshold,
     foundational_output_projection, headline_eligible_app_rows, js_number_to_string,
-    participant_event_timestamps, ts_to_local, write_app_csv, write_app_csv_from_iter,
-    write_selected_screen_csv,
+    participant_event_timestamps, ts_to_local, write_selected_screen_csv,
 };
+#[cfg(test)]
+use output::{write_app_csv, write_app_csv_from_iter};
 #[cfg(any(test, feature = "incremental-v2"))]
 use output::{compliance_csv};
 #[cfg(test)]
@@ -358,9 +359,9 @@ use polled::{
 mod attribution;
 pub use attribution::matching_study_participant_id;
 #[cfg(test)]
-use attribution::sharing_status_for;
+use attribution::{add_no_activity_placeholder_rows, sharing_status_for};
 use attribution::{
-    add_no_activity_placeholder_rows, apply_study_window, attribute_person, build_compliance_csv,
+    apply_study_window, attribute_person, build_compliance_csv,
     build_day_coverage_csv, index_raw_dates, resolve_participant_windows,
 };
 #[cfg(any(test, feature = "incremental-v2"))]
@@ -4765,8 +4766,8 @@ mod tests {
         );
         let parsed = incremental::decode_source_records(csv.as_bytes());
         assert_eq!(parsed.len(), 2);
-        assert_eq!(parsed[0].application_label, long_label);
-        assert_eq!(parsed[1].application_label, quoted_long_label);
+        assert_eq!(parsed[0].application_label.as_str(), long_label);
+        assert_eq!(parsed[1].application_label.as_str(), quoted_long_label);
         assert_eq!(parsed[0].app_package_name, "com.example.chat");
         assert_eq!(parsed[1].interaction_type, "Activity Paused");
 
@@ -6875,7 +6876,7 @@ mod tests {
                 "temporal",
                 |row| {
                     let data = row.edit_temporal();
-                    *data.duration_seconds = Some(data.duration_seconds.unwrap_or_default() + 1.0);
+                    data.episode_timing.duration_seconds = Some(data.episode_timing.duration_seconds.unwrap_or_default() + 1.0);
                 },
                 (true, true, false, true),
             ),
@@ -7009,7 +7010,7 @@ mod tests {
             workflow_checkpoint("source-step", &[("rows", &previous_rows)], &[]);
 
         let mut rows = previous_rows.clone();
-        *rows[0].edit_temporal().duration_seconds = Some(60.0);
+        rows[0].edit_temporal().episode_timing.duration_seconds = Some(60.0);
         *rows[1].edit_classification().application_label = "Changed".into();
         let payload = br#"{"enabled":false,"upstreamDigest":"fixed"}"#;
         let optimized = workflow_checkpoint_with_known_membership_and_order(
@@ -8783,8 +8784,8 @@ mod tests {
                 }
                 {
                     let data = row.edit_temporal();
-                    *data.start_timestamp_ns = Some(*start);
-                    *data.stop_timestamp_ns = Some(*stop);
+                    data.episode_timing.start_timestamp_ns = Some(*start);
+                    data.episode_timing.stop_timestamp_ns = Some(*stop);
                 }
                 row
             })
@@ -8943,8 +8944,8 @@ mod tests {
                 }
                 {
                     let data = row.edit_temporal();
-                    *data.start_timestamp_ns = Some(*start);
-                    *data.stop_timestamp_ns = Some(*stop);
+                    data.episode_timing.start_timestamp_ns = Some(*start);
+                    data.episode_timing.stop_timestamp_ns = Some(*stop);
                 }
                 row
             })
@@ -9764,7 +9765,7 @@ mod tests {
             ("P01", "com.a", 0, 0),
             ("P01", "com.a", 10 * SESSION_S, 10 * SESSION_S),
         ]);
-        *rows[0].edit_temporal().stop_timestamp_ns = None;
+        rows[0].edit_temporal().episode_timing.stop_timestamp_ns = None;
         assign_usage_session_ids(
             &mut rows,
             SessionGroupingRules::published(SessionGroupingPolicy::ZerrerSixtySeconds),
@@ -9818,7 +9819,7 @@ mod tests {
         let raw = incremental::decode_source_records(csv.as_bytes());
         let test_models = raw
             .iter()
-            .map(|row| (row.participant_id.clone(), "test-device".to_owned()))
+            .map(|row| (row.participant_id.to_string(), "test-device".to_owned()))
             .collect::<BTreeMap<_, _>>();
         incremental::canonicalize_source_rows(
             &raw,
@@ -10210,14 +10211,14 @@ mod tests {
         let mut overlapping = literature_screen_session(19_000_000_000, Some("com.music"));
         {
             let temporal = overlapping.edit_temporal();
-            *temporal.start_timestamp_ns = Some(screen_start + 1_000_000_000);
-            *temporal.stop_timestamp_ns = Some(screen_start + 20_000_000_000);
+            temporal.episode_timing.start_timestamp_ns = Some(screen_start + 1_000_000_000);
+            temporal.episode_timing.stop_timestamp_ns = Some(screen_start + 20_000_000_000);
         }
         let mut locked_only = literature_screen_session(2_000_000_000, Some("com.music"));
         {
             let temporal = locked_only.edit_temporal();
-            *temporal.start_timestamp_ns = Some(screen_start + 11_000_000_000);
-            *temporal.stop_timestamp_ns = Some(screen_start + 13_000_000_000);
+            temporal.episode_timing.start_timestamp_ns = Some(screen_start + 11_000_000_000);
+            temporal.episode_timing.stop_timestamp_ns = Some(screen_start + 13_000_000_000);
         }
         let bounded = incremental::bound_app_rows_to_interactive_screen(
             vec![overlapping, locked_only],
@@ -11184,7 +11185,7 @@ mod tests {
             data.codebook_fields = Arc::new(fields);
             data.broad_app_category = None;
         }
-        derive_broad_category_row(&mut row, codebook_col_indices(BROAD_CATEGORY_COLUMNS));
+        derive_broad_category_row(&mut row, codebook_col_indices(BROAD_CATEGORY_COLUMNS), &mut SharedStringPool::default());
         assert_eq!(row.broad_app_category.as_deref(), Some("Education"));
     }
 
@@ -11203,7 +11204,7 @@ mod tests {
                 data.genre_id_scraped = genre.map(SharedString::from);
                 data.codebook_genre_fields_cleared = cleared;
             }
-            collapse_app_genre_row(&mut row, indices);
+            collapse_app_genre_row(&mut row, indices, &mut SharedStringPool::default());
             (
                 row.genre_id_scraped
                     .as_ref()
@@ -15245,7 +15246,7 @@ mod study_split {
     fn decoded(bytes: &[u8]) -> Vec<(String, String, String, String)> {
         incremental::decode_source_records(bytes)
             .into_iter()
-            .map(|row| (row.study_id, row.participant_id, row.event_timestamp, row.interaction_type))
+            .map(|row| (row.study_id.to_string(), row.participant_id.to_string(), row.event_timestamp, row.interaction_type.to_string()))
             .collect()
     }
 

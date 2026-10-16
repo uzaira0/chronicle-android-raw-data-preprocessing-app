@@ -12,8 +12,37 @@ use crate::pipeline_v2::{
 /// `windows` is `Some` when the study-window filter is on: a raw day the
 /// filter removed must not come back as a placeholder.
 pub(crate) fn add_no_activity_placeholder_rows(
-    mut app_rows: Vec<Row>,
+    app_rows: Vec<Row>,
     raw_rows: &[Row],
+    windows: Option<&[ResolvedParticipantWindow]>,
+) -> Vec<Row> {
+    add_placeholder_rows_for_samples(app_rows, placeholder_day_samples(raw_rows), windows)
+}
+
+/// The earliest raw row of each participant-day, in first-observed order:
+/// the only part of the raw table placeholder synthesis reads.
+pub(crate) fn placeholder_day_samples(raw_rows: &[Row]) -> Vec<Row> {
+    // Preserve JavaScript Map insertion order: raw rows are event-sorted, so
+    // samples are emitted in first-observed participant/day order.
+    let mut sample_index: HashMap<(SharedString, SharedString), usize> = HashMap::new();
+    let mut samples: Vec<Row> = Vec::new();
+    for row in raw_rows {
+        let key = (row.participant_id.clone(), row.date.clone());
+        if let Some(index) = sample_index.get(&key).copied() {
+            if row.event_timestamp_ns < samples[index].event_timestamp_ns {
+                samples[index] = row.clone();
+            }
+        } else {
+            sample_index.insert(key, samples.len());
+            samples.push(row.clone());
+        }
+    }
+    samples
+}
+
+pub(crate) fn add_placeholder_rows_for_samples(
+    mut app_rows: Vec<Row>,
+    samples: Vec<Row>,
     windows: Option<&[ResolvedParticipantWindow]>,
 ) -> Vec<Row> {
     let windows = windows.map(|resolved| {
@@ -30,22 +59,6 @@ pub(crate) fn add_no_activity_placeholder_rows(
         // witness before placeholder synthesis.
         if row.interaction_type == APP_USAGE {
             usage_days.insert((row.participant_id.clone(), row.date.clone()));
-        }
-    }
-
-    // Preserve JavaScript Map insertion order: raw rows are event-sorted, so
-    // samples are emitted in first-observed participant/day order.
-    let mut sample_index: HashMap<(SharedString, SharedString), usize> = HashMap::new();
-    let mut samples: Vec<Row> = Vec::new();
-    for row in raw_rows {
-        let key = (row.participant_id.clone(), row.date.clone());
-        if let Some(index) = sample_index.get(&key).copied() {
-            if row.event_timestamp_ns < samples[index].event_timestamp_ns {
-                samples[index] = row.clone();
-            }
-        } else {
-            sample_index.insert(key, samples.len());
-            samples.push(row.clone());
         }
     }
 

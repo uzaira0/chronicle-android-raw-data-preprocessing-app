@@ -288,11 +288,18 @@ function getInjectedRuntime(
 }
 
 /** Benchmarks pin the old fixed 512 MiB budget to compare against it. */
-function workerPayloadBudgetBytes(simultaneousWorkers: number): number {
+function workerPayloadBudgetBytes(
+  simultaneousWorkers: number,
+  largestInputBytes: number,
+): number {
   if (benchmarkPayloadBudgetOverride() === MIN_PAYLOAD_BUDGET_BYTES) {
     return MIN_PAYLOAD_BUDGET_BYTES;
   }
-  return payloadBudgetBytesForWorkers(readDeviceMemory(), simultaneousWorkers);
+  return payloadBudgetBytesForWorkers(
+    readDeviceMemory(),
+    simultaneousWorkers,
+    largestInputBytes,
+  );
 }
 
 /**
@@ -2559,7 +2566,10 @@ export default function App(): ReactElement {
           )
         : 1;
       setEffectiveProcessingConcurrency(concurrency);
-      const payloadBudgetBytes = workerPayloadBudgetBytes(laneCap);
+      const payloadBudgetBytes = workerPayloadBudgetBytes(
+        laneCap,
+        computationalFiles.reduce((largest, file) => Math.max(largest, file.size), 0),
+      );
       // Resolve bundled-default support files once on the main thread so
       // every worker uses identical bytes (no per-worker fetches), and so
       // the user's uploads win over defaults.

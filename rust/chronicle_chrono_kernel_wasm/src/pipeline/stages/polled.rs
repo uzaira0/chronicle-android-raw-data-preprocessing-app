@@ -143,10 +143,10 @@ pub(crate) fn materialize_polled_rows(
         };
         {
             let temporal = row.edit_temporal();
-            *temporal.start_timestamp_ns = Some(run.first_instant_ns);
-            *temporal.stop_timestamp_ns = Some(run.last_instant_ns);
-            *temporal.duration_seconds = Some(seconds);
-            *temporal.duration_minutes = Some(seconds / 60.0);
+            temporal.episode_timing.start_timestamp_ns = Some(run.first_instant_ns);
+            temporal.episode_timing.stop_timestamp_ns = Some(run.last_instant_ns);
+            temporal.episode_timing.duration_seconds = Some(seconds);
+            temporal.episode_timing.duration_minutes = Some(seconds / 60.0);
         }
         push_row_flag(
             &mut row,
@@ -230,14 +230,14 @@ pub(crate) fn materialize_behapp_half_open_seconds(app_rows: &[Row]) -> Result<V
             {
                 let temporal = row.edit_temporal();
                 *temporal.event_timestamp_ns = instant;
-                *temporal.start_timestamp_ns = Some(instant);
-                *temporal.stop_timestamp_ns = Some(
+                temporal.episode_timing.start_timestamp_ns = Some(instant);
+                temporal.episode_timing.stop_timestamp_ns = Some(
                     instant
                         .checked_add(SECOND_NS)
                         .ok_or_else(|| "interval expansion timestamp overflow".to_string())?,
                 );
-                *temporal.duration_seconds = Some(1.0);
-                *temporal.duration_minutes = Some(1.0 / 60.0);
+                temporal.episode_timing.duration_seconds = Some(1.0);
+                temporal.episode_timing.duration_minutes = Some(1.0 / 60.0);
             }
             push_row_flag(&mut row, INTERVAL_EXPANSION_FLAG);
             let timezone = row.timezone.parse().unwrap_or(Tz::UTC);
@@ -258,8 +258,8 @@ mod tests {
             ("2026-03-07 10:00:00", "App Usage", "com.example.app"),
         ]).remove(0);
         let temporal = row.edit_temporal();
-        *temporal.start_timestamp_ns = Some(i64::MIN);
-        *temporal.stop_timestamp_ns = Some(i64::MAX);
+        temporal.episode_timing.start_timestamp_ns = Some(i64::MIN);
+        temporal.episode_timing.stop_timestamp_ns = Some(i64::MAX);
         assert_eq!(
             materialize_behapp_half_open_seconds(&[row]).err().expect("timestamp overflow"),
             "interval expansion timestamp overflow",

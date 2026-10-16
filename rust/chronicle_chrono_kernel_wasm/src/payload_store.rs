@@ -151,8 +151,9 @@ fn next_payload_touch() -> u64 {
 }
 
 type Resident = Arc<dyn Any + Send + Sync>;
-type EncodePayload = dyn Fn(&Resident) -> Result<Vec<u8>, String> + Send + Sync;
-type DecodePayload = dyn Fn(&[u8]) -> Result<Resident, String> + Send + Sync;
+type EncodePayload =
+    dyn for<'a> Fn(&'a Resident) -> Result<std::borrow::Cow<'a, [u8]>, String> + Send + Sync;
+type DecodePayload = dyn Fn(Vec<u8>) -> Result<Resident, String> + Send + Sync;
 struct Entry {
     id: u64,
     type_name: &'static str,
@@ -322,9 +323,13 @@ impl PayloadStore {
         value: Arc<T>,
         resident_bytes: u64,
     ) -> PayloadHandle<T> {
-        self.publish_with_codec(
+        self.publish_entry(
             value,
             resident_bytes,
+            // Spill files live only as long as this store, so a byte payload
+            // is written as itself: a postcard copy of a 1.2 GB output cost
+            // a second, doubling-grown 2 GiB buffer at the spill.
+            std::any::TypeId::of::<T>() == std::any::TypeId::of::<Vec<u8>>(),
             |value| postcard::to_allocvec(value).map_err(|error| error.to_string()),
             |bytes| {
                 let mut value = postcard::from_bytes(bytes).map_err(|error| error.to_string())?;
@@ -339,6 +344,18 @@ impl PayloadStore {
         &self,
         value: Arc<T>,
         resident_bytes: u64,
+        encode: fn(&T) -> Result<Vec<u8>, String>,
+        decode: fn(&[u8]) -> Result<T, String>,
+    ) -> PayloadHandle<T> {
+        self.publish_entry(value, resident_bytes, false, encode, decode)
+    }
+
+    #[track_caller]
+    fn publish_entry<T: Send + Sync + 'static>(
+        &self,
+        value: Arc<T>,
+        resident_bytes: u64,
+        raw_bytes: bool,
         encode: fn(&T) -> Result<Vec<u8>, String>,
         decode: fn(&[u8]) -> Result<T, String>,
     ) -> PayloadHandle<T> {
@@ -387,17 +404,25 @@ impl PayloadStore {
             row_footprint: Mutex::new(row_footprint),
             resident: Mutex::new(Some(value)),
             encode: Box::new(move |value| {
+                if raw_bytes {
+                    let bytes = value.downcast_ref::<Vec<u8>>().expect("byte payload");
+                    return Ok(std::borrow::Cow::Borrowed(bytes.as_slice()));
+                }
                 crate::pipeline_v2::with_serialized_row_string_table(|| {
                     encode(value.downcast_ref::<T>().expect("payload type"))
                 })
+                .map(std::borrow::Cow::Owned)
             }),
             decode: Box::new(move |bytes| {
+                if raw_bytes {
+                    return Ok(Arc::new(bytes) as Resident);
+                }
                 // Byte chunks can be read by a typed loader while its row
                 // interner is active. They contain no rows or string ids.
                 let value = if std::any::TypeId::of::<T>() == std::any::TypeId::of::<Vec<u8>>() {
-                    decode(bytes)
+                    decode(&bytes)
                 } else {
-                    crate::pipeline_v2::with_deserialized_row_string_pool(|| decode(bytes))
+                    crate::pipeline_v2::with_deserialized_row_string_pool(|| decode(&bytes))
                 };
                 value.map(|value| Arc::new(value) as Resident)
             }),
@@ -753,7 +778,7 @@ impl<T: Send + Sync + 'static> PayloadHandle<T> {
                 if Some(blake3::hash(&bytes)) != *entry.integrity.lock().unwrap() {
                     return Err(format!("payload {} integrity mismatch", entry.id));
                 }
-                (entry.decode)(&bytes)
+                (entry.decode)(bytes)
             });
             let value = match reloaded {
                 Ok(value) => value,
@@ -968,6 +993,20 @@ impl PayloadBytes {
         // Dropping the last handle releases the store's own reference.
         drop(self);
         Ok(Arc::unwrap_or_clone(bytes))
+    }
+
+    /// Removes and returns the first chunk, reloading only that chunk, so a
+    /// consumer can drain an artifact without an artifact-sized buffer. A
+    /// failed reload leaves the chunk in place.
+    pub fn take_first_chunk(&mut self) -> Result<Option<Vec<u8>>, String> {
+        let Some(first) = self.chunks.first() else {
+            return Ok(None);
+        };
+        let bytes = first.lease()?.shared();
+        // Dropping the handle releases the store's own reference.
+        drop(self.chunks.remove(0));
+        self.len -= bytes.len();
+        Ok(Some(Arc::unwrap_or_clone(bytes)))
     }
 
     pub fn materialize(&self) -> Result<Arc<Vec<u8>>, String> {

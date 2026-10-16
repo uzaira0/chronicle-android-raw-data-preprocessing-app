@@ -72,6 +72,7 @@ import {
   inspectVerifiedRuntimeClosure,
   isRecoverableClosureObjectError,
   openOpfsWorkspace,
+  persistRuntimeObjectChunks,
   persistRuntimeObjects,
   persistRuntimeWorkspace,
   readRuntimeObject,
@@ -92,8 +93,35 @@ type KernelHandle = {
   manifest_json(): string;
   artifact_metadata_json(index: number): string;
   take_artifact_bytes(index: number): Uint8Array;
+  take_artifact_chunk(index: number): Uint8Array | undefined;
   free(): void;
 };
+
+/**
+ * An artifact's bytes drained one stored chunk at a time into a buffer of its
+ * declared size: the worker's WASM memory never holds an artifact-sized copy,
+ * which for a large export is the difference between fitting in 4 GiB or not.
+ */
+function takeArtifactBytes(
+  handle: KernelHandle,
+  index: number,
+  metadata: { kind: string; size: number },
+): Uint8Array {
+  const bytes = new Uint8Array(metadata.size);
+  let offset = 0;
+  for (
+    let chunk = handle.take_artifact_chunk(index);
+    chunk !== undefined;
+    chunk = handle.take_artifact_chunk(index)
+  ) {
+    if (offset + chunk.byteLength > bytes.byteLength) {
+      throw new Error(`runtime artifact integrity mismatch: ${metadata.kind}`);
+    }
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes.subarray(0, offset);
+}
 
 type RuntimeSupportFilesHandle = {
   put(role: string, bytes: Uint8Array): void;
@@ -4809,45 +4837,38 @@ async function executeRustRuntimeUnlocked(
     if (streamToOpfs && opfsRoot) {
       const workspaceRoot = opfsRoot;
       const persistedMetadata: PersistedRuntimeArtifactMetadata[] = [];
-      // Take, verify, and store one artifact at a time. WASM memory can be
-      // released before the next 40–100 MB artifact crosses into JavaScript.
+      // Store one artifact at a time, largest first. One the caller does not
+      // keep goes from WASM to OPFS a chunk at a time, never whole in
+      // JavaScript: a 1.2 GB App CSV otherwise sat in the worker beside its
+      // read-back copy (docs/perf/BASELINE.md, "Real-size exports").
       const sortedHandleArtifacts = [...handleArtifacts].sort(
         (left, right) => right.metadata.size - left.metadata.size,
       );
-      for (let start = 0; start < sortedHandleArtifacts.length; start += 2) {
-        const batchMetadata = sortedHandleArtifacts.slice(start, start + 2);
-        const batchBytes = batchMetadata.reduce(
-          (total, { metadata }) => total + metadata.size,
-          0,
-        );
-        const batch = await traced(
-          "artifact-extract",
-          () =>
-            batchMetadata.map(({ index, metadata }) => ({
-              metadata,
-              bytes: runtimeHandle.take_artifact_bytes(index),
-            })),
-          { bytes: batchBytes, items: batchMetadata.length },
-        );
-        await traced(
-          "opfs-object-placement",
-          () =>
-            persistRuntimeObjects(
-              workspaceRoot,
-              batch.map(({ metadata, bytes }) => ({
-                ...metadata,
-                bytes,
-                digestVerified: true,
-              })),
-            ),
-          { bytes: batchBytes, items: batch.length },
-        );
-        for (const { metadata, bytes } of batch) {
-          if (callerArtifactKinds.has(metadata.kind)) {
-            artifacts.set(metadata.kind, bytes);
-          }
-          persistedMetadata.push({ ...metadata, digestVerified: true });
+      for (const { index, metadata } of sortedHandleArtifacts) {
+        const verified = { ...metadata, digestVerified: true as const };
+        if (callerArtifactKinds.has(metadata.kind)) {
+          const bytes = await traced(
+            "artifact-extract",
+            () => takeArtifactBytes(runtimeHandle, index, metadata),
+            { bytes: metadata.size, items: 1 },
+          );
+          await traced(
+            "opfs-object-placement",
+            () => persistRuntimeObjects(workspaceRoot, [{ ...verified, bytes }]),
+            { bytes: metadata.size, items: 1 },
+          );
+          artifacts.set(metadata.kind, bytes);
+        } else {
+          await traced(
+            "opfs-object-placement",
+            () =>
+              persistRuntimeObjectChunks(workspaceRoot, verified, () =>
+                runtimeHandle.take_artifact_chunk(index),
+              ),
+            { bytes: metadata.size, items: 1 },
+          );
         }
+        persistedMetadata.push(verified);
       }
       const ingressArtifacts: PersistedRuntimeArtifact[] = [];
       for (const assignment of manifest.roleAssignments) {
@@ -4911,7 +4932,7 @@ async function executeRustRuntimeUnlocked(
         bytes: Uint8Array;
       }> = [];
       for (const { index, metadata } of handleArtifacts) {
-        const bytes = handle.take_artifact_bytes(index);
+        const bytes = takeArtifactBytes(handle, index, metadata);
         if (metadata.size !== bytes.byteLength) {
           throw new Error(
             `runtime artifact integrity mismatch: ${metadata.kind}`,
