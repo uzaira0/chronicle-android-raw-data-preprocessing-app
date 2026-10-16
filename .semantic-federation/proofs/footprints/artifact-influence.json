@@ -193,8 +193,8 @@
     ],
     "toolchain": []
   },
-  "manifestClosureDigest": "sha256:a6b7d5ef50091aea58cb024735e0964219f159587cc7b01fee41cb3d14b2d49b",
-  "harnessDigest": "sha256:1e3295eeeeaefc9f9ff1467ee97388a314e77920208ce290b9f737b5fa5796c3",
+  "manifestClosureDigest": "sha256:0a2c8d343376a11bc0fcf2e5440d112aefd610217e888193e17006080a6fcdcc",
+  "harnessDigest": "sha256:82b591a66019d6e4a8a5e8305e2c3ec19f1388e467bea7ad6de32a00e59fe656",
   "contractDigest": "sha256:456a7e8bc56d54641386845ed32b21c011ed1c2c544a18be370722f39e1d3d4c",
   "toolchain": "rustc 1.97.0-nightly (913e4bea8 2026-04-22) | binary: rustc",
   "claimBoundary": "Executed-production-file set for this record-mode campaign under LLVM coverage; each file pinned by the digest of its test-stripped normalized source. Conditions the right to inherit this campaign's committed ledger payload without re-measuring; never consulted for runtime invalidation."
