@@ -21,6 +21,7 @@ import {
   recoverRuntimeWorkspaceHead,
   recoverRuntimeWorkspaceRoots,
   runtimeClosureWorkspaceId,
+  storedFileDigest,
   type PersistedRuntimeArtifact,
   type RuntimeClosureManifest,
   type WorkspaceRootSlot,
@@ -2535,5 +2536,20 @@ describe("persistRuntimeObjectChunks", () => {
       persistRuntimeObjectChunks(root, metadata, source(chunks.slice(0, 2))),
     ).rejects.toThrow("artifact size mismatch for app-csv");
     await expect(readRuntimeObject(root, metadata.digest)).rejects.toThrow();
+  });
+});
+
+describe("storedFileDigest", () => {
+  it("hashes a large stored object in pieces to the same size and digest as a whole read", async () => {
+    // 300 KiB spans several stream chunks; a threshold of 0 forces the piecewise path.
+    const bytes = new Uint8Array(300 * 1024);
+    for (let i = 0; i < bytes.length; i += 1) bytes[i] = (i * 31 + 7) & 0xff;
+    const directory = {
+      getFileHandle: () => Promise.resolve({ getFile: () => Promise.resolve(new File([bytes], "object")) }),
+    } as unknown as FileSystemDirectoryHandle;
+    const whole = await storedFileDigest(directory, "object");
+    const expected = `sha256:${Buffer.from(await webcrypto.subtle.digest("SHA-256", bytes)).toString("hex")}`;
+    expect(whole).toEqual({ size: bytes.byteLength, digest: expected });
+    expect(await storedFileDigest(directory, "object", 0)).toEqual(whole);
   });
 });
