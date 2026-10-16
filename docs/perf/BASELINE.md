@@ -510,7 +510,7 @@ those hashes protect checkpoint and artifact identity and remain intact.
 
 ## Deploy artifact
 
-The deploy build occupies 15,060,066 bytes on disk (2026-10-03 working-tree build;
+The deploy build occupies 15,060,061 bytes on disk (2026-10-03 working-tree build;
 480,690 of those bytes are `THIRD-PARTY-NOTICES.txt` and 83,539 are the CycloneDX
 SBOM `sbom.cdx.json`, neither of which the app fetches or precaches; they are served
 only when someone opens them).
@@ -529,7 +529,7 @@ timing/RSS benchmark.
 
 | Asset | Bytes |
 |---|---:|
-| preprocessing runtime WASM | 6,016,655 |
+| preprocessing runtime WASM | 6,016,650 |
 | decoded preprocessing runtime WASM | 15,617,714 |
 | semantic index WASM | 2,907,425 |
 | bundled app codebook | 2,147,719 |

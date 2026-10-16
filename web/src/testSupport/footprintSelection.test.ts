@@ -7,6 +7,8 @@ import {
 } from "node:fs";
 import { rm } from "node:fs/promises";
 import path from "node:path";
+import { createHash } from "node:crypto";
+import { gunzipSync, gzipSync } from "node:zlib";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
@@ -16,6 +18,7 @@ import {
   classifyCoverageFile,
   footprintDir,
   harnessClosureFiles,
+  measuredLedgerText,
   restampInheritedLedger,
 } from "../../scripts/footprint_selection.mjs";
 
@@ -166,6 +169,21 @@ describe("campaign footprint verdicts", () => {
     ).toEqual({ verdict: "clean" });
   });
 
+  it("does not hold a footprint dirty for stdlib files recorded as untracked before their path form was known", () => {
+    const repositoryRoot = temporaryRepository();
+    const stdlib =
+      "/rustc/913e4bea83424658d76712fee9c52452a3a9ef0e/library/std/src/sys/thread_local/no_threads.rs";
+    writeFootprint(repositoryRoot, { untrackedTouchedFiles: [stdlib] });
+    expect(campaignVerdict({ campaign: CAMPAIGN, basis: MATCHING_BASIS, repositoryRoot })).toEqual({
+      verdict: "clean",
+    });
+    writeFootprint(repositoryRoot, { untrackedTouchedFiles: [stdlib, "rust/unknown.rs"] });
+    expect(campaignVerdict({ campaign: CAMPAIGN, basis: MATCHING_BASIS, repositoryRoot })).toEqual({
+      verdict: "dirty",
+      reason: "prior run touched files outside the digest map: rust/unknown.rs",
+    });
+  });
+
   it("dirties every remaining conditioning axis: removal, schema, untracked, manifests, harness, contract, toolchain, empty coverage", () => {
     const repositoryRoot = temporaryRepository();
     const cases: Array<{
@@ -270,6 +288,8 @@ describe("coverage filename classification", () => {
     for (const filename of [
       "/rust-toolchain/lib/rustlib/src/rust/library/std/src/sys/thread_local/no_threads.rs",
       "/opt/rust/lib/rustlib/src/rust/library/core/src/option.rs",
+      // What coverage actually reports: the prebuilt stdlib's own path form.
+      "/rustc/913e4bea83424658d76712fee9c52452a3a9ef0e/library/std/src/sys/thread_local/no_threads.rs",
     ]) {
       expect(classifyCoverageFile(filename, repositoryRoot)).toEqual({
         kind: "toolchain",
@@ -283,6 +303,10 @@ describe("coverage filename classification", () => {
       kind: "repository",
       key: "/somewhere/else.rs",
     });
+    // Only a full commit hash followed by library/ is the stdlib.
+    for (const filename of ["/rustc/913e4bea8/library/std/src/lib.rs", "/rustc/notahash/src/main.rs"]) {
+      expect(classifyCoverageFile(filename, repositoryRoot).kind).toBe("repository");
+    }
   });
 });
 
@@ -346,6 +370,23 @@ describe("inherited ledger re-stamp", () => {
     });
   });
 
+  it("gives a verify-mode campaign run the inherited ledger exactly as it would measure it now", () => {
+    const directory = temporaryRepository();
+    const ledgerPath = writeLedger(directory);
+    const measured = readFileSync(ledgerPath, "utf8");
+    expect(measuredLedgerText(measured)).toBe(measured);
+    restampInheritedLedger({
+      familyExpectedDir: directory,
+      campaign: CAMPAIGN,
+      donorReceipt,
+      footprintFileDigest: "sha256:footprint",
+    });
+    const inherited = readFileSync(ledgerPath, "utf8");
+    // A run on the current implementation records the donor receipt and no inheritance record.
+    const rerun = { ...(JSON.parse(measured) as Record<string, unknown>), implementationReceipt: donorReceipt };
+    expect(measuredLedgerText(inherited)).toBe(`${JSON.stringify(rerun, null, 2)}\n`);
+  });
+
   it("preserves the original measured-on digest through repeated inheritance", () => {
     const directory = temporaryRepository();
     const ledgerPath = writeLedger(directory);
@@ -375,6 +416,64 @@ describe("inherited ledger re-stamp", () => {
     expect(ledger.footprintInheritance.inheritedAtImplementationDigest).toBe(
       "sha256:second-inheritance",
     );
+  });
+
+  it("re-stamps the sidecar and role shards the ledger binds by digest, as a fresh run would write them", () => {
+    const directory = temporaryRepository();
+    const measuredOn = { ...donorReceipt, implementationDigest: "sha256:measured-on" };
+    const text = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
+    const digest = (value: string) => `sha256:${createHash("sha256").update(value).digest("hex")}`;
+    const sidecar = { protocolVersion: "cells/v2", implementationReceipt: measuredOn, cases: [{ caseId: "a" }] };
+    const shard = { protocolVersion: "shard/v1", implementationReceipt: measuredOn, coverage: { pairs: 3 } };
+    writeFileSync(path.join(directory, "cells.json.gz"), gzipSync(text(sidecar), { level: 9 }));
+    writeFileSync(path.join(directory, "shard-a.json"), text(shard));
+    const ledgerPath = path.join(directory, CAMPAIGN.ledger);
+    writeFileSync(
+      ledgerPath,
+      text({
+        implementationReceipt: measuredOn,
+        cellEvidence: { path: "cells.json.gz", contentDigest: digest(text(sidecar)) },
+        roleShards: [{ roleId: "a", path: "shard-a.json", contentDigest: digest(text(shard)) }],
+      }),
+    );
+    restampInheritedLedger({
+      familyExpectedDir: directory,
+      campaign: CAMPAIGN,
+      donorReceipt,
+      footprintFileDigest: "sha256:footprint",
+    });
+    const freshSidecar = text({ ...sidecar, implementationReceipt: donorReceipt });
+    const freshShard = text({ ...shard, implementationReceipt: donorReceipt });
+    expect(gunzipSync(readFileSync(path.join(directory, "cells.json.gz"))).toString("utf8")).toBe(freshSidecar);
+    expect(readFileSync(path.join(directory, "shard-a.json"), "utf8")).toBe(freshShard);
+    expect(measuredLedgerText(readFileSync(ledgerPath, "utf8"))).toBe(
+      text({
+        implementationReceipt: donorReceipt,
+        cellEvidence: { path: "cells.json.gz", contentDigest: digest(freshSidecar) },
+        roleShards: [{ roleId: "a", path: "shard-a.json", contentDigest: digest(freshShard) }],
+      }),
+    );
+  });
+
+  it("refuses a bound file whose receipt is not the ledger's", () => {
+    const directory = temporaryRepository();
+    const measuredOn = { ...donorReceipt, implementationDigest: "sha256:measured-on" };
+    writeFileSync(
+      path.join(directory, "shard-a.json"),
+      `${JSON.stringify({ implementationReceipt: { ...measuredOn, implementationDigest: "sha256:other" } })}\n`,
+    );
+    writeFileSync(
+      path.join(directory, CAMPAIGN.ledger),
+      `${JSON.stringify({ implementationReceipt: measuredOn, roleShards: [{ path: "shard-a.json" }] })}\n`,
+    );
+    expect(() =>
+      restampInheritedLedger({
+        familyExpectedDir: directory,
+        campaign: CAMPAIGN,
+        donorReceipt,
+        footprintFileDigest: "sha256:footprint",
+      }),
+    ).toThrow("shard-a.json does not carry");
   });
 
   it("refuses a ledger without an authority receipt", () => {

@@ -23,6 +23,13 @@ import {
   restampInheritedLedger,
 } from "./footprint_selection.mjs";
 import { createHash } from "node:crypto";
+import { splitCampaignWorkers } from "./campaign_workers.mjs";
+
+/** @typedef {import("./campaign_workers.mjs").CampaignWorkerId} CampaignWorkerId */
+
+// The covering array is one process (peak 2.4 GiB measured 2026-10-16) that
+// runs beside the first group, so the group's workers leave room for it.
+const COVERING_ARRAY_RESERVATION = { workers: 1, bytes: 2.5 * 1024 ** 3 };
 import { readFileSync } from "node:fs";
 
 const webRoot = path.resolve(
@@ -47,6 +54,9 @@ async function refreshDependencyEvidence() {
   // explicitly in `campaignEnv`.
   delete process.env.CHRONICLE_DEPENDENCY_CAMPAIGN_WASM_DIR;
   delete process.env.FIELD_MIXED_ONLY;
+  // An exported MIXED_MAX_PARALLEL would override the mixed campaign's share
+  // of wave 2 and break the memory split.
+  delete process.env.MIXED_MAX_PARALLEL;
   // A stray footprint directory would make the final-package steps (which run
   // the uninstrumented WASM) throw in their capture hook.
   delete process.env.CHRONICLE_FOOTPRINT_PROFRAW_DIR;
@@ -348,8 +358,12 @@ async function refreshDependencyEvidence() {
       ["mixed-artifact-configuration", "test:mixed-influence"],
     ]);
     const rerunIds = new Set(rerunCampaigns.map((campaign) => campaign.id));
-    /** @param {(typeof SELECTABLE_CAMPAIGNS)[number]} campaign */
-    const campaignStep = (campaign) => {
+    /**
+     * @param {(typeof SELECTABLE_CAMPAIGNS)[number]} campaign
+     * @param {Record<string, number>} workers this campaign's share of the
+     *   machine among the campaigns started beside it (campaign_workers.mjs)
+     */
+    const campaignStep = (campaign, workers) => {
       const script = campaignStepScripts.get(campaign.id);
       if (!script) {
         throw new Error(`no npm script mapped for campaign ${campaign.id}`);
@@ -362,6 +376,7 @@ async function refreshDependencyEvidence() {
           env: {
             ...campaignEnv,
             CHRONICLE_FOOTPRINT_CAMPAIGN_ID: campaign.id,
+            CHRONICLE_CAMPAIGN_WORKERS: String(workers[campaign.id] ?? 1),
           },
         },
       );
@@ -369,6 +384,20 @@ async function refreshDependencyEvidence() {
     const bootstrapCoveringBefore = goldenMtime(
       "configuration-space-campaign.json",
     );
+    const firstGroup = SELECTABLE_CAMPAIGNS.filter(
+      (campaign) =>
+        [
+          "configuration-influence",
+          "artifact-influence",
+          "raw-boundary-influence",
+        ].includes(campaign.id) && rerunIds.has(campaign.id),
+    );
+    // The covering array runs beside the first group as one more process.
+    const firstWorkers = splitCampaignWorkers(
+      firstGroup.map((campaign) => /** @type {CampaignWorkerId} */ (campaign.id)),
+      { reserved: COVERING_ARRAY_RESERVATION },
+    );
+    process.stdout.write(`[workers] ${JSON.stringify(firstWorkers)}\n`);
     await supervisor.runAll([
       run(
         "configuration-space covering array",
@@ -381,14 +410,7 @@ async function refreshDependencyEvidence() {
           },
         },
       ),
-      ...SELECTABLE_CAMPAIGNS.filter(
-        (campaign) =>
-          [
-            "configuration-influence",
-            "artifact-influence",
-            "raw-boundary-influence",
-          ].includes(campaign.id) && rerunIds.has(campaign.id),
-      ).map(campaignStep),
+      ...firstGroup.map((campaign) => campaignStep(campaign, firstWorkers)),
     ]);
     assertGoldenRewritten(
       "configuration-space covering array",
@@ -396,12 +418,17 @@ async function refreshDependencyEvidence() {
       bootstrapCoveringBefore,
     );
     assertInputsUnchanged();
-    const secondGroup = SELECTABLE_CAMPAIGNS.filter(
+    const secondCampaigns = SELECTABLE_CAMPAIGNS.filter(
       (campaign) =>
         ["interaction-influence", "mixed-artifact-configuration"].includes(
           campaign.id,
         ) && rerunIds.has(campaign.id),
-    ).map(campaignStep);
+    );
+    const secondWorkers = splitCampaignWorkers(
+      secondCampaigns.map((campaign) => /** @type {CampaignWorkerId} */ (campaign.id)),
+    );
+    process.stdout.write(`[workers] ${JSON.stringify(secondWorkers)}\n`);
+    const secondGroup = secondCampaigns.map((campaign) => campaignStep(campaign, secondWorkers));
     if (secondGroup.length > 0) {
       await supervisor.runAll(secondGroup);
     }
