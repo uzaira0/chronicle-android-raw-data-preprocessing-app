@@ -66,19 +66,20 @@ export class MemoryFileHandle {
             byteLength: data.byteLength,
             bufferBytes: data.buffer.byteLength,
           };
-          pending = Uint8Array.from(data);
+          pending = appended(pending, data);
         } else if (data instanceof ArrayBuffer) {
           this.lastWriteGeometry = {
             byteOffset: 0,
             byteLength: data.byteLength,
             bufferBytes: data.byteLength,
           };
-          pending = new Uint8Array(data);
+          pending = appended(pending, new Uint8Array(data));
         } else {
           throw new Error("unsupported test write");
         }
         return Promise.resolve();
       },
+      abort: () => Promise.resolve(),
       close: async () => {
         this.bytes = this.nextWriteTransform
           ? await this.nextWriteTransform(pending)
@@ -87,6 +88,14 @@ export class MemoryFileHandle {
       },
     } as FileSystemWritableFileStream);
   }
+}
+
+/** Sequential writes append, as the real stream does. */
+function appended(pending: Uint8Array, chunk: Uint8Array): Uint8Array<ArrayBuffer> {
+  const next = new Uint8Array(pending.byteLength + chunk.byteLength);
+  next.set(pending);
+  next.set(chunk, pending.byteLength);
+  return next;
 }
 
 export class MemoryDirectoryHandle {

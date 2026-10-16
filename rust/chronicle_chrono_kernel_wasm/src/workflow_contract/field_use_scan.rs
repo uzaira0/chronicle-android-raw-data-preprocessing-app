@@ -64,8 +64,9 @@ const SOURCES: &[(&str, &str)] = &[
 
 /// Structs whose fields make up the product data-field namespace. `RowData` is
 /// the canonical row carrier every transformation hands on; `RawRow` is the
-/// parsed raw-CSV record that feeds it.
-const CARRIER_STRUCTS: &[&str] = &["RowData", "RawRow"];
+/// parsed raw-CSV record that feeds it. `RowEpisodeTiming` holds the row's
+/// episode timing fields, which `RowData` boxes.
+const CARRIER_STRUCTS: &[&str] = &["RowData", "RowEpisodeTiming", "RawRow"];
 
 /// Field identifiers that name a container or bookkeeping slot rather than a
 /// product data value. They are excluded from the data-field namespace because
@@ -76,6 +77,7 @@ const NON_DATA_FIELDS: &[&str] = &[
     "source_data_rows",
     "lineage_searches",
     "index",
+    "episode_timing",
 ];
 
 /// Internal Salsa queries that memoize a parsed support artifact. The declared

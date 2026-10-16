@@ -40,17 +40,13 @@ export type RawFileInspection = {
 };
 
 /**
- * Raw rows above which one file is expected to exhaust the browser engine.
- * Measured in the browser 2026-09-15 on a 580,793-row synthetic export
- * (docs/perf/BASELINE.md, "Budgeted payload residency"): the worker's WASM
- * memory high-water mark was 2,097,741,824 bytes on both Chromium and stock
- * Firefox, about 3.6 KB per raw row, with the 512 MiB payload budget
- * spilling to OPFS. A wasm32 worker cannot address more than 4 GiB;
- * 950,000 rows extrapolates to about 3.3 GiB at that rate, so this constant
- * errs toward warning.
- * ponytail: one fixture-derived constant; measure per run if real exports diverge.
+ * Raw rows above which one file is expected to exhaust the browser engine:
+ * the 4,384,636 rows of the largest export measured to fit (749,999,909
+ * bytes, the `MAX_RAW_INPUT_BYTES` bound; docs/perf/BASELINE.md, "Real-size
+ * exports"), rounded up. Memory follows rows more than bytes, so a file of
+ * short rows can pass the size bound and still be too long.
  */
-export const BROWSER_ENGINE_ROW_CEILING = 950_000;
+export const BROWSER_ENGINE_ROW_CEILING = 4_400_000;
 
 export function effectiveWarnings(
   inspection: RawFileInspection,
@@ -116,6 +112,7 @@ type RawFileInspector = (
   csvBytes: ArrayBuffer,
   verifiedInputSha256?: string,
   participantPartitionBatchId?: string,
+  participantPartitionSecret?: Uint8Array,
 ) => Promise<RawFileInspection>;
 
 let rawFileInspector: RawFileInspector = inspectRawCsvBytes;
@@ -295,8 +292,9 @@ export async function inspectRawFiles(
   );
   const inspectionByDigest = new Map<string, Promise<RawFileInspection>>();
   let cursor = 0;
+  let failed = false;
   const inspectNext = async (): Promise<void> => {
-    for (;;) {
+    while (!failed) {
       const index = cursor;
       cursor += 1;
       const file = files[index];
@@ -311,6 +309,7 @@ export async function inspectRawFiles(
           bytes,
           inputSha256,
           batch?.participantPartitionBatchId,
+          batch?.secret,
         );
         inspectionByDigest.set(inputSha256, inspection);
       }
@@ -329,7 +328,19 @@ export async function inspectRawFiles(
     Math.floor((256 * 1024 * 1024) / largestFileBytes),
   );
   const concurrency = Math.min(8, byteBound, files.length);
-  await Promise.all(Array.from({ length: concurrency }, () => inspectNext()));
+  // On a failure, start no further file and let the in-flight ones settle
+  // before the caller disposes the batch: each inspection registers the batch
+  // on its worker, and one sent after the disposal would stay registered.
+  const outcomes = await Promise.allSettled(
+    Array.from({ length: concurrency }, () =>
+      inspectNext().catch((error: unknown) => {
+        failed = true;
+        throw error;
+      }),
+    ),
+  );
+  const failure = outcomes.find((outcome) => outcome.status === "rejected");
+  if (failure) throw failure.reason;
   return results.filter(
     (inspection): inspection is RawFileInspection => inspection !== undefined,
   );

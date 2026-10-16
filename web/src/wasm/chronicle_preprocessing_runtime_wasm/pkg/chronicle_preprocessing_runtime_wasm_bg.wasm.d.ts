@@ -39,6 +39,7 @@ export const runtimehandle_artifact_count: (a: number) => number;
 export const runtimehandle_artifact_metadata_json: (a: number, b: number, c: number) => void;
 export const runtimehandle_manifest_json: (a: number, b: number) => void;
 export const runtimehandle_take_artifact_bytes: (a: number, b: number, c: number) => void;
+export const runtimehandle_take_artifact_chunk: (a: number, b: number, c: number) => void;
 export const runtimesupportfiles_new: () => number;
 export const runtimesupportfiles_put: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
 export const runtimesupportfiles_put_with_name: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;

@@ -63,6 +63,12 @@ export class RuntimeHandle {
     artifact_metadata_json(index: number): string;
     manifest_json(): string;
     take_artifact_bytes(index: number): Uint8Array;
+    /**
+     * The artifact's next stored chunk, or `undefined` once it is drained.
+     * Only that chunk is reloaded and copied out, so a large output never
+     * needs an artifact-sized buffer in the worker's 4 GiB address space.
+     */
+    take_artifact_chunk(index: number): Uint8Array | undefined;
     readonly artifact_count: number;
 }
 
@@ -235,6 +241,7 @@ export interface InitOutput {
     readonly runtimehandle_artifact_metadata_json: (a: number, b: number, c: number) => void;
     readonly runtimehandle_manifest_json: (a: number, b: number) => void;
     readonly runtimehandle_take_artifact_bytes: (a: number, b: number, c: number) => void;
+    readonly runtimehandle_take_artifact_chunk: (a: number, b: number, c: number) => void;
     readonly runtimesupportfiles_new: () => number;
     readonly runtimesupportfiles_put: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly runtimesupportfiles_put_with_name: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;

@@ -154,7 +154,7 @@ mod reconstruction_strategy_seam_tests {
         for event in &events {
             let timestamp = event.timestamp_ns.expect("canonical fixture timestamp");
             participant_bounds
-                .entry(event.participant_id.clone())
+                .entry(event.participant_id.as_str().to_owned())
                 .and_modify(|(start, stop, max_row)| {
                     *start = (*start).min(timestamp);
                     *stop = (*stop).max(timestamp);
@@ -1751,14 +1751,14 @@ mod interval_quality_seam_tests {
             let start = row.event_timestamp_ns;
             *row.edit_classification().interaction_type = (*interaction).into();
             let data = row.edit_temporal();
-            *data.start_timestamp_ns = Some(start);
-            *data.stop_timestamp_ns = Some(start + seconds * 1_000_000_000);
+            data.episode_timing.start_timestamp_ns = Some(start);
+            data.episode_timing.stop_timestamp_ns = Some(start + seconds * 1_000_000_000);
             if *interaction == APP_USAGE {
-                *data.duration_seconds = Some(*seconds as f64);
-                *data.duration_minutes = Some(*seconds as f64 / 60.0);
+                data.episode_timing.duration_seconds = Some(*seconds as f64);
+                data.episode_timing.duration_minutes = Some(*seconds as f64 / 60.0);
             } else {
-                *data.duration_seconds = None;
-                *data.duration_minutes = None;
+                data.episode_timing.duration_seconds = None;
+                data.episode_timing.duration_minutes = None;
             }
         }
         rows
@@ -1869,12 +1869,12 @@ mod interval_quality_seam_tests {
         let mut rows = bad_app_and_normal_app();
         let (start, stop) = (rows[1].start_timestamp_ns, rows[1].stop_timestamp_ns);
         let data = rows[1].edit_temporal();
-        *data.raw_episode_start_timestamp_ns = start;
-        *data.raw_episode_stop_timestamp_ns = stop;
-        *data.start_timestamp_ns = None;
-        *data.stop_timestamp_ns = None;
-        *data.duration_seconds = None;
-        *data.duration_minutes = None;
+        data.episode_timing.raw_episode_start_timestamp_ns = start;
+        data.episode_timing.raw_episode_stop_timestamp_ns = stop;
+        data.episode_timing.start_timestamp_ns = None;
+        data.episode_timing.stop_timestamp_ns = None;
+        data.episode_timing.duration_seconds = None;
+        data.episode_timing.duration_minutes = None;
         let culverhouse = interval_quality_step(rows, IntervalQualityPolicy::CulverhouseTrimAndLog);
         assert_eq!(span_ns(&culverhouse[1]), 10 * MINUTE_NS);
         assert_eq!(culverhouse[1].duration_seconds, Some(600.0));
@@ -1888,13 +1888,13 @@ mod interval_quality_seam_tests {
         let mut rows = bad_app_and_normal_app();
         let (start, stop) = (rows[1].start_timestamp_ns, rows[1].stop_timestamp_ns);
         let data = rows[1].edit_temporal();
-        *data.raw_episode_start_timestamp_ns = start;
-        *data.raw_episode_stop_timestamp_ns = stop;
-        *data.maximum_duration_trimmed_ns = Some(7 * 60 * MINUTE_NS - 5 * MINUTE_NS);
-        *data.start_timestamp_ns = None;
-        *data.stop_timestamp_ns = None;
-        *data.duration_seconds = None;
-        *data.duration_minutes = None;
+        data.episode_timing.raw_episode_start_timestamp_ns = start;
+        data.episode_timing.raw_episode_stop_timestamp_ns = stop;
+        data.episode_timing.maximum_duration_trimmed_ns = Some(7 * 60 * MINUTE_NS - 5 * MINUTE_NS);
+        data.episode_timing.start_timestamp_ns = None;
+        data.episode_timing.stop_timestamp_ns = None;
+        data.episode_timing.duration_seconds = None;
+        data.episode_timing.duration_minutes = None;
         let culverhouse = interval_quality_step(rows, IntervalQualityPolicy::CulverhouseTrimAndLog);
         assert_eq!(span_ns(&culverhouse[1]), 5 * MINUTE_NS);
         assert_eq!(culverhouse[1].duration_seconds, Some(300.0));
@@ -1907,7 +1907,7 @@ mod interval_quality_seam_tests {
             (APP_USAGE, "com.example.chat", "2026-03-07 10:00:00", 120),
             (APP_USAGE, "com.example.chat", "2026-03-07 10:02:00", 600),
         ]);
-        *rows[1].edit_temporal().maximum_duration_aggregate_eligible = false;
+        rows[1].edit_temporal().episode_timing.maximum_duration_aggregate_eligible = false;
         let culverhouse = interval_quality_step(rows, IntervalQualityPolicy::CulverhouseTrimAndLog);
         assert_eq!(culverhouse.len(), 2, "the excluded episode stays its own row");
         assert_eq!(culverhouse[0].duration_seconds, Some(120.0));
@@ -1924,7 +1924,7 @@ mod interval_quality_seam_tests {
             (APP_USAGE, "com.example.chat", "2026-03-07 10:00:01", 1),
             (APP_USAGE, "com.example.chat", "2026-03-07 10:00:02", 1),
         ]);
-        *rows[1].edit_temporal().maximum_duration_aggregate_eligible = false;
+        rows[1].edit_temporal().episode_timing.maximum_duration_aggregate_eligible = false;
         let culverhouse = interval_quality_step(rows, IntervalQualityPolicy::CulverhouseTrimAndLog);
         assert_eq!(culverhouse.len(), 3, "no row merges across a row of another state");
         assert_eq!(
@@ -1962,11 +1962,11 @@ mod interval_quality_seam_tests {
             )]);
             {
                 let temporal = rows[0].edit_temporal();
-                *temporal.duration_seconds = None;
-                *temporal.duration_minutes = None;
-                *temporal.minimum_duration_qualified = b04_blank.then_some(true);
-                *temporal.minimum_duration_blank_applied = b04_blank;
-                *temporal.concurrent_subinterval_floor_blank_applied = postfloor_blank;
+                temporal.episode_timing.duration_seconds = None;
+                temporal.episode_timing.duration_minutes = None;
+                temporal.episode_timing.minimum_duration_qualified = b04_blank.then_some(true);
+                temporal.episode_timing.minimum_duration_blank_applied = b04_blank;
+                temporal.episode_timing.concurrent_subinterval_floor_blank_applied = postfloor_blank;
             }
             let cleaned = interval_quality_step(rows, IntervalQualityPolicy::CulverhouseTrimAndLog);
             assert_eq!(cleaned.len(), 1);
@@ -2106,10 +2106,10 @@ mod interval_quality_seam_tests {
         ]);
         for row in &mut rows {
             let data = row.edit_temporal();
-            *data.duration_seconds = None;
-            *data.duration_minutes = None;
-            *data.minimum_duration_qualified = Some(true);
-            *data.minimum_duration_blank_applied = true;
+            data.episode_timing.duration_seconds = None;
+            data.episode_timing.duration_minutes = None;
+            data.episode_timing.minimum_duration_qualified = Some(true);
+            data.episode_timing.minimum_duration_blank_applied = true;
         }
         let collapsed = interval_quality_step(rows, IntervalQualityPolicy::CulverhouseTrimAndLog);
         assert_eq!(collapsed.len(), 1, "one second apart: one usage");
@@ -2133,10 +2133,10 @@ mod interval_quality_seam_tests {
         let mut rows = rows;
         for row in rows.iter_mut() {
             let data = row.edit_temporal();
-            *data.duration_seconds = None;
-            *data.duration_minutes = None;
-            *data.minimum_duration_qualified = Some(true);
-            *data.minimum_duration_blank_applied = true;
+            data.episode_timing.duration_seconds = None;
+            data.episode_timing.duration_minutes = None;
+            data.episode_timing.minimum_duration_qualified = Some(true);
+            data.episode_timing.minimum_duration_blank_applied = true;
         }
         let collapsed = interval_quality_step(rows, IntervalQualityPolicy::CulverhouseTrimAndLog);
         assert_eq!(collapsed.len(), 1);
@@ -2159,19 +2159,19 @@ mod interval_quality_seam_tests {
                 let temporal = rows[marked_index].edit_temporal();
                 match state {
                     "aggregate_eligibility" => {
-                        *temporal.minimum_duration_qualified = Some(true);
-                        *temporal.minimum_duration_aggregate_eligible = false;
+                        temporal.episode_timing.minimum_duration_qualified = Some(true);
+                        temporal.episode_timing.minimum_duration_aggregate_eligible = false;
                     }
                     "b04_blank" => {
-                        *temporal.minimum_duration_qualified = Some(true);
-                        *temporal.minimum_duration_blank_applied = true;
-                        *temporal.duration_seconds = None;
-                        *temporal.duration_minutes = None;
+                        temporal.episode_timing.minimum_duration_qualified = Some(true);
+                        temporal.episode_timing.minimum_duration_blank_applied = true;
+                        temporal.episode_timing.duration_seconds = None;
+                        temporal.episode_timing.duration_minutes = None;
                     }
                     "postfloor_blank" => {
-                        *temporal.concurrent_subinterval_floor_blank_applied = true;
-                        *temporal.duration_seconds = None;
-                        *temporal.duration_minutes = None;
+                        temporal.episode_timing.concurrent_subinterval_floor_blank_applied = true;
+                        temporal.episode_timing.duration_seconds = None;
+                        temporal.episode_timing.duration_minutes = None;
                     }
                     _ => unreachable!(),
                 }
@@ -2223,10 +2223,10 @@ mod interval_quality_seam_tests {
             for row in &mut rows {
                 let duration_ns = row.stop_timestamp_ns.unwrap() - row.start_timestamp_ns.unwrap();
                 let temporal = row.edit_temporal();
-                *temporal.raw_episode_start_timestamp_ns = *temporal.start_timestamp_ns;
-                *temporal.raw_episode_stop_timestamp_ns = *temporal.stop_timestamp_ns;
-                *temporal.raw_episode_duration_ns = Some(duration_ns);
-                *temporal.minimum_duration_qualified = Some(false);
+                temporal.episode_timing.raw_episode_start_timestamp_ns = temporal.episode_timing.start_timestamp_ns;
+                temporal.episode_timing.raw_episode_stop_timestamp_ns = temporal.episode_timing.stop_timestamp_ns;
+                temporal.episode_timing.raw_episode_duration_ns = Some(duration_ns);
+                temporal.episode_timing.minimum_duration_qualified = Some(false);
             }
             let cleaned = interval_quality_step(rows, IntervalQualityPolicy::CulverhouseTrimAndLog);
             assert_eq!(
@@ -2474,10 +2474,10 @@ mod interval_quality_seam_tests {
         // The middle row is end-of-usage-missing: no interval at all.
         {
             let data = rows[1].edit_temporal();
-            *data.start_timestamp_ns = None;
-            *data.stop_timestamp_ns = None;
-            *data.duration_seconds = None;
-            *data.duration_minutes = None;
+            data.episode_timing.start_timestamp_ns = None;
+            data.episode_timing.stop_timestamp_ns = None;
+            data.episode_timing.duration_seconds = None;
+            data.episode_timing.duration_minutes = None;
         }
         let collapsed = interval_quality_step(rows, IntervalQualityPolicy::CulverhouseTrimAndLog);
         assert_eq!(
@@ -2668,13 +2668,13 @@ mod tests {
         let row = RawRow {
             source_data_row: 0,
             event_timestamp: "2026-03-04T11:22:33.123-06:00".to_string(),
-            timezone: "America/Chicago".to_string(),
-            app_package_name: "com.google.android.youtube".to_string(),
-            interaction_type: "Activity Resumed".to_string(),
-            application_label: "YouTube".to_string(),
-            study_id: "study-0001".to_string(),
-            participant_id: "participant-0001".to_string(),
-            username: "participant-0001".to_string(),
+            timezone: "America/Chicago".into(),
+            app_package_name: "com.google.android.youtube".into(),
+            interaction_type: "Activity Resumed".into(),
+            application_label: "YouTube".into(),
+            study_id: "study-0001".into(),
+            participant_id: "participant-0001".into(),
+            username: "participant-0001".into(),
         };
         let expected = row.event_timestamp.len()
             + row.timezone.len()
@@ -2684,11 +2684,13 @@ mod tests {
             + row.study_id.len()
             + row.participant_id.len()
             + row.username.len();
+        let timestamp = row.event_timestamp.len();
+        // The clone shares the seven interned strings and owns its timestamp.
         let rows = vec![row.clone(), row];
         assert_eq!(
             raw_row_string_bytes(&rows),
-            expected * 2,
-            "the raw-table charge must include every owned field string, not just the record headers",
+            expected + timestamp,
+            "the raw-table charge must include every field string once, not just the record headers",
         );
     }
 
@@ -3211,10 +3213,10 @@ mod tests {
         ]);
         for row in built.iter_mut() {
             let temporal = row.edit_temporal();
-            *temporal.start_timestamp_ns = Some(0);
-            *temporal.stop_timestamp_ns = Some(60_000_000_000);
-            *temporal.duration_seconds = Some(60.0);
-            *temporal.duration_minutes = Some(1.0);
+            temporal.episode_timing.start_timestamp_ns = Some(0);
+            temporal.episode_timing.stop_timestamp_ns = Some(60_000_000_000);
+            temporal.episode_timing.duration_seconds = Some(60.0);
+            temporal.episode_timing.duration_minutes = Some(1.0);
         }
 
         let marked = apply_app_inclusion_policy(built, &filtered, &AHashSet::new(), &background);
@@ -3318,9 +3320,9 @@ mod tests {
                     .iter_mut()
                     .zip([Some(0.0), Some(60.0), Some(0.0), None, Some(0.0)])
             {
-                *row.edit_temporal().duration_seconds = duration;
+                row.edit_temporal().episode_timing.duration_seconds = duration;
             }
-            *built[4].edit_temporal().raw_episode_duration_ns = Some(1);
+            built[4].edit_temporal().episode_timing.raw_episode_duration_ns = Some(1);
             built
         };
 
@@ -3434,10 +3436,10 @@ mod tests {
         );
         for (row, (start, stop)) in built.iter_mut().zip(sessions) {
             let temporal = row.edit_temporal();
-            *temporal.start_timestamp_ns = Some(instant(*start));
-            *temporal.stop_timestamp_ns = Some(instant(*stop));
-            *temporal.duration_seconds = Some((stop - start) as f64);
-            *temporal.duration_minutes = Some((stop - start) as f64 / 60.0);
+            temporal.episode_timing.start_timestamp_ns = Some(instant(*start));
+            temporal.episode_timing.stop_timestamp_ns = Some(instant(*stop));
+            temporal.episode_timing.duration_seconds = Some((stop - start) as f64);
+            temporal.episode_timing.duration_minutes = Some((stop - start) as f64 / 60.0);
         }
         built
     }
@@ -5750,10 +5752,10 @@ pub(super) mod tracked {
                     .raw_episode_start_timestamp_ns
                     .or(row.start_timestamp_ns);
                 let temporal = row.edit_temporal();
-                *temporal.raw_episode_start_timestamp_ns = raw_start;
-                *temporal.raw_episode_stop_timestamp_ns = None;
-                *temporal.raw_episode_duration_ns = None;
-                *temporal.minimum_duration_qualified = None;
+                temporal.episode_timing.raw_episode_start_timestamp_ns = raw_start;
+                temporal.episode_timing.raw_episode_stop_timestamp_ns = None;
+                temporal.episode_timing.raw_episode_duration_ns = None;
+                temporal.episode_timing.minimum_duration_qualified = None;
                 if config.micro_use_classification_policy(db) != MicroUseClassificationPolicy::None
                 {
                     *row.edit_classification().micro_use_classification =
@@ -5774,13 +5776,13 @@ pub(super) mod tracked {
                 let duration_seconds = duration_ns as f64 / 1_000_000_000.0;
                 {
                     let temporal = row.edit_temporal();
-                    *temporal.raw_episode_start_timestamp_ns = Some(start);
-                    *temporal.raw_episode_stop_timestamp_ns = Some(stop);
-                    *temporal.raw_episode_duration_ns = Some(duration_ns);
-                    *temporal.minimum_duration_aggregate_eligible = true;
-                    *temporal.minimum_duration_blank_applied = false;
-                    *temporal.concurrent_subinterval_floor_blank_applied = false;
-                    *temporal.minimum_duration_drop_pending = false;
+                    temporal.episode_timing.raw_episode_start_timestamp_ns = Some(start);
+                    temporal.episode_timing.raw_episode_stop_timestamp_ns = Some(stop);
+                    temporal.episode_timing.raw_episode_duration_ns = Some(duration_ns);
+                    temporal.episode_timing.minimum_duration_aggregate_eligible = true;
+                    temporal.episode_timing.minimum_duration_blank_applied = false;
+                    temporal.episode_timing.concurrent_subinterval_floor_blank_applied = false;
+                    temporal.episode_timing.minimum_duration_drop_pending = false;
                 }
                 *row.edit_classification().micro_use_classification =
                     match config.micro_use_classification_policy(db) {
@@ -5799,14 +5801,14 @@ pub(super) mod tracked {
                     };
                 if is_filtered {
                     let temporal = row.edit_temporal();
-                    *temporal.start_timestamp_ns = None;
-                    *temporal.stop_timestamp_ns = None;
-                    *temporal.duration_seconds = None;
-                    *temporal.duration_minutes = None;
+                    temporal.episode_timing.start_timestamp_ns = None;
+                    temporal.episode_timing.stop_timestamp_ns = None;
+                    temporal.episode_timing.duration_seconds = None;
+                    temporal.episode_timing.duration_minutes = None;
                 } else {
                     let temporal = row.edit_temporal();
-                    *temporal.duration_seconds = Some(duration_seconds);
-                    *temporal.duration_minutes = Some(duration_seconds / 60.0);
+                    temporal.episode_timing.duration_seconds = Some(duration_seconds);
+                    temporal.episode_timing.duration_minutes = Some(duration_seconds / 60.0);
                 }
                 floor_candidate_row_ids.insert(row.index);
             }
@@ -6230,11 +6232,11 @@ pub(super) mod tracked {
                     .is_some_and(|threshold_ns| comparator.qualifies(duration_ns, threshold_ns))
             });
             let temporal = row.edit_temporal();
-            *temporal.minimum_duration_qualified = Some(qualifies);
-            *temporal.minimum_duration_aggregate_eligible = true;
-            *temporal.minimum_duration_blank_applied = false;
-            *temporal.concurrent_subinterval_floor_blank_applied = false;
-            *temporal.minimum_duration_drop_pending = false;
+            temporal.episode_timing.minimum_duration_qualified = Some(qualifies);
+            temporal.episode_timing.minimum_duration_aggregate_eligible = true;
+            temporal.episode_timing.minimum_duration_blank_applied = false;
+            temporal.episode_timing.concurrent_subinterval_floor_blank_applied = false;
+            temporal.episode_timing.minimum_duration_drop_pending = false;
             // Every candidate's qualification was just written, so every
             // candidate's temporal part is re-hashed, not only the blanked ones.
             changed_temporal_indices.push(index);
@@ -6243,16 +6245,16 @@ pub(super) mod tracked {
             }
             match disposition {
                 MinimumDurationDisposition::ChronicleBlankKeepRow => {
-                    *temporal.duration_seconds = None;
-                    *temporal.duration_minutes = None;
-                    *temporal.minimum_duration_blank_applied = true;
+                    temporal.episode_timing.duration_seconds = None;
+                    temporal.episode_timing.duration_minutes = None;
+                    temporal.episode_timing.minimum_duration_blank_applied = true;
                 }
                 MinimumDurationDisposition::RetainAndCredit => {}
                 MinimumDurationDisposition::RetainButExclude => {
-                    *temporal.minimum_duration_aggregate_eligible = false;
+                    temporal.episode_timing.minimum_duration_aggregate_eligible = false;
                 }
                 MinimumDurationDisposition::DropRow => {
-                    *temporal.minimum_duration_drop_pending = true;
+                    temporal.episode_timing.minimum_duration_drop_pending = true;
                 }
             }
         }
@@ -7155,30 +7157,30 @@ pub(super) mod tracked {
                     static_rows_unchanged = false;
                     {
                         let temporal = target.edit_temporal();
-                        *temporal.duration_seconds = source.duration_seconds;
-                        *temporal.duration_minutes = source.duration_minutes;
-                        *temporal.raw_episode_start_timestamp_ns =
+                        temporal.episode_timing.duration_seconds = source.duration_seconds;
+                        temporal.episode_timing.duration_minutes = source.duration_minutes;
+                        temporal.episode_timing.raw_episode_start_timestamp_ns =
                             source.raw_episode_start_timestamp_ns;
-                        *temporal.raw_episode_stop_timestamp_ns =
+                        temporal.episode_timing.raw_episode_stop_timestamp_ns =
                             source.raw_episode_stop_timestamp_ns;
-                        *temporal.raw_episode_duration_ns = source.raw_episode_duration_ns;
-                        *temporal.minimum_duration_qualified = source.minimum_duration_qualified;
-                        *temporal.minimum_duration_aggregate_eligible =
+                        temporal.episode_timing.raw_episode_duration_ns = source.raw_episode_duration_ns;
+                        temporal.episode_timing.minimum_duration_qualified = source.minimum_duration_qualified;
+                        temporal.episode_timing.minimum_duration_aggregate_eligible =
                             source.minimum_duration_aggregate_eligible;
-                        *temporal.minimum_duration_blank_applied =
+                        temporal.episode_timing.minimum_duration_blank_applied =
                             source.minimum_duration_blank_applied;
-                        *temporal.concurrent_subinterval_floor_blank_applied =
+                        temporal.episode_timing.concurrent_subinterval_floor_blank_applied =
                             source.concurrent_subinterval_floor_blank_applied;
-                        *temporal.minimum_duration_drop_pending =
+                        temporal.episode_timing.minimum_duration_drop_pending =
                             source.minimum_duration_drop_pending;
-                        *temporal.stop_timestamp_ns = source.stop_timestamp_ns;
-                        *temporal.maximum_duration_qualified = source.maximum_duration_qualified;
-                        *temporal.maximum_duration_aggregate_eligible =
+                        temporal.episode_timing.stop_timestamp_ns = source.stop_timestamp_ns;
+                        temporal.episode_timing.maximum_duration_qualified = source.maximum_duration_qualified;
+                        temporal.episode_timing.maximum_duration_aggregate_eligible =
                             source.maximum_duration_aggregate_eligible;
-                        *temporal.maximum_duration_drop_pending =
+                        temporal.episode_timing.maximum_duration_drop_pending =
                             source.maximum_duration_drop_pending;
-                        *temporal.maximum_duration_trimmed_ns = source.maximum_duration_trimmed_ns;
-                        *temporal.effective_endpoint_reason = source.effective_endpoint_reason;
+                        temporal.episode_timing.maximum_duration_trimmed_ns = source.maximum_duration_trimmed_ns;
+                        temporal.episode_timing.effective_endpoint_reason = source.effective_endpoint_reason;
                     }
                     *target.edit_classification().micro_use_classification =
                         source.micro_use_classification;
@@ -17913,8 +17915,8 @@ pub(super) mod tracked {
                 .find(|row| row.minimum_duration_blank_applied)
                 .expect("positive-floor Chronicle blank row");
             let temporal = row.edit_temporal();
-            *temporal.duration_seconds = Some(4.0);
-            *temporal.duration_minutes = Some(4.0 / 60.0);
+            temporal.episode_timing.duration_seconds = Some(4.0);
+            temporal.episode_timing.duration_minutes = Some(4.0 / 60.0);
 
             // Model a coherent writer that also refreshes the immediate row
             // and group checkpoints after rewriting the public projection.
@@ -17999,8 +18001,8 @@ pub(super) mod tracked {
                 let mut rows = (*clean_annotation_rows).clone();
                 let annotation = &mut rows[blank_index];
                 let temporal = annotation.edit_temporal();
-                *temporal.duration_seconds = Some(4.0);
-                *temporal.duration_minutes = Some(4.0 / 60.0);
+                temporal.episode_timing.duration_seconds = Some(4.0);
+                temporal.episode_timing.duration_minutes = Some(4.0 / 60.0);
                 checked_recredit.annotation_checkpoint.rows =
                     PayloadHandle::resident(Arc::new(rows));
             }
@@ -18019,24 +18021,24 @@ pub(super) mod tracked {
                 (
                     "minimum qualification",
                     "minimum_duration_qualified",
-                    |row| *row.edit_temporal().minimum_duration_qualified = Some(false),
+                    |row| row.edit_temporal().episode_timing.minimum_duration_qualified = Some(false),
                 ),
                 (
                     "aggregate eligibility",
                     "minimum_duration_aggregate_eligible",
-                    |row| *row.edit_temporal().minimum_duration_aggregate_eligible = false,
+                    |row| row.edit_temporal().episode_timing.minimum_duration_aggregate_eligible = false,
                 ),
                 (
                     "B04 blank marker",
                     "minimum_duration_blank_applied",
-                    |row| *row.edit_temporal().minimum_duration_blank_applied = false,
+                    |row| row.edit_temporal().episode_timing.minimum_duration_blank_applied = false,
                 ),
                 (
                     "postfloor blank marker",
                     "concurrent_subinterval_floor_blank_applied",
                     |row| {
-                        *row.edit_temporal()
-                            .concurrent_subinterval_floor_blank_applied = true
+                        row.edit_temporal()
+                            .episode_timing.concurrent_subinterval_floor_blank_applied = true
                     },
                 ),
             ];
@@ -18069,8 +18071,8 @@ pub(super) mod tracked {
                 }
             };
             let temporal = forged_annotation.edit_temporal();
-            *temporal.duration_seconds = Some(4.0);
-            *temporal.duration_minutes = Some(4.0 / 60.0);
+            temporal.episode_timing.duration_seconds = Some(4.0);
+            temporal.episode_timing.duration_minutes = Some(4.0 / 60.0);
             state.annotation = PersistedAnnotationRow::Replace(forged_annotation);
             let payload =
                 with_serialized_row_string_table(|| postcard::to_allocvec(&persisted)).unwrap();
@@ -21528,7 +21530,7 @@ pub(super) mod tracked {
             );
             let original = checkpoint_rows()[0].clone();
             let mut changed = original.clone();
-            *changed.edit_temporal().duration_seconds = Some(123.0);
+            changed.edit_temporal().episode_timing.duration_seconds = Some(123.0);
             let handle = query_payload(&store, Arc::new(vec![
                 original.clone(),
                 changed,
@@ -21560,8 +21562,8 @@ pub(super) mod tracked {
             let changed: Vec<u32> = vec![1, 3];
             for &row_index in &changed {
                 let data = rows[row_index as usize].edit_temporal();
-                *data.duration_seconds = Some(data.duration_seconds.unwrap_or_default() + 5.0);
-                *data.duration_minutes = Some(data.duration_minutes.unwrap_or_default() + 0.0834);
+                data.episode_timing.duration_seconds = Some(data.episode_timing.duration_seconds.unwrap_or_default() + 5.0);
+                data.episode_timing.duration_minutes = Some(data.episode_timing.duration_minutes.unwrap_or_default() + 0.0834);
             }
             let patched = temporal_digest_with_changed_rows(&base, &rows, &changed);
             assert_ne!(

@@ -214,6 +214,16 @@ describe("payloadBudgetBytesForWorkers", () => {
     expect(payloadBudgetBytesForWorkers(4, 1)).toBe(512 * MB);
     expect(payloadBudgetBytesForWorkers(8, 2)).toBe(512 * MB);
   });
+
+  it("shrinks a lone worker's budget so a large input still fits 4 GiB", () => {
+    // A small input changes nothing.
+    expect(payloadBudgetBytesForWorkers(8, 1, 100_000_000)).toBe(1536 * MB);
+    // A large one gets what 4.6 bytes per input byte and the 512 MiB headroom leave of 4 GiB.
+    const large = payloadBudgetBytesForWorkers(8, 1, 600_000_000);
+    expect(large).toBe(Math.floor(4096 * MB - 512 * MB - 4.6 * 600_000_000));
+    // Never below the floor every worker can spill at.
+    expect(payloadBudgetBytesForWorkers(8, 1, 750_000_000)).toBe(512 * MB);
+  });
 });
 
 describe("readDeviceMemory", () => {
