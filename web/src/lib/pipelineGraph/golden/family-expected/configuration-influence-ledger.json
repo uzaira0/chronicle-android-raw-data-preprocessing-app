@@ -717768,5 +717768,11 @@
       ]
     }
   ],
-  "caseSetDigest": "sha256:be35c691083f813847a9566c656ce35fba6aafca9100b903b777b6621c4f0b27"
+  "caseSetDigest": "sha256:be35c691083f813847a9566c656ce35fba6aafca9100b903b777b6621c4f0b27",
+  "footprintInheritance": {
+    "measuredOnImplementationDigest": "sha256:d513c2f44d3ed0de10dea94108fc10306810dbac138b6fcf31fa9a9889cb9714",
+    "inheritedAtImplementationDigest": "sha256:d513c2f44d3ed0de10dea94108fc10306810dbac138b6fcf31fa9a9889cb9714",
+    "footprintProof": ".semantic-federation/proofs/footprints/configuration-influence.json",
+    "footprintProofDigest": "sha256:bfd472e23e42001b1fb12b021edc977c8daebaa49463eec472f00dcebc39432c"
+  }
 }

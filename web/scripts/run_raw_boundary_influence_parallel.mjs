@@ -7,18 +7,13 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { availableParallelism } from "node:os";
 import path from "node:path";
 import { gunzipSync, gzipSync } from "node:zlib";
+import { campaignWorkers } from "./campaign_workers.mjs";
+import { measuredLedgerText } from "./footprint_selection.mjs";
 
 const corpusCount = 6;
-const workerCount = Math.min(
-  corpusCount,
-  Math.max(1, Number(process.env.CHRONICLE_CAMPAIGN_WORKERS ?? availableParallelism() - 1)),
-);
-if (!Number.isSafeInteger(workerCount)) {
-  throw new Error(`invalid raw-boundary worker count ${workerCount}`);
-}
+const workerCount = campaignWorkers("raw-boundary-influence", { maximum: corpusCount });
 
 const testFile = "src/lib/pipelineGraph/golden/rawBoundaryTomography.test.ts";
 const expectedFile = path.resolve(
@@ -189,7 +184,7 @@ try {
     writeFileSync(expectedFile, serialized, "utf8");
     process.stdout.write("updated raw-boundary influence evidence\n");
   } else if (
-    serialized !== readFileSync(expectedFile, "utf8") ||
+    serialized !== measuredLedgerText(readFileSync(expectedFile, "utf8")) ||
     checkedInCellEvidence !== cellEvidenceSerialized
   ) {
     throw new Error(

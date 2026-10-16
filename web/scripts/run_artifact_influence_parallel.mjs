@@ -8,18 +8,11 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { availableParallelism } from "node:os";
 import path from "node:path";
+import { campaignWorkers } from "./campaign_workers.mjs";
+import { measuredLedgerText } from "./footprint_selection.mjs";
 
-const requestedWorkers = Number(
-  process.env.CHRONICLE_CAMPAIGN_WORKERS ?? availableParallelism() - 1,
-);
-if (!Number.isSafeInteger(requestedWorkers)) {
-  throw new Error(
-    `CHRONICLE_CAMPAIGN_WORKERS must be an integer, got: ${process.env.CHRONICLE_CAMPAIGN_WORKERS}`,
-  );
-}
-const workerCount = Math.min(6, Math.max(1, requestedWorkers));
+const workerCount = campaignWorkers("artifact-influence");
 const testFile = "src/lib/pipelineGraph/golden/artifactInterventionCampaign.test.ts";
 const expectedFile = path.resolve(
   "src/lib/pipelineGraph/golden/family-expected/artifact-influence-ledger.json",
@@ -227,7 +220,7 @@ try {
     writeFileSync(expectedFile, serialized, "utf8");
     process.stdout.write("updated artifact influence evidence\n");
   } else if (
-    serialized !== readFileSync(expectedFile, "utf8") ||
+    serialized !== measuredLedgerText(readFileSync(expectedFile, "utf8")) ||
     checkedInCellEvidence !== cellEvidenceSerialized
   ) {
     throw new Error(

@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
+import { campaignWorkers } from "./campaign_workers.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const webRoot = resolve(here, "..");
@@ -16,14 +17,15 @@ const aggregateFile = join(
 );
 const testFile = "src/lib/pipelineGraph/golden/fieldMixedTomography.test.ts";
 const update = process.env.UPDATE_FIELD_MIXED === "1";
-// 5 concurrent shards measured safe under the CAP_MEM=12G campaign budget
-// (each shard is one vitest worker holding one WASM runtime); 3 left ~44s of
-// wall-clock on the table per depev run.
-const maxParallel = Number(process.env.FIELD_MIXED_MAX_PARALLEL ?? "5");
-if (!Number.isInteger(maxParallel) || maxParallel < 1 || maxParallel > 12) {
-  throw new Error(
-    "FIELD_MIXED_MAX_PARALLEL must be an integer from 1 through 12",
-  );
+// Each shard is one vitest worker holding one WASM runtime. Unless
+// FIELD_MIXED_MAX_PARALLEL says otherwise, as many run at once as the machine
+// holds (campaign_workers.mjs), up to one per column.
+const explicitParallel = process.env.FIELD_MIXED_MAX_PARALLEL;
+if (
+  explicitParallel &&
+  (!Number.isInteger(Number(explicitParallel)) || Number(explicitParallel) < 1)
+) {
+  throw new Error("FIELD_MIXED_MAX_PARALLEL must be a positive integer");
 }
 // Each shard is its own process so the WASM instance is recycled between
 // columns, the same reason the mixed artifact campaign shards by role.
@@ -74,6 +76,10 @@ try {
   if (selected.length === 0)
     throw new Error(`FIELD_MIXED_ONLY matched nothing: ${only}`);
 
+  const maxParallel = explicitParallel
+    ? Number(explicitParallel)
+    : campaignWorkers("field-mixed-tomography", { maximum: selected.length });
+  process.stdout.write(`field-mixed tomography: ${selected.length} columns, ${maxParallel} at a time\n`);
   for (let index = 0; index < selected.length; index += maxParallel) {
     await Promise.all(
       selected.slice(index, index + maxParallel).map((column) =>

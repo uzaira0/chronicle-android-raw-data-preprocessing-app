@@ -11,6 +11,7 @@ import {
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
+import { gunzipSync, gzipSync } from "node:zlib";
 
 /**
  * @typedef {{id: string, stepLabel: string, ledger: string, harnessEntries: string[]}} SelectableCampaign
@@ -336,7 +337,8 @@ function manifestClosureDigest(perFileDigests) {
  *   manifest-closure digest already gates — recorded informationally, never
  *   untracked.
  * - "toolchain": rust stdlib source, pinned by the recorded toolchain
- *   identity — same treatment.
+ *   identity — same treatment. The prebuilt stdlib's own paths
+ *   (/rustc/<commit>/library/...) are not touched by any remap.
  *
  * @param {string} filename @param {string} repositoryRoot
  * @returns {{kind: "repository", key: string} | {kind: "registry" | "toolchain", key: string}}
@@ -350,7 +352,10 @@ export function classifyCoverageFile(filename, repositoryRoot) {
   }
   if (
     filename.startsWith("/rust-toolchain/") ||
-    filename.includes("/lib/rustlib/src/rust/")
+    filename.includes("/lib/rustlib/src/rust/") ||
+    // The prebuilt stdlib records its sources as /rustc/<commit>/library/...;
+    // the commit is the one in the recorded toolchain identity.
+    /^\/rustc\/[0-9a-f]{40}\/library\//.test(filename)
   ) {
     return { kind: "toolchain", key: filename };
   }
@@ -409,10 +414,16 @@ export function campaignVerdict({ campaign, basis, repositoryRoot }) {
   if (footprint.schema !== FOOTPRINT_SCHEMA) {
     return { verdict: "dirty", reason: `footprint schema ${footprint.schema}` };
   }
-  if (footprint.untrackedTouchedFiles?.length) {
+  // Classified again, so a footprint recorded before a path form was known
+  // (the prebuilt stdlib's /rustc/<commit>/ sources) is not dirty forever.
+  /** @type {string[]} */
+  const untracked = (footprint.untrackedTouchedFiles ?? []).filter(
+    (/** @type {string} */ file) => classifyCoverageFile(file, repositoryRoot).kind === "repository",
+  );
+  if (untracked.length) {
     return {
       verdict: "dirty",
-      reason: `prior run touched files outside the digest map: ${footprint.untrackedTouchedFiles.join(", ")}`,
+      reason: `prior run touched files outside the digest map: ${untracked.join(", ")}`,
     };
   }
   if (footprint.manifestClosureDigest !== basis.manifestClosureDigest) {
@@ -535,11 +546,28 @@ export function recordCampaignFootprint({
 }
 
 /**
+ * A checked-in ledger as its campaign measured it: the text with the
+ * `footprintInheritance` record that `restampInheritedLedger` adds removed.
+ * A verify-mode campaign run reproduces exactly this, never the record.
+ * @param {string} text
+ */
+export function measuredLedgerText(text) {
+  const ledger = JSON.parse(text);
+  if (!Object.hasOwn(ledger, "footprintInheritance")) return text;
+  delete ledger.footprintInheritance;
+  return `${JSON.stringify(ledger, null, 2)}\n`;
+}
+
+/**
  * Re-stamp an inherited (clean, skipped) campaign ledger with the single
  * authority receipt this refresh produced, recording the inheritance
  * explicitly. The donor receipt comes from a ledger that was freshly measured
  * in THIS run — the same origin a full run gives every ledger — so no new
  * derivation path for receipts exists. The measured payload is untouched.
+ * The files the ledger binds by digest (the cell-evidence sidecar, the mixed
+ * campaign's role shards) carry the receipt too: they are re-stamped the same
+ * way and their digests recomputed, so the inherited evidence is exactly what
+ * a fresh run would write, plus the inheritance record.
  *
  * @param {{familyExpectedDir: string, campaign: SelectableCampaign,
  *   donorReceipt: ImplementationReceipt, footprintFileDigest: string}} input
@@ -559,6 +587,29 @@ export function restampInheritedLedger({
   const measuredOn =
     ledger.footprintInheritance?.measuredOnImplementationDigest ??
     previous.implementationDigest;
+  /** @param {string} text @param {string} name */
+  const restamped = (text, name) => {
+    const value = JSON.parse(text);
+    if (!isDeepStrictEqual(value.implementationReceipt, previous)) {
+      throw new Error(`${name} does not carry ${campaign.ledger}'s implementationReceipt`);
+    }
+    value.implementationReceipt = donorReceipt;
+    return `${JSON.stringify(value, null, 2)}\n`;
+  };
+  /** @param {string} text */
+  const digest = (text) => `sha256:${createHash("sha256").update(text).digest("hex")}`;
+  if (ledger.cellEvidence?.path) {
+    const file = path.join(familyExpectedDir, ledger.cellEvidence.path);
+    const text = restamped(gunzipSync(readFileSync(file)).toString("utf8"), ledger.cellEvidence.path);
+    writeFileSync(file, gzipSync(text, { level: 9 }));
+    ledger.cellEvidence.contentDigest = digest(text);
+  }
+  for (const shard of ledger.roleShards ?? []) {
+    const file = path.join(familyExpectedDir, shard.path);
+    const text = restamped(readFileSync(file, "utf8"), shard.path);
+    writeFileSync(file, text);
+    shard.contentDigest = digest(text);
+  }
   ledger.implementationReceipt = donorReceipt;
   ledger.footprintInheritance = {
     measuredOnImplementationDigest: measuredOn,

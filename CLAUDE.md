@@ -37,8 +37,11 @@ failures behind every rule here: `docs/postmortems/2026-08-convergence-campaign.
   ledgers; regenerating it against unchanged ledgers is a no-op. A stale certificate
   flips the runtime to `ConservativeFull` and ~17 warm-reuse tests fail with one cause
   (`a_stale_dependency_certificate_names_itself_…` says so by name). Heavy runs:
-  `CHRONICLE_CAMPAIGN_WORKERS=4 CAP_MEM=12G cap make dependency-evidence`, no Rust
-  edit in flight.
+  `CAP_MEM=<budget> cap make dependency-evidence`, no Rust edit in flight. Campaign
+  workers follow the machine (`web/scripts/campaign_workers.mjs`): cores − 1 and 85% of
+  `CAP_MEM` (else of RAM), shared between the campaigns a wave runs side by side by
+  each one's measured per-worker peak (1–2.5 GiB); `CHRONICLE_CAMPAIGN_WORKERS=N`
+  overrides. 24 concurrent workers under a 12 GiB cap is what SIGTERMed the 2026-08 run.
 
 ### Hard rules — each one is a measured 2026-08 failure
 

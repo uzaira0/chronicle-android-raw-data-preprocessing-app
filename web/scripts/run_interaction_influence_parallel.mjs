@@ -6,16 +6,11 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { availableParallelism } from "node:os";
 import path from "node:path";
+import { campaignWorkers } from "./campaign_workers.mjs";
+import { measuredLedgerText } from "./footprint_selection.mjs";
 
-const requestedWorkers = Number(
-  process.env.CHRONICLE_CAMPAIGN_WORKERS ?? availableParallelism() - 1,
-);
-if (!Number.isInteger(requestedWorkers) || requestedWorkers < 1) {
-  throw new Error("CHRONICLE_CAMPAIGN_WORKERS must be a positive integer");
-}
-const workerCount = Math.min(12, requestedWorkers);
+const workerCount = campaignWorkers("interaction-influence");
 const testFile = "src/lib/pipelineGraph/golden/interactionTomography.test.ts";
 const testName =
   "exhausts all computational-axis pairs and proves every warm two-factor cone";
@@ -295,7 +290,7 @@ try {
       `updated ${path.relative(process.cwd(), expectedFile)}\n`,
     );
   } else {
-    const expected = readFileSync(expectedFile, "utf8");
+    const expected = measuredLedgerText(readFileSync(expectedFile, "utf8"));
     if (serialized !== expected) {
       const expectedEvidence = JSON.parse(expected);
       const actualEvidence = /** @type {Record<string, any>} */ (evidence);
