@@ -3,7 +3,6 @@ import type { Dispatch, SetStateAction } from "react";
 import type { ReactElement } from "react";
 
 import { SectionCard } from "@/components/SectionCard";
-import { SettingsField } from "@/components/SettingsField";
 import { ToggleField } from "@/components/ToggleField";
 import { Tooltip } from "@/components/Tooltip";
 import { TOOLTIPS } from "@/lib/tooltipText";

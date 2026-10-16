@@ -14,6 +14,11 @@ const K = new Uint32Array([
   0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
 ]);
 
+/** Every index read here is in range; the fallback only satisfies the type. */
+function word(words: ArrayLike<number>, index: number): number {
+  return words[index] ?? 0;
+}
+
 export class StreamingSha256 {
   private readonly state = new Uint32Array([
     0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
@@ -54,28 +59,27 @@ export class StreamingSha256 {
   }
 
   private compress(bytes: Uint8Array, offset: number): void {
+    const view = new DataView(bytes.buffer, bytes.byteOffset + offset, 64);
     const w = this.words;
-    for (let i = 0; i < 16; i += 1) {
-      const at = offset + i * 4;
-      w[i] = ((bytes[at]! << 24) | (bytes[at + 1]! << 16) | (bytes[at + 2]! << 8) | bytes[at + 3]!) >>> 0;
-    }
+    for (let i = 0; i < 16; i += 1) w[i] = view.getUint32(i * 4);
     for (let i = 16; i < 64; i += 1) {
-      const a = w[i - 15]!;
-      const b = w[i - 2]!;
+      const a = word(w, i - 15);
+      const b = word(w, i - 2);
       const s0 = ((a >>> 7) | (a << 25)) ^ ((a >>> 18) | (a << 14)) ^ (a >>> 3);
       const s1 = ((b >>> 17) | (b << 15)) ^ ((b >>> 19) | (b << 13)) ^ (b >>> 10);
-      w[i] = (w[i - 16]! + s0 + w[i - 7]! + s1) >>> 0;
+      w[i] = (word(w, i - 16) + s0 + word(w, i - 7) + s1) >>> 0;
     }
     const s = this.state;
-    let a = s[0]!, b = s[1]!, c = s[2]!, d = s[3]!, e = s[4]!, f = s[5]!, g = s[6]!, h = s[7]!;
+    let a = word(s, 0), b = word(s, 1), c = word(s, 2), d = word(s, 3);
+    let e = word(s, 4), f = word(s, 5), g = word(s, 6), h = word(s, 7);
     for (let i = 0; i < 64; i += 1) {
       const S1 = ((e >>> 6) | (e << 26)) ^ ((e >>> 11) | (e << 21)) ^ ((e >>> 25) | (e << 7));
-      const t1 = (h + S1 + ((e & f) ^ (~e & g)) + K[i]! + w[i]!) | 0;
+      const t1 = (h + S1 + ((e & f) ^ (~e & g)) + word(K, i) + word(w, i)) | 0;
       const S0 = ((a >>> 2) | (a << 30)) ^ ((a >>> 13) | (a << 19)) ^ ((a >>> 22) | (a << 10));
       const t2 = (S0 + ((a & b) ^ (a & c) ^ (b & c))) | 0;
       h = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
     }
-    s[0] = (s[0]! + a) >>> 0; s[1] = (s[1]! + b) >>> 0; s[2] = (s[2]! + c) >>> 0; s[3] = (s[3]! + d) >>> 0;
-    s[4] = (s[4]! + e) >>> 0; s[5] = (s[5]! + f) >>> 0; s[6] = (s[6]! + g) >>> 0; s[7] = (s[7]! + h) >>> 0;
+    const sums = [a, b, c, d, e, f, g, h];
+    for (let i = 0; i < 8; i += 1) s[i] = (word(s, i) + word(sums, i)) >>> 0;
   }
 }
