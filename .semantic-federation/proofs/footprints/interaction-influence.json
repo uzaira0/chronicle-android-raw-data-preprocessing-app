@@ -191,18 +191,18 @@
       "digest": "sha256:929cadea9813dbd23eb198e4f4c6f9c765c926ab032d0982748645a1ecfa6dcd"
     }
   ],
-  "untrackedTouchedFiles": [
-    "/rustc/913e4bea83424658d76712fee9c52452a3a9ef0e/library/std/src/sys/thread_local/no_threads.rs"
-  ],
+  "untrackedTouchedFiles": [],
   "externallyPinnedFiles": {
     "registry": [
       "/cargo-home/registry/src/index.crates.io-1949cf8c6b5b557f/salsa-macro-rules-0.28.5/src/setup_input_struct.rs",
       "/cargo-home/registry/src/index.crates.io-1949cf8c6b5b557f/salsa-macro-rules-0.28.5/src/setup_tracked_fn.rs"
     ],
-    "toolchain": []
+    "toolchain": [
+      "/rustc/913e4bea83424658d76712fee9c52452a3a9ef0e/library/std/src/sys/thread_local/no_threads.rs"
+    ]
   },
   "manifestClosureDigest": "sha256:0a2c8d343376a11bc0fcf2e5440d112aefd610217e888193e17006080a6fcdcc",
-  "harnessDigest": "sha256:82b591a66019d6e4a8a5e8305e2c3ec19f1388e467bea7ad6de32a00e59fe656",
+  "harnessDigest": "sha256:3fecff9ff764fe624cbcd32f2f7d4d0ee8701df17bb92c77c5caf9a5a13e0ca5",
   "contractDigest": "sha256:456a7e8bc56d54641386845ed32b21c011ed1c2c544a18be370722f39e1d3d4c",
   "toolchain": "rustc 1.97.0-nightly (913e4bea8 2026-04-22) | binary: rustc",
   "claimBoundary": "Executed-production-file set for this record-mode campaign under LLVM coverage; each file pinned by the digest of its test-stripped normalized source. Conditions the right to inherit this campaign's committed ledger payload without re-measuring; never consulted for runtime invalidation."
