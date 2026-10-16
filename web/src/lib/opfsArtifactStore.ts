@@ -371,6 +371,8 @@ async function writeFileChunks(
       throw new Error(`artifact size mismatch for ${expected.kind}`);
     }
   } catch (error) {
+    // The failed write is the error to report; an abort that also fails only
+    // means the stream is already closed.
     await writable.abort().catch(() => undefined);
     throw error;
   }

@@ -82,11 +82,12 @@ describe("script typecheck coverage", () => {
   });
 
   // Files under scripts/ that are not JavaScript or TypeScript at all, so no
-  // tsconfig could ever check them: R sources run by an external executor, and
-  // JSON data the .mjs scripts read. Keep this list exact — it must never grow
+  // tsconfig could ever check them: R sources run by an external executor, JSON
+  // data the .mjs scripts read, and POSIX shell (rustc_fixed_host.sh, which
+  // `make shellcheck` checks). Keep this list exact — it must never grow
   // to cover an extension tsc *could* check (.ts/.js/.cts/.cjs), which is the
   // hole this whole test exists to close.
-  const nonTypescriptScriptExtensions = new Set([".R", ".json"]);
+  const nonTypescriptScriptExtensions = new Set([".R", ".json", ".sh"]);
 
   it("every file under web/scripts/ is matched by a typecheck config", () => {
     const uncovered = listFiles(join(webRoot, "scripts"))
