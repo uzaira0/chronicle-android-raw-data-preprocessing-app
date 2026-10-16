@@ -4,7 +4,6 @@ import type { ReactElement } from "react";
 import { SectionCard } from "@/components/SectionCard";
 import { CheckboxGroup } from "@/components/CheckboxGroup";
 import { InteractionRemapEditor } from "@/components/InteractionRemapEditor";
-import { SettingsField } from "@/components/SettingsField";
 import {
   OTHER_INTERACTION_TYPE_OPTIONS,
   SAME_APP_INTERACTION_TYPE_OPTIONS,

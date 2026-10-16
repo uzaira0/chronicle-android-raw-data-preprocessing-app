@@ -10755,14 +10755,14 @@ fn adapt_integer_screen_state_vocabulary(
         })?;
         let method_label = config
             .method_labels_by_integer_status
-            .get(&event.raw_interaction_type)
+            .get(event.raw_interaction_type.as_str())
             .expect("the parser's closed integer domain matches the validated label map");
         writer
             .write_record([
                 event.source_data_row.to_string(),
                 timestamp_ns.to_string(),
-                event.participant_id.clone(),
-                event.raw_interaction_type.clone(),
+                event.participant_id.as_str().to_owned(),
+                event.raw_interaction_type.as_str().to_owned(),
                 method_label.clone(),
                 event.signal.canonical_id().to_owned(),
             ])

@@ -239,11 +239,20 @@ type SharedWorker = {
   worker: { terminate: () => void };
   fault: Promise<never>;
   ready: Promise<void>;
+  inFlight: number;
+  retireWhenIdle: boolean;
+  evict: () => void;
+  /** The comparison support bundle cached in this worker. */
+  supportCacheKey?: string;
 };
 let sharedWorker: SharedWorker | null = null;
-let sharedWorkerSupportCacheKey: string | undefined;
 
 function getSharedWorker(): SharedWorker {
+  if (sharedWorker?.retireWhenIdle) {
+    // New work (a new inspection batch, say) starts on a fresh worker; the
+    // retiring one ends when its in-flight calls settle.
+    sharedWorker = null;
+  }
   if (!sharedWorker) {
     const { api, worker, fault, ready } = spawnWorker();
     const entry: SharedWorker = {
@@ -251,6 +260,9 @@ function getSharedWorker(): SharedWorker {
       worker,
       fault: fault ?? NEVER_FAULT,
       ready: ready ?? Promise.resolve(),
+      inFlight: 0,
+      retireWhenIdle: false,
+      evict: () => undefined,
     };
     sharedWorker = entry;
     // If this worker dies, evict it from the singleton (and terminate it) so the
@@ -261,7 +273,6 @@ function getSharedWorker(): SharedWorker {
     const evict = (): void => {
       if (sharedWorker === entry) {
         sharedWorker = null;
-        sharedWorkerSupportCacheKey = undefined;
       }
       if (!terminated) {
         terminated = true;
@@ -273,6 +284,7 @@ function getSharedWorker(): SharedWorker {
         }
       }
     };
+    entry.evict = evict;
     entry.fault.catch(evict);
     // Initialization can reject without emitting Worker.error (for example a
     // cold offline WASM fetch or initializeRuntime refusal). Evict that worker
@@ -288,16 +300,35 @@ function getSharedWorker(): SharedWorker {
  * singleton is evicted (see {@link getSharedWorker}), so a retry re-spawns.
  */
 async function onSharedWorker<T>(
-  fn: (api: Comlink.Remote<ChronicleWorkerApi>) => Promise<T>,
+  fn: (api: Comlink.Remote<ChronicleWorkerApi>, entry: SharedWorker) => Promise<T>,
+  /** Raw bytes this call hands the worker; a large input retires it once idle. */
+  inputBytes = 0,
 ): Promise<T> {
-  const { api, fault, ready } = getSharedWorker();
-  await Promise.race([ready, fault]);
+  const entry = getSharedWorker();
+  const { api, fault, ready } = entry;
+  entry.inFlight += 1;
   try {
-    return await Promise.race([fn(api), fault]);
+    await Promise.race([ready, fault]);
+    return await Promise.race([fn(api, entry), fault]);
   } catch (error) {
     throw rehydrateScientificPreflightRefusal(error);
+  } finally {
+    entry.inFlight -= 1;
+    if (inputBytes >= SHARED_WORKER_RETIRE_INPUT_BYTES) entry.retireWhenIdle = true;
+    if (entry.retireWhenIdle && entry.inFlight === 0) entry.evict();
   }
 }
+
+/**
+ * Raw input at least this large leaves the shared worker's WASM memory, which
+ * never shrinks, hundreds of megabytes high: a 605,927,956-byte export held
+ * about 3 GB there after inspection, beside the processing worker's own. The
+ * worker that handled it is terminated once idle and new calls go to a fresh
+ * one. Nothing depends on which worker holds an inspection batch: each
+ * inspection re-registers its batch from the secret first (idempotent), and
+ * processing workers rebuild it the same way.
+ */
+const SHARED_WORKER_RETIRE_INPUT_BYTES = 64 * 1024 * 1024;
 
 /**
  * Pool of Comlink-wrapped Chronicle workers. Slots are normally long-lived,
@@ -762,16 +793,18 @@ export async function discoverTimezonesBytes(
   runtime?: BrowserProcessingRuntime,
 ): Promise<string[]> {
   void runtime;
-  return onSharedWorker((api) =>
-    api.discoverTimezonesBytes(Comlink.transfer(csvBytes, [csvBytes])),
+  return onSharedWorker(
+    (api) => api.discoverTimezonesBytes(Comlink.transfer(csvBytes, [csvBytes])),
+    csvBytes.byteLength,
   );
 }
 
 export async function splitRawCsvByStudy(
   csvBytes: ArrayBuffer,
 ): Promise<Array<{ studyId: string; bytes: ArrayBuffer }>> {
-  return onSharedWorker((api) =>
-    api.splitRawCsvByStudy(Comlink.transfer(csvBytes, [csvBytes])),
+  return onSharedWorker(
+    (api) => api.splitRawCsvByStudy(Comlink.transfer(csvBytes, [csvBytes])),
+    csvBytes.byteLength,
   );
 }
 
@@ -781,16 +814,27 @@ export async function inspectRawCsvBytes(
   csvBytes: ArrayBuffer,
   verifiedInputSha256?: string,
   participantPartitionBatchId?: string,
+  /** The batch's secret; re-registers the batch on whichever worker runs this. */
+  participantPartitionSecret?: Uint8Array,
 ): Promise<RawFileInspection> {
-  return onSharedWorker((api) =>
-    api.inspectRawCsvBytes(
+  return onSharedWorker(async (api) => {
+    if (participantPartitionBatchId !== undefined && participantPartitionSecret) {
+      const secret = participantPartitionSecret.slice().buffer;
+      const batchId = await api.beginRawInspectionBatch(
+        Comlink.transfer(secret, [secret]),
+      );
+      if (batchId !== participantPartitionBatchId) {
+        throw new Error("raw inspection batch secret does not match its batch");
+      }
+    }
+    return api.inspectRawCsvBytes(
       fileName,
       sizeBytes,
       Comlink.transfer(csvBytes, [csvBytes]),
       verifiedInputSha256,
       participantPartitionBatchId,
-    ),
-  );
+    );
+  }, csvBytes.byteLength);
 }
 
 /** Transfer the source activity CSV to the worker and run one registered component. */
@@ -1290,13 +1334,13 @@ export async function processPersistedOrRawChangedReview(
     inspectionBatch,
   );
   return withTransientSecret(active.secret, () =>
-    onSharedWorker(async (api) => {
-      if (sharedWorkerSupportCacheKey !== supportCacheKey) {
+    onSharedWorker(async (api, entry) => {
+      if (entry.supportCacheKey !== supportCacheKey) {
         await api.cacheComparisonSupportFiles(
           supportCacheKey,
           changedSupportFiles ?? {},
         );
-        sharedWorkerSupportCacheKey = supportCacheKey;
+        entry.supportCacheKey = supportCacheKey;
       }
       const persisted = await api.processPersistedReview(
         inputFileName,

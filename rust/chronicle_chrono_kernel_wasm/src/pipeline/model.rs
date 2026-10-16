@@ -1,6 +1,6 @@
 use crate::payload_store::PayloadHandle;
 use super::{
-    Arc, BTreeMap, BTreeSet, CheckpointHasher, EpisodeCloseReason,
+    AHashSet, Arc, BTreeMap, BTreeSet, CheckpointHasher, EpisodeCloseReason,
     EpisodeReconstructionStrategy, MicroUseClassification, MicroUseClassificationPolicy,
     MinimumDurationComparator, MinimumDurationDisposition, OnceLock, OpenerSet,
     OpenerSetApplicability, PayloadBytes, PipelineV2OptionsValidationError,
@@ -574,7 +574,132 @@ impl Clone for RowInner {
     }
 }
 
-#[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+/// Episode timing evidence: endpoints, durations and the B03/B04/B06 and
+/// screen-tail markers. All of it belongs to the temporal checkpoint
+/// component, and every value has a fixed empty form.
+#[derive(Clone, Copy, PartialEq)]
+pub struct RowEpisodeTiming {
+    pub(super) start_timestamp_ns: Option<i64>,
+    pub(super) stop_timestamp_ns: Option<i64>,
+    pub(super) duration_seconds: Option<f64>,
+    pub(super) duration_minutes: Option<f64>,
+    /// Immutable reconstructed evidence captured before B03/B04 projection or
+    /// any optional concurrency split. These fields are internal unless a
+    /// non-default foundational-semantics output explicitly exposes them.
+    pub(super) raw_episode_start_timestamp_ns: Option<i64>,
+    pub(super) raw_episode_stop_timestamp_ns: Option<i64>,
+    pub(super) raw_episode_duration_ns: Option<i64>,
+    pub(super) minimum_duration_qualified: Option<bool>,
+    /// Only `retain_but_exclude` makes this false. It is intentionally
+    /// separate from public duration so retained evidence cannot accidentally
+    /// re-enter a headline denominator.
+    pub(super) minimum_duration_aggregate_eligible: bool,
+    /// Internal projection markers. They travel through concurrency by clone,
+    /// but are never inferred from a blank duration.
+    pub(super) minimum_duration_blank_applied: bool,
+    /// True only when the separate legacy concurrent-subinterval floor
+    /// blanked this generated fragment. It never changes the pre-concurrency
+    /// B04 qualification or disposition fields above.
+    pub(super) concurrent_subinterval_floor_blank_applied: bool,
+    pub(super) minimum_duration_drop_pending: bool,
+    /// B06 generic maximum-duration stage. `None` until the stage has looked
+    /// at a bounded episode under `post_reconstruction_strict_max_v1`; the
+    /// omitted, strategy-native and Chronicle-arm shapes never touch it.
+    pub(super) maximum_duration_qualified: Option<bool>,
+    /// Only `retain_but_exclude` makes this false.
+    pub(super) maximum_duration_aggregate_eligible: bool,
+    pub(super) maximum_duration_drop_pending: bool,
+    /// Nanoseconds removed from the published endpoint by
+    /// `truncate_to_threshold` (raw duration minus the threshold).
+    pub(super) maximum_duration_trimmed_ns: Option<i64>,
+    /// Set only on a published row whose stop endpoint was replaced by the
+    /// truncation boundary.
+    pub(super) effective_endpoint_reason: Option<b06::MaximumDurationEffectiveEndpointReason>,
+    pub(super) screen_usage_last_activity_timestamp_ns: Option<i64>,
+    pub(super) screen_usage_tail_gap_seconds: Option<f64>,
+}
+
+impl RowEpisodeTiming {
+    /// What a row that never set a timing field holds.
+    pub(super) const EMPTY: Self = Self {
+        start_timestamp_ns: None,
+        stop_timestamp_ns: None,
+        duration_seconds: None,
+        duration_minutes: None,
+        raw_episode_start_timestamp_ns: None,
+        raw_episode_stop_timestamp_ns: None,
+        raw_episode_duration_ns: None,
+        minimum_duration_qualified: None,
+        minimum_duration_aggregate_eligible: true,
+        minimum_duration_blank_applied: false,
+        concurrent_subinterval_floor_blank_applied: false,
+        minimum_duration_drop_pending: false,
+        maximum_duration_qualified: None,
+        maximum_duration_aggregate_eligible: true,
+        maximum_duration_drop_pending: false,
+        maximum_duration_trimmed_ns: None,
+        effective_endpoint_reason: None,
+        screen_usage_last_activity_timestamp_ns: None,
+        screen_usage_tail_gap_seconds: None,
+    };
+}
+
+static EMPTY_EPISODE_TIMING: RowEpisodeTiming = RowEpisodeTiming::EMPTY;
+
+/// `RowEpisodeTiming` allocated on the first write. An absent box reads as
+/// `RowEpisodeTiming::EMPTY`, and equality compares the values, so a row
+/// never observes whether its box exists.
+#[derive(Clone, Default)]
+pub struct EpisodeTiming(Option<Box<RowEpisodeTiming>>);
+
+impl EpisodeTiming {
+    /// Heap bytes the box holds, for the payload store's row charge.
+    pub(crate) fn heap_bytes(&self) -> usize {
+        self.0.as_ref().map_or(0, |_| std::mem::size_of::<RowEpisodeTiming>())
+    }
+}
+
+impl From<RowEpisodeTiming> for EpisodeTiming {
+    fn from(timing: RowEpisodeTiming) -> Self {
+        Self((timing != RowEpisodeTiming::EMPTY).then(|| Box::new(timing)))
+    }
+}
+
+impl std::ops::Deref for EpisodeTiming {
+    type Target = RowEpisodeTiming;
+
+    fn deref(&self) -> &RowEpisodeTiming {
+        self.0.as_deref().unwrap_or(&EMPTY_EPISODE_TIMING)
+    }
+}
+
+impl std::ops::DerefMut for EpisodeTiming {
+    fn deref_mut(&mut self) -> &mut RowEpisodeTiming {
+        self.0.get_or_insert_with(|| Box::new(RowEpisodeTiming::EMPTY))
+    }
+}
+
+impl PartialEq for EpisodeTiming {
+    fn eq(&self, other: &Self) -> bool {
+        **self == **other
+    }
+}
+
+impl std::ops::Deref for RowData {
+    type Target = RowEpisodeTiming;
+
+    fn deref(&self) -> &RowEpisodeTiming {
+        &self.episode_timing
+    }
+}
+
+impl std::ops::DerefMut for RowData {
+    fn deref_mut(&mut self) -> &mut RowEpisodeTiming {
+        &mut self.episode_timing
+    }
+}
+
+#[derive(Clone, PartialEq)]
 pub struct RowData {
     /// One-based raw CSV data-row numbers (the header is not counted) that
     /// may contribute to this row. Matching/state-machine outputs retain a
@@ -583,10 +708,6 @@ pub struct RowData {
     /// Exact descriptions of candidate regions searched to establish that a
     /// required matching event was absent. These remain separate from rows
     /// that directly supplied output values.
-    #[serde(
-        serialize_with = "serialize_lineage_searches",
-        deserialize_with = "deserialize_lineage_searches"
-    )]
     pub(super) lineage_searches: Arc<SmallVec<[LineageSearchEvidence; 1]>>,
     pub(super) study_id: SharedString,
     pub(super) participant_id: SharedString,
@@ -605,57 +726,11 @@ pub struct RowData {
     pub(super) weekday_su_th: u8,
     pub(super) hour: u8,
     pub(super) quarter: u8,
-    pub(super) start_timestamp_ns: Option<i64>,
-    pub(super) stop_timestamp_ns: Option<i64>,
-    pub(super) duration_seconds: Option<f64>,
-    pub(super) duration_minutes: Option<f64>,
-    /// Immutable reconstructed evidence captured before B03/B04 projection or
-    /// any optional concurrency split. These fields are internal unless a
-    /// non-default foundational-semantics output explicitly exposes them.
-    #[serde(default)]
-    pub(super) raw_episode_start_timestamp_ns: Option<i64>,
-    #[serde(default)]
-    pub(super) raw_episode_stop_timestamp_ns: Option<i64>,
-    #[serde(default)]
-    pub(super) raw_episode_duration_ns: Option<i64>,
-    #[serde(default)]
+    /// The episode timing fields, boxed: about nine in ten rows are raw
+    /// events that never set one, and holding them inline cost every row
+    /// ~170 bytes. Reads and writes reach them through `Deref`.
+    pub(super) episode_timing: EpisodeTiming,
     pub(super) micro_use_classification: Option<MicroUseClassification>,
-    #[serde(default)]
-    pub(super) minimum_duration_qualified: Option<bool>,
-    /// Only `retain_but_exclude` makes this false. It is intentionally
-    /// separate from public duration so retained evidence cannot accidentally
-    /// re-enter a headline denominator.
-    #[serde(default = "default_true")]
-    pub(super) minimum_duration_aggregate_eligible: bool,
-    /// Internal projection markers. They travel through concurrency by clone,
-    /// but are never inferred from a blank duration.
-    #[serde(default)]
-    pub(super) minimum_duration_blank_applied: bool,
-    /// True only when the separate legacy concurrent-subinterval floor
-    /// blanked this generated fragment. It never changes the pre-concurrency
-    /// B04 qualification or disposition fields above.
-    #[serde(default)]
-    pub(super) concurrent_subinterval_floor_blank_applied: bool,
-    #[serde(default)]
-    pub(super) minimum_duration_drop_pending: bool,
-    /// B06 generic maximum-duration stage. `None` until the stage has looked
-    /// at a bounded episode under `post_reconstruction_strict_max_v1`; the
-    /// omitted, strategy-native and Chronicle-arm shapes never touch it.
-    #[serde(default)]
-    pub(super) maximum_duration_qualified: Option<bool>,
-    /// Only `retain_but_exclude` makes this false.
-    #[serde(default = "default_true")]
-    pub(super) maximum_duration_aggregate_eligible: bool,
-    #[serde(default)]
-    pub(super) maximum_duration_drop_pending: bool,
-    /// Nanoseconds removed from the published endpoint by
-    /// `truncate_to_threshold` (raw duration minus the threshold).
-    #[serde(default)]
-    pub(super) maximum_duration_trimmed_ns: Option<i64>,
-    /// Set only on a published row whose stop endpoint was replaced by the
-    /// truncation boundary.
-    #[serde(default)]
-    pub(super) effective_endpoint_reason: Option<b06::MaximumDurationEffectiveEndpointReason>,
     pub(super) screen_usage_end_reason: Option<SharedString>,
     /// Why this app episode ended, in the reader-facing Title Case form.
     /// Populated only when `include_app_usage_end_reason` is on, so with the
@@ -664,9 +739,7 @@ pub struct RowData {
     /// Present only for the Schoedel controlled-derivative arm. These bind an
     /// app episode to the exact immutable B05 interval and disclose the
     /// project-owned completion rule.
-    #[serde(default)]
     pub(super) screen_interval_id: Option<SharedString>,
-    #[serde(default)]
     pub(super) schoedel_completion: Option<b05::SchoedelCompletion>,
     /// Which usage session this app episode belongs to, numbered from 0 within
     /// each participant. Populated only when `session_grouping_policy` is not
@@ -675,13 +748,10 @@ pub struct RowData {
     pub(super) usage_session_id: Option<i64>,
     pub(super) screen_usage_end_reason_confidence: Option<f64>,
     pub(super) screen_usage_stop_event_type: Option<SharedString>,
-    pub(super) screen_usage_last_activity_timestamp_ns: Option<i64>,
-    pub(super) screen_usage_tail_gap_seconds: Option<f64>,
     pub(super) screen_usage_foreground_app_package: Option<SharedString>,
     /// Interval-wide foreground evidence: true = at least one identified app;
     /// false = no foreground events in this constructed bout; None = unknown.
     /// Never forward-fill this evidence into the current foreground package.
-    #[serde(default)]
     pub(super) screen_usage_app_observed: Option<bool>,
     pub(super) screen_usage_session_classification: Option<SharedString>,
     pub(super) screen_usage_apps_forcing_screen_open_label: Option<SharedString>,
@@ -698,10 +768,6 @@ pub struct RowData {
     pub(super) genre_id_scraped: Option<SharedString>,
     pub(super) broad_app_category: Option<SharedString>,
     /// Per-codebook column values (Option<String>) parallel to CODEBOOK_RENAME_PAIRS.
-    #[serde(
-        serialize_with = "serialize_codebook_fields",
-        deserialize_with = "deserialize_codebook_fields"
-    )]
     pub(super) codebook_fields: Arc<Vec<Option<String>>>,
     pub(super) codebook_genre_fields_cleared: bool,
     pub(super) index: usize,
@@ -709,6 +775,276 @@ pub struct RowData {
     /// or "secondary". None when the flag is off (column absent from output).
     pub(super) usage_layer: Option<SharedString>,
 }
+
+struct LineageSearchesField<'a>(&'a Arc<SmallVec<[LineageSearchEvidence; 1]>>);
+
+impl serde::Serialize for LineageSearchesField<'_> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serialize_lineage_searches(self.0, serializer)
+    }
+}
+
+struct CodebookFieldsField<'a>(&'a Arc<Vec<Option<String>>>);
+
+impl serde::Serialize for CodebookFieldsField<'_> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serialize_codebook_fields(self.0, serializer)
+    }
+}
+
+/// The pre-boxing field order, field by field (see `RowDataWire`).
+impl serde::Serialize for RowData {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        let timing: &RowEpisodeTiming = &self.episode_timing;
+        let mut state = serializer.serialize_struct("RowData", 66)?;
+        state.serialize_field("source_data_rows", &self.source_data_rows)?;
+        state.serialize_field("lineage_searches", &LineageSearchesField(&self.lineage_searches))?;
+        state.serialize_field("study_id", &self.study_id)?;
+        state.serialize_field("participant_id", &self.participant_id)?;
+        state.serialize_field("possible_device_model", &self.possible_device_model)?;
+        state.serialize_field("username", &self.username)?;
+        state.serialize_field("application_label", &self.application_label)?;
+        state.serialize_field("interaction_type", &self.interaction_type)?;
+        state.serialize_field("app_package_name", &self.app_package_name)?;
+        state.serialize_field("event_timestamp_ns", &self.event_timestamp_ns)?;
+        state.serialize_field("timezone", &self.timezone)?;
+        state.serialize_field("data_time_gap_hours", &self.data_time_gap_hours)?;
+        state.serialize_field("date", &self.date)?;
+        state.serialize_field("day", &self.day)?;
+        state.serialize_field("weekday_mf", &self.weekday_mf)?;
+        state.serialize_field("weekday_mth", &self.weekday_mth)?;
+        state.serialize_field("weekday_su_th", &self.weekday_su_th)?;
+        state.serialize_field("hour", &self.hour)?;
+        state.serialize_field("quarter", &self.quarter)?;
+        state.serialize_field("start_timestamp_ns", &timing.start_timestamp_ns)?;
+        state.serialize_field("stop_timestamp_ns", &timing.stop_timestamp_ns)?;
+        state.serialize_field("duration_seconds", &timing.duration_seconds)?;
+        state.serialize_field("duration_minutes", &timing.duration_minutes)?;
+        state.serialize_field("raw_episode_start_timestamp_ns", &timing.raw_episode_start_timestamp_ns)?;
+        state.serialize_field("raw_episode_stop_timestamp_ns", &timing.raw_episode_stop_timestamp_ns)?;
+        state.serialize_field("raw_episode_duration_ns", &timing.raw_episode_duration_ns)?;
+        state.serialize_field("micro_use_classification", &self.micro_use_classification)?;
+        state.serialize_field("minimum_duration_qualified", &timing.minimum_duration_qualified)?;
+        state.serialize_field("minimum_duration_aggregate_eligible", &timing.minimum_duration_aggregate_eligible)?;
+        state.serialize_field("minimum_duration_blank_applied", &timing.minimum_duration_blank_applied)?;
+        state.serialize_field("concurrent_subinterval_floor_blank_applied", &timing.concurrent_subinterval_floor_blank_applied)?;
+        state.serialize_field("minimum_duration_drop_pending", &timing.minimum_duration_drop_pending)?;
+        state.serialize_field("maximum_duration_qualified", &timing.maximum_duration_qualified)?;
+        state.serialize_field("maximum_duration_aggregate_eligible", &timing.maximum_duration_aggregate_eligible)?;
+        state.serialize_field("maximum_duration_drop_pending", &timing.maximum_duration_drop_pending)?;
+        state.serialize_field("maximum_duration_trimmed_ns", &timing.maximum_duration_trimmed_ns)?;
+        state.serialize_field("effective_endpoint_reason", &timing.effective_endpoint_reason)?;
+        state.serialize_field("screen_usage_end_reason", &self.screen_usage_end_reason)?;
+        state.serialize_field("app_usage_end_reason", &self.app_usage_end_reason)?;
+        state.serialize_field("screen_interval_id", &self.screen_interval_id)?;
+        state.serialize_field("schoedel_completion", &self.schoedel_completion)?;
+        state.serialize_field("usage_session_id", &self.usage_session_id)?;
+        state.serialize_field("screen_usage_end_reason_confidence", &self.screen_usage_end_reason_confidence)?;
+        state.serialize_field("screen_usage_stop_event_type", &self.screen_usage_stop_event_type)?;
+        state.serialize_field("screen_usage_last_activity_timestamp_ns", &timing.screen_usage_last_activity_timestamp_ns)?;
+        state.serialize_field("screen_usage_tail_gap_seconds", &timing.screen_usage_tail_gap_seconds)?;
+        state.serialize_field("screen_usage_foreground_app_package", &self.screen_usage_foreground_app_package)?;
+        state.serialize_field("screen_usage_app_observed", &self.screen_usage_app_observed)?;
+        state.serialize_field("screen_usage_session_classification", &self.screen_usage_session_classification)?;
+        state.serialize_field("screen_usage_apps_forcing_screen_open_label", &self.screen_usage_apps_forcing_screen_open_label)?;
+        state.serialize_field("screen_usage_lock_screen_only", &self.screen_usage_lock_screen_only)?;
+        state.serialize_field("any_app_usage_flags", &self.any_app_usage_flags)?;
+        state.serialize_field("valid_app_new_engage_30s", &self.valid_app_new_engage_30s)?;
+        state.serialize_field("valid_app_new_engage_custom", &self.valid_app_new_engage_custom)?;
+        state.serialize_field("valid_app_switched_app", &self.valid_app_switched_app)?;
+        state.serialize_field("valid_app_usage_time_gap_hours", &self.valid_app_usage_time_gap_hours)?;
+        state.serialize_field("any_app_new_engage_30s", &self.any_app_new_engage_30s)?;
+        state.serialize_field("any_app_new_engage_custom", &self.any_app_new_engage_custom)?;
+        state.serialize_field("any_app_switched_app", &self.any_app_switched_app)?;
+        state.serialize_field("any_app_usage_time_gap_hours", &self.any_app_usage_time_gap_hours)?;
+        state.serialize_field("genre_id_scraped", &self.genre_id_scraped)?;
+        state.serialize_field("broad_app_category", &self.broad_app_category)?;
+        state.serialize_field("codebook_fields", &CodebookFieldsField(&self.codebook_fields))?;
+        state.serialize_field("codebook_genre_fields_cleared", &self.codebook_genre_fields_cleared)?;
+        state.serialize_field("index", &self.index)?;
+        state.serialize_field("usage_layer", &self.usage_layer)?;
+        state.end()
+    }
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename = "RowData")]
+struct RowDataWire {
+    source_data_rows: SourceDataRows,
+    #[serde(
+        serialize_with = "serialize_lineage_searches",
+        deserialize_with = "deserialize_lineage_searches"
+    )]
+    lineage_searches: Arc<SmallVec<[LineageSearchEvidence; 1]>>,
+    study_id: SharedString,
+    participant_id: SharedString,
+    possible_device_model: SharedString,
+    username: SharedString,
+    application_label: SharedString,
+    interaction_type: SharedString,
+    app_package_name: SharedString,
+    event_timestamp_ns: i64,
+    timezone: SharedString,
+    data_time_gap_hours: f64,
+    date: SharedString,
+    day: u8,
+    weekday_mf: u8,
+    weekday_mth: u8,
+    weekday_su_th: u8,
+    hour: u8,
+    quarter: u8,
+    start_timestamp_ns: Option<i64>,
+    stop_timestamp_ns: Option<i64>,
+    duration_seconds: Option<f64>,
+    duration_minutes: Option<f64>,
+    #[serde(default)]
+    raw_episode_start_timestamp_ns: Option<i64>,
+    #[serde(default)]
+    raw_episode_stop_timestamp_ns: Option<i64>,
+    #[serde(default)]
+    raw_episode_duration_ns: Option<i64>,
+    #[serde(default)]
+    micro_use_classification: Option<MicroUseClassification>,
+    #[serde(default)]
+    minimum_duration_qualified: Option<bool>,
+    #[serde(default = "default_true")]
+    minimum_duration_aggregate_eligible: bool,
+    #[serde(default)]
+    minimum_duration_blank_applied: bool,
+    #[serde(default)]
+    concurrent_subinterval_floor_blank_applied: bool,
+    #[serde(default)]
+    minimum_duration_drop_pending: bool,
+    #[serde(default)]
+    maximum_duration_qualified: Option<bool>,
+    #[serde(default = "default_true")]
+    maximum_duration_aggregate_eligible: bool,
+    #[serde(default)]
+    maximum_duration_drop_pending: bool,
+    #[serde(default)]
+    maximum_duration_trimmed_ns: Option<i64>,
+    #[serde(default)]
+    effective_endpoint_reason: Option<b06::MaximumDurationEffectiveEndpointReason>,
+    screen_usage_end_reason: Option<SharedString>,
+    app_usage_end_reason: Option<SharedString>,
+    #[serde(default)]
+    screen_interval_id: Option<SharedString>,
+    #[serde(default)]
+    schoedel_completion: Option<b05::SchoedelCompletion>,
+    usage_session_id: Option<i64>,
+    screen_usage_end_reason_confidence: Option<f64>,
+    screen_usage_stop_event_type: Option<SharedString>,
+    screen_usage_last_activity_timestamp_ns: Option<i64>,
+    screen_usage_tail_gap_seconds: Option<f64>,
+    screen_usage_foreground_app_package: Option<SharedString>,
+    #[serde(default)]
+    screen_usage_app_observed: Option<bool>,
+    screen_usage_session_classification: Option<SharedString>,
+    screen_usage_apps_forcing_screen_open_label: Option<SharedString>,
+    screen_usage_lock_screen_only: Option<u8>,
+    any_app_usage_flags: SharedString,
+    valid_app_new_engage_30s: i32,
+    valid_app_new_engage_custom: i32,
+    valid_app_switched_app: i32,
+    valid_app_usage_time_gap_hours: f64,
+    any_app_new_engage_30s: i32,
+    any_app_new_engage_custom: i32,
+    any_app_switched_app: i32,
+    any_app_usage_time_gap_hours: f64,
+    genre_id_scraped: Option<SharedString>,
+    broad_app_category: Option<SharedString>,
+    #[serde(
+        serialize_with = "serialize_codebook_fields",
+        deserialize_with = "deserialize_codebook_fields"
+    )]
+    codebook_fields: Arc<Vec<Option<String>>>,
+    codebook_genre_fields_cleared: bool,
+    index: usize,
+    usage_layer: Option<SharedString>,
+}
+
+impl From<RowDataWire> for RowData {
+    fn from(wire: RowDataWire) -> Self {
+        Self {
+            source_data_rows: wire.source_data_rows,
+            lineage_searches: wire.lineage_searches,
+            study_id: wire.study_id,
+            participant_id: wire.participant_id,
+            possible_device_model: wire.possible_device_model,
+            username: wire.username,
+            application_label: wire.application_label,
+            interaction_type: wire.interaction_type,
+            app_package_name: wire.app_package_name,
+            event_timestamp_ns: wire.event_timestamp_ns,
+            timezone: wire.timezone,
+            data_time_gap_hours: wire.data_time_gap_hours,
+            date: wire.date,
+            day: wire.day,
+            weekday_mf: wire.weekday_mf,
+            weekday_mth: wire.weekday_mth,
+            weekday_su_th: wire.weekday_su_th,
+            hour: wire.hour,
+            quarter: wire.quarter,
+            episode_timing: EpisodeTiming::from(RowEpisodeTiming {
+                start_timestamp_ns: wire.start_timestamp_ns,
+                stop_timestamp_ns: wire.stop_timestamp_ns,
+                duration_seconds: wire.duration_seconds,
+                duration_minutes: wire.duration_minutes,
+                raw_episode_start_timestamp_ns: wire.raw_episode_start_timestamp_ns,
+                raw_episode_stop_timestamp_ns: wire.raw_episode_stop_timestamp_ns,
+                raw_episode_duration_ns: wire.raw_episode_duration_ns,
+                minimum_duration_qualified: wire.minimum_duration_qualified,
+                minimum_duration_aggregate_eligible: wire.minimum_duration_aggregate_eligible,
+                minimum_duration_blank_applied: wire.minimum_duration_blank_applied,
+                concurrent_subinterval_floor_blank_applied: wire.concurrent_subinterval_floor_blank_applied,
+                minimum_duration_drop_pending: wire.minimum_duration_drop_pending,
+                maximum_duration_qualified: wire.maximum_duration_qualified,
+                maximum_duration_aggregate_eligible: wire.maximum_duration_aggregate_eligible,
+                maximum_duration_drop_pending: wire.maximum_duration_drop_pending,
+                maximum_duration_trimmed_ns: wire.maximum_duration_trimmed_ns,
+                effective_endpoint_reason: wire.effective_endpoint_reason,
+                screen_usage_last_activity_timestamp_ns: wire.screen_usage_last_activity_timestamp_ns,
+                screen_usage_tail_gap_seconds: wire.screen_usage_tail_gap_seconds,
+            }),
+            micro_use_classification: wire.micro_use_classification,
+            screen_usage_end_reason: wire.screen_usage_end_reason,
+            app_usage_end_reason: wire.app_usage_end_reason,
+            screen_interval_id: wire.screen_interval_id,
+            schoedel_completion: wire.schoedel_completion,
+            usage_session_id: wire.usage_session_id,
+            screen_usage_end_reason_confidence: wire.screen_usage_end_reason_confidence,
+            screen_usage_stop_event_type: wire.screen_usage_stop_event_type,
+            screen_usage_foreground_app_package: wire.screen_usage_foreground_app_package,
+            screen_usage_app_observed: wire.screen_usage_app_observed,
+            screen_usage_session_classification: wire.screen_usage_session_classification,
+            screen_usage_apps_forcing_screen_open_label: wire.screen_usage_apps_forcing_screen_open_label,
+            screen_usage_lock_screen_only: wire.screen_usage_lock_screen_only,
+            any_app_usage_flags: wire.any_app_usage_flags,
+            valid_app_new_engage_30s: wire.valid_app_new_engage_30s,
+            valid_app_new_engage_custom: wire.valid_app_new_engage_custom,
+            valid_app_switched_app: wire.valid_app_switched_app,
+            valid_app_usage_time_gap_hours: wire.valid_app_usage_time_gap_hours,
+            any_app_new_engage_30s: wire.any_app_new_engage_30s,
+            any_app_new_engage_custom: wire.any_app_new_engage_custom,
+            any_app_switched_app: wire.any_app_switched_app,
+            any_app_usage_time_gap_hours: wire.any_app_usage_time_gap_hours,
+            genre_id_scraped: wire.genre_id_scraped,
+            broad_app_category: wire.broad_app_category,
+            codebook_fields: wire.codebook_fields,
+            codebook_genre_fields_cleared: wire.codebook_genre_fields_cleared,
+            index: wire.index,
+            usage_layer: wire.usage_layer,
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for RowData {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        RowDataWire::deserialize(deserializer).map(Self::from)
+    }
+}
+
 
 impl Row {
     pub(super) fn new(data: RowData) -> Self {
@@ -802,25 +1138,8 @@ pub(super) struct RowTemporalView<'a> {
     pub(super) weekday_su_th: &'a mut u8,
     pub(super) hour: &'a mut u8,
     pub(super) quarter: &'a mut u8,
-    pub(super) start_timestamp_ns: &'a mut Option<i64>,
-    pub(super) stop_timestamp_ns: &'a mut Option<i64>,
-    pub(super) duration_seconds: &'a mut Option<f64>,
-    pub(super) duration_minutes: &'a mut Option<f64>,
-    pub(super) raw_episode_start_timestamp_ns: &'a mut Option<i64>,
-    pub(super) raw_episode_stop_timestamp_ns: &'a mut Option<i64>,
-    pub(super) raw_episode_duration_ns: &'a mut Option<i64>,
-    pub(super) minimum_duration_qualified: &'a mut Option<bool>,
-    pub(super) minimum_duration_aggregate_eligible: &'a mut bool,
-    pub(super) minimum_duration_blank_applied: &'a mut bool,
-    pub(super) concurrent_subinterval_floor_blank_applied: &'a mut bool,
-    pub(super) minimum_duration_drop_pending: &'a mut bool,
-    pub(super) maximum_duration_qualified: &'a mut Option<bool>,
-    pub(super) maximum_duration_aggregate_eligible: &'a mut bool,
-    pub(super) maximum_duration_drop_pending: &'a mut bool,
-    pub(super) maximum_duration_trimmed_ns: &'a mut Option<i64>,
-    pub(super) effective_endpoint_reason: &'a mut Option<b06::MaximumDurationEffectiveEndpointReason>,
-    pub(super) screen_usage_last_activity_timestamp_ns: &'a mut Option<i64>,
-    pub(super) screen_usage_tail_gap_seconds: &'a mut Option<f64>,
+    /// The boxed episode timing fields; the box is allocated on first write.
+    pub(super) episode_timing: &'a mut EpisodeTiming,
     pub(super) valid_app_usage_time_gap_hours: &'a mut f64,
     pub(super) any_app_usage_time_gap_hours: &'a mut f64,
 }
@@ -897,24 +1216,8 @@ pub(super) fn split_row_buckets(data: &mut RowData) -> RowBucketViews<'_> {
         weekday_su_th,
         hour,
         quarter,
-        start_timestamp_ns,
-        stop_timestamp_ns,
-        duration_seconds,
-        duration_minutes,
-        raw_episode_start_timestamp_ns,
-        raw_episode_stop_timestamp_ns,
-        raw_episode_duration_ns,
+        episode_timing,
         micro_use_classification,
-        minimum_duration_qualified,
-        minimum_duration_aggregate_eligible,
-        minimum_duration_blank_applied,
-        concurrent_subinterval_floor_blank_applied,
-        minimum_duration_drop_pending,
-        maximum_duration_qualified,
-        maximum_duration_aggregate_eligible,
-        maximum_duration_drop_pending,
-        maximum_duration_trimmed_ns,
-        effective_endpoint_reason,
         screen_usage_end_reason,
         app_usage_end_reason,
         screen_interval_id,
@@ -922,8 +1225,6 @@ pub(super) fn split_row_buckets(data: &mut RowData) -> RowBucketViews<'_> {
         usage_session_id,
         screen_usage_end_reason_confidence,
         screen_usage_stop_event_type,
-        screen_usage_last_activity_timestamp_ns,
-        screen_usage_tail_gap_seconds,
         screen_usage_foreground_app_package,
         screen_usage_app_observed,
         screen_usage_session_classification,
@@ -962,25 +1263,7 @@ pub(super) fn split_row_buckets(data: &mut RowData) -> RowBucketViews<'_> {
             weekday_su_th,
             hour,
             quarter,
-            start_timestamp_ns,
-            stop_timestamp_ns,
-            duration_seconds,
-            duration_minutes,
-            raw_episode_start_timestamp_ns,
-            raw_episode_stop_timestamp_ns,
-            raw_episode_duration_ns,
-            minimum_duration_qualified,
-            minimum_duration_aggregate_eligible,
-            minimum_duration_blank_applied,
-            concurrent_subinterval_floor_blank_applied,
-            minimum_duration_drop_pending,
-            maximum_duration_qualified,
-            maximum_duration_aggregate_eligible,
-            maximum_duration_drop_pending,
-            maximum_duration_trimmed_ns,
-            effective_endpoint_reason,
-            screen_usage_last_activity_timestamp_ns,
-            screen_usage_tail_gap_seconds,
+            episode_timing,
             valid_app_usage_time_gap_hours,
             any_app_usage_time_gap_hours,
         },
@@ -2024,33 +2307,73 @@ impl std::fmt::Display for B05PreparedExecutionError {
 
 impl std::error::Error for B05PreparedExecutionError {}
 
+/// One decoded raw-CSV record. Every field but the timestamp repeats across
+/// rows (a participant, an app, an event type), so those are shared strings
+/// interned at decode; owned copies cost ~120 bytes a row on a
+/// multi-million-row export. They serialize as plain strings, exactly as the
+/// `String` fields they replaced.
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct RawRow {
     pub(super) source_data_row: u32,
     pub(super) event_timestamp: String,
-    pub(super) timezone: String,
-    pub(super) app_package_name: String,
-    pub(super) interaction_type: String,
-    pub(super) application_label: String,
-    pub(super) study_id: String,
-    pub(super) participant_id: String,
-    pub(super) username: String,
+    #[serde(with = "plain_shared_string")]
+    pub(super) timezone: SharedString,
+    #[serde(with = "plain_shared_string")]
+    pub(super) app_package_name: SharedString,
+    #[serde(with = "plain_shared_string")]
+    pub(super) interaction_type: SharedString,
+    #[serde(with = "plain_shared_string")]
+    pub(super) application_label: SharedString,
+    #[serde(with = "plain_shared_string")]
+    pub(super) study_id: SharedString,
+    #[serde(with = "plain_shared_string")]
+    pub(super) participant_id: SharedString,
+    #[serde(with = "plain_shared_string")]
+    pub(super) username: SharedString,
+}
+
+/// `SharedString` on the wire of a `String`: `RawRow` kept its pre-sharing
+/// encoding in every format, binary ones included.
+mod plain_shared_string {
+    use super::SharedString;
+
+    pub(super) fn serialize<S: serde::Serializer>(
+        value: &SharedString,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(value.as_str())
+    }
+
+    pub(super) fn deserialize<'de, D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<SharedString, D::Error> {
+        <String as serde::Deserialize>::deserialize(deserializer)
+            .map(super::super::row_codec::intern_deserialized_string)
+    }
 }
 
 impl RawRow {
-    /// Heap bytes of the eight owned field strings, for the payload budget.
-    /// A method rather than a free function: the workflow field-use scan
-    /// attributes field access in free functions reachable from a product
+    /// Heap bytes the record's field strings hold, for the payload budget. A
+    /// shared string is charged once per table: `seen` holds the ones already
+    /// counted. A method rather than a free function: the workflow field-use
+    /// scan attributes field access in free functions reachable from a product
     /// step to that step, and budget accounting is not a data read.
-    pub(super) fn owned_string_bytes(&self) -> usize {
+    pub(super) fn owned_string_bytes(&self, seen: &mut AHashSet<usize>) -> usize {
+        let mut shared = |value: &SharedString| {
+            if seen.insert(Arc::as_ptr(&value.0) as usize) {
+                value.0.capacity()
+            } else {
+                0
+            }
+        };
         self.event_timestamp.capacity()
-            + self.timezone.capacity()
-            + self.app_package_name.capacity()
-            + self.interaction_type.capacity()
-            + self.application_label.capacity()
-            + self.study_id.capacity()
-            + self.participant_id.capacity()
-            + self.username.capacity()
+            + shared(&self.timezone)
+            + shared(&self.app_package_name)
+            + shared(&self.interaction_type)
+            + shared(&self.application_label)
+            + shared(&self.study_id)
+            + shared(&self.participant_id)
+            + shared(&self.username)
     }
 }
 
@@ -2256,7 +2579,7 @@ pub(super) struct CreditPartitionCheckpoint<'a> {
 }
 
 pub(super) struct ScreenCreditOutput {
-    pub(super) csv_bytes: Vec<u8>,
+    pub(super) csv_bytes: PayloadBytes,
     pub(super) row_count: u32,
     pub(super) row_lineage: Vec<PipelineRowLineage>,
     pub(super) effective_usage_checkpoint: WorkflowCheckpoint,
@@ -2297,14 +2620,14 @@ pub(super) const POLLED_EMULATION_NOT_OBSERVED_FLAG: &str = "EMULATED NOT OBSERV
 pub(super) const POLLED_EMULATION_FORCED_TERMINAL_FLAG: &str = "FORCED TERMINAL SAMPLE";
 
 pub(super) struct PolledEmulationOutput {
-    pub(super) csv_bytes: Vec<u8>,
+    pub(super) csv_bytes: PayloadBytes,
     pub(super) row_count: u32,
     pub(super) row_lineage: Vec<PipelineRowLineage>,
     pub(super) checkpoint: WorkflowCheckpoint,
 }
 
 pub(super) struct NotificationContactOutput {
-    pub(super) csv_bytes: Vec<u8>,
+    pub(super) csv_bytes: PayloadBytes,
     pub(super) row_count: u32,
     pub(super) row_lineage: Vec<PipelineRowLineage>,
     pub(super) checkpoint: WorkflowCheckpoint,

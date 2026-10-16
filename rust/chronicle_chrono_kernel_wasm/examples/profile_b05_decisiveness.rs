@@ -5,6 +5,8 @@
 //!   cargo build --release --no-default-features --example profile_b05_decisiveness
 //!   hyperfine 'target/release/examples/profile_b05_decisiveness 16500'
 
+use std::sync::Arc;
+
 use chronicle_chrono_kernel_wasm::b05_foundational_semantics::{
     probe_decisive_equal_timestamp_group_count, AndroidUsageSignal, RawB05Event,
     ScreenSessionConstructionStrategyId,
@@ -17,13 +19,13 @@ fn event(
     package: Option<&str>,
 ) -> RawB05Event {
     RawB05Event {
-        participant_id: "P01".into(),
+        participant_id: Arc::new("P01".to_owned()),
         timestamp_ns: Some(timestamp_ms * 1_000_000),
         source_data_row,
         source_data_rows: vec![source_data_row],
-        raw_interaction_type: String::new(),
+        raw_interaction_type: Arc::default(),
         signal,
-        package_name: package.map(str::to_owned),
+        package_name: package.map(|package| Arc::new(package.to_owned())),
         app_opener_eligible: true,
     }
 }

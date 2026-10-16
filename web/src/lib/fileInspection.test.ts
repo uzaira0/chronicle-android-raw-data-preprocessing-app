@@ -271,7 +271,7 @@ describe("fileInspection", () => {
       DEFAULT_BROWSER_OPTIONS,
     );
     expect(oversized).toHaveLength(1);
-    expect(oversized[0]).toMatch(/^This file has 950,001 rows\./);
+    expect(oversized[0]).toMatch(/^This file has 4,400,001 rows\./);
     expect(oversized[0]).toMatch(/Split the export/);
   });
 
@@ -703,6 +703,42 @@ describe("fileInspection", () => {
       "Raw A.csv",
       "Raw B.csv",
     ]);
+  });
+
+  it("after a failure rejects only once in-flight inspections settle", async () => {
+    let finishSlow: () => void = () => undefined;
+    const settled: string[] = [];
+    const inspector = vi.fn((fileName: string, ...rest: Parameters<typeof wasmInspector> extends [string, ...infer R] ? R : never) => {
+      if (fileName === "slow.csv") {
+        return new Promise<Awaited<ReturnType<typeof wasmInspector>>>((resolve, reject) => {
+          finishSlow = () => {
+            settled.push(fileName);
+            wasmInspector(fileName, ...rest).then(resolve, reject);
+          };
+        });
+      }
+      return Promise.reject(new Error(`cannot inspect ${fileName}`));
+    });
+    setRawFileInspectorForTesting(inspector);
+    const text = (participant: string) =>
+      [HEADER, `Study,${participant},Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,America/Chicago`].join("\n");
+    let rejected = false;
+    const pending = inspectRawFiles([
+      fileFromText("slow.csv", text("P01")),
+      fileFromText("bad.csv", text("P02")),
+      fileFromText("later-1.csv", text("P03")),
+      fileFromText("later-2.csv", text("P04")),
+      fileFromText("later-3.csv", text("P05")),
+    ]).catch((error: unknown) => {
+      rejected = true;
+      throw error;
+    });
+    await vi.waitFor(() => expect(inspector).toHaveBeenCalledWith("bad.csv", expect.anything(), expect.anything(), expect.anything(), undefined, undefined));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(rejected).toBe(false);
+    finishSlow();
+    await expect(pending).rejects.toThrow("cannot inspect bad.csv");
+    expect(settled).toEqual(["slow.csv"]);
   });
 
   it("parses exact duplicate content once while preserving both file labels", async () => {
