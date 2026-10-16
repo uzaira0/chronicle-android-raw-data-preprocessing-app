@@ -6,25 +6,13 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { availableParallelism } from "node:os";
 import path from "node:path";
+import { campaignWorkers } from "./campaign_workers.mjs";
 
 // On the 32-core reference machine, 12 workers and 31 workers both finish in
 // about 60 seconds; 31 workers consume substantially more CPU. Keep the
 // measured efficient default while allowing explicit scaling experiments.
-const workerCount = Math.min(
-  32,
-  Math.max(
-    1,
-    Number(
-      process.env.CHRONICLE_CAMPAIGN_WORKERS ??
-        Math.min(12, availableParallelism() - 1),
-    ),
-  ),
-);
-if (!Number.isSafeInteger(workerCount)) {
-  throw new Error("CHRONICLE_CAMPAIGN_WORKERS must be a positive integer");
-}
+const workerCount = campaignWorkers({ maximum: 32, automaticMaximum: 12 });
 const testFile = "src/lib/pipelineGraph/golden/configurationSpaceCampaign.test.ts";
 const testName =
   "derives a digest-bound empirical influence map for every computational value transition";

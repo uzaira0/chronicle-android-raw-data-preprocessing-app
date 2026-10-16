@@ -51,6 +51,7 @@ async function refreshDependencyEvidence() {
   // the uninstrumented WASM) throw in their capture hook.
   delete process.env.CHRONICLE_FOOTPRINT_PROFRAW_DIR;
   delete process.env.CHRONICLE_FOOTPRINT_CAMPAIGN_ID;
+  delete process.env.CHRONICLE_CAMPAIGN_WORKER_SHARE;
   const supervisor = createProcessTreeSupervisor({
     // A successful campaign whose vitest/esbuild children need more than the
     // default 2 s to leave the process group under heavy CAP_CPU contention
@@ -348,8 +349,12 @@ async function refreshDependencyEvidence() {
       ["mixed-artifact-configuration", "test:mixed-influence"],
     ]);
     const rerunIds = new Set(rerunCampaigns.map((campaign) => campaign.id));
-    /** @param {(typeof SELECTABLE_CAMPAIGNS)[number]} campaign */
-    const campaignStep = (campaign) => {
+    /**
+     * @param {(typeof SELECTABLE_CAMPAIGNS)[number]} campaign
+     * @param {number} [share] pooled campaigns started side by side, which
+     *   split this machine's workers (campaign_workers.mjs)
+     */
+    const campaignStep = (campaign, share = 1) => {
       const script = campaignStepScripts.get(campaign.id);
       if (!script) {
         throw new Error(`no npm script mapped for campaign ${campaign.id}`);
@@ -362,12 +367,21 @@ async function refreshDependencyEvidence() {
           env: {
             ...campaignEnv,
             CHRONICLE_FOOTPRINT_CAMPAIGN_ID: campaign.id,
+            CHRONICLE_CAMPAIGN_WORKER_SHARE: String(share),
           },
         },
       );
     };
     const bootstrapCoveringBefore = goldenMtime(
       "configuration-space-campaign.json",
+    );
+    const firstGroup = SELECTABLE_CAMPAIGNS.filter(
+      (campaign) =>
+        [
+          "configuration-influence",
+          "artifact-influence",
+          "raw-boundary-influence",
+        ].includes(campaign.id) && rerunIds.has(campaign.id),
     );
     await supervisor.runAll([
       run(
@@ -381,14 +395,7 @@ async function refreshDependencyEvidence() {
           },
         },
       ),
-      ...SELECTABLE_CAMPAIGNS.filter(
-        (campaign) =>
-          [
-            "configuration-influence",
-            "artifact-influence",
-            "raw-boundary-influence",
-          ].includes(campaign.id) && rerunIds.has(campaign.id),
-      ).map(campaignStep),
+      ...firstGroup.map((campaign) => campaignStep(campaign, firstGroup.length)),
     ]);
     assertGoldenRewritten(
       "configuration-space covering array",
@@ -401,7 +408,7 @@ async function refreshDependencyEvidence() {
         ["interaction-influence", "mixed-artifact-configuration"].includes(
           campaign.id,
         ) && rerunIds.has(campaign.id),
-    ).map(campaignStep);
+    ).map((campaign) => campaignStep(campaign));
     if (secondGroup.length > 0) {
       await supervisor.runAll(secondGroup);
     }
