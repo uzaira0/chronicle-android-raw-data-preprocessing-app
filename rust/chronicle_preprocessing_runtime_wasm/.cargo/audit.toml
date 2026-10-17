@@ -1,0 +1,5 @@
+# cargo-audit exceptions. Each one is the same decision as the osv-scanner.toml
+# and .semantic-federation/quality/deny.toml entries for that ID.
+[advisories]
+# zip 8.6.0 reaches the tree only through calamine 0.36 (XLSX support-file reader), whose newest release still requires zip ^8.6; the fix is zip >= 9.0.0. All three advisories are in ZipArchive::extract / ZipStreamReader::extract (writing entries, symlinks and Unix permissions to a filesystem). calamine never calls either: it opens the archive and reads entries into memory (checked in calamine 0.36.0 and 0.36.1 sources), and the crate runs as WASM in the browser with no filesystem. Remove this exception when calamine moves to zip 9.
+ignore = ["RUSTSEC-2026-0367", "RUSTSEC-2026-0368", "RUSTSEC-2026-0369"]
