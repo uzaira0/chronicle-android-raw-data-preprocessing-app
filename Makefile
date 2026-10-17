@@ -171,11 +171,11 @@ ast-grep:
 	sg test
 
 cargo-audit:
-	cd rust/chronicle_app_usage_matcher && cargo audit
-	cd rust/chronicle_chrono_kernel_wasm && cargo audit
-	cd rust/chronicle_preprocessing_semantic_adapter && cargo audit
-	cd rust/chronicle_preprocessing_runtime_wasm && cargo audit
-	cd rust/chronicle_semantic_index_wasm && cargo audit
+	scripts/cargo-audit-crate.sh rust/chronicle_app_usage_matcher
+	scripts/cargo-audit-crate.sh rust/chronicle_chrono_kernel_wasm
+	scripts/cargo-audit-crate.sh rust/chronicle_preprocessing_semantic_adapter
+	scripts/cargo-audit-crate.sh rust/chronicle_preprocessing_runtime_wasm
+	scripts/cargo-audit-crate.sh rust/chronicle_semantic_index_wasm
 
 # Policy complements cargo-audit: exact source allowlists, license closure,
 # and the one documented unmaintained transitive exception are checked for
