@@ -10,3 +10,15 @@ reason = "paste 1.0.15 is an unmaintained (not vulnerable) build-time transitive
 [[IgnoredVulns]]
 id = "GHSA-hp3w-g68c-fv3c"
 reason = "sprintf-js has no fixed release (every version through 1.1.3 is affected). It reaches the tree only as dev tooling: @lhci/cli -> @lhci/utils -> js-yaml 3 -> argparse 1, and argparse calls sprintf with fixed format strings, so no caller controls the precision specifier the advisory needs. js-yaml 4 drops argparse 1 but removes safeLoad, which @lhci/utils calls, so it cannot be overridden. Nothing ships in the app."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0367"
+reason = "zip 8.6.0 reaches the tree only through calamine 0.36 (XLSX support-file reader), whose newest release still requires zip ^8.6; the fix is zip >= 9.0.0. All three advisories are in ZipArchive::extract / ZipStreamReader::extract (writing entries, symlinks and Unix permissions to a filesystem). calamine never calls either: it opens the archive and reads entries into memory (checked in calamine 0.36.0 and 0.36.1 sources), and the crate runs as WASM in the browser with no filesystem. Remove this exception when calamine moves to zip 9. Same exception as .semantic-federation/quality/deny.toml."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0368"
+reason = "zip 8.6.0 reaches the tree only through calamine 0.36 (XLSX support-file reader), whose newest release still requires zip ^8.6; the fix is zip >= 9.0.0. All three advisories are in ZipArchive::extract / ZipStreamReader::extract (writing entries, symlinks and Unix permissions to a filesystem). calamine never calls either: it opens the archive and reads entries into memory (checked in calamine 0.36.0 and 0.36.1 sources), and the crate runs as WASM in the browser with no filesystem. Remove this exception when calamine moves to zip 9. Same exception as .semantic-federation/quality/deny.toml."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0369"
+reason = "zip 8.6.0 reaches the tree only through calamine 0.36 (XLSX support-file reader), whose newest release still requires zip ^8.6; the fix is zip >= 9.0.0. All three advisories are in ZipArchive::extract / ZipStreamReader::extract (writing entries, symlinks and Unix permissions to a filesystem). calamine never calls either: it opens the archive and reads entries into memory (checked in calamine 0.36.0 and 0.36.1 sources), and the crate runs as WASM in the browser with no filesystem. Remove this exception when calamine moves to zip 9. Same exception as .semantic-federation/quality/deny.toml."
