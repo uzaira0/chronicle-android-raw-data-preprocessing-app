@@ -1,4 +1,5 @@
 # Rust supply-chain policy for the Chronicle raw-data preprocessing app.
+# The [advisories] ignore list is also cargo-audit's (scripts/cargo-audit-crate.sh).
 # cargo-deny evaluates every target and feature so hidden target-specific
 # dependencies cannot bypass the license and source closure.
 

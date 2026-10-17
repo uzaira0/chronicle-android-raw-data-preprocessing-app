@@ -37,7 +37,7 @@ if command -v cargo-audit &>/dev/null || [ -x "$HOME/.cargo/bin/cargo-audit" ]; 
   fi
   for crate_dir in "$REPO_ROOT"/rust/*/; do
     if [ -f "$crate_dir/Cargo.lock" ]; then
-      (cd "$crate_dir" && cargo audit 2>&1) || FAIL=1
+      "$REPO_ROOT/scripts/cargo-audit-crate.sh" "$crate_dir" 2>&1 || FAIL=1
     fi
   done
 else
