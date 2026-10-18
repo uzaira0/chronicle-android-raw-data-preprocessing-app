@@ -12,6 +12,7 @@ import { ReviewSettingsSummary } from "@/components/review/ReviewSettingsSummary
 import { AppListsPanel } from "@/components/review/AppListsPanel";
 import { CompareConfigDrawer } from "@/components/review/CompareConfigDrawer";
 import { buildComparisonWaterfallScene } from "@/lib/reviewCompareScene";
+import { failureText } from "@/lib/diagnostics";
 import { materializePersistedTimeline } from "@/lib/rustPipelineAuthority";
 import { readPersistedRustArtifact } from "@/lib/rustPipelineRuntime";
 import { scientificPreflightReceiptFromError } from "@/lib/scientificPreflightTransport";
@@ -287,9 +288,10 @@ export function ViewPanel({
         },
         (error: unknown) => {
           if (!current) return;
+          const failure = failureText(error, "The selected comparison could not be prepared.");
           setCompareError(
             displayMasker.text(
-              error instanceof Error ? error.message : String(error),
+              failure.message,
               uploadedFileNames,
             ),
           );
@@ -332,8 +334,9 @@ export function ViewPanel({
       })
       .catch((error) => {
         if (current) {
+          const failure = failureText(error, "The saved review summary could not be loaded.");
           setReviewLoadError(
-            error instanceof Error ? error.message : String(error),
+            failure.message,
           );
         }
       })
@@ -362,8 +365,9 @@ export function ViewPanel({
       })
       .catch((error) => {
         if (current) {
+          const failure = failureText(error, "The saved timeline could not be loaded.");
           setTimelineLoadError(
-            error instanceof Error ? error.message : String(error),
+            failure.message,
           );
         }
       })
@@ -639,9 +643,10 @@ export function ViewPanel({
         setComparisonFailures(partial.failures);
         setDrawerOpen(true);
       }
+      const failure = failureText(error, "The selected files could not be compared.");
       setCompareError(
         displayMasker.text(
-          error instanceof Error ? error.message : String(error),
+          failure.message,
           uploadedFileNames,
         ),
       );

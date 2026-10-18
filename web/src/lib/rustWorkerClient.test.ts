@@ -1424,6 +1424,7 @@ async function loadFreshWorkerClient(
         : value,
     ),
     proxy: vi.fn((value: unknown) => value),
+    transferHandlers: new Map(),
   }));
   vi.stubGlobal(
     "fetch",

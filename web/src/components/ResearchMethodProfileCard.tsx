@@ -19,6 +19,7 @@ import {
 import { requireDefined } from "@/lib/invariant";
 import { methodProfileOutputBindingForSetting } from "@/lib/sourceArtifactProvenanceRegistry";
 import type { BrowserProcessingOptions, MethodProfileReceipt } from "@/lib/types";
+import { failureText } from "@/lib/diagnostics";
 
 type Props = {
   options: BrowserProcessingOptions;
@@ -29,7 +30,7 @@ type Props = {
   ) => void;
   onRunComponent: (component: RegisteredLiteratureComponentExecution) => void;
   componentRunning?: boolean;
-  onStatus: (message: string, isError?: boolean) => void;
+  onStatus: (message: string, isError?: boolean, details?: string) => void;
 };
 
 type LiteratureComponentActionsProps = {
@@ -298,7 +299,12 @@ export function ResearchMethodProfileCard({ options, setOptions, onCompiled, onC
       setMonthlyCells(restored.monthly_app_use_cells);
       setSelectedId(requireDefined(restored.profiles[0], "a restored one-profile library keeps that profile").method_profile_id);
       setSelectedLevels(saved.selectedLevels as Record<string, string>);
-    }).catch((error: unknown) => { if (!cancelled && !selectionTouched.current) onStatus(`Research selection could not be restored: ${String(error)}`, true); });
+    }).catch((error: unknown) => {
+      if (!cancelled && !selectionTouched.current) {
+        const failure = failureText(error, "The research selection could not be restored.");
+        onStatus(failure.message, true, failure.details);
+      }
+    });
     return () => { cancelled = true; importGeneration.current += 1; };
   }, []);
   useEffect(() => {
@@ -326,7 +332,10 @@ export function ResearchMethodProfileCard({ options, setOptions, onCompiled, onC
       device_use_sessions: deviceUseSessions?.filter((record) => record.method_profile_id === selected.method_profile_id),
       sampled_quantity_observations: sampledQuantities?.filter((record) => record.method_profile_id === selected.method_profile_id),
       monthly_app_use_cells: monthlyCells?.filter((record) => record.method_profile_id === selected.method_profile_id),
-      referenced_artifacts: referencedArtifacts })).catch((error: unknown) => onStatus(`Research selection could not be saved: ${String(error)}`, true));
+      referenced_artifacts: referencedArtifacts })).catch((error: unknown) => {
+        const failure = failureText(error, "The research selection could not be saved.");
+        onStatus(failure.message, true, failure.details);
+      });
   }, [selected, selectedLevels, interactionTraces, referencedArtifacts, notificationSnapshots, ringerStateIntervals, notificationHistories, callbackGroups, titleAnnotations, notificationOpenings, participantDayObservations, appFeatureSessions, screenshotSessions, interruptionSessions, deviceStateObservations, deviceStateIntervals, textCaptures, sensorControls, keyboardTransactions, typingTrials, taskOccurrences, associationDatabases, deviceUseSessions, sampledQuantities, monthlyCells]);
   const grouped = useMemo(() => {
     const groups = new Map<string, StudyMethodProfile["method_settings"]>();
@@ -468,7 +477,14 @@ export function ResearchMethodProfileCard({ options, setOptions, onCompiled, onC
               onStatus(`Loaded ${library.profiles.length} research method profile${library.profiles.length === 1 ? "" : "s"}.`);
             } catch (error) {
               if (generation !== importGeneration.current) return;
-              onStatus(`Method profile import failed: ${error instanceof Error ? error.message : String(error)}`, true);
+              // The validator's reason is written for the profile's author, who needs it to fix
+              // the file. A JSON or file-read failure is the browser's text, so it gets a plain one.
+              if (error instanceof SyntaxError || error instanceof DOMException) {
+                const failure = failureText(error, "Method profile import failed: the file could not be read as a method profile.");
+                onStatus(failure.message, true, failure.details);
+              } else {
+                onStatus(`Method profile import failed: ${error instanceof Error ? error.message : String(error)}`, true);
+              }
             }
           })();
         }}

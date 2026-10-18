@@ -24,6 +24,7 @@ export function applyProgressEvent(
           stepKind: "parse",
           percent: 0,
           error: undefined,
+          errorDetail: undefined,
           scientificPreflightRefusal: undefined,
         }
       : event.type === "step"
@@ -36,6 +37,7 @@ export function applyProgressEvent(
             status: event.error ? "error" : "complete",
             percent: 1,
             error: event.error,
+            errorDetail: event.errorDetail,
             scientificPreflightRefusal: event.scientificPreflightRefusal,
           };
 

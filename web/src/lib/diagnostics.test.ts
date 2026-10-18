@@ -5,6 +5,7 @@ import {
   MAX_RECORDED_ERRORS,
   browserDiagnosticGlobals,
   collectDiagnosticEnvironment,
+  failureText,
   formatDiagnosticReport,
   installGlobalErrorRecorder,
   onErrorRecorded,
@@ -15,6 +16,7 @@ import {
   redactDiagnosticText,
   resetRecordedErrors,
   setSensitiveNames,
+  UserFacingError,
   type DiagnosticGlobals,
 } from "@/lib/diagnostics";
 
@@ -311,10 +313,36 @@ describe("processingErrorText", () => {
     ]);
   });
 
-  it("passes every other message through unrecorded", () => {
+  it("uses the safe processing summary for an unmarked failure", () => {
     const message = "Missing required column: event_timestamp";
-    expect(processingErrorText(new Error(message))).toBe(message);
-    expect(processingErrorText(message)).toBe(message);
+    const result = processingErrorText(new Error(message));
+    expect(result).toMatch(/^This file could not be processed\. If this keeps happening,/);
+    expect(result).not.toContain(message);
+    expect(recentErrors().map((entry) => entry.message)).toEqual([message]);
+  });
+});
+
+describe("failureText", () => {
+  it("keeps researcher-written errors verbatim", () => {
+    const result = failureText(new UserFacingError("Choose a different setting."), "This file failed.");
+    expect(result).toEqual({ message: "Choose a different setting." });
     expect(recentErrors()).toEqual([]);
+  });
+
+  it("shows a plain lead and hint while keeping the raw message in details and the log", () => {
+    const raw = "private runtime value 731";
+    const lead = "The selected file could not be processed.";
+    const result = failureText(new Error(raw), lead);
+    expect(result.message).toMatch(/^The selected file could not be processed\. If this keeps happening,/);
+    expect(result.message).not.toContain(raw);
+    expect(result.details).toBe(raw);
+    expect(recentErrors().map((entry) => entry.message)).toEqual([raw]);
+  });
+
+  it("turns saved-run integrity failures into the existing notice", () => {
+    const raw = "workspace slot does not match the selected run";
+    const result = failureText(new Error(raw), "The saved run could not be opened.");
+    expect(result).toEqual({ message: SAVED_RUN_CHECK_NOTICE, details: raw });
+    expect(recentErrors().map((entry) => entry.message)).toEqual([raw]);
   });
 });

@@ -1,3 +1,5 @@
+import { UserFacingError } from "@/lib/diagnostics";
+
 /**
  * Largest raw CSV the browser engine accepts, checked against `File.size`
  * before any byte is read.
@@ -32,7 +34,7 @@ export function rawFileSizeRefusal(file: { name: string; size: number }): string
 /** Throw the refusal for an oversized file; used right before a whole-file read. */
 export function assertRawFileWithinLimit(file: { name: string; size: number }): void {
   const refusal = rawFileSizeRefusal(file);
-  if (refusal !== null) throw new Error(refusal);
+  if (refusal !== null) throw new UserFacingError(refusal);
 }
 
 /** Split a selection into files that fit and refusal messages for those that do not. */

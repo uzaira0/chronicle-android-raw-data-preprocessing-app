@@ -4,7 +4,7 @@ import {
   inspectRawCsvBytes,
   splitRawCsvByStudy,
 } from "@/lib/rustWorkerClient";
-import { recordError } from "@/lib/diagnostics";
+import { recordError, UserFacingError } from "@/lib/diagnostics";
 import { requireDefined } from "@/lib/invariant";
 import type { BrowserProcessingOptions } from "@/lib/types";
 
@@ -225,7 +225,7 @@ export function assertUniqueRawFileNames(files: File[]): void {
       return false;
     })
   ) {
-    throw new Error(
+    throw new UserFacingError(
       "Raw filenames must be unique; rename duplicates before inspection.",
     );
   }

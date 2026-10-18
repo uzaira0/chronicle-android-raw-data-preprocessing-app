@@ -92,11 +92,12 @@ describe("scientific preflight transport", () => {
 });
 
 describe("comparison failures", () => {
-  it("wraps a thrown non-error as its string message", () => {
+  it("shows a plain sentence for a thrown non-error and keeps its text as details", () => {
     const failure = comparisonFailure(["Raw P01.csv"], "disk went away");
     expect(failure).toMatchObject({
       fileNames: ["Raw P01.csv"],
-      message: "disk went away",
+      message: expect.stringMatching(/^This file could not be compared\./),
+      details: "disk went away",
     });
     expect(failure.cause).toBeInstanceOf(Error);
     expect(failure.scientificPreflightRefusal).toBeUndefined();
@@ -113,7 +114,7 @@ describe("comparison failures", () => {
       [comparisonFailure(["Raw P02.csv"], refusalError("refused"))],
       [{ fileName: "Raw P01.csv" } as never],
     );
-    expect(error.message).toBe("Compared 1 file; 1 failed. refused");
+    expect(error.message).toMatch(/^Compared 1 file; 1 failed\. This file could not be compared\./);
     expect(error.code).toBe("scientific_preflight_refused");
     expect(error.receipt).toEqual(runtimeScientificPreflightFixture());
     expect(partialComparisonFailureFromError(error)).toBe(error);
@@ -121,7 +122,7 @@ describe("comparison failures", () => {
 
   it("reports no failure message and no refusal when nothing failed", () => {
     const error = new PartialComparisonFailureError([], []);
-    expect(error.message).toBe("Compared 0 files; 0 failed. Unknown comparison failure.");
+    expect(error.message).toBe("Compared 0 files; 0 failed.");
     expect(error.code).toBeUndefined();
     expect(error.receipt).toBeUndefined();
   });

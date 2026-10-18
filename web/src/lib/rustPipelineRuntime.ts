@@ -20,7 +20,8 @@ import defaultAppsForcingScreenOpenUrl from "@/assets/defaults/Chronicle_Android
 import defaultBackgroundAppsUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_background_apps.csv?url";
 import { fetchBundledAssetBytes } from "@/lib/bundledAssetLoader";
 import { canonicalJson } from "@/lib/canonicalJson";
-import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
+import { BROWSER_OPTION_TOOLTIPS, DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
+import { UserFacingError } from "@/lib/diagnostics";
 import {
   browserSupportFileKeyForRole,
   literatureComponentExecutionForSettings,
@@ -262,23 +263,25 @@ export type MaximumDurationPreflightDecision =
 export type RuntimeScientificPreflightReceipt =
   SerializedRuntimeScientificPreflightReceipt;
 
-export class RustOpenerSetRefusalError extends Error {
+export class RustOpenerSetRefusalError extends UserFacingError {
   readonly code = "opener_set_refused";
 
   constructor(readonly decision: OpenerSetPreflightDecision) {
     super(
-      `Opener set ${decision.requestedOpenerSetId} is incompatible with the selected reconstruction strategy (${decision.reasonCode ?? "unspecified_reason"})`,
+      "The selected app start rule does not fit your other settings. Choose another rule or change the settings.",
+      `opener set ${decision.requestedOpenerSetId} refused: ${decision.reasonCode ?? "unspecified_reason"}`,
     );
     this.name = "RustOpenerSetRefusalError";
   }
 }
 
-export class RustMaximumDurationRefusalError extends Error {
+export class RustMaximumDurationRefusalError extends UserFacingError {
   readonly code = "maximum_duration_refused";
 
   constructor(readonly decision: MaximumDurationPreflightDecision) {
     super(
-      `The long episode rule you chose (${decision.applicability.requestedPolicy}) cannot run with your other settings (reason: ${decision.reasonCode ?? "unspecified_reason"})`,
+      "The long episode rule you chose cannot run with your other settings.",
+      `${decision.applicability.requestedPolicy} refused: ${decision.reasonCode ?? "unspecified_reason"}`,
     );
     this.name = "RustMaximumDurationRefusalError";
   }
@@ -295,7 +298,7 @@ const PREFLIGHT_REFUSAL_WORDS: Partial<Record<string, string>> = {
     "(Files → Study inputs). Supply one, or choose the Chronicle screen strategy.",
 };
 
-export class RustScientificPreflightRefusalError extends Error {
+export class RustScientificPreflightRefusalError extends UserFacingError {
   readonly code = "scientific_preflight_refused";
 
   constructor(readonly receipt: RuntimeScientificPreflightReceipt) {
@@ -317,9 +320,10 @@ export class RustScientificPreflightRefusalError extends Error {
       b05Applicability?.refusalReason ?? eyes.refusalReason ?? "non_executable";
     const detail =
       b05Applicability?.refusalDetail ?? eyes.refusalDetail ?? "unspecified";
-    const code = `Scientific preflight refused (${axis}: ${reason}/${detail}).`;
-    const plain = PREFLIGHT_REFUSAL_WORDS[detail];
-    super(plain ? `${plain} ${code}` : code);
+    super(
+      PREFLIGHT_REFUSAL_WORDS[detail] ?? "This file cannot be processed with the current settings.",
+      `Scientific preflight refused (${axis}: ${reason}/${detail}).`,
+    );
     this.name = "RustScientificPreflightRefusalError";
   }
 }
@@ -3064,11 +3068,12 @@ export async function exportPersistedRustWorkspace(
     // and the store fell back to an earlier, still verifiable save.
     if (expectedWorkspaceRootDigest !== undefined && slot.workspaceRootDigest !== expectedWorkspaceRootDigest) {
       if (await rootBuiltOn(root, expectedWorkspaceRootDigest, slot.workspaceRootDigest)) {
-        throw new Error(
-          `The newest saved workspace could not be recovered, so this browser fell back to the earlier save at generation ${slot.generation}. The result shown belongs to the newer save and cannot be exported; process the files again to save and export it.`,
+        throw new UserFacingError(
+          "The newest saved copy of this run could not be reopened, so this browser fell back to an earlier one. The result shown belongs to the newer save and cannot be backed up; process the files again to save and back it up.",
+          `fell back to generation ${slot.generation}`,
         );
       }
-      throw new Error("The saved workspace has changed since this result was displayed. Reopen the current result before exporting.");
+      throw new UserFacingError("The saved run has changed since this result was shown. Reopen the current result before backing it up.");
     }
     await defaultPersistenceAdapter.verify?.(root, slot, kernel, workspaceId);
     return exportRuntimeClosure(root, slot);
@@ -3149,7 +3154,7 @@ const RUNTIME_PROTOCOL_VERSION = "chronicle-preprocessing-runtime/v2";
  * production build wrote `/v1`). This build reads none of it; the message is
  * what a user sees when they open or download such a restored run.
  */
-export class SavedByOtherAppVersionError extends Error {
+export class SavedByOtherAppVersionError extends UserFacingError {
   constructor() {
     super(
       "These results were saved by an earlier version of the app, which this version cannot open. Add the file again and process it to rebuild them.",
@@ -3701,11 +3706,14 @@ async function supportBytes(
 function requiredUploadedBytes(
   enabled: boolean,
   file: BrowserSupportFile | undefined,
-  role: string,
+  fileTitle: string,
+  optionKey: keyof typeof BROWSER_OPTION_TOOLTIPS,
 ): Uint8Array {
   if (!enabled) return new Uint8Array();
   if (!file) {
-    throw new Error(`${role} is required when its processing stage is enabled`);
+    throw new UserFacingError(
+      `“${BROWSER_OPTION_TOOLTIPS[optionKey].title}” is on, so it needs a ${fileTitle} file. Add one under Files, or turn the setting off.`,
+    );
   }
   return fileBytes(file);
 }
@@ -4121,7 +4129,8 @@ async function collectRuntimeIngress(
     ? requiredUploadedBytes(
         true,
         supportFiles?.studyDatesFile,
-        "studyDatesFile",
+        "Study dates",
+        "enableStudyWindowFilter",
       )
     : options.enableDayCoverage
       ? fileBytes(supportFiles?.studyDatesFile)
@@ -4129,7 +4138,8 @@ async function collectRuntimeIngress(
   const deviceSharingBytes = requiredUploadedBytes(
     options.enablePersonAttribution,
     supportFiles?.deviceSharingFile,
-    "deviceSharingFile",
+    "Device sharing",
+    "enablePersonAttribution",
   );
   const surveyAttributionBytes = fileBytes(
     supportFiles?.surveyAttributionFile,
@@ -5182,17 +5192,14 @@ function describeOpenBindingHolesError(
     detail = null;
   }
   if (!detail) return error;
-  return new Error(openBindingHolesMessage(message, detail), { cause: error });
+  return new UserFacingError(openBindingHolesMessage(detail), message, { cause: error });
 }
 
-export function openBindingHolesMessage(
-  originalMessage: string,
-  detail: string,
-): string {
+export function openBindingHolesMessage(detail: string): string {
   return (
     `Support file requirements are not met — ${detail}. ` +
     "Fix the file's columns, supply the file, or turn off the option that " +
-    `requires it, then run again. (${originalMessage})`
+    "requires it, then run again."
   );
 }
 

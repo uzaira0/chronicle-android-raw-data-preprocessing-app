@@ -33,7 +33,7 @@ import {
   warmRuntime,
 } from "@/lib/rustWorkerClient";
 import { BUILD_DATE, BUILD_SHA } from "@/lib/buildInfo";
-import { processingErrorText, recordError, setSensitiveNames } from "@/lib/diagnostics";
+import { failureText, isRecordedFailureText, recordError, setSensitiveNames, UserFacingError } from "@/lib/diagnostics";
 import {
   benchmarkPayloadBudgetOverride,
   testRuntimeOverride,
@@ -83,6 +83,7 @@ import {
   probeOpfsCapability,
   resultsLackPersistedOutputs,
   transientWorkspaceRefusalNotice,
+  workspaceRefusalError,
   workspaceDegradesToEphemeral,
   workspaceRefusesRun,
   type LegacyOpfsState,
@@ -482,6 +483,7 @@ export default function App(): ReactElement {
   const [toast, setToast] = useState<{
     message: string;
     isError: boolean;
+    details?: string;
   } | null>(null);
   // Stable identity so the toast's dismiss timer is not restarted by every
   // unrelated App render (it was an inline arrow, and a success toast stayed
@@ -610,7 +612,7 @@ export default function App(): ReactElement {
           {
             key: "spill-sweep",
             title: "Temporary processing files could not be cleaned up.",
-            detail: `Files a finished background task left in this browser's storage are still there (${message}). They are retried after the next file, and “Delete all local data” in the footer removes them.`,
+            detail: "Files a finished background task left in this browser's storage are still there. They are retried after the next file, and “Delete all local data” in the footer removes them.",
           },
           new Error(message),
         );
@@ -729,10 +731,10 @@ export default function App(): ReactElement {
   }, [noteFileNames, openFileNames]);
   // Every error the app shows the user is also kept for the diagnostic report.
   useEffect(() => {
-    if (error) recordError("shown", error, "error banner");
+    if (error && !isRecordedFailureText(error)) recordError("shown", error, "error banner");
   }, [error]);
   useEffect(() => {
-    if (toast?.isError) recordError("shown", toast.message, "notice");
+    if (toast?.isError && !isRecordedFailureText(toast.message)) recordError("shown", toast.message, "notice");
   }, [toast]);
 
   const disposeComparisonPool = useCallback((): void => {
@@ -791,7 +793,7 @@ export default function App(): ReactElement {
                   {
                     key: "reclaim",
                     title: "Space from earlier runs could not be reclaimed.",
-                    detail: `Outputs this page no longer shows are still stored in this browser (${error instanceof Error ? error.message : String(error)}). The next run retries, and “Delete all local data” in the footer removes them.`,
+                    detail: "Outputs this page no longer shows are still stored in this browser. The next run retries, and “Delete all local data” in the footer removes them.",
                   },
                   error,
                 );
@@ -887,9 +889,11 @@ export default function App(): ReactElement {
     // start being saved again), not on every edit while storage stays full.
     if (!outcome.ok && !settingsPersistFailedRef.current) {
       settingsPersistFailedRef.current = true;
+      const failure = failureText(outcome.reason, "Your settings could not be saved in this browser. They apply until you reload; use Export config to keep them.");
       setToast({
-        message: `Your settings could not be saved in this browser (${outcome.reason}). They apply until you reload; use Export config to keep them.`,
+        message: failure.message,
         isError: true,
+        details: failure.details,
       });
     } else if (outcome.ok && settingsPersistFailedRef.current) {
       settingsPersistFailedRef.current = false;
@@ -1019,10 +1023,11 @@ export default function App(): ReactElement {
       const restored = await reopenLiteratureComponentResult(manifestJson);
       if (!cancelled && !componentRestoreSuperseded.current) setLiteratureComponentResult(restored);
     }).catch((error: unknown) => {
-      if (!cancelled && !componentRestoreSuperseded.current) setLiteratureComponentError(`Saved component could not be reopened: ${error instanceof Error ? error.message : String(error)}`);
+      if (!cancelled && !componentRestoreSuperseded.current) {
+        setLiteratureComponentError(failureText(error, "The saved result could not be reopened.").message);
+      }
     });
     const savedRunNotKept = (
-      reason: string,
       error: unknown,
       where: "archived" | "kept",
     ): void => {
@@ -1033,8 +1038,8 @@ export default function App(): ReactElement {
           // An archived record sits in a slot no version of the app opens; a
           // kept one is still where the app looks, so a later load can retry.
           detail: where === "archived"
-            ? `This version cannot read it (${reason}), so it was set aside in this browser instead of being deleted. Clear it to free the space.`
-            : `It was left where it was instead of being deleted (${reason}). Reload to try again, or clear it to free the space.`,
+            ? "This version of the app cannot read it, so it was set aside in this browser instead of being deleted. Clear it to free the space."
+            : "It was left where it was instead of being deleted. Reload to try again, or clear it to free the space.",
           offerClearCachedRun: true,
         },
         error,
@@ -1044,7 +1049,7 @@ export default function App(): ReactElement {
       .then((outcome) => {
         if (cancelled) return;
         if (outcome.status === "archived" || outcome.status === "kept") {
-          savedRunNotKept(outcome.reason, new Error(`saved run ${outcome.status}: ${outcome.reason}`), outcome.status);
+          savedRunNotKept(new Error(`saved run ${outcome.status}: ${outcome.reason}`), outcome.status);
           return;
         }
         const record = outcome.status === "restored" ? outcome.record : undefined;
@@ -1129,11 +1134,7 @@ export default function App(): ReactElement {
         setResultsOptions(null);
         setProgressOrder([]);
         setProgressByFile({});
-        savedRunNotKept(
-          `its results could not be shown: ${error instanceof Error ? error.message : String(error)}`,
-          error,
-          "kept",
-        );
+        savedRunNotKept(error, "kept");
       });
     return () => {
       cancelled = true;
@@ -1194,11 +1195,7 @@ export default function App(): ReactElement {
       })
       .catch((viewError: unknown) => {
         if (cancelled) return;
-        setError(
-          viewError instanceof Error
-            ? `Workflow Explorer unavailable: ${viewError.message}`
-            : "Workflow Explorer unavailable.",
-        );
+        setError(failureText(viewError, "The file processing guide could not be loaded.").message);
       });
     return () => {
       cancelled = true;
@@ -1321,11 +1318,11 @@ export default function App(): ReactElement {
       // high-usage banner doesn't linger (consistent with the post-run refresh).
       void clearLastRun()
         .catch((clearError: unknown) => {
+          const failure = failureText(clearError, "The previous run's saved copy could not be removed and may return after a reload.");
           setToast({
-            message: `The previous run's saved copy could not be removed (${
-              clearError instanceof Error ? clearError.message : String(clearError)
-            }) and may reopen after a reload.`,
+            message: failure.message,
             isError: true,
+            details: failure.details,
           });
         })
         .finally(() => void refreshStoragePressure());
@@ -1399,12 +1396,11 @@ export default function App(): ReactElement {
       .catch((inspectionError: unknown) => {
         if (rawInspectionGenerationRef.current !== inspectionGeneration) return;
         setRawInspectionReady(false);
+        const failure = failureText(inspectionError, "The selected files could not be inspected.");
         setToast({
-          message:
-            inspectionError instanceof Error
-              ? inspectionError.message
-              : "Could not inspect selected files.",
+          message: failure.message,
           isError: true,
+          details: failure.details,
         });
       })
       .finally(() => {
@@ -1414,12 +1410,9 @@ export default function App(): ReactElement {
       });
       });
     } catch (selectionError) {
-      const message =
-        selectionError instanceof Error
-          ? selectionError.message
-          : "Selected raw files are not uniquely identifiable.";
-      setError(message);
-      setToast({ message, isError: true });
+      const failure = failureText(selectionError, "The selected files could not be added.");
+      setError(failure.message);
+      setToast({ message: failure.message, isError: true, details: failure.details });
       setActiveWorkflow("files");
     }
   };
@@ -1661,14 +1654,14 @@ export default function App(): ReactElement {
       left.localeCompare(right),
     );
     if (ordered.length === 0) {
-      throw new Error(
-        "The selected timezone policy requires a timezone, but Rust could not discover one in the selected raw files. Choose a timezone in Settings or use a primary-timezone policy.",
+      throw new UserFacingError(
+        "Timezone handling needs a selected timezone, but none was found in the selected raw files. Choose a timezone in Settings, or use a “primary timezone per file” choice under Timezone handling.",
       );
     }
     setDiscoveredTimezones(ordered);
     if (ordered.length > 1) {
-      throw new Error(
-        `The selected timezone policy found multiple candidates (${ordered.join(", ")}). Choose one explicitly in Settings; Chronicle will not infer which research protocol you intended, or use a primary-timezone policy.`,
+      throw new UserFacingError(
+        `The selected raw files found multiple candidates for the timezone (${ordered.join(", ")}). Choose one explicitly in Settings, or use a “primary timezone per file” choice under Timezone handling; the app will not guess which one your study meant.`,
       );
     }
     return { ...requested, selectedTimezone: ordered[0] };
@@ -1706,13 +1699,7 @@ export default function App(): ReactElement {
         // (the boot probe may not have settled on the first interaction).
         const comparisonCapability = await reprobeWorkspaceCapability();
         if (workspaceRefusesRun(comparisonCapability)) {
-          throw new Error(
-            `This browser is not letting the app save files right now. ${transientWorkspaceRefusalNotice(
-              comparisonCapability.status === "unavailable"
-                ? comparisonCapability.reason
-                : "",
-            )}`,
-          );
+          throw workspaceRefusalError(comparisonCapability);
         }
         const resolvedSupportFiles =
           supportFiles ??
@@ -2234,6 +2221,7 @@ export default function App(): ReactElement {
               failures[0]?.fileNames,
             )}`,
             isError: true,
+            details: failures[0]?.details,
           });
         }
         if (failures.length) {
@@ -2337,11 +2325,7 @@ export default function App(): ReactElement {
     try {
       const capability = await reprobeWorkspaceCapability();
       if (workspaceRefusesRun(capability)) {
-        throw new Error(
-          `This browser is not letting the app save files right now. ${transientWorkspaceRefusalNotice(
-            capability.status === "unavailable" ? capability.reason : "",
-          )}`,
-        );
+        throw workspaceRefusalError(capability);
       }
       const result = await executeLiteratureComponentBytes(
         registration,
@@ -2354,7 +2338,13 @@ export default function App(): ReactElement {
       setLiteratureComponentResult(result);
       if (result.persistedWorkspace) {
         try { await saveLastComponentManifest(result.manifestJson); }
-        catch (error) { throw new Error(`Component executed and artifacts remain saved, but its reopen pointer could not be saved: ${error instanceof Error ? error.message : String(error)}`, { cause: error }); }
+        catch (error) {
+          throw new UserFacingError(
+            "The result was made and saved, but the app could not remember it for your next visit. Download it now if you need it later.",
+            error instanceof Error ? error.message : String(error),
+            { cause: error },
+          );
+        }
       }
       setActiveWorkflow("process");
       setToast({
@@ -2362,13 +2352,10 @@ export default function App(): ReactElement {
         isError: false,
       });
     } catch (componentError) {
-      const message =
-        componentError instanceof Error
-          ? componentError.message
-          : String(componentError);
-      setLiteratureComponentError(message);
+      const failure = failureText(componentError, "This component could not be completed.");
+      setLiteratureComponentError(failure.message);
       setActiveWorkflow("process");
-      setToast({ message, isError: true });
+      setToast({ message: failure.message, isError: true, details: failure.details });
     } finally {
       processingRef.current = false;
       setIsLiteratureComponentRunning(false);
@@ -2384,6 +2371,13 @@ export default function App(): ReactElement {
   );
 
   const handleProgressEvent = useCallback((event: ProgressEvent) => {
+    // A plot that could not be drawn is reported plainly; its browser error is
+    // kept here, on the page, where the diagnostic report can include it.
+    if (event.type === "file-complete") {
+      for (const skipped of event.result?.skippedOutputs ?? []) {
+        if (skipped.details) recordError("background", skipped.details, "drawing a plot");
+      }
+    }
     setProgressByFile((current) => applyProgressEvent(current, event));
   }, []);
 
@@ -2453,12 +2447,9 @@ export default function App(): ReactElement {
         );
       }
     } catch (resolutionError) {
-      const message =
-        resolutionError instanceof Error
-          ? resolutionError.message
-          : String(resolutionError);
-      setError(message);
-      setToast({ message, isError: true });
+      const failure = failureText(resolutionError, "These settings could not be applied.");
+      setError(failure.message);
+      setToast({ message: failure.message, isError: true, details: failure.details });
       setActiveWorkflow("process");
       processingRef.current = false;
       return;
@@ -2471,11 +2462,7 @@ export default function App(): ReactElement {
     // vanishes on reload.
     const capability = await reprobeWorkspaceCapability();
     if (workspaceRefusesRun(capability)) {
-      setError(
-        `This browser is not letting the app save files right now. ${transientWorkspaceRefusalNotice(
-          capability.status === "unavailable" ? capability.reason : "",
-        )}`,
-      );
+      setError(workspaceRefusalError(capability).message);
       setActiveWorkflow("process");
       processingRef.current = false;
       return;
@@ -2757,12 +2744,13 @@ export default function App(): ReactElement {
             // that as a real failure — the finally block marks it cancelled.
             if (cancelRequestedRef.current) return;
             runHadFailure = true;
-            const message = processingErrorText(fileError);
-            failures.push(message);
+            const failure = failureText(fileError, `${file.name} could not be processed.`);
+            failures.push(failure.message);
             handleProgressEvent({
               type: "file-complete",
               fileName: file.name,
-              error: message,
+              error: failure.message,
+              errorDetail: failure.details,
               scientificPreflightRefusal:
                 scientificPreflightReceiptFromError(fileError),
             });
@@ -2921,7 +2909,7 @@ export default function App(): ReactElement {
       let ephemeralResultsUnsaved = false;
       // The completion toast reports the outcome of this write, so it is
       // awaited: a run whose record was not stored must not read as saved.
-      let lastRunWriteFailure: string | null = null;
+      let lastRunWriteFailure: { message: string; details?: string } | null = null;
       if (successful.length && !durableWorkspaceRef.current) {
         ephemeralResultsUnsaved = true;
       } else if (successful.length) {
@@ -2946,10 +2934,10 @@ export default function App(): ReactElement {
             // saveLastRun already self-clears a failed (e.g. quota) write; the
             // toast below says the run will not reopen after a reload, and the
             // pressure refresh shows the user what to free.
-            (saveError: unknown) =>
-              `the results were not saved for reload (${
-                saveError instanceof Error ? saveError.message : String(saveError)
-              }). Download them before closing or reloading.`,
+            (saveError: unknown) => failureText(
+              saveError,
+              "The results could not be saved for reload. Download them before closing or reloading.",
+            ),
           )
           .finally(() => {
             void refreshStoragePressure();
@@ -2957,10 +2945,10 @@ export default function App(): ReactElement {
       } else {
         lastRunWriteFailure = await clearLastRun().then(
           () => null,
-          (clearError: unknown) =>
-            `the previous run's saved copy could not be removed (${
-            clearError instanceof Error ? clearError.message : String(clearError)
-          }) and may reopen after a reload.`,
+          (clearError: unknown) => failureText(
+            clearError,
+            "The previous run's saved copy could not be removed and may return after a reload.",
+          ),
         );
         void refreshStoragePressure();
       }
@@ -2984,7 +2972,7 @@ export default function App(): ReactElement {
       const ephemeralNote = ephemeralResultsUnsaved
         ? " — results are ready in this tab but were not saved for reload: this browser is not letting the app save files. Download them before closing or reloading."
         : lastRunWriteFailure
-          ? ` — ${lastRunWriteFailure}`
+          ? ` — ${lastRunWriteFailure.message}`
           : "";
       setToast({
         message: `${message}${ephemeralNote}`,
@@ -2992,6 +2980,7 @@ export default function App(): ReactElement {
           (failures.length > 0 && !cancelled) ||
           ephemeralResultsUnsaved ||
           lastRunWriteFailure !== null,
+        details: lastRunWriteFailure?.details,
       });
 
       if (!cancelled && typeof document !== "undefined" && document.hidden) {
@@ -3005,10 +2994,9 @@ export default function App(): ReactElement {
     } catch (runError) {
       runHadFailure = true;
       keepDetailsOpen = true;
-      const message =
-        runError instanceof Error ? runError.message : String(runError);
-      setError(message);
-      setToast({ message, isError: true });
+      const failure = failureText(runError, "Processing could not be completed.");
+      setError(failure.message);
+      setToast({ message: failure.message, isError: true, details: failure.details });
     } finally {
       poolRef.current = null;
       if (cancelRequestedRef.current) {
@@ -3094,13 +3082,7 @@ export default function App(): ReactElement {
         // stale ref after storage was lost mid-batch.
         const retryCapability = await reprobeWorkspaceCapability();
         if (workspaceRefusesRun(retryCapability)) {
-          throw new Error(
-            `This browser is not letting the app save files right now. ${transientWorkspaceRefusalNotice(
-              retryCapability.status === "unavailable"
-                ? retryCapability.reason
-                : "",
-            )}`,
-          );
+          throw workspaceRefusalError(retryCapability);
         }
         const retryBinding = await resolveRetryExecutionBinding(
           results.length,
@@ -3200,8 +3182,10 @@ export default function App(): ReactElement {
               ),
             }).then(
               () => null,
-              (saveError: unknown) =>
-                saveError instanceof Error ? saveError.message : String(saveError),
+              (saveError: unknown) => failureText(
+                saveError,
+                "The results could not be saved for reload. Download them before closing or reloading.",
+              ),
             )
           : null;
         void refreshStoragePressure();
@@ -3211,20 +3195,22 @@ export default function App(): ReactElement {
           message: !retryPersisted
             ? `Reprocessed ${demoDisplay.fileName(fileName)} — results are ready in this tab but were not saved for reload: this browser is not letting the app save files. Download them before closing or reloading.`
             : retrySaveFailure !== null
-              ? `Reprocessed ${demoDisplay.fileName(fileName)} — the results were not saved for reload (${retrySaveFailure}). Download them before closing or reloading.`
+              ? `Reprocessed ${demoDisplay.fileName(fileName)} — ${retrySaveFailure.message}`
               : `Reprocessed ${demoDisplay.fileName(fileName)}.`,
           isError: !retryPersisted || retrySaveFailure !== null,
+          details: retrySaveFailure?.details,
         });
       } catch (retryError) {
-        const message = processingErrorText(retryError);
+        const failure = failureText(retryError, `${fileName} could not be processed.`);
         handleProgressEvent({
           type: "file-complete",
           fileName,
-          error: message,
+          error: failure.message,
+          errorDetail: failure.details,
           scientificPreflightRefusal:
             scientificPreflightReceiptFromError(retryError),
         });
-        setToast({ message, isError: true });
+        setToast({ message: failure.message, isError: true, details: failure.details });
       } finally {
         retryingFileRef.current = null;
         setRetryingFile(null);
@@ -3340,20 +3326,17 @@ export default function App(): ReactElement {
     void refreshStoragePressure();
     const failures = [workspaces, lastRun, spill].flatMap((outcome) =>
       outcome.status === "rejected"
-        ? [
-            outcome.reason instanceof Error
-              ? outcome.reason.message
-              : String(outcome.reason),
-          ]
+        ? [failureText(outcome.reason, "Some saved data could not be removed.")]
         : [],
     );
     setToast(
       failures.length
         ? {
             message:
-              `The results were removed from this page, but deleting their saved copy in this browser failed (${failures.join("; ")}). ` +
+              `${failures[0]?.message ?? "Some saved data could not be removed."} ` +
               "The data is still stored here. Try again with “Delete all local data” in the page footer, or clear this site's data in your browser settings.",
             isError: true,
+            details: failures.map(({ details }) => details).filter((detail): detail is string => detail !== undefined).join("\n") || undefined,
           }
         : {
             message:
@@ -3376,11 +3359,11 @@ export default function App(): ReactElement {
       setToast({ message: "Cleared the cached last run.", isError: false });
       dismissBackgroundNotice("last-run");
     } catch (clearError) {
+      const failure = failureText(clearError, "The cached run could not be cleared.");
       setToast({
-        message: `Could not clear the cached last run: ${
-          clearError instanceof Error ? clearError.message : String(clearError)
-        }`,
+        message: failure.message,
         isError: true,
+        details: failure.details,
       });
     } finally {
       void refreshStoragePressure();
@@ -3394,13 +3377,16 @@ export default function App(): ReactElement {
    * stays readable.
    */
   const deleteAllLocalData = async (): Promise<void> => {
-    const failures = await resetLocalData();
+    const failures = (await resetLocalData()).map((reason) =>
+      failureText(reason, "Some of this app’s data could not be deleted."),
+    );
     if (failures.length) {
       setToast({
         message:
-          `Some of this app’s data could not be deleted: ${failures.join("; ")}. ` +
+          `${failures[0]?.message ?? "Some of this app’s data could not be deleted."} ` +
           "Close other tabs of this app and try again, or clear this site's data in your browser settings.",
         isError: true,
+        details: failures.map(({ details }) => details).filter((detail): detail is string => detail !== undefined).join("\n") || undefined,
       });
       return;
     }
@@ -3484,14 +3470,18 @@ export default function App(): ReactElement {
                   <strong>
                     Results will not be saved in this browser.
                   </strong>{" "}
-                  {ephemeralWorkspaceNotice(workspaceCapability.reason)}
+                  {ephemeralWorkspaceNotice()}
                 </>
               ) : (
                 <>
                   <strong>This browser is not letting the app save files right now.</strong>{" "}
-                  {transientWorkspaceRefusalNotice(workspaceCapability.reason)}
+                  {transientWorkspaceRefusalNotice()}
                 </>
               )}
+              <details className="technical-details">
+                <summary>Technical details</summary>
+                <pre>{workspaceCapability.reason}</pre>
+              </details>
             </span>
           </div>
         ) : null}
@@ -3655,8 +3645,8 @@ export default function App(): ReactElement {
                 }))}
                 hideDemoMetadata={hideDemoMetadata}
                 onHideDemoMetadataChange={setHideDemoMetadata}
-                onStatus={(message, isError = false) =>
-                  setToast({ message, isError })
+                onStatus={(message, isError = false, details) =>
+                  setToast({ message, isError, details })
                 }
               />
               <Suspense fallback={<SettingsCardLoading anchor="research-method-profile" title="Research method profile" />}>
@@ -3674,8 +3664,8 @@ export default function App(): ReactElement {
                   }}
                   onComponentSelected={selectLiteratureComponent}
                   componentRunning={isLiteratureComponentRunning}
-                  onStatus={(message, isError = false) =>
-                    setToast({ message, isError })
+                  onStatus={(message, isError = false, details) =>
+                    setToast({ message, isError, details })
                   }
                 />
               </Suspense>
@@ -3701,8 +3691,8 @@ export default function App(): ReactElement {
                 }}
                 onApplyProject={applyProject}
                 disabled={isRunning || !!retryingFile || isComparing}
-                onStatus={(message, isError = false) =>
-                  setToast({ message, isError })
+                onStatus={(message, isError = false, details) =>
+                  setToast({ message, isError, details })
                 }
               />
               <SettingsOverviewCard options={options} setOptions={setOptions} />
@@ -3942,13 +3932,15 @@ export default function App(): ReactElement {
                     componentRestoreSuperseded.current = true;
                     setLiteratureComponentResult(null);
                     setLiteratureComponentError(null);
-                    void clearLastComponentManifest().catch((error: unknown) => setLiteratureComponentError(`Could not clear saved component pointer: ${String(error)}`));
+                    void clearLastComponentManifest().catch((error: unknown) => {
+                      setLiteratureComponentError(failureText(error, "The saved result could not be removed.").message);
+                    });
                     setToast({
                       message: "Deleted the literature component result from this view.",
                       isError: false,
                     });
                   }}
-                  onError={(message) => setToast({ message, isError: true })}
+                  onError={(message, details) => setToast({ message, isError: true, details })}
                 />
               </Suspense>
             </div>
@@ -4061,6 +4053,7 @@ export default function App(): ReactElement {
         {toast ? (
           <Toast
             message={toast.message}
+            details={toast.details}
             isError={toast.isError}
             onDismiss={dismissToast}
           />

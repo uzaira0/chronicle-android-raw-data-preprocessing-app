@@ -1,10 +1,12 @@
+import { UserFacingError } from "@/lib/diagnostics";
+
 export type ProjectApplicationActivity = {
   processing: boolean;
   retrying: boolean;
   comparing: boolean;
 };
 
-export class ProjectApplicationBusyError extends Error {
+export class ProjectApplicationBusyError extends UserFacingError {
   readonly code = "project_application_busy";
 
   constructor() {
