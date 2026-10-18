@@ -34,6 +34,8 @@ const isTimelineViewer = (output: ProcessedOutputFileResult): boolean =>
 type Props = {
   results: ProcessedFileResult[];
   error: string | null;
+  /** The raw text behind `error`, shown collapsed. */
+  errorDetails?: string;
   options: BrowserProcessingOptions;
   expectedFileCount: number;
   progressRows: FileProgress[];
@@ -170,9 +172,10 @@ function buildBatchWarnings(input: {
   }
   const failedRows = progressRows.filter((row) => row.status === "error");
   failedRows.forEach((row) => {
-    warnings.push(
-      `${displayMasker.fileName(row.fileName)} failed: ${row.error ?? "Unknown processing error"}`,
-    );
+    const name = displayMasker.fileName(row.fileName);
+    const reason = row.error ?? "Unknown processing error";
+    // A generic failure already names the file ("P01.csv could not be processed.").
+    warnings.push(reason.startsWith(name) ? reason : `${name} failed: ${reason}`);
   });
   // Files the user deliberately cancelled aren't a shortfall — exclude them from
   // the "only N/M produced results" check so a cancel doesn't read as a failure.
@@ -295,6 +298,7 @@ async function downloadOutput(
 export function ResultPanel({
   results,
   error,
+  errorDetails,
   options,
   expectedFileCount,
   progressRows,
@@ -456,12 +460,20 @@ export function ResultPanel({
     });
   };
 
+  const errorBanner = error ? (
+    <div className="error-text u-mb-3">
+      <p className="error-text__message">{error}</p>
+      {errorDetails ? (
+        <details className="technical-details">
+          <summary>Technical details</summary>
+          <pre>{errorDetails}</pre>
+        </details>
+      ) : null}
+    </div>
+  ) : null;
+
   if (error && !results.length) {
-    return (
-      <div className="result-panel">
-        <p className="error-text">{error}</p>
-      </div>
-    );
+    return <div className="result-panel">{errorBanner}</div>;
   }
 
   if (!results.length) return null;
@@ -627,7 +639,7 @@ export function ResultPanel({
           ) : null}
         </div>
       </header>
-      {error ? <p className="error-text u-mb-3">{error}</p> : null}
+      {errorBanner}
       {downloadError ? (
         <p
           className="error-text u-mb-3"

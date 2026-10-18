@@ -288,7 +288,7 @@ for (const denial of DENIALS) {
       );
       await expect(page.getByTestId("process-files-button")).toBeEnabled();
       await expect(page.getByTestId("process-files-button")).toHaveText(
-        /ephemeral/i,
+        /not saved/i,
       );
       await expect(page.getByTestId("durable-workspace-block")).toHaveCount(0);
     } else {

@@ -196,15 +196,18 @@ test("a failed file in a batch offers a Retry that re-runs only that file (#12)"
   const retry = page.getByTestId("retry-file-button");
   await expect(retry).toBeVisible();
   // A partial failure is isolated to the file's own row (not a whole-page error
-  // banner), with the parse error shown inline.
-  await expect(page.getByRole("button", { name: /Invalid event_timestamp/i })).toBeVisible();
+  // banner): the row names the file, and expanding it shows the parse error.
+  const failedRow = page.getByRole("button", { name: /Bad\.csv could not be processed/ });
+  await expect(failedRow).toBeVisible();
+  await failedRow.click();
+  await expect(page.getByTestId("error-detail")).toContainText(/Invalid event_timestamp/i);
 
   // Clicking Retry re-attempts ONLY that file. It's still malformed, so it fails
   // again — but the control is wired, raises no crash, and leaves the good file's
   // result untouched (single-file retry, not a whole-batch re-run).
   await retry.click();
   await expect(page.getByTestId("retry-file-button")).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByRole("button", { name: /Invalid event_timestamp/i })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: /Bad\.csv could not be processed/ })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId("result-row")).toHaveCount(1);
   assertNoExternalRequests(requestTracker);
 });

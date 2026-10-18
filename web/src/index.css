@@ -2831,6 +2831,10 @@ details > summary {
   font-size: var(--font-size-sm);
 }
 
+.error-text__message {
+  margin: 0;
+}
+
 .empty-state {
   margin: 0;
   color: var(--color-text-muted);

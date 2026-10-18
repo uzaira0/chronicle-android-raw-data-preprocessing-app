@@ -311,7 +311,9 @@ describe("refusal error messages", () => {
     expect(error.code).toBe("opener_set_refused");
     expect(error.name).toBe("RustOpenerSetRefusalError");
     expect(error.decision).toEqual(refusedOpenerDecision());
-    expect(error.message).toBe("The selected app start rule does not fit your other settings. Choose another rule or change the settings.");
+    expect(error.message).toBe(
+      "The way to build app episodes you chose needs each app's own resume, pause and stop events, so it cannot use a different “Episode start events” choice. Choose “The episode rule's usual starts”, or another way to build app episodes.",
+    );
   });
 
   it("falls back to unspecified_reason when the opener decision names none", () => {
@@ -320,7 +322,9 @@ describe("refusal error messages", () => {
         ...refusedOpenerDecision(),
         reasonCode: null,
       }).message,
-    ).toBe("The selected app start rule does not fit your other settings. Choose another rule or change the settings.");
+    ).toBe(
+      "The “Episode start events” choice does not work with “How to build app episodes”. Choose another start-event choice or another way to build app episodes.",
+    );
   });
 
   it("uses plain text for a long-episode rule refusal", () => {
@@ -329,7 +333,9 @@ describe("refusal error messages", () => {
     expect(error.code).toBe("maximum_duration_refused");
     expect(error.name).toBe("RustMaximumDurationRefusalError");
     expect(error.decision).toEqual(decision);
-    expect(error.message).toBe("The long episode rule you chose cannot run with your other settings.");
+    expect(error.message).toBe(
+      "The long episode rule you chose cannot run with your other settings: it does not work with the way app episodes are built (“How to build app episodes”).",
+    );
   });
 
   it("falls back to unspecified_reason when the maximum-duration decision names none", () => {

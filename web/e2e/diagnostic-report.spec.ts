@@ -33,7 +33,11 @@ test("@smoke uncaught errors are recorded locally and the copied report holds no
   await setInputFile(page, "raw-file-input", "Raw P01.csv", MALFORMED_RAW_CSV, "text/csv");
   await page.getByRole("tab", { name: /Process/i }).click();
   await page.getByTestId("process-files-button").click();
-  await expect(page.locator(".error-text")).toContainText("Invalid event_timestamp");
+  const banner = page.locator(".error-text");
+  await expect(banner).toContainText("Raw P01.csv could not be processed.");
+  // The parser's own words stay one click away, under Technical details.
+  await banner.getByText("Technical details").click();
+  await expect(banner.locator(".technical-details pre")).toContainText("Invalid event_timestamp");
 
   // An uncaught error and an unhandled rejection whose messages quote the file.
   await page.evaluate(() => {
