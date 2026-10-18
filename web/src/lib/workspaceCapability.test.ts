@@ -67,7 +67,7 @@ describe("durable-workspace probe classification", () => {
   it("keeps the ephemeral notice distinct from the refusal", () => {
     const notice = ephemeralWorkspaceNotice("No OPFS here.");
     expect(notice).toContain("No OPFS here.");
-    expect(notice).toMatch(/Download the outputs/i);
+    expect(notice).toMatch(/Download the results/i);
     expect(notice).not.toMatch(/try again/i);
   });
 });

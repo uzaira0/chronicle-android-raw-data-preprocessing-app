@@ -86,7 +86,7 @@ const EVENT_RETENTION_LABELS = {
 /// reconstruction. The GESIS label names the adaptation so selecting it cannot
 /// be mistaken for a verbatim implementation of the full tutorial method.
 const OPENER_SET_LABELS = {
-  strategy_defined: "Strategy-defined opener (default)",
+  strategy_defined: "The episode rule's usual starts (default)",
   activity_resumed_only: "Activity Resumed only",
   gesis_app_scoped_starts: "GESIS app-scoped starts (adapter)",
 } satisfies Record<OpenerSet, string>;
@@ -104,8 +104,8 @@ const EPISODE_RECONSTRUCTION_LABELS = {
 } satisfies Record<EpisodeReconstructionStrategy, string>;
 
 const MICRO_USE_CLASSIFICATION_LABELS = {
-  none: "No micro-use classification (default)",
-  okoshi_lt_5s: "Okoshi micro-use: raw duration < 5 s",
+  none: "Don't mark very brief use (default)",
+  okoshi_lt_5s: "Okoshi: under 5 seconds",
 } satisfies Record<MicroUseClassificationPolicy, string>;
 
 const MINIMUM_DURATION_COMPARATOR_LABELS = {
@@ -115,9 +115,9 @@ const MINIMUM_DURATION_COMPARATOR_LABELS = {
 
 const MINIMUM_DURATION_DISPOSITION_LABELS = {
   chronicle_blank_keep_row: "Blank duration, keep row (default)",
-  retain_and_credit: "Retain and credit",
-  retain_but_exclude: "Retain row, exclude from headline totals",
-  drop_row: "Drop row, retain excluded lineage",
+  retain_and_credit: "Keep and count",
+  retain_but_exclude: "Keep row, leave out of totals",
+  drop_row: "Remove row (removal is recorded)",
 } satisfies Record<MinimumDurationDisposition, string>;
 
 /// B06. The four selection keys travel as a set: the policy select below is
@@ -126,26 +126,26 @@ const MINIMUM_DURATION_DISPOSITION_LABELS = {
 /// Chronicle's legacy behaviour with no receipt. Explicit `strategy_native`
 /// is a different thing from omission: it emits a receipt.
 const MAXIMUM_DURATION_POLICY_LABELS = {
-  strategy_native: "Adopt the strategy's native maximum (explicit, receipted)",
+  strategy_native: "Use the episode rule's own maximum",
   chronicle_observed_close_rejection_v1:
-    "Chronicle candidate-close rejection (fused matcher only)",
+    "Chronicle's original long-episode check (fused matcher only)",
   post_reconstruction_strict_max_v1:
-    "Post-reconstruction strict maximum (>, generic)",
+    "Check finished episodes against a maximum (>)",
 } satisfies Record<MaximumDurationPolicy, string>;
 
 const MAXIMUM_DURATION_DISPOSITION_LABELS = {
-  not_applicable: "Not applicable (native policy owns the endpoint)",
-  flag_and_retain: "Flag and retain",
-  retain_but_exclude: "Retain row, exclude from headline totals",
-  truncate_to_threshold: "Truncate to threshold, record trimmed time",
-  drop_row: "Drop row, retain excluded lineage",
+  not_applicable: "Not used (the chosen rule sets the end)",
+  flag_and_retain: "Flag and keep",
+  retain_but_exclude: "Keep row, leave out of totals",
+  truncate_to_threshold: "Shorten to the maximum, record the time removed",
+  drop_row: "Remove row (removal is recorded)",
 } satisfies Record<MaximumDurationDisposition, string>;
 
 const MAXIMUM_DURATION_THRESHOLD_SOURCE_LABELS = {
-  strategy_native: "Strategy-native threshold",
-  chronicle_legacy_config: "Chronicle max session duration (hours above)",
-  fixed_parameter: "Fixed nanosecond parameter",
-  b12_adaptive_participant: "Adaptive per-participant (B12; refuses until it lands)",
+  strategy_native: "The episode rule's own maximum",
+  chronicle_legacy_config: "Maximum app-episode length (hours, above)",
+  fixed_parameter: "A fixed length (nanoseconds, below)",
+  b12_adaptive_participant: "Per participant (not available yet)",
 } satisfies Record<MaximumDurationThresholdSource, string>;
 
 export const MAXIMUM_DURATION_UNSELECTED_LABEL = "Not selected — Chronicle legacy behaviour (default)";
@@ -168,7 +168,7 @@ const SESSION_GROUPING_LABELS = {
   smartphone_wellbeing_strict_lt_5s: "Smartphone Wellbeing < 5 s",
   grosse_deters_10s: "grosse Deters 10 s",
   ross_15s: "Ross 15 s (+ app change)",
-  van_berkel_45s: "App-episode gap ≤ 45 s (legacy ID)",
+  van_berkel_45s: "App-episode gap ≤ 45 s",
   zerrer_60s: "Zerrer 60 s",
   peng_zhu_2020_participant_median: "Peng & Zhu per-participant median",
 } satisfies Record<SessionGroupingPolicy, string>;
@@ -177,8 +177,8 @@ const SESSION_GROUPING_LABELS = {
 /// published rule ships; the alternative is a stated departure from them, and
 /// the label says so rather than presenting the two as equal readings.
 const SESSION_GAP_BASIS_LABELS = {
-  previous_episode_stop_v1: "Previous episode's stop (as published, default)",
-  session_running_maximum_stop_v1: "Session's furthest stop so far (departure)",
+  previous_episode_stop_v1: "End of the previous episode (as published, default)",
+  session_running_maximum_stop_v1: "Latest end so far in the session (not published)",
 } satisfies Record<SessionGapBasis, string>;
 
 /// Which rows are numbered as one sequence. The scopes nest, so the labels
@@ -276,7 +276,7 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
       ) : null}
       <div className="settings-grid-2">
         <SettingsField
-          label="Max session duration threshold (hours)"
+          label="Maximum app-episode length (hours)"
           htmlFor="long-duration-threshold-input"
           tooltip={TOOLTIPS.longDurationThresholdHours}
           modified={isMod("longDurationThresholdHours")}
@@ -311,7 +311,7 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
         </SettingsField>
 
         <SettingsField
-          label="Custom app engagement duration (seconds)"
+          label="Same-app activity gap (seconds)"
           htmlFor="custom-engagement-duration-input"
           tooltip={TOOLTIPS.customAppEngagementDuration}
           modified={isMod("customAppEngagementDuration")}
@@ -363,7 +363,7 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
         </SettingsField>
 
         <SettingsField
-          label="Intra-app teardown grace (seconds)"
+          label="Brief app-restart gap (seconds)"
           htmlFor="proximity-interval-input"
           tooltip={TOOLTIPS.proximityIntervalSeconds}
           modified={isMod("proximityIntervalSeconds")}
@@ -388,7 +388,7 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
 
       <div className="settings-grid-1">
         <SettingsField
-          label="Event retention set"
+          label="Event types the app-episode rule sees"
           htmlFor="event-retention-set-select"
           tooltip={TOOLTIPS.eventRetentionSet}
           modified={isMod("eventRetentionSet")}
@@ -417,7 +417,7 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
 
       <div className="settings-grid-1">
         <SettingsField
-          label="App-episode opener set"
+          label="Episode start events"
           htmlFor="opener-set-select"
           tooltip={TOOLTIPS.openerSet}
           modified={isMod("openerSet")}
@@ -446,7 +446,7 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
 
       <div className="settings-grid-1">
         <SettingsField
-          label="Episode reconstruction rule"
+          label="How to build app episodes"
           htmlFor="episode-reconstruction-strategy-select"
           tooltip={TOOLTIPS.episodeReconstructionStrategy}
           modified={isMod("episodeReconstructionStrategy")}
@@ -475,7 +475,7 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
 
       <div className="settings-grid-1">
         <SettingsField
-          label="Micro-use classification"
+          label="Mark very brief use"
           htmlFor="micro-use-classification-policy-select"
           tooltip={TOOLTIPS.microUseClassificationPolicy}
           modified={isMod("microUseClassificationPolicy")}
@@ -504,7 +504,7 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
 
       <div className="settings-grid-1">
         <SettingsField
-          label="Session grouping policy"
+          label="Session grouping"
           htmlFor="session-grouping-policy-select"
           tooltip={TOOLTIPS.sessionGroupingPolicy}
           modified={isMod("sessionGroupingPolicy")}
@@ -534,7 +534,7 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
       {options.sessionGroupingPolicy !== "none" && (
         <div className="settings-grid-2">
           <SettingsField
-            label="Session gap measured from"
+            label="Measure session gaps from"
             htmlFor="session-gap-basis-select"
             tooltip={TOOLTIPS.sessionGapBasis}
             modified={isMod("sessionGapBasis")}
@@ -560,7 +560,7 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
             </select>
           </SettingsField>
           <SettingsField
-            label="Session boundary scope"
+            label="Session grouping scope"
             htmlFor="session-boundary-scope-select"
             tooltip={TOOLTIPS.sessionBoundaryScope}
             modified={isMod("sessionBoundaryScope")}
@@ -592,7 +592,7 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
       {options.sessionGroupingPolicy !== "none" && (
         <div className="settings-grid-1">
           <ToggleField
-            label="Record why each session broke"
+            label="Record session breaks"
             tooltip={TOOLTIPS.emitSessionBreakLineage}
             checked={options.emitSessionBreakLineage}
             onChange={(value) => update("emitSessionBreakLineage", value)}
@@ -623,7 +623,7 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
           onReset={() => reset("deduplicateExactRows")}
         />
         <ToggleField
-          label="Include app-usage end reason column"
+          label="Include episode end reason"
           tooltip={TOOLTIPS.includeAppUsageEndReason}
           checked={options.includeAppUsageEndReason}
           onChange={(value) => update("includeAppUsageEndReason", value)}
@@ -641,7 +641,7 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
           onReset={() => reset("allowStopEventReuse")}
         />
         <ToggleField
-          label="Use Activity Stopped fallback"
+          label="Use Activity Stopped as a fallback end"
           tooltip={TOOLTIPS.useActivityStoppedAsFallback}
           checked={options.useActivityStoppedAsFallback}
           onChange={(value) => update("useActivityStoppedAsFallback", value)}
@@ -659,7 +659,7 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
           onReset={() => reset("applyThresholdToFallback")}
         />
         <ToggleField
-          label="Add no-activity placeholder days"
+          label="Add no-use day rows"
           tooltip={TOOLTIPS.addNoActivityPlaceholderDays}
           checked={options.addNoActivityPlaceholderDays}
           onChange={(value) => update("addNoActivityPlaceholderDays", value)}

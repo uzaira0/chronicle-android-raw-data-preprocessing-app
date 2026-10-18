@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
 
-import { BROWSER_PROCESSING_OPTION_KEYS } from "@/lib/generatedContract";
+import { BROWSER_OPTION_TOOLTIPS, BROWSER_PROCESSING_OPTION_KEYS } from "@/lib/generatedContract";
 import { isOptionDefault, type OptionKey } from "@/lib/optionDefaults";
 import type { DemoDisplayMasker } from "@/lib/demoDisplay";
 import type { BrowserProcessingOptions, OutputKind, ProcessedFileResult } from "@/lib/types";
@@ -29,7 +29,7 @@ const KIND_LABEL: Record<OutputKind, string> = {
   aggregate: "Aggregate",
   parquet: "Parquet",
   spss: "SPSS (.sav)",
-  lineage: "Arrow lineage / correspondence",
+  lineage: "Audit files",
 };
 
 /** "This is what you ran": the options changed from default plus the output
@@ -66,7 +66,7 @@ export function ReviewSettingsSummary({
           <ul className="review-summary__list">
             {changed.map((key) => (
               <li key={key}>
-                <span className="review-summary__key">{key}</span>
+                <span className="review-summary__key">{BROWSER_OPTION_TOOLTIPS[key].title}</span>
                 <span className="review-summary__val">{formatValue(options[key])}</span>
               </li>
             ))}
@@ -82,7 +82,7 @@ export function ReviewSettingsSummary({
             <ul className="review-summary__list">
               {changedB.map((key) => (
                 <li key={key}>
-                  <span className="review-summary__key">{key}</span>
+                  <span className="review-summary__key">{BROWSER_OPTION_TOOLTIPS[key].title}</span>
                   <span className="review-summary__val">{formatValue(compareOptions[key])}</span>
                 </li>
               ))}

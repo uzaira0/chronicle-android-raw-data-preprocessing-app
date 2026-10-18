@@ -167,13 +167,13 @@ export function ProcessPanel({
                 : !inspectionReady && uploadedFiles.length
                   ? "Re-inspect files to continue"
                   : durableWorkspaceUnavailable
-                    ? "Durable storage unavailable"
+                    ? "Saving unavailable in this browser"
                     : rawColumnViolations.length > 0
                       ? "Fix raw files missing required columns"
                       : settingsRangeViolations.length > 0
                         ? "Fix out-of-range settings"
                         : ephemeralWorkspace
-                          ? "Process files (ephemeral)"
+                          ? "Process files (not saved)"
                           : "Process files"}
           </button>
           {durableWorkspaceUnavailable ? (
@@ -182,9 +182,9 @@ export function ProcessPanel({
               role="alert"
               data-testid="durable-workspace-block"
             >
-              Cannot process: durable local storage is unavailable and the
-              reason may be temporary, so the run is refused rather than
-              silently held in this tab. Free up disk space, close other tabs of
+              Cannot process: this browser is not letting the app save files
+              right now, and that may be temporary, so the run is stopped rather
+              than kept only in this tab. Free up disk space, close other tabs of
               this app, then reload and try again.
             </p>
           ) : null}
@@ -194,8 +194,8 @@ export function ProcessPanel({
               role="status"
               data-testid="ephemeral-workspace-note"
             >
-              Durable local storage is unavailable, so this run is held in this
-              tab only. Download the outputs before closing or reloading.
+              This browser is not letting the app save files, so this run is kept
+              in this tab only. Download the results before closing or reloading.
             </p>
           ) : null}
           {rawColumnViolations.length > 0 ? (
@@ -236,9 +236,9 @@ export function ProcessPanel({
           <div className="process-sections__item">
             <strong>Preprocess</strong>
             <span>
-              Parse, timezone normalization, dedup &amp; ordering, session
-              reconstruction
-              {options.processScreenUsage ? ", screen usage derivation" : ""}.
+              Read the file, fix time zones, merge repeated events, sort events,
+              and rebuild app use
+              {options.processScreenUsage ? " and screen use" : ""}.
             </span>
           </div>
           <div className="process-sections__item">
@@ -246,10 +246,10 @@ export function ProcessPanel({
             <span>
               {[
                 options.useFilterFile ? "app filter list" : null,
-                options.minimumUsageDuration ? "minimum-duration floor" : null,
-                "long-session flags",
+                options.minimumUsageDuration ? "minimum app-use time" : null,
+                "long-use flags",
                 options.enableScreenGatedCrediting
-                  ? "screen-gated usage credit (side-by-side)"
+                  ? "screen-on app time (extra file)"
                   : null,
               ]
                 .filter(Boolean)
@@ -263,11 +263,11 @@ export function ProcessPanel({
               {(() => {
                 const active = [
                   options.enableStudyWindowFilter
-                    ? "study-window filter"
+                    ? "study-date limit"
                     : null,
-                  options.enablePersonAttribution ? "person attribution" : null,
-                  options.enableComplianceScoring ? "compliance scoring" : null,
-                  options.enableDayCoverage ? "day coverage report" : null,
+                  options.enablePersonAttribution ? "shared-device use assigned to people" : null,
+                  options.enableComplianceScoring ? "valid-day scoring" : null,
+                  options.enableDayCoverage ? "days-with-data report" : null,
                 ].filter(Boolean);
                 return active.length
                   ? `${active.join(", ")}.`
@@ -278,7 +278,7 @@ export function ProcessPanel({
         </div>
         <div className="process-controls">
           <ToggleField
-            label="Parallel processing"
+            label="Process several files at once"
             tooltip={TOOLTIPS.parallelProcessing}
             checked={options.parallelProcessing}
             onChange={(value) =>
@@ -290,7 +290,7 @@ export function ProcessPanel({
             testId="toggle-parallelProcessing-process"
           />
           <SettingsField
-            label="Max parallel workers"
+            label="Files processed at once"
             htmlFor="process-max-workers-input"
             tooltip={TOOLTIPS.parallelMaxWorkers}
             hint="Synced with Settings. 0 lets the app choose a safe limit."
@@ -324,8 +324,8 @@ export function ProcessPanel({
               data-testid="effective-processing-concurrency"
               aria-live="polite"
             >
-              Last run used {effectiveProcessingConcurrency} processing worker
-              {effectiveProcessingConcurrency === 1 ? "" : "s"}.
+              The last run processed {effectiveProcessingConcurrency} file
+              {effectiveProcessingConcurrency === 1 ? "" : "s"} at a time.
             </p>
           ) : null}
         </div>

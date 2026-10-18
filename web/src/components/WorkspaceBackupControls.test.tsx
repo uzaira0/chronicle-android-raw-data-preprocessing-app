@@ -25,9 +25,9 @@ describe("WorkspaceBackupControls", () => {
         results={[result("Saved.csv", 3), result("Ephemeral.csv", undefined)]}
       />,
     );
-    expect(html).toContain("Export Saved.csv");
+    expect(html).toContain("Back up Saved.csv");
     // An ephemeral run has no committed closure to read back.
-    expect(html).not.toContain("Export Ephemeral.csv");
+    expect(html).not.toContain("Back up Ephemeral.csv");
   });
 
   it("keeps import enabled while durable storage is available", () => {
@@ -47,6 +47,6 @@ describe("WorkspaceBackupControls", () => {
     );
     expect(html).toMatch(/data-testid="import-workspace-closure"[^>]*disabled/);
     expect(html).toContain('data-testid="workspace-backup-unavailable"');
-    expect(html).toContain("Importing a backup needs durable local storage");
+    expect(html).toContain("Loading a backup needs storage space in this browser");
   });
 });

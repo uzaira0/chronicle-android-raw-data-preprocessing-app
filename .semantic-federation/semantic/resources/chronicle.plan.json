@@ -194,7 +194,7 @@
   "query_groups": [
     {
       "query_group_id": "parse_events",
-      "label": "Event parsing",
+      "label": "Read events",
       "section": "preprocess",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/parse_events/v1",
       "input_query_groups": [],
@@ -225,7 +225,7 @@
     },
     {
       "query_group_id": "normalize_timezones",
-      "label": "Timezone normalization",
+      "label": "Time zones",
       "section": "preprocess",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/normalize_timezones/v1",
       "input_query_groups": [
@@ -254,7 +254,7 @@
     },
     {
       "query_group_id": "dedup_and_order",
-      "label": "Event deduplication and ordering",
+      "label": "Repeated events and order",
       "section": "preprocess",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/dedup_and_order/v1",
       "input_query_groups": [
@@ -291,7 +291,7 @@
     },
     {
       "query_group_id": "app_policy",
-      "label": "App inclusion policy",
+      "label": "Which apps count",
       "section": "clean",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/app_policy/v1",
       "input_query_groups": [
@@ -331,7 +331,7 @@
     },
     {
       "query_group_id": "device_state_timeline",
-      "label": "Screen-session reconstruction",
+      "label": "Screen sessions",
       "section": "preprocess",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/device_state_timeline/v1",
       "input_query_groups": [
@@ -438,7 +438,7 @@
     },
     {
       "query_group_id": "reconstruct_episodes",
-      "label": "Usage-episode reconstruction",
+      "label": "App episodes",
       "section": "preprocess",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/reconstruct_episodes/v1",
       "input_query_groups": [
@@ -570,7 +570,7 @@
     },
     {
       "query_group_id": "categorize_apps",
-      "label": "App categorization",
+      "label": "App categories",
       "section": "preprocess",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/categorize_apps/v1",
       "input_query_groups": [
@@ -611,7 +611,7 @@
     },
     {
       "query_group_id": "episode_annotations",
-      "label": "Episode annotation",
+      "label": "Episode labels",
       "section": "preprocess",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/episode_annotations/v1",
       "input_query_groups": [
@@ -665,7 +665,7 @@
     },
     {
       "query_group_id": "interval_cleaning",
-      "label": "Interval cleaning",
+      "label": "Doubtful times",
       "section": "clean",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/interval_cleaning/v1",
       "input_query_groups": [
@@ -732,7 +732,7 @@
     },
     {
       "query_group_id": "effective_usage",
-      "label": "Screen-gated usage credit",
+      "label": "Credited time (screen on)",
       "section": "clean",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/effective_usage/v1",
       "input_query_groups": [
@@ -797,7 +797,7 @@
     },
     {
       "query_group_id": "notification_proxy",
-      "label": "Notification-derived proxy contacts",
+      "label": "Contacts from notifications",
       "section": "analyze",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/notification_proxy/v1",
       "input_query_groups": [
@@ -846,7 +846,7 @@
     },
     {
       "query_group_id": "polled_emulation",
-      "label": "Polled-method emulation",
+      "label": "Polling-method copy",
       "section": "analyze",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/polled_emulation/v1",
       "input_query_groups": [
@@ -901,7 +901,7 @@
     },
     {
       "query_group_id": "observation_window",
-      "label": "Study-window filter",
+      "label": "Study dates",
       "section": "clean",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/observation_window/v1",
       "input_query_groups": [
@@ -956,7 +956,7 @@
     },
     {
       "query_group_id": "attribute_person",
-      "label": "Person attribution",
+      "label": "Who was using the device",
       "section": "analyze",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/attribute_person/v1",
       "input_query_groups": [
@@ -1059,7 +1059,7 @@
     },
     {
       "query_group_id": "score_compliance",
-      "label": "Compliance assessment",
+      "label": "Valid days",
       "section": "analyze",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/score_compliance/v1",
       "input_query_groups": [
@@ -1106,7 +1106,7 @@
     },
     {
       "query_group_id": "outputs",
-      "label": "Deliverables",
+      "label": "Output files",
       "section": "output",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query-group/outputs/v1",
       "input_query_groups": [
@@ -1193,8 +1193,8 @@
     {
       "query_id": "validate_remap_rules",
       "query_group_id": "parse_events",
-      "label": "Validate remapping rules",
-      "description": "Validate the configured interaction-name remapping before it is used.",
+      "label": "Check event-type renames",
+      "description": "Check your event-type renames before they are used.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/validate_remap_rules/v1",
       "input_queries": [],
       "request_fields": [
@@ -1215,8 +1215,8 @@
     {
       "query_id": "decode_source_records",
       "query_group_id": "parse_events",
-      "label": "Decode source records",
-      "description": "Decode Chronicle CSV rows without applying measurement policy.",
+      "label": "Read the raw file",
+      "description": "Read the rows of the Chronicle file as they are, before any setting applies.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/decode_source_records/v1",
       "input_queries": [],
       "request_fields": [],
@@ -1240,8 +1240,8 @@
     {
       "query_id": "remove_missing_timestamps",
       "query_group_id": "parse_events",
-      "label": "Remove records without timestamps",
-      "description": "Remove source records that cannot be placed on a timeline.",
+      "label": "Remove rows without a time",
+      "description": "Remove rows that have no time, because they cannot be put in order.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/remove_missing_timestamps/v1",
       "input_queries": [
         "decode_source_records"
@@ -1262,8 +1262,8 @@
     {
       "query_id": "attach_device_models",
       "query_group_id": "parse_events",
-      "label": "Summarize device models",
-      "description": "Derive device-model evidence from the retained source records.",
+      "label": "Find the device model",
+      "description": "Work out which phone or tablet model the file came from.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/attach_device_models/v1",
       "input_queries": [
         "remove_missing_timestamps"
@@ -1284,8 +1284,8 @@
     {
       "query_id": "canonicalize_source_rows",
       "query_group_id": "parse_events",
-      "label": "Decode record fields",
-      "description": "Convert source values into the typed internal row representation.",
+      "label": "Read each column",
+      "description": "Turn each column's text into times, numbers and names.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/canonicalize_source_rows/v1",
       "input_queries": [
         "remove_missing_timestamps",
@@ -1310,8 +1310,8 @@
     {
       "query_id": "order_source_records",
       "query_group_id": "parse_events",
-      "label": "Order source records",
-      "description": "Establish the deterministic event order required downstream.",
+      "label": "Sort events",
+      "description": "Sort events into one fixed order that later steps rely on.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/order_source_records/v1",
       "input_queries": [
         "canonicalize_source_rows"
@@ -1334,8 +1334,8 @@
     {
       "query_id": "collect_timezone_observations",
       "query_group_id": "parse_events",
-      "label": "Collect timezone observations",
-      "description": "Collect timezone evidence without selecting a policy.",
+      "label": "List the time zones seen",
+      "description": "List the time zones recorded in the file.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/collect_timezone_observations/v1",
       "input_queries": [
         "order_source_records"
@@ -1356,8 +1356,8 @@
     {
       "query_id": "estimate_dominant_timezone",
       "query_group_id": "normalize_timezones",
-      "label": "Estimate the dominant timezone",
-      "description": "Estimate the dominant timezone from observed values.",
+      "label": "Find the main time zone",
+      "description": "Find the time zone used most in the file.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/estimate_dominant_timezone/v1",
       "input_queries": [
         "order_source_records"
@@ -1378,8 +1378,8 @@
     {
       "query_id": "resolve_timezone_strategy",
       "query_group_id": "normalize_timezones",
-      "label": "Resolve timezone policy",
-      "description": "Resolve the configured timezone handling policy.",
+      "label": "Apply your time-zone setting",
+      "description": "Work out what your time-zone setting means for this file.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/resolve_timezone_strategy/v1",
       "input_queries": [
         "order_source_records",
@@ -1404,8 +1404,8 @@
     {
       "query_id": "standardize_event_clock",
       "query_group_id": "normalize_timezones",
-      "label": "Standardize event clocks",
-      "description": "Restamp event times using the resolved timezone policy.",
+      "label": "Convert event times",
+      "description": "Convert event times to the chosen time zone.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/standardize_event_clock/v1",
       "input_queries": [
         "resolve_timezone_strategy"
@@ -1426,8 +1426,8 @@
     {
       "query_id": "summarize_row_selection",
       "query_group_id": "normalize_timezones",
-      "label": "Summarize row selection",
-      "description": "Report record counts before and after timezone selection.",
+      "label": "Count rows kept",
+      "description": "Count rows before and after the time-zone step.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/summarize_row_selection/v1",
       "input_queries": [
         "order_source_records",
@@ -1449,8 +1449,8 @@
     {
       "query_id": "coalesce_duplicate_event_keys",
       "query_group_id": "dedup_and_order",
-      "label": "Coalesce duplicate event keys",
-      "description": "Retain the first matching event-key row and merge its lineage.",
+      "label": "Merge repeated events",
+      "description": "Keep the first copy of each repeated event.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/coalesce_duplicate_event_keys/v1",
       "input_queries": [
         "standardize_event_clock"
@@ -1473,8 +1473,8 @@
     {
       "query_id": "summarize_duplicate_groups",
       "query_group_id": "dedup_and_order",
-      "label": "Summarize duplicate groups",
-      "description": "Report groups that shared the deduplication key.",
+      "label": "Count repeated events",
+      "description": "Report events that appeared more than once.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/summarize_duplicate_groups/v1",
       "input_queries": [
         "coalesce_duplicate_event_keys"
@@ -1495,8 +1495,8 @@
     {
       "query_id": "disambiguate_duplicate_timestamps",
       "query_group_id": "dedup_and_order",
-      "label": "Disambiguate duplicate timestamps",
-      "description": "Apply versioned event precedence when timestamps collide.",
+      "label": "Order events logged at the same time",
+      "description": "Decide the order of events logged at the same moment, using a fixed rule.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/disambiguate_duplicate_timestamps/v1",
       "input_queries": [
         "coalesce_duplicate_event_keys"
@@ -1521,8 +1521,8 @@
     {
       "query_id": "derive_time_gap_evidence",
       "query_group_id": "dedup_and_order",
-      "label": "Derive timeline gaps",
-      "description": "Measure gaps between ordered events for later rules.",
+      "label": "Measure gaps between events",
+      "description": "Measure the time since each participant's previous event, for later steps.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/derive_time_gap_evidence/v1",
       "input_queries": [
         "disambiguate_duplicate_timestamps"
@@ -1543,8 +1543,8 @@
     {
       "query_id": "mark_app_policy_matches",
       "query_group_id": "app_policy",
-      "label": "Match app-exclusion rows",
-      "description": "Identify source rows matching the configured app exclusion evidence.",
+      "label": "Find apps to leave out",
+      "description": "Find rows for the apps listed in your filter file.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/mark_app_policy_matches/v1",
       "input_queries": [
         "derive_time_gap_evidence"
@@ -1581,8 +1581,8 @@
     {
       "query_id": "index_keyguard_events",
       "query_group_id": "device_state_timeline",
-      "label": "Index keyguard events",
-      "description": "Build reusable keyguard evidence for screen reconstruction.",
+      "label": "Find lock-screen events",
+      "description": "Collect lock and unlock events for rebuilding screen use.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/index_keyguard_events/v1",
       "input_queries": [
         "derive_time_gap_evidence"
@@ -1624,8 +1624,8 @@
     {
       "query_id": "infer_screen_session_skeletons",
       "query_group_id": "device_state_timeline",
-      "label": "Infer screen-session skeletons",
-      "description": "Reconstruct policy-neutral screen-session candidates.",
+      "label": "Find possible screen sessions",
+      "description": "Find the stretches when the screen may have been on, before any setting applies.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/infer_screen_session_skeletons/v1",
       "input_queries": [
         "derive_time_gap_evidence"
@@ -1686,8 +1686,8 @@
     {
       "query_id": "construct_screen_intervals",
       "query_group_id": "device_state_timeline",
-      "label": "Construct selected screen intervals",
-      "description": "Resolve the selected B05 strategy and construct immutable participant-isolated screen intervals.",
+      "label": "Build screen-on periods",
+      "description": "Build each participant's screen-on periods with the method you chose.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/construct_screen_intervals/v1",
       "input_queries": [
         "decode_source_records",
@@ -1762,8 +1762,8 @@
     {
       "query_id": "classify_screen_sessions",
       "query_group_id": "device_state_timeline",
-      "label": "Derive screen-session evidence",
-      "description": "Derive reusable evidence features for candidate screen sessions.",
+      "label": "Describe each screen session",
+      "description": "Work out the facts about each possible screen session that the next step needs.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/classify_screen_sessions/v1",
       "input_queries": [
         "derive_time_gap_evidence",
@@ -1822,8 +1822,8 @@
     {
       "query_id": "resolve_excluded_packages",
       "query_group_id": "reconstruct_episodes",
-      "label": "Resolve excluded app packages",
-      "description": "Convert matching source rows into the effective package exclusion set.",
+      "label": "List the apps to leave out",
+      "description": "Turn the matching rows into the final list of apps to leave out.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/resolve_excluded_packages/v1",
       "input_queries": [
         "mark_app_policy_matches"
@@ -1845,8 +1845,8 @@
     {
       "query_id": "mask_excluded_app_events",
       "query_group_id": "reconstruct_episodes",
-      "label": "Mask excluded app events",
-      "description": "Preserve current matching behavior while policy-neutral reconstruction is introduced.",
+      "label": "Mark events from left-out apps",
+      "description": "Mark events from the apps you chose to leave out.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/mask_excluded_app_events/v1",
       "input_queries": [
         "derive_time_gap_evidence"
@@ -1870,8 +1870,8 @@
     {
       "query_id": "build_app_event_index",
       "query_group_id": "reconstruct_episodes",
-      "label": "Resolve matcher masks",
-      "description": "Apply configured stop and background-event rules to matcher inputs.",
+      "label": "Choose which events can end an app episode",
+      "description": "Apply your settings for which events end an app episode, including background apps.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/build_app_event_index/v1",
       "input_queries": [
         "mask_excluded_app_events"
@@ -1909,8 +1909,8 @@
     {
       "query_id": "match_app_episodes",
       "query_group_id": "reconstruct_episodes",
-      "label": "Match app episodes",
-      "description": "Infer candidate usage episodes from indexed events.",
+      "label": "Pair app starts and stops",
+      "description": "Pair each app's start and stop events into app episodes.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/match_app_episodes/v1",
       "input_queries": [
         "decode_source_records",
@@ -1969,8 +1969,8 @@
     {
       "query_id": "materialize_candidate_episodes",
       "query_group_id": "reconstruct_episodes",
-      "label": "Materialize candidate episodes",
-      "description": "Materialize matcher results and missing-end evidence.",
+      "label": "Make the app episode list",
+      "description": "Build the list of app episodes, noting the ones with no logged end.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/materialize_candidate_episodes/v1",
       "input_queries": [
         "mask_excluded_app_events",
@@ -1996,8 +1996,8 @@
     {
       "query_id": "classify_episode_durations",
       "query_group_id": "reconstruct_episodes",
-      "label": "Discard structural event rows",
-      "description": "Remove event-only rows after their structural information has been consumed.",
+      "label": "Drop helper rows",
+      "description": "Remove event rows that were only needed to build episodes.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/classify_episode_durations/v1",
       "input_queries": [
         "match_app_episodes",
@@ -2042,8 +2042,8 @@
     {
       "query_id": "apply_app_inclusion_policy",
       "query_group_id": "reconstruct_episodes",
-      "label": "Apply app inclusion policy",
-      "description": "Apply the effective package set to reconstructed episodes.",
+      "label": "Leave out filtered apps",
+      "description": "Apply the final list of left-out apps to the app episodes.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/apply_app_inclusion_policy/v1",
       "input_queries": [
         "classify_episode_durations",
@@ -2098,8 +2098,8 @@
     {
       "query_id": "order_app_episodes",
       "query_group_id": "reconstruct_episodes",
-      "label": "Order app episodes",
-      "description": "Establish deterministic episode order for downstream interval logic.",
+      "label": "Sort app episodes",
+      "description": "Sort app episodes into one fixed order for the overlap steps.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/order_app_episodes/v1",
       "input_queries": [
         "apply_app_inclusion_policy"
@@ -2121,8 +2121,8 @@
     {
       "query_id": "segment_concurrent_usage",
       "query_group_id": "reconstruct_episodes",
-      "label": "Segment concurrent usage",
-      "description": "Split overlapping usage into concurrent segments.",
+      "label": "Split overlapping app use",
+      "description": "Split times when two apps overlap into separate pieces.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/segment_concurrent_usage/v1",
       "input_queries": [
         "order_app_episodes",
@@ -2162,8 +2162,8 @@
     {
       "query_id": "join_app_codebook",
       "query_group_id": "categorize_apps",
-      "label": "Join the app codebook",
-      "description": "Attach supplied app metadata to reconstructed episodes.",
+      "label": "Add app details",
+      "description": "Add app names and details from the codebook to each episode.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/join_app_codebook/v1",
       "input_queries": [
         "segment_concurrent_usage"
@@ -2198,8 +2198,8 @@
     {
       "query_id": "derive_broad_category",
       "query_group_id": "categorize_apps",
-      "label": "Derive broad app categories",
-      "description": "Derive the broad analysis category from app metadata.",
+      "label": "Add app categories",
+      "description": "Pick each app's broad category from the codebook.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/derive_broad_category/v1",
       "input_queries": [
         "join_app_codebook"
@@ -2223,8 +2223,8 @@
     {
       "query_id": "collapse_app_genre",
       "query_group_id": "categorize_apps",
-      "label": "Collapse app genres",
-      "description": "Collapse detailed genres into the configured reporting vocabulary.",
+      "label": "Group app genres",
+      "description": "Group detailed app genres into the reporting groups you chose.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/collapse_app_genre/v1",
       "input_queries": [
         "derive_broad_category"
@@ -2248,8 +2248,8 @@
     {
       "query_id": "derive_engagement_basis",
       "query_group_id": "episode_annotations",
-      "label": "Derive engagement evidence",
-      "description": "Build threshold-independent engagement transitions and gaps.",
+      "label": "Measure switches and gaps",
+      "description": "Measure the switches and gaps between uses, before any engagement setting applies.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/derive_engagement_basis/v1",
       "input_queries": [
         "collapse_app_genre"
@@ -2273,8 +2273,8 @@
     {
       "query_id": "apply_episode_flags",
       "query_group_id": "episode_annotations",
-      "label": "Flag long usage",
-      "description": "Apply long-usage thresholds.",
+      "label": "Flag long use",
+      "description": "Flag use longer than your long-use limit.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/apply_episode_flags/v1",
       "input_queries": [
         "derive_engagement_basis"
@@ -2299,8 +2299,8 @@
     {
       "query_id": "suppress_excluded_timing",
       "query_group_id": "interval_cleaning",
-      "label": "Suppress excluded timing",
-      "description": "Apply the selected interval-quality policy: blank timing values excluded from measurement, or trim, flag and log implausible intervals and collapse same-app rows that are one usage.",
+      "label": "Handle doubtful times",
+      "description": "Apply your setting for doubtful times: blank times left out of totals, or trim, flag and log impossible ones and merge same-app rows that are one use.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/suppress_excluded_timing/v1",
       "input_queries": [
         "apply_episode_flags",
@@ -2325,8 +2325,8 @@
     {
       "query_id": "remove_selected_interaction_types",
       "query_group_id": "interval_cleaning",
-      "label": "Remove selected interaction types",
-      "description": "Remove rows selected by interaction-type policy while preserving gap exceptions.",
+      "label": "Remove chosen event types",
+      "description": "Remove rows of the event types you chose, keeping the ones the gap rules need.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/remove_selected_interaction_types/v1",
       "input_queries": [
         "suppress_excluded_timing"
@@ -2352,8 +2352,8 @@
     {
       "query_id": "remove_zero_duration_rows",
       "query_group_id": "interval_cleaning",
-      "label": "Remove zero-duration rows",
-      "description": "Remove rows with a zero measured duration when enabled.",
+      "label": "Remove zero-length rows",
+      "description": "Remove rows with a length of zero, if you turned this on.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/remove_zero_duration_rows/v1",
       "input_queries": [
         "remove_selected_interaction_types"
@@ -2377,8 +2377,8 @@
     {
       "query_id": "assign_usage_session_ids",
       "query_group_id": "interval_cleaning",
-      "label": "Number usage sessions",
-      "description": "Number consecutive episodes into usage sessions under the selected published gap definition.",
+      "label": "Number sessions",
+      "description": "Group back-to-back episodes into numbered sessions, using the published gap rule you chose.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/assign_usage_session_ids/v1",
       "input_queries": [
         "remove_zero_duration_rows"
@@ -2405,8 +2405,8 @@
     {
       "query_id": "identify_credit_eligible_sessions",
       "query_group_id": "effective_usage",
-      "label": "Identify credit-eligible sessions",
-      "description": "Partition reconstructed sessions by credit eligibility.",
+      "label": "Find sessions that can be credited",
+      "description": "Split sessions into those that can and cannot be checked against screen-on time.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/identify_credit_eligible_sessions/v1",
       "input_queries": [
         "assign_usage_session_ids"
@@ -2437,8 +2437,8 @@
     {
       "query_id": "build_activity_witness_indexes",
       "query_group_id": "effective_usage",
-      "label": "Index device activity",
-      "description": "Build device-activity witness intervals.",
+      "label": "Find when the device was active",
+      "description": "Collect the times the device showed any activity.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/build_activity_witness_indexes/v1",
       "input_queries": [
         "mark_app_policy_matches",
@@ -2473,8 +2473,8 @@
     {
       "query_id": "assess_screen_evidence_capability",
       "query_group_id": "effective_usage",
-      "label": "Assess screen evidence capability",
-      "description": "Report participants for whom screen evidence can support crediting.",
+      "label": "Check screen records per participant",
+      "description": "Report which participants have enough screen records to credit app time.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/assess_screen_evidence_capability/v1",
       "input_queries": [
         "identify_credit_eligible_sessions",
@@ -2506,8 +2506,8 @@
     {
       "query_id": "summarize_daily_apps",
       "query_group_id": "effective_usage",
-      "label": "Summarize daily apps",
-      "description": "Report daily app evidence consumed by credit policy.",
+      "label": "List apps per day",
+      "description": "List each day's apps for the crediting steps.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/summarize_daily_apps/v1",
       "input_queries": [
         "identify_credit_eligible_sessions"
@@ -2538,8 +2538,8 @@
     {
       "query_id": "derive_credited_intervals",
       "query_group_id": "effective_usage",
-      "label": "Cap candidate intervals",
-      "description": "Apply session caps before evidence intersection.",
+      "label": "Apply the session cap",
+      "description": "Shorten sessions to your cap before they are checked against the screen.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/derive_credited_intervals/v1",
       "input_queries": [
         "identify_credit_eligible_sessions",
@@ -2579,8 +2579,8 @@
     {
       "query_id": "materialize_credited_rows",
       "query_group_id": "effective_usage",
-      "label": "Materialize credited rows",
-      "description": "Emit scientific credited intervals separately from lineage-search evidence.",
+      "label": "Make the credited rows",
+      "description": "Build the credited app time rows.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/materialize_credited_rows/v1",
       "input_queries": [
         "identify_credit_eligible_sessions",
@@ -2613,8 +2613,8 @@
     {
       "query_id": "assemble_credit_outputs",
       "query_group_id": "effective_usage",
-      "label": "Assemble credit outputs",
-      "description": "Expose credited rows, metrics, and capability evidence through typed ports.",
+      "label": "Collect the credited results",
+      "description": "Gather the credited rows, totals and screen-record report for the output files.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/assemble_credit_outputs/v1",
       "input_queries": [
         "identify_credit_eligible_sessions",
@@ -3003,8 +3003,8 @@
     {
       "query_id": "resolve_participant_windows",
       "query_group_id": "observation_window",
-      "label": "Resolve participant windows",
-      "description": "Resolve participant-specific observation windows.",
+      "label": "Find each participant's study dates",
+      "description": "Work out each participant's start and end dates.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/resolve_participant_windows/v1",
       "input_queries": [
         "assign_usage_session_ids",
@@ -3043,8 +3043,8 @@
     {
       "query_id": "apply_participant_windows",
       "query_group_id": "observation_window",
-      "label": "Apply participant windows",
-      "description": "Retain rows inside each participant observation window.",
+      "label": "Keep rows inside the study dates",
+      "description": "Keep only the rows between each participant's start and end dates.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/apply_participant_windows/v1",
       "input_queries": [
         "assign_usage_session_ids",
@@ -3091,8 +3091,8 @@
     {
       "query_id": "resolve_sharing_status",
       "query_group_id": "attribute_person",
-      "label": "Resolve device sharing",
-      "description": "Resolve device-sharing evidence for person attribution.",
+      "label": "Read device sharing",
+      "description": "Read which devices are shared, to work out who was using them.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/resolve_sharing_status/v1",
       "input_queries": [
         "apply_participant_windows"
@@ -3127,8 +3127,8 @@
     {
       "query_id": "index_survey_responses",
       "query_group_id": "attribute_person",
-      "label": "Index survey responses",
-      "description": "Build optional survey evidence for person attribution.",
+      "label": "Read survey answers",
+      "description": "Read the optional survey answers about who used the device.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/index_survey_responses/v1",
       "input_queries": [],
       "request_fields": [
@@ -3161,8 +3161,8 @@
     {
       "query_id": "classify_person_attribution",
       "query_group_id": "attribute_person",
-      "label": "Infer the default person",
-      "description": "Apply the built-in default and kids-shell attribution rules.",
+      "label": "Assume the usual user",
+      "description": "Apply the built-in rules for who was using the device, including kids' launcher apps.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/classify_person_attribution/v1",
       "input_queries": [
         "apply_participant_windows",
@@ -3213,8 +3213,8 @@
     {
       "query_id": "synthesize_placeholder_rows",
       "query_group_id": "day_coverage",
-      "label": "Add missing-day placeholders",
-      "description": "Create explicitly synthetic rows for missing participant days.",
+      "label": "Add rows for days with no app use",
+      "description": "Add clearly marked zero-length filler rows for participant days that have raw events but no app use.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/synthesize_placeholder_rows/v1",
       "input_queries": [
         "divide_sessions_at_day_boundary",
@@ -3244,8 +3244,8 @@
     {
       "query_id": "index_raw_dates",
       "query_group_id": "day_coverage",
-      "label": "Index observed dates",
-      "description": "Index pre-window source dates used by coverage and placeholders.",
+      "label": "List dates with data",
+      "description": "List the dates with data, including dates before the study start, for the coverage and filler steps.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/index_raw_dates/v1",
       "input_queries": [
         "mark_app_policy_matches",
@@ -3271,8 +3271,8 @@
     {
       "query_id": "build_participant_day_coverage",
       "query_group_id": "day_coverage",
-      "label": "Build the participant-day spine",
-      "description": "Create the participant-day domain used for coverage.",
+      "label": "List every participant day",
+      "description": "List every day for each participant, for checking coverage.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/build_participant_day_coverage/v1",
       "input_queries": [
         "synthesize_placeholder_rows",
@@ -3309,8 +3309,8 @@
     {
       "query_id": "aggregate_attribution_minutes",
       "query_group_id": "score_compliance",
-      "label": "Aggregate attributed minutes",
-      "description": "Build threshold-independent participant-day attribution totals.",
+      "label": "Total minutes per day",
+      "description": "Add up each participant's minutes per day by who was using the device, before any threshold applies.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/aggregate_attribution_minutes/v1",
       "input_queries": [
         "synthesize_placeholder_rows"
@@ -3341,8 +3341,8 @@
     {
       "query_id": "compute_attribution_completeness",
       "query_group_id": "score_compliance",
-      "label": "Compute completeness",
-      "description": "Compute threshold-independent completeness percentages and zero-use evidence.",
+      "label": "Work out how much use has a known user",
+      "description": "Work out the percent of each day's app-use minutes assigned to a known user, and which days had no use.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/compute_attribution_completeness/v1",
       "input_queries": [
         "aggregate_attribution_minutes",
@@ -3374,8 +3374,8 @@
     {
       "query_id": "classify_compliance_days",
       "query_group_id": "score_compliance",
-      "label": "Apply the compliance threshold",
-      "description": "Classify participant days using the configured threshold.",
+      "label": "Mark valid days",
+      "description": "Mark each day as meeting your threshold or not.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/classify_compliance_days/v1",
       "input_queries": [
         "compute_attribution_completeness"
@@ -3430,8 +3430,8 @@
     {
       "query_id": "assemble_result_manifest",
       "query_group_id": "outputs",
-      "label": "Build the app table",
-      "description": "Project the scientific app-usage table.",
+      "label": "Build the app usage table",
+      "description": "Build the app usage table.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/query/assemble_result_manifest/v1",
       "input_queries": [
         "validate_remap_rules",

@@ -88,7 +88,7 @@ tsify = { version = "0.5.8", default-features = false, features = ["js"] }
 flate2 = { version = "=1.1.9", default-features = false, features = ["rust_backend"] }
 hex = "0.4"
 quote = "1.0"
-sha2 = "0.11"
+hmac-sha256 = { version = "=1.1.15", default-features = false }
 syn = { version = "2.0", features = ["full", "visit-mut"] }
 
 [dev-dependencies]

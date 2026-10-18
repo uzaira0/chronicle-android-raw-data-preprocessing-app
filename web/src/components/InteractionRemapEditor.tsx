@@ -65,8 +65,8 @@ export function InteractionRemapEditor({
       <div className="remap-editor" data-testid="interaction-remap-editor">
         {rows.length === 0 ? (
           <p className="remap-editor__empty">
-            No custom mappings. Add one to translate a vendor-specific interaction type onto a
-            canonical name the pipeline understands.
+            No custom renames. Add one to rename an event type that a phone maker logs under
+            its own name to the standard name this app uses.
           </p>
         ) : null}
         {rows.map((row, index) => (
@@ -90,7 +90,7 @@ export function InteractionRemapEditor({
               value={row.to}
               onChange={(event) => setRow(index, { ...row, to: event.target.value })}
             >
-              <option value="">Select canonical type…</option>
+              <option value="">Choose a Chronicle event type…</option>
               {CANONICAL_INTERACTION_TYPES.map((name) => (
                 <option key={name} value={name}>
                   {name}

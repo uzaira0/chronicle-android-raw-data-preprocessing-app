@@ -1,5 +1,9 @@
 use quote::ToTokens;
-use sha2::{Digest, Sha256};
+// Build scripts run on the build machine. sha2 pulls in cpufeatures, which depends on
+// libc only on Apple silicon, and Cargo folds that host-side difference into every
+// dependent crate's metadata: the same sources then built different WASM on a Mac.
+// hmac-sha256 has no dependencies, so the build-script graph is the same on every host.
+use hmac_sha256::Hash as Sha256;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -27,7 +31,7 @@ fn pack_json_assets(repository_root: &Path) {
         fs::write(output.join(&file), packed).expect("write packed JSON deploy input");
         declarations.push_str(&format!(
             "pub(crate) static {name}: PackedJson = PackedJson {{ name: \"{name}\", gzip: include_bytes!(concat!(env!(\"OUT_DIR\"), \"/{file}\")), expected_bytes: {}, raw_sha256: \"{}\", text: OnceLock::new() }};\n",
-            bytes.len(), hex::encode(Sha256::digest(&bytes)),
+            bytes.len(), hex::encode(Sha256::hash(&bytes)),
         ));
     }
     fs::write(output.join("packed_json_assets.rs"), declarations)

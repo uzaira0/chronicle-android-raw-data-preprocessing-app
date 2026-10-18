@@ -200,8 +200,8 @@
     "operations": [
       {
         "id": "source.validate_remap_rules",
-        "label": "Validate remapping rules",
-        "description": "Validate the configured interaction-name remapping before it is used.",
+        "label": "Check event-type renames",
+        "description": "Check your event-type renames before they are used.",
         "phaseId": "import_verify",
         "role": "ingest_validate",
         "epistemicRole": "observed",
@@ -236,8 +236,8 @@
       },
       {
         "id": "source.decode_records",
-        "label": "Decode source records",
-        "description": "Decode Chronicle CSV rows without applying measurement policy.",
+        "label": "Read the raw file",
+        "description": "Read the rows of the Chronicle file as they are, before any setting applies.",
         "phaseId": "import_verify",
         "role": "ingest_validate",
         "epistemicRole": "observed",
@@ -266,8 +266,8 @@
       },
       {
         "id": "quality.remove_missing_timestamps",
-        "label": "Remove records without timestamps",
-        "description": "Remove source records that cannot be placed on a timeline.",
+        "label": "Remove rows without a time",
+        "description": "Remove rows that have no time, because they cannot be put in order.",
         "phaseId": "import_verify",
         "role": "standardize_repair",
         "epistemicRole": "derived",
@@ -296,8 +296,8 @@
       },
       {
         "id": "evidence.summarize_device_models",
-        "label": "Summarize device models",
-        "description": "Derive device-model evidence from the retained source records.",
+        "label": "Find the device model",
+        "description": "Work out which phone or tablet model the file came from.",
         "phaseId": "import_verify",
         "role": "ingest_validate",
         "epistemicRole": "derived",
@@ -326,8 +326,8 @@
       },
       {
         "id": "source.attach_device_models",
-        "label": "Attach device models",
-        "description": "Attach the resolved device model to each record.",
+        "label": "Add the device model",
+        "description": "Add the device model to each row.",
         "phaseId": "import_verify",
         "role": "standardize_repair",
         "epistemicRole": "derived",
@@ -356,8 +356,8 @@
       },
       {
         "id": "source.decode_record_fields",
-        "label": "Decode record fields",
-        "description": "Convert source values into the typed internal row representation.",
+        "label": "Read each column",
+        "description": "Turn each column's text into times, numbers and names.",
         "phaseId": "import_verify",
         "role": "ingest_validate",
         "epistemicRole": "derived",
@@ -389,8 +389,8 @@
       },
       {
         "id": "time.apply_missing_timezone_rule",
-        "label": "Resolve missing timezone values",
-        "description": "Apply the versioned missing-timezone rule.",
+        "label": "Fill in missing time zones",
+        "description": "Fill in rows that have no time zone, using a fixed rule.",
         "phaseId": "standardize_timeline",
         "role": "standardize_repair",
         "epistemicRole": "policy_applied",
@@ -426,8 +426,8 @@
       },
       {
         "id": "identity.normalize_usernames",
-        "label": "Normalize participant usernames",
-        "description": "Apply the canonical username casing rule.",
+        "label": "Tidy participant names",
+        "description": "Write \"Target child\" as \"Target Child\" so both spellings count as the same person.",
         "phaseId": "standardize_timeline",
         "role": "standardize_repair",
         "epistemicRole": "derived",
@@ -456,8 +456,8 @@
       },
       {
         "id": "source.initialize_lineage",
-        "label": "Initialize source lineage",
-        "description": "Bind internal rows to their source coordinates.",
+        "label": "Note where each row came from",
+        "description": "Remember which line of the uploaded file each row came from.",
         "phaseId": "import_verify",
         "role": "ingest_validate",
         "epistemicRole": "observed",
@@ -486,8 +486,8 @@
       },
       {
         "id": "interaction.normalize_names",
-        "label": "Normalize interaction names",
-        "description": "Apply configured interaction-name remapping.",
+        "label": "Rename event types",
+        "description": "Apply your event-type renames.",
         "phaseId": "standardize_timeline",
         "role": "standardize_repair",
         "epistemicRole": "policy_applied",
@@ -516,8 +516,8 @@
       },
       {
         "id": "time.derive_target_calendar",
-        "label": "Derive calendar fields",
-        "description": "Derive date, weekday, hour, and quarter values from the standardized clock.",
+        "label": "Add date and hour",
+        "description": "Work out the date, weekday, hour and quarter of the year for each event.",
         "phaseId": "standardize_timeline",
         "role": "standardize_repair",
         "epistemicRole": "derived",
@@ -546,8 +546,8 @@
       },
       {
         "id": "time.order_source_records",
-        "label": "Order source records",
-        "description": "Establish the deterministic event order required downstream.",
+        "label": "Sort events",
+        "description": "Sort events into one fixed order that later steps rely on.",
         "phaseId": "standardize_timeline",
         "role": "standardize_repair",
         "epistemicRole": "derived",
@@ -588,8 +588,8 @@
       },
       {
         "id": "evidence.collect_timezone_observations",
-        "label": "Collect timezone observations",
-        "description": "Collect timezone evidence without selecting a policy.",
+        "label": "List the time zones seen",
+        "description": "List the time zones recorded in the file.",
         "phaseId": "standardize_timeline",
         "role": "analyze_assess",
         "epistemicRole": "derived",
@@ -618,8 +618,8 @@
       },
       {
         "id": "evidence.estimate_dominant_timezone",
-        "label": "Estimate the dominant timezone",
-        "description": "Estimate the dominant timezone from observed values.",
+        "label": "Find the main time zone",
+        "description": "Find the time zone used most in the file.",
         "phaseId": "standardize_timeline",
         "role": "analyze_assess",
         "epistemicRole": "inferred",
@@ -648,8 +648,8 @@
       },
       {
         "id": "policy.resolve_timezone_strategy",
-        "label": "Resolve timezone policy",
-        "description": "Resolve the configured timezone handling policy.",
+        "label": "Apply your time-zone setting",
+        "description": "Work out what your time-zone setting means for this file.",
         "phaseId": "standardize_timeline",
         "role": "apply_measurement_policy",
         "epistemicRole": "policy_applied",
@@ -692,8 +692,8 @@
       },
       {
         "id": "quality.select_timezone_eligible_records",
-        "label": "Select timezone-eligible records",
-        "description": "Retain the records permitted by the selected timezone policy.",
+        "label": "Keep rows your time-zone setting allows",
+        "description": "Keep only the rows your time-zone setting allows.",
         "phaseId": "standardize_timeline",
         "role": "standardize_repair",
         "epistemicRole": "policy_applied",
@@ -722,8 +722,8 @@
       },
       {
         "id": "time.standardize_event_clock",
-        "label": "Standardize event clocks",
-        "description": "Restamp event times using the resolved timezone policy.",
+        "label": "Convert event times",
+        "description": "Convert event times to the chosen time zone.",
         "phaseId": "standardize_timeline",
         "role": "standardize_repair",
         "epistemicRole": "derived",
@@ -753,8 +753,8 @@
       },
       {
         "id": "evidence.summarize_row_selection",
-        "label": "Summarize row selection",
-        "description": "Report record counts before and after timezone selection.",
+        "label": "Count rows kept",
+        "description": "Count rows before and after the time-zone step.",
         "phaseId": "standardize_timeline",
         "role": "analyze_assess",
         "epistemicRole": "derived",
@@ -785,8 +785,8 @@
       },
       {
         "id": "quality.coalesce_duplicate_event_keys",
-        "label": "Coalesce duplicate event keys",
-        "description": "Retain the first matching event-key row and merge its lineage.",
+        "label": "Merge repeated events",
+        "description": "Keep the first copy of each repeated event.",
         "phaseId": "standardize_timeline",
         "role": "standardize_repair",
         "epistemicRole": "derived",
@@ -823,8 +823,8 @@
       },
       {
         "id": "evidence.summarize_duplicate_groups",
-        "label": "Summarize duplicate groups",
-        "description": "Report groups that shared the deduplication key.",
+        "label": "Count repeated events",
+        "description": "Report events that appeared more than once.",
         "phaseId": "standardize_timeline",
         "role": "analyze_assess",
         "epistemicRole": "derived",
@@ -853,8 +853,8 @@
       },
       {
         "id": "quality.disambiguate_duplicate_timestamps",
-        "label": "Disambiguate duplicate timestamps",
-        "description": "Apply versioned event precedence when timestamps collide.",
+        "label": "Order events logged at the same time",
+        "description": "Decide the order of events logged at the same moment, using a fixed rule.",
         "phaseId": "standardize_timeline",
         "role": "standardize_repair",
         "epistemicRole": "policy_applied",
@@ -900,8 +900,8 @@
       },
       {
         "id": "evidence.derive_time_gaps",
-        "label": "Derive timeline gaps",
-        "description": "Measure gaps between ordered events for later rules.",
+        "label": "Measure gaps between events",
+        "description": "Measure the time since each participant's previous event, for later steps.",
         "phaseId": "standardize_timeline",
         "role": "analyze_assess",
         "epistemicRole": "derived",
@@ -930,8 +930,8 @@
       },
       {
         "id": "policy.match_app_exclusion_rows",
-        "label": "Match app-exclusion rows",
-        "description": "Identify source rows matching the configured app exclusion evidence.",
+        "label": "Find apps to leave out",
+        "description": "Find rows for the apps listed in your filter file.",
         "phaseId": "apply_measurement_rules",
         "role": "apply_measurement_policy",
         "epistemicRole": "policy_applied",
@@ -984,8 +984,8 @@
       },
       {
         "id": "evidence.index_keyguard_events",
-        "label": "Index keyguard events",
-        "description": "Build reusable keyguard evidence for screen reconstruction.",
+        "label": "Find lock-screen events",
+        "description": "Collect lock and unlock events for rebuilding screen use.",
         "phaseId": "reconstruct_activity",
         "role": "reconstruct_infer",
         "epistemicRole": "derived",
@@ -1052,8 +1052,8 @@
       },
       {
         "id": "reconstruct.infer_screen_session_skeletons",
-        "label": "Infer screen-session skeletons",
-        "description": "Reconstruct policy-neutral screen-session candidates.",
+        "label": "Find possible screen sessions",
+        "description": "Find the stretches when the screen may have been on, before any setting applies.",
         "phaseId": "reconstruct_activity",
         "role": "reconstruct_infer",
         "epistemicRole": "inferred",
@@ -1154,8 +1154,8 @@
       },
       {
         "id": "reconstruct.construct_screen_intervals",
-        "label": "Construct selected screen intervals",
-        "description": "Resolve the selected B05 strategy and construct immutable participant-isolated screen intervals.",
+        "label": "Build screen-on periods",
+        "description": "Build each participant's screen-on periods with the method you chose.",
         "phaseId": "reconstruct_activity",
         "role": "reconstruct_infer",
         "epistemicRole": "inferred",
@@ -1250,8 +1250,8 @@
       },
       {
         "id": "evidence.derive_screen_session_features",
-        "label": "Derive screen-session evidence",
-        "description": "Derive reusable evidence features for candidate screen sessions.",
+        "label": "Describe each screen session",
+        "description": "Work out the facts about each possible screen session that the next step needs.",
         "phaseId": "reconstruct_activity",
         "role": "reconstruct_infer",
         "epistemicRole": "derived",
@@ -1307,8 +1307,8 @@
       },
       {
         "id": "policy.classify_screen_end_reasons",
-        "label": "Classify screen-session endings",
-        "description": "Apply forcing and threshold rules to screen-session evidence.",
+        "label": "Decide where each screen session ended",
+        "description": "Use your list of apps that keep the screen on, and your time limits, to decide where each screen session ended.",
         "phaseId": "apply_measurement_rules",
         "role": "apply_measurement_policy",
         "epistemicRole": "policy_applied",
@@ -1402,8 +1402,8 @@
       },
       {
         "id": "reconstruct.materialize_screen_sessions",
-        "label": "Materialize screen sessions",
-        "description": "Materialize the classified screen-session table.",
+        "label": "Make the screen session table",
+        "description": "Build the table of screen sessions.",
         "phaseId": "reconstruct_activity",
         "role": "reconstruct_infer",
         "epistemicRole": "inferred",
@@ -1455,8 +1455,8 @@
       },
       {
         "id": "policy.resolve_effective_app_exclusions",
-        "label": "Resolve excluded app packages",
-        "description": "Convert matching source rows into the effective package exclusion set.",
+        "label": "List the apps to leave out",
+        "description": "Turn the matching rows into the final list of apps to leave out.",
         "phaseId": "apply_measurement_rules",
         "role": "apply_measurement_policy",
         "epistemicRole": "policy_applied",
@@ -1494,8 +1494,8 @@
       },
       {
         "id": "policy.mask_excluded_app_events",
-        "label": "Mask excluded app events",
-        "description": "Preserve current matching behavior while policy-neutral reconstruction is introduced.",
+        "label": "Mark events from left-out apps",
+        "description": "Mark events from the apps you chose to leave out.",
         "phaseId": "apply_measurement_rules",
         "role": "apply_measurement_policy",
         "epistemicRole": "policy_applied",
@@ -1539,8 +1539,8 @@
       },
       {
         "id": "policy.resolve_matcher_masks",
-        "label": "Resolve matcher masks",
-        "description": "Apply configured stop and background-event rules to matcher inputs.",
+        "label": "Choose which events can end an app episode",
+        "description": "Apply your settings for which events end an app episode, including background apps.",
         "phaseId": "apply_measurement_rules",
         "role": "apply_measurement_policy",
         "epistemicRole": "policy_applied",
@@ -1599,8 +1599,8 @@
       },
       {
         "id": "reconstruct.index_app_events",
-        "label": "Index app events",
-        "description": "Build the reusable event factorization used by episode matching.",
+        "label": "Prepare app events for pairing",
+        "description": "Group app events so each start can be paired with its stop.",
         "phaseId": "reconstruct_activity",
         "role": "reconstruct_infer",
         "epistemicRole": "derived",
@@ -1637,8 +1637,8 @@
       },
       {
         "id": "reconstruct.match_app_episodes",
-        "label": "Match app episodes",
-        "description": "Infer candidate usage episodes from indexed events.",
+        "label": "Pair app starts and stops",
+        "description": "Pair each app's start and stop events into app episodes.",
         "phaseId": "reconstruct_activity",
         "role": "reconstruct_infer",
         "epistemicRole": "inferred",
@@ -1721,8 +1721,8 @@
       },
       {
         "id": "reconstruct.materialize_candidate_episodes",
-        "label": "Materialize candidate episodes",
-        "description": "Materialize matcher results and missing-end evidence.",
+        "label": "Make the app episode list",
+        "description": "Build the list of app episodes, noting the ones with no logged end.",
         "phaseId": "reconstruct_activity",
         "role": "reconstruct_infer",
         "epistemicRole": "inferred",
@@ -1766,8 +1766,8 @@
       },
       {
         "id": "reconstruct.discard_structural_events",
-        "label": "Discard structural event rows",
-        "description": "Remove event-only rows after their structural information has been consumed.",
+        "label": "Drop helper rows",
+        "description": "Remove event rows that were only needed to build episodes.",
         "phaseId": "reconstruct_activity",
         "role": "reconstruct_infer",
         "epistemicRole": "derived",
@@ -1806,8 +1806,8 @@
       },
       {
         "id": "reconstruct.classify_app_episodes",
-        "label": "Classify reconstructed episodes",
-        "description": "Capture immutable raw episode evidence and apply the selected descriptive micro-use class.",
+        "label": "Label very short app episodes",
+        "description": "Keep each episode's original length, and label very short episodes the way you chose.",
         "phaseId": "reconstruct_activity",
         "role": "reconstruct_infer",
         "epistemicRole": "inferred",
@@ -1849,8 +1849,8 @@
       },
       {
         "id": "policy.suppress_short_durations",
-        "label": "Apply minimum-duration disposition",
-        "description": "Qualify raw reconstructed duration once, then blank, retain, exclude, or mark the row for lineage-preserving removal.",
+        "label": "Handle short app episodes",
+        "description": "Compare each episode with your minimum length, then blank its time, keep it, leave it out of totals, or remove it, as you chose.",
         "phaseId": "apply_measurement_rules",
         "role": "apply_measurement_policy",
         "epistemicRole": "policy_applied",
@@ -1908,8 +1908,8 @@
       },
       {
         "id": "policy.apply_maximum_duration",
-        "label": "Apply maximum-duration policy",
-        "description": "When a maximum-duration policy is selected explicitly, qualify raw reconstructed duration against the maximum once (strictly greater; equality retained), then flag, exclude, truncate, or mark the row for lineage-preserving removal. Absent keys leave Chronicle's legacy candidate-rejection behaviour untouched.",
+        "label": "Handle long app episodes",
+        "description": "If you set a maximum length, compare each episode with it (only longer episodes are affected), then flag, leave out, shorten or remove it. With no maximum set, Chronicle's original handling of long episodes is kept.",
         "phaseId": "apply_measurement_rules",
         "role": "apply_measurement_policy",
         "epistemicRole": "policy_applied",
@@ -1967,8 +1967,8 @@
       },
       {
         "id": "policy.apply_app_inclusion",
-        "label": "Apply app inclusion policy",
-        "description": "Apply the effective package set to reconstructed episodes.",
+        "label": "Leave out filtered apps",
+        "description": "Apply the final list of left-out apps to the app episodes.",
         "phaseId": "apply_measurement_rules",
         "role": "apply_measurement_policy",
         "epistemicRole": "policy_applied",
@@ -2057,8 +2057,8 @@
       },
       {
         "id": "reconstruct.order_app_episodes",
-        "label": "Order app episodes",
-        "description": "Establish deterministic episode order for downstream interval logic.",
+        "label": "Sort app episodes",
+        "description": "Sort app episodes into one fixed order for the overlap steps.",
         "phaseId": "reconstruct_activity",
         "role": "reconstruct_infer",
         "epistemicRole": "derived",
@@ -2095,8 +2095,8 @@
       },
       {
         "id": "reconstruct.segment_concurrent_usage",
-        "label": "Segment concurrent usage",
-        "description": "Split overlapping usage into concurrent segments.",
+        "label": "Split overlapping app use",
+        "description": "Split times when two apps overlap into separate pieces.",
         "phaseId": "reconstruct_activity",
         "role": "reconstruct_infer",
         "epistemicRole": "inferred",
@@ -2145,8 +2145,8 @@
       },
       {
         "id": "policy.apply_concurrent_segment_floor",
-        "label": "Apply the concurrent-segment floor",
-        "description": "Apply the optional minimum-duration policy to generated segments.",
+        "label": "Handle short overlap pieces",
+        "description": "Apply your minimum length to the pieces made by splitting overlaps.",
         "phaseId": "apply_measurement_rules",
         "role": "apply_measurement_policy",
         "epistemicRole": "policy_applied",
@@ -2194,8 +2194,8 @@
       },
       {
         "id": "context.join_app_codebook",
-        "label": "Join the app codebook",
-        "description": "Attach supplied app metadata to reconstructed episodes.",
+        "label": "Add app details",
+        "description": "Add app names and details from the codebook to each episode.",
         "phaseId": "add_context",
         "role": "enrich_annotate",
         "epistemicRole": "derived",
@@ -2239,8 +2239,8 @@
       },
       {
         "id": "context.derive_broad_category",
-        "label": "Derive broad app categories",
-        "description": "Derive the broad analysis category from app metadata.",
+        "label": "Add app categories",
+        "description": "Pick each app's broad category from the codebook.",
         "phaseId": "add_context",
         "role": "enrich_annotate",
         "epistemicRole": "derived",
@@ -2282,8 +2282,8 @@
       },
       {
         "id": "context.collapse_app_genre",
-        "label": "Collapse app genres",
-        "description": "Collapse detailed genres into the configured reporting vocabulary.",
+        "label": "Group app genres",
+        "description": "Group detailed app genres into the reporting groups you chose.",
         "phaseId": "add_context",
         "role": "enrich_annotate",
         "epistemicRole": "policy_applied",
@@ -2325,8 +2325,8 @@
       },
       {
         "id": "reconstruct.derive_engagement_basis",
-        "label": "Derive engagement evidence",
-        "description": "Build threshold-independent engagement transitions and gaps.",
+        "label": "Measure switches and gaps",
+        "description": "Measure the switches and gaps between uses, before any engagement setting applies.",
         "phaseId": "reconstruct_activity",
         "role": "reconstruct_infer",
         "epistemicRole": "derived",
@@ -2363,8 +2363,8 @@
       },
       {
         "id": "policy.classify_engagement",
-        "label": "Classify engagement",
-        "description": "Apply engagement-duration policy to the reusable evidence.",
+        "label": "Label engagement",
+        "description": "Apply your engagement-length setting.",
         "phaseId": "apply_measurement_rules",
         "role": "apply_measurement_policy",
         "epistemicRole": "policy_applied",
@@ -2407,8 +2407,8 @@
       },
       {
         "id": "policy.flag_long_usage",
-        "label": "Flag long usage",
-        "description": "Apply long-usage thresholds.",
+        "label": "Flag long use",
+        "description": "Flag use longer than your long-use limit.",
         "phaseId": "apply_measurement_rules",
         "role": "apply_measurement_policy",
         "epistemicRole": "policy_applied",
@@ -2452,8 +2452,8 @@
       },
       {
         "id": "policy.flag_long_gaps",
-        "label": "Flag long data gaps",
-        "description": "Apply long-gap thresholds.",
+        "label": "Flag long gaps in the data",
+        "description": "Flag gaps in the data longer than your limit.",
         "phaseId": "apply_measurement_rules",
         "role": "apply_measurement_policy",
         "epistemicRole": "policy_applied",
@@ -2497,8 +2497,8 @@
       },
       {
         "id": "policy.suppress_excluded_timing",
-        "label": "Suppress excluded timing",
-        "description": "Apply the selected interval-quality policy: blank timing values excluded from measurement, or trim, flag and log implausible intervals and collapse same-app rows that are one usage.",
+        "label": "Handle doubtful times",
+        "description": "Apply your setting for doubtful times: blank times left out of totals, or trim, flag and log impossible ones and merge same-app rows that are one use.",
         "phaseId": "apply_measurement_rules",
         "role": "apply_measurement_policy",
         "epistemicRole": "policy_applied",
@@ -2544,8 +2544,8 @@
       },
       {
         "id": "policy.remove_selected_interaction_types",
-        "label": "Remove selected interaction types",
-        "description": "Remove rows selected by interaction-type policy while preserving gap exceptions.",
+        "label": "Remove chosen event types",
+        "description": "Remove rows of the event types you chose, keeping the ones the gap rules need.",
         "phaseId": "apply_measurement_rules",
         "role": "apply_measurement_policy",
         "epistemicRole": "policy_applied",
@@ -2598,8 +2598,8 @@
       },
       {
         "id": "quality.remove_zero_duration_rows",
-        "label": "Remove zero-duration rows",
-        "description": "Remove rows with a zero measured duration when enabled.",
+        "label": "Remove zero-length rows",
+        "description": "Remove rows with a length of zero, if you turned this on.",
         "phaseId": "apply_measurement_rules",
         "role": "standardize_repair",
         "epistemicRole": "policy_applied",
@@ -2641,8 +2641,8 @@
       },
       {
         "id": "policy.assign_usage_session_ids",
-        "label": "Number usage sessions",
-        "description": "Number consecutive episodes into usage sessions under the selected published gap definition.",
+        "label": "Number sessions",
+        "description": "Group back-to-back episodes into numbered sessions, using the published gap rule you chose.",
         "phaseId": "apply_measurement_rules",
         "role": "apply_measurement_policy",
         "epistemicRole": "policy_applied",
@@ -2700,8 +2700,8 @@
       },
       {
         "id": "credit.identify_eligible_sessions",
-        "label": "Identify credit-eligible sessions",
-        "description": "Partition reconstructed sessions by credit eligibility.",
+        "label": "Find sessions that can be credited",
+        "description": "Split sessions into those that can and cannot be checked against screen-on time.",
         "phaseId": "apply_measurement_rules",
         "role": "apply_measurement_policy",
         "epistemicRole": "policy_applied",
@@ -2753,8 +2753,8 @@
       },
       {
         "id": "evidence.index_device_activity",
-        "label": "Index device activity",
-        "description": "Build device-activity witness intervals.",
+        "label": "Find when the device was active",
+        "description": "Collect the times the device showed any activity.",
         "phaseId": "reconstruct_activity",
         "role": "reconstruct_infer",
         "epistemicRole": "derived",
@@ -2806,8 +2806,8 @@
       },
       {
         "id": "evidence.index_reboots",
-        "label": "Index device reboots",
-        "description": "Build reboot evidence used by liveness rules.",
+        "label": "Find device restarts",
+        "description": "Collect device restarts, used to tell whether the device was on.",
         "phaseId": "reconstruct_activity",
         "role": "reconstruct_infer",
         "epistemicRole": "derived",
@@ -2859,8 +2859,8 @@
       },
       {
         "id": "evidence.index_screen_witnesses",
-        "label": "Index screen witnesses",
-        "description": "Build screen evidence used by credit rules.",
+        "label": "Find screen-on records",
+        "description": "Collect the records that show the screen was on.",
         "phaseId": "reconstruct_activity",
         "role": "reconstruct_infer",
         "epistemicRole": "derived",
@@ -2912,8 +2912,8 @@
       },
       {
         "id": "assessment.report_screen_evidence_capability",
-        "label": "Assess screen evidence capability",
-        "description": "Report participants for whom screen evidence can support crediting.",
+        "label": "Check screen records per participant",
+        "description": "Report which participants have enough screen records to credit app time.",
         "phaseId": "assess_coverage",
         "role": "analyze_assess",
         "epistemicRole": "derived",
@@ -2967,8 +2967,8 @@
       },
       {
         "id": "evidence.summarize_daily_apps",
-        "label": "Summarize daily apps",
-        "description": "Report daily app evidence consumed by credit policy.",
+        "label": "List apps per day",
+        "description": "List each day's apps for the crediting steps.",
         "phaseId": "assess_coverage",
         "role": "analyze_assess",
         "epistemicRole": "derived",
@@ -3019,8 +3019,8 @@
       },
       {
         "id": "credit.cap_candidate_intervals",
-        "label": "Cap candidate intervals",
-        "description": "Apply session caps before evidence intersection.",
+        "label": "Apply the session cap",
+        "description": "Shorten sessions to your cap before they are checked against the screen.",
         "phaseId": "apply_measurement_rules",
         "role": "apply_measurement_policy",
         "epistemicRole": "policy_applied",
@@ -3081,8 +3081,8 @@
       },
       {
         "id": "credit.derive_device_live_spans",
-        "label": "Derive device-live spans",
-        "description": "Derive intervals supported by activity and reboot evidence.",
+        "label": "Find when the device was on",
+        "description": "Work out when the device was on, from activity and restarts.",
         "phaseId": "reconstruct_activity",
         "role": "reconstruct_infer",
         "epistemicRole": "inferred",
@@ -3138,8 +3138,8 @@
       },
       {
         "id": "credit.derive_screen_creditable_spans",
-        "label": "Derive screen-creditable spans",
-        "description": "Derive intervals supported by screen evidence.",
+        "label": "Find when the screen was on",
+        "description": "Work out when the screen was on, from the screen records.",
         "phaseId": "reconstruct_activity",
         "role": "reconstruct_infer",
         "epistemicRole": "inferred",
@@ -3200,8 +3200,8 @@
       },
       {
         "id": "credit.intersect_evidence",
-        "label": "Intersect credit evidence",
-        "description": "Intersect candidate intervals with available witness evidence.",
+        "label": "Keep app time while the screen was on",
+        "description": "Keep only the parts of each session when the device and screen were on.",
         "phaseId": "apply_measurement_rules",
         "role": "apply_measurement_policy",
         "epistemicRole": "policy_applied",
@@ -3258,8 +3258,8 @@
       },
       {
         "id": "credit.apply_no_witness_fallback",
-        "label": "Apply no-witness fallback",
-        "description": "Apply the declared fallback for missing or incapable screen evidence.",
+        "label": "Handle sessions with no screen record",
+        "description": "Apply your setting for sessions with no screen record, or for participants whose screen records can't be used.",
         "phaseId": "apply_measurement_rules",
         "role": "apply_measurement_policy",
         "epistemicRole": "policy_applied",
@@ -3316,8 +3316,8 @@
       },
       {
         "id": "credit.materialize_credited_rows",
-        "label": "Materialize credited rows",
-        "description": "Emit scientific credited intervals separately from lineage-search evidence.",
+        "label": "Make the credited rows",
+        "description": "Build the credited app time rows.",
         "phaseId": "apply_measurement_rules",
         "role": "reconstruct_infer",
         "epistemicRole": "derived",
@@ -3376,8 +3376,8 @@
       },
       {
         "id": "credit.publish_credit_result",
-        "label": "Assemble credit outputs",
-        "description": "Expose credited rows, metrics, and capability evidence through typed ports.",
+        "label": "Collect the credited results",
+        "description": "Gather the credited rows, totals and screen-record report for the output files.",
         "phaseId": "create_deliverables",
         "role": "publish_encode",
         "epistemicRole": "encoded",
@@ -3430,8 +3430,8 @@
       },
       {
         "id": "study.resolve_participant_windows",
-        "label": "Resolve participant windows",
-        "description": "Resolve participant-specific observation windows.",
+        "label": "Find each participant's study dates",
+        "description": "Work out each participant's start and end dates.",
         "phaseId": "add_context",
         "role": "enrich_annotate",
         "epistemicRole": "policy_applied",
@@ -3491,8 +3491,8 @@
       },
       {
         "id": "study.apply_participant_windows",
-        "label": "Apply participant windows",
-        "description": "Retain rows inside each participant observation window.",
+        "label": "Keep rows inside the study dates",
+        "description": "Keep only the rows between each participant's start and end dates.",
         "phaseId": "apply_measurement_rules",
         "role": "apply_measurement_policy",
         "epistemicRole": "policy_applied",
@@ -3559,8 +3559,8 @@
       },
       {
         "id": "study.resolve_sharing_status",
-        "label": "Resolve device sharing",
-        "description": "Resolve device-sharing evidence for person attribution.",
+        "label": "Read device sharing",
+        "description": "Read which devices are shared, to work out who was using them.",
         "phaseId": "add_context",
         "role": "enrich_annotate",
         "epistemicRole": "derived",
@@ -3603,8 +3603,8 @@
       },
       {
         "id": "study.index_survey_responses",
-        "label": "Index survey responses",
-        "description": "Build optional survey evidence for person attribution.",
+        "label": "Read survey answers",
+        "description": "Read the optional survey answers about who used the device.",
         "phaseId": "add_context",
         "role": "enrich_annotate",
         "epistemicRole": "observed",
@@ -3646,8 +3646,8 @@
       },
       {
         "id": "context.infer_default_person",
-        "label": "Infer the default person",
-        "description": "Apply the built-in default and kids-shell attribution rules.",
+        "label": "Assume the usual user",
+        "description": "Apply the built-in rules for who was using the device, including kids' launcher apps.",
         "phaseId": "add_context",
         "role": "reconstruct_infer",
         "epistemicRole": "inferred",
@@ -3686,8 +3686,8 @@
       },
       {
         "id": "context.apply_survey_person_override",
-        "label": "Apply survey attribution",
-        "description": "Override default attribution where survey evidence applies.",
+        "label": "Use survey answers",
+        "description": "Use survey answers in place of the usual user where they apply.",
         "phaseId": "add_context",
         "role": "enrich_annotate",
         "epistemicRole": "policy_applied",
@@ -3724,8 +3724,8 @@
       },
       {
         "id": "context.classify_person_attribution",
-        "label": "Classify person attribution",
-        "description": "Classify activity as target, non-target, or unresolved.",
+        "label": "Label who was using the device",
+        "description": "Label each use as the target person, someone else, or unknown.",
         "phaseId": "add_context",
         "role": "enrich_annotate",
         "epistemicRole": "inferred",
@@ -3807,8 +3807,8 @@
       },
       {
         "id": "assessment.synthesize_placeholder_rows",
-        "label": "Add missing-day placeholders",
-        "description": "Create explicitly synthetic rows for missing participant days.",
+        "label": "Add rows for days with no app use",
+        "description": "Add clearly marked zero-length filler rows for participant days that have raw events but no app use.",
         "phaseId": "assess_coverage",
         "role": "analyze_assess",
         "epistemicRole": "synthetic",
@@ -3868,8 +3868,8 @@
       },
       {
         "id": "evidence.index_raw_dates",
-        "label": "Index observed dates",
-        "description": "Index pre-window source dates used by coverage and placeholders.",
+        "label": "List dates with data",
+        "description": "List the dates with data, including dates before the study start, for the coverage and filler steps.",
         "phaseId": "assess_coverage",
         "role": "analyze_assess",
         "epistemicRole": "observed",
@@ -3917,8 +3917,8 @@
       },
       {
         "id": "assessment.build_participant_day_spine",
-        "label": "Build the participant-day spine",
-        "description": "Create the participant-day domain used for coverage.",
+        "label": "List every participant day",
+        "description": "List every day for each participant, for checking coverage.",
         "phaseId": "assess_coverage",
         "role": "analyze_assess",
         "epistemicRole": "derived",
@@ -3971,8 +3971,8 @@
       },
       {
         "id": "assessment.classify_days",
-        "label": "Classify participant days",
-        "description": "Classify observed, missing, and placeholder days.",
+        "label": "Label each day",
+        "description": "Label each day as having data, missing, or a filler day.",
         "phaseId": "assess_coverage",
         "role": "analyze_assess",
         "epistemicRole": "derived",
@@ -4023,8 +4023,8 @@
       },
       {
         "id": "assessment.summarize_coverage",
-        "label": "Summarize study coverage",
-        "description": "Produce the coverage table and its encoding inputs.",
+        "label": "Make the coverage table",
+        "description": "Build the coverage table.",
         "phaseId": "assess_coverage",
         "role": "analyze_assess",
         "epistemicRole": "derived",
@@ -4075,8 +4075,8 @@
       },
       {
         "id": "assessment.aggregate_attribution_minutes",
-        "label": "Aggregate attributed minutes",
-        "description": "Build threshold-independent participant-day attribution totals.",
+        "label": "Total minutes per day",
+        "description": "Add up each participant's minutes per day by who was using the device, before any threshold applies.",
         "phaseId": "assess_coverage",
         "role": "analyze_assess",
         "epistemicRole": "derived",
@@ -4127,8 +4127,8 @@
       },
       {
         "id": "assessment.compute_completeness",
-        "label": "Compute completeness",
-        "description": "Compute threshold-independent completeness percentages and zero-use evidence.",
+        "label": "Work out how much use has a known user",
+        "description": "Work out the percent of each day's app-use minutes assigned to a known user, and which days had no use.",
         "phaseId": "assess_coverage",
         "role": "analyze_assess",
         "epistemicRole": "derived",
@@ -4182,8 +4182,8 @@
       },
       {
         "id": "policy.apply_compliance_threshold",
-        "label": "Apply the compliance threshold",
-        "description": "Classify participant days using the configured threshold.",
+        "label": "Mark valid days",
+        "description": "Mark each day as meeting your threshold or not.",
         "phaseId": "assess_coverage",
         "role": "apply_measurement_policy",
         "epistemicRole": "policy_applied",
@@ -4240,8 +4240,8 @@
       },
       {
         "id": "publish.project_app_table",
-        "label": "Build the app table",
-        "description": "Project the scientific app-usage table.",
+        "label": "Build the app usage table",
+        "description": "Build the app usage table.",
         "phaseId": "create_deliverables",
         "role": "publish_encode",
         "epistemicRole": "encoded",
@@ -4348,8 +4348,8 @@
       },
       {
         "id": "publish.project_screen_table",
-        "label": "Build the screen table",
-        "description": "Project the scientific screen-session table.",
+        "label": "Build the screen session table",
+        "description": "Build the screen session table.",
         "phaseId": "create_deliverables",
         "role": "publish_encode",
         "epistemicRole": "encoded",
@@ -4426,8 +4426,8 @@
       },
       {
         "id": "publish.project_credited_table",
-        "label": "Build the credited table",
-        "description": "Project the scientific credited-usage table.",
+        "label": "Build the credited usage table",
+        "description": "Build the credited app usage table.",
         "phaseId": "create_deliverables",
         "role": "publish_encode",
         "epistemicRole": "encoded",
@@ -4524,8 +4524,8 @@
       },
       {
         "id": "publish.build_aggregate_tables",
-        "label": "Build aggregate tables",
-        "description": "Build daily, weekly, category, top-app, and co-usage aggregates.",
+        "label": "Build summary tables",
+        "description": "Build the daily, weekly, category, top-app and apps-used-together tables.",
         "phaseId": "create_deliverables",
         "role": "publish_encode",
         "epistemicRole": "encoded",
@@ -4594,8 +4594,8 @@
       },
       {
         "id": "publish.build_participant_amount_summary",
-        "label": "Build the participant amount summary",
-        "description": "One row per participant: tracked days, daily amount of use, its sample-winsorized variant, and a Huber M column.",
+        "label": "Build the participant summary",
+        "description": "One row per participant: days tracked, average daily use, the same average with extreme days pulled in (winsorized), and a robust (Huber) average.",
         "phaseId": "create_deliverables",
         "role": "publish_encode",
         "epistemicRole": "encoded",
@@ -4741,8 +4741,8 @@
       },
       {
         "id": "publish.encode_selected_formats",
-        "label": "Encode selected formats",
-        "description": "Encode only the requested CSV, Parquet, and SPSS deliverables.",
+        "label": "Write your chosen file types",
+        "description": "Write only the CSV, Parquet and SPSS files you asked for.",
         "phaseId": "create_deliverables",
         "role": "publish_encode",
         "epistemicRole": "encoded",
@@ -4789,8 +4789,8 @@
       },
       {
         "id": "publish.build_review_data",
-        "label": "Build review data",
-        "description": "Build the participant and session review projection.",
+        "label": "Prepare the View tab",
+        "description": "Prepare the participant and session data shown in the View tab.",
         "phaseId": "create_deliverables",
         "role": "publish_encode",
         "epistemicRole": "encoded",
@@ -4820,8 +4820,8 @@
       },
       {
         "id": "publish.build_visualization_data",
-        "label": "Build visualization data",
-        "description": "Build timeline, plot, and heatmap data without owning scientific semantics.",
+        "label": "Prepare the plots",
+        "description": "Prepare the timeline, plot and heatmap data.",
         "phaseId": "create_deliverables",
         "role": "publish_encode",
         "epistemicRole": "encoded",
@@ -4859,8 +4859,8 @@
       },
       {
         "id": "publish.emit_lineage",
-        "label": "Emit result lineage",
-        "description": "Emit row, source-coordinate, and result-cell correspondence evidence.",
+        "label": "Write the row audit file",
+        "description": "Record which input rows and cells each result came from.",
         "phaseId": "create_deliverables",
         "role": "publish_encode",
         "epistemicRole": "encoded",
@@ -4891,8 +4891,8 @@
       },
       {
         "id": "publish.emit_provenance",
-        "label": "Emit workflow provenance",
-        "description": "Emit configuration, influence, contract, and execution evidence.",
+        "label": "Write the run record",
+        "description": "Record the settings, what affected what, and which steps ran.",
         "phaseId": "create_deliverables",
         "role": "publish_encode",
         "epistemicRole": "encoded",
@@ -4922,8 +4922,8 @@
       },
       {
         "id": "publish.commit_workspace_bundle",
-        "label": "Commit the workspace bundle",
-        "description": "Commit the typed result manifest and all selected deliverables.",
+        "label": "Save the results",
+        "description": "Save the list of results and every file you chose.",
         "phaseId": "create_deliverables",
         "role": "publish_encode",
         "epistemicRole": "encoded",
@@ -4969,7 +4969,7 @@
     "artifacts": [
       {
         "id": "artifact.assessment.aggregate_attribution_minutes",
-        "label": "Aggregate attributed minutes output",
+        "label": "Total minutes per day output",
         "kind": "evidence",
         "schemaId": "urn:chronicle:artifact-schema:assessment.aggregate_attribution_minutes",
         "producerOperationId": "assessment.aggregate_attribution_minutes",
@@ -4989,7 +4989,7 @@
       },
       {
         "id": "artifact.assessment.build_participant_day_spine",
-        "label": "Build the participant-day spine output",
+        "label": "List every participant day output",
         "kind": "table",
         "schemaId": "urn:chronicle:artifact-schema:assessment.build_participant_day_spine",
         "producerOperationId": "assessment.build_participant_day_spine",
@@ -5009,7 +5009,7 @@
       },
       {
         "id": "artifact.assessment.classify_days",
-        "label": "Classify participant days output",
+        "label": "Label each day output",
         "kind": "table",
         "schemaId": "urn:chronicle:artifact-schema:assessment.classify_days",
         "producerOperationId": "assessment.classify_days",
@@ -5029,7 +5029,7 @@
       },
       {
         "id": "artifact.assessment.compute_completeness",
-        "label": "Compute completeness output",
+        "label": "Work out how much use has a known user output",
         "kind": "evidence",
         "schemaId": "urn:chronicle:artifact-schema:assessment.compute_completeness",
         "producerOperationId": "assessment.compute_completeness",
@@ -5069,7 +5069,7 @@
       },
       {
         "id": "artifact.assessment.report_screen_evidence_capability",
-        "label": "Assess screen evidence capability output",
+        "label": "Check screen records per participant output",
         "kind": "evidence",
         "schemaId": "urn:chronicle:artifact-schema:assessment.report_screen_evidence_capability",
         "producerOperationId": "assessment.report_screen_evidence_capability",
@@ -5089,7 +5089,7 @@
       },
       {
         "id": "artifact.assessment.summarize_coverage",
-        "label": "Summarize study coverage output",
+        "label": "Make the coverage table output",
         "kind": "table",
         "schemaId": "urn:chronicle:artifact-schema:assessment.summarize_coverage",
         "producerOperationId": "assessment.summarize_coverage",
@@ -5109,7 +5109,7 @@
       },
       {
         "id": "artifact.assessment.synthesize_placeholder_rows",
-        "label": "Add missing-day placeholders output",
+        "label": "Add rows for days with no app use output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:assessment.synthesize_placeholder_rows",
         "producerOperationId": "assessment.synthesize_placeholder_rows",
@@ -5131,7 +5131,7 @@
       },
       {
         "id": "artifact.context.apply_survey_person_override",
-        "label": "Apply survey attribution output",
+        "label": "Use survey answers output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:context.apply_survey_person_override",
         "producerOperationId": "context.apply_survey_person_override",
@@ -5153,7 +5153,7 @@
       },
       {
         "id": "artifact.context.classify_person_attribution",
-        "label": "Classify person attribution output",
+        "label": "Label who was using the device output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:context.classify_person_attribution",
         "producerOperationId": "context.classify_person_attribution",
@@ -5174,7 +5174,7 @@
       },
       {
         "id": "artifact.context.collapse_app_genre",
-        "label": "Collapse app genres output",
+        "label": "Group app genres output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:context.collapse_app_genre",
         "producerOperationId": "context.collapse_app_genre",
@@ -5194,7 +5194,7 @@
       },
       {
         "id": "artifact.context.derive_broad_category",
-        "label": "Derive broad app categories output",
+        "label": "Add app categories output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:context.derive_broad_category",
         "producerOperationId": "context.derive_broad_category",
@@ -5214,7 +5214,7 @@
       },
       {
         "id": "artifact.context.infer_default_person",
-        "label": "Infer the default person output",
+        "label": "Assume the usual user output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:context.infer_default_person",
         "producerOperationId": "context.infer_default_person",
@@ -5236,7 +5236,7 @@
       },
       {
         "id": "artifact.context.join_app_codebook",
-        "label": "Join the app codebook output",
+        "label": "Add app details output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:context.join_app_codebook",
         "producerOperationId": "context.join_app_codebook",
@@ -5256,7 +5256,7 @@
       },
       {
         "id": "artifact.credit.apply_no_witness_fallback",
-        "label": "Apply no-witness fallback output",
+        "label": "Handle sessions with no screen record output",
         "kind": "intervals",
         "schemaId": "urn:chronicle:artifact-schema:credit.apply_no_witness_fallback",
         "producerOperationId": "credit.apply_no_witness_fallback",
@@ -5277,7 +5277,7 @@
       },
       {
         "id": "artifact.credit.cap_candidate_intervals",
-        "label": "Cap candidate intervals output",
+        "label": "Apply the session cap output",
         "kind": "intervals",
         "schemaId": "urn:chronicle:artifact-schema:credit.cap_candidate_intervals",
         "producerOperationId": "credit.cap_candidate_intervals",
@@ -5299,7 +5299,7 @@
       },
       {
         "id": "artifact.credit.derive_device_live_spans",
-        "label": "Derive device-live spans output",
+        "label": "Find when the device was on output",
         "kind": "intervals",
         "schemaId": "urn:chronicle:artifact-schema:credit.derive_device_live_spans",
         "producerOperationId": "credit.derive_device_live_spans",
@@ -5320,7 +5320,7 @@
       },
       {
         "id": "artifact.credit.derive_screen_creditable_spans",
-        "label": "Derive screen-creditable spans output",
+        "label": "Find when the screen was on output",
         "kind": "intervals",
         "schemaId": "urn:chronicle:artifact-schema:credit.derive_screen_creditable_spans",
         "producerOperationId": "credit.derive_screen_creditable_spans",
@@ -5341,7 +5341,7 @@
       },
       {
         "id": "artifact.credit.identify_eligible_sessions",
-        "label": "Identify credit-eligible sessions output",
+        "label": "Find sessions that can be credited output",
         "kind": "intervals",
         "schemaId": "urn:chronicle:artifact-schema:credit.identify_eligible_sessions",
         "producerOperationId": "credit.identify_eligible_sessions",
@@ -5366,7 +5366,7 @@
       },
       {
         "id": "artifact.credit.intersect_evidence",
-        "label": "Intersect credit evidence output",
+        "label": "Keep app time while the screen was on output",
         "kind": "intervals",
         "schemaId": "urn:chronicle:artifact-schema:credit.intersect_evidence",
         "producerOperationId": "credit.intersect_evidence",
@@ -5388,7 +5388,7 @@
       },
       {
         "id": "artifact.credit.materialize_credited_rows",
-        "label": "Materialize credited rows output",
+        "label": "Make the credited rows output",
         "kind": "intervals",
         "schemaId": "urn:chronicle:artifact-schema:credit.materialize_credited_rows",
         "producerOperationId": "credit.materialize_credited_rows",
@@ -5408,7 +5408,7 @@
       },
       {
         "id": "artifact.credit.publish_credit_result",
-        "label": "Assemble credit outputs output",
+        "label": "Collect the credited results output",
         "kind": "table",
         "schemaId": "urn:chronicle:artifact-schema:credit.publish_credit_result",
         "producerOperationId": "credit.publish_credit_result",
@@ -5428,7 +5428,7 @@
       },
       {
         "id": "artifact.evidence.collect_timezone_observations",
-        "label": "Collect timezone observations output",
+        "label": "List the time zones seen output",
         "kind": "evidence",
         "schemaId": "urn:chronicle:artifact-schema:evidence.collect_timezone_observations",
         "producerOperationId": "evidence.collect_timezone_observations",
@@ -5447,7 +5447,7 @@
       },
       {
         "id": "artifact.evidence.derive_screen_session_features",
-        "label": "Derive screen-session evidence output",
+        "label": "Describe each screen session output",
         "kind": "intervals",
         "schemaId": "urn:chronicle:artifact-schema:evidence.derive_screen_session_features",
         "producerOperationId": "evidence.derive_screen_session_features",
@@ -5470,7 +5470,7 @@
       },
       {
         "id": "artifact.evidence.derive_time_gaps",
-        "label": "Derive timeline gaps output",
+        "label": "Measure gaps between events output",
         "kind": "evidence",
         "schemaId": "urn:chronicle:artifact-schema:evidence.derive_time_gaps",
         "producerOperationId": "evidence.derive_time_gaps",
@@ -5495,7 +5495,7 @@
       },
       {
         "id": "artifact.evidence.estimate_dominant_timezone",
-        "label": "Estimate the dominant timezone output",
+        "label": "Find the main time zone output",
         "kind": "evidence",
         "schemaId": "urn:chronicle:artifact-schema:evidence.estimate_dominant_timezone",
         "producerOperationId": "evidence.estimate_dominant_timezone",
@@ -5515,7 +5515,7 @@
       },
       {
         "id": "artifact.evidence.index_device_activity",
-        "label": "Index device activity output",
+        "label": "Find when the device was active output",
         "kind": "index",
         "schemaId": "urn:chronicle:artifact-schema:evidence.index_device_activity",
         "producerOperationId": "evidence.index_device_activity",
@@ -5537,7 +5537,7 @@
       },
       {
         "id": "artifact.evidence.index_keyguard_events",
-        "label": "Index keyguard events output",
+        "label": "Find lock-screen events output",
         "kind": "index",
         "schemaId": "urn:chronicle:artifact-schema:evidence.index_keyguard_events",
         "producerOperationId": "evidence.index_keyguard_events",
@@ -5557,7 +5557,7 @@
       },
       {
         "id": "artifact.evidence.index_raw_dates",
-        "label": "Index observed dates output",
+        "label": "List dates with data output",
         "kind": "index",
         "schemaId": "urn:chronicle:artifact-schema:evidence.index_raw_dates",
         "producerOperationId": "evidence.index_raw_dates",
@@ -5577,7 +5577,7 @@
       },
       {
         "id": "artifact.evidence.index_reboots",
-        "label": "Index device reboots output",
+        "label": "Find device restarts output",
         "kind": "index",
         "schemaId": "urn:chronicle:artifact-schema:evidence.index_reboots",
         "producerOperationId": "evidence.index_reboots",
@@ -5599,7 +5599,7 @@
       },
       {
         "id": "artifact.evidence.index_screen_witnesses",
-        "label": "Index screen witnesses output",
+        "label": "Find screen-on records output",
         "kind": "index",
         "schemaId": "urn:chronicle:artifact-schema:evidence.index_screen_witnesses",
         "producerOperationId": "evidence.index_screen_witnesses",
@@ -5621,7 +5621,7 @@
       },
       {
         "id": "artifact.evidence.summarize_daily_apps",
-        "label": "Summarize daily apps output",
+        "label": "List apps per day output",
         "kind": "evidence",
         "schemaId": "urn:chronicle:artifact-schema:evidence.summarize_daily_apps",
         "producerOperationId": "evidence.summarize_daily_apps",
@@ -5641,7 +5641,7 @@
       },
       {
         "id": "artifact.evidence.summarize_device_models",
-        "label": "Summarize device models output",
+        "label": "Find the device model output",
         "kind": "evidence",
         "schemaId": "urn:chronicle:artifact-schema:evidence.summarize_device_models",
         "producerOperationId": "evidence.summarize_device_models",
@@ -5662,7 +5662,7 @@
       },
       {
         "id": "artifact.evidence.summarize_duplicate_groups",
-        "label": "Summarize duplicate groups output",
+        "label": "Count repeated events output",
         "kind": "evidence",
         "schemaId": "urn:chronicle:artifact-schema:evidence.summarize_duplicate_groups",
         "producerOperationId": "evidence.summarize_duplicate_groups",
@@ -5681,7 +5681,7 @@
       },
       {
         "id": "artifact.evidence.summarize_row_selection",
-        "label": "Summarize row selection output",
+        "label": "Count rows kept output",
         "kind": "evidence",
         "schemaId": "urn:chronicle:artifact-schema:evidence.summarize_row_selection",
         "producerOperationId": "evidence.summarize_row_selection",
@@ -5700,7 +5700,7 @@
       },
       {
         "id": "artifact.identity.normalize_usernames",
-        "label": "Normalize participant usernames output",
+        "label": "Tidy participant names output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:identity.normalize_usernames",
         "producerOperationId": "identity.normalize_usernames",
@@ -5721,7 +5721,7 @@
       },
       {
         "id": "artifact.interaction.normalize_names",
-        "label": "Normalize interaction names output",
+        "label": "Rename event types output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:interaction.normalize_names",
         "producerOperationId": "interaction.normalize_names",
@@ -5742,7 +5742,7 @@
       },
       {
         "id": "artifact.policy.apply_app_inclusion",
-        "label": "Apply app inclusion policy output",
+        "label": "Leave out filtered apps output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:policy.apply_app_inclusion",
         "producerOperationId": "policy.apply_app_inclusion",
@@ -5763,7 +5763,7 @@
       },
       {
         "id": "artifact.policy.apply_compliance_threshold",
-        "label": "Apply the compliance threshold output",
+        "label": "Mark valid days output",
         "kind": "table",
         "schemaId": "urn:chronicle:artifact-schema:policy.apply_compliance_threshold",
         "producerOperationId": "policy.apply_compliance_threshold",
@@ -5784,7 +5784,7 @@
       },
       {
         "id": "artifact.policy.apply_concurrent_segment_floor",
-        "label": "Apply the concurrent-segment floor output",
+        "label": "Handle short overlap pieces output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:policy.apply_concurrent_segment_floor",
         "producerOperationId": "policy.apply_concurrent_segment_floor",
@@ -5805,7 +5805,7 @@
       },
       {
         "id": "artifact.policy.apply_maximum_duration",
-        "label": "Apply maximum-duration policy output",
+        "label": "Handle long app episodes output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:policy.apply_maximum_duration",
         "producerOperationId": "policy.apply_maximum_duration",
@@ -5826,7 +5826,7 @@
       },
       {
         "id": "artifact.policy.assign_usage_session_ids",
-        "label": "Number usage sessions output",
+        "label": "Number sessions output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:policy.assign_usage_session_ids",
         "producerOperationId": "policy.assign_usage_session_ids",
@@ -5849,7 +5849,7 @@
       },
       {
         "id": "artifact.policy.classify_engagement",
-        "label": "Classify engagement output",
+        "label": "Label engagement output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:policy.classify_engagement",
         "producerOperationId": "policy.classify_engagement",
@@ -5871,7 +5871,7 @@
       },
       {
         "id": "artifact.policy.classify_screen_end_reasons",
-        "label": "Classify screen-session endings output",
+        "label": "Decide where each screen session ended output",
         "kind": "intervals",
         "schemaId": "urn:chronicle:artifact-schema:policy.classify_screen_end_reasons",
         "producerOperationId": "policy.classify_screen_end_reasons",
@@ -5895,7 +5895,7 @@
       },
       {
         "id": "artifact.policy.flag_long_gaps",
-        "label": "Flag long data gaps output",
+        "label": "Flag long gaps in the data output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:policy.flag_long_gaps",
         "producerOperationId": "policy.flag_long_gaps",
@@ -5916,7 +5916,7 @@
       },
       {
         "id": "artifact.policy.flag_long_usage",
-        "label": "Flag long usage output",
+        "label": "Flag long use output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:policy.flag_long_usage",
         "producerOperationId": "policy.flag_long_usage",
@@ -5937,7 +5937,7 @@
       },
       {
         "id": "artifact.policy.mask_excluded_app_events",
-        "label": "Mask excluded app events output",
+        "label": "Mark events from left-out apps output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:policy.mask_excluded_app_events",
         "producerOperationId": "policy.mask_excluded_app_events",
@@ -5960,7 +5960,7 @@
       },
       {
         "id": "artifact.policy.match_app_exclusion_rows",
-        "label": "Match app-exclusion rows output",
+        "label": "Find apps to leave out output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:policy.match_app_exclusion_rows",
         "producerOperationId": "policy.match_app_exclusion_rows",
@@ -5986,7 +5986,7 @@
       },
       {
         "id": "artifact.policy.remove_selected_interaction_types",
-        "label": "Remove selected interaction types output",
+        "label": "Remove chosen event types output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:policy.remove_selected_interaction_types",
         "producerOperationId": "policy.remove_selected_interaction_types",
@@ -6007,7 +6007,7 @@
       },
       {
         "id": "artifact.policy.resolve_effective_app_exclusions",
-        "label": "Resolve excluded app packages output",
+        "label": "List the apps to leave out output",
         "kind": "metric",
         "schemaId": "urn:chronicle:artifact-schema:policy.resolve_effective_app_exclusions",
         "producerOperationId": "policy.resolve_effective_app_exclusions",
@@ -6032,7 +6032,7 @@
       },
       {
         "id": "artifact.policy.resolve_matcher_masks",
-        "label": "Resolve matcher masks output",
+        "label": "Choose which events can end an app episode output",
         "kind": "index",
         "schemaId": "urn:chronicle:artifact-schema:policy.resolve_matcher_masks",
         "producerOperationId": "policy.resolve_matcher_masks",
@@ -6054,7 +6054,7 @@
       },
       {
         "id": "artifact.policy.resolve_timezone_strategy",
-        "label": "Resolve timezone policy output",
+        "label": "Apply your time-zone setting output",
         "kind": "metric",
         "schemaId": "urn:chronicle:artifact-schema:policy.resolve_timezone_strategy",
         "producerOperationId": "policy.resolve_timezone_strategy",
@@ -6077,7 +6077,7 @@
       },
       {
         "id": "artifact.policy.suppress_excluded_timing",
-        "label": "Suppress excluded timing output",
+        "label": "Handle doubtful times output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:policy.suppress_excluded_timing",
         "producerOperationId": "policy.suppress_excluded_timing",
@@ -6098,7 +6098,7 @@
       },
       {
         "id": "artifact.policy.suppress_short_durations",
-        "label": "Apply minimum-duration disposition output",
+        "label": "Handle short app episodes output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:policy.suppress_short_durations",
         "producerOperationId": "policy.suppress_short_durations",
@@ -6120,7 +6120,7 @@
       },
       {
         "id": "artifact.publish.build_aggregate_tables",
-        "label": "Build aggregate tables output",
+        "label": "Build summary tables output",
         "kind": "table",
         "schemaId": "urn:chronicle:artifact-schema:publish.build_aggregate_tables",
         "producerOperationId": "publish.build_aggregate_tables",
@@ -6140,7 +6140,7 @@
       },
       {
         "id": "artifact.publish.build_participant_amount_summary",
-        "label": "Build the participant amount summary output",
+        "label": "Build the participant summary output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:publish.build_participant_amount_summary",
         "producerOperationId": "publish.build_participant_amount_summary",
@@ -6157,7 +6157,7 @@
       },
       {
         "id": "artifact.publish.build_review_data",
-        "label": "Build review data output",
+        "label": "Prepare the View tab output",
         "kind": "table",
         "schemaId": "urn:chronicle:artifact-schema:publish.build_review_data",
         "producerOperationId": "publish.build_review_data",
@@ -6176,7 +6176,7 @@
       },
       {
         "id": "artifact.publish.build_visualization_data",
-        "label": "Build visualization data output",
+        "label": "Prepare the plots output",
         "kind": "table",
         "schemaId": "urn:chronicle:artifact-schema:publish.build_visualization_data",
         "producerOperationId": "publish.build_visualization_data",
@@ -6195,7 +6195,7 @@
       },
       {
         "id": "artifact.publish.commit_workspace_bundle",
-        "label": "Commit the workspace bundle output",
+        "label": "Save the results output",
         "kind": "manifest",
         "schemaId": "urn:chronicle:artifact-schema:publish.commit_workspace_bundle",
         "producerOperationId": "publish.commit_workspace_bundle",
@@ -6212,7 +6212,7 @@
       },
       {
         "id": "artifact.publish.emit_lineage",
-        "label": "Emit result lineage output",
+        "label": "Write the row audit file output",
         "kind": "evidence",
         "schemaId": "urn:chronicle:artifact-schema:publish.emit_lineage",
         "producerOperationId": "publish.emit_lineage",
@@ -6231,7 +6231,7 @@
       },
       {
         "id": "artifact.publish.emit_provenance",
-        "label": "Emit workflow provenance output",
+        "label": "Write the run record output",
         "kind": "evidence",
         "schemaId": "urn:chronicle:artifact-schema:publish.emit_provenance",
         "producerOperationId": "publish.emit_provenance",
@@ -6250,7 +6250,7 @@
       },
       {
         "id": "artifact.publish.encode_selected_formats",
-        "label": "Encode selected formats output",
+        "label": "Write your chosen file types output",
         "kind": "manifest",
         "schemaId": "urn:chronicle:artifact-schema:publish.encode_selected_formats",
         "producerOperationId": "publish.encode_selected_formats",
@@ -6269,7 +6269,7 @@
       },
       {
         "id": "artifact.publish.project_app_table",
-        "label": "Build the app table output",
+        "label": "Build the app usage table output",
         "kind": "table",
         "schemaId": "urn:chronicle:artifact-schema:publish.project_app_table",
         "producerOperationId": "publish.project_app_table",
@@ -6293,7 +6293,7 @@
       },
       {
         "id": "artifact.publish.project_credited_table",
-        "label": "Build the credited table output",
+        "label": "Build the credited usage table output",
         "kind": "table",
         "schemaId": "urn:chronicle:artifact-schema:publish.project_credited_table",
         "producerOperationId": "publish.project_credited_table",
@@ -6314,7 +6314,7 @@
       },
       {
         "id": "artifact.publish.project_screen_table",
-        "label": "Build the screen table output",
+        "label": "Build the screen session table output",
         "kind": "table",
         "schemaId": "urn:chronicle:artifact-schema:publish.project_screen_table",
         "producerOperationId": "publish.project_screen_table",
@@ -6338,7 +6338,7 @@
       },
       {
         "id": "artifact.quality.coalesce_duplicate_event_keys",
-        "label": "Coalesce duplicate event keys output",
+        "label": "Merge repeated events output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:quality.coalesce_duplicate_event_keys",
         "producerOperationId": "quality.coalesce_duplicate_event_keys",
@@ -6359,7 +6359,7 @@
       },
       {
         "id": "artifact.quality.disambiguate_duplicate_timestamps",
-        "label": "Disambiguate duplicate timestamps output",
+        "label": "Order events logged at the same time output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:quality.disambiguate_duplicate_timestamps",
         "producerOperationId": "quality.disambiguate_duplicate_timestamps",
@@ -6379,7 +6379,7 @@
       },
       {
         "id": "artifact.quality.remove_missing_timestamps",
-        "label": "Remove records without timestamps output",
+        "label": "Remove rows without a time output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:quality.remove_missing_timestamps",
         "producerOperationId": "quality.remove_missing_timestamps",
@@ -6400,7 +6400,7 @@
       },
       {
         "id": "artifact.quality.remove_zero_duration_rows",
-        "label": "Remove zero-duration rows output",
+        "label": "Remove zero-length rows output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:quality.remove_zero_duration_rows",
         "producerOperationId": "quality.remove_zero_duration_rows",
@@ -6420,7 +6420,7 @@
       },
       {
         "id": "artifact.quality.select_timezone_eligible_records",
-        "label": "Select timezone-eligible records output",
+        "label": "Keep rows your time-zone setting allows output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:quality.select_timezone_eligible_records",
         "producerOperationId": "quality.select_timezone_eligible_records",
@@ -6441,7 +6441,7 @@
       },
       {
         "id": "artifact.reconstruct.classify_app_episodes",
-        "label": "Classify reconstructed episodes output",
+        "label": "Label very short app episodes output",
         "kind": "intervals",
         "schemaId": "urn:chronicle:artifact-schema:reconstruct.classify_app_episodes",
         "producerOperationId": "reconstruct.classify_app_episodes",
@@ -6462,7 +6462,7 @@
       },
       {
         "id": "artifact.reconstruct.construct_screen_intervals",
-        "label": "Construct selected screen intervals output",
+        "label": "Build screen-on periods output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:reconstruct.construct_screen_intervals",
         "producerOperationId": "reconstruct.construct_screen_intervals",
@@ -6489,7 +6489,7 @@
       },
       {
         "id": "artifact.reconstruct.derive_engagement_basis",
-        "label": "Derive engagement evidence output",
+        "label": "Measure switches and gaps output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:reconstruct.derive_engagement_basis",
         "producerOperationId": "reconstruct.derive_engagement_basis",
@@ -6511,7 +6511,7 @@
       },
       {
         "id": "artifact.reconstruct.discard_structural_events",
-        "label": "Discard structural event rows output",
+        "label": "Drop helper rows output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:reconstruct.discard_structural_events",
         "producerOperationId": "reconstruct.discard_structural_events",
@@ -6532,7 +6532,7 @@
       },
       {
         "id": "artifact.reconstruct.index_app_events",
-        "label": "Index app events output",
+        "label": "Prepare app events for pairing output",
         "kind": "index",
         "schemaId": "urn:chronicle:artifact-schema:reconstruct.index_app_events",
         "producerOperationId": "reconstruct.index_app_events",
@@ -6552,7 +6552,7 @@
       },
       {
         "id": "artifact.reconstruct.infer_screen_session_skeletons",
-        "label": "Infer screen-session skeletons output",
+        "label": "Find possible screen sessions output",
         "kind": "intervals",
         "schemaId": "urn:chronicle:artifact-schema:reconstruct.infer_screen_session_skeletons",
         "producerOperationId": "reconstruct.infer_screen_session_skeletons",
@@ -6573,7 +6573,7 @@
       },
       {
         "id": "artifact.reconstruct.match_app_episodes",
-        "label": "Match app episodes output",
+        "label": "Pair app starts and stops output",
         "kind": "intervals",
         "schemaId": "urn:chronicle:artifact-schema:reconstruct.match_app_episodes",
         "producerOperationId": "reconstruct.match_app_episodes",
@@ -6594,7 +6594,7 @@
       },
       {
         "id": "artifact.reconstruct.materialize_candidate_episodes",
-        "label": "Materialize candidate episodes output",
+        "label": "Make the app episode list output",
         "kind": "intervals",
         "schemaId": "urn:chronicle:artifact-schema:reconstruct.materialize_candidate_episodes",
         "producerOperationId": "reconstruct.materialize_candidate_episodes",
@@ -6614,7 +6614,7 @@
       },
       {
         "id": "artifact.reconstruct.materialize_screen_sessions",
-        "label": "Materialize screen sessions output",
+        "label": "Make the screen session table output",
         "kind": "intervals",
         "schemaId": "urn:chronicle:artifact-schema:reconstruct.materialize_screen_sessions",
         "producerOperationId": "reconstruct.materialize_screen_sessions",
@@ -6637,7 +6637,7 @@
       },
       {
         "id": "artifact.reconstruct.order_app_episodes",
-        "label": "Order app episodes output",
+        "label": "Sort app episodes output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:reconstruct.order_app_episodes",
         "producerOperationId": "reconstruct.order_app_episodes",
@@ -6657,7 +6657,7 @@
       },
       {
         "id": "artifact.reconstruct.segment_concurrent_usage",
-        "label": "Segment concurrent usage output",
+        "label": "Split overlapping app use output",
         "kind": "intervals",
         "schemaId": "urn:chronicle:artifact-schema:reconstruct.segment_concurrent_usage",
         "producerOperationId": "reconstruct.segment_concurrent_usage",
@@ -6678,7 +6678,7 @@
       },
       {
         "id": "artifact.source.attach_device_models",
-        "label": "Attach device models output",
+        "label": "Add the device model output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:source.attach_device_models",
         "producerOperationId": "source.attach_device_models",
@@ -6698,7 +6698,7 @@
       },
       {
         "id": "artifact.source.decode_record_fields",
-        "label": "Decode record fields output",
+        "label": "Read each column output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:source.decode_record_fields",
         "producerOperationId": "source.decode_record_fields",
@@ -6719,7 +6719,7 @@
       },
       {
         "id": "artifact.source.decode_records",
-        "label": "Decode source records output",
+        "label": "Read the raw file output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:source.decode_records",
         "producerOperationId": "source.decode_records",
@@ -6742,7 +6742,7 @@
       },
       {
         "id": "artifact.source.initialize_lineage",
-        "label": "Initialize source lineage output",
+        "label": "Note where each row came from output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:source.initialize_lineage",
         "producerOperationId": "source.initialize_lineage",
@@ -6763,7 +6763,7 @@
       },
       {
         "id": "artifact.source.validate_remap_rules",
-        "label": "Validate remapping rules output",
+        "label": "Check event-type renames output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:source.validate_remap_rules",
         "producerOperationId": "source.validate_remap_rules",
@@ -6783,7 +6783,7 @@
       },
       {
         "id": "artifact.study.apply_participant_windows",
-        "label": "Apply participant windows output",
+        "label": "Keep rows inside the study dates output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:study.apply_participant_windows",
         "producerOperationId": "study.apply_participant_windows",
@@ -6805,7 +6805,7 @@
       },
       {
         "id": "artifact.study.index_survey_responses",
-        "label": "Index survey responses output",
+        "label": "Read survey answers output",
         "kind": "index",
         "schemaId": "urn:chronicle:artifact-schema:study.index_survey_responses",
         "producerOperationId": "study.index_survey_responses",
@@ -6825,7 +6825,7 @@
       },
       {
         "id": "artifact.study.resolve_participant_windows",
-        "label": "Resolve participant windows output",
+        "label": "Find each participant's study dates output",
         "kind": "metric",
         "schemaId": "urn:chronicle:artifact-schema:study.resolve_participant_windows",
         "producerOperationId": "study.resolve_participant_windows",
@@ -6846,7 +6846,7 @@
       },
       {
         "id": "artifact.study.resolve_sharing_status",
-        "label": "Resolve device sharing output",
+        "label": "Read device sharing output",
         "kind": "metric",
         "schemaId": "urn:chronicle:artifact-schema:study.resolve_sharing_status",
         "producerOperationId": "study.resolve_sharing_status",
@@ -6866,7 +6866,7 @@
       },
       {
         "id": "artifact.time.apply_missing_timezone_rule",
-        "label": "Resolve missing timezone values output",
+        "label": "Fill in missing time zones output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:time.apply_missing_timezone_rule",
         "producerOperationId": "time.apply_missing_timezone_rule",
@@ -6887,7 +6887,7 @@
       },
       {
         "id": "artifact.time.derive_target_calendar",
-        "label": "Derive calendar fields output",
+        "label": "Add date and hour output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:time.derive_target_calendar",
         "producerOperationId": "time.derive_target_calendar",
@@ -6907,7 +6907,7 @@
       },
       {
         "id": "artifact.time.order_source_records",
-        "label": "Order source records output",
+        "label": "Sort events output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:time.order_source_records",
         "producerOperationId": "time.order_source_records",
@@ -6930,7 +6930,7 @@
       },
       {
         "id": "artifact.time.standardize_event_clock",
-        "label": "Standardize event clocks output",
+        "label": "Convert event times output",
         "kind": "records",
         "schemaId": "urn:chronicle:artifact-schema:time.standardize_event_clock",
         "producerOperationId": "time.standardize_event_clock",
@@ -10619,44 +10619,44 @@
     "phases": [
       {
         "id": "import_verify",
-        "label": "Import and verify data",
-        "description": "Read source files, validate required values, and record source evidence.",
+        "label": "Import and check the files",
+        "description": "Read the uploaded files and check that the required values are present.",
         "displayOrder": 10
       },
       {
         "id": "standardize_timeline",
-        "label": "Standardize the event timeline",
-        "description": "Normalize clocks, ordering, duplicate events, and timeline gaps.",
+        "label": "Put events in order",
+        "description": "Fix clocks and time zones, sort events, and handle repeated events.",
         "displayOrder": 20
       },
       {
         "id": "reconstruct_activity",
-        "label": "Reconstruct activity",
-        "description": "Infer screen sessions and app-usage episodes from event evidence.",
+        "label": "Rebuild app and screen use",
+        "description": "Work out when each app was in use and when the screen was on, from the logged events.",
         "displayOrder": 30
       },
       {
         "id": "apply_measurement_rules",
-        "label": "Apply measurement rules",
-        "description": "Apply declared inclusion, duration, concurrency, and crediting policies.",
+        "label": "Apply your measurement settings",
+        "description": "Apply your settings for which apps count, short and long use, overlapping apps, and credited time.",
         "displayOrder": 40
       },
       {
         "id": "add_context",
-        "label": "Add app and person context",
-        "description": "Join codebooks and attribute activity to people and categories.",
+        "label": "Add app and person details",
+        "description": "Add app names and categories, and work out who was using the device.",
         "displayOrder": 50
       },
       {
         "id": "assess_coverage",
-        "label": "Assess study coverage",
-        "description": "Build participant-day evidence, completeness measures, and compliance decisions.",
+        "label": "Check how complete the data is",
+        "description": "Find which days have data, how much of each day's use has a known user, and which days meet your threshold.",
         "displayOrder": 60
       },
       {
         "id": "create_deliverables",
-        "label": "Create deliverables",
-        "description": "Project scientific tables, encodings, review data, lineage, and provenance.",
+        "label": "Make the output files",
+        "description": "Build the result tables, the files you chose, the View tab data, and the audit files.",
         "displayOrder": 70
       }
     ]
@@ -10665,7 +10665,7 @@
     "queryGroups": [
       {
         "id": "parse_events",
-        "label": "Event parsing",
+        "label": "Read events",
         "section": "preprocess",
         "knobs": [
           {
@@ -10690,7 +10690,7 @@
       },
       {
         "id": "normalize_timezones",
-        "label": "Timezone normalization",
+        "label": "Time zones",
         "section": "preprocess",
         "knobs": [
           {
@@ -10711,7 +10711,7 @@
       },
       {
         "id": "dedup_and_order",
-        "label": "Event deduplication and ordering",
+        "label": "Repeated events and order",
         "section": "preprocess",
         "knobs": [
           {
@@ -10740,7 +10740,7 @@
       },
       {
         "id": "app_policy",
-        "label": "App inclusion policy",
+        "label": "Which apps count",
         "section": "clean",
         "knobs": [
           {
@@ -10772,7 +10772,7 @@
       },
       {
         "id": "device_state_timeline",
-        "label": "Screen-session reconstruction",
+        "label": "Screen sessions",
         "section": "preprocess",
         "knobs": [
           {
@@ -10870,7 +10870,7 @@
       },
       {
         "id": "reconstruct_episodes",
-        "label": "Usage-episode reconstruction",
+        "label": "App episodes",
         "section": "preprocess",
         "knobs": [
           {
@@ -10991,7 +10991,7 @@
       },
       {
         "id": "categorize_apps",
-        "label": "App categorization",
+        "label": "App categories",
         "section": "preprocess",
         "knobs": [
           {
@@ -11024,7 +11024,7 @@
       },
       {
         "id": "episode_annotations",
-        "label": "Episode annotation",
+        "label": "Episode labels",
         "section": "preprocess",
         "knobs": [
           {
@@ -11070,7 +11070,7 @@
       },
       {
         "id": "interval_cleaning",
-        "label": "Interval cleaning",
+        "label": "Doubtful times",
         "section": "clean",
         "knobs": [
           {
@@ -11128,7 +11128,7 @@
       },
       {
         "id": "effective_usage",
-        "label": "Screen-gated usage credit",
+        "label": "Credited time (screen on)",
         "section": "clean",
         "knobs": [
           {
@@ -11183,7 +11183,7 @@
       },
       {
         "id": "notification_proxy",
-        "label": "Notification-derived proxy contacts",
+        "label": "Contacts from notifications",
         "section": "analyze",
         "knobs": [
           {
@@ -11222,7 +11222,7 @@
       },
       {
         "id": "polled_emulation",
-        "label": "Polled-method emulation",
+        "label": "Polling-method copy",
         "section": "analyze",
         "knobs": [
           {
@@ -11269,7 +11269,7 @@
       },
       {
         "id": "observation_window",
-        "label": "Study-window filter",
+        "label": "Study dates",
         "section": "clean",
         "knobs": [
           {
@@ -11315,7 +11315,7 @@
       },
       {
         "id": "attribute_person",
-        "label": "Person attribution",
+        "label": "Who was using the device",
         "section": "analyze",
         "knobs": [
           {
@@ -11399,7 +11399,7 @@
       },
       {
         "id": "score_compliance",
-        "label": "Compliance assessment",
+        "label": "Valid days",
         "section": "analyze",
         "knobs": [
           {
@@ -11437,7 +11437,7 @@
       },
       {
         "id": "outputs",
-        "label": "Deliverables",
+        "label": "Output files",
         "section": "output",
         "knobs": [
           {
@@ -21749,7 +21749,7 @@
   },
   "digests": {
     "semantic": "sha256:12f02dbf746dcd34db273a03899e0ca79426c22e66a26646b346cdc93a5de4bd",
-    "presentation": "sha256:d2ae358ff63d876f2782bb0feb54d751253e968f66c586dd8cacab8bf5d60310",
+    "presentation": "sha256:03d7b3d3aabedac0d2d7232977644d6d317568ca5dcb577d928964bd057545ef",
     "execution": "sha256:9377bdfd53f93027c885446d5032e116af3edf72a8c24777300f596a10489b36",
     "checkpointPolicy": "sha256:8d73c8e6d90979c8a0ab149d3d1c1a1d720d62fdfcb68af3233e8fd7106addff",
     "evidence": "sha256:0389bfbc144d9ebf5778f904bbebbd2bbd9b38ac9072e0a3ce697a551e918ff4",

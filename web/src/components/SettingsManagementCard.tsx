@@ -244,7 +244,7 @@ export function SettingsManagementCard({
           Config (active settings + presets)
         </h4>
         <p className="text-faint u-meta-xs">
-          Export writes one JSON file containing the active settings and every saved preset.
+          Export saves the current settings and every saved preset in one file.
           Import replaces both. Reset defaults only touches the active settings, not the preset
           library.
         </p>

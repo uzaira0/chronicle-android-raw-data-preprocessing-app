@@ -610,7 +610,7 @@ export default function App(): ReactElement {
           {
             key: "spill-sweep",
             title: "Temporary processing files could not be cleaned up.",
-            detail: `Files a closed processing worker left in this browser's storage are still there (${message}). They are retried after the next file, and “Delete all local data” in the footer removes them.`,
+            detail: `Files a finished background task left in this browser's storage are still there (${message}). They are retried after the next file, and “Delete all local data” in the footer removes them.`,
           },
           new Error(message),
         );
@@ -1707,7 +1707,7 @@ export default function App(): ReactElement {
         const comparisonCapability = await reprobeWorkspaceCapability();
         if (workspaceRefusesRun(comparisonCapability)) {
           throw new Error(
-            `Durable local workspace unavailable. ${transientWorkspaceRefusalNotice(
+            `This browser is not letting the app save files right now. ${transientWorkspaceRefusalNotice(
               comparisonCapability.status === "unavailable"
                 ? comparisonCapability.reason
                 : "",
@@ -2338,7 +2338,7 @@ export default function App(): ReactElement {
       const capability = await reprobeWorkspaceCapability();
       if (workspaceRefusesRun(capability)) {
         throw new Error(
-          `Durable local workspace unavailable. ${transientWorkspaceRefusalNotice(
+          `This browser is not letting the app save files right now. ${transientWorkspaceRefusalNotice(
             capability.status === "unavailable" ? capability.reason : "",
           )}`,
         );
@@ -2472,7 +2472,7 @@ export default function App(): ReactElement {
     const capability = await reprobeWorkspaceCapability();
     if (workspaceRefusesRun(capability)) {
       setError(
-        `Durable local workspace unavailable. ${transientWorkspaceRefusalNotice(
+        `This browser is not letting the app save files right now. ${transientWorkspaceRefusalNotice(
           capability.status === "unavailable" ? capability.reason : "",
         )}`,
       );
@@ -2982,7 +2982,7 @@ export default function App(): ReactElement {
           ? `${summary} (${failures.length} failed)`
           : summary;
       const ephemeralNote = ephemeralResultsUnsaved
-        ? " — results are ready in this tab but were not saved for reload: durable local storage is unavailable. Download them before closing or reloading."
+        ? " — results are ready in this tab but were not saved for reload: this browser is not letting the app save files. Download them before closing or reloading."
         : lastRunWriteFailure
           ? ` — ${lastRunWriteFailure}`
           : "";
@@ -3095,7 +3095,7 @@ export default function App(): ReactElement {
         const retryCapability = await reprobeWorkspaceCapability();
         if (workspaceRefusesRun(retryCapability)) {
           throw new Error(
-            `Durable local workspace unavailable. ${transientWorkspaceRefusalNotice(
+            `This browser is not letting the app save files right now. ${transientWorkspaceRefusalNotice(
               retryCapability.status === "unavailable"
                 ? retryCapability.reason
                 : "",
@@ -3209,7 +3209,7 @@ export default function App(): ReactElement {
         // in this tab, and the user has to download it before reloading.
         setToast({
           message: !retryPersisted
-            ? `Reprocessed ${demoDisplay.fileName(fileName)} — results are ready in this tab but were not saved for reload: durable local storage is unavailable. Download them before closing or reloading.`
+            ? `Reprocessed ${demoDisplay.fileName(fileName)} — results are ready in this tab but were not saved for reload: this browser is not letting the app save files. Download them before closing or reloading.`
             : retrySaveFailure !== null
               ? `Reprocessed ${demoDisplay.fileName(fileName)} — the results were not saved for reload (${retrySaveFailure}). Download them before closing or reloading.`
               : `Reprocessed ${demoDisplay.fileName(fileName)}.`,
@@ -3482,13 +3482,13 @@ export default function App(): ReactElement {
               {workspaceDegradesToEphemeral(workspaceCapability) ? (
                 <>
                   <strong>
-                    Running without durable local storage (ephemeral mode).
+                    Results will not be saved in this browser.
                   </strong>{" "}
                   {ephemeralWorkspaceNotice(workspaceCapability.reason)}
                 </>
               ) : (
                 <>
-                  <strong>Durable local processing is unavailable.</strong>{" "}
+                  <strong>This browser is not letting the app save files right now.</strong>{" "}
                   {transientWorkspaceRefusalNotice(workspaceCapability.reason)}
                 </>
               )}
@@ -3974,7 +3974,7 @@ export default function App(): ReactElement {
             {activeWorkflow === "graph" ? (
               <Suspense
                 fallback={
-                  <p className="empty-state">Loading the pipeline graph…</p>
+                  <p className="empty-state">Loading the processing map…</p>
                 }
               >
                 <GraphPanel
@@ -4042,7 +4042,7 @@ export default function App(): ReactElement {
                   );
                 });
               }}
-              title="Clear service worker caches and reload"
+              title="Clear the app's saved copy and reload"
             >
               Trouble loading?
             </button>

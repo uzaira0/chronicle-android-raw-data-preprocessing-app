@@ -1,5 +1,9 @@
 use serde_json::Value;
-use sha2::{Digest, Sha256};
+// Build scripts run on the build machine. sha2 pulls in cpufeatures, which depends on
+// libc only on Apple silicon, and Cargo folds that host-side difference into every
+// dependent crate's metadata: the same sources then built different WASM on a Mac.
+// hmac-sha256 has no dependencies, so the build-script graph is the same on every host.
+use hmac_sha256::Hash as Sha256;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::env;
 use std::fs;
@@ -229,7 +233,7 @@ fn main() {
         validate_dependency_certificate(
             &plan,
             &dependency_certificate,
-            &hex::encode(Sha256::digest(&bytes)),
+            &hex::encode(Sha256::hash(&bytes)),
         );
     }
 
@@ -250,11 +254,11 @@ fn main() {
     )
     .expect("copy embedded dependency certificate");
     let registry_digests = RegistryDigests {
-        plan: hex::encode(Sha256::digest(&bytes)),
-        runtime_authority: hex::encode(Sha256::digest(&runtime_authority_bytes)),
-        profile: hex::encode(Sha256::digest(&profile_bytes)),
-        profile_lock: hex::encode(Sha256::digest(&profile_lock_bytes)),
-        dependency_certificate: hex::encode(Sha256::digest(&dependency_certificate_bytes)),
+        plan: hex::encode(Sha256::hash(&bytes)),
+        runtime_authority: hex::encode(Sha256::hash(&runtime_authority_bytes)),
+        profile: hex::encode(Sha256::hash(&profile_bytes)),
+        profile_lock: hex::encode(Sha256::hash(&profile_lock_bytes)),
+        dependency_certificate: hex::encode(Sha256::hash(&dependency_certificate_bytes)),
     };
     fs::write(
         out_dir.join("capability_registry.rs"),
@@ -337,7 +341,7 @@ fn validate_dependency_certificate(plan: &Value, certificate: &Value, plan_diges
     let actual_surface = dependency_binding_surface(plan);
     let actual_surface_digest = format!(
         "sha256:{}",
-        hex::encode(Sha256::digest(
+        hex::encode(Sha256::hash(&
             serde_json::to_vec(&actual_surface).expect("serialize dependency binding surface")
         ))
     );

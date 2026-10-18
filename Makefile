@@ -110,6 +110,7 @@ pin-figures:
 # The committed WASM packages must be exactly what the Rust sources build.
 # Builds are path-independent (PR #36), so any drift is a stale commit.
 wasm-fresh:
+	python3 scripts/check_host_build_graph.py
 	cd web && npm run build:wasm
 	git diff --exit-code --stat -- web/src/wasm web/third-party/rust-wasm-crates.txt
 

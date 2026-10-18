@@ -334,7 +334,7 @@ describe("refusal error messages", () => {
     expect(error.name).toBe("RustMaximumDurationRefusalError");
     expect(error.decision).toEqual(decision);
     expect(error.message).toBe(
-      "Maximum-duration policy post_reconstruction_strict_max_v1 cannot run with the selected settings (maximum_duration_policy_incompatible_with_reconstruction_strategy)",
+      "The long episode rule you chose (post_reconstruction_strict_max_v1) cannot run with your other settings (reason: maximum_duration_policy_incompatible_with_reconstruction_strategy)",
     );
   });
 
@@ -345,7 +345,7 @@ describe("refusal error messages", () => {
         reasonCode: null,
       }).message,
     ).toBe(
-      "Maximum-duration policy post_reconstruction_strict_max_v1 cannot run with the selected settings (unspecified_reason)",
+      "The long episode rule you chose (post_reconstruction_strict_max_v1) cannot run with your other settings (reason: unspecified_reason)",
     );
   });
 });

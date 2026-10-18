@@ -57,7 +57,7 @@ export function WorkspaceBackupControls({ results, componentResult, onImportStar
         backupName(inputFileName),
         await exportVerifiedWorkspaceClosure(workspaceId, workspaceRootDigest),
       );
-      setMessage(`Verified workspace backup exported for ${inputFileName}.`);
+      setMessage(`Backup saved for ${inputFileName}.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     } finally {
@@ -78,15 +78,15 @@ export function WorkspaceBackupControls({ results, componentResult, onImportStar
         const component = await reopenImportedLiteratureComponent(restored.workspaceId, restored.slot.workspaceRootDigest);
         if (component) {
           await onComponentRestored(component);
-          setMessage(`Verified component restored at generation ${restored.slot.generation}; both saved result tables are available without rerunning.`);
+          setMessage("Backup loaded. Both result tables are ready without processing again.");
           return;
         }
       }
       setMessage(
-        `Verified workspace restored at generation ${restored.slot.generation}. Re-add its raw file to resume processing from this root.`,
+        "Backup loaded. Add its raw file again to keep working on this run.",
       );
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
+      setMessage(`This backup could not be loaded: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setBusy(false);
       if (inputRef.current) inputRef.current.value = "";
@@ -94,12 +94,12 @@ export function WorkspaceBackupControls({ results, componentResult, onImportStar
   };
 
   return (
-    <section className="result-panel" aria-label="Verified workspace backups">
+    <section className="result-panel" aria-label="Run backups">
       <header className="result-panel__header">
         <div>
-          <h2 className="result-panel__title">Verified workspace backups</h2>
+          <h2 className="result-panel__title">Run backups</h2>
           <span className="result-panel__summary">
-            Export or restore the complete content-addressed Rust artifact closure.
+            Save a run and all its results to one file, or load a saved run back in.
           </span>
         </div>
         <div className="result-panel__actions">
@@ -114,7 +114,7 @@ export function WorkspaceBackupControls({ results, componentResult, onImportStar
                 void exportWorkspace(inputFileName, receipt.workspaceId, receipt.workspaceRootDigest);
               }}
             >
-              Export {inputFileName}
+              Back up {inputFileName}
             </button>
           ))}
           <button
@@ -124,7 +124,7 @@ export function WorkspaceBackupControls({ results, componentResult, onImportStar
             disabled={busy || !durableStorageAvailable}
             onClick={() => inputRef.current?.click()}
           >
-            Import backup
+            Load a backup
           </button>
           <input
             ref={inputRef}
@@ -141,8 +141,8 @@ export function WorkspaceBackupControls({ results, componentResult, onImportStar
       </header>
       {durableStorageAvailable ? null : (
         <p className="warning-text" data-testid="workspace-backup-unavailable">
-          Importing a backup needs durable local storage, which this browser
-          is not providing right now.
+          Loading a backup needs storage space in this browser, which it is not
+          giving right now (for example, in a private window).
         </p>
       )}
       {message ? (

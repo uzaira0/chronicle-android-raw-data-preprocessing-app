@@ -141,8 +141,8 @@ export function StudyInputsCard(props: Props): ReactElement {
         testId="study-dates-file-input"
         status={statusFor(
           studyDatesFile,
-          options.enableStudyWindowFilter ? "the study-window filter" : null,
-          options.enableDayCoverage ? "the day coverage report (falls back to each participant's observed date range without it)" : null,
+          options.enableStudyWindowFilter ? "the study-date limit" : null,
+          options.enableDayCoverage ? "the days-with-data report (falls back to each participant's observed date range without it)" : null,
         )}
       />
       <StudyInputRow
@@ -275,13 +275,13 @@ export function StudyInputsCard(props: Props): ReactElement {
       />
       <StudyInputRow
         displayMasker={displayMasker}
-        title="Input capability evidence"
+        title="Device capability file"
         columnsHint="schema_version, raw_input_sha256, participant_id, capability_id, state, evidence_basis, evidence_reference, evidence_sha256"
         file={inputCapabilityEvidenceFile}
         onFileChange={setInputCapabilityEvidenceFile}
         testId="input-capability-evidence-file-input"
         accept=".csv"
-        formatHint=".csv only · chronicle-input-capability-evidence/v1"
+        formatHint=".csv only"
         status={
           inputCapabilityEvidenceFile
             ? {

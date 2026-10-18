@@ -67,7 +67,7 @@ const view: RustWorkflowExplorerView = {
       dataEffects: ["drops_rows", "rewrites_values"],
       applicable: false,
       runState: "not_applicable",
-      offReason: "off because its applicability rule is false",
+      offReason: "off with your current settings",
     },
   ],
   artifacts: [
@@ -186,11 +186,11 @@ describe("Workflow Explorer projections", () => {
       affectedArtifacts: 1,
     });
     expect(projection.nodes.find((node) => node.id === "physical:query_rule")?.eyebrow)
-      .toBe("direct physical reader");
+      .toBe("computation");
     expect(projection.nodes.find((node) => node.id === "operation.rule")?.eyebrow)
-      .toContain("row-set impact");
+      .toContain("which rows");
     expect(projection.nodes.find((node) => node.id === "artifact.result")?.eyebrow)
-      .toBe("may-change artifact");
+      .toBe("result that may change");
   });
 
   it("shows observed query timing and rows and labels absent evidence honestly", () => {
@@ -198,16 +198,16 @@ describe("Workflow Explorer projections", () => {
     expect(observed.nodes.find((node) => node.id === "query_prepare")?.metrics)
       .toBe("8 → 7 rows · 2 ms");
     expect(observed.nodes.find((node) => node.id === "query_rule")?.metrics)
-      .toContain("timing unavailable");
+      .toBe("not run yet");
   });
 
   it("preserves off reasons and does not call terminal evidence a deliverable", () => {
     const audit = graphForMode(view, "audit");
     expect(audit.nodes.find((node) => node.id === "operation.rule")?.offReason)
-      .toBe("off because its applicability rule is false");
+      .toBe("off with your current settings");
     const lineage = graphForMode(view, "lineage");
     expect(lineage.nodes.find((node) => node.id === "artifact.result")?.detail)
-      .toContain("does not classify it as a user deliverable");
+      .toBe("Not used by a later step");
   });
 
   it("collapses phase members and rewires only their declared external edges", () => {
@@ -215,7 +215,7 @@ describe("Workflow Explorer projections", () => {
     const collapsed = collapseProjection(audit, view, new Set(["phase_a"]));
     expect(collapsed.nodes.some((node) => node.id === "operation.prepare")).toBe(false);
     expect(collapsed.nodes.find((node) => node.id === "collapsed-phase:phase_a")?.detail)
-      .toContain("1 visible item");
+      .toBe("1 item folded into this stage");
     expect(collapsed.nodes.find((node) => node.id === "operation.rule")?.inputs)
       .toEqual(["collapsed-phase:phase_a"]);
   });

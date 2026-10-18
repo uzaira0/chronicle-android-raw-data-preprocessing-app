@@ -36,14 +36,14 @@ export function InteractionSemanticsCard({ options, setOptions }: Props): ReactE
   return (
     <SectionCard
       id="interaction-semantics"
-      title="Interaction semantics"
+      title="Event types"
       accent="interaction"
       defaultExpanded={false}
       modified={anyOptionModified(options, KEYS)}
     >
       <p className="u-card-intro">
-        Pick which Android usage event interaction types end a session and how those types are
-        remapped. The defaults match the canonical desktop preprocessing semantics.
+        Pick which Android event types end an app session, and how event types are renamed.
+        The defaults match Chronicle's original desktop processing.
       </p>
       <CheckboxGroup
         title="Same app interaction types that end a session"

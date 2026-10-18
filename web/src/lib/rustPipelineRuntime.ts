@@ -278,7 +278,7 @@ export class RustMaximumDurationRefusalError extends Error {
 
   constructor(readonly decision: MaximumDurationPreflightDecision) {
     super(
-      `Maximum-duration policy ${decision.applicability.requestedPolicy} cannot run with the selected settings (${decision.reasonCode ?? "unspecified_reason"})`,
+      `The long episode rule you chose (${decision.applicability.requestedPolicy}) cannot run with your other settings (reason: ${decision.reasonCode ?? "unspecified_reason"})`,
     );
     this.name = "RustMaximumDurationRefusalError";
   }

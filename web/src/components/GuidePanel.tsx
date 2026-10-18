@@ -76,7 +76,7 @@ export function GuidePanel({ onNavigate }: Props): ReactElement {
               Process
             </button>{" "}
             tab and press <strong>Process files</strong>. A progress list walks through the
-            pipeline steps; large files can keep the browser busy for a while — leave the tab
+            processing steps; large files can keep the browser busy for a while — leave the tab
             open.
           </p>
         </li>
@@ -121,7 +121,7 @@ export function GuidePanel({ onNavigate }: Props): ReactElement {
           <button type="button" className="guide-link" onClick={() => onNavigate("graph")}>
             Graph
           </button>{" "}
-          tab shows where each step sits in the pipeline; click any step there to see exactly
+          tab shows where each step sits in the processing; click any step there to see exactly
           what depends on it.
         </p>
         <table className="guide-table">
@@ -137,30 +137,30 @@ export function GuidePanel({ onNavigate }: Props): ReactElement {
               <td>Labels listed apps as &ldquo;filtered&rdquo; and blanks their timing.</td>
             </tr>
             <tr>
-              <td>Minimum usage duration</td>
+              <td>Minimum app-use time</td>
               <td>
                 Blanks (or drops) sessions shorter than a threshold, e.g. 60&nbsp;s to discount
                 glances. 0 by default.
               </td>
             </tr>
             <tr>
-              <td>Zero-duration removal</td>
+              <td>Remove zero-time sessions</td>
               <td>Drops sessions whose computed duration is zero or negative.</td>
             </tr>
             <tr>
-              <td>Screen-gated credit</td>
+              <td>Count screen-on app time</td>
               <td>Re-credits app time to only the minutes the screen was actually on.</td>
             </tr>
             <tr>
-              <td>Study-window filtering</td>
+              <td>Study-date limit</td>
               <td>Drops rows outside each participant&rsquo;s study dates.</td>
             </tr>
             <tr>
-              <td>Person attribution</td>
+              <td>Assign shared-device use to people</td>
               <td>Splits shared-device usage between household members.</td>
             </tr>
             <tr>
-              <td>Compliance scoring</td>
+              <td>Valid-day scoring</td>
               <td>Scores each participant-day against the study&rsquo;s threshold.</td>
             </tr>
           </tbody>

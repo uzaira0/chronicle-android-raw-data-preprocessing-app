@@ -84,7 +84,7 @@ export function effectiveWarnings(
         "They're kept in the output but won't start or end app-usage sessions. " +
         "Map a vendor-specific type to a canonical one under custom interaction-type mappings; " +
         "to make one end sessions add it under the interaction types that end a session; " +
-        "to drop it add it under interaction types to remove (all in Interaction semantics).",
+        "to drop it add it under interaction types to remove (all in Event types).",
     );
   }
   // Inspection runs without options, so it cannot see a custom mapping that

@@ -64,12 +64,12 @@ export function FilesAndInputsCard(props: Props): ReactElement {
   return (
     <SectionCard
       id="files"
-      title="Support files"
+      title="Extra input files"
       accent="files"
       modified={anyOptionModified(options, KEYS)}
     >
       <p className="u-card-intro">
-        Optional support files. Without an upload the bundled defaults are used. Toggle individual
+        Optional extra input files. Without an upload the bundled defaults are used. Toggle individual
         files on or off using the switch beside each input.
       </p>
 

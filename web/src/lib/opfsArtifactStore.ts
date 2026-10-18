@@ -157,10 +157,10 @@ export function workspaceRefusesRun(
 export function transientWorkspaceRefusalNotice(reason: string): string {
   return (
     `${reason} This may be temporary — an exhausted storage quota or a ` +
-    "processing worker that restarted both look like this. Free up disk " +
+    "background task that restarted both look like this. Free up disk " +
     "space, close other tabs of this app, then reload and try again. " +
-    "Processing is refused rather than silently downgraded, because a run " +
-    "that is not persisted is lost on reload."
+    "Processing is stopped rather than kept only in this tab, because a run " +
+    "that is not saved is lost on reload."
   );
 }
 
@@ -255,14 +255,14 @@ function isStructurallyUnsupportedAfterOpen(error: unknown): boolean {
  */
 const EPHEMERAL_WORKSPACE_LOSSES: readonly string[] = [
   "results are held in this tab only and are gone when it is closed or reloaded",
-  "a re-run recomputes from the raw bytes instead of resuming a saved workspace",
-  "workspace export, import, and cross-session run history are unavailable",
+  "processing again starts from the raw file instead of picking up a saved run",
+  "run backups and the list of earlier runs are unavailable",
 ];
 
 export function ephemeralWorkspaceNotice(reason: string): string {
   return (
     `${reason} Processing still runs in full, but ${EPHEMERAL_WORKSPACE_LOSSES.join("; ")}. ` +
-    "Download the outputs before leaving the page. To restore durable storage, " +
+    "Download the results before leaving the page. To let the app save again, " +
     "leave private/incognito browsing, allow this site to store data, or free up disk quota, then reload."
   );
 }

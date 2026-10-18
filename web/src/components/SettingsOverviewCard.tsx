@@ -81,7 +81,7 @@ export function SettingsOverviewCard({ options, setOptions }: Props): ReactEleme
               }
             />
             <ToggleField
-              label="Generate activity heatmaps"
+              label="Create activity heat maps"
               checked={options.enableActivityHeatmap}
               onChange={(value) =>
                 setOptions((current) => ({ ...current, enableActivityHeatmap: value }))
@@ -97,7 +97,7 @@ export function SettingsOverviewCard({ options, setOptions }: Props): ReactEleme
               }
             />
             <ToggleField
-              label="Also export plots as SVG (vector)"
+              label="Also save plots as SVG"
               checked={options.exportPlotsAsSvg}
               onChange={(value) =>
                 setOptions((current) => ({ ...current, exportPlotsAsSvg: value }))
@@ -115,7 +115,7 @@ export function SettingsOverviewCard({ options, setOptions }: Props): ReactEleme
           </div>
         ) : null}
         <ToggleField
-          label="Aggregate summaries"
+          label="Summary tables"
           checked={options.enableAggregates}
           onChange={(value) => setOptions((current) => ({ ...current, enableAggregates: value }))}
           testId="toggle-enableAggregates"
@@ -131,7 +131,7 @@ export function SettingsOverviewCard({ options, setOptions }: Props): ReactEleme
         {options.enableAggregates ? (
           <div className="settings-overview__subfield">
             <SettingsField
-              label="Aggregate layout"
+              label="Summary layout"
               htmlFor="aggregate-shape-select"
               tooltip={TOOLTIPS.aggregateShape}
               modified={!isOptionDefault("aggregateShape", options.aggregateShape)}
@@ -159,7 +159,7 @@ export function SettingsOverviewCard({ options, setOptions }: Props): ReactEleme
               </select>
             </SettingsField>
             <SettingsField
-              label="Daily top-app limit"
+              label="Top apps per day"
               htmlFor="aggregate-top-apps-limit-input"
               tooltip={TOOLTIPS.aggregateTopAppsLimit}
               modified={!isOptionDefault("aggregateTopAppsLimit", options.aggregateTopAppsLimit)}
@@ -200,7 +200,7 @@ export function SettingsOverviewCard({ options, setOptions }: Props): ReactEleme
           </p>
         ) : null}
         <ToggleField
-          label="Participant amount summary"
+          label="Participant use summary"
           checked={options.enableParticipantAmountSummary}
           onChange={(value) =>
             setOptions((current) => ({ ...current, enableParticipantAmountSummary: value }))
@@ -222,7 +222,7 @@ export function SettingsOverviewCard({ options, setOptions }: Props): ReactEleme
           }
         />
         <ToggleField
-          label="Also export Parquet"
+          label="Also save Parquet"
           checked={options.enableParquetExport}
           onChange={(value) =>
             setOptions((current) => ({ ...current, enableParquetExport: value }))
@@ -238,7 +238,7 @@ export function SettingsOverviewCard({ options, setOptions }: Props): ReactEleme
           }
         />
         <ToggleField
-          label="Also export SPSS (.sav)"
+          label="Also save SPSS (.sav)"
           checked={options.enableSpssExport}
           onChange={(value) => setOptions((current) => ({ ...current, enableSpssExport: value }))}
           testId="toggle-enableSpssExport"
@@ -252,7 +252,7 @@ export function SettingsOverviewCard({ options, setOptions }: Props): ReactEleme
           }
         />
         <ToggleField
-          label="Spreadsheet-safe CSV cells"
+          label="Protect CSV text cells"
           checked={options.neutralizeSpreadsheetFormulas}
           onChange={(value) =>
             setOptions((current) => ({ ...current, neutralizeSpreadsheetFormulas: value }))

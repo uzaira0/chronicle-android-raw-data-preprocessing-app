@@ -23,11 +23,11 @@ type Section = { label: string; selector: string };
 // expose `data-section-id`; the two plain containers expose `data-settings-anchor`.
 const SECTIONS: Record<SectionKey, Section> = {
   overview: { label: "Output & plots", selector: '[data-settings-anchor="overview"]' },
-  files: { label: "Support files", selector: '[data-section-id="files"]' },
+  files: { label: "Extra input files", selector: '[data-section-id="files"]' },
   timezone: { label: "Timezone", selector: '[data-section-id="timezone"]' },
   session: { label: "Session detection", selector: '[data-section-id="session-detection"]' },
   screen: { label: "Screen detection", selector: '[data-section-id="screen-detection"]' },
-  interaction: { label: "Interaction semantics", selector: '[data-section-id="interaction-semantics"]' },
+  interaction: { label: "Event types", selector: '[data-section-id="interaction-semantics"]' },
   performance: { label: "Performance", selector: '[data-section-id="performance"]' },
   cleaning: { label: "Optional cleaning", selector: '[data-section-id="optional-cleaning"]' },
   study: { label: "Study analysis", selector: '[data-section-id="study-analysis"]' },
@@ -191,7 +191,7 @@ const ITEMS: SearchItem[] = [
   },
   {
     key: "__inputCapabilityEvidenceFile",
-    label: "Input capability evidence",
+    label: "Device capability file",
     sectionKey: "studyInputs",
     keywords:
       "input capability evidence sidecar csv screen keyguard source order parry toth zhu schoedel study inputs",

@@ -37,12 +37,12 @@ import type {
 } from "@/lib/types";
 
 const SECTION_LABELS: Record<Section, string> = {
-  phase: "Research phase",
-  decision: "Configuration input",
-  operation: "Semantic operation",
-  artifact: "Typed artifact",
-  source: "Source artifact",
-  execution: "Physical query",
+  phase: "Stage",
+  decision: "Setting or input file",
+  operation: "Step",
+  artifact: "In-between result",
+  source: "Input file",
+  execution: "Computation",
 };
 
 const STATUS_LABELS: Record<NodeStatus, string> = {
@@ -57,23 +57,31 @@ const STATUS_LABELS: Record<NodeStatus, string> = {
 const SUPPORT_LABELS: Record<SupportPresence, string> = {
   available: "available",
   unavailable: "unavailable",
-  not_observed: "availability not observed",
+  not_observed: "not checked",
 };
 
 const MODE_LABELS: Record<ExplorerMode, string> = {
   overview: "Overview",
-  decisions: "Decisions",
-  lineage: "Data lineage",
-  execution: "Execution",
-  audit: "Audit",
+  decisions: "Settings",
+  lineage: "Data flow",
+  execution: "Last run",
+  audit: "All steps",
 };
 
 const MODE_DESCRIPTIONS: Record<ExplorerMode, string> = {
-  overview: "Research-facing phases from the current Rust workflow projection.",
-  decisions: "Settings and support inputs, direct physical readers, and semantic impact closures.",
-  lineage: "Typed source, intermediate, and terminal artifacts linked through semantic operations.",
-  execution: "Physical queries with observed reuse, row counts, and timing from the selected run.",
-  audit: "The complete semantic operation registry, including operations that are off.",
+  overview: "The main stages, in the order they run.",
+  decisions: "Your settings and input files, and every step and result each one can change.",
+  lineage: "How data moves from your input files, through each step, to the output files.",
+  execution: "What the last run did: which computations ran or were reused, with row counts and times.",
+  audit: "Every step the app has, including the ones that are off.",
+};
+
+// Nodes here cannot be moved or deleted, so React Flow's default screen-reader
+// hints ("press delete to remove it", "use the arrow keys") would be wrong.
+const ARIA_LABEL_CONFIG = {
+  "node.a11yDescription.default": "Press enter or space to select this item and see what it affects.",
+  "node.a11yDescription.keyboardDisabled": "Press enter or space to select this item and see what it affects.",
+  "edge.a11yDescription.default": "Press enter or space to select this link.",
 };
 
 const EDGE_MARKER = {
@@ -355,6 +363,7 @@ export function GraphPanel({
     ]
       .filter(Boolean)
       .join(" "),
+    ariaLabel: `${metadata.get(edge.source)?.label ?? edge.source} leads to ${metadata.get(edge.target)?.label ?? edge.target}`,
     markerEnd: EDGE_MARKER,
   }));
 
@@ -362,6 +371,7 @@ export function GraphPanel({
     setSelected((current) => (current === node.id ? null : node.id));
   };
   const selectedNode = selected ? metadata.get(selected) : null;
+  const auditFileCount = activeResult?.outputs.filter((output) => output.kind === "lineage").length ?? 0;
   const availablePhases = useMemo(() => {
     const projected = new Set(baseProjection.nodes.flatMap((node) => node.phaseId ?? []));
     return [...(view?.phases ?? [])]
@@ -376,10 +386,10 @@ export function GraphPanel({
     <section className="workflow-section" aria-labelledby="graph-title">
       <div className="workflow-section__header">
         <div>
-          <h2 id="graph-title" className="workflow-section__title">Pipeline Explorer</h2>
+          <h2 id="graph-title" className="workflow-section__title">How your files become results</h2>
           <p className="workflow-section__intro">
-            Explore the workflow at five distinct interpretation layers. Off and unobserved items
-            stay visible, and observed run evidence is never inferred from configuration alone.
+            Five views of the same processing. Steps that are off, or that no run has reached yet,
+            still appear. What a run did is shown only from that run, never guessed from settings.
           </p>
         </div>
         <div className="graph-toolbar">
@@ -425,7 +435,7 @@ export function GraphPanel({
         </div>
         {reportedResults.length > 1 ? (
           <label className="graph-report-picker">
-            Run evidence from
+            Show the run for
             <select
               className="input"
               value={activeResult?.inputFileName ?? ""}
@@ -447,7 +457,7 @@ export function GraphPanel({
 
       {mode !== "overview" && availablePhases.length > 0 ? (
         <div className="graph-phase-controls" data-testid="graph-phase-controls">
-          <span>Phase detail</span>
+          <span>Stage detail</span>
           <button
             type="button"
             className="btn btn--ghost"
@@ -490,14 +500,14 @@ export function GraphPanel({
       {mode === "audit" ? (
         <div className="graph-audit-tools">
           <label>
-            Search and focus audit operations
+            Find a step
             <input
               className="input"
               type="search"
               value={auditSearch}
               data-testid="graph-audit-search"
               onChange={(event) => setAuditSearch(event.target.value)}
-              placeholder="Name, role, effect, or reason"
+              placeholder="Name, type, effect, or reason"
             />
           </label>
           {auditSearch.trim() ? (
@@ -514,7 +524,7 @@ export function GraphPanel({
                   </button>
                 ))
               ) : (
-                <span>No audit operations match.</span>
+                <span>No steps match.</span>
               )}
             </div>
           ) : null}
@@ -527,21 +537,21 @@ export function GraphPanel({
             <strong>{selectedNode.label}</strong>
             {selectedNode.description ? ` — ${selectedNode.description}` : ""}
             {selectedNode.detail ? ` ${selectedNode.detail}.` : ""}
-            {selectedNode.offReason ? ` Off reason: ${selectedNode.offReason}.` : ""}
+            {selectedNode.offReason ? ` Why it is off: ${selectedNode.offReason}.` : ""}
             {downstream && downstream.size > 0 && selectedNode.section !== "decision"
-              ? ` It reaches ${downstream.size} downstream item${downstream.size === 1 ? "" : "s"} in this view.`
+              ? ` It affects ${downstream.size} later item${downstream.size === 1 ? "" : "s"} in this view.`
               : ""}
           </>
         ) : (
-          <>Select an item to trace everything downstream from it.</>
+          <>Select an item to see everything it affects.</>
         )}
       </div>
 
       {selectedNode?.impact ? (
         <dl className="graph-impact-details" data-testid="graph-impact-details">
-          <div><dt>Direct physical readers</dt><dd>{selectedNode.impact.directQueries}</dd></div>
-          <div><dt>Operations that may change</dt><dd>{selectedNode.impact.affectedOperations}</dd></div>
-          <div><dt>Artifacts that may change</dt><dd>{selectedNode.impact.affectedArtifacts}</dd></div>
+          <div><dt>Computations that read it directly</dt><dd>{selectedNode.impact.directQueries}</dd></div>
+          <div><dt>Steps that may change</dt><dd>{selectedNode.impact.affectedOperations}</dd></div>
+          <div><dt>Results that may change</dt><dd>{selectedNode.impact.affectedArtifacts}</dd></div>
         </dl>
       ) : null}
 
@@ -562,13 +572,14 @@ export function GraphPanel({
           zoomOnPinch
           nodesConnectable={false}
           nodesDraggable={false}
+          ariaLabelConfig={ARIA_LABEL_CONFIG}
         >
           <Background gap={24} />
           <Controls showInteractive={false} showFitView={false} />
         </ReactFlow>
       </div>
 
-      <div className="graph-legend" aria-label="Node categories">
+      <div className="graph-legend" aria-label="Legend">
         {(Object.keys(SECTION_LABELS) as Section[]).map((section) => (
           <span key={section} className={`graph-legend__item graph-legend__item--${section}`}>
             {SECTION_LABELS[section]}
@@ -577,14 +588,14 @@ export function GraphPanel({
       </div>
 
       <section className="graph-deliverables" data-testid="graph-deliverables">
-        <h3>Deliverables</h3>
+        <h3>Output files</h3>
         {!activeResult ? (
-          <p>Not observed — process a file to see the outputs actually emitted by a run.</p>
+          <p>Process a file to see the files a run made.</p>
         ) : activeResult.outputs.length === 0 ? (
-          <p>No deliverables were emitted by this run.</p>
+          <p>This run made no output files.</p>
         ) : (
           <ul>
-            {activeResult.outputs.map((output) => (
+            {activeResult.outputs.filter((output) => output.kind !== "lineage").map((output) => (
               <li key={`${output.kind}:${output.outputFileName}`}>
                 <strong>{displayMasker.fileName(output.outputFileName)}</strong>{" "}
                 <span>
@@ -593,6 +604,12 @@ export function GraphPanel({
                 </span>
               </li>
             ))}
+            {auditFileCount > 0 ? (
+              <li>
+                <strong>{auditFileCount} audit file{auditFileCount === 1 ? "" : "s"}</strong>{" "}
+                <span>in the Audit files ZIP on the Process tab</span>
+              </li>
+            ) : null}
           </ul>
         )}
       </section>
