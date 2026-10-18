@@ -7,6 +7,9 @@
 # `make dependency-evidence` dies with
 #   "wasm32-unknown-unknown target not found in sysroot"
 # only when it reaches the WASM build. This file makes that unreachable.
+# An exact version, not "stable": stable is whatever each machine last installed
+# (1.94 on the Linux host, 1.97.1 on the Mac), and the WASM bytes, clippy lints and
+# BUILD_ENVIRONMENT_DIGEST all follow the compiler version.
 [toolchain]
-channel = "stable"
+channel = "1.97.1"
 targets = ["wasm32-unknown-unknown"]

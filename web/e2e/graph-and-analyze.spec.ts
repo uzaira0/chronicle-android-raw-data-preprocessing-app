@@ -780,20 +780,20 @@ test("@smoke Pipeline Explorer separates workflow, impact, lineage, execution, a
   await expect(page.locator('.graph-node[data-node-category="operation"]').first()).toBeVisible();
   await expect(page.locator('.graph-node[data-node-category="artifact"]').first()).toBeVisible();
   await (await firstInteractableGraphNode(page, "decision")).click();
-  await expect(page.getByTestId("graph-impact-details")).toContainText("Direct physical readers");
-  await expect(page.getByTestId("graph-impact-details")).toContainText("Operations that may change");
-  await expect(page.getByTestId("graph-impact-details")).toContainText("Artifacts that may change");
+  await expect(page.getByTestId("graph-impact-details")).toContainText("Computations that read it directly");
+  await expect(page.getByTestId("graph-impact-details")).toContainText("Steps that may change");
+  await expect(page.getByTestId("graph-impact-details")).toContainText("Results that may change");
   await expect(nodes.locator(".graph-node__availability").first()).toBeVisible();
 
   // Lineage does not mislabel every terminal artifact as a user deliverable.
   await page.getByTestId("graph-mode-lineage").click();
   await expect(page.locator('.graph-node[data-node-category="source"]').first()).toBeVisible();
   await expect(page.locator('.graph-node[data-node-category="artifact"]').first()).toBeVisible();
-  await expect(page.getByTestId("graph-deliverables")).toContainText("Not observed");
+  await expect(page.getByTestId("graph-deliverables")).toContainText("Process a file to see the files a run made");
 
   // Before a run, execution evidence says exactly what has not been observed.
   await page.getByTestId("graph-mode-execution").click();
-  await expect(page.getByTestId("graph-node-metrics").first()).toContainText("timing unavailable");
+  await expect(page.getByTestId("graph-node-metrics").first()).toContainText("not run yet");
 
   // Audit can find and focus registry operations, and detailed phases collapse dynamically.
   await page.getByTestId("graph-mode-audit").click();
@@ -821,7 +821,7 @@ test("@smoke Pipeline Explorer separates workflow, impact, lineage, execution, a
   await page.getByTestId("graph-mode-execution").click();
   await expect(page.getByTestId("graph-node-metrics").filter({ hasText: "ms" }).first())
     .toBeVisible();
-  await expect(page.getByTestId("graph-deliverables")).not.toContainText("Not observed");
+  await expect(page.getByTestId("graph-deliverables")).not.toContainText("Process a file to see");
   await expect(page.getByTestId("graph-deliverables").getByRole("listitem").first())
     .toBeVisible();
 

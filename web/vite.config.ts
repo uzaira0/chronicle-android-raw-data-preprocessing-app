@@ -15,7 +15,10 @@ import { thirdPartyNoticesPlugins } from "./scripts/third_party_notices.mjs";
 function buildIdentity(): { sha: string; date: string } {
   const date = new Date().toISOString().slice(0, 10);
   try {
-    const sha = execSync("git rev-parse --short HEAD", {
+    // A fixed length: plain --short grows with the number of objects in the
+    // clone (7 on the deploy runner, 9 on the Linux host), and the stamp is in
+    // the main bundle, so its byte size depended on which machine built it.
+    const sha = execSync("git rev-parse --short=9 HEAD", {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
     }).trim();

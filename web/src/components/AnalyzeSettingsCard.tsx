@@ -45,7 +45,7 @@ const NOTIFICATION_PROXY_RULES = NOTIFICATION_PROXY_RULE_VALUES.map((value) => (
 }));
 
 const POLLED_EMULATION_METHOD_LABELS = {
-  none: "Off — no polled emulation (default)",
+  none: "Off (default)",
   ross_2025_sampled_gap_v1: "Ross et al. 2025 — sample gap closes a session",
   cerit_2025_sample_count_v1: "Cerit et al. 2025 — duration from sample count",
 } satisfies Record<PolledEmulationMethod, string>;
@@ -56,8 +56,8 @@ const POLLED_EMULATION_METHODS = POLLED_EMULATION_METHOD_VALUES.map((value) => (
 }));
 
 const INTERVAL_EXPANSION_METHOD_LABELS = {
-  none: "Off — no interval expansion (default)",
-  behapp_start_anchored_half_open_1s_v1: "Behapp — start-anchored half-open 1 s rows",
+  none: "Off (default)",
+  behapp_start_anchored_half_open_1s_v1: "Behapp — one row per second from each start",
 } satisfies Record<IntervalExpansionMethod, string>;
 
 const INTERVAL_EXPANSION_METHODS = INTERVAL_EXPANSION_METHOD_VALUES.map((value) => ({
@@ -104,7 +104,7 @@ export function AnalyzeSettingsCard(props: Props): ReactElement {
 
       <div className="settings-grid-1">
         <SettingsField
-          label="Notification proxy rule"
+          label="Notification contacts"
           htmlFor="notification-proxy-rule-select"
           tooltip={TOOLTIPS.notificationProxyRule}
           modified={isMod("notificationProxyRule")}
@@ -133,7 +133,7 @@ export function AnalyzeSettingsCard(props: Props): ReactElement {
 
       <div className="settings-grid-1">
         <SettingsField
-          label="Polled-method emulation"
+          label="Imitate a polling app tracker"
           htmlFor="polled-emulation-method-select"
           tooltip={TOOLTIPS.polledEmulationMethod}
           modified={isMod("polledEmulationMethod")}
@@ -206,7 +206,7 @@ export function AnalyzeSettingsCard(props: Props): ReactElement {
 
       <div className="settings-grid-1">
         <SettingsField
-          label="Interval expansion output"
+          label="Per-second app-use rows"
           htmlFor="interval-expansion-method-select"
           tooltip={TOOLTIPS.intervalExpansionMethod}
           modified={isMod("intervalExpansionMethod")}
@@ -234,7 +234,7 @@ export function AnalyzeSettingsCard(props: Props): ReactElement {
       </div>
 
       <ToggleField
-        label="Person attribution (shared devices)"
+        label="Assign shared-device use to people"
         tooltip={TOOLTIPS.enablePersonAttribution}
         checked={options.enablePersonAttribution}
         onChange={(value) => update("enablePersonAttribution", value)}
@@ -249,7 +249,7 @@ export function AnalyzeSettingsCard(props: Props): ReactElement {
       ) : null}
 
       <ToggleField
-        label="Compliance scoring"
+        label="Valid-day scoring"
         tooltip={TOOLTIPS.enableComplianceScoring}
         checked={options.enableComplianceScoring}
         onChange={(value) => update("enableComplianceScoring", value)}
@@ -260,7 +260,7 @@ export function AnalyzeSettingsCard(props: Props): ReactElement {
       {options.enableComplianceScoring ? (
         <div className="settings-overview__subfield">
           <SettingsField
-            label="Compliance threshold (%)"
+            label="Valid-day threshold (%)"
             tooltip={TOOLTIPS.complianceThresholdPercent}
             modified={isMod("complianceThresholdPercent")}
             onReset={() => reset("complianceThresholdPercent")}
@@ -287,7 +287,7 @@ export function AnalyzeSettingsCard(props: Props): ReactElement {
       ) : null}
 
       <ToggleField
-        label="Day coverage report"
+        label="Days-with-data report"
         tooltip={TOOLTIPS.enableDayCoverage}
         checked={options.enableDayCoverage}
         onChange={(value) => update("enableDayCoverage", value)}

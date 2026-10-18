@@ -45,25 +45,25 @@ const enabledCases: [string, Partial<BrowserProcessingOptions>][] = [
     "Filter file",
     { useFilterFile: true, applicationLabelExclusions: ["Chat"] },
   ],
-  ["Minimum usage duration (seconds)", { minimumUsageDuration: 30 }],
+  ["Minimum app-use time (seconds)", { minimumUsageDuration: 30 }],
   [
-    "Maximum-duration policy",
+    "Long episode rule",
     { maximumDurationPolicy: "post_reconstruction_strict_max_v1" },
   ],
   [
-    "Interval quality policy",
+    "Clean unusual intervals",
     { intervalQualityPolicy: "culverhouse_trim_and_log" },
   ],
   [
-    "Drop events written out of chronological order",
+    "Remove events out of time order",
     { dropOutOfSourceOrderEvents: true },
   ],
-  ["Filter zero duration sessions", { filterZeroDurationSessions: true }],
+  ["Remove zero-time sessions", { filterZeroDurationSessions: true }],
   [
-    "Screen-session maximum-duration action",
+    "What to do with long screen sessions",
     { screenSessionMaximumDurationDisposition: "truncate" },
   ],
-  ["Screen-gated usage credit", { enableScreenGatedCrediting: true }],
+  ["Count screen-on app time", { enableScreenGatedCrediting: true }],
 ];
 
 describe("buildCleaningSummary", () => {

@@ -437,7 +437,7 @@ a:hover {
 
 @media (max-width: 640px) {
   .settings-card-loading--research-method-profile {
-    min-height: 302px;
+    min-height: 296px;
   }
 }
 

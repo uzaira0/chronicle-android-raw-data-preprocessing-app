@@ -718,7 +718,7 @@ test.describe("5. Hostile companion files", () => {
         "application/vnd.chronicle.workflow-workspace");
       await expect(page.getByTestId("workspace-backup-status")).toContainText(
         /invalid|truncat|length|bounds|magic|digest|corrupt|mismatch|unexpected|archive|manifest/i, { timeout: WAIT });
-      await expect(page.getByTestId("workspace-backup-status")).not.toContainText("Verified workspace restored", { timeout: WAIT });
+      await expect(page.getByTestId("workspace-backup-status")).not.toContainText("Backup loaded", { timeout: WAIT });
       await expect(page.getByTestId("import-workspace-closure")).toBeEnabled({ timeout: WAIT });
       expect(await downloadCsv(page, "download-app-csv")).toBe(csv);
       const after = inspectClosure(await downloadClosure(page));

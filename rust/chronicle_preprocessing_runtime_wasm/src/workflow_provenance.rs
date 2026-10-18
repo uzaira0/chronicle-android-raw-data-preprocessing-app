@@ -743,9 +743,11 @@ mod tests {
         // option: its credit tunes edge, its derive_credited_intervals and
         // assemble_result_manifest request field, and the contract digests
         // that move with them.
+        // Refreshed 2026-10-17 for the plain-language step labels and
+        // descriptions; only wording and the presentation digest moved.
         assert_eq!(
             sha256(&bytes),
-            "sha256:530bf8068d691b89464b423d290d4b2ed01fb29d914a8cbddd12bcb4c86c9a58"
+            "sha256:ea658c1a4cb3e352fa7152c3a7d078a10a7392a82dec034bfb27c8ad1ae14073"
         );
     }
 }
