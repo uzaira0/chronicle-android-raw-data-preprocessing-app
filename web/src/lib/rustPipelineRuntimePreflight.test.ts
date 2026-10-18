@@ -306,14 +306,12 @@ describe("explicit maximum-duration selection", () => {
 });
 
 describe("refusal error messages", () => {
-  it("names the requested opener set and its reason code", () => {
+  it("uses plain text for an opener-set refusal", () => {
     const error = new RustOpenerSetRefusalError(refusedOpenerDecision());
     expect(error.code).toBe("opener_set_refused");
     expect(error.name).toBe("RustOpenerSetRefusalError");
     expect(error.decision).toEqual(refusedOpenerDecision());
-    expect(error.message).toBe(
-      "Opener set activity_resumed_only is incompatible with the selected reconstruction strategy (eyes_requires_lifecycle_triplets)",
-    );
+    expect(error.message).toBe("The selected app start rule does not fit your other settings. Choose another rule or change the settings.");
   });
 
   it("falls back to unspecified_reason when the opener decision names none", () => {
@@ -322,20 +320,16 @@ describe("refusal error messages", () => {
         ...refusedOpenerDecision(),
         reasonCode: null,
       }).message,
-    ).toBe(
-      "Opener set activity_resumed_only is incompatible with the selected reconstruction strategy (unspecified_reason)",
-    );
+    ).toBe("The selected app start rule does not fit your other settings. Choose another rule or change the settings.");
   });
 
-  it("names the requested maximum-duration policy and its reason code", () => {
+  it("uses plain text for a long-episode rule refusal", () => {
     const decision = refusedMaximumDurationDecision();
     const error = new RustMaximumDurationRefusalError(decision);
     expect(error.code).toBe("maximum_duration_refused");
     expect(error.name).toBe("RustMaximumDurationRefusalError");
     expect(error.decision).toEqual(decision);
-    expect(error.message).toBe(
-      "The long episode rule you chose (post_reconstruction_strict_max_v1) cannot run with your other settings (reason: maximum_duration_policy_incompatible_with_reconstruction_strategy)",
-    );
+    expect(error.message).toBe("The long episode rule you chose cannot run with your other settings.");
   });
 
   it("falls back to unspecified_reason when the maximum-duration decision names none", () => {
@@ -344,22 +338,18 @@ describe("refusal error messages", () => {
         ...refusedMaximumDurationDecision(),
         reasonCode: null,
       }).message,
-    ).toBe(
-      "The long episode rule you chose (post_reconstruction_strict_max_v1) cannot run with your other settings (reason: unspecified_reason)",
-    );
+    ).toBe("The long episode rule you chose cannot run with your other settings.");
   });
 });
 
 describe("scientific preflight refusal message", () => {
-  it("reports the B05 axis from the non-executable screen projection", () => {
+  it("uses plain text for a refusal without a specific remedy", () => {
     const error = new RustScientificPreflightRefusalError(
       runtimeScientificRefusalFixture(),
     );
     expect(error.code).toBe("scientific_preflight_refused");
     expect(error.name).toBe("RustScientificPreflightRefusalError");
-    expect(error.message).toBe(
-      "Scientific preflight refused (B05/Schoedel: capability_evidence_not_bound_to_input/capability_evidence_not_bound_to_input).",
-    );
+    expect(error.message).toBe("This file cannot be processed with the current settings.");
   });
 
   it("falls through to the Schoedel projection when the screen arm is executable", () => {
@@ -385,7 +375,7 @@ describe("scientific preflight refusal message", () => {
       },
     };
     expect(new RustScientificPreflightRefusalError(refused).message).toBe(
-      "Scientific preflight refused (B05/Schoedel: invalid_screen_interval_dependency/invalid_screen_interval_dependency).",
+      "This file cannot be processed with the current settings.",
     );
   });
 
@@ -403,10 +393,9 @@ describe("scientific preflight refusal message", () => {
     };
     // A fragmented stream has a researcher-facing remedy (#51); the typed code follows it.
     expect(new RustScientificPreflightRefusalError(refused).message).toBe(
-      "This file's participant also appears in another file of this batch, and " +
+        "This file's participant also appears in another file of this batch, and " +
         "sessions cannot be closed safely across a split export. Combine the " +
-        "participant's files into one, or turn off screen usage to process app usage alone. " +
-        "Scientific preflight refused (EYES input partition: unsupported_input_chunk/participant_stream_fragmented).",
+        "participant's files into one, or turn off screen usage to process app usage alone.",
     );
   });
 
@@ -415,6 +404,6 @@ describe("scientific preflight refusal message", () => {
       new RustScientificPreflightRefusalError(
         runtimeScientificPreflightFixture(),
       ).message,
-    ).toBe("Scientific preflight refused (scientific input: non_executable/unspecified).");
+    ).toBe("This file cannot be processed with the current settings.");
   });
 });

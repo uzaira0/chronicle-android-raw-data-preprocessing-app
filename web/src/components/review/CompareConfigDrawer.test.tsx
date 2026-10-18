@@ -26,7 +26,7 @@ describe("comparison scientific refusal", () => {
         fileCount: 1,
       }),
     );
-    expect(html).toContain("Scientific preflight decision");
+    expect(html).toContain("<summary>Technical details</summary>");
     expect(html).toContain("capability_evidence_not_bound_to_input");
     expect(html).toContain(receipt.commitDigest);
   });

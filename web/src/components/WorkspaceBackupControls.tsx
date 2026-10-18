@@ -5,6 +5,7 @@ import {
   importVerifiedWorkspaceClosure,
 } from "@/lib/rustWorkerClient";
 import { downloadBlob } from "@/lib/download";
+import { failureText } from "@/lib/diagnostics";
 import type { ProcessedFileResult } from "@/lib/types";
 import type { LiteratureComponentRuntimeExecution } from "@/lib/rustPipelineRuntime";
 
@@ -59,7 +60,7 @@ export function WorkspaceBackupControls({ results, componentResult, onImportStar
       );
       setMessage(`Backup saved for ${inputFileName}.`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
+      setMessage(failureText(error, "This backup could not be saved.").message);
     } finally {
       setBusy(false);
     }
@@ -86,7 +87,7 @@ export function WorkspaceBackupControls({ results, componentResult, onImportStar
         "Backup loaded. Add its raw file again to keep working on this run.",
       );
     } catch (error) {
-      setMessage(`This backup could not be loaded: ${error instanceof Error ? error.message : String(error)}`);
+      setMessage(failureText(error, "This backup could not be loaded.").message);
     } finally {
       setBusy(false);
       if (inputRef.current) inputRef.current.value = "";

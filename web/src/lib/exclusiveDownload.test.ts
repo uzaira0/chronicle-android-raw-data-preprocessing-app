@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { UserFacingError } from "@/lib/diagnostics";
 
 import {
   startExclusiveDownload,
@@ -68,11 +69,11 @@ describe("startExclusiveDownload", () => {
     expect(state.busy).toBeNull();
   });
 
-  it("reports a thrown Error's message and still releases the busy marker", async () => {
+  it("reports a researcher-facing message verbatim and still releases the busy marker", async () => {
     const { state, hooks } = recorder();
     // eslint-disable-next-line @typescript-eslint/require-await -- immediate failure path
     await startExclusiveDownload(hooks, "timeline", async () => {
-      throw new Error("Plots could not be generated for Raw P02.csv");
+      throw new UserFacingError("Plots could not be generated for Raw P02.csv");
     });
     expect(state.error).toBe("Plots could not be generated for Raw P02.csv");
     expect(state.busy).toBeNull();
@@ -84,14 +85,15 @@ describe("startExclusiveDownload", () => {
     ]);
   });
 
-  it("stringifies a non-Error failure", async () => {
+  it("shows a plain sentence, not the raw text, for any other failure", async () => {
     const { state, hooks } = recorder();
     // eslint-disable-next-line @typescript-eslint/require-await -- immediate failure path
     await startExclusiveDownload(hooks, "aggregate", async () => {
       // eslint-disable-next-line @typescript-eslint/only-throw-error -- pins String(failure) handling for non-Error throws
       throw "quota exceeded";
     });
-    expect(state.error).toBe("quota exceeded");
+    expect(state.error).toMatch(/^The download could not be prepared\./);
+    expect(state.error).not.toContain("quota exceeded");
     expect(state.busy).toBeNull();
   });
 });

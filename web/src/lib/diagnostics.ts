@@ -32,6 +32,17 @@ export type RecordedError = {
   context?: string;
 };
 
+/**
+ * An error whose message was written for researchers. `details` keeps the
+ * technical text for the collapsed "Technical details" and the diagnostic log.
+ */
+export class UserFacingError extends Error {
+  constructor(message: string, readonly details?: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "UserFacingError";
+  }
+}
+
 // A data file name, including the " (1)" a browser adds to a repeated
 // download. Names with spaces are covered by setSensitiveNames, which the app
 // feeds every file name it sees.
@@ -197,16 +208,43 @@ const SAVED_RUN_CHECK_FAILURE =
 export const SAVED_RUN_CHECK_NOTICE =
   "This browser's saved copy of an earlier run of this file failed its integrity check, so the file was not processed. Use “Delete all local data” in the page footer, then process the file again. If it happens again, send the diagnostic report from the footer.";
 
+const FAILURE_HINT =
+  "If this keeps happening, copy the diagnostic report from the page footer and send it to the developer.";
+
+/** Choose safe text for a failure while keeping its original message available for diagnosis. */
+export function failureText(
+  error: unknown,
+  lead: string,
+): { message: string; details?: string } {
+  const { message: rawMessage } = describe(error);
+  if (SAVED_RUN_CHECK_FAILURE.test(rawMessage)) {
+    recordError("background", error, "saved-run integrity check");
+    return { message: SAVED_RUN_CHECK_NOTICE, ...(rawMessage ? { details: rawMessage } : {}) };
+  }
+  if (error instanceof UserFacingError) {
+    return { message: error.message, ...(error.details ? { details: error.details } : {}) };
+  }
+
+  recordError("shown", error, lead);
+  return {
+    message: `${lead} ${FAILURE_HINT}`,
+    ...(rawMessage ? { details: rawMessage } : {}),
+  };
+}
+
+/** Text failureText built from a failure it already recorded in the log. */
+export function isRecordedFailureText(message: string): boolean {
+  return message.includes(FAILURE_HINT) || message.includes(SAVED_RUN_CHECK_NOTICE);
+}
+
 /**
- * The text a failed run shows. A saved-run check failure becomes
- * SAVED_RUN_CHECK_NOTICE and its raw message goes to the diagnostic log;
- * every other message (input, timezone, schema) is already meant for users.
+ * The plain summary a failed run shows. Detailed failures stay in the log.
  */
-export function processingErrorText(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error);
-  if (!SAVED_RUN_CHECK_FAILURE.test(message)) return message;
-  recordError("background", error, "saved-run integrity check");
-  return SAVED_RUN_CHECK_NOTICE;
+export function processingErrorText(
+  error: unknown,
+  lead = "This file could not be processed.",
+): string {
+  return failureText(error, lead).message;
 }
 
 export function recentErrors(): readonly RecordedError[] {

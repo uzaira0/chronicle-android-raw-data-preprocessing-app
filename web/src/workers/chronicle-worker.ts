@@ -64,6 +64,10 @@ import {
   withParticipantPartitionLane,
 } from "@/lib/participantPartitionLane";
 import { throwSerializableScientificPreflightRefusal } from "@/lib/scientificPreflightTransport";
+import { installUserFacingErrorTransport } from "@/lib/workerErrorTransport";
+import { UserFacingError } from "@/lib/diagnostics";
+
+installUserFacingErrorTransport();
 
 /**
  * SHA-256 of the raw input, returned as a lowercase hex string. Runs in the
@@ -471,7 +475,7 @@ const api = {
       });
     } catch (error) {
       const outOfMemory = outOfMemoryRefusal(error, inputFileName, rustWasmMemoryBytes());
-      if (outOfMemory) throw new Error(outOfMemory, { cause: error });
+      if (outOfMemory) throw new UserFacingError(outOfMemory, error instanceof Error ? error.message : String(error), { cause: error });
       throwSerializableScientificPreflightRefusal(error);
     }
     result.inputSha256 = inputSha256;

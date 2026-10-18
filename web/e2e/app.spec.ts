@@ -358,7 +358,7 @@ test("@smoke @opfs B06 persists the maximum-duration vector, truncates strictly 
   await page.getByRole("tab", { name: /Process/i }).click();
   await page.getByTestId("process-files-button").click();
   await expect(page.locator(".result-panel .error-text")).toContainText(
-    "The long episode rule you chose (post_reconstruction_strict_max_v1) cannot run with your other settings (reason: adaptive_maximum_threshold_provider_unavailable)",
+    "The long episode rule you chose cannot run with your other settings.",
     { timeout: 15_000 },
   );
   assertNoExternalRequests(requestTracker);

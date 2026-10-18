@@ -2,6 +2,7 @@ import { useEffect, type ReactElement } from "react";
 
 type Props = {
   message: string;
+  details?: string;
   isError?: boolean;
   onDismiss: () => void;
   /** Auto-dismiss delay for a success toast. Error toasts never auto-dismiss. */
@@ -15,7 +16,7 @@ type Props = {
  * The timer restarts only when the message itself changes, never on an
  * unrelated parent render (callers pass a stable `onDismiss`).
  */
-export function Toast({ message, isError = false, onDismiss, timeoutMs = 5000 }: Props): ReactElement {
+export function Toast({ message, details, isError = false, onDismiss, timeoutMs = 5000 }: Props): ReactElement {
   useEffect(() => {
     if (isError) return undefined;
     const handle = window.setTimeout(onDismiss, timeoutMs);
@@ -24,7 +25,15 @@ export function Toast({ message, isError = false, onDismiss, timeoutMs = 5000 }:
 
   const content = (
     <>
-      <span>{message}</span>
+      <div className="toast__body">
+        <span>{message}</span>
+        {details !== undefined ? (
+          <details className="technical-details">
+            <summary>Technical details</summary>
+            <pre>{details}</pre>
+          </details>
+        ) : null}
+      </div>
       <button type="button" className="btn btn--ghost" onClick={onDismiss} aria-label="Dismiss">
         ×
       </button>

@@ -478,6 +478,7 @@ export type ProgressEvent =
       fileName: string;
       result?: ProcessedFileResult;
       error?: string;
+      errorDetail?: string;
       scientificPreflightRefusal?: import("@/lib/generatedRuntimeBoundary").RuntimeScientificPreflightReceipt;
     };
 
@@ -580,7 +581,8 @@ export type PayloadSpillStats = {
 };
 
 /** An output that could not be generated or read and was left out, with why. */
-export type SkippedOutput = { outputFileName: string; reason: string };
+/** `details`: the browser's own error, for the diagnostic log. */
+export type SkippedOutput = { outputFileName: string; reason: string; details?: string };
 
 export type CleaningSummaryStep = {
   step: string;

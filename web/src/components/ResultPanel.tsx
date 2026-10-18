@@ -8,6 +8,7 @@ import type { ReactElement } from "react";
 import { createZipBlob } from "@/lib/zip";
 import { BUILD_DATE, BUILD_SHA, CONTRACT_VERSION } from "@/lib/buildInfo";
 import { SETTINGS_SCHEMA_VERSION } from "@/lib/settingsPersistence";
+import { recordError, UserFacingError } from "@/lib/diagnostics";
 import type { OutputKind } from "@/lib/generatedContract";
 import type {
   BrowserProcessingOptions,
@@ -421,19 +422,28 @@ export function ResultPanel({
     void startExclusiveDownload(downloadHooks, id, async () => {
       setDownloadSkipped([]);
       const skipped: SkippedOutput[] = [];
-      const deferredPlots = includeDeferredPlots
-        ? await materializeRequestedPlots(results, skipped)
-        : [];
-      const deferredTimelines = includeDeferredTimelines
-        ? await materializeRequestedTimelines(results)
-        : [];
+      let deferredPlots: BatchOutput[] = [];
+      let deferredTimelines: BatchOutput[] = [];
+      try {
+        if (includeDeferredPlots) deferredPlots = await materializeRequestedPlots(results, skipped);
+        if (includeDeferredTimelines) deferredTimelines = await materializeRequestedTimelines(results);
+      } finally {
+        // Kept even when a later file's preparation throws.
+        for (const item of skipped) {
+          if (item.details) recordError("background", item.details, "drawing a plot");
+        }
+      }
       const entries = [...outputs, ...deferredPlots, ...deferredTimelines];
       const firstSkipped = skipped[0];
       if (!entries.length && firstSkipped) {
-        throw new Error(firstSkipped.reason);
+        throw new UserFacingError(
+          `${displayMasker.fileName(firstSkipped.outputFileName)} was not generated: ${firstSkipped.reason}`,
+        );
       }
       await downloadZip(id, entries, results);
-      if (resultsRef.current === results) setDownloadSkipped(skipped);
+      if (resultsRef.current === results) {
+        setDownloadSkipped(skipped);
+      }
     });
   };
 
@@ -624,7 +634,7 @@ export function ResultPanel({
           role="alert"
           data-testid="download-error"
         >
-          Could not prepare download: {downloadError}
+          {downloadError}
         </p>
       ) : null}
       {downloadSkipped.length ? (

@@ -79,6 +79,7 @@ import {
   processPersistedReviewWithRustAuthority,
   processRawCsvReviewWithRustAuthority,
   processRawCsvWithRustAuthority,
+  PLOT_NOT_DRAWN,
 } from "@/lib/rustPipelineAuthority";
 import { relabelDuplicateContentResult } from "@/lib/duplicateContentResult";
 
@@ -1115,7 +1116,8 @@ describe("Rust authority browser projection", () => {
     expect(withoutPng.skippedOutputs).toEqual([
       {
         outputFileName: "Raw App Usage Plot.png",
-        reason: "canvas 40000 px exceeds the browser limit",
+        reason: PLOT_NOT_DRAWN,
+        details: "canvas 40000 px exceeds the browser limit",
       },
     ]);
     expect(names(withoutPng)).toEqual(
@@ -1123,7 +1125,7 @@ describe("Rust authority browser projection", () => {
     );
     expect(names(withoutPng)).toContain("Raw P01 App Usage Plot.svg");
 
-    // A non-Error failure crossing a worker boundary is reported verbatim.
+    // A non-Error failure crossing a worker boundary gets the same plain reason.
     mocks.generateAllPlotSvgs.mockImplementationOnce(() => {
       // eslint-disable-next-line @typescript-eslint/only-throw-error
       throw "svg serializer unavailable";
@@ -1132,7 +1134,8 @@ describe("Rust authority browser projection", () => {
     expect(withoutSvg.skippedOutputs).toEqual([
       {
         outputFileName: "Raw App Usage Plot.svg",
-        reason: "svg serializer unavailable",
+        reason: PLOT_NOT_DRAWN,
+        details: "svg serializer unavailable",
       },
     ]);
     expect(names(withoutSvg)).toContain("Raw P01 App Usage Plot.png");
