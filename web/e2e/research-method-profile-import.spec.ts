@@ -556,7 +556,7 @@ for (const sourceWorkId of ["doi:10.1145/3422821", "doi:10.2196/13209", "doi:10.
     const card = page.locator('[data-settings-anchor="research-method-profile"]');
     for (const reload of [false, true]) {
       if (reload) await reloadApp(page);
-      const section = card.locator("details").filter({ has: page.getByText(`Session construction policies (${profile.session_construction_policies.length})`, { exact: true }) });
+      const section = card.locator("details").filter({ has: page.getByText(`How sessions are built (${profile.session_construction_policies.length})`, { exact: true }) });
       await section.locator("summary").click();
       await expect(section.locator("li")).toHaveCount(profile.session_construction_policies.length);
       await expect(section).not.toContainText("Reconstruction strategy:");
@@ -636,7 +636,7 @@ test("preserves the Jones sequence definition through the existing picker and re
   const card = page.locator('[data-settings-anchor="research-method-profile"]');
   for (const reload of [false, true]) {
     if (reload) await reloadApp(page);
-    const operations = card.locator("details").filter({ has: page.getByText("Method operations (2)", { exact: true }) });
+    const operations = card.locator("details").filter({ has: page.getByText("Method steps (2)", { exact: true }) });
     await operations.locator("summary").click();
     await expect(operations).toContainText("Sequence encoding rule: first_vs_previously_seen_in_partition");
     await expect(operations).toContainText('Sequence scope operation ids: ["jones.session_partition"]');
@@ -663,7 +663,7 @@ test("preserves the Clear All grouping definition through the existing picker an
   const card = page.locator('[data-settings-anchor="research-method-profile"]');
   for (const reload of [false, true]) {
     if (reload) await reloadApp(page);
-    const operations = card.locator("details").filter({ has: page.getByText("Method operations (2)", { exact: true }) });
+    const operations = card.locator("details").filter({ has: page.getByText("Method steps (2)", { exact: true }) });
     await operations.locator("summary").click();
     await expect(operations).toContainText("Grouping basis: raw_string_concatenation");
     await expect(operations).toContainText('Concatenated key setting ids: ["example:field:packageName","example:field:groupKeyCompat"]');
@@ -699,7 +699,7 @@ test("imports normalized ODIM trace relationships and restores them without pret
     await expect(traces).toContainText('"screenshot_redaction_effect":"selected_element_pixels_deleted","hierarchy_redaction_effect":"corresponding_text_content_tagged"');
     await expect(traces).toContainText('"screenshot_redaction_effect":"drawn_region_blackened","hierarchy_redaction_effect":"qualifying_element_metadata_removed"');
     await expect(traces).toContainText("dcf3c9cdf7d6fe9fb916774ee0cedfcae11ccdc2fe2c93cb922815faafd7e920");
-    const artifacts = card.locator("details").filter({ has: page.getByText("Referenced payload identities (12)", { exact: true }) });
+    const artifacts = card.locator("details").filter({ has: page.getByText("Files it refers to (12)", { exact: true }) });
     await artifacts.locator("summary").click();
     await expect(artifacts).toContainText("image2"); // Catalog membership is not current event membership.
     await expectMethodProfileLoadAction(card, input.profiles[0] as StudyMethodProfile);
@@ -710,7 +710,7 @@ test("imports normalized ODIM trace relationships and restores them without pret
   await expect(page.getByRole("status").filter({ hasText: "Method profile import failed:" })).toContainText("no referenced artifact");
   await reloadApp(page);
   await expect(card).toContainText("Supplied interaction traces (1)");
-  await expect(card).toContainText("Referenced payload identities (12)");
+  await expect(card).toContainText("Files it refers to (12)");
   const badDescription = structuredClone(input);
   Reflect.set(badDescription.interaction_traces[0]!.interaction_events[0]!, "screen_description", { text: "invalid" });
   await picker.setInputFiles({ name: "invalid-description.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(badDescription)) });
@@ -754,11 +754,11 @@ test("imports normalized ODIM trace relationships and restores them without pret
   }
   await picker.setInputFiles({ name: "profile-only.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify({ profiles: input.profiles })) });
   await expect(card).not.toContainText("Supplied interaction traces");
-  await expect(card).not.toContainText("Referenced payload identities");
+  await expect(card).not.toContainText("Files it refers to");
   await reloadApp(page);
   await expect(card).toContainText("doi:10.1145/3743726");
   await expect(card).not.toContainText("Supplied interaction traces");
-  await expect(card).not.toContainText("Referenced payload identities");
+  await expect(card).not.toContainText("Files it refers to");
 });
 
 test("keeps the latest method-profile import when an older file read finishes last", async ({ page }) => {
@@ -816,7 +816,7 @@ test("preserves conditional ringer actuation definitions without enabling execut
       await expect(row).toContainText(`Source: ${setting.source_locators.join(", ")}`);
     }
     await expect(card.getByRole("button", { name: "Load supported preprocessing settings" })).toBeDisabled();
-    const section = card.locator("details").filter({ has: page.getByText("Method operations (2)", { exact: true }) });
+    const section = card.locator("details").filter({ has: page.getByText("Method steps (2)", { exact: true }) });
     await section.locator("summary").click();
     for (const operation of profile.method_operations) {
       const row = section.locator("li").filter({ has: page.getByText(operation.operation_id, { exact: true }) });
@@ -938,7 +938,7 @@ for (const [name, sourceWorkId] of [
         await expectMethodProfileLoadAction(card, profile as unknown as StudyMethodProfile);
       }
       const section = card.locator("details").filter({
-        has: page.getByText(`Method operations (${profile.method_operations.length})`, { exact: true }),
+        has: page.getByText(`Method steps (${profile.method_operations.length})`, { exact: true }),
       });
       await expect(section).toHaveCount(1);
       await section.locator("summary").click();
@@ -1077,7 +1077,7 @@ test("rejects malformed operation imports without replacing the saved source pro
   await reloadApp(page);
   await expect(card).toContainText(profile.source_work_id);
   const operations = card.locator("details").filter({
-    has: page.getByText("Method operations (10)", { exact: true }),
+    has: page.getByText("Method steps (10)", { exact: true }),
   });
   await operations.locator("summary").click();
   await expect(operations).toContainText(`Data effects: ${JSON.stringify(profile.method_operations[0]!.data_effects)}`);

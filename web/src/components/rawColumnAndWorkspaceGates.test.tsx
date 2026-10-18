@@ -229,9 +229,9 @@ describe("ephemeral workspace", () => {
     expect(
       /<button[^>]*data-testid="process-files-button"[^>]*disabled/.test(html),
     ).toBe(false);
-    expect(html).toContain("Process files (ephemeral)");
+    expect(html).toContain("Process files (not saved)");
     expect(html).toContain('data-testid="ephemeral-workspace-note"');
-    expect(html).toContain("held in this tab only");
+    expect(html).toContain("kept in this tab only");
   });
 
   it("still refuses a raw file missing a required column", () => {

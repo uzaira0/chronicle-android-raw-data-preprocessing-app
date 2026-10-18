@@ -1360,7 +1360,7 @@ fn build_workflow_explorer_view(
                 applicable,
                 run_state: run_state.to_string(),
                 off_reason: (!applicable)
-                    .then(|| "off because its applicability rule is false".into()),
+                    .then(|| "off with your current settings".into()),
             }
         })
         .collect::<Vec<_>>();
@@ -13800,9 +13800,11 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         // option: its credit tunes edge, its derive_credited_intervals and
         // assemble_result_manifest request field, and the contract digests
         // that move with them.
+        // Refreshed 2026-10-17 for the plain-language step labels and
+        // descriptions; only wording and the presentation digest moved.
         assert_eq!(
             sha256(&bytes),
-            "sha256:090b6d8473b2c8b34cee60516a167701bc220efb58492321e34f284360cd31da"
+            "sha256:7955d7e948e75339047488182f3d4c985836f70cd2050561d89963a8eb1c1269"
         );
     }
 

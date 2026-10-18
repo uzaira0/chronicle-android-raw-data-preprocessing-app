@@ -5,132 +5,137 @@
 workflow_model_version: workflow-v1
 workflow_phases:
   - workflow_id: import_verify
-    workflow_label: Import and verify data
-    workflow_description: Read source files, validate required values, and record source evidence.
+    workflow_label: Import and check the files
+    workflow_description: Read the uploaded files and check that the required values are present.
   - workflow_id: standardize_timeline
-    workflow_label: Standardize the event timeline
-    workflow_description: Normalize clocks, ordering, duplicate events, and timeline gaps.
+    workflow_label: Put events in order
+    workflow_description: Fix clocks and time zones, sort events, and handle repeated events.
   - workflow_id: reconstruct_activity
-    workflow_label: Reconstruct activity
-    workflow_description: Infer screen sessions and app-usage episodes from event evidence.
+    workflow_label: Rebuild app and screen use
+    workflow_description: Work out when each app was in use and when the screen was
+      on, from the logged events.
   - workflow_id: apply_measurement_rules
-    workflow_label: Apply measurement rules
-    workflow_description: Apply declared inclusion, duration, concurrency, and crediting policies.
+    workflow_label: Apply your measurement settings
+    workflow_description: Apply your settings for which apps count, short and long
+      use, overlapping apps, and credited time.
   - workflow_id: add_context
-    workflow_label: Add app and person context
-    workflow_description: Join codebooks and attribute activity to people and categories.
+    workflow_label: Add app and person details
+    workflow_description: Add app names and categories, and work out who was using the device.
   - workflow_id: assess_coverage
-    workflow_label: Assess study coverage
-    workflow_description: Build participant-day evidence, completeness measures, and
-      compliance decisions.
+    workflow_label: Check how complete the data is
+    workflow_description: Find which days have data, how much of each day's use has
+      a known user, and which days meet your threshold.
   - workflow_id: create_deliverables
-    workflow_label: Create deliverables
-    workflow_description: Project scientific tables, encodings, review data, lineage, and provenance.
+    workflow_label: Make the output files
+    workflow_description: Build the result tables, the files you chose, the View tab
+      data, and the audit files.
 workflow_operations:
   - workflow_id: source.validate_remap_rules
-    workflow_label: Validate remapping rules
-    workflow_description: Validate the configured interaction-name remapping before it is used.
+    workflow_label: Check event-type renames
+    workflow_description: Check your event-type renames before they are used.
     workflow_phase_id: import_verify
     workflow_query_ids:
       - validate_remap_rules
     workflow_config_dependency_ids:
       - interaction_type_remap
   - workflow_id: source.decode_records
-    workflow_label: Decode source records
-    workflow_description: Decode Chronicle CSV rows without applying measurement policy.
+    workflow_label: Read the raw file
+    workflow_description: Read the rows of the Chronicle file as they are, before
+      any setting applies.
     workflow_phase_id: import_verify
     workflow_query_ids:
       - decode_source_records
     workflow_config_dependency_ids: []
   - workflow_id: quality.remove_missing_timestamps
-    workflow_label: Remove records without timestamps
-    workflow_description: Remove source records that cannot be placed on a timeline.
+    workflow_label: Remove rows without a time
+    workflow_description: Remove rows that have no time, because they cannot be put in order.
     workflow_phase_id: import_verify
     workflow_query_ids:
       - remove_missing_timestamps
     workflow_config_dependency_ids: []
   - workflow_id: evidence.summarize_device_models
-    workflow_label: Summarize device models
-    workflow_description: Derive device-model evidence from the retained source records.
+    workflow_label: Find the device model
+    workflow_description: Work out which phone or tablet model the file came from.
     workflow_phase_id: import_verify
     workflow_query_ids:
       - attach_device_models
     workflow_config_dependency_ids: []
   - workflow_id: source.attach_device_models
-    workflow_label: Attach device models
-    workflow_description: Attach the resolved device model to each record.
+    workflow_label: Add the device model
+    workflow_description: Add the device model to each row.
     workflow_phase_id: import_verify
     workflow_query_ids:
       - attach_device_models
     workflow_config_dependency_ids: []
   - workflow_id: source.decode_record_fields
-    workflow_label: Decode record fields
-    workflow_description: Convert source values into the typed internal row representation.
+    workflow_label: Read each column
+    workflow_description: Turn each column's text into times, numbers and names.
     workflow_phase_id: import_verify
     workflow_query_ids:
       - canonicalize_source_rows
     workflow_config_dependency_ids: []
   - workflow_id: time.apply_missing_timezone_rule
-    workflow_label: Resolve missing timezone values
-    workflow_description: Apply the versioned missing-timezone rule.
+    workflow_label: Fill in missing time zones
+    workflow_description: Fill in rows that have no time zone, using a fixed rule.
     workflow_phase_id: standardize_timeline
     workflow_query_ids:
       - canonicalize_source_rows
     workflow_config_dependency_ids:
       - timezone
   - workflow_id: identity.normalize_usernames
-    workflow_label: Normalize participant usernames
-    workflow_description: Apply the canonical username casing rule.
+    workflow_label: Tidy participant names
+    workflow_description: Write "Target child" as "Target Child" so both spellings
+      count as the same person.
     workflow_phase_id: standardize_timeline
     workflow_query_ids:
       - canonicalize_source_rows
     workflow_config_dependency_ids: []
   - workflow_id: source.initialize_lineage
-    workflow_label: Initialize source lineage
-    workflow_description: Bind internal rows to their source coordinates.
+    workflow_label: Note where each row came from
+    workflow_description: Remember which line of the uploaded file each row came from.
     workflow_phase_id: import_verify
     workflow_query_ids:
       - canonicalize_source_rows
     workflow_config_dependency_ids: []
   - workflow_id: interaction.normalize_names
-    workflow_label: Normalize interaction names
-    workflow_description: Apply configured interaction-name remapping.
+    workflow_label: Rename event types
+    workflow_description: Apply your event-type renames.
     workflow_phase_id: standardize_timeline
     workflow_query_ids:
       - canonicalize_source_rows
     workflow_config_dependency_ids: []
   - workflow_id: time.derive_target_calendar
-    workflow_label: Derive calendar fields
-    workflow_description: Derive date, weekday, hour, and quarter values from the standardized clock.
+    workflow_label: Add date and hour
+    workflow_description: Work out the date, weekday, hour and quarter of the year for each event.
     workflow_phase_id: standardize_timeline
     workflow_query_ids:
       - canonicalize_source_rows
     workflow_config_dependency_ids: []
   - workflow_id: time.order_source_records
-    workflow_label: Order source records
-    workflow_description: Establish the deterministic event order required downstream.
+    workflow_label: Sort events
+    workflow_description: Sort events into one fixed order that later steps rely on.
     workflow_phase_id: standardize_timeline
     workflow_query_ids:
       - order_source_records
     workflow_config_dependency_ids:
       - drop_out_of_source_order_events
   - workflow_id: evidence.collect_timezone_observations
-    workflow_label: Collect timezone observations
-    workflow_description: Collect timezone evidence without selecting a policy.
+    workflow_label: List the time zones seen
+    workflow_description: List the time zones recorded in the file.
     workflow_phase_id: standardize_timeline
     workflow_query_ids:
       - collect_timezone_observations
     workflow_config_dependency_ids: []
   - workflow_id: evidence.estimate_dominant_timezone
-    workflow_label: Estimate the dominant timezone
-    workflow_description: Estimate the dominant timezone from observed values.
+    workflow_label: Find the main time zone
+    workflow_description: Find the time zone used most in the file.
     workflow_phase_id: standardize_timeline
     workflow_query_ids:
       - estimate_dominant_timezone
     workflow_config_dependency_ids: []
   - workflow_id: policy.resolve_timezone_strategy
-    workflow_label: Resolve timezone policy
-    workflow_description: Resolve the configured timezone handling policy.
+    workflow_label: Apply your time-zone setting
+    workflow_description: Work out what your time-zone setting means for this file.
     workflow_phase_id: standardize_timeline
     workflow_query_ids:
       - resolve_timezone_strategy
@@ -138,44 +143,44 @@ workflow_operations:
       - timezone
       - timezone_handling
   - workflow_id: quality.select_timezone_eligible_records
-    workflow_label: Select timezone-eligible records
-    workflow_description: Retain the records permitted by the selected timezone policy.
+    workflow_label: Keep rows your time-zone setting allows
+    workflow_description: Keep only the rows your time-zone setting allows.
     workflow_phase_id: standardize_timeline
     workflow_query_ids:
       - resolve_timezone_strategy
     workflow_config_dependency_ids: []
   - workflow_id: time.standardize_event_clock
-    workflow_label: Standardize event clocks
-    workflow_description: Restamp event times using the resolved timezone policy.
+    workflow_label: Convert event times
+    workflow_description: Convert event times to the chosen time zone.
     workflow_phase_id: standardize_timeline
     workflow_query_ids:
       - standardize_event_clock
     workflow_config_dependency_ids: []
   - workflow_id: evidence.summarize_row_selection
-    workflow_label: Summarize row selection
-    workflow_description: Report record counts before and after timezone selection.
+    workflow_label: Count rows kept
+    workflow_description: Count rows before and after the time-zone step.
     workflow_phase_id: standardize_timeline
     workflow_query_ids:
       - summarize_row_selection
     workflow_config_dependency_ids: []
   - workflow_id: quality.coalesce_duplicate_event_keys
-    workflow_label: Coalesce duplicate event keys
-    workflow_description: Retain the first matching event-key row and merge its lineage.
+    workflow_label: Merge repeated events
+    workflow_description: Keep the first copy of each repeated event.
     workflow_phase_id: standardize_timeline
     workflow_query_ids:
       - coalesce_duplicate_event_keys
     workflow_config_dependency_ids:
       - deduplicate_exact_rows
   - workflow_id: evidence.summarize_duplicate_groups
-    workflow_label: Summarize duplicate groups
-    workflow_description: Report groups that shared the deduplication key.
+    workflow_label: Count repeated events
+    workflow_description: Report events that appeared more than once.
     workflow_phase_id: standardize_timeline
     workflow_query_ids:
       - summarize_duplicate_groups
     workflow_config_dependency_ids: []
   - workflow_id: quality.disambiguate_duplicate_timestamps
-    workflow_label: Disambiguate duplicate timestamps
-    workflow_description: Apply versioned event precedence when timestamps collide.
+    workflow_label: Order events logged at the same time
+    workflow_description: Decide the order of events logged at the same moment, using a fixed rule.
     workflow_phase_id: standardize_timeline
     workflow_query_ids:
       - disambiguate_duplicate_timestamps
@@ -184,15 +189,15 @@ workflow_operations:
       - other_stop_types
       - same_app_stop_types
   - workflow_id: evidence.derive_time_gaps
-    workflow_label: Derive timeline gaps
-    workflow_description: Measure gaps between ordered events for later rules.
+    workflow_label: Measure gaps between events
+    workflow_description: Measure the time since each participant's previous event, for later steps.
     workflow_phase_id: standardize_timeline
     workflow_query_ids:
       - derive_time_gap_evidence
     workflow_config_dependency_ids: []
   - workflow_id: policy.match_app_exclusion_rows
-    workflow_label: Match app-exclusion rows
-    workflow_description: Identify source rows matching the configured app exclusion evidence.
+    workflow_label: Find apps to leave out
+    workflow_description: Find rows for the apps listed in your filter file.
     workflow_phase_id: apply_measurement_rules
     workflow_query_ids:
       - mark_app_policy_matches
@@ -202,8 +207,8 @@ workflow_operations:
       - package_exclusion_preset
       - use_filter_file
   - workflow_id: evidence.index_keyguard_events
-    workflow_label: Index keyguard events
-    workflow_description: Build reusable keyguard evidence for screen reconstruction.
+    workflow_label: Find lock-screen events
+    workflow_description: Collect lock and unlock events for rebuilding screen use.
     workflow_phase_id: reconstruct_activity
     workflow_query_ids:
       - index_keyguard_events
@@ -212,8 +217,9 @@ workflow_operations:
       - process_screen_usage
       - screen_session_construction_strategy
   - workflow_id: reconstruct.infer_screen_session_skeletons
-    workflow_label: Infer screen-session skeletons
-    workflow_description: Reconstruct policy-neutral screen-session candidates.
+    workflow_label: Find possible screen sessions
+    workflow_description: Find the stretches when the screen may have been on,
+      before any setting applies.
     workflow_phase_id: reconstruct_activity
     workflow_query_ids:
       - infer_screen_session_skeletons
@@ -225,9 +231,8 @@ workflow_operations:
       - screen_session_construction_strategy
       - screen_session_maximum_duration_disposition
   - workflow_id: reconstruct.construct_screen_intervals
-    workflow_label: Construct selected screen intervals
-    workflow_description: Resolve the selected B05 strategy and construct immutable
-      participant-isolated screen intervals.
+    workflow_label: Build screen-on periods
+    workflow_description: Build each participant's screen-on periods with the method you chose.
     workflow_phase_id: reconstruct_activity
     workflow_query_ids:
       - construct_screen_intervals
@@ -239,8 +244,9 @@ workflow_operations:
       - screen_session_construction_strategy
       - screen_session_maximum_duration_disposition
   - workflow_id: evidence.derive_screen_session_features
-    workflow_label: Derive screen-session evidence
-    workflow_description: Derive reusable evidence features for candidate screen sessions.
+    workflow_label: Describe each screen session
+    workflow_description: Work out the facts about each possible screen session that
+      the next step needs.
     workflow_phase_id: reconstruct_activity
     workflow_query_ids:
       - classify_screen_sessions
@@ -248,8 +254,9 @@ workflow_operations:
       - locked_screen_audio_disposition
       - process_screen_usage
   - workflow_id: policy.classify_screen_end_reasons
-    workflow_label: Classify screen-session endings
-    workflow_description: Apply forcing and threshold rules to screen-session evidence.
+    workflow_label: Decide where each screen session ended
+    workflow_description: Use your list of apps that keep the screen on, and your
+      time limits, to decide where each screen session ended.
     workflow_phase_id: apply_measurement_rules
     workflow_query_ids:
       - classify_screen_sessions
@@ -265,8 +272,8 @@ workflow_operations:
       - screen_session_maximum_duration_minutes
       - use_apps_forcing_screen_open
   - workflow_id: reconstruct.materialize_screen_sessions
-    workflow_label: Materialize screen sessions
-    workflow_description: Materialize the classified screen-session table.
+    workflow_label: Make the screen session table
+    workflow_description: Build the table of screen sessions.
     workflow_phase_id: reconstruct_activity
     workflow_query_ids:
       - classify_screen_sessions
@@ -274,17 +281,16 @@ workflow_operations:
       - locked_screen_audio_disposition
       - process_screen_usage
   - workflow_id: policy.resolve_effective_app_exclusions
-    workflow_label: Resolve excluded app packages
-    workflow_description: Convert matching source rows into the effective package exclusion set.
+    workflow_label: List the apps to leave out
+    workflow_description: Turn the matching rows into the final list of apps to leave out.
     workflow_phase_id: apply_measurement_rules
     workflow_query_ids:
       - resolve_excluded_packages
     workflow_config_dependency_ids:
       - process_app_usage
   - workflow_id: policy.mask_excluded_app_events
-    workflow_label: Mask excluded app events
-    workflow_description: Preserve current matching behavior while policy-neutral
-      reconstruction is introduced.
+    workflow_label: Mark events from left-out apps
+    workflow_description: Mark events from the apps you chose to leave out.
     workflow_phase_id: apply_measurement_rules
     workflow_query_ids:
       - mask_excluded_app_events
@@ -292,8 +298,9 @@ workflow_operations:
       - event_retention_set
       - process_app_usage
   - workflow_id: policy.resolve_matcher_masks
-    workflow_label: Resolve matcher masks
-    workflow_description: Apply configured stop and background-event rules to matcher inputs.
+    workflow_label: Choose which events can end an app episode
+    workflow_description: Apply your settings for which events end an app episode,
+      including background apps.
     workflow_phase_id: apply_measurement_rules
     workflow_query_ids:
       - build_app_event_index
@@ -304,16 +311,16 @@ workflow_operations:
       - same_app_stop_types
       - use_background_apps_file
   - workflow_id: reconstruct.index_app_events
-    workflow_label: Index app events
-    workflow_description: Build the reusable event factorization used by episode matching.
+    workflow_label: Prepare app events for pairing
+    workflow_description: Group app events so each start can be paired with its stop.
     workflow_phase_id: reconstruct_activity
     workflow_query_ids:
       - build_app_event_index
     workflow_config_dependency_ids:
       - process_app_usage
   - workflow_id: reconstruct.match_app_episodes
-    workflow_label: Match app episodes
-    workflow_description: Infer candidate usage episodes from indexed events.
+    workflow_label: Pair app starts and stops
+    workflow_description: Pair each app's start and stop events into app episodes.
     workflow_phase_id: reconstruct_activity
     workflow_query_ids:
       - match_app_episodes
@@ -328,8 +335,8 @@ workflow_operations:
       - screen_session_construction_strategy
       - use_activity_stopped_as_fallback
   - workflow_id: reconstruct.materialize_candidate_episodes
-    workflow_label: Materialize candidate episodes
-    workflow_description: Materialize matcher results and missing-end evidence.
+    workflow_label: Make the app episode list
+    workflow_description: Build the list of app episodes, noting the ones with no logged end.
     workflow_phase_id: reconstruct_activity
     workflow_query_ids:
       - materialize_candidate_episodes
@@ -337,18 +344,17 @@ workflow_operations:
       - event_retention_set
       - process_app_usage
   - workflow_id: reconstruct.discard_structural_events
-    workflow_label: Discard structural event rows
-    workflow_description: Remove event-only rows after their structural information
-      has been consumed.
+    workflow_label: Drop helper rows
+    workflow_description: Remove event rows that were only needed to build episodes.
     workflow_phase_id: reconstruct_activity
     workflow_query_ids:
       - classify_episode_durations
     workflow_config_dependency_ids:
       - process_app_usage
   - workflow_id: reconstruct.classify_app_episodes
-    workflow_label: Classify reconstructed episodes
-    workflow_description: Capture immutable raw episode evidence and apply the
-      selected descriptive micro-use class.
+    workflow_label: Label very short app episodes
+    workflow_description: Keep each episode's original length, and label very short
+      episodes the way you chose.
     workflow_phase_id: reconstruct_activity
     workflow_query_ids:
       - classify_episode_durations
@@ -356,9 +362,9 @@ workflow_operations:
       - process_app_usage
       - use_background_apps_file
   - workflow_id: policy.suppress_short_durations
-    workflow_label: Apply minimum-duration disposition
-    workflow_description: Qualify raw reconstructed duration once, then blank,
-      retain, exclude, or mark the row for lineage-preserving removal.
+    workflow_label: Handle short app episodes
+    workflow_description: Compare each episode with your minimum length, then blank
+      its time, keep it, leave it out of totals, or remove it, as you chose.
     workflow_phase_id: apply_measurement_rules
     workflow_query_ids:
       - classify_episode_durations
@@ -369,12 +375,11 @@ workflow_operations:
       - minimum_usage_duration
       - process_app_usage
   - workflow_id: policy.apply_maximum_duration
-    workflow_label: Apply maximum-duration policy
-    workflow_description: When a maximum-duration policy is selected explicitly,
-      qualify raw reconstructed duration against the maximum once (strictly
-      greater; equality retained), then flag, exclude, truncate, or mark the row
-      for lineage-preserving removal. Absent keys leave Chronicle's legacy
-      candidate-rejection behaviour untouched.
+    workflow_label: Handle long app episodes
+    workflow_description: If you set a maximum length, compare each episode with it
+      (only longer episodes are affected), then flag, leave out, shorten or
+      remove it. With no maximum set, Chronicle's original handling of long
+      episodes is kept.
     workflow_phase_id: apply_measurement_rules
     workflow_query_ids:
       - classify_episode_durations
@@ -385,8 +390,8 @@ workflow_operations:
       - maximum_duration_threshold_source
       - process_app_usage
   - workflow_id: policy.apply_app_inclusion
-    workflow_label: Apply app inclusion policy
-    workflow_description: Apply the effective package set to reconstructed episodes.
+    workflow_label: Leave out filtered apps
+    workflow_description: Apply the final list of left-out apps to the app episodes.
     workflow_phase_id: apply_measurement_rules
     workflow_query_ids:
       - apply_app_inclusion_policy
@@ -401,16 +406,16 @@ workflow_operations:
       - use_background_apps_file
       - use_filter_file
   - workflow_id: reconstruct.order_app_episodes
-    workflow_label: Order app episodes
-    workflow_description: Establish deterministic episode order for downstream interval logic.
+    workflow_label: Sort app episodes
+    workflow_description: Sort app episodes into one fixed order for the overlap steps.
     workflow_phase_id: reconstruct_activity
     workflow_query_ids:
       - order_app_episodes
     workflow_config_dependency_ids:
       - process_app_usage
   - workflow_id: reconstruct.segment_concurrent_usage
-    workflow_label: Segment concurrent usage
-    workflow_description: Split overlapping usage into concurrent segments.
+    workflow_label: Split overlapping app use
+    workflow_description: Split times when two apps overlap into separate pieces.
     workflow_phase_id: reconstruct_activity
     workflow_query_ids:
       - segment_concurrent_usage
@@ -419,8 +424,8 @@ workflow_operations:
       - process_app_usage
       - use_background_apps_file
   - workflow_id: policy.apply_concurrent_segment_floor
-    workflow_label: Apply the concurrent-segment floor
-    workflow_description: Apply the optional minimum-duration policy to generated segments.
+    workflow_label: Handle short overlap pieces
+    workflow_description: Apply your minimum length to the pieces made by splitting overlaps.
     workflow_phase_id: apply_measurement_rules
     workflow_query_ids:
       - segment_concurrent_usage
@@ -429,8 +434,8 @@ workflow_operations:
       - minimum_usage_duration
       - process_app_usage
   - workflow_id: context.join_app_codebook
-    workflow_label: Join the app codebook
-    workflow_description: Attach supplied app metadata to reconstructed episodes.
+    workflow_label: Add app details
+    workflow_description: Add app names and details from the codebook to each episode.
     workflow_phase_id: add_context
     workflow_query_ids:
       - join_app_codebook
@@ -438,8 +443,8 @@ workflow_operations:
       - process_app_usage
       - use_app_codebook
   - workflow_id: context.derive_broad_category
-    workflow_label: Derive broad app categories
-    workflow_description: Derive the broad analysis category from app metadata.
+    workflow_label: Add app categories
+    workflow_description: Pick each app's broad category from the codebook.
     workflow_phase_id: add_context
     workflow_query_ids:
       - derive_broad_category
@@ -447,8 +452,8 @@ workflow_operations:
       - process_app_usage
       - use_app_codebook
   - workflow_id: context.collapse_app_genre
-    workflow_label: Collapse app genres
-    workflow_description: Collapse detailed genres into the configured reporting vocabulary.
+    workflow_label: Group app genres
+    workflow_description: Group detailed app genres into the reporting groups you chose.
     workflow_phase_id: add_context
     workflow_query_ids:
       - collapse_app_genre
@@ -456,16 +461,17 @@ workflow_operations:
       - process_app_usage
       - use_app_codebook
   - workflow_id: reconstruct.derive_engagement_basis
-    workflow_label: Derive engagement evidence
-    workflow_description: Build threshold-independent engagement transitions and gaps.
+    workflow_label: Measure switches and gaps
+    workflow_description: Measure the switches and gaps between uses, before any
+      engagement setting applies.
     workflow_phase_id: reconstruct_activity
     workflow_query_ids:
       - derive_engagement_basis
     workflow_config_dependency_ids:
       - process_app_usage
   - workflow_id: policy.classify_engagement
-    workflow_label: Classify engagement
-    workflow_description: Apply engagement-duration policy to the reusable evidence.
+    workflow_label: Label engagement
+    workflow_description: Apply your engagement-length setting.
     workflow_phase_id: apply_measurement_rules
     workflow_query_ids:
       - derive_engagement_basis
@@ -473,8 +479,8 @@ workflow_operations:
       - custom_app_engagement_duration
       - process_app_usage
   - workflow_id: policy.flag_long_usage
-    workflow_label: Flag long usage
-    workflow_description: Apply long-usage thresholds.
+    workflow_label: Flag long use
+    workflow_description: Flag use longer than your long-use limit.
     workflow_phase_id: apply_measurement_rules
     workflow_query_ids:
       - apply_episode_flags
@@ -482,8 +488,8 @@ workflow_operations:
       - long_usage_duration_thresholds
       - process_app_usage
   - workflow_id: policy.flag_long_gaps
-    workflow_label: Flag long data gaps
-    workflow_description: Apply long-gap thresholds.
+    workflow_label: Flag long gaps in the data
+    workflow_description: Flag gaps in the data longer than your limit.
     workflow_phase_id: apply_measurement_rules
     workflow_query_ids:
       - apply_episode_flags
@@ -491,10 +497,10 @@ workflow_operations:
       - long_data_time_gap_thresholds
       - process_app_usage
   - workflow_id: policy.suppress_excluded_timing
-    workflow_label: Suppress excluded timing
-    workflow_description: "Apply the selected interval-quality policy: blank timing
-      values excluded from measurement, or trim, flag and log implausible
-      intervals and collapse same-app rows that are one usage."
+    workflow_label: Handle doubtful times
+    workflow_description: "Apply your setting for doubtful times: blank times left
+      out of totals, or trim, flag and log impossible ones and merge same-app
+      rows that are one use."
     workflow_phase_id: apply_measurement_rules
     workflow_query_ids:
       - suppress_excluded_timing
@@ -502,9 +508,9 @@ workflow_operations:
       - interval_quality_policy
       - process_app_usage
   - workflow_id: policy.remove_selected_interaction_types
-    workflow_label: Remove selected interaction types
-    workflow_description: Remove rows selected by interaction-type policy while
-      preserving gap exceptions.
+    workflow_label: Remove chosen event types
+    workflow_description: Remove rows of the event types you chose, keeping the ones
+      the gap rules need.
     workflow_phase_id: apply_measurement_rules
     workflow_query_ids:
       - remove_selected_interaction_types
@@ -514,8 +520,8 @@ workflow_operations:
       - long_data_time_gap_thresholds
       - process_app_usage
   - workflow_id: quality.remove_zero_duration_rows
-    workflow_label: Remove zero-duration rows
-    workflow_description: Remove rows with a zero measured duration when enabled.
+    workflow_label: Remove zero-length rows
+    workflow_description: Remove rows with a length of zero, if you turned this on.
     workflow_phase_id: apply_measurement_rules
     workflow_query_ids:
       - remove_zero_duration_rows
@@ -523,9 +529,9 @@ workflow_operations:
       - filter_zero_duration_sessions
       - process_app_usage
   - workflow_id: policy.assign_usage_session_ids
-    workflow_label: Number usage sessions
-    workflow_description: Number consecutive episodes into usage sessions under the
-      selected published gap definition.
+    workflow_label: Number sessions
+    workflow_description: Group back-to-back episodes into numbered sessions, using
+      the published gap rule you chose.
     workflow_phase_id: apply_measurement_rules
     workflow_query_ids:
       - assign_usage_session_ids
@@ -536,8 +542,9 @@ workflow_operations:
       - session_gap_basis
       - session_grouping_policy
   - workflow_id: credit.identify_eligible_sessions
-    workflow_label: Identify credit-eligible sessions
-    workflow_description: Partition reconstructed sessions by credit eligibility.
+    workflow_label: Find sessions that can be credited
+    workflow_description: Split sessions into those that can and cannot be checked
+      against screen-on time.
     workflow_phase_id: apply_measurement_rules
     workflow_query_ids:
       - identify_credit_eligible_sessions
@@ -545,8 +552,8 @@ workflow_operations:
       - enable_screen_gated_crediting
       - process_app_usage
   - workflow_id: evidence.index_device_activity
-    workflow_label: Index device activity
-    workflow_description: Build device-activity witness intervals.
+    workflow_label: Find when the device was active
+    workflow_description: Collect the times the device showed any activity.
     workflow_phase_id: reconstruct_activity
     workflow_query_ids:
       - build_activity_witness_indexes
@@ -554,8 +561,8 @@ workflow_operations:
       - enable_screen_gated_crediting
       - process_app_usage
   - workflow_id: evidence.index_reboots
-    workflow_label: Index device reboots
-    workflow_description: Build reboot evidence used by liveness rules.
+    workflow_label: Find device restarts
+    workflow_description: Collect device restarts, used to tell whether the device was on.
     workflow_phase_id: reconstruct_activity
     workflow_query_ids:
       - build_activity_witness_indexes
@@ -563,8 +570,8 @@ workflow_operations:
       - enable_screen_gated_crediting
       - process_app_usage
   - workflow_id: evidence.index_screen_witnesses
-    workflow_label: Index screen witnesses
-    workflow_description: Build screen evidence used by credit rules.
+    workflow_label: Find screen-on records
+    workflow_description: Collect the records that show the screen was on.
     workflow_phase_id: reconstruct_activity
     workflow_query_ids:
       - build_activity_witness_indexes
@@ -572,8 +579,8 @@ workflow_operations:
       - enable_screen_gated_crediting
       - process_app_usage
   - workflow_id: assessment.report_screen_evidence_capability
-    workflow_label: Assess screen evidence capability
-    workflow_description: Report participants for whom screen evidence can support crediting.
+    workflow_label: Check screen records per participant
+    workflow_description: Report which participants have enough screen records to credit app time.
     workflow_phase_id: assess_coverage
     workflow_query_ids:
       - assess_screen_evidence_capability
@@ -581,8 +588,8 @@ workflow_operations:
       - enable_screen_gated_crediting
       - process_app_usage
   - workflow_id: evidence.summarize_daily_apps
-    workflow_label: Summarize daily apps
-    workflow_description: Report daily app evidence consumed by credit policy.
+    workflow_label: List apps per day
+    workflow_description: List each day's apps for the crediting steps.
     workflow_phase_id: assess_coverage
     workflow_query_ids:
       - summarize_daily_apps
@@ -590,8 +597,8 @@ workflow_operations:
       - enable_screen_gated_crediting
       - process_app_usage
   - workflow_id: credit.cap_candidate_intervals
-    workflow_label: Cap candidate intervals
-    workflow_description: Apply session caps before evidence intersection.
+    workflow_label: Apply the session cap
+    workflow_description: Shorten sessions to your cap before they are checked against the screen.
     workflow_phase_id: apply_measurement_rules
     workflow_query_ids:
       - derive_credited_intervals
@@ -600,8 +607,8 @@ workflow_operations:
       - enable_screen_gated_crediting
       - process_app_usage
   - workflow_id: credit.derive_device_live_spans
-    workflow_label: Derive device-live spans
-    workflow_description: Derive intervals supported by activity and reboot evidence.
+    workflow_label: Find when the device was on
+    workflow_description: Work out when the device was on, from activity and restarts.
     workflow_phase_id: reconstruct_activity
     workflow_query_ids:
       - derive_credited_intervals
@@ -610,8 +617,8 @@ workflow_operations:
       - enable_screen_gated_crediting
       - process_app_usage
   - workflow_id: credit.derive_screen_creditable_spans
-    workflow_label: Derive screen-creditable spans
-    workflow_description: Derive intervals supported by screen evidence.
+    workflow_label: Find when the screen was on
+    workflow_description: Work out when the screen was on, from the screen records.
     workflow_phase_id: reconstruct_activity
     workflow_query_ids:
       - derive_credited_intervals
@@ -621,8 +628,8 @@ workflow_operations:
       - enable_screen_gated_crediting
       - process_app_usage
   - workflow_id: credit.intersect_evidence
-    workflow_label: Intersect credit evidence
-    workflow_description: Intersect candidate intervals with available witness evidence.
+    workflow_label: Keep app time while the screen was on
+    workflow_description: Keep only the parts of each session when the device and screen were on.
     workflow_phase_id: apply_measurement_rules
     workflow_query_ids:
       - derive_credited_intervals
@@ -631,8 +638,9 @@ workflow_operations:
       - process_app_usage
       - screen_gating_rule
   - workflow_id: credit.apply_no_witness_fallback
-    workflow_label: Apply no-witness fallback
-    workflow_description: Apply the declared fallback for missing or incapable screen evidence.
+    workflow_label: Handle sessions with no screen record
+    workflow_description: Apply your setting for sessions with no screen record, or
+      for participants whose screen records can't be used.
     workflow_phase_id: apply_measurement_rules
     workflow_query_ids:
       - derive_credited_intervals
@@ -641,8 +649,8 @@ workflow_operations:
       - no_witness_min_day_apps
       - process_app_usage
   - workflow_id: credit.materialize_credited_rows
-    workflow_label: Materialize credited rows
-    workflow_description: Emit scientific credited intervals separately from lineage-search evidence.
+    workflow_label: Make the credited rows
+    workflow_description: Build the credited app time rows.
     workflow_phase_id: apply_measurement_rules
     workflow_query_ids:
       - materialize_credited_rows
@@ -650,8 +658,9 @@ workflow_operations:
       - enable_screen_gated_crediting
       - process_app_usage
   - workflow_id: credit.publish_credit_result
-    workflow_label: Assemble credit outputs
-    workflow_description: Expose credited rows, metrics, and capability evidence through typed ports.
+    workflow_label: Collect the credited results
+    workflow_description: Gather the credited rows, totals and screen-record report
+      for the output files.
     workflow_phase_id: create_deliverables
     workflow_query_ids:
       - assemble_credit_outputs
@@ -659,8 +668,8 @@ workflow_operations:
       - enable_screen_gated_crediting
       - process_app_usage
   - workflow_id: study.resolve_participant_windows
-    workflow_label: Resolve participant windows
-    workflow_description: Resolve participant-specific observation windows.
+    workflow_label: Find each participant's study dates
+    workflow_description: Work out each participant's start and end dates.
     workflow_phase_id: add_context
     workflow_query_ids:
       - resolve_participant_windows
@@ -669,8 +678,8 @@ workflow_operations:
       - process_screen_usage
       - usage_session_mode
   - workflow_id: study.apply_participant_windows
-    workflow_label: Apply participant windows
-    workflow_description: Retain rows inside each participant observation window.
+    workflow_label: Keep rows inside the study dates
+    workflow_description: Keep only the rows between each participant's start and end dates.
     workflow_phase_id: apply_measurement_rules
     workflow_query_ids:
       - apply_participant_windows
@@ -680,8 +689,8 @@ workflow_operations:
       - process_screen_usage
       - usage_session_mode
   - workflow_id: study.resolve_sharing_status
-    workflow_label: Resolve device sharing
-    workflow_description: Resolve device-sharing evidence for person attribution.
+    workflow_label: Read device sharing
+    workflow_description: Read which devices are shared, to work out who was using them.
     workflow_phase_id: add_context
     workflow_query_ids:
       - resolve_sharing_status
@@ -689,8 +698,8 @@ workflow_operations:
       - enable_person_attribution
       - process_app_usage
   - workflow_id: study.index_survey_responses
-    workflow_label: Index survey responses
-    workflow_description: Build optional survey evidence for person attribution.
+    workflow_label: Read survey answers
+    workflow_description: Read the optional survey answers about who used the device.
     workflow_phase_id: add_context
     workflow_query_ids:
       - index_survey_responses
@@ -698,24 +707,25 @@ workflow_operations:
       - enable_person_attribution
       - process_app_usage
   - workflow_id: context.infer_default_person
-    workflow_label: Infer the default person
-    workflow_description: Apply the built-in default and kids-shell attribution rules.
+    workflow_label: Assume the usual user
+    workflow_description: Apply the built-in rules for who was using the device,
+      including kids' launcher apps.
     workflow_phase_id: add_context
     workflow_query_ids:
       - classify_person_attribution
     workflow_config_dependency_ids:
       - process_app_usage
   - workflow_id: context.apply_survey_person_override
-    workflow_label: Apply survey attribution
-    workflow_description: Override default attribution where survey evidence applies.
+    workflow_label: Use survey answers
+    workflow_description: Use survey answers in place of the usual user where they apply.
     workflow_phase_id: add_context
     workflow_query_ids:
       - classify_person_attribution
     workflow_config_dependency_ids:
       - process_app_usage
   - workflow_id: context.classify_person_attribution
-    workflow_label: Classify person attribution
-    workflow_description: Classify activity as target, non-target, or unresolved.
+    workflow_label: Label who was using the device
+    workflow_description: Label each use as the target person, someone else, or unknown.
     workflow_phase_id: add_context
     workflow_query_ids:
       - classify_person_attribution
@@ -732,8 +742,9 @@ workflow_operations:
       - day_boundary_attribution
       - process_app_usage
   - workflow_id: assessment.synthesize_placeholder_rows
-    workflow_label: Add missing-day placeholders
-    workflow_description: Create explicitly synthetic rows for missing participant days.
+    workflow_label: Add rows for days with no app use
+    workflow_description: Add clearly marked zero-length filler rows for participant
+      days that have raw events but no app use.
     workflow_phase_id: assess_coverage
     workflow_query_ids:
       - synthesize_placeholder_rows
@@ -744,8 +755,9 @@ workflow_operations:
       - screen_session_maximum_duration_disposition
       - screen_session_maximum_duration_minutes
   - workflow_id: evidence.index_raw_dates
-    workflow_label: Index observed dates
-    workflow_description: Index pre-window source dates used by coverage and placeholders.
+    workflow_label: List dates with data
+    workflow_description: List the dates with data, including dates before the study
+      start, for the coverage and filler steps.
     workflow_phase_id: assess_coverage
     workflow_query_ids:
       - index_raw_dates
@@ -754,8 +766,8 @@ workflow_operations:
       - screen_session_maximum_duration_disposition
       - screen_session_maximum_duration_minutes
   - workflow_id: assessment.build_participant_day_spine
-    workflow_label: Build the participant-day spine
-    workflow_description: Create the participant-day domain used for coverage.
+    workflow_label: List every participant day
+    workflow_description: List every day for each participant, for checking coverage.
     workflow_phase_id: assess_coverage
     workflow_query_ids:
       - build_participant_day_coverage
@@ -763,8 +775,8 @@ workflow_operations:
       - enable_day_coverage
       - process_app_usage
   - workflow_id: assessment.classify_days
-    workflow_label: Classify participant days
-    workflow_description: Classify observed, missing, and placeholder days.
+    workflow_label: Label each day
+    workflow_description: Label each day as having data, missing, or a filler day.
     workflow_phase_id: assess_coverage
     workflow_query_ids:
       - build_participant_day_coverage
@@ -772,8 +784,8 @@ workflow_operations:
       - enable_day_coverage
       - process_app_usage
   - workflow_id: assessment.summarize_coverage
-    workflow_label: Summarize study coverage
-    workflow_description: Produce the coverage table and its encoding inputs.
+    workflow_label: Make the coverage table
+    workflow_description: Build the coverage table.
     workflow_phase_id: assess_coverage
     workflow_query_ids:
       - build_participant_day_coverage
@@ -781,8 +793,9 @@ workflow_operations:
       - enable_day_coverage
       - process_app_usage
   - workflow_id: assessment.aggregate_attribution_minutes
-    workflow_label: Aggregate attributed minutes
-    workflow_description: Build threshold-independent participant-day attribution totals.
+    workflow_label: Total minutes per day
+    workflow_description: Add up each participant's minutes per day by who was using
+      the device, before any threshold applies.
     workflow_phase_id: assess_coverage
     workflow_query_ids:
       - aggregate_attribution_minutes
@@ -790,9 +803,9 @@ workflow_operations:
       - enable_compliance_scoring
       - process_app_usage
   - workflow_id: assessment.compute_completeness
-    workflow_label: Compute completeness
-    workflow_description: Compute threshold-independent completeness percentages and
-      zero-use evidence.
+    workflow_label: Work out how much use has a known user
+    workflow_description: Work out the percent of each day's app-use minutes
+      assigned to a known user, and which days had no use.
     workflow_phase_id: assess_coverage
     workflow_query_ids:
       - compute_attribution_completeness
@@ -800,8 +813,8 @@ workflow_operations:
       - enable_compliance_scoring
       - process_app_usage
   - workflow_id: policy.apply_compliance_threshold
-    workflow_label: Apply the compliance threshold
-    workflow_description: Classify participant days using the configured threshold.
+    workflow_label: Mark valid days
+    workflow_description: Mark each day as meeting your threshold or not.
     workflow_phase_id: assess_coverage
     workflow_query_ids:
       - classify_compliance_days
@@ -810,8 +823,8 @@ workflow_operations:
       - enable_compliance_scoring
       - process_app_usage
   - workflow_id: publish.project_app_table
-    workflow_label: Build the app table
-    workflow_description: Project the scientific app-usage table.
+    workflow_label: Build the app usage table
+    workflow_description: Build the app usage table.
     workflow_phase_id: create_deliverables
     workflow_query_ids:
       - assemble_result_manifest
@@ -828,8 +841,8 @@ workflow_operations:
       - use_app_codebook
       - use_background_apps_file
   - workflow_id: publish.project_screen_table
-    workflow_label: Build the screen table
-    workflow_description: Project the scientific screen-session table.
+    workflow_label: Build the screen session table
+    workflow_description: Build the screen session table.
     workflow_phase_id: create_deliverables
     workflow_query_ids:
       - assemble_result_manifest
@@ -840,8 +853,8 @@ workflow_operations:
       - timezone
       - usage_session_mode
   - workflow_id: publish.project_credited_table
-    workflow_label: Build the credited table
-    workflow_description: Project the scientific credited-usage table.
+    workflow_label: Build the credited usage table
+    workflow_description: Build the credited app usage table.
     workflow_phase_id: create_deliverables
     workflow_query_ids:
       - assemble_result_manifest
@@ -856,8 +869,8 @@ workflow_operations:
       - use_app_codebook
       - use_background_apps_file
   - workflow_id: publish.build_aggregate_tables
-    workflow_label: Build aggregate tables
-    workflow_description: Build daily, weekly, category, top-app, and co-usage aggregates.
+    workflow_label: Build summary tables
+    workflow_description: Build the daily, weekly, category, top-app and apps-used-together tables.
     workflow_phase_id: create_deliverables
     workflow_query_ids:
       - assemble_result_manifest
@@ -870,9 +883,10 @@ workflow_operations:
       - use_app_codebook
       - use_background_apps_file
   - workflow_id: publish.build_participant_amount_summary
-    workflow_label: Build the participant amount summary
-    workflow_description: "One row per participant: tracked days, daily amount of
-      use, its sample-winsorized variant, and a Huber M column."
+    workflow_label: Build the participant summary
+    workflow_description: "One row per participant: days tracked, average daily use,
+      the same average with extreme days pulled in (winsorized), and a robust
+      (Huber) average."
     workflow_phase_id: create_deliverables
     workflow_query_ids:
       - assemble_result_manifest
@@ -880,8 +894,8 @@ workflow_operations:
       - enable_participant_amount_summary
       - usage_session_mode
   - workflow_id: publish.encode_selected_formats
-    workflow_label: Encode selected formats
-    workflow_description: Encode only the requested CSV, Parquet, and SPSS deliverables.
+    workflow_label: Write your chosen file types
+    workflow_description: Write only the CSV, Parquet and SPSS files you asked for.
     workflow_phase_id: create_deliverables
     workflow_query_ids:
       - assemble_result_manifest
@@ -889,37 +903,37 @@ workflow_operations:
       - enable_parquet_export
       - enable_spss_export
   - workflow_id: publish.build_review_data
-    workflow_label: Build review data
-    workflow_description: Build the participant and session review projection.
+    workflow_label: Prepare the View tab
+    workflow_description: Prepare the participant and session data shown in the View tab.
     workflow_phase_id: create_deliverables
     workflow_query_ids:
       - assemble_result_manifest
     workflow_config_dependency_ids: []
   - workflow_id: publish.build_visualization_data
-    workflow_label: Build visualization data
-    workflow_description: Build timeline, plot, and heatmap data without owning scientific semantics.
+    workflow_label: Prepare the plots
+    workflow_description: Prepare the timeline, plot and heatmap data.
     workflow_phase_id: create_deliverables
     workflow_query_ids:
       - assemble_result_manifest
     workflow_config_dependency_ids:
       - materialize_visualization_data
   - workflow_id: publish.emit_lineage
-    workflow_label: Emit result lineage
-    workflow_description: Emit row, source-coordinate, and result-cell correspondence evidence.
+    workflow_label: Write the row audit file
+    workflow_description: Record which input rows and cells each result came from.
     workflow_phase_id: create_deliverables
     workflow_query_ids:
       - assemble_result_manifest
     workflow_config_dependency_ids: []
   - workflow_id: publish.emit_provenance
-    workflow_label: Emit workflow provenance
-    workflow_description: Emit configuration, influence, contract, and execution evidence.
+    workflow_label: Write the run record
+    workflow_description: Record the settings, what affected what, and which steps ran.
     workflow_phase_id: create_deliverables
     workflow_query_ids:
       - assemble_result_manifest
     workflow_config_dependency_ids: []
   - workflow_id: publish.commit_workspace_bundle
-    workflow_label: Commit the workspace bundle
-    workflow_description: Commit the typed result manifest and all selected deliverables.
+    workflow_label: Save the results
+    workflow_description: Save the list of results and every file you chose.
     workflow_phase_id: create_deliverables
     workflow_query_ids:
       - assemble_result_manifest
@@ -927,25 +941,25 @@ workflow_operations:
       - neutralize_spreadsheet_formulas
 workflow_artifacts:
   - workflow_id: artifact.assessment.aggregate_attribution_minutes
-    workflow_label: Aggregate attributed minutes output
+    workflow_label: Total minutes per day output
     workflow_producer_id: assessment.aggregate_attribution_minutes
     workflow_consumer_ids:
       - assessment.compute_completeness
       - publish.build_participant_amount_summary
   - workflow_id: artifact.assessment.build_participant_day_spine
-    workflow_label: Build the participant-day spine output
+    workflow_label: List every participant day output
     workflow_producer_id: assessment.build_participant_day_spine
     workflow_consumer_ids:
       - assessment.classify_days
       - publish.build_participant_amount_summary
   - workflow_id: artifact.assessment.classify_days
-    workflow_label: Classify participant days output
+    workflow_label: Label each day output
     workflow_producer_id: assessment.classify_days
     workflow_consumer_ids:
       - assessment.summarize_coverage
       - publish.build_participant_amount_summary
   - workflow_id: artifact.assessment.compute_completeness
-    workflow_label: Compute completeness output
+    workflow_label: Work out how much use has a known user output
     workflow_producer_id: assessment.compute_completeness
     workflow_consumer_ids:
       - policy.apply_compliance_threshold
@@ -957,19 +971,19 @@ workflow_artifacts:
       - assessment.synthesize_placeholder_rows
       - publish.build_participant_amount_summary
   - workflow_id: artifact.assessment.report_screen_evidence_capability
-    workflow_label: Assess screen evidence capability output
+    workflow_label: Check screen records per participant output
     workflow_producer_id: assessment.report_screen_evidence_capability
     workflow_consumer_ids:
       - credit.publish_credit_result
       - publish.build_participant_amount_summary
   - workflow_id: artifact.assessment.summarize_coverage
-    workflow_label: Summarize study coverage output
+    workflow_label: Make the coverage table output
     workflow_producer_id: assessment.summarize_coverage
     workflow_consumer_ids:
       - publish.build_participant_amount_summary
       - publish.encode_selected_formats
   - workflow_id: artifact.assessment.synthesize_placeholder_rows
-    workflow_label: Add missing-day placeholders output
+    workflow_label: Add rows for days with no app use output
     workflow_producer_id: assessment.synthesize_placeholder_rows
     workflow_consumer_ids:
       - assessment.aggregate_attribution_minutes
@@ -977,7 +991,7 @@ workflow_artifacts:
       - publish.build_participant_amount_summary
       - publish.project_app_table
   - workflow_id: artifact.context.apply_survey_person_override
-    workflow_label: Apply survey attribution output
+    workflow_label: Use survey answers output
     workflow_producer_id: context.apply_survey_person_override
     workflow_consumer_ids:
       - assessment.compute_completeness
@@ -985,26 +999,26 @@ workflow_artifacts:
       - context.classify_person_attribution
       - publish.build_participant_amount_summary
   - workflow_id: artifact.context.classify_person_attribution
-    workflow_label: Classify person attribution output
+    workflow_label: Label who was using the device output
     workflow_producer_id: context.classify_person_attribution
     workflow_consumer_ids:
       - assessment.compute_completeness
       - assessment.divide_sessions_at_day_boundary
       - publish.build_participant_amount_summary
   - workflow_id: artifact.context.collapse_app_genre
-    workflow_label: Collapse app genres output
+    workflow_label: Group app genres output
     workflow_producer_id: context.collapse_app_genre
     workflow_consumer_ids:
       - publish.build_participant_amount_summary
       - reconstruct.derive_engagement_basis
   - workflow_id: artifact.context.derive_broad_category
-    workflow_label: Derive broad app categories output
+    workflow_label: Add app categories output
     workflow_producer_id: context.derive_broad_category
     workflow_consumer_ids:
       - context.collapse_app_genre
       - publish.build_participant_amount_summary
   - workflow_id: artifact.context.infer_default_person
-    workflow_label: Infer the default person output
+    workflow_label: Assume the usual user output
     workflow_producer_id: context.infer_default_person
     workflow_consumer_ids:
       - assessment.compute_completeness
@@ -1012,40 +1026,40 @@ workflow_artifacts:
       - context.apply_survey_person_override
       - publish.build_participant_amount_summary
   - workflow_id: artifact.context.join_app_codebook
-    workflow_label: Join the app codebook output
+    workflow_label: Add app details output
     workflow_producer_id: context.join_app_codebook
     workflow_consumer_ids:
       - context.derive_broad_category
       - publish.build_participant_amount_summary
   - workflow_id: artifact.credit.apply_no_witness_fallback
-    workflow_label: Apply no-witness fallback output
+    workflow_label: Handle sessions with no screen record output
     workflow_producer_id: credit.apply_no_witness_fallback
     workflow_consumer_ids:
       - credit.materialize_credited_rows
       - publish.build_participant_amount_summary
   - workflow_id: artifact.credit.cap_candidate_intervals
-    workflow_label: Cap candidate intervals output
+    workflow_label: Apply the session cap output
     workflow_producer_id: credit.cap_candidate_intervals
     workflow_consumer_ids:
       - credit.derive_device_live_spans
       - credit.materialize_credited_rows
       - publish.build_participant_amount_summary
   - workflow_id: artifact.credit.derive_device_live_spans
-    workflow_label: Derive device-live spans output
+    workflow_label: Find when the device was on output
     workflow_producer_id: credit.derive_device_live_spans
     workflow_consumer_ids:
       - credit.derive_screen_creditable_spans
       - credit.materialize_credited_rows
       - publish.build_participant_amount_summary
   - workflow_id: artifact.credit.derive_screen_creditable_spans
-    workflow_label: Derive screen-creditable spans output
+    workflow_label: Find when the screen was on output
     workflow_producer_id: credit.derive_screen_creditable_spans
     workflow_consumer_ids:
       - credit.intersect_evidence
       - credit.materialize_credited_rows
       - publish.build_participant_amount_summary
   - workflow_id: artifact.credit.identify_eligible_sessions
-    workflow_label: Identify credit-eligible sessions output
+    workflow_label: Find sessions that can be credited output
     workflow_producer_id: credit.identify_eligible_sessions
     workflow_consumer_ids:
       - assessment.report_screen_evidence_capability
@@ -1055,31 +1069,31 @@ workflow_artifacts:
       - evidence.summarize_daily_apps
       - publish.build_participant_amount_summary
   - workflow_id: artifact.credit.intersect_evidence
-    workflow_label: Intersect credit evidence output
+    workflow_label: Keep app time while the screen was on output
     workflow_producer_id: credit.intersect_evidence
     workflow_consumer_ids:
       - credit.apply_no_witness_fallback
       - credit.materialize_credited_rows
       - publish.build_participant_amount_summary
   - workflow_id: artifact.credit.materialize_credited_rows
-    workflow_label: Materialize credited rows output
+    workflow_label: Make the credited rows output
     workflow_producer_id: credit.materialize_credited_rows
     workflow_consumer_ids:
       - credit.publish_credit_result
       - publish.build_participant_amount_summary
   - workflow_id: artifact.credit.publish_credit_result
-    workflow_label: Assemble credit outputs output
+    workflow_label: Collect the credited results output
     workflow_producer_id: credit.publish_credit_result
     workflow_consumer_ids:
       - publish.build_participant_amount_summary
       - publish.project_credited_table
   - workflow_id: artifact.evidence.collect_timezone_observations
-    workflow_label: Collect timezone observations output
+    workflow_label: List the time zones seen output
     workflow_producer_id: evidence.collect_timezone_observations
     workflow_consumer_ids:
       - publish.build_participant_amount_summary
   - workflow_id: artifact.evidence.derive_screen_session_features
-    workflow_label: Derive screen-session evidence output
+    workflow_label: Describe each screen session output
     workflow_producer_id: evidence.derive_screen_session_features
     workflow_consumer_ids:
       - policy.apply_app_inclusion
@@ -1088,7 +1102,7 @@ workflow_artifacts:
       - study.apply_participant_windows
       - study.resolve_participant_windows
   - workflow_id: artifact.evidence.derive_time_gaps
-    workflow_label: Derive timeline gaps output
+    workflow_label: Measure gaps between events output
     workflow_producer_id: evidence.derive_time_gaps
     workflow_consumer_ids:
       - evidence.derive_screen_session_features
@@ -1099,13 +1113,13 @@ workflow_artifacts:
       - reconstruct.construct_screen_intervals
       - reconstruct.infer_screen_session_skeletons
   - workflow_id: artifact.evidence.estimate_dominant_timezone
-    workflow_label: Estimate the dominant timezone output
+    workflow_label: Find the main time zone output
     workflow_producer_id: evidence.estimate_dominant_timezone
     workflow_consumer_ids:
       - policy.resolve_timezone_strategy
       - publish.build_participant_amount_summary
   - workflow_id: artifact.evidence.index_device_activity
-    workflow_label: Index device activity output
+    workflow_label: Find when the device was active output
     workflow_producer_id: evidence.index_device_activity
     workflow_consumer_ids:
       - assessment.report_screen_evidence_capability
@@ -1113,19 +1127,19 @@ workflow_artifacts:
       - credit.materialize_credited_rows
       - publish.build_participant_amount_summary
   - workflow_id: artifact.evidence.index_keyguard_events
-    workflow_label: Index keyguard events output
+    workflow_label: Find lock-screen events output
     workflow_producer_id: evidence.index_keyguard_events
     workflow_consumer_ids:
       - evidence.derive_screen_session_features
       - publish.build_participant_amount_summary
   - workflow_id: artifact.evidence.index_raw_dates
-    workflow_label: Index observed dates output
+    workflow_label: List dates with data output
     workflow_producer_id: evidence.index_raw_dates
     workflow_consumer_ids:
       - assessment.build_participant_day_spine
       - publish.build_participant_amount_summary
   - workflow_id: artifact.evidence.index_reboots
-    workflow_label: Index device reboots output
+    workflow_label: Find device restarts output
     workflow_producer_id: evidence.index_reboots
     workflow_consumer_ids:
       - assessment.report_screen_evidence_capability
@@ -1133,7 +1147,7 @@ workflow_artifacts:
       - credit.materialize_credited_rows
       - publish.build_participant_amount_summary
   - workflow_id: artifact.evidence.index_screen_witnesses
-    workflow_label: Index screen witnesses output
+    workflow_label: Find screen-on records output
     workflow_producer_id: evidence.index_screen_witnesses
     workflow_consumer_ids:
       - assessment.report_screen_evidence_capability
@@ -1141,68 +1155,68 @@ workflow_artifacts:
       - credit.materialize_credited_rows
       - publish.build_participant_amount_summary
   - workflow_id: artifact.evidence.summarize_daily_apps
-    workflow_label: Summarize daily apps output
+    workflow_label: List apps per day output
     workflow_producer_id: evidence.summarize_daily_apps
     workflow_consumer_ids:
       - credit.cap_candidate_intervals
       - publish.build_participant_amount_summary
   - workflow_id: artifact.evidence.summarize_device_models
-    workflow_label: Summarize device models output
+    workflow_label: Find the device model output
     workflow_producer_id: evidence.summarize_device_models
     workflow_consumer_ids:
       - publish.build_participant_amount_summary
       - source.attach_device_models
       - source.decode_record_fields
   - workflow_id: artifact.evidence.summarize_duplicate_groups
-    workflow_label: Summarize duplicate groups output
+    workflow_label: Count repeated events output
     workflow_producer_id: evidence.summarize_duplicate_groups
     workflow_consumer_ids:
       - publish.build_participant_amount_summary
   - workflow_id: artifact.evidence.summarize_row_selection
-    workflow_label: Summarize row selection output
+    workflow_label: Count rows kept output
     workflow_producer_id: evidence.summarize_row_selection
     workflow_consumer_ids:
       - publish.build_participant_amount_summary
   - workflow_id: artifact.identity.normalize_usernames
-    workflow_label: Normalize participant usernames output
+    workflow_label: Tidy participant names output
     workflow_producer_id: identity.normalize_usernames
     workflow_consumer_ids:
       - publish.build_participant_amount_summary
       - source.initialize_lineage
       - time.order_source_records
   - workflow_id: artifact.interaction.normalize_names
-    workflow_label: Normalize interaction names output
+    workflow_label: Rename event types output
     workflow_producer_id: interaction.normalize_names
     workflow_consumer_ids:
       - publish.build_participant_amount_summary
       - time.derive_target_calendar
       - time.order_source_records
   - workflow_id: artifact.policy.apply_app_inclusion
-    workflow_label: Apply app inclusion policy output
+    workflow_label: Leave out filtered apps output
     workflow_producer_id: policy.apply_app_inclusion
     workflow_consumer_ids:
       - publish.build_participant_amount_summary
       - reconstruct.order_app_episodes
   - workflow_id: artifact.policy.apply_compliance_threshold
-    workflow_label: Apply the compliance threshold output
+    workflow_label: Mark valid days output
     workflow_producer_id: policy.apply_compliance_threshold
     workflow_consumer_ids:
       - publish.build_participant_amount_summary
       - publish.encode_selected_formats
   - workflow_id: artifact.policy.apply_concurrent_segment_floor
-    workflow_label: Apply the concurrent-segment floor output
+    workflow_label: Handle short overlap pieces output
     workflow_producer_id: policy.apply_concurrent_segment_floor
     workflow_consumer_ids:
       - context.join_app_codebook
       - publish.build_participant_amount_summary
   - workflow_id: artifact.policy.apply_maximum_duration
-    workflow_label: Apply maximum-duration policy output
+    workflow_label: Handle long app episodes output
     workflow_producer_id: policy.apply_maximum_duration
     workflow_consumer_ids:
       - policy.apply_app_inclusion
       - publish.build_participant_amount_summary
   - workflow_id: artifact.policy.assign_usage_session_ids
-    workflow_label: Number usage sessions output
+    workflow_label: Number sessions output
     workflow_producer_id: policy.assign_usage_session_ids
     workflow_consumer_ids:
       - credit.identify_eligible_sessions
@@ -1210,14 +1224,14 @@ workflow_artifacts:
       - study.apply_participant_windows
       - study.resolve_participant_windows
   - workflow_id: artifact.policy.classify_engagement
-    workflow_label: Classify engagement output
+    workflow_label: Label engagement output
     workflow_producer_id: policy.classify_engagement
     workflow_consumer_ids:
       - policy.flag_long_gaps
       - policy.flag_long_usage
       - publish.build_participant_amount_summary
   - workflow_id: artifact.policy.classify_screen_end_reasons
-    workflow_label: Classify screen-session endings output
+    workflow_label: Decide where each screen session ended output
     workflow_producer_id: policy.classify_screen_end_reasons
     workflow_consumer_ids:
       - policy.apply_app_inclusion
@@ -1226,19 +1240,19 @@ workflow_artifacts:
       - study.apply_participant_windows
       - study.resolve_participant_windows
   - workflow_id: artifact.policy.flag_long_gaps
-    workflow_label: Flag long data gaps output
+    workflow_label: Flag long gaps in the data output
     workflow_producer_id: policy.flag_long_gaps
     workflow_consumer_ids:
       - policy.suppress_excluded_timing
       - publish.build_participant_amount_summary
   - workflow_id: artifact.policy.flag_long_usage
-    workflow_label: Flag long usage output
+    workflow_label: Flag long use output
     workflow_producer_id: policy.flag_long_usage
     workflow_consumer_ids:
       - policy.suppress_excluded_timing
       - publish.build_participant_amount_summary
   - workflow_id: artifact.policy.mask_excluded_app_events
-    workflow_label: Mask excluded app events output
+    workflow_label: Mark events from left-out apps output
     workflow_producer_id: policy.mask_excluded_app_events
     workflow_consumer_ids:
       - policy.resolve_matcher_masks
@@ -1246,7 +1260,7 @@ workflow_artifacts:
       - reconstruct.match_app_episodes
       - reconstruct.materialize_candidate_episodes
   - workflow_id: artifact.policy.match_app_exclusion_rows
-    workflow_label: Match app-exclusion rows output
+    workflow_label: Find apps to leave out output
     workflow_producer_id: policy.match_app_exclusion_rows
     workflow_consumer_ids:
       - assessment.synthesize_placeholder_rows
@@ -1257,13 +1271,13 @@ workflow_artifacts:
       - policy.resolve_effective_app_exclusions
       - publish.build_participant_amount_summary
   - workflow_id: artifact.policy.remove_selected_interaction_types
-    workflow_label: Remove selected interaction types output
+    workflow_label: Remove chosen event types output
     workflow_producer_id: policy.remove_selected_interaction_types
     workflow_consumer_ids:
       - publish.build_participant_amount_summary
       - quality.remove_zero_duration_rows
   - workflow_id: artifact.policy.resolve_effective_app_exclusions
-    workflow_label: Resolve excluded app packages output
+    workflow_label: List the apps to leave out output
     workflow_producer_id: policy.resolve_effective_app_exclusions
     workflow_consumer_ids:
       - policy.apply_app_inclusion
@@ -1273,14 +1287,14 @@ workflow_artifacts:
       - reconstruct.materialize_candidate_episodes
       - reconstruct.segment_concurrent_usage
   - workflow_id: artifact.policy.resolve_matcher_masks
-    workflow_label: Resolve matcher masks output
+    workflow_label: Choose which events can end an app episode output
     workflow_producer_id: policy.resolve_matcher_masks
     workflow_consumer_ids:
       - publish.build_participant_amount_summary
       - reconstruct.index_app_events
       - reconstruct.match_app_episodes
   - workflow_id: artifact.policy.resolve_timezone_strategy
-    workflow_label: Resolve timezone policy output
+    workflow_label: Apply your time-zone setting output
     workflow_producer_id: policy.resolve_timezone_strategy
     workflow_consumer_ids:
       - evidence.summarize_row_selection
@@ -1288,59 +1302,59 @@ workflow_artifacts:
       - quality.select_timezone_eligible_records
       - time.standardize_event_clock
   - workflow_id: artifact.policy.suppress_excluded_timing
-    workflow_label: Suppress excluded timing output
+    workflow_label: Handle doubtful times output
     workflow_producer_id: policy.suppress_excluded_timing
     workflow_consumer_ids:
       - policy.remove_selected_interaction_types
       - publish.build_participant_amount_summary
   - workflow_id: artifact.policy.suppress_short_durations
-    workflow_label: Apply minimum-duration disposition output
+    workflow_label: Handle short app episodes output
     workflow_producer_id: policy.suppress_short_durations
     workflow_consumer_ids:
       - policy.apply_app_inclusion
       - policy.apply_maximum_duration
       - publish.build_participant_amount_summary
   - workflow_id: artifact.publish.build_aggregate_tables
-    workflow_label: Build aggregate tables output
+    workflow_label: Build summary tables output
     workflow_producer_id: publish.build_aggregate_tables
     workflow_consumer_ids:
       - publish.commit_workspace_bundle
       - publish.encode_selected_formats
   - workflow_id: artifact.publish.build_participant_amount_summary
-    workflow_label: Build the participant amount summary output
+    workflow_label: Build the participant summary output
     workflow_producer_id: publish.build_participant_amount_summary
     workflow_consumer_ids: []
   - workflow_id: artifact.publish.build_review_data
-    workflow_label: Build review data output
+    workflow_label: Prepare the View tab output
     workflow_producer_id: publish.build_review_data
     workflow_consumer_ids:
       - publish.commit_workspace_bundle
   - workflow_id: artifact.publish.build_visualization_data
-    workflow_label: Build visualization data output
+    workflow_label: Prepare the plots output
     workflow_producer_id: publish.build_visualization_data
     workflow_consumer_ids:
       - publish.commit_workspace_bundle
   - workflow_id: artifact.publish.commit_workspace_bundle
-    workflow_label: Commit the workspace bundle output
+    workflow_label: Save the results output
     workflow_producer_id: publish.commit_workspace_bundle
     workflow_consumer_ids: []
   - workflow_id: artifact.publish.emit_lineage
-    workflow_label: Emit result lineage output
+    workflow_label: Write the row audit file output
     workflow_producer_id: publish.emit_lineage
     workflow_consumer_ids:
       - publish.commit_workspace_bundle
   - workflow_id: artifact.publish.emit_provenance
-    workflow_label: Emit workflow provenance output
+    workflow_label: Write the run record output
     workflow_producer_id: publish.emit_provenance
     workflow_consumer_ids:
       - publish.commit_workspace_bundle
   - workflow_id: artifact.publish.encode_selected_formats
-    workflow_label: Encode selected formats output
+    workflow_label: Write your chosen file types output
     workflow_producer_id: publish.encode_selected_formats
     workflow_consumer_ids:
       - publish.commit_workspace_bundle
   - workflow_id: artifact.publish.project_app_table
-    workflow_label: Build the app table output
+    workflow_label: Build the app usage table output
     workflow_producer_id: publish.project_app_table
     workflow_consumer_ids:
       - publish.build_aggregate_tables
@@ -1350,14 +1364,14 @@ workflow_artifacts:
       - publish.emit_lineage
       - publish.encode_selected_formats
   - workflow_id: artifact.publish.project_credited_table
-    workflow_label: Build the credited table output
+    workflow_label: Build the credited usage table output
     workflow_producer_id: publish.project_credited_table
     workflow_consumer_ids:
       - publish.commit_workspace_bundle
       - publish.emit_lineage
       - publish.encode_selected_formats
   - workflow_id: artifact.publish.project_screen_table
-    workflow_label: Build the screen table output
+    workflow_label: Build the screen session table output
     workflow_producer_id: publish.project_screen_table
     workflow_consumer_ids:
       - publish.build_aggregate_tables
@@ -1367,47 +1381,47 @@ workflow_artifacts:
       - publish.emit_lineage
       - publish.encode_selected_formats
   - workflow_id: artifact.quality.coalesce_duplicate_event_keys
-    workflow_label: Coalesce duplicate event keys output
+    workflow_label: Merge repeated events output
     workflow_producer_id: quality.coalesce_duplicate_event_keys
     workflow_consumer_ids:
       - evidence.summarize_duplicate_groups
       - publish.build_participant_amount_summary
       - quality.disambiguate_duplicate_timestamps
   - workflow_id: artifact.quality.disambiguate_duplicate_timestamps
-    workflow_label: Disambiguate duplicate timestamps output
+    workflow_label: Order events logged at the same time output
     workflow_producer_id: quality.disambiguate_duplicate_timestamps
     workflow_consumer_ids:
       - evidence.derive_time_gaps
       - publish.build_participant_amount_summary
   - workflow_id: artifact.quality.remove_missing_timestamps
-    workflow_label: Remove records without timestamps output
+    workflow_label: Remove rows without a time output
     workflow_producer_id: quality.remove_missing_timestamps
     workflow_consumer_ids:
       - evidence.summarize_device_models
       - publish.build_participant_amount_summary
       - source.decode_record_fields
   - workflow_id: artifact.quality.remove_zero_duration_rows
-    workflow_label: Remove zero-duration rows output
+    workflow_label: Remove zero-length rows output
     workflow_producer_id: quality.remove_zero_duration_rows
     workflow_consumer_ids:
       - policy.assign_usage_session_ids
       - publish.build_participant_amount_summary
   - workflow_id: artifact.quality.select_timezone_eligible_records
-    workflow_label: Select timezone-eligible records output
+    workflow_label: Keep rows your time-zone setting allows output
     workflow_producer_id: quality.select_timezone_eligible_records
     workflow_consumer_ids:
       - evidence.summarize_row_selection
       - publish.build_participant_amount_summary
       - time.standardize_event_clock
   - workflow_id: artifact.reconstruct.classify_app_episodes
-    workflow_label: Classify reconstructed episodes output
+    workflow_label: Label very short app episodes output
     workflow_producer_id: reconstruct.classify_app_episodes
     workflow_consumer_ids:
       - policy.apply_app_inclusion
       - policy.suppress_short_durations
       - publish.build_participant_amount_summary
   - workflow_id: artifact.reconstruct.construct_screen_intervals
-    workflow_label: Construct selected screen intervals output
+    workflow_label: Build screen-on periods output
     workflow_producer_id: reconstruct.construct_screen_intervals
     workflow_consumer_ids:
       - assessment.synthesize_placeholder_rows
@@ -1420,7 +1434,7 @@ workflow_artifacts:
       - publish.build_participant_amount_summary
       - reconstruct.match_app_episodes
   - workflow_id: artifact.reconstruct.derive_engagement_basis
-    workflow_label: Derive engagement evidence output
+    workflow_label: Measure switches and gaps output
     workflow_producer_id: reconstruct.derive_engagement_basis
     workflow_consumer_ids:
       - policy.classify_engagement
@@ -1428,40 +1442,40 @@ workflow_artifacts:
       - policy.flag_long_usage
       - publish.build_participant_amount_summary
   - workflow_id: artifact.reconstruct.discard_structural_events
-    workflow_label: Discard structural event rows output
+    workflow_label: Drop helper rows output
     workflow_producer_id: reconstruct.discard_structural_events
     workflow_consumer_ids:
       - policy.apply_app_inclusion
       - publish.build_participant_amount_summary
       - reconstruct.classify_app_episodes
   - workflow_id: artifact.reconstruct.index_app_events
-    workflow_label: Index app events output
+    workflow_label: Prepare app events for pairing output
     workflow_producer_id: reconstruct.index_app_events
     workflow_consumer_ids:
       - publish.build_participant_amount_summary
       - reconstruct.match_app_episodes
   - workflow_id: artifact.reconstruct.infer_screen_session_skeletons
-    workflow_label: Infer screen-session skeletons output
+    workflow_label: Find possible screen sessions output
     workflow_producer_id: reconstruct.infer_screen_session_skeletons
     workflow_consumer_ids:
       - evidence.derive_screen_session_features
       - publish.build_participant_amount_summary
       - reconstruct.construct_screen_intervals
   - workflow_id: artifact.reconstruct.match_app_episodes
-    workflow_label: Match app episodes output
+    workflow_label: Pair app starts and stops output
     workflow_producer_id: reconstruct.match_app_episodes
     workflow_consumer_ids:
       - publish.build_participant_amount_summary
       - reconstruct.discard_structural_events
       - reconstruct.materialize_candidate_episodes
   - workflow_id: artifact.reconstruct.materialize_candidate_episodes
-    workflow_label: Materialize candidate episodes output
+    workflow_label: Make the app episode list output
     workflow_producer_id: reconstruct.materialize_candidate_episodes
     workflow_consumer_ids:
       - publish.build_participant_amount_summary
       - reconstruct.discard_structural_events
   - workflow_id: artifact.reconstruct.materialize_screen_sessions
-    workflow_label: Materialize screen sessions output
+    workflow_label: Make the screen session table output
     workflow_producer_id: reconstruct.materialize_screen_sessions
     workflow_consumer_ids:
       - policy.apply_app_inclusion
@@ -1470,33 +1484,33 @@ workflow_artifacts:
       - study.apply_participant_windows
       - study.resolve_participant_windows
   - workflow_id: artifact.reconstruct.order_app_episodes
-    workflow_label: Order app episodes output
+    workflow_label: Sort app episodes output
     workflow_producer_id: reconstruct.order_app_episodes
     workflow_consumer_ids:
       - publish.build_participant_amount_summary
       - reconstruct.segment_concurrent_usage
   - workflow_id: artifact.reconstruct.segment_concurrent_usage
-    workflow_label: Segment concurrent usage output
+    workflow_label: Split overlapping app use output
     workflow_producer_id: reconstruct.segment_concurrent_usage
     workflow_consumer_ids:
       - context.join_app_codebook
       - policy.apply_concurrent_segment_floor
       - publish.build_participant_amount_summary
   - workflow_id: artifact.source.attach_device_models
-    workflow_label: Attach device models output
+    workflow_label: Add the device model output
     workflow_producer_id: source.attach_device_models
     workflow_consumer_ids:
       - publish.build_participant_amount_summary
       - source.decode_record_fields
   - workflow_id: artifact.source.decode_record_fields
-    workflow_label: Decode record fields output
+    workflow_label: Read each column output
     workflow_producer_id: source.decode_record_fields
     workflow_consumer_ids:
       - publish.build_participant_amount_summary
       - time.apply_missing_timezone_rule
       - time.order_source_records
   - workflow_id: artifact.source.decode_records
-    workflow_label: Decode source records output
+    workflow_label: Read the raw file output
     workflow_producer_id: source.decode_records
     workflow_consumer_ids:
       - evidence.derive_screen_session_features
@@ -1505,59 +1519,59 @@ workflow_artifacts:
       - reconstruct.construct_screen_intervals
       - reconstruct.match_app_episodes
   - workflow_id: artifact.source.initialize_lineage
-    workflow_label: Initialize source lineage output
+    workflow_label: Note where each row came from output
     workflow_producer_id: source.initialize_lineage
     workflow_consumer_ids:
       - interaction.normalize_names
       - publish.build_participant_amount_summary
       - time.order_source_records
   - workflow_id: artifact.source.validate_remap_rules
-    workflow_label: Validate remapping rules output
+    workflow_label: Check event-type renames output
     workflow_producer_id: source.validate_remap_rules
     workflow_consumer_ids:
       - publish.build_participant_amount_summary
       - source.decode_record_fields
   - workflow_id: artifact.study.apply_participant_windows
-    workflow_label: Apply participant windows output
+    workflow_label: Keep rows inside the study dates output
     workflow_producer_id: study.apply_participant_windows
     workflow_consumer_ids:
       - context.infer_default_person
       - publish.build_participant_amount_summary
       - study.resolve_sharing_status
   - workflow_id: artifact.study.index_survey_responses
-    workflow_label: Index survey responses output
+    workflow_label: Read survey answers output
     workflow_producer_id: study.index_survey_responses
     workflow_consumer_ids:
       - context.infer_default_person
       - publish.build_participant_amount_summary
   - workflow_id: artifact.study.resolve_participant_windows
-    workflow_label: Resolve participant windows output
+    workflow_label: Find each participant's study dates output
     workflow_producer_id: study.resolve_participant_windows
     workflow_consumer_ids:
       - assessment.synthesize_placeholder_rows
       - publish.build_participant_amount_summary
       - study.apply_participant_windows
   - workflow_id: artifact.study.resolve_sharing_status
-    workflow_label: Resolve device sharing output
+    workflow_label: Read device sharing output
     workflow_producer_id: study.resolve_sharing_status
     workflow_consumer_ids:
       - context.infer_default_person
       - publish.build_participant_amount_summary
   - workflow_id: artifact.time.apply_missing_timezone_rule
-    workflow_label: Resolve missing timezone values output
+    workflow_label: Fill in missing time zones output
     workflow_producer_id: time.apply_missing_timezone_rule
     workflow_consumer_ids:
       - identity.normalize_usernames
       - publish.build_participant_amount_summary
       - time.order_source_records
   - workflow_id: artifact.time.derive_target_calendar
-    workflow_label: Derive calendar fields output
+    workflow_label: Add date and hour output
     workflow_producer_id: time.derive_target_calendar
     workflow_consumer_ids:
       - publish.build_participant_amount_summary
       - time.order_source_records
   - workflow_id: artifact.time.order_source_records
-    workflow_label: Order source records output
+    workflow_label: Sort events output
     workflow_producer_id: time.order_source_records
     workflow_consumer_ids:
       - evidence.collect_timezone_observations
@@ -1566,7 +1580,7 @@ workflow_artifacts:
       - policy.resolve_timezone_strategy
       - publish.build_participant_amount_summary
   - workflow_id: artifact.time.standardize_event_clock
-    workflow_label: Standardize event clocks output
+    workflow_label: Convert event times output
     workflow_producer_id: time.standardize_event_clock
     workflow_consumer_ids:
       - publish.build_participant_amount_summary

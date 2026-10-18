@@ -31,7 +31,7 @@ const KEYS: readonly OptionKey[] = [
 ];
 
 const SCREEN_SESSION_CONSTRUCTION_LABELS = {
-  chronicle_screen_interactive_v1: "Chronicle screen interactive v1 (default)",
+  chronicle_screen_interactive_v1: "Chronicle screen on/off events (default)",
   parry_toth_2025_session_glance_v1:
     "Parry–Toth session/glance construction (2025)",
   zhu_2018_unlock_lock_v1: "Zhu unlock/lock construction (2018)",
@@ -46,14 +46,14 @@ export const SCREEN_SESSION_CONSTRUCTION_STRATEGIES =
   }));
 
 const CLASSIFICATION_LABELS = {
-  none: "No literature classification (default)",
+  none: "No labels (default)",
   phone_check_inclusive_15s: "Phone check at or below 15 seconds",
-  null_no_app_strict_gt15s_vs_app: "Null over 15 seconds vs app-evidenced",
+  null_no_app_strict_gt15s_vs_app: "No-app sessions over 15 s vs app sessions",
 } satisfies Record<ScreenSessionClassificationPolicy, string>;
 
 const LOCKED_AUDIO_LABELS = {
-  include: "Include under normal reconstruction (default)",
-  exclude_from_phone_and_app_sessions: "Exclude without unlocked screen witness",
+  include: "Count it as usual (default)",
+  exclude_from_phone_and_app_sessions: "Leave it out unless the screen was on and unlocked",
 } satisfies Record<LockedScreenAudioDisposition, string>;
 
 type Props = {
@@ -92,8 +92,8 @@ export function ScreenDetectionCard({ options, setOptions }: Props): ReactElemen
       modified={anyOptionModified(options, KEYS)}
     >
       <p className="u-card-intro">
-        Tunes how the screen usage derivation infers locks and unlocks. Defaults reflect the
-        canonical desktop pipeline; only adjust if your traces have unusual lock behavior.
+        Sets how screen use works out locks and unlocks. The defaults match Chronicle's original
+        desktop processing; change them only if your data shows unusual lock behavior.
       </p>
       {!options.processScreenUsage && !screenIntervalsAffectAnalysis ? (
         <p className="settings-dependency-note" role="note" data-testid="screen-dependency-note">
@@ -118,14 +118,14 @@ export function ScreenDetectionCard({ options, setOptions }: Props): ReactElemen
           data-testid="screen-capability-evidence-note"
         >
           This rule builds screen sessions from unlock and lock events, which not every phone
-          records. In Study inputs, upload an “Input capability evidence” file confirming that each
+          records. In Study inputs, upload a “Device capability file” confirming that each
           participant’s phone records them. Without it, processing stops and says why; it does not
           switch to the default screen rule.
         </p>
       ) : null}
       <div className="settings-grid-1">
         <SettingsField
-          label="Screen-session construction rule"
+          label="Screen-session rule"
           htmlFor="screen-session-construction-strategy-select"
           tooltip={TOOLTIPS.screenSessionConstructionStrategy}
           modified={isMod("screenSessionConstructionStrategy")}
@@ -154,7 +154,7 @@ export function ScreenDetectionCard({ options, setOptions }: Props): ReactElemen
       </div>
       <div className="settings-grid-2">
         <SettingsField
-          label="Screen-session classification"
+          label="Screen-session labels"
           htmlFor="screen-session-classification-select"
           tooltip={TOOLTIPS.screenSessionClassificationPolicy}
           modified={isMod("screenSessionClassificationPolicy")}

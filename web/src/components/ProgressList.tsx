@@ -12,13 +12,13 @@ export type FileProgress = {
 };
 
 const STEP_LABELS: Record<ProgressStepKind, string> = {
-  parse: "Parsing CSV",
-  timezone: "Handling timezones",
+  parse: "Reading the file",
+  timezone: "Fixing time zones",
   filter: "Filtering apps",
-  screen: "Deriving screen usage",
-  matcher: "Matching app sessions",
+  screen: "Building screen use",
+  matcher: "Pairing app starts and stops",
   codebook: "Loading codebook",
-  enrich: "Enriching rows",
+  enrich: "Adding app details",
   output: "Building output",
 };
 

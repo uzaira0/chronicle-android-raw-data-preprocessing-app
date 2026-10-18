@@ -8,14 +8,14 @@
   "sources": {
     "rust_workflow_contract": {
       "path": "rust/chronicle_chrono_kernel_wasm/src/workflow_contract.rs",
-      "digest": "sha256:221a8aa4dc3923e9b8bdf906a169b33c6e566b526608f69bfaa24d8f1f385c26",
+      "digest": "sha256:25e90aebd1424c1089a12de54e85811362779d138f51113d126a8840c3dcea16",
       "executable": false,
       "production_authority": true,
       "purpose": "declares the Rust query registry and dependency edges"
     },
     "structural_projection": {
       "path": "web/schema/chronicle-workflow.yaml",
-      "digest": "sha256:20918f3c6d96c8203ebe9252778646cfbf3142805842940822e9f93a399b8922",
+      "digest": "sha256:d5935acb839b7dd9b459e556e6890e83a96b1b0ab379764105cec11665413748",
       "executable": false
     },
     "rust_migration_base": {
@@ -49,7 +49,7 @@
         "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "rust/chronicle_chrono_kernel_wasm/src/workflow_contract.rs"
       ],
-      "digest": "sha256:506dc73df0e35c7235aab7ec1ffba473280edc8411aa79a0b8cf7971be6c4b75",
+      "digest": "sha256:eef6363aca9c2dcc467514f2fce635aa6017a444598bacaf68708c3a2e522c51",
       "coverage": "active-query-registry-plus-fused-cold-test-oracle"
     },
     "rust_product_runtime": {
@@ -60,7 +60,7 @@
         "rust/chronicle_preprocessing_runtime_wasm/src/execution/state.rs",
         "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs"
       ],
-      "digest": "sha256:db0de0e817c72f8205d8bff99f82bfa49d72b2058b9541c618a474a80a4e1928",
+      "digest": "sha256:a153ddeec80f3a2232572871b2afb5e78f2bcdd08f57c4812225b640dfc054a5",
       "coverage": "production-worker-authority"
     }
   },
@@ -420,7 +420,7 @@
   "runtime_authority_surface_count": 24,
   "dependency_certificate": {
     "path": ".semantic-federation/proofs/dependency-certificate.json",
-    "digest": "sha256:5aa7c90986c283f6293703b2193a4d47c6e87e1cbe81150a3fe2a6b9d2ddd53a",
+    "digest": "sha256:e96c4816a0b64355996c08c7387330632ca42673c1232a62e3d29ffef5061840",
     "fallback": "full-logical-recompute"
   },
   "resolved_baseline_findings": [

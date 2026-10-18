@@ -7,12 +7,12 @@
   },
   "implementationReceipt": {
     "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
-    "implementationDigest": "sha256:28edb6cc0ae117e084a719612d9b519587aeb0982202d43260b058bf2f578e04",
-    "planDigest": "sha256:f1aa89e312e4f8f8df44e6f4eaf05f83d61a51ffd6d72ff4400f98fcf6459e4c",
-    "profileDigest": "sha256:1086b8684e316e4438e1a34d580fe346d1cc51481d3dff4e8f90418753dc1d9d",
-    "profileLockDigest": "sha256:190d1d625f24ac7f19ea2378343bca290ac8c53833697943a447b5a7064c935f",
+    "implementationDigest": "sha256:fe6fb1c65b68959f70f41571150c30611b372ce0672383bc64e7d59b0b7c8f7c",
+    "planDigest": "sha256:be8258e89e2896c83c9af93e3f016ab90c4d4561353d36b9123d373becb21c22",
+    "profileDigest": "sha256:d7d619f99a0e3106f185b994234092062ca3e7840e9fd29995f864148acd576a",
+    "profileLockDigest": "sha256:df2771b5ccf62edf9e2a9911d1c9f7ce79eebec2f83628940bc8ef554f9ed201",
     "runtimeAuthorityDigest": "sha256:7807fe99a35b4ede2c85d8e8868ec3dcb2accb22e8265c4643966eb9840ce4e4",
-    "productContractDigest": "sha256:21394e6d3c8d701186812fb8da708f1444b9081a0811afc603261ee24b769bbd"
+    "productContractDigest": "sha256:d64fb721d6a8b5a2f04c567dcc3fd17a259672901e7ffad419a6d5a04854bb0c"
   },
   "fixture": {
     "corpusId": "configuration-influence-probes",

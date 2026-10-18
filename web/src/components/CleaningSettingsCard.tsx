@@ -90,7 +90,7 @@ const FILTER_MATCH_FIELD_LABELS = {
 const SCREEN_GATING_RULE_LABELS = {
   screen_and_liveness_v1: "Screen on and device alive (default)",
   screen_witness_only: "Screen on only",
-  strict_visual_only: "Strict visual only — no fallback",
+  strict_visual_only: "Screen on only, no fallback",
   device_liveness_only: "Device alive only",
 } satisfies Record<ScreenGatingRule, string>;
 
@@ -101,8 +101,8 @@ const SCREEN_GATING_RULES = SCREEN_GATING_RULE_VALUES.map((value) => ({
 
 const MAXIMUM_DURATION_LABELS = {
   none: "No screen-session cap (default)",
-  truncate: "Truncate strictly over the maximum",
-  exclude_participant: "Exclude participant if any session is strictly over",
+  truncate: "Shorten sessions over the maximum",
+  exclude_participant: "Leave out a participant with any session over the maximum",
 } satisfies Record<ScreenSessionMaximumDurationDisposition, string>;
 
 type ScreenMaximumDurationChange =
@@ -298,7 +298,7 @@ export function CleaningSettingsCard({
       ) : null}
       <div className="settings-grid-2">
         <SettingsField
-          label="Minimum usage duration (seconds)"
+          label="Minimum app-use time (seconds)"
           htmlFor="minimum-usage-duration-input"
           tooltip={TOOLTIPS.minimumUsageDuration}
           modified={isMod("minimumUsageDuration")}
@@ -321,7 +321,7 @@ export function CleaningSettingsCard({
         </SettingsField>
 
         <SettingsField
-          label="Minimum-duration comparator"
+          label="Compare with minimum time"
           htmlFor="minimum-duration-comparator-select"
           tooltip={TOOLTIPS.minimumDurationComparator}
           modified={isMod("minimumDurationComparator")}
@@ -348,7 +348,7 @@ export function CleaningSettingsCard({
         </SettingsField>
 
         <SettingsField
-          label="Minimum-duration disposition"
+          label="What to do with short app episodes"
           htmlFor="minimum-duration-disposition-select"
           tooltip={TOOLTIPS.minimumDurationDisposition}
           modified={isMod("minimumDurationDisposition")}
@@ -375,7 +375,7 @@ export function CleaningSettingsCard({
         </SettingsField>
 
         <SettingsField
-          label="Maximum-duration policy"
+          label="Long episode rule"
           htmlFor="maximum-duration-policy-select"
           tooltip={TOOLTIPS.maximumDurationPolicy}
           modified={maximumDurationExplicit}
@@ -407,7 +407,7 @@ export function CleaningSettingsCard({
         {maximumDurationExplicit ? (
           <>
             <SettingsField
-              label="Maximum-duration disposition"
+              label="What to do with long app episodes"
               htmlFor="maximum-duration-disposition-select"
               tooltip={TOOLTIPS.maximumDurationDisposition}
               modified={options.maximumDurationDisposition !== undefined}
@@ -439,7 +439,7 @@ export function CleaningSettingsCard({
             </SettingsField>
 
             <SettingsField
-              label="Maximum-duration threshold source"
+              label="Maximum limit source"
               htmlFor="maximum-duration-threshold-source-select"
               tooltip={TOOLTIPS.maximumDurationThresholdSource}
               modified={options.maximumDurationThresholdSource !== undefined}
@@ -473,7 +473,7 @@ export function CleaningSettingsCard({
 
             {options.maximumDurationThresholdSource === "fixed_parameter" ? (
               <SettingsField
-                label="Maximum-duration threshold (nanoseconds)"
+                label="Fixed maximum length (nanoseconds)"
                 htmlFor="maximum-duration-threshold-ns-input"
                 tooltip={TOOLTIPS.maximumDurationThresholdNs}
                 modified={options.maximumDurationThresholdNs !== undefined}
@@ -503,7 +503,7 @@ export function CleaningSettingsCard({
       </div>
       <div className="settings-grid-1">
         <SettingsField
-          label="Interval quality policy"
+          label="Clean unusual intervals"
           htmlFor="interval-quality-policy-select"
           tooltip={TOOLTIPS.intervalQualityPolicy}
           modified={isMod("intervalQualityPolicy")}
@@ -551,7 +551,7 @@ export function CleaningSettingsCard({
       </div>
       <div className="settings-grid-2">
         <SettingsField
-          label="Screen-session maximum-duration action"
+          label="What to do with long screen sessions"
           htmlFor="screen-session-cap-disposition-select"
           tooltip={TOOLTIPS.screenSessionMaximumDurationDisposition}
           modified={isMod("screenSessionMaximumDurationDisposition")}
@@ -576,7 +576,7 @@ export function CleaningSettingsCard({
           </select>
         </SettingsField>
         <SettingsField
-          label="Screen-session maximum duration (minutes)"
+          label="Maximum screen-session length (minutes)"
           tooltip={TOOLTIPS.screenSessionMaximumDurationMinutes}
           modified={isMod("screenSessionMaximumDurationMinutes")}
           onReset={() =>
@@ -603,7 +603,7 @@ export function CleaningSettingsCard({
       {settingsTab ? (
         <>
       <ToggleField
-        label="Screen-gated usage credit"
+        label="Count screen-on app time"
         tooltip={TOOLTIPS.enableScreenGatedCrediting}
         checked={options.enableScreenGatedCrediting}
         onChange={(value) => update("enableScreenGatedCrediting", value)}
@@ -614,7 +614,7 @@ export function CleaningSettingsCard({
       {options.enableScreenGatedCrediting ? (
         <div className="settings-grid-1 settings-overview__subfield">
           <SettingsField
-            label="Screen-gating rule"
+            label="Credit rule"
             htmlFor="screen-gating-rule-select"
             tooltip={TOOLTIPS.screenGatingRule}
             modified={isMod("screenGatingRule")}
@@ -644,7 +644,7 @@ export function CleaningSettingsCard({
       {options.enableScreenGatedCrediting ? (
         <div className="settings-grid-2 settings-overview__subfield">
           <SettingsField
-            label="Credited-session cap (minutes)"
+            label="Credited time limit (minutes)"
             tooltip={TOOLTIPS.creditedSessionCapMinutes}
             modified={isMod("creditedSessionCapMinutes")}
             onReset={() => reset("creditedSessionCapMinutes")}
@@ -661,7 +661,7 @@ export function CleaningSettingsCard({
             />
           </SettingsField>
           <SettingsField
-            label="Device-liveness gap tolerance (minutes)"
+            label="Device active gap limit (minutes)"
             tooltip={TOOLTIPS.deviceLivenessGapToleranceMinutes}
             modified={isMod("deviceLivenessGapToleranceMinutes")}
             onReset={() => reset("deviceLivenessGapToleranceMinutes")}
@@ -718,7 +718,7 @@ export function CleaningSettingsCard({
             onReset={() => reset("bridgeScreenOffToSessionEnd")}
           />
           <SettingsField
-            label="No-witness fallback: min distinct apps per day"
+            label="Apps needed without screen-on data"
             tooltip={TOOLTIPS.noWitnessMinDayApps}
             modified={isMod("noWitnessMinDayApps")}
             onReset={() => reset("noWitnessMinDayApps")}
@@ -739,7 +739,7 @@ export function CleaningSettingsCard({
         </div>
       ) : null}
       <ToggleField
-        label="Study-window filter"
+        label="Study-date limit"
         tooltip={TOOLTIPS.enableStudyWindowFilter}
         checked={options.enableStudyWindowFilter}
         onChange={(value) => update("enableStudyWindowFilter", value)}
@@ -765,7 +765,7 @@ export function CleaningSettingsCard({
         searchable
       />
       <SettingsField
-        label="Interaction-type removal mode"
+        label="When to remove event types"
         htmlFor="interaction-type-removal-mode"
         tooltip={TOOLTIPS.interactionTypeRemovalMode}
         modified={isMod("interactionTypeRemovalMode")}
@@ -781,7 +781,7 @@ export function CleaningSettingsCard({
         >
           {INTERACTION_TYPE_REMOVAL_MODE_VALUES.map((value) => (
             <option key={value} value={value}>
-              {value === "gap_preserving" ? "Preserve long-gap evidence (default)" : "Remove unconditionally"}
+              {value === "gap_preserving" ? "Keep rows that mark a long gap (default)" : "Remove all of them"}
             </option>
           ))}
         </select>

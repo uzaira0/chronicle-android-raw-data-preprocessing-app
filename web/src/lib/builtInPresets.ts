@@ -57,7 +57,7 @@ export const BUILT_IN_PRESETS: readonly BuiltInPreset[] = [
   builtIn(
     "built-in:tech-gnsm",
     "TECH/GNSM (3-5 year old personal + shared devices)",
-    "The TECH and GNSM studies' settings: 60 s minimum usage, filter file, no maximum session length, screen-gated credit truncated at 6 h with the studies' screen-off rule, America/Chicago. Reproduces the studies' credited minutes from their own engine; their later study-window and shared-device steps are not included.",
+    "The TECH and GNSM studies' settings: 60 s minimum usage, filter file, no maximum session length, screen-on app time capped at 6 h with the studies' screen-off rule, America/Chicago. Reproduces the studies' credited minutes from their own engine; their later study-date and shared-device steps are not included.",
     TECH_GNSM_OPTIONS,
   ),
 ];

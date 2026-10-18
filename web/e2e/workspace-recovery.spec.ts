@@ -73,7 +73,7 @@ test("@smoke @opfs verified workspace closure survives reload, imports into a fr
     // 148 that takes 2.5-16 s depending on machine load, so the 5 s default
     // expect timeout decided this assertion by luck, not by behaviour.
     await expect(restoredPage.getByTestId("workspace-backup-status")).toContainText(
-      "Verified workspace restored at generation 1",
+      "Backup loaded. Add its raw file again",
       { timeout: 60_000 },
     );
 

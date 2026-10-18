@@ -373,19 +373,19 @@ export function ResearchMethodProfileCard({ options, setOptions, onCompiled, onC
     onComponentSelected(componentExecution ?? null);
   }, [componentExecution, onComponentSelected, selected?.method_profile_id]);
   const typedSections = selected ? [
-    ["Method operations", records(selected.method_operations)],
+    ["Method steps", records(selected.method_operations)],
     ["Acquisition protocols", records(selected.acquisition_protocols)],
-    ["Session construction policies", records(selected.session_construction_policies)],
-    ["Notification attribution policies", records(selected.notification_attribution_policies)],
-    ["Duration policies", records(selected.duration_policies)],
-    ["Timestamp policies", records(selected.timestamp_policies)],
-    ["Parameter provenance assertions", records(selected.parameter_provenance_assertions)],
-    ["Source artifact provenance", records(selected.source_artifact_provenance_assertions)],
+    ["How sessions are built", records(selected.session_construction_policies)],
+    ["How notifications are assigned", records(selected.notification_attribution_policies)],
+    ["Duration rules", records(selected.duration_policies)],
+    ["Time rules", records(selected.timestamp_policies)],
+    ["Where each setting value comes from", records(selected.parameter_provenance_assertions)],
+    ["Where the source files come from", records(selected.source_artifact_provenance_assertions)],
     ["Diary protocols", records(selected.diary_protocols)],
     ["Release profiles", records(selected.release_profiles)],
-    ["Protocol materialization blockers", records(selected.protocol_materialization_blockers)],
+    ["What stops this method running in full", records(selected.protocol_materialization_blockers)],
     ["Supplied interaction traces", records(interactionTraces?.filter((trace) => trace.method_profile_id === selected.method_profile_id))],
-    ["Referenced payload identities", records(referencedArtifacts)],
+    ["Files it refers to", records(referencedArtifacts)],
     ["Notification drawer snapshots", records(notificationSnapshots?.filter((snapshot) => snapshot.method_profile_id === selected.method_profile_id))],
     ["Ringer-state intervals", records(ringerStateIntervals?.filter((interval) => interval.method_profile_id === selected.method_profile_id))],
     ["Notification histories", records(notificationHistories?.filter((history) => history.method_profile_id === selected.method_profile_id))],
@@ -415,7 +415,7 @@ export function ResearchMethodProfileCard({ options, setOptions, onCompiled, onC
         <div>
           <h3 id="research-method-profile-title" className="workflow-section__subtitle">Research method profile</h3>
           <p className="workflow-section__intro">
-            Load source-backed paper or diary profiles, inspect every setting, and compile the exact native preprocessing lane. Input, downstream-analysis, and evidence readiness remain explicit.
+            Load the processing method of a published paper or diary study, check every setting it uses, and run the parts of it this app supports. The card shows what is still unavailable: input files, later analyses, and checks.
           </p>
         </div>
       </header>
@@ -683,7 +683,7 @@ export function ResearchMethodProfileCard({ options, setOptions, onCompiled, onC
               <summary>{section} ({objects.length})</summary>
               <ul className="preset-diff__list">
                 {objects.map((object, index) => (
-                  <li key={`${objectIdentity(object)}:${index}`} data-testid={section === "Source artifact provenance" ? "source-artifact-provenance-row" : undefined}>
+                  <li key={`${objectIdentity(object)}:${index}`} data-testid={section === "Where the source files come from" ? "source-artifact-provenance-row" : undefined}>
                     <span className="preset-diff__label">{objectIdentity(object)}</span>
                     {Object.entries(object).filter(([key]) => key !== "method_settings").map(([key, value]) => (
                       <span key={key} className="text-faint u-meta-xs">{label(key)}: {scalarText(value) || JSON.stringify(value)}</span>
@@ -709,7 +709,7 @@ export function ResearchMethodProfileCard({ options, setOptions, onCompiled, onC
           ))}
         </div>
       ) : (
-        <p className="empty-state">No source-backed method profile loaded.</p>
+        <p className="empty-state">No method from a paper loaded.</p>
       )}
     </section>
   );

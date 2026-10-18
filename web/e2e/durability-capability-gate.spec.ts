@@ -107,7 +107,7 @@ test("@smoke @no-storage the durable-workspace banner matches what this engine c
   // hard refusal. Assert whichever arm the app chose, in full — never assert
   // "one of two states" loosely, and never let a missing banner pass.
   const ephemeral = await banner
-    .getByText("Running without durable local storage")
+    .getByText("Results will not be saved in this browser")
     .count();
   if (ephemeral > 0) {
     // It states what is lost and how to get it back, not just that something is
@@ -120,7 +120,7 @@ test("@smoke @no-storage the durable-workspace banner matches what this engine c
     await expect(page.getByTestId("process-files-button")).toBeEnabled();
     await expect(page.getByTestId("ephemeral-workspace-note")).toBeVisible();
   } else {
-    await expect(banner).toContainText("Durable local processing is unavailable");
+    await expect(banner).toContainText("This browser is not letting the app save files right now");
     await expect(banner).toContainText("This may be temporary");
     await expect(page.getByTestId("process-files-button")).toBeDisabled();
     await expect(page.getByTestId("durable-workspace-block")).toBeVisible();
@@ -284,7 +284,7 @@ for (const denial of DENIALS) {
     if (denial.mode === "ephemeral") {
       // Degraded, not refused, and visibly labelled as such.
       await expect(banner).toContainText(
-        "Running without durable local storage",
+        "Results will not be saved in this browser",
       );
       await expect(page.getByTestId("process-files-button")).toBeEnabled();
       await expect(page.getByTestId("process-files-button")).toHaveText(
@@ -296,7 +296,7 @@ for (const denial of DENIALS) {
       // durable browser must not lose persistence because one write failed
       // once. The banner says it may be temporary and how to recover.
       await expect(banner).toContainText(
-        "Durable local processing is unavailable",
+        "This browser is not letting the app save files right now",
       );
       await expect(banner).toContainText("This may be temporary");
       await expect(banner).toContainText("reload and try again");
@@ -416,7 +416,7 @@ test("processing degrades to ephemeral mode when only the worker is denied durab
 
   const banner = page.getByTestId(BANNER);
   await expect(banner).toBeVisible({ timeout: 20_000 });
-  await expect(banner).toContainText("Running without durable local storage");
+  await expect(banner).toContainText("Results will not be saved in this browser");
   // The reason names the worker's failure, not a main-thread one.
   await expect(banner).toContainText(WORKER_DENIAL_MARKER);
 
@@ -448,7 +448,7 @@ test("@smoke @no-storage a browser that never grants storage still completes a r
 
   const banner = page.getByTestId(BANNER);
   await expect(banner).toBeVisible({ timeout: 20_000 });
-  await expect(banner).toContainText("Running without durable local storage");
+  await expect(banner).toContainText("Results will not be saved in this browser");
   await expect(banner).toContainText("gone when it is closed or reloaded");
 
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");

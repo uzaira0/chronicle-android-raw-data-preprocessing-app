@@ -85,7 +85,7 @@ function zipName(kind: "all" | OutputKind): string {
               : kind === "spss"
                 ? "spss-files"
                 : kind === "lineage"
-                  ? "lineage-and-correspondence"
+                  ? "audit-files"
                   : "plots";
   return `chronicle-${suffix}.zip`;
 }
@@ -600,7 +600,7 @@ export function ResultPanel({
               }}
               disabled={!!activeDownload}
             >
-              Lineage evidence ZIP ({lineageOutputs.length})
+              Audit files ZIP ({lineageOutputs.length})
             </button>
           )}
           {onDelete ? (
@@ -813,7 +813,7 @@ export function ResultPanel({
                             className="result-table__downloads"
                             aria-label="Download individual outputs"
                           >
-                            {result.outputs.map((output) => (
+                            {result.outputs.filter((output) => output.kind !== "lineage").map((output) => (
                               <li key={output.outputFileName}>
                                 <button
                                   type="button"
@@ -860,7 +860,7 @@ const OUTPUT_KIND_LABEL: Record<string, string> = {
   aggregate: "Aggregate CSV",
   parquet: "Parquet",
   spss: "SPSS .sav",
-  lineage: "Arrow lineage / correspondence",
+  lineage: "Audit file",
 };
 
 /** Human label for one output, distinguishing the HTML timeline viewer from plots. */

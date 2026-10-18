@@ -132,7 +132,7 @@
     },
     {
       "path": "rust/chronicle_chrono_kernel_wasm/src/workflow_contract.rs",
-      "digest": "sha256:1bb96f5d21fbb5acc503dc00128083a869b81cca5efd71fc6260389f737cfe4e"
+      "digest": "sha256:567a663b31493c9f2bfcbca8c74c521946b84e3a8fe636f8b6f26c7be7b791d6"
     },
     {
       "path": "rust/chronicle_preprocessing_runtime_wasm/src/binary_exports.rs",
@@ -152,7 +152,7 @@
     },
     {
       "path": "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",
-      "digest": "sha256:f8ca96663628fd15c95ed5281975de75f2988305921d274fe6cf63bc58e6b458"
+      "digest": "sha256:4f198326195cef8e3349f220ad455bab71922748769f2164c6bbd6b71c5b5d8a"
     },
     {
       "path": "rust/chronicle_preprocessing_runtime_wasm/src/literature_input_adapters.rs",
@@ -202,8 +202,8 @@
     ]
   },
   "manifestClosureDigest": "sha256:6345434a58b7c94e5a1906df68989b12fe6e23bf752bb977b8d58dcc14177196",
-  "harnessDigest": "sha256:9ff8fe06999f24bed584a27e792916c9d2bc2b696f647dedb1fcd51bda1f3bdb",
-  "contractDigest": "sha256:456a7e8bc56d54641386845ed32b21c011ed1c2c544a18be370722f39e1d3d4c",
+  "harnessDigest": "sha256:ac463276e6f2274e2b1dea62e1df117d77c748b919cfa3c46a139650f3e4e3bf",
+  "contractDigest": "sha256:b91d2f351d0df86f8a961723ab59bc3aaea285eeb680eca8dd49834eba7d8c5b",
   "toolchain": "rustc 1.97.0-nightly (913e4bea8 2026-04-22) | binary: rustc",
   "claimBoundary": "Executed-production-file set for this record-mode campaign under LLVM coverage; each file pinned by the digest of its test-stripped normalized source. Conditions the right to inherit this campaign's committed ledger payload without re-measuring; never consulted for runtime invalidation."
 }

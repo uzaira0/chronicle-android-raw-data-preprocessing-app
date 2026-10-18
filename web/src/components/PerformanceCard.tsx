@@ -47,10 +47,10 @@ export function PerformanceCard({
       <p className="u-card-intro">
         Use this for batches with more than one raw file. Parallel processing can finish a batch
         faster by working on several files at the same time. If the browser slows down or uses too
-        much memory, turn it off or lower the max workers number.
+        much memory, turn it off or lower the number of files processed at once.
       </p>
       <ToggleField
-        label="Enable parallel file processing"
+        label="Process several files at once"
         tooltip={TOOLTIPS.parallelProcessing}
         checked={options.parallelProcessing}
         onChange={(value) => update("parallelProcessing", value)}
@@ -59,7 +59,7 @@ export function PerformanceCard({
         onReset={() => reset("parallelProcessing")}
       />
       <SettingsField
-        label="Max parallel workers"
+        label="Files processed at once"
         tooltip={TOOLTIPS.parallelMaxWorkers}
         modified={isMod("parallelMaxWorkers")}
         onReset={() => reset("parallelMaxWorkers")}
@@ -85,11 +85,11 @@ export function PerformanceCard({
         />
       </SettingsField>
       <ToggleField
-        label="Build provenance evidence"
+        label="Save extra audit files"
         tooltip={{
-          title: "Provenance evidence files",
+          title: "Extra audit files",
           body:
-            "Also builds three provenance files alongside Row Lineage: the Source Coordinate Index (an address for every cell of your input files), the Result Cell Correspondence (every output cell linked back to its output row) and the Source-Result Influence Witness (which inputs could affect which output cells). Nothing in the app reads them; they exist for provenance audits and the evidence campaigns. Off: those steps are skipped, so each run is faster. Your CSV outputs are identical either way.",
+            "Adds three more files to the audit files ZIP: one gives an address to every cell of your input files, one links every output cell back to its output row, and one records which input cells could change which output cells. Nothing in the app reads them; they are for checking the processing in detail. Off: those steps are skipped, so each run is faster. Your result files are the same either way.",
         }}
         checked={provenanceEvidence}
         onChange={onProvenanceEvidenceChange}

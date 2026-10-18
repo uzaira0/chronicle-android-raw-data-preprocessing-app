@@ -47,13 +47,13 @@ export function buildCleaningSummary(
       minimumReceipt.effectiveDisposition === "chronicle_blank_keep_row"
         ? `Blanked timing for ${sessionCount} below-minimum sessions.`
         : minimumReceipt.effectiveDisposition === "retain_but_exclude"
-          ? `Retained but excluded ${sessionCount} below-minimum sessions.`
+          ? `Kept ${sessionCount} below-minimum sessions but left them out of totals.`
           : minimumReceipt.effectiveDisposition === "drop_row"
             ? `Dropped ${sessionCount} below-minimum sessions.`
-            : `Retained and credited ${sessionCount} below-minimum sessions.`;
+            : `Kept and counted ${sessionCount} below-minimum sessions.`;
     steps.push({
-      step: "Minimum usage duration (seconds)",
-      detail: `${dispositionDetail}${subintervalCount ? ` Also blanked ${subintervalCount} concurrent subintervals.` : ""}`,
+      step: "Minimum app-use time (seconds)",
+      detail: `${dispositionDetail}${subintervalCount ? ` Also blanked ${subintervalCount} pieces of overlapping use.` : ""}`,
       count: sessionCount + subintervalCount,
     });
   }
@@ -65,31 +65,31 @@ export function buildCleaningSummary(
     const truncated = outcomes.truncated ?? 0;
     const dropped = outcomes.dropped ?? 0;
     steps.push({
-      step: "Maximum-duration policy",
-      detail: `Flagged ${flagged} episodes, retained but excluded ${excluded}, truncated ${truncated}, and dropped ${dropped}.`,
+      step: "Long episode rule",
+      detail: `Flagged ${flagged} episodes, left ${excluded} out of totals, shortened ${truncated}, and removed ${dropped}.`,
       count: flagged + excluded + truncated + dropped,
     });
   }
 
   if (options.intervalQualityPolicy !== "none") {
     steps.push({
-      step: "Interval quality policy",
-      detail: `Truncated ${cleaningCounts.culverhouseBoundedIntervals} App Usage rows and flagged ${cleaningCounts.culverhouseFlaggedDays} participant-days.`,
+      step: "Clean unusual intervals",
+      detail: `Shortened ${cleaningCounts.culverhouseBoundedIntervals} App Usage rows and flagged ${cleaningCounts.culverhouseFlaggedDays} participant-days.`,
       count: cleaningCounts.culverhouseBoundedIntervals,
     });
   }
 
   if (options.dropOutOfSourceOrderEvents) {
     steps.push({
-      step: "Drop events written out of chronological order",
-      detail: `Dropped ${cleaningCounts.outOfOrderEventsDropped} events written out of chronological order.`,
+      step: "Remove events out of time order",
+      detail: `Removed ${cleaningCounts.outOfOrderEventsDropped} events logged out of time order.`,
       count: cleaningCounts.outOfOrderEventsDropped,
     });
   }
 
   if (options.filterZeroDurationSessions) {
     steps.push({
-      step: "Filter zero duration sessions",
+      step: "Remove zero-time sessions",
       detail: `Removed ${zeroDurationReceipt.removedRowCount} zero-duration rows.`,
       count: zeroDurationReceipt.removedRowCount,
     });
@@ -98,13 +98,13 @@ export function buildCleaningSummary(
   if (options.screenSessionMaximumDurationDisposition !== "none") {
     if (options.screenSessionMaximumDurationDisposition === "truncate") {
       steps.push({
-        step: "Screen-session maximum-duration action",
-        detail: `Truncated ${cleaningCounts.screenSessionsCapped} screen sessions to ${options.screenSessionMaximumDurationMinutes} minutes.`,
+        step: "What to do with long screen sessions",
+        detail: `Shortened ${cleaningCounts.screenSessionsCapped} screen sessions to ${options.screenSessionMaximumDurationMinutes} minutes.`,
         count: cleaningCounts.screenSessionsCapped,
       });
     } else {
       steps.push({
-        step: "Screen-session maximum-duration action",
+        step: "What to do with long screen sessions",
         detail: `Excluded ${cleaningCounts.screenDurationExcludedParticipants} participants whose screen sessions exceeded ${options.screenSessionMaximumDurationMinutes} minutes.`,
         count: cleaningCounts.screenDurationExcludedParticipants,
       });
@@ -113,7 +113,7 @@ export function buildCleaningSummary(
 
   if (options.enableScreenGatedCrediting) {
     steps.push({
-      step: "Screen-gated usage credit",
+      step: "Count screen-on app time",
       detail: `${creditedAppRowCount} rows written to the Credited App Usage file.`,
       count: creditedAppRowCount,
     });

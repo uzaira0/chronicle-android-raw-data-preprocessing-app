@@ -144,7 +144,7 @@ const AXES: readonly {
 describe("published-method axis controls", () => {
   it("does not present the legacy 45-second app grouping as van Berkel's classifier", () => {
     expect(SESSION_GROUPING_POLICIES.find((entry) => entry.value === "van_berkel_45s")?.label)
-      .toBe("App-episode gap ≤ 45 s (legacy ID)");
+      .toBe("App-episode gap ≤ 45 s");
     const ontology = readFileSync(ONTOLOGY_FILE, "utf8");
     const description = ontology.split("      van_berkel_45s:")[1]?.split("\n")[0];
     expect(description).toContain("not an exact implementation of van Berkel");

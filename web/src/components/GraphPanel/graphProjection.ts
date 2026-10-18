@@ -40,6 +40,18 @@ export type ProjectionEvidence = {
   supportPresence?: ReadonlyMap<string, boolean>;
 };
 
+const ARTIFACT_KIND_LABELS: Record<string, string> = {
+  source: "uploaded file",
+  configuration: "your settings",
+  records: "rows",
+  index: "lookup list",
+  intervals: "time periods",
+  table: "table",
+  metric: "numbers",
+  manifest: "list of results",
+  evidence: "audit record",
+};
+
 function humanize(value: string): string {
   return value.replaceAll("_", " ").replaceAll("-", " ");
 }
@@ -80,15 +92,15 @@ function effectCategories(effects: readonly string[]): string[] {
   const categories = new Set<string>();
   for (const effect of effects) {
     if (["drops_rows", "splits_rows", "synthesizes_rows"].includes(effect)) {
-      categories.add("row-set impact");
+      categories.add("which rows");
     } else if (["rewrites_values", "classifies"].includes(effect)) {
-      categories.add("value impact");
+      categories.add("values");
     } else if (effect === "aggregates") {
-      categories.add("summary impact");
+      categories.add("totals");
     } else if (effect === "encodes") {
-      categories.add("format impact");
+      categories.add("file format");
     } else if (effect === "preserves") {
-      categories.add("preserving");
+      categories.add("nothing");
     } else {
       categories.add(humanize(effect));
     }
@@ -96,14 +108,23 @@ function effectCategories(effects: readonly string[]): string[] {
   return [...categories];
 }
 
+const EPISTEMIC_LABELS: Record<string, string> = {
+  observed: "read from the file",
+  derived: "worked out from the data",
+  inferred: "estimated from the data",
+  policy_applied: "applies one of your settings",
+  synthetic: "adds filler rows",
+  encoded: "writes a file format",
+};
+
 function operationDetail(
   operation: RustWorkflowExplorerView["operations"][number],
 ): string {
   const categories = effectCategories(operation.dataEffects);
   return [
-    `Evidence role: ${humanize(operation.epistemicRole)}`,
-    `Impact: ${categories.join(", ") || "not classified"}`,
-    operation.offReason ? `Off reason: ${operation.offReason}` : null,
+    `What it does: ${EPISTEMIC_LABELS[operation.epistemicRole] ?? humanize(operation.epistemicRole)}`,
+    `Changes: ${categories.join(", ") || "not classified"}`,
+    operation.offReason ? `Why it is off: ${operation.offReason}` : null,
   ]
     .filter((value): value is string => value !== null)
     .join(" · ");
@@ -126,7 +147,7 @@ function formatDuration(durationMs: number): string {
 }
 
 function queryMetrics(record: QueryExecutionRecord | undefined): string {
-  if (!record) return "not observed · row counts unavailable · timing unavailable";
+  if (!record) return "not run yet";
   const rows =
     record.rowsIn === null && record.rowsOut === null
       ? "row counts unavailable"
@@ -177,14 +198,14 @@ export function graphForMode(
           inputs: phase.inputPhaseIds,
           status: "not_observed" as const,
           off: !phase.applicable,
-          eyebrow: "research workflow phase",
+          eyebrow: "stage",
           detail: phase.applicable
-            ? "Included by the current settings; phase-level execution is not observed"
-            : "No operation in this phase is active",
+            ? "Used with your current settings"
+            : "Every step in this stage is off",
           metrics: null,
           warnings: [],
           phaseId: phase.phaseId,
-          offReason: phase.applicable ? null : "No operation in this phase is active",
+          offReason: phase.applicable ? null : "every step in this stage is off",
           supportPresence: null,
           impact: null,
         })),
@@ -219,18 +240,18 @@ export function graphForMode(
         label: humanize(decision.inputId),
         description:
           decision.inputKind === "support"
-            ? "A support-file role considered by the Rust workflow projection."
-            : "A processing setting considered by the Rust workflow projection.",
+            ? "An input file you can add."
+            : "A processing setting.",
         section: "decision",
         inputs: [],
         status: null,
         off: false,
-        eyebrow: decision.inputKind === "support" ? "support input" : "setting",
+        eyebrow: decision.inputKind === "support" ? "input file" : "setting",
         detail: [
-          `${plural(decision.directQueryIds.length, "direct physical reader")}`,
-          `${plural(decision.affectedOperationIds.length, "operation")} may change`,
-          `${plural(decision.affectedArtifactIds.length, "artifact")} may change`,
-          supportPresence ? `Support availability: ${humanize(supportPresence)}` : null,
+          `${plural(decision.directQueryIds.length, "computation")} read it directly`,
+          `${plural(decision.affectedOperationIds.length, "step")} may change`,
+          `${plural(decision.affectedArtifactIds.length, "result")} may change`,
+          supportPresence ? `File: ${supportPresence === "available" ? "added" : supportPresence === "unavailable" ? "not added" : "not checked"}` : null,
         ]
           .filter((value): value is string => value !== null)
           .join(" · "),
@@ -255,13 +276,13 @@ export function graphForMode(
         return {
           id: `physical:${queryId}`,
           label: operation?.label ?? humanize(queryId),
-          description: `Physical query ${queryId}.`,
+          description: "A computation that reads this setting or file directly.",
           section: "execution",
           inputs,
           status: query ? queryStatus(query.physicalState) : "not_observed",
           off: query?.applicability === "not_applicable",
-          eyebrow: "direct physical reader",
-          detail: query ? `Execution group: ${humanize(query.queryGroupId)}` : "Query detail unavailable",
+          eyebrow: "computation",
+          detail: query ? `Group: ${humanize(query.queryGroupId)}` : "No details",
           metrics: queryMetrics(recordByQueryId.get(queryId)),
           warnings: recordByQueryId
             .get(queryId)
@@ -269,7 +290,7 @@ export function graphForMode(
             .map((expectation) => expectation.message) ?? [],
           phaseId: operation?.phaseId ?? null,
           offReason:
-            query?.applicability === "not_applicable" ? "Its applicability rule is false" : null,
+            query?.applicability === "not_applicable" ? "off with your current settings" : null,
           supportPresence: null,
           impact: null,
         };
@@ -330,13 +351,13 @@ export function graphForMode(
       .map((artifact) => ({
         id: artifact.artifactId,
         label: artifact.label,
-        description: `${humanize(artifact.kind)} artifact`,
+        description: ARTIFACT_KIND_LABELS[artifact.kind] ?? humanize(artifact.kind),
         section: "artifact",
         inputs: artifact.producerOperationId ? [artifact.producerOperationId] : [],
         status: artifactStatus(artifact.runState),
         off: artifact.runState === "absent",
-        eyebrow: "may-change artifact",
-        detail: "This artifact is in at least one selected decision's semantic impact closure",
+        eyebrow: "result that may change",
+        detail: "A change to a setting or file can change this result",
         // The view's artifact kind is the semantic class (table, records…),
         // not the persisted output kind, so no size joins here.
         metrics: null,
@@ -344,7 +365,7 @@ export function graphForMode(
         phaseId: artifact.producerOperationId
           ? (operationById.get(artifact.producerOperationId)?.phaseId ?? null)
           : null,
-        offReason: artifact.runState === "absent" ? "Its producer is not active" : null,
+        offReason: artifact.runState === "absent" ? "the step that makes it is off" : null,
         supportPresence: null,
         impact: null,
       }));
@@ -368,21 +389,20 @@ export function graphForMode(
           : query.physicalState === "executed"
             ? "recomputed"
             : query.physicalState === "not_observed"
-              ? "not observed"
-              : "unavailable";
+              ? "not run yet"
+              : "unknown";
         return {
           id: query.queryId,
           label: operation?.label ?? humanize(query.queryId),
-          description: `Physical query in ${humanize(query.queryGroupId)}.`,
+          description: `A computation in ${humanize(query.queryGroupId)}.`,
           section: "execution" as const,
           inputs: query.inputQueryIds,
           status: queryStatus(query.physicalState),
           off: query.applicability === "not_applicable",
-          eyebrow: "physical query",
+          eyebrow: "computation",
           detail: [
-            `Reuse: ${reuse}`,
-            query.checkpointSource ? `Checkpoint: ${humanize(query.checkpointSource)}` : null,
-            "Output size unavailable in this projection",
+            `Reused: ${reuse}`,
+            query.checkpointSource ? `Saved copy from: ${humanize(query.checkpointSource)}` : null,
           ]
             .filter((value): value is string => value !== null)
             .join(" · "),
@@ -393,7 +413,7 @@ export function graphForMode(
               .map((expectation) => expectation.message) ?? [],
           phaseId: operation?.phaseId ?? null,
           offReason:
-            query.applicability === "not_applicable" ? "Its applicability rule is false" : null,
+            query.applicability === "not_applicable" ? "off with your current settings" : null,
           supportPresence: null,
           impact: null,
         };
@@ -420,7 +440,7 @@ export function graphForMode(
     eyebrow:
       mode === "audit"
         ? `${effectCategories(operation.dataEffects).join(" + ") || "unclassified"} operation`
-        : "semantic operation",
+        : "step",
     detail: operationDetail(operation),
     metrics: null,
     warnings: [],
@@ -438,20 +458,20 @@ export function graphForMode(
     return {
       id: artifact.artifactId,
       label: artifact.label,
-      description: `${humanize(artifact.kind)} artifact`,
+      description: ARTIFACT_KIND_LABELS[artifact.kind] ?? humanize(artifact.kind),
       section: artifact.producerOperationId ? "artifact" : "source",
       inputs: artifact.producerOperationId ? [artifact.producerOperationId] : [],
       status: artifactStatus(artifact.runState),
       off: artifact.runState === "absent",
-      eyebrow: artifact.producerOperationId ? "typed artifact" : "source artifact",
+      eyebrow: artifact.producerOperationId ? "in-between result" : "input file",
       detail:
         artifact.consumerOperationIds.length > 0
-          ? `Consumed by ${plural(artifact.consumerOperationIds.length, "operation")}`
-          : "Terminal artifact; the projection does not classify it as a user deliverable",
+          ? `Used by ${plural(artifact.consumerOperationIds.length, "step")}`
+          : "Not used by a later step",
       metrics: null,
       warnings: [],
       phaseId: producer?.phaseId ?? null,
-      offReason: artifact.runState === "absent" ? "Its producer is not active" : null,
+      offReason: artifact.runState === "absent" ? "the step that makes it is off" : null,
       supportPresence: null,
       impact: null,
     };
@@ -524,13 +544,13 @@ export function collapseProjection(
       inputs,
       status: combinedStatus(members),
       off: members.every((member) => member.off),
-      eyebrow: "collapsed phase",
-      detail: `${plural(members.length, "visible item")} collapsed into this phase`,
+      eyebrow: "stage (collapsed)",
+      detail: `${plural(members.length, "item")} folded into this stage`,
       metrics: null,
       warnings: members.flatMap((member) => member.warnings),
       phaseId,
       offReason: members.every((member) => member.off)
-        ? "Every visible item in this phase is off"
+        ? "every item in this stage is off"
         : null,
       supportPresence: null,
       impact: null,

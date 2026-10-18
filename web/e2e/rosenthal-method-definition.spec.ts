@@ -127,7 +127,7 @@ test(`preserves ${label}'s exact source definitions and selected owner across im
       await expect(row).toContainText(typeof value === "string" ? value : JSON.stringify(value));
       await expect(row).toContainText(`Source: ${(setting.source_locators as string[]).join(", ")}`);
     }
-    const operations = card.locator("details").filter({ has: page.getByText(`Method operations (${operationCount})`, { exact: true }) });
+    const operations = card.locator("details").filter({ has: page.getByText(`Method steps (${operationCount})`, { exact: true }) });
     if (operationCount) {
       await operations.locator("summary").click();
       await expect(operations.locator("li")).toHaveCount(operationCount);
@@ -141,7 +141,7 @@ test(`preserves ${label}'s exact source definitions and selected owner across im
       await expect(row).toContainText(`Data effects: ${JSON.stringify(op.data_effects)}`);
     }
     if (sourcePolicies.length) {
-      const policies = card.locator("details").filter({ has: page.getByText("Session construction policies (1)", { exact: true }) });
+      const policies = card.locator("details").filter({ has: page.getByText("How sessions are built (1)", { exact: true }) });
       await policies.locator("summary").click();
       await expect(policies.locator("li")).toHaveCount(1);
       await expect(policies).toContainText(String(sourcePolicies[0]!.session_construction_policy_id));

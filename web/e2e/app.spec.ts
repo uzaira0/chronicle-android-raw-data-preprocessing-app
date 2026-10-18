@@ -358,7 +358,7 @@ test("@smoke @opfs B06 persists the maximum-duration vector, truncates strictly 
   await page.getByRole("tab", { name: /Process/i }).click();
   await page.getByTestId("process-files-button").click();
   await expect(page.locator(".result-panel .error-text")).toContainText(
-    "Maximum-duration policy post_reconstruction_strict_max_v1 cannot run with the selected settings (adaptive_maximum_threshold_provider_unavailable)",
+    "The long episode rule you chose (post_reconstruction_strict_max_v1) cannot run with your other settings (reason: adaptive_maximum_threshold_provider_unavailable)",
     { timeout: 15_000 },
   );
   assertNoExternalRequests(requestTracker);
@@ -541,9 +541,9 @@ test("searches individual settings and jumps to the matching section (#9)", asyn
   const results = page.locator(".settings-search-results");
   await expect(results).toContainText("2 settings found");
   // Labels are derived from the contract tooltips, so they match the real option
-  // names ("Enable parallel file processing", not a hand-written paraphrase).
-  await expect(results).toContainText("Enable parallel file processing");
-  await expect(results).toContainText("Max parallel workers");
+  // names ("Process several files at once", not a hand-written paraphrase).
+  await expect(results).toContainText("Process several files at once");
+  await expect(results).toContainText("Files processed at once");
 
   // Placement fix: the results render as a dropdown anchored directly below the
   // search box (not pushing page layout, not floating away from the input).
@@ -558,7 +558,7 @@ test("searches individual settings and jumps to the matching section (#9)", asyn
 
   // Jump fix: each result is an actionable button (not a dead #anchor link) that
   // scrolls to AND flashes the owning section card.
-  const result = results.getByRole("button", { name: /Max parallel workers/i });
+  const result = results.getByRole("button", { name: /Files processed at once/i });
   await expect(result).toBeVisible();
   await result.click();
   const performanceCard = page.locator('[data-section-id="performance"]');
