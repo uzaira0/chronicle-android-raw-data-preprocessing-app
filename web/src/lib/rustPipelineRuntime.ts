@@ -263,12 +263,27 @@ export type MaximumDurationPreflightDecision =
 export type RuntimeScientificPreflightReceipt =
   SerializedRuntimeScientificPreflightReceipt;
 
+const OPENER_REFUSAL_WORDS: Partial<Record<string, string>> = {
+  eyes_requires_lifecycle_triplets:
+    "The way to build app episodes you chose needs each app's own resume, pause and stop events, " +
+    "so it cannot use a different “Episode start events” choice. Choose “The episode rule's usual " +
+    "starts”, or another way to build app episodes.",
+};
+
+const MAXIMUM_DURATION_REFUSAL_WORDS: Partial<Record<string, string>> = {
+  maximum_duration_policy_incompatible_with_reconstruction_strategy:
+    "it does not work with the way app episodes are built (“How to build app episodes”)",
+  adaptive_maximum_threshold_provider_unavailable:
+    "it needs a time limit worked out from each participant's own data, which this app cannot compute yet",
+};
+
 export class RustOpenerSetRefusalError extends UserFacingError {
   readonly code = "opener_set_refused";
 
   constructor(readonly decision: OpenerSetPreflightDecision) {
     super(
-      "The selected app start rule does not fit your other settings. Choose another rule or change the settings.",
+      OPENER_REFUSAL_WORDS[decision.reasonCode ?? ""] ??
+        "The “Episode start events” choice does not work with “How to build app episodes”. Choose another start-event choice or another way to build app episodes.",
       `opener set ${decision.requestedOpenerSetId} refused: ${decision.reasonCode ?? "unspecified_reason"}`,
     );
     this.name = "RustOpenerSetRefusalError";
@@ -279,8 +294,9 @@ export class RustMaximumDurationRefusalError extends UserFacingError {
   readonly code = "maximum_duration_refused";
 
   constructor(readonly decision: MaximumDurationPreflightDecision) {
+    const words = MAXIMUM_DURATION_REFUSAL_WORDS[decision.reasonCode ?? ""];
     super(
-      "The long episode rule you chose cannot run with your other settings.",
+      `The long episode rule you chose cannot run with your other settings${words ? `: ${words}` : ""}.`,
       `${decision.applicability.requestedPolicy} refused: ${decision.reasonCode ?? "unspecified_reason"}`,
     );
     this.name = "RustMaximumDurationRefusalError";

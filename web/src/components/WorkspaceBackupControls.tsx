@@ -31,7 +31,8 @@ function backupName(inputFileName: string): string {
 export function WorkspaceBackupControls({ results, componentResult, onImportStarted, onComponentRestored, durableStorageAvailable = true }: Props): ReactElement {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ message: string; details?: string } | string | null>(null);
+  const shown = typeof message === "string" ? { message } : message;
   // Only a run whose workspace was committed to storage can be exported; an
   // ephemeral run's receipt has no persisted generation and no closure to read.
   const receipts: Array<{ inputFileName: string; receipt: { workspaceId: string; workspaceRootDigest: string } }> = results.flatMap((result) =>
@@ -60,7 +61,7 @@ export function WorkspaceBackupControls({ results, componentResult, onImportStar
       );
       setMessage(`Backup saved for ${inputFileName}.`);
     } catch (error) {
-      setMessage(failureText(error, "This backup could not be saved.").message);
+      setMessage(failureText(error, "This backup could not be saved."));
     } finally {
       setBusy(false);
     }
@@ -87,7 +88,9 @@ export function WorkspaceBackupControls({ results, componentResult, onImportStar
         "Backup loaded. Add its raw file again to keep working on this run.",
       );
     } catch (error) {
-      setMessage(failureText(error, "This backup could not be loaded.").message);
+      setMessage(
+        failureText(error, "This backup could not be loaded. The file may be damaged, or saved by a different version of the app."),
+      );
     } finally {
       setBusy(false);
       if (inputRef.current) inputRef.current.value = "";
@@ -146,10 +149,16 @@ export function WorkspaceBackupControls({ results, componentResult, onImportStar
           giving right now (for example, in a private window).
         </p>
       )}
-      {message ? (
-        <p role="status" className="result-restored-note" data-testid="workspace-backup-status">
-          {message}
-        </p>
+      {shown ? (
+        <div role="status" className="result-restored-note" data-testid="workspace-backup-status">
+          {shown.message}
+          {shown.details ? (
+            <details className="technical-details">
+              <summary>Technical details</summary>
+              <pre>{shown.details}</pre>
+            </details>
+          ) : null}
+        </div>
       ) : null}
     </section>
   );

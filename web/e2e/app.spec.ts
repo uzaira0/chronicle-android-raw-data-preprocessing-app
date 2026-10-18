@@ -213,7 +213,7 @@ test("@smoke @opfs B02 persists its binding and refuses the incompatible EYES cr
   await page.getByRole("tab", { name: /Process/i }).click();
   await page.getByTestId("process-files-button").click();
   await expect(page.locator(".result-panel .error-text")).toContainText(
-    "Opener set gesis_app_scoped_starts is incompatible with the selected reconstruction strategy (eyes_requires_lifecycle_triplets)",
+    "needs each app's own resume, pause and stop events, so it cannot use a different “Episode start events” choice",
     { timeout: 15_000 },
   );
   await expect(page.getByTestId("result-file-table")).toHaveCount(0);
@@ -358,7 +358,7 @@ test("@smoke @opfs B06 persists the maximum-duration vector, truncates strictly 
   await page.getByRole("tab", { name: /Process/i }).click();
   await page.getByTestId("process-files-button").click();
   await expect(page.locator(".result-panel .error-text")).toContainText(
-    "The long episode rule you chose cannot run with your other settings.",
+    "The long episode rule you chose cannot run with your other settings: it needs a time limit worked out from each participant's own data",
     { timeout: 15_000 },
   );
   assertNoExternalRequests(requestTracker);

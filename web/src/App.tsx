@@ -347,6 +347,8 @@ type BackgroundNotice = {
   detail: string;
   /** Offer the existing "Clear cached run" confirmation. */
   offerClearCachedRun?: boolean;
+  /** The raw failure text, shown collapsed. */
+  details?: string;
 };
 
 const WORKFLOW_STORAGE_KEY = "chronicle-web.activeWorkflow";
@@ -388,7 +390,15 @@ function estimatedFilePercent(current: FileProgress): number {
 }
 
 export default function App(): ReactElement {
-  const [error, setError] = useState<string | null>(null);
+  // The error banner: a plain message, plus the raw text it replaced, if any,
+  // shown under "Technical details".
+  const [errorState, setErrorState] = useState<{ message: string; details?: string } | null>(null);
+  const error = errorState?.message ?? null;
+  const setError = useCallback(
+    (next: string | { message: string; details?: string } | null) =>
+      setErrorState(typeof next === "string" ? { message: next } : next),
+    [],
+  );
   const [isRunning, setIsRunning] = useState(false);
   const [results, setResults] = useState<ProcessedFileResult[]>([]);
   const [activeLiteratureComponent, setActiveLiteratureComponent] =
@@ -595,9 +605,10 @@ export default function App(): ReactElement {
     (notice: BackgroundNotice, error: unknown) => {
       console.error(notice.title, error);
       recordError("background", error, notice.title);
+      const details = error instanceof Error ? error.message : String(error);
       setBackgroundNotices((current) => [
         ...current.filter(({ key }) => key !== notice.key),
-        notice,
+        { ...notice, details },
       ]);
     },
     [],
@@ -1030,6 +1041,9 @@ export default function App(): ReactElement {
     const savedRunNotKept = (
       error: unknown,
       where: "archived" | "kept",
+      // Only an archived run's reason is plain words (its saved format);
+      // a kept run's reason carries the raw storage error, left to the details.
+      archivedReason?: string,
     ): void => {
       reportBackgroundFailure(
         {
@@ -1038,7 +1052,7 @@ export default function App(): ReactElement {
           // An archived record sits in a slot no version of the app opens; a
           // kept one is still where the app looks, so a later load can retry.
           detail: where === "archived"
-            ? "This version of the app cannot read it, so it was set aside in this browser instead of being deleted. Clear it to free the space."
+            ? `This version cannot read it${archivedReason ? ` (${archivedReason})` : ""}, so it was set aside in this browser instead of being deleted. Clear it to free the space.`
             : "It was left where it was instead of being deleted. Reload to try again, or clear it to free the space.",
           offerClearCachedRun: true,
         },
@@ -1049,7 +1063,11 @@ export default function App(): ReactElement {
       .then((outcome) => {
         if (cancelled) return;
         if (outcome.status === "archived" || outcome.status === "kept") {
-          savedRunNotKept(new Error(`saved run ${outcome.status}: ${outcome.reason}`), outcome.status);
+          savedRunNotKept(
+            new Error(`saved run ${outcome.status}: ${outcome.reason}`),
+            outcome.status,
+            outcome.status === "archived" ? outcome.reason : undefined,
+          );
           return;
         }
         const record = outcome.status === "restored" ? outcome.record : undefined;
@@ -1195,7 +1213,7 @@ export default function App(): ReactElement {
       })
       .catch((viewError: unknown) => {
         if (cancelled) return;
-        setError(failureText(viewError, "The file processing guide could not be loaded.").message);
+        setError(failureText(viewError, "The file processing guide could not be loaded."));
       });
     return () => {
       cancelled = true;
@@ -1411,7 +1429,7 @@ export default function App(): ReactElement {
       });
     } catch (selectionError) {
       const failure = failureText(selectionError, "The selected files could not be added.");
-      setError(failure.message);
+      setError(failure);
       setToast({ message: failure.message, isError: true, details: failure.details });
       setActiveWorkflow("files");
     }
@@ -2448,7 +2466,7 @@ export default function App(): ReactElement {
       }
     } catch (resolutionError) {
       const failure = failureText(resolutionError, "These settings could not be applied.");
-      setError(failure.message);
+      setError(failure);
       setToast({ message: failure.message, isError: true, details: failure.details });
       setActiveWorkflow("process");
       processingRef.current = false;
@@ -2660,7 +2678,7 @@ export default function App(): ReactElement {
         )
         .map(({ index }) => index);
       let cursor = 0;
-      const failures: string[] = [];
+      const failures: { message: string; details?: string }[] = [];
       const runner = async (laneRetired: () => boolean) => {
         for (;;) {
           if (cancelRequestedRef.current || laneRetired()) return;
@@ -2744,8 +2762,8 @@ export default function App(): ReactElement {
             // that as a real failure — the finally block marks it cancelled.
             if (cancelRequestedRef.current) return;
             runHadFailure = true;
-            const failure = failureText(fileError, `${file.name} could not be processed.`);
-            failures.push(failure.message);
+            const failure = failureText(fileError, `${demoDisplay.fileName(file.name)} could not be processed.`);
+            failures.push(failure);
             handleProgressEvent({
               type: "file-complete",
               fileName: file.name,
@@ -2995,7 +3013,7 @@ export default function App(): ReactElement {
       runHadFailure = true;
       keepDetailsOpen = true;
       const failure = failureText(runError, "Processing could not be completed.");
-      setError(failure.message);
+      setError(failure);
       setToast({ message: failure.message, isError: true, details: failure.details });
     } finally {
       poolRef.current = null;
@@ -3201,7 +3219,7 @@ export default function App(): ReactElement {
           details: retrySaveFailure?.details,
         });
       } catch (retryError) {
-        const failure = failureText(retryError, `${fileName} could not be processed.`);
+        const failure = failureText(retryError, `${demoDisplay.fileName(fileName)} could not be processed.`);
         handleProgressEvent({
           type: "file-complete",
           fileName,
@@ -3566,6 +3584,12 @@ export default function App(): ReactElement {
           >
             <span className="storage-pressure__text">
               <strong>{notice.title}</strong> {notice.detail}
+              {notice.details ? (
+                <details className="technical-details">
+                  <summary>Technical details</summary>
+                  <pre>{notice.details}</pre>
+                </details>
+              ) : null}
             </span>
             <span className="storage-pressure__actions">
               {notice.offerClearCachedRun ? (
@@ -3914,6 +3938,7 @@ export default function App(): ReactElement {
                 <ResultPanel
                   results={results}
                   error={error}
+                  errorDetails={errorState?.details}
                   displayMasker={demoDisplay}
                   // The panel describes a finished run: its column visibility and its
                   // per-file warnings must come from the options that produced the
