@@ -16,6 +16,7 @@ vi.mock("comlink", () => ({
     comlink.exposed = value;
   },
   transfer: (value: unknown) => value,
+  transferHandlers: new Map(),
 }));
 
 vi.mock("./payloadSpill", async (importOriginal) => ({

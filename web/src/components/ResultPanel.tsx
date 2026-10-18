@@ -8,6 +8,7 @@ import type { ReactElement } from "react";
 import { createZipBlob } from "@/lib/zip";
 import { BUILD_DATE, BUILD_SHA, CONTRACT_VERSION } from "@/lib/buildInfo";
 import { SETTINGS_SCHEMA_VERSION } from "@/lib/settingsPersistence";
+import { recordError, UserFacingError } from "@/lib/diagnostics";
 import type { OutputKind } from "@/lib/generatedContract";
 import type {
   BrowserProcessingOptions,
@@ -33,6 +34,8 @@ const isTimelineViewer = (output: ProcessedOutputFileResult): boolean =>
 type Props = {
   results: ProcessedFileResult[];
   error: string | null;
+  /** The raw text behind `error`, shown collapsed. */
+  errorDetails?: string;
   options: BrowserProcessingOptions;
   expectedFileCount: number;
   progressRows: FileProgress[];
@@ -169,9 +172,10 @@ function buildBatchWarnings(input: {
   }
   const failedRows = progressRows.filter((row) => row.status === "error");
   failedRows.forEach((row) => {
-    warnings.push(
-      `${displayMasker.fileName(row.fileName)} failed: ${row.error ?? "Unknown processing error"}`,
-    );
+    const name = displayMasker.fileName(row.fileName);
+    const reason = row.error ?? "Unknown processing error";
+    // A generic failure already names the file ("P01.csv could not be processed.").
+    warnings.push(reason.startsWith(name) ? reason : `${name} failed: ${reason}`);
   });
   // Files the user deliberately cancelled aren't a shortfall — exclude them from
   // the "only N/M produced results" check so a cancel doesn't read as a failure.
@@ -294,6 +298,7 @@ async function downloadOutput(
 export function ResultPanel({
   results,
   error,
+  errorDetails,
   options,
   expectedFileCount,
   progressRows,
@@ -421,19 +426,28 @@ export function ResultPanel({
     void startExclusiveDownload(downloadHooks, id, async () => {
       setDownloadSkipped([]);
       const skipped: SkippedOutput[] = [];
-      const deferredPlots = includeDeferredPlots
-        ? await materializeRequestedPlots(results, skipped)
-        : [];
-      const deferredTimelines = includeDeferredTimelines
-        ? await materializeRequestedTimelines(results)
-        : [];
+      let deferredPlots: BatchOutput[] = [];
+      let deferredTimelines: BatchOutput[] = [];
+      try {
+        if (includeDeferredPlots) deferredPlots = await materializeRequestedPlots(results, skipped);
+        if (includeDeferredTimelines) deferredTimelines = await materializeRequestedTimelines(results);
+      } finally {
+        // Kept even when a later file's preparation throws.
+        for (const item of skipped) {
+          if (item.details) recordError("background", item.details, "drawing a plot");
+        }
+      }
       const entries = [...outputs, ...deferredPlots, ...deferredTimelines];
       const firstSkipped = skipped[0];
       if (!entries.length && firstSkipped) {
-        throw new Error(firstSkipped.reason);
+        throw new UserFacingError(
+          `${displayMasker.fileName(firstSkipped.outputFileName)} was not generated: ${firstSkipped.reason}`,
+        );
       }
       await downloadZip(id, entries, results);
-      if (resultsRef.current === results) setDownloadSkipped(skipped);
+      if (resultsRef.current === results) {
+        setDownloadSkipped(skipped);
+      }
     });
   };
 
@@ -446,12 +460,20 @@ export function ResultPanel({
     });
   };
 
+  const errorBanner = error ? (
+    <div className="error-text u-mb-3">
+      <p className="error-text__message">{error}</p>
+      {errorDetails ? (
+        <details className="technical-details">
+          <summary>Technical details</summary>
+          <pre>{errorDetails}</pre>
+        </details>
+      ) : null}
+    </div>
+  ) : null;
+
   if (error && !results.length) {
-    return (
-      <div className="result-panel">
-        <p className="error-text">{error}</p>
-      </div>
-    );
+    return <div className="result-panel">{errorBanner}</div>;
   }
 
   if (!results.length) return null;
@@ -617,14 +639,14 @@ export function ResultPanel({
           ) : null}
         </div>
       </header>
-      {error ? <p className="error-text u-mb-3">{error}</p> : null}
+      {errorBanner}
       {downloadError ? (
         <p
           className="error-text u-mb-3"
           role="alert"
           data-testid="download-error"
         >
-          Could not prepare download: {downloadError}
+          {downloadError}
         </p>
       ) : null}
       {downloadSkipped.length ? (

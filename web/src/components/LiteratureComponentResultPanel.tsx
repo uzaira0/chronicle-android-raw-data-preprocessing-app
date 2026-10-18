@@ -1,6 +1,7 @@
 import type { ReactElement } from "react";
 
 import { downloadBlob } from "@/lib/download";
+import { failureText } from "@/lib/diagnostics";
 import {
   readPersistedRustArtifact,
   type LiteratureComponentArtifactResult,
@@ -11,7 +12,7 @@ type Props = {
   result: LiteratureComponentRuntimeExecution | null;
   error: string | null;
   onDelete: () => void;
-  onError: (message: string) => void;
+  onError: (message: string, details?: string) => void;
 };
 
 function outputName(artifact: LiteratureComponentArtifactResult): string {
@@ -117,13 +118,10 @@ export function LiteratureComponentResultPanel({
                         }),
                       ),
                     )
-                    .catch((downloadError: unknown) =>
-                      onError(
-                        downloadError instanceof Error
-                          ? downloadError.message
-                          : String(downloadError),
-                      ),
-                    );
+                    .catch((downloadError: unknown) => {
+                      const failure = failureText(downloadError, "This result table could not be downloaded.");
+                      onError(failure.message, failure.details);
+                    });
                 }}
               >
                 Download

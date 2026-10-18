@@ -3141,7 +3141,7 @@ describe("persisted Rust workspace boundary", () => {
           datetimeOfPreprocessing: "2026-07-26 00:00:00 UTC",
         },
       ),
-    ).rejects.toThrow(/studyDatesFile is required/);
+    ).rejects.toThrow(/needs a Study dates file/);
     expect(kernel.execute_workspace).not.toHaveBeenCalled();
   });
 
@@ -3440,11 +3440,9 @@ describe("pre-execution preflight refusals", () => {
             (error: unknown) => error,
           );
           expect(refusal).toBeInstanceOf(RustScientificPreflightRefusalError);
-          // The researcher-facing remedy (#51) leads; the typed code follows.
           expect((refusal as Error).message).toBe(
             "The selected screen-session strategy needs an input capability evidence CSV " +
-              "(Files → Study inputs). Supply one, or choose the Chronicle screen strategy. " +
-              "Scientific preflight refused (B05/Schoedel: input_capability_evidence_absent/capability_evidence_absent).",
+              "(Files → Study inputs). Supply one, or choose the Chronicle screen strategy.",
           );
           expect(kernel.execute_workspace).not.toHaveBeenCalled();
         },

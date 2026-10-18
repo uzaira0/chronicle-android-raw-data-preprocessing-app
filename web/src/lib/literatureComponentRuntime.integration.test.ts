@@ -374,7 +374,7 @@ describe("compiled literature component browser boundary", () => {
     expect(reopened.componentExecutionReceipt).toEqual(first.componentExecutionReceipt);
     expect(reopened.artifacts.every((artifact) => artifact.persistedArtifact && !artifact.bytes)).toBe(true);
     await expect(reopenLiteratureComponentResult(JSON.stringify({ ...first.manifest, sourceRowCount: first.manifest.sourceRowCount + 1 }))).rejects.toThrow("source count mismatch");
-    await expect(exportPersistedRustWorkspace(workspaceId, first.manifest.workspaceRootDigest)).rejects.toThrow("has changed since this result was displayed");
+    await expect(exportPersistedRustWorkspace(workspaceId, first.manifest.workspaceRootDigest)).rejects.toThrow("has changed since this result was shown");
     const archive = await exportPersistedRustWorkspace(workspaceId, second.manifest.workspaceRootDigest);
     const importedMemory = new MemoryDirectoryHandle();
     storage.getDirectory = () => Promise.resolve(memoryDirectoryHandle(importedMemory));
@@ -431,9 +431,10 @@ describe("compiled literature component browser boundary", () => {
     slot.bytes[middle] = slot.bytes[middle]! ^ 0xff;
     expect((await recoverRuntimeWorkspace(root))?.workspaceRootDigest).toBe(first.manifest.workspaceRootDigest);
     // The second result is still the one a restored page would show.
-    await expect(exportPersistedRustWorkspace(workspaceId, second.manifest.workspaceRootDigest)).rejects.toThrow(
-      "The newest saved workspace could not be recovered, so this browser fell back to the earlier save at generation 1.",
-    );
+    await expect(exportPersistedRustWorkspace(workspaceId, second.manifest.workspaceRootDigest)).rejects.toMatchObject({
+      message: expect.stringContaining("The newest saved copy of this run could not be reopened, so this browser fell back to an earlier one."),
+      details: "fell back to generation 1",
+    });
     // The recovered head itself exports.
     const archive = await exportPersistedRustWorkspace(workspaceId, first.manifest.workspaceRootDigest);
     expect(archive.size).toBeGreaterThan(0);

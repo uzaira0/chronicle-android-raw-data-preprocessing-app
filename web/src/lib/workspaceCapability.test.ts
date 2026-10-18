@@ -10,9 +10,11 @@ import {
   resultsLackPersistedOutputs,
   transientWorkspaceRefusalNotice,
   workspaceDegradesToEphemeral,
+  workspaceRefusalError,
   workspaceRefusesRun,
   type OpfsCapability,
 } from "@/lib/opfsArtifactStore";
+import { UserFacingError } from "@/lib/diagnostics";
 
 /**
  * F2. Before this classification every probe failure returned the same
@@ -56,8 +58,7 @@ describe("durable-workspace probe classification", () => {
   });
 
   it("tells the user a refusal may be temporary and how to retry", () => {
-    const text = transientWorkspaceRefusalNotice("Quota exceeded.");
-    expect(text).toContain("Quota exceeded.");
+    const text = transientWorkspaceRefusalNotice();
     expect(text).toMatch(/temporary/i);
     expect(text).toMatch(/reload and try again/i);
     // And says why it is not silently downgraded.
@@ -65,10 +66,17 @@ describe("durable-workspace probe classification", () => {
   });
 
   it("keeps the ephemeral notice distinct from the refusal", () => {
-    const notice = ephemeralWorkspaceNotice("No OPFS here.");
-    expect(notice).toContain("No OPFS here.");
+    const notice = ephemeralWorkspaceNotice();
     expect(notice).toMatch(/Download the results/i);
     expect(notice).not.toMatch(/try again/i);
+  });
+
+  it("keeps the probe's technical reason out of the refusal text, as its details", () => {
+    const error = workspaceRefusalError({ status: "unavailable", kind: "indeterminate", reason: "Quota exceeded." });
+    expect(error).toBeInstanceOf(UserFacingError);
+    expect(error.message).not.toContain("Quota exceeded.");
+    expect(error.message).toMatch(/not letting the app save files right now/);
+    expect(error.details).toBe("Quota exceeded.");
   });
 });
 

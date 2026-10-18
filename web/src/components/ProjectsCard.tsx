@@ -15,6 +15,7 @@ import {
 } from "@/lib/projectsStore";
 import type { BrowserProcessingOptions, MethodProfileReceipt } from "@/lib/types";
 import { safeUuid } from "@/lib/uuid";
+import { failureText } from "@/lib/diagnostics";
 
 /** Warn when a bundled save would exceed this (IndexedDB quota / eviction risk). */
 const LARGE_SAVE_BYTES = 50 * 1024 * 1024;
@@ -25,7 +26,7 @@ type Props = {
   uploadedFiles: File[];
   supportFiles: Partial<Record<SupportFileSlot, File | null>>;
   onApplyProject: (record: ProjectRecord) => void | Promise<void>;
-  onStatus: (message: string, isError?: boolean) => void;
+  onStatus: (message: string, isError?: boolean, details?: string) => void;
   disabled?: boolean;
 };
 
@@ -36,7 +37,7 @@ type ProjectLoader = (id: string) => Promise<ProjectRecord | null | undefined>;
 export async function loadProjectForApplication(
   summary: ProjectSummary,
   onApplyProject: (record: ProjectRecord) => void | Promise<void>,
-  onStatus: (message: string, isError?: boolean) => void,
+  onStatus: (message: string, isError?: boolean, details?: string) => void,
   loader: ProjectLoader = loadProject,
 ): Promise<void> {
   try {
@@ -50,10 +51,8 @@ export async function loadProjectForApplication(
       `Loaded project: ${record.name}${record.includesFiles ? " (config + files)" : " (config only)"}`,
     );
   } catch (error: unknown) {
-    onStatus(
-      `Could not load project: ${error instanceof Error ? error.message : String(error)}`,
-      true,
-    );
+    const failure = failureText(error, "The selected project could not be loaded.");
+    onStatus(failure.message, true, failure.details);
   }
 }
 
@@ -80,12 +79,10 @@ export function ProjectsCard({
   const nameInputId = useId();
 
   const refresh = (): void => {
-    void listProjects().then(setProjects, (error: unknown) =>
-      onStatus(
-        `Could not read saved projects: ${error instanceof Error ? error.message : String(error)}`,
-        true,
-      ),
-    );
+    void listProjects().then(setProjects, (error: unknown) => {
+      const failure = failureText(error, "The saved projects could not be read.");
+      onStatus(failure.message, true, failure.details);
+    });
   };
 
   useEffect(refresh, []);
@@ -125,11 +122,10 @@ export function ProjectsCard({
           );
         }
       },
-      (error: unknown) =>
-        onStatus(
-          `Could not save project: ${error instanceof Error ? error.message : String(error)}`,
-          true,
-        ),
+      (error: unknown) => {
+        const failure = failureText(error, "This project could not be saved.");
+        onStatus(failure.message, true, failure.details);
+      },
     );
   };
 
@@ -153,11 +149,10 @@ export function ProjectsCard({
         refresh();
         onStatus(`Deleted project: ${summary.name}`);
       },
-      (error: unknown) =>
-        onStatus(
-          `Could not delete project: ${error instanceof Error ? error.message : String(error)}`,
-          true,
-        ),
+      (error: unknown) => {
+        const failure = failureText(error, "This project could not be deleted.");
+        onStatus(failure.message, true, failure.details);
+      },
     );
   };
 

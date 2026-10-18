@@ -31,6 +31,7 @@ it("routes the registered component and transfers only the raw buffer", async ()
     wrap: vi.fn(() => api),
     transfer,
     proxy: vi.fn((value: unknown) => value),
+    transferHandlers: new Map(),
   }));
   class WorkerStub {
     addEventListener(type: string, callback: (event: unknown) => void): void {

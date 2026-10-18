@@ -13,6 +13,7 @@ import {
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import type { BrowserProcessingOptions, MethodProfileReceipt, MethodProfileReceipts, MethodReceiptInputUses } from "@/lib/types";
 import { safeUuid } from "@/lib/uuid";
+import { UserFacingError } from "@/lib/diagnostics";
 import {
   MAXIMUM_DURATION_VECTOR_KEYS,
   isCanonicalMaximumDurationThresholdNs,
@@ -771,7 +772,7 @@ export async function readConfigFile(file: File): Promise<ImportedConfig> {
   try {
     parsed = JSON.parse(await file.text());
   } catch {
-    throw new Error(
+    throw new UserFacingError(
       "The selected file is not valid JSON. Make sure you're importing a Chronicle config file.",
     );
   }
@@ -784,7 +785,7 @@ export async function readConfigFile(file: File): Promise<ImportedConfig> {
     !isRecord(parsed.currentSettings) ||
     !Array.isArray(parsed.presets)
   ) {
-    throw new Error(
+    throw new UserFacingError(
       "This file is not a Chronicle config export (it has no \"currentSettings\" object and \"presets\" list). Nothing was changed. Use a file made with Export config.",
     );
   }

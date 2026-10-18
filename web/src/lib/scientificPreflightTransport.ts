@@ -1,15 +1,17 @@
 import type { RuntimeScientificPreflightReceipt } from "@/lib/generatedRuntimeBoundary";
 import { decodeScientificPreflightReceipt } from "@/lib/scientificPreflightBoundary";
+import { UserFacingError } from "@/lib/diagnostics";
 
 const REFUSAL_KIND = "chronicle-scientific-preflight-refusal/v1" as const;
 
 export type ScientificPreflightRefusalTransport = {
   kind: typeof REFUSAL_KIND;
   message: string;
+  details?: string;
   receipt: RuntimeScientificPreflightReceipt;
 };
 
-type TransportedScientificPreflightRefusalError = Error & {
+type TransportedScientificPreflightRefusalError = UserFacingError & {
   readonly code: "scientific_preflight_refused";
   readonly receipt: RuntimeScientificPreflightReceipt;
 };
@@ -43,6 +45,7 @@ export function serializeScientificPreflightRefusal(
   return {
     kind: REFUSAL_KIND,
     message: error.message,
+    ...(error instanceof UserFacingError && error.details ? { details: error.details } : {}),
     receipt: decodeScientificPreflightReceipt(error.receipt),
   };
 }
@@ -60,8 +63,9 @@ export function rehydrateScientificPreflightRefusal(error: unknown): unknown {
     return error;
   }
   const receipt = decodeScientificPreflightReceipt(error.receipt);
-  const hydrated = new Error(
+  const hydrated = new UserFacingError(
     error.message,
+    "details" in error && typeof error.details === "string" ? error.details : undefined,
   ) as TransportedScientificPreflightRefusalError;
   hydrated.name = "RustScientificPreflightRefusalError";
   Object.defineProperties(hydrated, {

@@ -6,6 +6,7 @@ import {
 } from "./workflowClosureProtocol";
 
 import { StreamingSha256 } from "./streamingSha256";
+import { UserFacingError } from "@/lib/diagnostics";
 
 export type { RuntimeClosureManifest } from "./workflowClosureProtocol";
 
@@ -153,14 +154,23 @@ export function workspaceRefusesRun(
   );
 }
 
-/** Retry guidance appended to an indeterminate refusal. */
-export function transientWorkspaceRefusalNotice(reason: string): string {
+/** Retry guidance for an indeterminate refusal. The probe's own reason is
+ * technical; the banner shows it under "Technical details". */
+export function transientWorkspaceRefusalNotice(): string {
   return (
-    `${reason} This may be temporary — an exhausted storage quota or a ` +
+    "This may be temporary — an exhausted storage quota or a " +
     "background task that restarted both look like this. Free up disk " +
     "space, close other tabs of this app, then reload and try again. " +
     "Processing is stopped rather than kept only in this tab, because a run " +
     "that is not saved is lost on reload."
+  );
+}
+
+/** The refusal a run, retry or comparison throws when saving is refused. */
+export function workspaceRefusalError(capability: OpfsCapability): UserFacingError {
+  return new UserFacingError(
+    `This browser is not letting the app save files right now. ${transientWorkspaceRefusalNotice()}`,
+    capability.status === "unavailable" ? capability.reason : undefined,
   );
 }
 
@@ -259,9 +269,9 @@ const EPHEMERAL_WORKSPACE_LOSSES: readonly string[] = [
   "run backups and the list of earlier runs are unavailable",
 ];
 
-export function ephemeralWorkspaceNotice(reason: string): string {
+export function ephemeralWorkspaceNotice(): string {
   return (
-    `${reason} Processing still runs in full, but ${EPHEMERAL_WORKSPACE_LOSSES.join("; ")}. ` +
+    `Processing still runs in full, but ${EPHEMERAL_WORKSPACE_LOSSES.join("; ")}. ` +
     "Download the results before leaving the page. To let the app save again, " +
     "leave private/incognito browsing, allow this site to store data, or free up disk quota, then reload."
   );

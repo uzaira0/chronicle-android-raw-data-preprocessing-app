@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 
 import { beforeAll, describe, expect, it } from "vitest";
+import { failureText } from "@/lib/diagnostics";
 
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import {
@@ -86,16 +87,16 @@ describe("support-file schema failure reaches the user with the column", () => {
       RUNTIME,
     ).then(
       () => null,
-      (error: unknown) =>
-        error instanceof Error ? error.message : String(error),
-    );
+      (error: unknown) => error,
+    ).then((error) => (error === null ? null : failureText(error, "unused lead")));
     expect(failure, "a wrong-schema filter file must not process").not.toBeNull();
     // The actionable part: which role, and which column it needs.
-    expect(failure).toContain("filter_file");
-    expect(failure).toContain("app_package_name");
-    expect(failure).toContain("package_name");
-    // The runtime's own refusal is preserved for support/debugging.
-    expect(failure).toContain("unresolved binding holes for required roles");
+    expect(failure?.message).toContain("filter_file");
+    expect(failure?.message).toContain("app_package_name");
+    expect(failure?.message).toContain("package_name");
+    // The runtime's own refusal is kept for support, under Technical details.
+    expect(failure?.message).not.toContain("unresolved binding holes");
+    expect(failure?.details).toContain("unresolved binding holes for required roles");
   });
 
   it("names the column on the default screen-usage path too (scientific preflight)", async () => {
@@ -236,11 +237,11 @@ describe("open-binding-hole message construction", () => {
     expect(describeOpenBindingHoles("{}", ["filter_file"])).toBeNull();
   });
 
-  it("keeps the runtime's own words inside the rewritten message", () => {
+  it("keeps the plain explanation without the internal refusal text", () => {
     const original =
       "unresolved binding holes for required roles: filter_file; evaluate requirements before execution";
-    const message = openBindingHolesMessage(original, "filter_file: bad");
+    const message = openBindingHolesMessage("filter_file: bad");
     expect(message).toContain("filter_file: bad");
-    expect(message).toContain(original);
+    expect(message).not.toContain(original);
   });
 });
