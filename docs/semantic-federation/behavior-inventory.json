@@ -60,7 +60,7 @@
         "rust/chronicle_preprocessing_runtime_wasm/src/execution/state.rs",
         "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs"
       ],
-      "digest": "sha256:a153ddeec80f3a2232572871b2afb5e78f2bcdd08f57c4812225b640dfc054a5",
+      "digest": "sha256:a6d5e21a6446b007ee8f0b3817f9d7b2e2698095f11b4d9561842834079693a7",
       "coverage": "production-worker-authority"
     }
   },

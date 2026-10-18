@@ -102,18 +102,18 @@ describe("Workflow Explorer projection over the real Rust contract", () => {
       (node) => node.id === "policy.apply_app_inclusion",
     );
     expect(lineageNode).toBeDefined();
-    expect(lineageNode!.detail).toContain("Impact: value impact, row-set impact");
+    expect(lineageNode!.detail).toContain("Changes: values, which rows");
 
     const audit = graphForMode(view, "audit");
     const auditNode = audit.nodes.find((node) => node.id === "policy.apply_app_inclusion");
     expect(auditNode).toBeDefined();
-    expect(auditNode!.eyebrow).toBe("value impact + row-set impact operation");
+    expect(auditNode!.eyebrow).toBe("step that changes values, which rows");
 
     // Collapsing an unrelated phase must not launder the effect away.
     const collapsed = collapseProjection(audit, view, new Set(["import_verify"]));
     expect(
       collapsed.nodes.find((node) => node.id === "policy.apply_app_inclusion")?.eyebrow,
-    ).toBe("value impact + row-set impact operation");
+    ).toBe("step that changes values, which rows");
   });
 
   it("classifies every data effect the real contract emits", () => {

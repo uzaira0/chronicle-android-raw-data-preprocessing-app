@@ -117,6 +117,11 @@ const EPISTEMIC_LABELS: Record<string, string> = {
   encoded: "writes a file format",
 };
 
+function effectEyebrow(operation: RustWorkflowExplorerView["operations"][number]): string {
+  const changes = effectCategories(operation.dataEffects).join(", ");
+  return changes ? `step that changes ${changes}` : "step";
+}
+
 function operationDetail(
   operation: RustWorkflowExplorerView["operations"][number],
 ): string {
@@ -334,7 +339,7 @@ export function graphForMode(
         inputs: [...(affectedInputs.get(operation.operationId) ?? [])],
         status: operationStatus(operation.runState),
         off: !operation.applicable,
-        eyebrow: `${effectCategories(operation.dataEffects).join(" + ") || "unclassified"} operation`,
+        eyebrow: effectEyebrow(operation),
         detail: operationDetail(operation),
         metrics: null,
         warnings: [],
@@ -439,7 +444,7 @@ export function graphForMode(
     off: !operation.applicable,
     eyebrow:
       mode === "audit"
-        ? `${effectCategories(operation.dataEffects).join(" + ") || "unclassified"} operation`
+        ? effectEyebrow(operation)
         : "step",
     detail: operationDetail(operation),
     metrics: null,
