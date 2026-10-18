@@ -193,8 +193,8 @@
       "/rustc/913e4bea83424658d76712fee9c52452a3a9ef0e/library/std/src/sys/thread_local/no_threads.rs"
     ]
   },
-  "manifestClosureDigest": "sha256:0a2c8d343376a11bc0fcf2e5440d112aefd610217e888193e17006080a6fcdcc",
-  "harnessDigest": "sha256:3fecff9ff764fe624cbcd32f2f7d4d0ee8701df17bb92c77c5caf9a5a13e0ca5",
+  "manifestClosureDigest": "sha256:6345434a58b7c94e5a1906df68989b12fe6e23bf752bb977b8d58dcc14177196",
+  "harnessDigest": "sha256:9ff8fe06999f24bed584a27e792916c9d2bc2b696f647dedb1fcd51bda1f3bdb",
   "contractDigest": "sha256:456a7e8bc56d54641386845ed32b21c011ed1c2c544a18be370722f39e1d3d4c",
   "toolchain": "rustc 1.97.0-nightly (913e4bea8 2026-04-22) | binary: rustc",
   "claimBoundary": "Executed-production-file set for this record-mode campaign under LLVM coverage; each file pinned by the digest of its test-stripped normalized source. Conditions the right to inherit this campaign's committed ledger payload without re-measuring; never consulted for runtime invalidation."
