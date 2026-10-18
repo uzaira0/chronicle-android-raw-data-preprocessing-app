@@ -7,6 +7,8 @@
  * 2. a failure is reported as a message, never thrown to React;
  * 3. the busy marker is always released, success or failure.
  */
+import { failureText } from "@/lib/diagnostics";
+
 export type ExclusiveDownloadHooks = {
   isBusy: () => boolean;
   markBusy: (id: string) => void;
@@ -26,9 +28,7 @@ export function startExclusiveDownload(
     try {
       await work();
     } catch (failure) {
-      hooks.reportError(
-        failure instanceof Error ? failure.message : String(failure),
-      );
+      hooks.reportError(failureText(failure, "The download could not be prepared.").message);
     } finally {
       hooks.markIdle();
     }

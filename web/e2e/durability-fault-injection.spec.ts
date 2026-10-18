@@ -273,8 +273,10 @@ test("@durability @opfs a destroyed newest root slot recovers from the alternati
   // result shown, so it refuses — and says why, naming the recovered save.
   const { status, downloads } = await attemptExport(page);
   expect(status).toContain(
-    "The newest saved workspace could not be recovered, so this browser fell back to the earlier save at generation 1.",
+    "The newest saved copy of this run could not be reopened, so this browser fell back to an earlier one.",
   );
+  // Which save it fell back to stays under Technical details.
+  expect(status).toContain("fell back to generation 1");
   expect(downloads, "no archive of a root other than the displayed one").toEqual([]);
   // The recovered head is the first run's root: the next save builds on it
   // (not on the destroyed second root), and that save exports.

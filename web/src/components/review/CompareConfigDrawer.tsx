@@ -66,18 +66,6 @@ export function CompareConfigDrawer({
   fileCount,
 }: Props): ReactElement {
   const armBRangeViolations = collectOptionRangeViolations(options);
-  const refusedApplicability =
-    scientificRefusal?.b05Schoedel.screenApplicability?.executable === false
-      ? scientificRefusal.b05Schoedel.screenApplicability
-      : scientificRefusal?.b05Schoedel.schoedelApplicability?.executable ===
-          false
-        ? scientificRefusal.b05Schoedel.schoedelApplicability
-        : undefined;
-  const refusalReason = refusedApplicability
-    ? `${refusedApplicability.refusalReason ?? "refused"}/${refusedApplicability.refusalDetail ?? "unspecified"}`
-    : scientificRefusal?.eyesInputPartition.disposition === "refused"
-      ? `${scientificRefusal.eyesInputPartition.refusalReason ?? "refused"}/${scientificRefusal.eyesInputPartition.refusalDetail ?? "unspecified"}`
-      : null;
   return (
     <div className="review-drawer" data-testid="review-compare-drawer">
       <div className="review-drawer__head">
@@ -107,10 +95,7 @@ export function CompareConfigDrawer({
           className="review-drawer__error"
           data-testid="review-comparison-scientific-refusal"
         >
-          <summary>
-            Scientific preflight decision
-            {refusalReason ? ` · ${refusalReason}` : ""}
-          </summary>
+          <summary>Technical details</summary>
           <pre>{JSON.stringify(scientificRefusal, null, 2)}</pre>
         </details>
       ) : null}
@@ -122,7 +107,7 @@ export function CompareConfigDrawer({
             key={failure.fileNames.join("\u0000")}
           >
             <summary>
-              Scientific preflight decision ·{" "}
+              Technical details ·{" "}
               {failure.fileNames
                 .map((name) => displayMasker.fileName(name))
                 .join(", ")}

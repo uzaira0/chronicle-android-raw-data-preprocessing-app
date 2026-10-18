@@ -5,7 +5,7 @@ import { ProgressList } from "@/components/ProgressList";
 import { runtimeScientificRefusalFixture } from "@/testSupport/runtimeScientificPreflightFixture";
 
 describe("ProgressList scientific refusal", () => {
-  it("renders the exact typed refusal decision without a successful result", () => {
+  it("shows the plain refusal and keeps its reason codes out of the summary line", () => {
     const receipt = runtimeScientificRefusalFixture();
     const html = renderToStaticMarkup(
       <ProgressList
@@ -20,8 +20,9 @@ describe("ProgressList scientific refusal", () => {
         overallPercent={1}
       />,
     );
-    expect(html).toContain("capability_evidence_not_bound_to_input");
-    expect(html).toContain("capability_evidence_not_bound_to_input");
+    expect(html).toContain("Scientific preflight refused");
+    // The codes are in the receipt, shown under Technical details once expanded.
+    expect(html).not.toContain("capability_evidence_not_bound_to_input");
     expect(html).not.toContain("Done");
   });
 });

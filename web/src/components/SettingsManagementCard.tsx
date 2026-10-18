@@ -21,6 +21,7 @@ import { BROWSER_OPTION_TOOLTIPS } from "@/lib/generatedContract";
 import { downloadBlob } from "@/lib/download";
 import type { BrowserProcessingOptions, MethodProfileReceipt } from "@/lib/types";
 import { safeUuid } from "@/lib/uuid";
+import { failureText } from "@/lib/diagnostics";
 
 const OPTION_TOOLTIPS = BROWSER_OPTION_TOOLTIPS as Record<string, { title?: string } | undefined>;
 
@@ -72,7 +73,7 @@ type Props = {
   onMethodProfileReceiptChange: (receipt: MethodProfileReceipt | null) => void;
   hideDemoMetadata: boolean;
   onHideDemoMetadataChange: (next: boolean) => void;
-  onStatus: (message: string, isError?: boolean) => void;
+  onStatus: (message: string, isError?: boolean, details?: string) => void;
 };
 
 export function SettingsManagementCard({
@@ -114,7 +115,10 @@ export function SettingsManagementCard({
       if (event.key !== PRESETS_STORAGE_KEY && event.key !== null) return;
       void presetLibraryReadable().then(
         () => setPresets(readPersistedPresets()),
-        (error: unknown) => onStatus(`Another tab changed the presets, but they could not be read here (${String(error)}). Reload to see them.`, true),
+        (error: unknown) => {
+          const failure = failureText(error, "Another tab changed the presets, but they could not be read here. Reload to see them.");
+          onStatus(failure.message, true, failure.details);
+        },
       );
     };
     window.addEventListener("storage", onStorage);
@@ -131,7 +135,7 @@ export function SettingsManagementCard({
   const commitPresets = (
     change: (current: SettingsPreset[]) => SettingsPreset[],
     saved: string,
-    notSaved: (reason: string) => string,
+    failureLead: string,
   ): void => {
     void presetLibraryReadable().then(
       () => {
@@ -139,9 +143,15 @@ export function SettingsManagementCard({
         setPresets(next);
         const outcome = persistPresets(next);
         if (outcome.ok) onStatus(saved);
-        else onStatus(notSaved(outcome.reason), true);
+        else {
+          const failure = failureText(outcome.reason, failureLead);
+          onStatus(failure.message, true, failure.details);
+        }
       },
-      (error: unknown) => onStatus(notSaved(String(error)), true),
+      (error: unknown) => {
+        const failure = failureText(error, failureLead);
+        onStatus(failure.message, true, failure.details);
+      },
     );
   };
 
@@ -166,8 +176,7 @@ export function SettingsManagementCard({
     commitPresets(
       next,
       `Preset saved: ${name}`,
-      (reason) =>
-        `Preset “${name}” could not be saved in this browser (${reason}). It is usable until you reload; use Export config to keep it.`,
+      `Preset “${name}” could not be saved in this browser. It is usable until you reload; use Export config to keep it.`,
     );
   };
 
@@ -178,8 +187,7 @@ export function SettingsManagementCard({
     commitPresets(
       (current) => current.filter((entry) => entry.id !== preset.id),
       `Deleted preset: ${preset.name}`,
-      (reason) =>
-        `Preset “${preset.name}” was removed from this list but could not be removed from this browser's storage (${reason}); it will reappear after a reload.`,
+      `Preset “${preset.name}” was removed from this list but could not be removed from this browser's storage; it will reappear after a reload.`,
     );
   };
 
@@ -338,13 +346,12 @@ export function SettingsManagementCard({
                   commitPresets(
                     () => next.presets,
                     `Config imported: active settings replaced, ${loaded} loaded.`,
-                    (reason) =>
-                      `Config imported for this session only: ${loaded} could not be saved in this browser (${reason}) and will be gone after a reload.`,
+                    `Config imported for this session only: ${loaded} could not be saved in this browser and will be gone after a reload.`,
                   );
                 })
                 .catch((error: unknown) => {
-                  const message = error instanceof Error ? error.message : String(error);
-                  onStatus(`Could not import config: ${message}`, true);
+                  const failure = failureText(error, "The selected config could not be imported.");
+                  onStatus(failure.message, true, failure.details);
                 });
             }}
           />

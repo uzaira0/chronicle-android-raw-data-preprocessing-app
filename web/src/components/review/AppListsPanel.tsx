@@ -6,6 +6,7 @@ import appsToFilterUrl from "@/assets/defaults/Chronicle_Android_raw_data_prepro
 import appsForcingScreenOpenUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv?url";
 import backgroundAppsUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_background_apps.csv?url";
 import appCodebookUrl from "@/assets/defaults/unified_app_codebook.csv?url";
+import { failureText } from "@/lib/diagnostics";
 
 type Row = Record<string, string>;
 
@@ -53,7 +54,7 @@ function SmallList({
     let active = true;
     fetchCsv(url)
       .then((data) => active && setRows(data))
-      .catch((e) => active && setError(e instanceof Error ? e.message : String(e)));
+      .catch((error) => active && setError(failureText(error, "This list could not be loaded.").message));
     return () => {
       active = false;
     };
@@ -66,7 +67,7 @@ function SmallList({
       </h3>
       <p className="review-alist__note">{NOTES[name]}</p>
       {error ? (
-        <p className="review-alist__error">Could not load list: {error}</p>
+        <p className="review-alist__error">{error}</p>
       ) : (
         <table className="review-alist__table">
           <tbody>
@@ -102,7 +103,7 @@ function CodebookList(): ReactElement {
       .catch((err) => {
         // Surface the failure (matching SmallList) and allow a retry instead of
         // silently leaving an empty table with no explanation.
-        setError(err instanceof Error ? err.message : String(err));
+        setError(failureText(err, "This list could not be loaded.").message);
         loadStarted.current = false;
       })
       .finally(() => setLoading(false));
@@ -143,7 +144,7 @@ function CodebookList(): ReactElement {
         data-testid="applist-codebook-search"
       />
       {loading && !rows ? <p className="review-alist__note">loading codebook…</p> : null}
-      {error ? <p className="review-alist__error">Could not load codebook: {error}</p> : null}
+      {error ? <p className="review-alist__error">{error}</p> : null}
       {q.length >= 2 ? (
         <table className="review-alist__table">
           <tbody>

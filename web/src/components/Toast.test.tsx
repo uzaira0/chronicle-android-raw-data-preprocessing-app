@@ -13,6 +13,19 @@ describe("Toast", () => {
     expect(html).toContain("Could not save");
   });
 
+  it("renders technical details collapsed inside an error alert", () => {
+    const html = renderToStaticMarkup(
+      createElement(Toast, {
+        message: "Could not save",
+        details: "Storage detail",
+        isError: true,
+        onDismiss: vi.fn(),
+      }),
+    );
+    expect(html).toContain('<details class="technical-details"><summary>Technical details</summary><pre>Storage detail</pre></details>');
+    expect(html).not.toContain("<details open");
+  });
+
   it("announces a success politely as a status", () => {
     const html = renderToStaticMarkup(
       createElement(Toast, { message: "Saved", onDismiss: vi.fn() }),

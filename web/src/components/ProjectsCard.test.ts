@@ -85,6 +85,7 @@ describe("ProjectsCard busy application boundary", () => {
     expect(status).toHaveBeenCalledWith(
       expect.stringContaining("Project application is unavailable"),
       true,
+      undefined,
     );
     expect(status).not.toHaveBeenCalledWith(
       expect.stringContaining("Loaded project:"),

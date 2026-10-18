@@ -29,6 +29,9 @@ import {
   parseWorkerBackgroundFailure,
   type WorkerBackgroundFailure,
 } from "@/lib/workerBackgroundFailure";
+import { installUserFacingErrorTransport } from "@/lib/workerErrorTransport";
+
+installUserFacingErrorTransport();
 
 /**
  * Browser client for the authoritative Rust/WASM worker. This file owns worker

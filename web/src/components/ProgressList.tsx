@@ -8,6 +8,7 @@ export type FileProgress = {
   stepKind?: ProgressStepKind;
   percent?: number;
   error?: string;
+  errorDetail?: string;
   scientificPreflightRefusal?: RuntimeScientificPreflightReceipt;
 };
 
@@ -119,20 +120,6 @@ export function ProgressList({
         {rows.map((row, index) => {
           const isError = row.status === "error";
           const errorExpanded = isError && expandedErrors[row.fileName];
-          const scientificRefusal = row.scientificPreflightRefusal;
-          const refusedApplicability =
-            scientificRefusal?.b05Schoedel.screenApplicability?.executable ===
-            false
-              ? scientificRefusal.b05Schoedel.screenApplicability
-              : scientificRefusal?.b05Schoedel.schoedelApplicability
-                    ?.executable === false
-                ? scientificRefusal.b05Schoedel.schoedelApplicability
-                : undefined;
-          const refusalLabel = refusedApplicability
-            ? `${refusedApplicability.refusalReason ?? "refused"}/${refusedApplicability.refusalDetail ?? "unspecified"}`
-            : scientificRefusal?.eyesInputPartition.disposition === "refused"
-              ? `${scientificRefusal.eyesInputPartition.refusalReason ?? "refused"}/${scientificRefusal.eyesInputPartition.refusalDetail ?? "unspecified"}`
-              : undefined;
           return (
             <div
               key={row.fileName}
@@ -167,7 +154,6 @@ export function ProgressList({
                     >
                       {errorExpanded ? "▾ " : "▸ "}
                       {truncate(row.error ?? "Failed")}
-                      {refusalLabel ? ` · ${refusalLabel}` : ""}
                     </button>
                   ) : row.status === "cancelled" ? (
                     "Cancelled"
@@ -208,9 +194,13 @@ export function ProgressList({
                   data-testid="error-detail"
                 >
                   {row.error ?? "Failed"}
-                  {refusalLabel ? `\nScientific decision: ${refusalLabel}` : ""}
-                  {row.scientificPreflightRefusal
-                    ? `\n\nScientific preflight receipt:\n${JSON.stringify(row.scientificPreflightRefusal, null, 2)}`
+                  {row.errorDetail || row.scientificPreflightRefusal
+                    ? `\n\nTechnical details:\n${[
+                        row.errorDetail,
+                        row.scientificPreflightRefusal
+                          ? JSON.stringify(row.scientificPreflightRefusal, null, 2)
+                          : undefined,
+                      ].filter((detail): detail is string => detail !== undefined).join("\n\n")}`
                     : ""}
                 </pre>
               ) : null}

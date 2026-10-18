@@ -121,9 +121,11 @@ function buildCases(): { cases: Case[]; uncovered: string[] } {
 export const { cases: CASES, uncovered: UNCOVERED } = buildCases();
 
 // Values the app offers but refuses by design, with the refusal they must show.
-export const EXPECTED_REFUSALS: Record<string, string> = {
+// Each pattern also accepts the wording of builds before 2026-10-18, which
+// showed the raw refusal; the upgrade check runs the live build against it.
+export const EXPECTED_REFUSALS: Record<string, string | RegExp> = {
   'maximumDurationThresholdSource="b12_adaptive_participant"':
-    "adaptive_maximum_threshold_provider_unavailable",
+    /adaptive_maximum_threshold_provider_unavailable|needs a time limit worked out from each participant's own data/,
   // The source-sensitive screen arms need a capability evidence CSV (none here).
   'screenSessionConstructionStrategy="parry_toth_2025_session_glance_v1"':
     "needs an input capability evidence CSV",
@@ -134,6 +136,6 @@ export const EXPECTED_REFUSALS: Record<string, string> = {
   'screenSessionConstructionStrategy="unlock_to_off_or_lock_v1"':
     "needs an input capability evidence CSV",
   // Stages whose companion file this fixture does not supply.
-  "enablePersonAttribution=true": "deviceSharingFile is required",
-  "enableStudyWindowFilter=true": "studyDatesFile is required",
+  "enablePersonAttribution=true": /deviceSharingFile is required|needs a Device sharing file/,
+  "enableStudyWindowFilter=true": /studyDatesFile is required|needs a Study dates file/,
 };

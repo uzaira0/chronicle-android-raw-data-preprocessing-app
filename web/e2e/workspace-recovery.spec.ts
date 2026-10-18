@@ -84,10 +84,10 @@ test("@smoke @opfs verified workspace closure survives reload, imports into a fr
       mimeType: "application/vnd.chronicle.workflow-workspace",
       buffer: Buffer.from(corrupt),
     });
-    await expect(restoredPage.getByTestId("workspace-backup-status")).toContainText(
-      "digest mismatch",
-      { timeout: 60_000 },
-    );
+    const backupStatus = restoredPage.getByTestId("workspace-backup-status");
+    await expect(backupStatus).toContainText("This backup could not be loaded.", { timeout: 60_000 });
+    await backupStatus.getByText("Technical details").click();
+    await expect(backupStatus.locator(".technical-details pre")).toContainText("digest mismatch");
 
     await setInputFile(
       restoredPage,

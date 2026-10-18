@@ -603,7 +603,7 @@ test.describe("4. Hostile settings", () => {
             const envelope = attack.invalid ? json :
               `{"schemaVersion":${SCHEMA_VERSION},"currentSettings":${json},"presets":[]}`;
             await setInputFile(page, "import-config-input", "attack.json", envelope, "application/json");
-            await expect(page.getByText(attack.invalid ? /Could not import config:.*not valid JSON/i : /Config imported: active settings replaced/i))
+            await expect(page.getByText(attack.invalid ? /is not valid JSON/i : /Config imported: active settings replaced/i))
               .toBeVisible({ timeout: WAIT });
           } else {
             // Tamper the real persisted envelope once; leave subsequent writes

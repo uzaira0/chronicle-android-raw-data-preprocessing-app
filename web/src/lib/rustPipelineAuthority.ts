@@ -36,6 +36,10 @@ import type {
 import type { ParticipantPartitionTransport } from "@/lib/fileInspection";
 import type { RustExecutionLedger } from "@/lib/rustExecutionRecords";
 
+/** Why a plot is missing from the outputs; the browser's own error goes to the diagnostic log. */
+export const PLOT_NOT_DRAWN =
+  "this browser could not draw it. A plot that covers a very long date range can be too large to draw.";
+
 const CSV_MIME = "text/csv;charset=utf-8";
 const PARQUET_MIME = "application/vnd.apache.parquet";
 const SAV_MIME = "application/x-spss-sav";
@@ -319,7 +323,8 @@ async function addRenderedViews(
     } catch (failure) {
       skipped.push({
         outputFileName: deriveOutputFileName(inputFileName, ` ${label}`),
-        reason: failure instanceof Error ? failure.message : String(failure),
+        reason: PLOT_NOT_DRAWN,
+        details: failure instanceof Error ? failure.message : String(failure),
       });
       return;
     }
