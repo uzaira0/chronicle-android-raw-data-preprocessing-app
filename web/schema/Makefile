@@ -11,7 +11,7 @@
 # outputs the workflow validation harness locks (docs/workflow/research-ontology-design.md).
 
 .DELETE_ON_ERROR:
-.PHONY: all owl shacl pydantic json-schema sqlddl merge-axioms repro-check methods-doc methods-doc-check validate validate-source-artifact-pydantic validate-device-state-records validate-screen-text-records validate-task-occurrences validate-session-associations validate-notification-callback-groups validate-workflow emit-sidecar validate-sidecar check clean
+.PHONY: all owl shacl pydantic json-schema sqlddl merge-axioms repro-check methods-doc methods-doc-check validate validate-source-artifact-pydantic validate-device-state-records validate-screen-text-records validate-task-occurrences validate-session-associations validate-notification-callback-groups validate-workflow validate-app-codebook-schema emit-sidecar validate-sidecar check clean
 
 LINKML := uvx --from linkml==1.10.0
 # linkml (for linkml-convert) + pyshacl in one ephemeral env for the axiom test.
@@ -154,6 +154,11 @@ validate-notification-callback-groups: $(PYDANTIC) $(JSONSCHEMA)
 validate-workflow: $(GRAPH) $(CONTRACT) tests/validate_workflow_projection.py
 	$(VALIDATE_ENV) python tests/validate_workflow_projection.py
 
+# The bundled app-codebook schema JSON (both shipped copies) is an instance of
+# AppCodebookSchema; a corrupted copy must be rejected.
+validate-app-codebook-schema: $(CONTRACT) tests/validate_app_codebook_schema.py ../src/assets/defaults/unified_app_codebook.schema.json ../../app_codebook_files/unified_app_codebook.schema.json
+	$(VALIDATE_ENV) python tests/validate_app_codebook_schema.py
+
 # Loop closure: call the production Rust provenance builder through a thin Rust
 # fixture binary, then SHACL-validate those exact bytes against the same merged
 # shapes graph used for canonical ontology instances. TypeScript is not an
@@ -169,7 +174,7 @@ validate-sidecar: $(MERGED) emit-sidecar
 # Full local verification: artifacts are byte-stable, the methods doc is
 # byte-stable, both LinkML instances validate, the axioms constrain, and the
 # Rust runtime sidecar conforms.
-check: repro-check methods-doc-check validate validate-source-artifact-pydantic validate-device-state-records validate-screen-text-records validate-task-occurrences validate-interaction-traces validate-session-associations validate-notification-callback-groups validate-workflow validate-sidecar
+check: repro-check methods-doc-check validate validate-source-artifact-pydantic validate-device-state-records validate-screen-text-records validate-task-occurrences validate-interaction-traces validate-session-associations validate-notification-callback-groups validate-workflow validate-app-codebook-schema validate-sidecar
 
 clean:
 	rm -rf $(GEN)

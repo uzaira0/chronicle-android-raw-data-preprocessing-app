@@ -212,6 +212,31 @@ classes:
     slots:
       - output_columns
 
+  AppCodebookColumn:
+    description: >-
+      One app-codebook column the codebook join copies onto App Usage rows:
+      the supplied column it reads and the output column it writes.
+    slots:
+      - source_column
+      - output_column
+      - column_description
+
+  AppCodebookSchema:
+    description: >-
+      Column layout of the app codebook, supplied to the runtime as data (the
+      app_codebook_schema_file role) instead of being compiled into the kernel.
+      Instance: web/src/assets/defaults/unified_app_codebook.schema.json (copy
+      in app_codebook_files/). codebook_columns order is the output order;
+      broad_category_precedence and genre_sources name output columns. The
+      kernel additionally refuses a schema whose precedence or genre list names
+      an unknown output column, or that repeats an output column.
+    slots:
+      - schema_version
+      - key_column
+      - codebook_columns
+      - broad_category_precedence
+      - genre_sources
+
   WorkflowPhase:
     description: A nontechnical presentation grouping; never a cache boundary.
     slots: [workflow_id, workflow_label, workflow_description]
@@ -1502,6 +1527,40 @@ slots:
     multivalued: true
     inlined: true
     inlined_as_list: true
+
+  # ── App-codebook schema (AppCodebookSchema / AppCodebookColumn) ──
+  schema_version:
+    range: integer
+    required: true
+    description: Version of the app-codebook schema layout; 1 is the only one.
+  key_column:
+    required: true
+    description: Codebook column holding the exact, case-sensitive package name the join matches on.
+  codebook_columns:
+    range: AppCodebookColumn
+    multivalued: true
+    inlined: true
+    inlined_as_list: true
+    required: true
+    description: Codebook columns copied to the App Usage output, in output order.
+  source_column:
+    required: true
+    description: Column header in the supplied codebook CSV.
+  output_column:
+    required: true
+    description: Column header written to the App Usage output.
+  broad_category_precedence:
+    multivalued: true
+    required: true
+    description: >-
+      Output columns whose first non-blank value becomes broad_app_category,
+      highest precedence first.
+  genre_sources:
+    multivalued: true
+    required: true
+    description: >-
+      Output genre-id columns collapsed into genreId_scraped when every
+      non-blank one agrees.
 
   # ── Workflow contract projection ────────────────────────────────────────
   workflow_id:
