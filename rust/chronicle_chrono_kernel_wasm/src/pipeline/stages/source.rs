@@ -635,7 +635,7 @@ pub(crate) fn canonicalize_source_rows(
                 genre_id_scraped: None,
                 broad_app_category: None,
                 codebook_fields: empty_codebook_fields(),
-                codebook_genre_fields_cleared: false,
+                codebook_genre_fields_cleared: None,
                 index,
                 usage_layer: None,
             });

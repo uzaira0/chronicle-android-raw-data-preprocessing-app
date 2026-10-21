@@ -1,7 +1,7 @@
 use super::{AttributedRows, WindowedRows, ResolvedParticipantWindow, StudyWindow, SharingResolutionValue, SurveyLookup, BTreeSet, apply_study_window, attribute_person};
 use super::attribution::disabled_window_participants;
 #[cfg(feature = "incremental-v2")]
-use super::{B05SchoedelPreflightResult, BTreeMap, PayloadBytes, PipelineV2Options, PipelineV2Result, ScreenSessionConstructionStrategyId, write_app_csv_to, write_screen_csv_with_b05_to};
+use super::{B05SchoedelPreflightResult, BTreeMap, CodebookSchema, PayloadBytes, PipelineV2Options, PipelineV2Result, ScreenSessionConstructionStrategyId, write_app_csv_to, write_screen_csv_with_b05_to};
 #[cfg(feature = "incremental-v2")]
 use super::aggregates;
 use super::{
@@ -262,7 +262,7 @@ pub(crate) fn query_payload<T: Send + Sync + 'static>(
 
 #[cfg(feature = "incremental-v2")]
 mod output {
-    use super::{Arc, B05SchoedelPreflightResult, PayloadBytes, PipelineRowLineage, PipelineV2Options, PipelineV2Result, Row, ScreenSessionConstructionStrategyId, aggregates, write_app_csv_to, write_screen_csv_with_b05_to};
+    use super::{Arc, B05SchoedelPreflightResult, CodebookSchema, PayloadBytes, PipelineRowLineage, PipelineV2Options, PipelineV2Result, Row, ScreenSessionConstructionStrategyId, aggregates, write_app_csv_to, write_screen_csv_with_b05_to};
     use crate::payload_store::{PayloadHandle, PayloadByteWriter};
 
     #[derive(Clone, serde::Serialize, serde::Deserialize)]
@@ -331,9 +331,9 @@ mod output {
         }
     }
 
-    pub(crate) fn app_csv_payload<'a>(store: &crate::payload_store::PayloadStore, rows: impl Iterator<Item = &'a Row>, options: &PipelineV2Options, aliases: bool) -> Result<PayloadBytes, String> {
+    pub(crate) fn app_csv_payload<'a>(store: &crate::payload_store::PayloadStore, rows: impl Iterator<Item = &'a Row>, options: &PipelineV2Options, aliases: bool, codebook: Option<&CodebookSchema>) -> Result<PayloadBytes, String> {
         let mut writer = PayloadByteWriter::with_store(store.clone());
-        write_app_csv_to(rows, options, aliases, &mut writer)?;
+        write_app_csv_to(rows, options, aliases, codebook, &mut writer)?;
         Ok(writer.finish())
     }
 

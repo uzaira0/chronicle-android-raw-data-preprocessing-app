@@ -271,6 +271,7 @@ const SUPPORT_ROLES: &[&str] = &[
     "apps_forcing_screen_open_file",
     "background_apps_file",
     "app_codebook_file",
+    "app_codebook_schema_file",
     "study_dates_file",
     "device_sharing_file",
     "survey_attribution_file",
@@ -4620,6 +4621,27 @@ impl RuntimeSupportFiles {
                         );
                         continue;
                     }
+                    if role == "app_codebook_schema_file" {
+                        if !file.name.to_ascii_lowercase().ends_with(".json") {
+                            return Err("app_codebook_schema_file must use the .json format".into());
+                        }
+                        let content_validation_error =
+                            chronicle_chrono_kernel_wasm::pipeline_v2::parse_codebook_schema(
+                                &file.bytes,
+                            )
+                            .err();
+                        resolved.files.insert(
+                            role.clone(),
+                            ResolvedSupportFile {
+                                media_type: "application/json",
+                                original_bytes: file.bytes.clone(),
+                                pipeline_csv: file.bytes.clone(),
+                                normalized_from_xlsx: false,
+                                content_validation_error,
+                            },
+                        );
+                        continue;
+                    }
                     let lower = file.name.to_ascii_lowercase();
                     let (media_type, pipeline_csv, normalized_from_xlsx) =
                         if lower.ends_with(".csv") {
@@ -4686,6 +4708,7 @@ impl ResolvedSupportFiles {
             apps_forcing_csv: self.get("apps_forcing_screen_open_file"),
             background_apps_csv: self.get("background_apps_file"),
             codebook_csv: self.get("app_codebook_file"),
+            codebook_schema_json: self.get("app_codebook_schema_file"),
             study_dates_csv: self.get("study_dates_file"),
             device_sharing_csv: self.get("device_sharing_file"),
             survey_attribution_csv: self.get("survey_attribution_file"),
@@ -13802,9 +13825,13 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         // that move with them.
         // Refreshed 2026-10-17 for the plain-language step labels and
         // descriptions; only wording and the presentation digest moved.
+        // Refreshed 2026-10-20 for the injected app-codebook schema: the
+        // app_codebook_schema_file root role, its bindings and field reads,
+        // the `app_codebook_file.*` read family and the one wildcard codebook
+        // output-cell family.
         assert_eq!(
             sha256(&bytes),
-            "sha256:7955d7e948e75339047488182f3d4c985836f70cd2050561d89963a8eb1c1269"
+            "sha256:099fad38999165ddf238ca3b9d8bcfba971c9caf37c55263bd3bf5342d1d0778"
         );
     }
 

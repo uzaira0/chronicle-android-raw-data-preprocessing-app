@@ -1,6 +1,6 @@
 use crate::pipeline_v2::FilterMatchField;
 use crate::pipeline_v2::{
-    AHashSet, Arc, BTreeMap, BTreeSet, CODEBOOK_RENAME_PAIRS, CodebookEntry, CsvReader, HashMap,
+    AHashSet, Arc, BTreeMap, BTreeSet, CodebookEntry, CodebookSchema, CsvReader, HashMap,
     NaiveDate, PackageExclusionPreset, ReadFieldResult, SharingEntry, SharingStatus, StudyWindow, StudyWindowExclusion,
     parse_chronicle_timestamp_ns,
 };
@@ -430,20 +430,24 @@ pub(crate) fn parse_background_apps_csv(bytes: &[u8]) -> AHashSet<String> {
         .collect()
 }
 
-pub(crate) fn parse_codebook_csv(bytes: &[u8]) -> HashMap<String, CodebookEntry> {
+/// Rows of the supplied codebook, keyed by `schema.key_column`, with the
+/// schema's source columns in output order. A source column the CSV lacks
+/// reads as absent on every row.
+pub(crate) fn parse_codebook_csv(
+    bytes: &[u8],
+    schema: &CodebookSchema,
+) -> HashMap<String, CodebookEntry> {
     let mut map: HashMap<String, CodebookEntry> = HashMap::new();
     let rows = parse_csv_to_records(bytes);
-    let n_cols = CODEBOOK_RENAME_PAIRS.len();
     for row in &rows {
-        let pkg = trim_owned(row.get("app_package_name"));
+        let pkg = trim_owned(row.get(&schema.key_column));
         if pkg.is_empty() || map.contains_key(&pkg) {
             continue;
         }
-        let mut fields = vec![None; n_cols];
-        for (i, (src, _dst)) in CODEBOOK_RENAME_PAIRS.iter().enumerate() {
-            let v = trim_owned(row.get(*src));
-            fields[i] = if v.is_empty() { None } else { Some(v) };
-        }
+        let fields = schema
+            .source_columns()
+            .map(|source| Some(trim_owned(row.get(source))).filter(|value| !value.is_empty()))
+            .collect();
         map.insert(
             pkg,
             CodebookEntry {
@@ -452,6 +456,86 @@ pub(crate) fn parse_codebook_csv(bytes: &[u8]) -> HashMap<String, CodebookEntry>
         );
     }
     map
+}
+
+/// Parse and validate the `app_codebook_schema_file` JSON. Everything the
+/// kernel later indexes by is checked here, so a bad schema is refused before
+/// any row is touched: the version, a non-blank key column, at least one
+/// column with non-blank, untrimmed-free names, no repeated output column, and
+/// precedence and genre lists that name output columns exactly once.
+pub fn parse_codebook_schema(bytes: &[u8]) -> Result<CodebookSchema, String> {
+    #[derive(serde::Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Document {
+        schema_version: u32,
+        key_column: String,
+        codebook_columns: Vec<Column>,
+        broad_category_precedence: Vec<String>,
+        genre_sources: Vec<String>,
+    }
+    #[derive(serde::Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Column {
+        source_column: String,
+        output_column: String,
+        // Researcher-facing text for the output codebook; the kernel needs
+        // only its presence.
+        #[allow(dead_code)]
+        column_description: String,
+    }
+    let refuse = |reason: String| format!("app_codebook_schema_file is invalid: {reason}");
+    let document: Document =
+        serde_json::from_slice(bytes).map_err(|error| refuse(error.to_string()))?;
+    if document.schema_version != 1 {
+        return Err(refuse(format!(
+            "schema_version {} is not supported (expected 1)",
+            document.schema_version
+        )));
+    }
+    let named = |what: &str, name: &str| -> Result<(), String> {
+        if name.is_empty() || name.trim() != name {
+            Err(refuse(format!("{what} {name:?} must be non-blank with no surrounding whitespace")))
+        } else {
+            Ok(())
+        }
+    };
+    named("key_column", &document.key_column)?;
+    if document.codebook_columns.is_empty() {
+        return Err(refuse("codebook_columns is empty".into()));
+    }
+    let mut columns = Vec::with_capacity(document.codebook_columns.len());
+    for column in document.codebook_columns {
+        named("source_column", &column.source_column)?;
+        named("output_column", &column.output_column)?;
+        if columns.iter().any(|(_, output): &(String, String)| *output == column.output_column) {
+            return Err(refuse(format!("output_column {:?} is repeated", column.output_column)));
+        }
+        columns.push((column.source_column, column.output_column));
+    }
+    let positions = |list: &str, names: &[String]| -> Result<Vec<usize>, String> {
+        let mut indices = Vec::with_capacity(names.len());
+        for name in names {
+            let index = columns
+                .iter()
+                .position(|(_, output)| output == name)
+                .ok_or_else(|| refuse(format!("{list} names {name:?}, which is not an output_column")))?;
+            if indices.contains(&index) {
+                return Err(refuse(format!("{list} repeats {name:?}")));
+            }
+            indices.push(index);
+        }
+        Ok(indices)
+    };
+    let broad_indices = positions("broad_category_precedence", &document.broad_category_precedence)?;
+    let genre_indices = positions("genre_sources", &document.genre_sources)?;
+    let width = columns.len();
+    Ok(CodebookSchema {
+        key_column: document.key_column,
+        columns,
+        broad_indices,
+        genre_indices: Arc::new(genre_indices),
+        empty_fields: Arc::new(vec![None; width]),
+    })
 }
 
 pub(crate) fn trim_owned(v: Option<&String>) -> String {

@@ -61,6 +61,7 @@ describe("scientific campaign capability fixture", () => {
       "apps_forcing_screen_open_file",
       "background_apps_file",
       "app_codebook_file",
+      "app_codebook_schema_file",
       "study_dates_file",
       "device_sharing_file",
       "survey_attribution_file",

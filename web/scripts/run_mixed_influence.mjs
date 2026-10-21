@@ -25,6 +25,7 @@ const roles = [
   "apps_forcing_screen_open_file",
   "background_apps_file",
   "app_codebook_file",
+  "app_codebook_schema_file",
   "study_dates_file",
   "device_sharing_file",
   "survey_attribution_file",
@@ -39,7 +40,9 @@ if (
   maxParallel < 1 ||
   maxParallel > roles.length
 ) {
-  throw new Error("MIXED_MAX_PARALLEL must be an integer from 1 through 9");
+  throw new Error(
+    `MIXED_MAX_PARALLEL must be an integer from 1 through ${roles.length}`,
+  );
 }
 
 /** @param {import("node:crypto").BinaryLike} bytes */
@@ -117,7 +120,7 @@ const sum = (field) =>
   shards.reduce((total, shard) => total + shard.ledger.coverage[field], 0);
 const aggregate = {
   protocolVersion: "chronicle-mixed-artifact-configuration-aggregate/v1",
-  claimBoundary: `Aggregate of nine independently recycled generic role/value shards. Each shard selects one empirically branch-activating intervention for its source role, crosses it with every valid non-compound alternate value of all ${firstShard.ledger.coverage.computationalAxes} computational axes, executes both transition orders, and compares every final workflow checkpoint, output artifact, and canonical output cell with an independent cold Rust/WASM target. Raw-role alternates that activate the digest-bound capability sidecar are explicitly listed and unestimated as source-sensitive compound variants; the configuration-space sourceSensitiveScientificCells campaign proves only the generic LF-sidecar to CRLF-raw Parry rebind mechanism. The conditionally active input_capability_evidence_file role is separately covered there. Field/record interactions beyond the selected representative remain outside this claim.`,
+  claimBoundary: `Aggregate of ten independently recycled generic role/value shards. Each shard selects one empirically branch-activating intervention for its source role, crosses it with every valid non-compound alternate value of all ${firstShard.ledger.coverage.computationalAxes} computational axes, executes both transition orders, and compares every final workflow checkpoint, output artifact, and canonical output cell with an independent cold Rust/WASM target. Raw-role alternates that activate the digest-bound capability sidecar are explicitly listed and unestimated as source-sensitive compound variants; the configuration-space sourceSensitiveScientificCells campaign proves only the generic LF-sidecar to CRLF-raw Parry rebind mechanism. The conditionally active input_capability_evidence_file role is separately covered there. Field/record interactions beyond the selected representative remain outside this claim.`,
   implementationReceipt: receipt,
   coverage: {
     sourceRoles: shards.length,

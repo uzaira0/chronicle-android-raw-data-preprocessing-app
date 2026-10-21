@@ -32,8 +32,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
-import { parse as parseYaml } from "yaml";
-
+import { loadOutputColumnCatalog } from "./output_column_catalog";
 import {
   AGGREGATE_SHAPE_VALUES,
   BOOLEAN_BROWSER_OPTION_KEYS,
@@ -52,7 +51,6 @@ import {
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const webDir = path.resolve(scriptDir, "..");
 const baselinePath = path.join(webDir, "schema", "contract-baseline.json");
-const outputColumnsPath = path.join(webDir, "schema", "chronicle-output-columns.yaml");
 const rustManifestPath = path.resolve(
   webDir,
   "../rust/chronicle_chrono_kernel_wasm/Cargo.toml",
@@ -142,11 +140,8 @@ async function buildCurrentSnapshot(contractVersion: number): Promise<Snapshot> 
     .map((query) => query.id)
     .sort((a, b) => a.localeCompare(b));
 
-  const catalog = parseYaml(await readFile(outputColumnsPath, "utf-8")) as {
-    output_columns: Array<{ column_name: string; column_outputs: string[] }>;
-  };
   const outputColumns: Record<string, string[]> = {};
-  for (const column of catalog.output_columns) {
+  for (const column of await loadOutputColumnCatalog()) {
     outputColumns[column.column_name] = [...column.column_outputs].sort((a, b) =>
       a.localeCompare(b),
     );

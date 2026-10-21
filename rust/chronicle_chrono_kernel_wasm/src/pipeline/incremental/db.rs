@@ -110,6 +110,7 @@ use super::{
     parse_sha256_digest,
     parsed_apps_forcing_screen_open,
     parsed_codebook,
+    parsed_codebook_schema,
     parsed_device_sharing,
     parsed_enrolled_devices,
     parsed_filter_rules,
@@ -1232,6 +1233,7 @@ use super::{
                     .ingredient::<background_apps>()
                     .ingredient::<parsed_filter_rules>()
                     .ingredient::<parsed_apps_forcing_screen_open>()
+                    .ingredient::<parsed_codebook_schema>()
                     .ingredient::<parsed_codebook>()
                     .ingredient::<parsed_study_windows>()
                     .ingredient::<parsed_device_sharing>()

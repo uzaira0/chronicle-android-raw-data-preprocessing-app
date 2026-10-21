@@ -1,8 +1,8 @@
 use super::ScreenSessionClassificationPolicy;
 use chrono::TimeZone;
 use super::{
-    AHashMap, APP_USAGE, Arc, B05SchoedelPreflightResult, BTreeMap, CODEBOOK_RENAME_PAIRS,
-    COLLAPSED_GENRE_FIELD_INDICES, ComplianceResultCheckpoint, DateTime, Datelike,
+    AHashMap, APP_USAGE, Arc, B05SchoedelPreflightResult, BTreeMap, CodebookSchema,
+    ComplianceResultCheckpoint, DateTime, Datelike,
     MicroUseClassification, MicroUseClassificationPolicy, MicroUseReceipt,
     MinimumDurationComparator, MinimumDurationDisposition, NO_ACTIVITY_PLACEHOLDER_PACKAGE,
     NaiveDate, Offset,
@@ -12,27 +12,6 @@ use super::{
     write_csv_field,
 };
 use std::io::Write as _;
-
-pub(super) fn codebook_output_columns() -> Vec<&'static str> {
-    CODEBOOK_RENAME_PAIRS.iter().map(|(_, v)| *v).collect()
-}
-
-/// The codebook join's own supplied-column to output-column table. The
-/// field-level workflow contract binds `app_codebook_file` columns and the codebook
-/// output columns through this table instead of restating either list.
-pub fn codebook_column_renames() -> &'static [(&'static str, &'static str)] {
-    CODEBOOK_RENAME_PAIRS
-}
-
-// Stable column index lookup for codebook fields, matching the order above.
-pub(super) fn codebook_col_index(name: &str) -> Option<usize> {
-    CODEBOOK_RENAME_PAIRS.iter().position(|(_, v)| *v == name)
-}
-
-/// Positions of declared codebook output columns, in the order given.
-pub(super) fn codebook_col_indices<const N: usize>(names: [&str; N]) -> [usize; N] {
-    names.map(|name| codebook_col_index(name).expect("declared codebook column"))
-}
 
 // ---- tz formatters ------------------------------------------------------
 
@@ -1600,8 +1579,10 @@ pub(super) fn js_rounded_number(value: f64) -> String {
 
 // ---- output writer ------------------------------------------------------
 
+/// `codebook` is the joined codebook's schema when the codebook is on: its
+/// output columns follow `application_label` in schema order.
 pub fn declared_app_output_columns(
-    include_codebook: bool,
+    codebook: Option<&CodebookSchema>,
     include_codebook_aliases: bool,
     usage_layer_active: bool,
     custom_app_engagement_duration: f64,
@@ -1619,16 +1600,12 @@ pub fn declared_app_output_columns(
     cols.push("timezone".into());
     cols.push("app_package_name".into());
     cols.push("application_label".into());
-    if include_codebook {
+    if let Some(codebook) = codebook {
         cols.push("genreId_scraped".into());
-    }
-    if include_codebook && include_codebook_aliases {
-        cols.push("broad_app_category".into());
-    }
-    if include_codebook {
-        for c in codebook_output_columns() {
-            cols.push(c.to_string());
+        if include_codebook_aliases {
+            cols.push("broad_app_category".into());
         }
+        cols.extend(codebook.output_columns().map(str::to_string));
     }
     cols.push("interaction_type".into());
     cols.push("start_timestamp".into());
@@ -1674,9 +1651,29 @@ pub fn declared_app_output_columns(
     cols
 }
 
-pub(super) fn build_app_columns(opts: &PipelineV2Options, include_codebook_aliases: bool) -> Vec<String> {
+/// The codebook schema a codebook-on app CSV is written under. The codebook
+/// toggle without a schema is refused rather than written without its columns.
+pub(super) fn app_csv_codebook<'a>(
+    opts: &PipelineV2Options,
+    codebook: Option<&'a CodebookSchema>,
+) -> Result<Option<&'a CodebookSchema>, String> {
+    match (opts.use_app_codebook, codebook) {
+        (true, None) => Err(MISSING_CODEBOOK_SCHEMA_ERROR.into()),
+        (true, schema) => Ok(schema),
+        (false, _) => Ok(None),
+    }
+}
+
+pub(super) const MISSING_CODEBOOK_SCHEMA_ERROR: &str =
+    "use_app_codebook requires an app_codebook_schema_file";
+
+pub(super) fn build_app_columns(
+    opts: &PipelineV2Options,
+    include_codebook_aliases: bool,
+    codebook: Option<&CodebookSchema>,
+) -> Vec<String> {
     let mut columns = declared_app_output_columns(
-        opts.use_app_codebook,
+        codebook,
         include_codebook_aliases,
         opts.model_concurrent_usage || opts.use_background_apps_file,
         opts.custom_app_engagement_duration,
@@ -1878,8 +1875,13 @@ pub(super) fn emit_csv_float(out: &mut Vec<u8>, value: f64, first: &mut bool) {
 }
 
 #[cfg(test)]
-pub(super) fn write_app_csv(rows: &[Row], opts: &PipelineV2Options, include_aliases: bool) -> Vec<u8> {
-    write_app_csv_from_iter(rows.iter(), opts, include_aliases)
+pub(super) fn write_app_csv(
+    rows: &[Row],
+    opts: &PipelineV2Options,
+    include_aliases: bool,
+    codebook: Option<&CodebookSchema>,
+) -> Vec<u8> {
+    write_app_csv_from_iter(rows.iter(), opts, include_aliases, codebook)
 }
 
 /// Counts what a writer would emit, so a buffer is sized to its content
@@ -1903,14 +1905,15 @@ pub(super) fn write_app_csv_from_iter<'a>(
     rows: impl Iterator<Item = &'a Row> + Clone,
     opts: &PipelineV2Options,
     include_aliases: bool,
+    codebook: Option<&CodebookSchema>,
 ) -> Vec<u8> {
     // Formatted twice, the first time into a counter: a 470,000-row export
     // is 147 MB of CSV, and the per-row estimate this replaced reserved 231
     // MB for it at the pass's high-water mark.
     let mut count = CountingSink(0);
-    write_app_csv_to(rows.clone(), opts, include_aliases, &mut count).expect("counting writer");
+    write_app_csv_to(rows.clone(), opts, include_aliases, codebook, &mut count).expect("counting writer");
     let mut bytes = Vec::with_capacity(count.0);
-    write_app_csv_to(rows, opts, include_aliases, &mut bytes).expect("Vec writer");
+    write_app_csv_to(rows, opts, include_aliases, codebook, &mut bytes).expect("Vec writer");
     debug_assert_eq!(bytes.len(), count.0, "the counting pass and the write disagree");
     bytes
 }
@@ -1919,9 +1922,11 @@ pub(super) fn write_app_csv_to<'a>(
     rows: impl Iterator<Item = &'a Row>,
     opts: &PipelineV2Options,
     include_aliases: bool,
+    codebook: Option<&CodebookSchema>,
     sink: &mut impl std::io::Write,
 ) -> Result<(), String> {
-    let cols = build_app_columns(opts, include_aliases);
+    let codebook = app_csv_codebook(opts, codebook)?;
+    let cols = build_app_columns(opts, include_aliases, codebook);
     let mut out = Vec::with_capacity(1024);
     // header
     for (i, c) in cols.iter().enumerate() {
@@ -1963,24 +1968,26 @@ pub(super) fn write_app_csv_to<'a>(
         emit(&mut out, &row.timezone, &mut first);
         emit(&mut out, &row.app_package_name, &mut first);
         emit(&mut out, &row.application_label, &mut first);
-        if opts.use_app_codebook {
+        if codebook.is_some() {
             emit(
                 &mut out,
                 row.genre_id_scraped.as_deref().unwrap_or(""),
                 &mut first,
             );
         }
-        if opts.use_app_codebook && include_aliases {
+        if codebook.is_some() && include_aliases {
             emit(
                 &mut out,
                 row.broad_app_category.as_deref().unwrap_or(""),
                 &mut first,
             );
         }
-        if opts.use_app_codebook {
-            for (i, _) in CODEBOOK_RENAME_PAIRS.iter().enumerate() {
-                let val = if row.codebook_genre_fields_cleared
-                    && COLLAPSED_GENRE_FIELD_INDICES.contains(&i)
+        if let Some(codebook) = codebook {
+            for i in 0..codebook.columns.len() {
+                let val = if row
+                    .codebook_genre_fields_cleared
+                    .as_ref()
+                    .is_some_and(|cleared| cleared.contains(&i))
                 {
                     ""
                 } else {

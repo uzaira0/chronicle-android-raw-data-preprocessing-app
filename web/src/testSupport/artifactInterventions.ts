@@ -8,6 +8,7 @@ import type {
   SyntheticChronicleCorpus,
 } from "@/testSupport/syntheticChronicleCorpus";
 import { buildCodebookSlice } from "@/testSupport/syntheticChronicleCorpus";
+import codebookSchemaJson from "@/assets/defaults/unified_app_codebook.schema.json?raw";
 
 type CsvRow = Record<string, string>;
 
@@ -16,6 +17,7 @@ export const SUPPORT_ROLE_IDS = [
   "apps_forcing_screen_open_file",
   "background_apps_file",
   "app_codebook_file",
+  "app_codebook_schema_file",
   "study_dates_file",
   "device_sharing_file",
   "survey_attribution_file",
@@ -28,6 +30,7 @@ export type InterventionRoleId = "raw_chronicle_csv" | SupportRoleId;
 
 export type SupportArtifact = {
   name: string;
+  /** The artifact text; JSON for `app_codebook_schema_file`, CSV otherwise. */
   csv: string;
 };
 
@@ -338,6 +341,10 @@ export function buildArtifactFixtureState(input: {
           buildCodebookSlice(catalog, corpus.usedPackages),
           "codebook fixture",
         ),
+      },
+      app_codebook_schema_file: {
+        name: "codebook.schema.json",
+        csv: codebookSchemaJson,
       },
       study_dates_file: {
         name: "study-dates.csv",
@@ -653,6 +660,28 @@ export function buildArtifactInterventions(input: {
             throw new Error(`codebook row missing for ${codebookPackage}`);
           row.bcm_play_store_genreId = "ARTIFACT_INTERVENTION_CATEGORY";
         }),
+    },
+    {
+      id: "support:codebook-schema-rename-output-column",
+      roleId: "app_codebook_schema_file",
+      mutationClass: "field-edit",
+      changedComponents: [
+        "app_codebook_schema_file.codebook_columns[0].output_column",
+      ],
+      sourceFields: ["app_codebook_schema_file.*"],
+      description: "Rename the first codebook output column in the schema",
+      expectedSemanticEffect: "required",
+      apply: (source) => {
+        const target = cloneState(source);
+        const schema = JSON.parse(target.supports.app_codebook_schema_file.csv) as {
+          codebook_columns: { output_column: string }[];
+        };
+        const first = schema.codebook_columns[0];
+        if (!first) throw new Error("codebook schema has no columns");
+        first.output_column = "artifact_intervention_codebook_column";
+        target.supports.app_codebook_schema_file.csv = `${JSON.stringify(schema, null, 2)}\n`;
+        return target;
+      },
     },
     {
       id: "support:study-window-narrow",

@@ -91,6 +91,7 @@ const TRANSPARENT_INTERNAL_QUERIES: &[&str] = &[
     "parsed_filter_rules",
     "parsed_apps_forcing_screen_open",
     "parsed_codebook",
+    "parsed_codebook_schema",
     "parsed_study_windows",
     "parsed_device_sharing",
     "parsed_survey_attribution",
@@ -121,6 +122,7 @@ const PARSE_FN_ROLES: &[(&str, &str)] = &[
     ("parse_apps_forcing_csv", "apps_forcing_screen_open_file"),
     ("parse_background_apps_csv", "background_apps_file"),
     ("parse_codebook_csv", "app_codebook_file"),
+    ("parse_codebook_schema", "app_codebook_schema_file"),
     ("parse_study_windows", "study_dates_file"),
     ("parse_device_sharing", "device_sharing_file"),
     ("parse_survey_lookup", "survey_attribution_file"),
@@ -147,9 +149,10 @@ struct FnFacts {
     reads: BTreeSet<String>,
     writes: BTreeSet<String>,
     column_literals: BTreeSet<String>,
-    /// True when the body iterates `CODEBOOK_RENAME_PAIRS`, i.e. it reads every
-    /// codebook source column rather than a literal subset.
-    reads_all_codebook_columns: bool,
+    /// True when the body works through a `CodebookSchema`: the columns it
+    /// reads are named by the request's schema data, not by literals, so it
+    /// may read any column of the artifact it parses (`role.*`).
+    reads_schema_named_columns: bool,
     calls: BTreeSet<String>,
     /// Calls made through an explicit `super::`/module path. These always mean
     /// the pure implementation, never the tracked query of the same name.
@@ -274,6 +277,11 @@ impl<'ast, 'a> Visit<'ast> for FnCollector<'a> {
         };
         let previous = self.current.replace(key);
         self.facts.entry(self.current.clone().unwrap()).or_default();
+        // Parameter types are walked only so a `CodebookSchema` parameter is
+        // seen (`visit_path`); they hold no field reads or writes.
+        for input in &function.sig.inputs {
+            visit::visit_fn_arg(self, input);
+        }
         visit::visit_block(self, &function.block);
         self.current = previous;
     }
@@ -445,10 +453,10 @@ impl<'ast, 'a> Visit<'ast> for FnCollector<'a> {
         if path
             .segments
             .iter()
-            .any(|segment| segment.ident == "CODEBOOK_RENAME_PAIRS")
+            .any(|segment| segment.ident == "CodebookSchema")
         {
             if let Some(facts) = self.entry() {
-                facts.reads_all_codebook_columns = true;
+                facts.reads_schema_named_columns = true;
             }
         }
         visit::visit_path(self, path);
@@ -525,8 +533,9 @@ pub(super) fn config_field_universe() -> BTreeSet<String> {
     // gate them, but they are source artifacts, not configuration: the contract
     // declares them through source roles (`query_source_roles`), never as
     // request fields. The toggle `use_study_windows` is an option; the bytes in
-    // `study_dates_csv` are a source.
-    collector.fields.retain(|field| !field.ends_with("_csv"));
+    // `study_dates_csv` are a source. The codebook schema's JSON bytes
+    // (`codebook_schema_json`) are a source artifact the same way.
+    collector.fields.retain(|field| !field.ends_with("_csv") && !field.ends_with("_json"));
     assert!(
         !collector.fields.is_empty(),
         "the Salsa configuration inputs must contribute fields"
@@ -582,14 +591,6 @@ pub(super) fn config_fields_with_setters() -> BTreeSet<String> {
         }
     }
     fields
-}
-
-/// Supplied app-codebook source columns, taken from the join's own table.
-fn codebook_source_columns() -> Vec<&'static str> {
-    crate::pipeline_v2::codebook_column_renames()
-        .iter()
-        .map(|(source, _output)| *source)
-        .collect()
 }
 
 /// Per-step field usage observed in the reachable Rust implementations.
@@ -668,10 +669,8 @@ fn scan_sources(
                         use_set.source_columns.insert(format!("{role}.{column}"));
                     }
                 }
-                if current.reads_all_codebook_columns {
-                    for column in codebook_source_columns() {
-                        use_set.source_columns.insert(format!("{role}.{column}"));
-                    }
+                if current.reads_schema_named_columns {
+                    use_set.source_columns.insert(format!("{role}.*"));
                 }
             }
             let mut enqueue = |name: &str, allow_tracked: bool| {
