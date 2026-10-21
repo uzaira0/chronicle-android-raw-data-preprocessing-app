@@ -32,7 +32,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
-import { loadOutputColumnCatalog } from "./output_column_catalog";
+import { loadOutputColumnCatalog } from "./output_column_catalog.mjs";
 import {
   AGGREGATE_SHAPE_VALUES,
   BOOLEAN_BROWSER_OPTION_KEYS,

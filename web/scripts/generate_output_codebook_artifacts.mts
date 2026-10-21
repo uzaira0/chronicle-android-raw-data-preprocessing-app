@@ -19,7 +19,7 @@ import { fileURLToPath } from "node:url";
 import {
   loadOutputColumnCatalog as loadCatalog,
   type OutputColumnCatalogEntry as CatalogEntry,
-} from "./output_column_catalog";
+} from "./output_column_catalog.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CODEBOOK_PATH = path.resolve(HERE, "../../docs/researcher-output-codebook.md");
