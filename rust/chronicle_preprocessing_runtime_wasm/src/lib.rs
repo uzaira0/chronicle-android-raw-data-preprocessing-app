@@ -8637,8 +8637,16 @@ fn canonical_sources<'a>(
             role_id: role,
             source_artifact_digest: &source_assignment.artifact.digest,
             source_media_type: &source_assignment.artifact.media_type,
-            coordinate_media_type: "text/csv",
-            normalization: if file.normalized_from_xlsx {
+            // A JSON support file (the codebook schema) is addressed by JSON
+            // pointer, every other support file by CSV cell.
+            coordinate_media_type: if file.media_type == "application/json" {
+                "application/json"
+            } else {
+                "text/csv"
+            },
+            normalization: if file.media_type == "application/json" {
+                "identity-json"
+            } else if file.normalized_from_xlsx {
                 "xlsx-first-sheet-to-csv"
             } else {
                 "identity-csv"

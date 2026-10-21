@@ -7,32 +7,32 @@
   },
   "implementationReceipt": {
     "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
-    "implementationDigest": "sha256:fe6fb1c65b68959f70f41571150c30611b372ce0672383bc64e7d59b0b7c8f7c",
-    "planDigest": "sha256:be8258e89e2896c83c9af93e3f016ab90c4d4561353d36b9123d373becb21c22",
-    "profileDigest": "sha256:d7d619f99a0e3106f185b994234092062ca3e7840e9fd29995f864148acd576a",
-    "profileLockDigest": "sha256:df2771b5ccf62edf9e2a9911d1c9f7ce79eebec2f83628940bc8ef554f9ed201",
+    "implementationDigest": "sha256:518f7ad6e9cab0ad124a6dbd408981178ffe7a94f82ab5c0b1bad28454b75d4f",
+    "planDigest": "sha256:003f8eae723ac97dd56ed82fcda9f6a59c6786c60e0829c5e8e583a77c4f6af4",
+    "profileDigest": "sha256:12d91882f067119057b8f577f162f869561d76662e833a5490cf1555b6816b12",
+    "profileLockDigest": "sha256:74c3447887347f2794a4cf350801bad26c07ca165956dccc9ef9daf9c61da2b7",
     "runtimeAuthorityDigest": "sha256:7807fe99a35b4ede2c85d8e8868ec3dcb2accb22e8265c4643966eb9840ce4e4",
-    "productContractDigest": "sha256:d64fb721d6a8b5a2f04c567dcc3fd17a259672901e7ffad419a6d5a04854bb0c"
+    "productContractDigest": "sha256:dd9769b844e3ee831182093bc0bf7a9cf78731d78653df42c7e7b44adc28c9e6"
   },
   "sourceLedgers": {
-    "configurationCaseSetDigest": "sha256:be35c691083f813847a9566c656ce35fba6aafca9100b903b777b6621c4f0b27",
-    "artifactCaseSetDigest": "sha256:49d2012d4301dcfbb3323411d2d870354aabbc68eedf631a83e0d5c41e49e96a",
+    "configurationCaseSetDigest": "sha256:0a3f5151818c17466aef2e596466e49e8ff0de5f47006bce81aaf77b2ce35cc4",
+    "artifactCaseSetDigest": "sha256:b96e3514fdabddb565dba2787d9a3d768baadf8e6ad95a4254da4ea7c0198ad1",
     "rawBoundaryCaseSetDigest": "sha256:ec1de40ab26498224de78d9bb7a5fd7188be5fb7e38f1bb132e3d9cea6268ffa"
   },
-  "observationCount": 4870,
+  "observationCount": 4882,
   "counts": {
-    "total": 590,
-    "killed": 590,
+    "total": 596,
+    "killed": 596,
     "survived": 0,
     "byClass": {
       "remove-edge": 173,
       "reverse-edge": 173,
       "remove-option-binding": 221,
-      "remove-role-binding": 23
+      "remove-role-binding": 29
     },
     "structuralCycles": 88,
     "structuralConditionBindings": 13,
-    "structuralQueryBindings": 150,
+    "structuralQueryBindings": 152,
     "rustRequestReadBindings": 40
   },
   "structuralProofs": {
@@ -5286,6 +5286,60 @@
       "killed": true,
       "killKind": "rust-source-call-binding",
       "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-role-binding:app_codebook_schema_file->join_app_codebook",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "app_codebook_schema_file",
+      "targetId": "join_app_codebook",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "artifact:support:codebook-schema-rename-output-column"
+    },
+    {
+      "mutantId": "remove-role-binding:app_codebook_schema_file->derive_broad_category",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "app_codebook_schema_file",
+      "targetId": "derive_broad_category",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "artifact:support:codebook-schema-rename-output-column"
+    },
+    {
+      "mutantId": "remove-role-binding:app_codebook_schema_file->collapse_app_genre",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "app_codebook_schema_file",
+      "targetId": "collapse_app_genre",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "artifact:support:codebook-schema-rename-output-column"
+    },
+    {
+      "mutantId": "remove-role-binding:app_codebook_schema_file->assemble_notification_contact_outputs",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "app_codebook_schema_file",
+      "targetId": "assemble_notification_contact_outputs",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-role-binding:app_codebook_schema_file->assemble_polled_emulation_outputs",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "app_codebook_schema_file",
+      "targetId": "assemble_polled_emulation_outputs",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "workflow_contract::tests::declared_query_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-role-binding:app_codebook_schema_file->assemble_result_manifest",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "app_codebook_schema_file",
+      "targetId": "assemble_result_manifest",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "artifact:support:codebook-schema-rename-output-column"
     },
     {
       "mutantId": "remove-role-binding:study_dates_file->resolve_participant_windows",
