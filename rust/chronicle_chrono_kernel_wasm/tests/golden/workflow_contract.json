@@ -147,6 +147,19 @@
         }
       },
       {
+        "roleId": "app_codebook_schema_file",
+        "minimum": 0,
+        "maximum": 1,
+        "mediaTypes": [
+          "application/json"
+        ],
+        "required": false,
+        "requiredWhen": {
+          "kind": "option-true",
+          "option_key": "use_app_codebook"
+        }
+      },
+      {
         "roleId": "study_dates_file",
         "minimum": 0,
         "maximum": 1,
@@ -2203,7 +2216,8 @@
           "artifact.policy.apply_concurrent_segment_floor",
           "artifact.reconstruct.segment_concurrent_usage",
           "config.processing_options",
-          "source.app_codebook_file"
+          "source.app_codebook_file",
+          "source.app_codebook_schema_file"
         ],
         "outputArtifacts": [
           "artifact.context.join_app_codebook"
@@ -2234,8 +2248,8 @@
           "kind": "option-true",
           "option_key": "process_app_usage"
         },
-        "definitionDigest": "sha256:20006bd390f92eb74ddc182fd46e75e8d7d71726e4fc05c94f3b1c41b5f2189d",
-        "closureDigest": "sha256:92271f84d91bf03b20f15a6e377bf224ec3ef53469238e65bb331eb7bef212ad"
+        "definitionDigest": "sha256:9b292825ad4db92e40f36d47acb840cee8a468c9d510992258b1040c757f6d31",
+        "closureDigest": "sha256:86a971314876872c37c3713b2452da95f1c5b00b5cc77adbc8a6706b29bd0041"
       },
       {
         "id": "context.derive_broad_category",
@@ -2246,7 +2260,8 @@
         "epistemicRole": "derived",
         "inputArtifacts": [
           "artifact.context.join_app_codebook",
-          "config.processing_options"
+          "config.processing_options",
+          "source.app_codebook_schema_file"
         ],
         "outputArtifacts": [
           "artifact.context.derive_broad_category"
@@ -2277,8 +2292,8 @@
           "kind": "option-true",
           "option_key": "process_app_usage"
         },
-        "definitionDigest": "sha256:6ca365f9e8901f4fd89734fb6ef37171b53b70b028e32231e943e75a97d60071",
-        "closureDigest": "sha256:98db77161f749dee41ba88a7859c60786c695fb7f5298c347ef28465a53deeb3"
+        "definitionDigest": "sha256:1eabb19b8d882c863c665e1416e1d52be30da4148f6b9ffa23abe397e4351000",
+        "closureDigest": "sha256:d2adbba13d683ccb650b3a48c1eb4e7eaf5a1bc2e32bf2cd290f27b50bfd3b9d"
       },
       {
         "id": "context.collapse_app_genre",
@@ -2289,7 +2304,8 @@
         "epistemicRole": "policy_applied",
         "inputArtifacts": [
           "artifact.context.derive_broad_category",
-          "config.processing_options"
+          "config.processing_options",
+          "source.app_codebook_schema_file"
         ],
         "outputArtifacts": [
           "artifact.context.collapse_app_genre"
@@ -2320,8 +2336,8 @@
           "kind": "option-true",
           "option_key": "process_app_usage"
         },
-        "definitionDigest": "sha256:b87c1d519652bf473a00b9fab78799bd8ed44cba1962ac535bf26ca11ddb4d1d",
-        "closureDigest": "sha256:1049469d586252d275f56f8d4d4aef383cf30443071d74d8f4bdae14c90e6a59"
+        "definitionDigest": "sha256:50b9d1f46cb68284d8b60d1623df4520448bb26a0ca29433cf0540dfa6120dc9",
+        "closureDigest": "sha256:33bedcaa2b35ca8fb3fadd8c602159cecfc8dd378306537abeb4439f8d989b02"
       },
       {
         "id": "reconstruct.derive_engagement_basis",
@@ -2359,7 +2375,7 @@
           "option_key": "process_app_usage"
         },
         "definitionDigest": "sha256:716e137d9ce309934b799c6401613a80151613b4b7d758584747be5b20c2597b",
-        "closureDigest": "sha256:fc4a2bffe9243f22bf87ec4375431f8265aad74a6a920a85e9378e319acf2862"
+        "closureDigest": "sha256:ec79616e75f06f176b162e69c3369107a8ae7fb1c59010864cad6444c3e08cd1"
       },
       {
         "id": "policy.classify_engagement",
@@ -2403,7 +2419,7 @@
           "option_key": "process_app_usage"
         },
         "definitionDigest": "sha256:51cfbfbecfee52cce5ad0c66f1eec56062b5f45aa180af335bc1fcc60f74d532",
-        "closureDigest": "sha256:cc36fa32499be79c096c4a894da8c644384033a012f6d10a1658e232f7502f4f"
+        "closureDigest": "sha256:cd1eef69f2d5cae600634be1291f7bcbf7e053b0831a0bc646ac42ab27f74605"
       },
       {
         "id": "policy.flag_long_usage",
@@ -2448,7 +2464,7 @@
           "option_key": "process_app_usage"
         },
         "definitionDigest": "sha256:7f68f489a8948d122962c76c59f5e872c75e103c589d2c6fdb2e4286add9e67d",
-        "closureDigest": "sha256:4a6b7fada9d7521b773b8444142d3464494f17802b529485365679dc0b0312c8"
+        "closureDigest": "sha256:51e39c86888a34df3c6460ece3797e64a94ddd94e7d5829eb3f4d27fe7cfb4ad"
       },
       {
         "id": "policy.flag_long_gaps",
@@ -2493,7 +2509,7 @@
           "option_key": "process_app_usage"
         },
         "definitionDigest": "sha256:940f032df929e8fd2174325fde14212aa6d94b2f4bef906d49a0b774c164ebc7",
-        "closureDigest": "sha256:008083ee8b44acbab3ff3aa2740a559c40c10ad58c6807b94a0495e103ba0153"
+        "closureDigest": "sha256:46cc8042c25a52e98e394aed48c5cb7363c1dd78782e30c92aa5730e5ac051dc"
       },
       {
         "id": "policy.suppress_excluded_timing",
@@ -2540,7 +2556,7 @@
           "option_key": "process_app_usage"
         },
         "definitionDigest": "sha256:57fe064757a75d42121c2762056df167e16cee4d0ea73f1a4476caad5cccb329",
-        "closureDigest": "sha256:5091e92fae6b73e5554f25927e4e7f746ddaf61201286dbad37fc7b93da7173d"
+        "closureDigest": "sha256:5decf49195ec9097ade396440b8d21285f32cea921d537b786e7d29ed4b1771f"
       },
       {
         "id": "policy.remove_selected_interaction_types",
@@ -2594,7 +2610,7 @@
           "option_key": "process_app_usage"
         },
         "definitionDigest": "sha256:2b6a81f5b6c0c58797014db7e9431b0a046768190965a733ab5a5a4b3653d264",
-        "closureDigest": "sha256:e1826d5e89d17b217e9b9e022c93d803e9e9c0450837df98bca509db592ebbc2"
+        "closureDigest": "sha256:cd1bc7a07e0037d6cbfa596e317ec02d7b3cd43137ee234fc44c906348c6fbe6"
       },
       {
         "id": "quality.remove_zero_duration_rows",
@@ -2637,7 +2653,7 @@
           "option_key": "process_app_usage"
         },
         "definitionDigest": "sha256:a2d0e043bf8383d7cea4a7d95878fda317177a16d3bac4df89006546992d857b",
-        "closureDigest": "sha256:988c54a5567a507adefd0be6a4fbfe9e6c42b15334ec8e0949b6762008a41ff5"
+        "closureDigest": "sha256:968f8bf0c82ae2960fdb48e10d467575a9891939609bed4c781f36a643a30004"
       },
       {
         "id": "policy.assign_usage_session_ids",
@@ -2696,7 +2712,7 @@
           "option_key": "process_app_usage"
         },
         "definitionDigest": "sha256:171c66a6a5d63640ea41ee7ae43323899a179eb85a89da420b942748736b2aa0",
-        "closureDigest": "sha256:a1768a4b14ef4be1eeb4ca2d9bbd23df07e723500314fd67d4d1aecd62f78f53"
+        "closureDigest": "sha256:8c0eb3664171ac1a4b76944ba9a99db723cb37f18c1f5a5cd133734001aa0b3f"
       },
       {
         "id": "credit.identify_eligible_sessions",
@@ -2749,7 +2765,7 @@
           ]
         },
         "definitionDigest": "sha256:596a896936447dfd27401eae6296d79514c85caba537e50c5e9486ff420e89c0",
-        "closureDigest": "sha256:2c62597d3580149bc4a20ed986a03201440800792d42fe5d5ae1601e894ee46f"
+        "closureDigest": "sha256:873647eb1a0fbf0343070dd4b9c0b9713738ab75c71ce878337fac5f6f74ea3a"
       },
       {
         "id": "evidence.index_device_activity",
@@ -2963,7 +2979,7 @@
           ]
         },
         "definitionDigest": "sha256:a77446710b2a318bc0cfc2c3ba98643caeb9db01e036499570111d2fb723b9d6",
-        "closureDigest": "sha256:e8f9c1ad06641b654e68d18e266bd51c8acfa9e304796842d7fe570425d043bc"
+        "closureDigest": "sha256:174e7d6f000f7b346a4a2ff29e7f9c98962131e1f945e60b06699db9ad0e60ff"
       },
       {
         "id": "evidence.summarize_daily_apps",
@@ -3015,7 +3031,7 @@
           ]
         },
         "definitionDigest": "sha256:b3db1ec7bded8373c84deacbea7d7cceb399d89e4eb1fe7c8dc4c9092f7c83db",
-        "closureDigest": "sha256:63facc0f5773497a6d74e0214ab66dc7b65a40391d9edd366448779cd4da9ab9"
+        "closureDigest": "sha256:9932ad9fd0e9979fdc9978315e51822d10dae6e9bf47d10192edc5ecadc80636"
       },
       {
         "id": "credit.cap_candidate_intervals",
@@ -3077,7 +3093,7 @@
           ]
         },
         "definitionDigest": "sha256:1290d2f563cf3abbf11676fbbcf3bd58a9c0b4562807b07c30bc4f2096eef1b4",
-        "closureDigest": "sha256:1812d65dd4c4c9afca0f7ece211a609776e0479607633d729cd68f87b2f88839"
+        "closureDigest": "sha256:5a7334bcde09c06909d3d0dc9da3f9f292fc506ffee8ff0baa88e3461cf9b0d3"
       },
       {
         "id": "credit.derive_device_live_spans",
@@ -3134,7 +3150,7 @@
           ]
         },
         "definitionDigest": "sha256:faaa169389d9a59251546d0481a7144ba6083a9df030a4e12de5ba47ba0fa25e",
-        "closureDigest": "sha256:93800ea5326bd0b617807f17cac0019d5e73d533587e32858afd7c058224ed09"
+        "closureDigest": "sha256:1f458a663b2db3fc115fdfaadf1cb2b4e805664166e144b3f244553f33d47c38"
       },
       {
         "id": "credit.derive_screen_creditable_spans",
@@ -3196,7 +3212,7 @@
           ]
         },
         "definitionDigest": "sha256:e562c34567789534f7b600000cef6f3cbc37d2b4b05c1060767f7ad96a327bd4",
-        "closureDigest": "sha256:13c1ab99c330377c7cfb37b29ddee6dd931c72dbca3db65a43164782e4607291"
+        "closureDigest": "sha256:1a7b9bd179ada8e9bedcd5acefb1626ad668ea0f9ca016d87f619eaa408c9c3d"
       },
       {
         "id": "credit.intersect_evidence",
@@ -3254,7 +3270,7 @@
           ]
         },
         "definitionDigest": "sha256:1ff1209a640fdaf4da1bf260649f01a0bc70a8a415346a17be62c5175caee68b",
-        "closureDigest": "sha256:58fab1c6757772fcc06ab208dc505e07499bc031dd58ea3f8e1dadf324772b4d"
+        "closureDigest": "sha256:634f32e64cefe4131f565fd518b5e7c0473b7aee5e2e0e8c87ead63ea0bcb33c"
       },
       {
         "id": "credit.apply_no_witness_fallback",
@@ -3312,7 +3328,7 @@
           ]
         },
         "definitionDigest": "sha256:39c910281c315aca853319c05360fe51d6fb104cbdf2461332d68888134f15b6",
-        "closureDigest": "sha256:0abf297c6bf50e515e5bf6a62f5f1f893c0386cf1df084d2fb5c883f0488c031"
+        "closureDigest": "sha256:022d7b16c23404063878332b4dddcf9c5794b8f1cd17627b2e85abe9e6bcbcd1"
       },
       {
         "id": "credit.materialize_credited_rows",
@@ -3372,7 +3388,7 @@
           ]
         },
         "definitionDigest": "sha256:d66806da6ec4753c80f792e0996aa84a1f6cc9b08a5d99cec15bce91b37d3db0",
-        "closureDigest": "sha256:e7023f74c6dcd2cfb2d61d308953de5f67b2823c4eebbf6de67f7ef73537d550"
+        "closureDigest": "sha256:35cbe6aa4f01c25800eceb99b88e282825ebbd8c4565515f6bb9940ef022fb7c"
       },
       {
         "id": "credit.publish_credit_result",
@@ -3426,7 +3442,7 @@
           ]
         },
         "definitionDigest": "sha256:3a766933a26b682132e1402ac651d6d98dcb9267b93de23d7b3dd3bb533a504b",
-        "closureDigest": "sha256:92c9ca97ec2a2c5e08b672a409219603229433ca5400d9698b4dac679d5881ce"
+        "closureDigest": "sha256:669bf57804217cfd67976977516d032da0fa44ae98a8fec30d8c55b667b27356"
       },
       {
         "id": "study.resolve_participant_windows",
@@ -3487,7 +3503,7 @@
           ]
         },
         "definitionDigest": "sha256:042197cc577036d91e0a09368f796123508582593890b98b2fb26dcb097bc84d",
-        "closureDigest": "sha256:e9a749a7c26b0d3902d0069ecb413236760c3e3defdf0f32f3bba604a0e433cc"
+        "closureDigest": "sha256:50a2e92791bc447424d161ff285059717e07f9eef1c4c2aa8df348563a3f3d40"
       },
       {
         "id": "study.apply_participant_windows",
@@ -3555,7 +3571,7 @@
           ]
         },
         "definitionDigest": "sha256:2403a492c78e0a93a09c62900ddeea5578391926ab10abcf33e3e7b5ac3d9a2f",
-        "closureDigest": "sha256:77e3e11b444f82323e6b5180766bb47f25cc90bb033c763c6fc23914a444f2d1"
+        "closureDigest": "sha256:feecb3556c3dc47b09992138d4b70f0aaa38984677932cea83ea98e1d0da98bb"
       },
       {
         "id": "study.resolve_sharing_status",
@@ -3599,7 +3615,7 @@
           "option_key": "process_app_usage"
         },
         "definitionDigest": "sha256:c5fc7256aa395b72362ee33965842d5a7a5c322b8d585a42d729cc21ee5698f1",
-        "closureDigest": "sha256:e7ae76a5a06e88b9d3f5b96a66506c90f5161e7595e0c7690cd2b4b491c3861c"
+        "closureDigest": "sha256:fb93004df39a8076a12f9deb4409faea68c653f56ce1b816a501538bb2431fa5"
       },
       {
         "id": "study.index_survey_responses",
@@ -3682,7 +3698,7 @@
           "option_key": "process_app_usage"
         },
         "definitionDigest": "sha256:0f3f3f53ce1c819bf36356ff23fccb8bbe52c38bf263e264d8d5b59e666ce6aa",
-        "closureDigest": "sha256:9d185372d94b863451a4c8243bde18db53d2b44df964f91d440a68ec1f32cf47"
+        "closureDigest": "sha256:a373479a18b224b60f9761b8a9c0abc413ca6621f13ac659edf765b975eb5f5b"
       },
       {
         "id": "context.apply_survey_person_override",
@@ -3720,7 +3736,7 @@
           "option_key": "process_app_usage"
         },
         "definitionDigest": "sha256:e69832f08132175d33e6eb28f5509e8b732bfd7a8bc270c3c2c5ef9b1340d690",
-        "closureDigest": "sha256:e102409435de8151b406f8a3f3b7919bc6fc0d72f3e9a53878785088fafd0a84"
+        "closureDigest": "sha256:60656d09150a9ec4112c1fc4b3223169dbe7f7955143ba8fba93ca0da5f00d4e"
       },
       {
         "id": "context.classify_person_attribution",
@@ -3758,7 +3774,7 @@
           "option_key": "process_app_usage"
         },
         "definitionDigest": "sha256:91149f07c2adb99154b03edd31b460c6d5689ab4ceb4a7fac5da17097e2e42b7",
-        "closureDigest": "sha256:ef851eb88422eadac0442e963fcbe5be693a3717d7f28bd29257f2af99543fbb"
+        "closureDigest": "sha256:2021269f91ef482f1cc73365882499043182f0e2b129b89ca5994ffdeb28cbb5"
       },
       {
         "id": "assessment.divide_sessions_at_day_boundary",
@@ -3803,7 +3819,7 @@
           "option_key": "process_app_usage"
         },
         "definitionDigest": "sha256:301a36087271022e1133ea3d7b4144e1e6ae6062d80eb4ea925d66811ac42e23",
-        "closureDigest": "sha256:599c952a61ca7b5eeffad2ebcf5274c062538ff11dcf81b1c12630edef4fdc0c"
+        "closureDigest": "sha256:c626558016908b520507e7c31b963d79590319eb6aaaa181ffcdbc51f3bb9411"
       },
       {
         "id": "assessment.synthesize_placeholder_rows",
@@ -3864,7 +3880,7 @@
           "option_key": "process_app_usage"
         },
         "definitionDigest": "sha256:c3426a6e9c4d4514caf5980f93d39204ab7d0072425886a604e56f419ea368c0",
-        "closureDigest": "sha256:c10bf37c668653a44112de97f5b97e7ef6aabd51acfbee23e447731b7512a34c"
+        "closureDigest": "sha256:09b7f2b356fd791969f0b1953a11741cfb91ed0d07126bc166f39d41684c9829"
       },
       {
         "id": "evidence.index_raw_dates",
@@ -3967,7 +3983,7 @@
           ]
         },
         "definitionDigest": "sha256:35c1a630bb0b1010511eb54a99fa38de1ad2043bb278d862ce59e7367ffe298b",
-        "closureDigest": "sha256:83747895af1ec2767dca03bce2bc67bb1631f94a97f1b400e879eff3682ad48c"
+        "closureDigest": "sha256:9b509d2e650029632d20327d461aa010bca6b61d802f10182abadc386332b03d"
       },
       {
         "id": "assessment.classify_days",
@@ -4019,7 +4035,7 @@
           ]
         },
         "definitionDigest": "sha256:c880b90a1711784ecd7a4682cfa037029502b0d338445ca239295ebab03fba81",
-        "closureDigest": "sha256:62af706b4683515e598bab4d963b88e7361a31f1b7c224fed2a81e59a3c8b1e0"
+        "closureDigest": "sha256:ba6c9883e47028da9920ff58001b94120647e333f620711cb8f48007a9a7edc7"
       },
       {
         "id": "assessment.summarize_coverage",
@@ -4071,7 +4087,7 @@
           ]
         },
         "definitionDigest": "sha256:0a6c30e2edb9201013ca33ca68eb9da4ad64ae90230a2950ce734160748424dc",
-        "closureDigest": "sha256:3dcbb21fda9c9b367bfeb39da4d78d6622ffd39a8be49b61a8ef5321ac25d7ac"
+        "closureDigest": "sha256:3c03698d5ef7bf8c68471b6ddc23c92cc00a35151d175f8ae707eed37c4ada1a"
       },
       {
         "id": "assessment.aggregate_attribution_minutes",
@@ -4123,7 +4139,7 @@
           ]
         },
         "definitionDigest": "sha256:8a1f25da80ede4ca540caf9eadd28ddc790be8d80eb41a9e4843a6f110bd6d4b",
-        "closureDigest": "sha256:761664ab027edf3de8dc35d5e73a59b7ecf62fd3732e6930defdfecaaf99e58a"
+        "closureDigest": "sha256:a95b4a9dd9642abfa6c8cf3eebfecc037f3d66cde9f1a9d827f973bcce666d39"
       },
       {
         "id": "assessment.compute_completeness",
@@ -4178,7 +4194,7 @@
           ]
         },
         "definitionDigest": "sha256:26c3200176f9a852f3e8e5e594419ee4da0951b12644f917cf1e7a31b00e0e54",
-        "closureDigest": "sha256:d4315953f0a2517b6f6983928d9f09dcc3bc6134252196b7b8a9644f883f7b4a"
+        "closureDigest": "sha256:17a0061a54160caef32ad82020c09b65856535ee67a1b3656dfc9f1b7f7c633f"
       },
       {
         "id": "policy.apply_compliance_threshold",
@@ -4236,7 +4252,7 @@
           ]
         },
         "definitionDigest": "sha256:707c1b6dba807cf3fc848113fe7009eb81527a423e5e9a9894b3b66f0f5e315b",
-        "closureDigest": "sha256:f208cb94072d9b7a8bd452b92a1a51267deaec125fd580b02bad3eb80c1b08fe"
+        "closureDigest": "sha256:697bcc93447a67ce2b263c3fa5ceeced832142f89973ff6e067de8b0372d9eea"
       },
       {
         "id": "publish.project_app_table",
@@ -4344,7 +4360,7 @@
           ]
         },
         "definitionDigest": "sha256:20ca22465739b0368a6387469b11a37d4c59125cfe075716ecbf2aa0b4471526",
-        "closureDigest": "sha256:e36c6e02d59b32bf4e8d7622f54cb047f498a24840aa3411d46d69940aaa4fba"
+        "closureDigest": "sha256:b7fda7c34efce570dc764af77f3b6590de50a8d43b633d77872c6a0857284f7e"
       },
       {
         "id": "publish.project_screen_table",
@@ -4520,7 +4536,7 @@
           ]
         },
         "definitionDigest": "sha256:a9fe055cb7b108622a591dc45645619e3403692aa1ae6da37c2882047e8c8f44",
-        "closureDigest": "sha256:8078f945e25c73bf9f2deb93c623a04cc726cd7d054fe71e549b06a63e66daa0"
+        "closureDigest": "sha256:20b72d4f457f7c0b68d41667c9f7fda5191ad020d2060fcaef7bf426aac8e1bd"
       },
       {
         "id": "publish.build_aggregate_tables",
@@ -4590,7 +4606,7 @@
           "option_key": "enable_aggregates"
         },
         "definitionDigest": "sha256:cd9c5cf5df642a1c1c3a5823fa3e51b5257c11051fbcc228ade0258a64395d88",
-        "closureDigest": "sha256:362b6e5322bb688854f083c26b8eaec02f4c85f7a399411f288e050179a4d25e"
+        "closureDigest": "sha256:2b986413b3afb9bea47a7c6fda15412ca8f29c890da55ab08741d36dc1c795c4"
       },
       {
         "id": "publish.build_participant_amount_summary",
@@ -4737,7 +4753,7 @@
           ]
         },
         "definitionDigest": "sha256:3db6d771cbd5795323a4475a3cc2bd2c0a65233842ee9851bb4f353fd8cdfcfd",
-        "closureDigest": "sha256:65ac727adac18558aa0e4288010225c6cb3d7e1cdab8cebf1a970aebeafc0ccc"
+        "closureDigest": "sha256:cc75c34d210e38129ba57bb3b160df0a8441f8e4cc586d3b7eb18dd34c489095"
       },
       {
         "id": "publish.encode_selected_formats",
@@ -4785,7 +4801,7 @@
           "kind": "always"
         },
         "definitionDigest": "sha256:9799ee0c9e9d8da5e1fcc62c629a9c3d324a9f36030cea45844236ddd71db205",
-        "closureDigest": "sha256:884dc2fb2828313b7fefe6bb78b51c9b43bac019ce0deac1ee8b9ff4b3528e3e"
+        "closureDigest": "sha256:b4a2f0236af7b79591fc12cf42e92720d608b6048e3bfb3063a43e0d3ef1d030"
       },
       {
         "id": "publish.build_review_data",
@@ -4816,7 +4832,7 @@
           "kind": "always"
         },
         "definitionDigest": "sha256:b2a0c9edac2ee72f4b766c867cb094be37d73b106820aa06e55948b2312de845",
-        "closureDigest": "sha256:4a6b76e0bb49b90f305c7a1aaf152355728d51b81e222a20fc94095e54314673"
+        "closureDigest": "sha256:19aeb464852b46825d4acda378a2f1b80ab5826098d6b3a62ffe29cb0df90161"
       },
       {
         "id": "publish.build_visualization_data",
@@ -4855,7 +4871,7 @@
           "option_key": "materialize_visualization_data"
         },
         "definitionDigest": "sha256:87428d973507281e9e460a2c29acb31826c9d21ea09183225639a681664eebf8",
-        "closureDigest": "sha256:442f000119f5a12425c82cfcd9c7aa2542dd0ccf178eab13fb4c0e5d3b43b733"
+        "closureDigest": "sha256:dac06452b044128162ce74226540f06de23492e198e4beec530ae4a48943fe34"
       },
       {
         "id": "publish.emit_lineage",
@@ -4887,7 +4903,7 @@
           "kind": "always"
         },
         "definitionDigest": "sha256:ebda22e32902ba0bdaffc4eb176c82c3b6a719beb003fb5224de97613dd2899f",
-        "closureDigest": "sha256:214a22ab9901f143b1ad0d8dd7f9cd266303cc68f1d20df58896e31186b69311"
+        "closureDigest": "sha256:ba63ce67232be90f4521930b43bad10b252dfef5cd674b591cedbf1316420105"
       },
       {
         "id": "publish.emit_provenance",
@@ -4963,7 +4979,7 @@
           "kind": "always"
         },
         "definitionDigest": "sha256:074e1bd5ccb82eb0bdef02b3dba162879d89d79e194b2fa4cae423f50e056730",
-        "closureDigest": "sha256:7b572517d33bf42cc5a04b68d792020cb4db29f903729f93aa6b7ec950eeda5a"
+        "closureDigest": "sha256:4b6c8617c77b8e2a480bddf16367b8e17df98694db9959c221776ce8b6fc912a"
       }
     ],
     "artifacts": [
@@ -4985,7 +5001,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:8a1f25da80ede4ca540caf9eadd28ddc790be8d80eb41a9e4843a6f110bd6d4b",
-        "closureDigest": "sha256:761664ab027edf3de8dc35d5e73a59b7ecf62fd3732e6930defdfecaaf99e58a"
+        "closureDigest": "sha256:a95b4a9dd9642abfa6c8cf3eebfecc037f3d66cde9f1a9d827f973bcce666d39"
       },
       {
         "id": "artifact.assessment.build_participant_day_spine",
@@ -5005,7 +5021,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:35c1a630bb0b1010511eb54a99fa38de1ad2043bb278d862ce59e7367ffe298b",
-        "closureDigest": "sha256:83747895af1ec2767dca03bce2bc67bb1631f94a97f1b400e879eff3682ad48c"
+        "closureDigest": "sha256:9b509d2e650029632d20327d461aa010bca6b61d802f10182abadc386332b03d"
       },
       {
         "id": "artifact.assessment.classify_days",
@@ -5025,7 +5041,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:c880b90a1711784ecd7a4682cfa037029502b0d338445ca239295ebab03fba81",
-        "closureDigest": "sha256:62af706b4683515e598bab4d963b88e7361a31f1b7c224fed2a81e59a3c8b1e0"
+        "closureDigest": "sha256:ba6c9883e47028da9920ff58001b94120647e333f620711cb8f48007a9a7edc7"
       },
       {
         "id": "artifact.assessment.compute_completeness",
@@ -5045,7 +5061,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:26c3200176f9a852f3e8e5e594419ee4da0951b12644f917cf1e7a31b00e0e54",
-        "closureDigest": "sha256:d4315953f0a2517b6f6983928d9f09dcc3bc6134252196b7b8a9644f883f7b4a"
+        "closureDigest": "sha256:17a0061a54160caef32ad82020c09b65856535ee67a1b3656dfc9f1b7f7c633f"
       },
       {
         "id": "artifact.assessment.divide_sessions_at_day_boundary",
@@ -5065,7 +5081,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:301a36087271022e1133ea3d7b4144e1e6ae6062d80eb4ea925d66811ac42e23",
-        "closureDigest": "sha256:599c952a61ca7b5eeffad2ebcf5274c062538ff11dcf81b1c12630edef4fdc0c"
+        "closureDigest": "sha256:c626558016908b520507e7c31b963d79590319eb6aaaa181ffcdbc51f3bb9411"
       },
       {
         "id": "artifact.assessment.report_screen_evidence_capability",
@@ -5085,7 +5101,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:a77446710b2a318bc0cfc2c3ba98643caeb9db01e036499570111d2fb723b9d6",
-        "closureDigest": "sha256:e8f9c1ad06641b654e68d18e266bd51c8acfa9e304796842d7fe570425d043bc"
+        "closureDigest": "sha256:174e7d6f000f7b346a4a2ff29e7f9c98962131e1f945e60b06699db9ad0e60ff"
       },
       {
         "id": "artifact.assessment.summarize_coverage",
@@ -5105,7 +5121,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:0a6c30e2edb9201013ca33ca68eb9da4ad64ae90230a2950ce734160748424dc",
-        "closureDigest": "sha256:3dcbb21fda9c9b367bfeb39da4d78d6622ffd39a8be49b61a8ef5321ac25d7ac"
+        "closureDigest": "sha256:3c03698d5ef7bf8c68471b6ddc23c92cc00a35151d175f8ae707eed37c4ada1a"
       },
       {
         "id": "artifact.assessment.synthesize_placeholder_rows",
@@ -5127,7 +5143,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:c3426a6e9c4d4514caf5980f93d39204ab7d0072425886a604e56f419ea368c0",
-        "closureDigest": "sha256:c10bf37c668653a44112de97f5b97e7ef6aabd51acfbee23e447731b7512a34c"
+        "closureDigest": "sha256:09b7f2b356fd791969f0b1953a11741cfb91ed0d07126bc166f39d41684c9829"
       },
       {
         "id": "artifact.context.apply_survey_person_override",
@@ -5149,7 +5165,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:e69832f08132175d33e6eb28f5509e8b732bfd7a8bc270c3c2c5ef9b1340d690",
-        "closureDigest": "sha256:e102409435de8151b406f8a3f3b7919bc6fc0d72f3e9a53878785088fafd0a84"
+        "closureDigest": "sha256:60656d09150a9ec4112c1fc4b3223169dbe7f7955143ba8fba93ca0da5f00d4e"
       },
       {
         "id": "artifact.context.classify_person_attribution",
@@ -5170,7 +5186,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:91149f07c2adb99154b03edd31b460c6d5689ab4ceb4a7fac5da17097e2e42b7",
-        "closureDigest": "sha256:ef851eb88422eadac0442e963fcbe5be693a3717d7f28bd29257f2af99543fbb"
+        "closureDigest": "sha256:2021269f91ef482f1cc73365882499043182f0e2b129b89ca5994ffdeb28cbb5"
       },
       {
         "id": "artifact.context.collapse_app_genre",
@@ -5189,8 +5205,8 @@
           "lineage",
           "audit"
         ],
-        "definitionDigest": "sha256:b87c1d519652bf473a00b9fab78799bd8ed44cba1962ac535bf26ca11ddb4d1d",
-        "closureDigest": "sha256:1049469d586252d275f56f8d4d4aef383cf30443071d74d8f4bdae14c90e6a59"
+        "definitionDigest": "sha256:50b9d1f46cb68284d8b60d1623df4520448bb26a0ca29433cf0540dfa6120dc9",
+        "closureDigest": "sha256:33bedcaa2b35ca8fb3fadd8c602159cecfc8dd378306537abeb4439f8d989b02"
       },
       {
         "id": "artifact.context.derive_broad_category",
@@ -5209,8 +5225,8 @@
           "lineage",
           "audit"
         ],
-        "definitionDigest": "sha256:6ca365f9e8901f4fd89734fb6ef37171b53b70b028e32231e943e75a97d60071",
-        "closureDigest": "sha256:98db77161f749dee41ba88a7859c60786c695fb7f5298c347ef28465a53deeb3"
+        "definitionDigest": "sha256:1eabb19b8d882c863c665e1416e1d52be30da4148f6b9ffa23abe397e4351000",
+        "closureDigest": "sha256:d2adbba13d683ccb650b3a48c1eb4e7eaf5a1bc2e32bf2cd290f27b50bfd3b9d"
       },
       {
         "id": "artifact.context.infer_default_person",
@@ -5232,7 +5248,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:0f3f3f53ce1c819bf36356ff23fccb8bbe52c38bf263e264d8d5b59e666ce6aa",
-        "closureDigest": "sha256:9d185372d94b863451a4c8243bde18db53d2b44df964f91d440a68ec1f32cf47"
+        "closureDigest": "sha256:a373479a18b224b60f9761b8a9c0abc413ca6621f13ac659edf765b975eb5f5b"
       },
       {
         "id": "artifact.context.join_app_codebook",
@@ -5251,8 +5267,8 @@
           "lineage",
           "audit"
         ],
-        "definitionDigest": "sha256:20006bd390f92eb74ddc182fd46e75e8d7d71726e4fc05c94f3b1c41b5f2189d",
-        "closureDigest": "sha256:92271f84d91bf03b20f15a6e377bf224ec3ef53469238e65bb331eb7bef212ad"
+        "definitionDigest": "sha256:9b292825ad4db92e40f36d47acb840cee8a468c9d510992258b1040c757f6d31",
+        "closureDigest": "sha256:86a971314876872c37c3713b2452da95f1c5b00b5cc77adbc8a6706b29bd0041"
       },
       {
         "id": "artifact.credit.apply_no_witness_fallback",
@@ -5273,7 +5289,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:39c910281c315aca853319c05360fe51d6fb104cbdf2461332d68888134f15b6",
-        "closureDigest": "sha256:0abf297c6bf50e515e5bf6a62f5f1f893c0386cf1df084d2fb5c883f0488c031"
+        "closureDigest": "sha256:022d7b16c23404063878332b4dddcf9c5794b8f1cd17627b2e85abe9e6bcbcd1"
       },
       {
         "id": "artifact.credit.cap_candidate_intervals",
@@ -5295,7 +5311,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:1290d2f563cf3abbf11676fbbcf3bd58a9c0b4562807b07c30bc4f2096eef1b4",
-        "closureDigest": "sha256:1812d65dd4c4c9afca0f7ece211a609776e0479607633d729cd68f87b2f88839"
+        "closureDigest": "sha256:5a7334bcde09c06909d3d0dc9da3f9f292fc506ffee8ff0baa88e3461cf9b0d3"
       },
       {
         "id": "artifact.credit.derive_device_live_spans",
@@ -5316,7 +5332,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:faaa169389d9a59251546d0481a7144ba6083a9df030a4e12de5ba47ba0fa25e",
-        "closureDigest": "sha256:93800ea5326bd0b617807f17cac0019d5e73d533587e32858afd7c058224ed09"
+        "closureDigest": "sha256:1f458a663b2db3fc115fdfaadf1cb2b4e805664166e144b3f244553f33d47c38"
       },
       {
         "id": "artifact.credit.derive_screen_creditable_spans",
@@ -5337,7 +5353,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:e562c34567789534f7b600000cef6f3cbc37d2b4b05c1060767f7ad96a327bd4",
-        "closureDigest": "sha256:13c1ab99c330377c7cfb37b29ddee6dd931c72dbca3db65a43164782e4607291"
+        "closureDigest": "sha256:1a7b9bd179ada8e9bedcd5acefb1626ad668ea0f9ca016d87f619eaa408c9c3d"
       },
       {
         "id": "artifact.credit.identify_eligible_sessions",
@@ -5362,7 +5378,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:596a896936447dfd27401eae6296d79514c85caba537e50c5e9486ff420e89c0",
-        "closureDigest": "sha256:2c62597d3580149bc4a20ed986a03201440800792d42fe5d5ae1601e894ee46f"
+        "closureDigest": "sha256:873647eb1a0fbf0343070dd4b9c0b9713738ab75c71ce878337fac5f6f74ea3a"
       },
       {
         "id": "artifact.credit.intersect_evidence",
@@ -5384,7 +5400,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:1ff1209a640fdaf4da1bf260649f01a0bc70a8a415346a17be62c5175caee68b",
-        "closureDigest": "sha256:58fab1c6757772fcc06ab208dc505e07499bc031dd58ea3f8e1dadf324772b4d"
+        "closureDigest": "sha256:634f32e64cefe4131f565fd518b5e7c0473b7aee5e2e0e8c87ead63ea0bcb33c"
       },
       {
         "id": "artifact.credit.materialize_credited_rows",
@@ -5404,7 +5420,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:d66806da6ec4753c80f792e0996aa84a1f6cc9b08a5d99cec15bce91b37d3db0",
-        "closureDigest": "sha256:e7023f74c6dcd2cfb2d61d308953de5f67b2823c4eebbf6de67f7ef73537d550"
+        "closureDigest": "sha256:35cbe6aa4f01c25800eceb99b88e282825ebbd8c4565515f6bb9940ef022fb7c"
       },
       {
         "id": "artifact.credit.publish_credit_result",
@@ -5424,7 +5440,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:3a766933a26b682132e1402ac651d6d98dcb9267b93de23d7b3dd3bb533a504b",
-        "closureDigest": "sha256:92c9ca97ec2a2c5e08b672a409219603229433ca5400d9698b4dac679d5881ce"
+        "closureDigest": "sha256:669bf57804217cfd67976977516d032da0fa44ae98a8fec30d8c55b667b27356"
       },
       {
         "id": "artifact.evidence.collect_timezone_observations",
@@ -5637,7 +5653,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:b3db1ec7bded8373c84deacbea7d7cceb399d89e4eb1fe7c8dc4c9092f7c83db",
-        "closureDigest": "sha256:63facc0f5773497a6d74e0214ab66dc7b65a40391d9edd366448779cd4da9ab9"
+        "closureDigest": "sha256:9932ad9fd0e9979fdc9978315e51822d10dae6e9bf47d10192edc5ecadc80636"
       },
       {
         "id": "artifact.evidence.summarize_device_models",
@@ -5780,7 +5796,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:707c1b6dba807cf3fc848113fe7009eb81527a423e5e9a9894b3b66f0f5e315b",
-        "closureDigest": "sha256:f208cb94072d9b7a8bd452b92a1a51267deaec125fd580b02bad3eb80c1b08fe"
+        "closureDigest": "sha256:697bcc93447a67ce2b263c3fa5ceeced832142f89973ff6e067de8b0372d9eea"
       },
       {
         "id": "artifact.policy.apply_concurrent_segment_floor",
@@ -5845,7 +5861,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:171c66a6a5d63640ea41ee7ae43323899a179eb85a89da420b942748736b2aa0",
-        "closureDigest": "sha256:a1768a4b14ef4be1eeb4ca2d9bbd23df07e723500314fd67d4d1aecd62f78f53"
+        "closureDigest": "sha256:8c0eb3664171ac1a4b76944ba9a99db723cb37f18c1f5a5cd133734001aa0b3f"
       },
       {
         "id": "artifact.policy.classify_engagement",
@@ -5867,7 +5883,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:51cfbfbecfee52cce5ad0c66f1eec56062b5f45aa180af335bc1fcc60f74d532",
-        "closureDigest": "sha256:cc36fa32499be79c096c4a894da8c644384033a012f6d10a1658e232f7502f4f"
+        "closureDigest": "sha256:cd1eef69f2d5cae600634be1291f7bcbf7e053b0831a0bc646ac42ab27f74605"
       },
       {
         "id": "artifact.policy.classify_screen_end_reasons",
@@ -5912,7 +5928,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:940f032df929e8fd2174325fde14212aa6d94b2f4bef906d49a0b774c164ebc7",
-        "closureDigest": "sha256:008083ee8b44acbab3ff3aa2740a559c40c10ad58c6807b94a0495e103ba0153"
+        "closureDigest": "sha256:46cc8042c25a52e98e394aed48c5cb7363c1dd78782e30c92aa5730e5ac051dc"
       },
       {
         "id": "artifact.policy.flag_long_usage",
@@ -5933,7 +5949,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:7f68f489a8948d122962c76c59f5e872c75e103c589d2c6fdb2e4286add9e67d",
-        "closureDigest": "sha256:4a6b7fada9d7521b773b8444142d3464494f17802b529485365679dc0b0312c8"
+        "closureDigest": "sha256:51e39c86888a34df3c6460ece3797e64a94ddd94e7d5829eb3f4d27fe7cfb4ad"
       },
       {
         "id": "artifact.policy.mask_excluded_app_events",
@@ -6003,7 +6019,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:2b6a81f5b6c0c58797014db7e9431b0a046768190965a733ab5a5a4b3653d264",
-        "closureDigest": "sha256:e1826d5e89d17b217e9b9e022c93d803e9e9c0450837df98bca509db592ebbc2"
+        "closureDigest": "sha256:cd1bc7a07e0037d6cbfa596e317ec02d7b3cd43137ee234fc44c906348c6fbe6"
       },
       {
         "id": "artifact.policy.resolve_effective_app_exclusions",
@@ -6094,7 +6110,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:57fe064757a75d42121c2762056df167e16cee4d0ea73f1a4476caad5cccb329",
-        "closureDigest": "sha256:5091e92fae6b73e5554f25927e4e7f746ddaf61201286dbad37fc7b93da7173d"
+        "closureDigest": "sha256:5decf49195ec9097ade396440b8d21285f32cea921d537b786e7d29ed4b1771f"
       },
       {
         "id": "artifact.policy.suppress_short_durations",
@@ -6136,7 +6152,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:cd9c5cf5df642a1c1c3a5823fa3e51b5257c11051fbcc228ade0258a64395d88",
-        "closureDigest": "sha256:362b6e5322bb688854f083c26b8eaec02f4c85f7a399411f288e050179a4d25e"
+        "closureDigest": "sha256:2b986413b3afb9bea47a7c6fda15412ca8f29c890da55ab08741d36dc1c795c4"
       },
       {
         "id": "artifact.publish.build_participant_amount_summary",
@@ -6153,7 +6169,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:3db6d771cbd5795323a4475a3cc2bd2c0a65233842ee9851bb4f353fd8cdfcfd",
-        "closureDigest": "sha256:65ac727adac18558aa0e4288010225c6cb3d7e1cdab8cebf1a970aebeafc0ccc"
+        "closureDigest": "sha256:cc75c34d210e38129ba57bb3b160df0a8441f8e4cc586d3b7eb18dd34c489095"
       },
       {
         "id": "artifact.publish.build_review_data",
@@ -6172,7 +6188,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:b2a0c9edac2ee72f4b766c867cb094be37d73b106820aa06e55948b2312de845",
-        "closureDigest": "sha256:4a6b76e0bb49b90f305c7a1aaf152355728d51b81e222a20fc94095e54314673"
+        "closureDigest": "sha256:19aeb464852b46825d4acda378a2f1b80ab5826098d6b3a62ffe29cb0df90161"
       },
       {
         "id": "artifact.publish.build_visualization_data",
@@ -6191,7 +6207,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:87428d973507281e9e460a2c29acb31826c9d21ea09183225639a681664eebf8",
-        "closureDigest": "sha256:442f000119f5a12425c82cfcd9c7aa2542dd0ccf178eab13fb4c0e5d3b43b733"
+        "closureDigest": "sha256:dac06452b044128162ce74226540f06de23492e198e4beec530ae4a48943fe34"
       },
       {
         "id": "artifact.publish.commit_workspace_bundle",
@@ -6208,7 +6224,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:074e1bd5ccb82eb0bdef02b3dba162879d89d79e194b2fa4cae423f50e056730",
-        "closureDigest": "sha256:7b572517d33bf42cc5a04b68d792020cb4db29f903729f93aa6b7ec950eeda5a"
+        "closureDigest": "sha256:4b6c8617c77b8e2a480bddf16367b8e17df98694db9959c221776ce8b6fc912a"
       },
       {
         "id": "artifact.publish.emit_lineage",
@@ -6227,7 +6243,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:ebda22e32902ba0bdaffc4eb176c82c3b6a719beb003fb5224de97613dd2899f",
-        "closureDigest": "sha256:214a22ab9901f143b1ad0d8dd7f9cd266303cc68f1d20df58896e31186b69311"
+        "closureDigest": "sha256:ba63ce67232be90f4521930b43bad10b252dfef5cd674b591cedbf1316420105"
       },
       {
         "id": "artifact.publish.emit_provenance",
@@ -6265,7 +6281,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:9799ee0c9e9d8da5e1fcc62c629a9c3d324a9f36030cea45844236ddd71db205",
-        "closureDigest": "sha256:884dc2fb2828313b7fefe6bb78b51c9b43bac019ce0deac1ee8b9ff4b3528e3e"
+        "closureDigest": "sha256:b4a2f0236af7b79591fc12cf42e92720d608b6048e3bfb3063a43e0d3ef1d030"
       },
       {
         "id": "artifact.publish.project_app_table",
@@ -6289,7 +6305,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:20ca22465739b0368a6387469b11a37d4c59125cfe075716ecbf2aa0b4471526",
-        "closureDigest": "sha256:e36c6e02d59b32bf4e8d7622f54cb047f498a24840aa3411d46d69940aaa4fba"
+        "closureDigest": "sha256:b7fda7c34efce570dc764af77f3b6590de50a8d43b633d77872c6a0857284f7e"
       },
       {
         "id": "artifact.publish.project_credited_table",
@@ -6310,7 +6326,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:a9fe055cb7b108622a591dc45645619e3403692aa1ae6da37c2882047e8c8f44",
-        "closureDigest": "sha256:8078f945e25c73bf9f2deb93c623a04cc726cd7d054fe71e549b06a63e66daa0"
+        "closureDigest": "sha256:20b72d4f457f7c0b68d41667c9f7fda5191ad020d2060fcaef7bf426aac8e1bd"
       },
       {
         "id": "artifact.publish.project_screen_table",
@@ -6416,7 +6432,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:a2d0e043bf8383d7cea4a7d95878fda317177a16d3bac4df89006546992d857b",
-        "closureDigest": "sha256:988c54a5567a507adefd0be6a4fbfe9e6c42b15334ec8e0949b6762008a41ff5"
+        "closureDigest": "sha256:968f8bf0c82ae2960fdb48e10d467575a9891939609bed4c781f36a643a30004"
       },
       {
         "id": "artifact.quality.select_timezone_eligible_records",
@@ -6507,7 +6523,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:716e137d9ce309934b799c6401613a80151613b4b7d758584747be5b20c2597b",
-        "closureDigest": "sha256:fc4a2bffe9243f22bf87ec4375431f8265aad74a6a920a85e9378e319acf2862"
+        "closureDigest": "sha256:ec79616e75f06f176b162e69c3369107a8ae7fb1c59010864cad6444c3e08cd1"
       },
       {
         "id": "artifact.reconstruct.discard_structural_events",
@@ -6801,7 +6817,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:2403a492c78e0a93a09c62900ddeea5578391926ab10abcf33e3e7b5ac3d9a2f",
-        "closureDigest": "sha256:77e3e11b444f82323e6b5180766bb47f25cc90bb033c763c6fc23914a444f2d1"
+        "closureDigest": "sha256:feecb3556c3dc47b09992138d4b70f0aaa38984677932cea83ea98e1d0da98bb"
       },
       {
         "id": "artifact.study.index_survey_responses",
@@ -6842,7 +6858,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:042197cc577036d91e0a09368f796123508582593890b98b2fb26dcb097bc84d",
-        "closureDigest": "sha256:e9a749a7c26b0d3902d0069ecb413236760c3e3defdf0f32f3bba604a0e433cc"
+        "closureDigest": "sha256:50a2e92791bc447424d161ff285059717e07f9eef1c4c2aa8df348563a3f3d40"
       },
       {
         "id": "artifact.study.resolve_sharing_status",
@@ -6862,7 +6878,7 @@
           "audit"
         ],
         "definitionDigest": "sha256:c5fc7256aa395b72362ee33965842d5a7a5c322b8d585a42d729cc21ee5698f1",
-        "closureDigest": "sha256:e7ae76a5a06e88b9d3f5b96a66506c90f5161e7595e0c7690cd2b4b491c3861c"
+        "closureDigest": "sha256:fb93004df39a8076a12f9deb4409faea68c653f56ce1b816a501538bb2431fa5"
       },
       {
         "id": "artifact.time.apply_missing_timezone_rule",
@@ -7081,6 +7097,28 @@
         ],
         "definitionDigest": "sha256:70d575119b8b0ebd128967e3f58751d3d1955dca144ed52a568781397d1a516d",
         "closureDigest": "sha256:fc37160c32f21d1aed55acfa96f3af63f8fcd4dc011e89e6fa05e39b699e0c47"
+      },
+      {
+        "id": "source.app_codebook_schema_file",
+        "label": "app codebook schema file",
+        "kind": "source",
+        "schemaId": "urn:chronicle:artifact-schema:app_codebook_schema_file",
+        "producerOperationId": null,
+        "consumerOperationIds": [
+          "context.collapse_app_genre",
+          "context.derive_broad_category",
+          "context.join_app_codebook"
+        ],
+        "epistemicRole": "observed",
+        "materialization": "source",
+        "equality": "content_digest",
+        "audienceTags": [
+          "decisions",
+          "lineage",
+          "audit"
+        ],
+        "definitionDigest": "sha256:31780f7e8d1357a426044bfe909735e7798032a26e7016123f2382ffa03ce801",
+        "closureDigest": "sha256:6e13aafcdb8c9471144e6665bcf602b599734da170701e304fab63c4608a43af"
       },
       {
         "id": "source.apps_forcing_screen_open_file",
@@ -7661,271 +7699,7 @@
       },
       {
         "outputKind": "app-csv",
-        "column": "codebook_application_label",
-        "emittingQuery": "assemble_result_manifest",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "app-csv",
-        "column": "bcm_play_store_genreId",
-        "emittingQuery": "assemble_result_manifest",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "app-csv",
-        "column": "bcm_play_store_genre",
-        "emittingQuery": "assemble_result_manifest",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "app-csv",
-        "column": "bcm_play_store_broad_app_category",
-        "emittingQuery": "assemble_result_manifest",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "app-csv",
-        "column": "bcm_play_store_developer",
-        "emittingQuery": "assemble_result_manifest",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "app-csv",
-        "column": "bcm_play_store_free",
-        "emittingQuery": "assemble_result_manifest",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "app-csv",
-        "column": "bcm_play_store_rating",
-        "emittingQuery": "assemble_result_manifest",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "app-csv",
-        "column": "bcm_play_store_downloads",
-        "emittingQuery": "assemble_result_manifest",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "app-csv",
-        "column": "usc_broad_app_category",
-        "emittingQuery": "assemble_result_manifest",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "app-csv",
-        "column": "usc_genreId",
-        "emittingQuery": "assemble_result_manifest",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "app-csv",
-        "column": "umich_child_app_category_code",
-        "emittingQuery": "assemble_result_manifest",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "app-csv",
-        "column": "umich_child_app_category",
-        "emittingQuery": "assemble_result_manifest",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "app-csv",
-        "column": "umich_adult_app_category_code",
-        "emittingQuery": "assemble_result_manifest",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "app-csv",
-        "column": "umich_adult_app_category",
-        "emittingQuery": "assemble_result_manifest",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "app-csv",
-        "column": "umich_free",
-        "emittingQuery": "assemble_result_manifest",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "app-csv",
-        "column": "umich_gambling_app",
-        "emittingQuery": "assemble_result_manifest",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "app-csv",
-        "column": "umich_inappropriate_app",
-        "emittingQuery": "assemble_result_manifest",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "app-csv",
-        "column": "babyemu_genreId_scraped",
-        "emittingQuery": "assemble_result_manifest",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "app-csv",
-        "column": "babyemu_genreId_manual",
-        "emittingQuery": "assemble_result_manifest",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "app-csv",
-        "column": "babyemu_broad_app_category",
-        "emittingQuery": "assemble_result_manifest",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "app-csv",
-        "column": "babyemu_medium_app_category",
-        "emittingQuery": "assemble_result_manifest",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "app-csv",
-        "column": "babyemu_fine_app_category",
-        "emittingQuery": "assemble_result_manifest",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "app-csv",
-        "column": "babyemu_alternate_fine_app_category",
-        "emittingQuery": "assemble_result_manifest",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "app-csv",
-        "column": "babyemu_kids",
-        "emittingQuery": "assemble_result_manifest",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "app-csv",
-        "column": "bcm_cnrc_heuristic_category",
-        "emittingQuery": "assemble_result_manifest",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "app-csv",
-        "column": "bcm_cnrc_categorization_source",
-        "emittingQuery": "assemble_result_manifest",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "app-csv",
-        "column": "bluelight_play_store_genreId",
-        "emittingQuery": "assemble_result_manifest",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "app-csv",
-        "column": "bluelight_play_store_genre",
-        "emittingQuery": "assemble_result_manifest",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "app-csv",
-        "column": "bluelight_play_store_broad_app_category",
-        "emittingQuery": "assemble_result_manifest",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "app-csv",
-        "column": "bluelight_play_store_developer",
-        "emittingQuery": "assemble_result_manifest",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "app-csv",
-        "column": "bluelight_play_store_free",
-        "emittingQuery": "assemble_result_manifest",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "app-csv",
-        "column": "bluelight_play_store_rating",
-        "emittingQuery": "assemble_result_manifest",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "app-csv",
-        "column": "bluelight_play_store_downloads",
-        "emittingQuery": "assemble_result_manifest",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "app-csv",
-        "column": "codebook_dataset",
+        "column": "*",
         "emittingQuery": "assemble_result_manifest",
         "from": [
           "codebook_fields"
@@ -8320,271 +8094,7 @@
       },
       {
         "outputKind": "credited-app-csv",
-        "column": "codebook_application_label",
-        "emittingQuery": "assemble_credit_outputs",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "credited-app-csv",
-        "column": "bcm_play_store_genreId",
-        "emittingQuery": "assemble_credit_outputs",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "credited-app-csv",
-        "column": "bcm_play_store_genre",
-        "emittingQuery": "assemble_credit_outputs",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "credited-app-csv",
-        "column": "bcm_play_store_broad_app_category",
-        "emittingQuery": "assemble_credit_outputs",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "credited-app-csv",
-        "column": "bcm_play_store_developer",
-        "emittingQuery": "assemble_credit_outputs",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "credited-app-csv",
-        "column": "bcm_play_store_free",
-        "emittingQuery": "assemble_credit_outputs",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "credited-app-csv",
-        "column": "bcm_play_store_rating",
-        "emittingQuery": "assemble_credit_outputs",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "credited-app-csv",
-        "column": "bcm_play_store_downloads",
-        "emittingQuery": "assemble_credit_outputs",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "credited-app-csv",
-        "column": "usc_broad_app_category",
-        "emittingQuery": "assemble_credit_outputs",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "credited-app-csv",
-        "column": "usc_genreId",
-        "emittingQuery": "assemble_credit_outputs",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "credited-app-csv",
-        "column": "umich_child_app_category_code",
-        "emittingQuery": "assemble_credit_outputs",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "credited-app-csv",
-        "column": "umich_child_app_category",
-        "emittingQuery": "assemble_credit_outputs",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "credited-app-csv",
-        "column": "umich_adult_app_category_code",
-        "emittingQuery": "assemble_credit_outputs",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "credited-app-csv",
-        "column": "umich_adult_app_category",
-        "emittingQuery": "assemble_credit_outputs",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "credited-app-csv",
-        "column": "umich_free",
-        "emittingQuery": "assemble_credit_outputs",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "credited-app-csv",
-        "column": "umich_gambling_app",
-        "emittingQuery": "assemble_credit_outputs",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "credited-app-csv",
-        "column": "umich_inappropriate_app",
-        "emittingQuery": "assemble_credit_outputs",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "credited-app-csv",
-        "column": "babyemu_genreId_scraped",
-        "emittingQuery": "assemble_credit_outputs",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "credited-app-csv",
-        "column": "babyemu_genreId_manual",
-        "emittingQuery": "assemble_credit_outputs",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "credited-app-csv",
-        "column": "babyemu_broad_app_category",
-        "emittingQuery": "assemble_credit_outputs",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "credited-app-csv",
-        "column": "babyemu_medium_app_category",
-        "emittingQuery": "assemble_credit_outputs",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "credited-app-csv",
-        "column": "babyemu_fine_app_category",
-        "emittingQuery": "assemble_credit_outputs",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "credited-app-csv",
-        "column": "babyemu_alternate_fine_app_category",
-        "emittingQuery": "assemble_credit_outputs",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "credited-app-csv",
-        "column": "babyemu_kids",
-        "emittingQuery": "assemble_credit_outputs",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "credited-app-csv",
-        "column": "bcm_cnrc_heuristic_category",
-        "emittingQuery": "assemble_credit_outputs",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "credited-app-csv",
-        "column": "bcm_cnrc_categorization_source",
-        "emittingQuery": "assemble_credit_outputs",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "credited-app-csv",
-        "column": "bluelight_play_store_genreId",
-        "emittingQuery": "assemble_credit_outputs",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "credited-app-csv",
-        "column": "bluelight_play_store_genre",
-        "emittingQuery": "assemble_credit_outputs",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "credited-app-csv",
-        "column": "bluelight_play_store_broad_app_category",
-        "emittingQuery": "assemble_credit_outputs",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "credited-app-csv",
-        "column": "bluelight_play_store_developer",
-        "emittingQuery": "assemble_credit_outputs",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "credited-app-csv",
-        "column": "bluelight_play_store_free",
-        "emittingQuery": "assemble_credit_outputs",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "credited-app-csv",
-        "column": "bluelight_play_store_rating",
-        "emittingQuery": "assemble_credit_outputs",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "credited-app-csv",
-        "column": "bluelight_play_store_downloads",
-        "emittingQuery": "assemble_credit_outputs",
-        "from": [
-          "codebook_fields"
-        ]
-      },
-      {
-        "outputKind": "credited-app-csv",
-        "column": "codebook_dataset",
+        "column": "*",
         "emittingQuery": "assemble_credit_outputs",
         "from": [
           "codebook_fields"
@@ -11004,7 +10514,8 @@
           }
         ],
         "supportRoles": [
-          "app_codebook_file"
+          "app_codebook_file",
+          "app_codebook_schema_file"
         ],
         "applicability": {
           "kind": "all",
@@ -16786,11 +16297,22 @@
           "use_app_codebook"
         ],
         "sourceRoles": [
-          "app_codebook_file"
+          "app_codebook_file",
+          "app_codebook_schema_file"
         ],
         "sourceRoleBindings": [
           {
             "role": "app_codebook_file",
+            "whenAll": [
+              {
+                "operator": "boolean_equals",
+                "request_field": "use_app_codebook",
+                "value": true
+              }
+            ]
+          },
+          {
+            "role": "app_codebook_schema_file",
             "whenAll": [
               {
                 "operator": "boolean_equals",
@@ -16803,41 +16325,8 @@
         "fieldReads": [
           "app_package_name",
           "codebook_fields",
-          "app_codebook_file.app_package_name",
-          "app_codebook_file.application_label",
-          "app_codebook_file.bcm_play_store_genreId",
-          "app_codebook_file.bcm_play_store_genre",
-          "app_codebook_file.bcm_play_store_broad_app_category",
-          "app_codebook_file.bcm_play_store_developer",
-          "app_codebook_file.bcm_play_store_free",
-          "app_codebook_file.bcm_play_store_rating",
-          "app_codebook_file.bcm_play_store_downloads",
-          "app_codebook_file.usc_broad_app_category",
-          "app_codebook_file.usc_genreId",
-          "app_codebook_file.umich_child_app_category_code",
-          "app_codebook_file.umich_child_app_category",
-          "app_codebook_file.umich_adult_app_category_code",
-          "app_codebook_file.umich_adult_app_category",
-          "app_codebook_file.umich_free",
-          "app_codebook_file.umich_gambling_app",
-          "app_codebook_file.umich_inappropriate_app",
-          "app_codebook_file.babyemu_genreId_scraped",
-          "app_codebook_file.babyemu_genreId_manual",
-          "app_codebook_file.babyemu_broad_app_category",
-          "app_codebook_file.babyemu_medium_app_category",
-          "app_codebook_file.babyemu_fine_app_category",
-          "app_codebook_file.babyemu_alternate_fine_app_category",
-          "app_codebook_file.babyemu_kids",
-          "app_codebook_file.bcm_cnrc_heuristic_category",
-          "app_codebook_file.bcm_cnrc_categorization_source",
-          "app_codebook_file.bluelight_play_store_genreId",
-          "app_codebook_file.bluelight_play_store_genre",
-          "app_codebook_file.bluelight_play_store_broad_app_category",
-          "app_codebook_file.bluelight_play_store_developer",
-          "app_codebook_file.bluelight_play_store_free",
-          "app_codebook_file.bluelight_play_store_rating",
-          "app_codebook_file.bluelight_play_store_downloads",
-          "app_codebook_file.dataset"
+          "app_codebook_file.*",
+          "app_codebook_schema_file.*"
         ],
         "fieldWrites": [
           "codebook_fields"
@@ -16848,41 +16337,8 @@
             "from": [
               "app_package_name",
               "codebook_fields",
-              "app_codebook_file.app_package_name",
-              "app_codebook_file.application_label",
-              "app_codebook_file.bcm_play_store_genreId",
-              "app_codebook_file.bcm_play_store_genre",
-              "app_codebook_file.bcm_play_store_broad_app_category",
-              "app_codebook_file.bcm_play_store_developer",
-              "app_codebook_file.bcm_play_store_free",
-              "app_codebook_file.bcm_play_store_rating",
-              "app_codebook_file.bcm_play_store_downloads",
-              "app_codebook_file.usc_broad_app_category",
-              "app_codebook_file.usc_genreId",
-              "app_codebook_file.umich_child_app_category_code",
-              "app_codebook_file.umich_child_app_category",
-              "app_codebook_file.umich_adult_app_category_code",
-              "app_codebook_file.umich_adult_app_category",
-              "app_codebook_file.umich_free",
-              "app_codebook_file.umich_gambling_app",
-              "app_codebook_file.umich_inappropriate_app",
-              "app_codebook_file.babyemu_genreId_scraped",
-              "app_codebook_file.babyemu_genreId_manual",
-              "app_codebook_file.babyemu_broad_app_category",
-              "app_codebook_file.babyemu_medium_app_category",
-              "app_codebook_file.babyemu_fine_app_category",
-              "app_codebook_file.babyemu_alternate_fine_app_category",
-              "app_codebook_file.babyemu_kids",
-              "app_codebook_file.bcm_cnrc_heuristic_category",
-              "app_codebook_file.bcm_cnrc_categorization_source",
-              "app_codebook_file.bluelight_play_store_genreId",
-              "app_codebook_file.bluelight_play_store_genre",
-              "app_codebook_file.bluelight_play_store_broad_app_category",
-              "app_codebook_file.bluelight_play_store_developer",
-              "app_codebook_file.bluelight_play_store_free",
-              "app_codebook_file.bluelight_play_store_rating",
-              "app_codebook_file.bluelight_play_store_downloads",
-              "app_codebook_file.dataset"
+              "app_codebook_file.*",
+              "app_codebook_schema_file.*"
             ]
           }
         ],
@@ -16891,8 +16347,8 @@
           "option_key": "process_app_usage"
         },
         "canBypass": true,
-        "definitionDigest": "sha256:a101843fa9873bfb47e5f30680d19281caedc6d8ff8a87b823aa5366166af73b",
-        "closureDigest": "sha256:60bbd6b997134fbad4bc3ae5327200e076bae19cdd5571e9a6389f825439a8eb"
+        "definitionDigest": "sha256:85d26556e48bc2582af631b1048fe1c91d37204587abe02854f3ee11ae970fd6",
+        "closureDigest": "sha256:b9fd5658a41cea64658714dc573ba0b136d6f51d82cf9bf65adf5dc336c458ba"
       },
       {
         "id": "derive_broad_category",
@@ -16911,11 +16367,25 @@
         "requestFields": [
           "use_app_codebook"
         ],
-        "sourceRoles": [],
-        "sourceRoleBindings": [],
+        "sourceRoles": [
+          "app_codebook_schema_file"
+        ],
+        "sourceRoleBindings": [
+          {
+            "role": "app_codebook_schema_file",
+            "whenAll": [
+              {
+                "operator": "boolean_equals",
+                "request_field": "use_app_codebook",
+                "value": true
+              }
+            ]
+          }
+        ],
         "fieldReads": [
           "codebook_fields",
-          "broad_app_category"
+          "broad_app_category",
+          "app_codebook_schema_file.*"
         ],
         "fieldWrites": [
           "broad_app_category"
@@ -16925,7 +16395,8 @@
             "to": "broad_app_category",
             "from": [
               "codebook_fields",
-              "broad_app_category"
+              "broad_app_category",
+              "app_codebook_schema_file.*"
             ]
           }
         ],
@@ -16934,8 +16405,8 @@
           "option_key": "process_app_usage"
         },
         "canBypass": true,
-        "definitionDigest": "sha256:8f9b30ca46a5956588f5428d3757325631a2723d1ecf97c428b594cdb500fd0c",
-        "closureDigest": "sha256:93a7cf79ed50954201c283c8c89c2a25fd72a17c4df2fbad2fb6c81bcd6d12d5"
+        "definitionDigest": "sha256:056ac512e2230cf20f4288f9aa56d30206acdb296ae6a70444c71a50f08b5a74",
+        "closureDigest": "sha256:93e8e49be38dd56d2fbeb10b60b8053dd9e50d7036977581c5996b5ecc5839e0"
       },
       {
         "id": "collapse_app_genre",
@@ -16954,12 +16425,26 @@
         "requestFields": [
           "use_app_codebook"
         ],
-        "sourceRoles": [],
-        "sourceRoleBindings": [],
+        "sourceRoles": [
+          "app_codebook_schema_file"
+        ],
+        "sourceRoleBindings": [
+          {
+            "role": "app_codebook_schema_file",
+            "whenAll": [
+              {
+                "operator": "boolean_equals",
+                "request_field": "use_app_codebook",
+                "value": true
+              }
+            ]
+          }
+        ],
         "fieldReads": [
           "codebook_fields",
           "codebook_genre_fields_cleared",
-          "genre_id_scraped"
+          "genre_id_scraped",
+          "app_codebook_schema_file.*"
         ],
         "fieldWrites": [
           "genre_id_scraped",
@@ -16971,7 +16456,8 @@
             "from": [
               "codebook_fields",
               "codebook_genre_fields_cleared",
-              "genre_id_scraped"
+              "genre_id_scraped",
+              "app_codebook_schema_file.*"
             ]
           },
           {
@@ -16979,7 +16465,8 @@
             "from": [
               "codebook_fields",
               "codebook_genre_fields_cleared",
-              "genre_id_scraped"
+              "genre_id_scraped",
+              "app_codebook_schema_file.*"
             ]
           }
         ],
@@ -16988,8 +16475,8 @@
           "option_key": "process_app_usage"
         },
         "canBypass": true,
-        "definitionDigest": "sha256:d77b68ff44d847c13628802ecc59b8692a01b88958b9bb3f054c47d2b4a29833",
-        "closureDigest": "sha256:70ea8fed393e1a601a7ec47b55b49f55774ebd78c316b55f2af46e5c789cdd02"
+        "definitionDigest": "sha256:61b8dd7ddf10ce66cf6ae2ddf5f9140578e3b1534f60ad626855a6e3d2e9af94",
+        "closureDigest": "sha256:76888113c24dfb1ac52c23cb2c96b264b75d68fa3ee72515117ac14e0969da94"
       },
       {
         "id": "derive_engagement_basis",
@@ -17144,7 +16631,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:328984b094f699145af8989023ed003a12a7f3f6581246438745142decb02117",
-        "closureDigest": "sha256:f508ee72d252cab4fa33cd1e5e8e57df64de0cfc45d13b300ba00d9581d02abe"
+        "closureDigest": "sha256:8e0e671917e0de9b2f7bec955b365c30e32e74d28a10640a7068a921cde55259"
       },
       {
         "id": "apply_episode_flags",
@@ -17192,7 +16679,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:eea7d8dee6f2e04bcc499ec92fa8ee4121adb8bb8314a5b54d83094b4f97ac3f",
-        "closureDigest": "sha256:183b390e81b860ac932f33fd7208c61ddb940e80968c971b0bf5df189e41f8fe"
+        "closureDigest": "sha256:4a85a3a22a3d20c34d0cd4b6b1a1e6cd11fdc84748f249279455db9928b5f52a"
       },
       {
         "id": "suppress_excluded_timing",
@@ -17423,7 +16910,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:055793ae9abf7f3b4879f93440aa74b325393f8dbc1df87324b688cea80b5099",
-        "closureDigest": "sha256:641ece09de28e4881e51e8396535dcfed879907d91bb22d63d7641f4e73fdae8"
+        "closureDigest": "sha256:ed3a8fbfbf4d0f66a4e1274cccc12223122e1d8ffdc4ffddc8fed0719f31073e"
       },
       {
         "id": "remove_selected_interaction_types",
@@ -17468,7 +16955,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:34b859eeb468beef40466ea17e2101ed57dc4bc6939e6869de0989ec69e7ff1e",
-        "closureDigest": "sha256:7d0c723f9366498739ad0831275b49a11ec6d58e9ab3f30e3748b09cd579dd14"
+        "closureDigest": "sha256:cee32ef67565c9f9b07ec61fa0f0d2ab970187afbcfd601d381ee8109918d89e"
       },
       {
         "id": "remove_zero_duration_rows",
@@ -17549,7 +17036,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:2289abfac633a4af84499df9df6e2372843e2c6652ad128814c886ea3cb9d789",
-        "closureDigest": "sha256:3ec486939b461309275e0e3b04630d5b8e7ee9aa82ebc95c0a69e518fa078957"
+        "closureDigest": "sha256:f15677fbb5bbaa34587439c3177c4b3917dad1134d7fb1e15592d52077b15053"
       },
       {
         "id": "assign_usage_session_ids",
@@ -17621,7 +17108,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:ebcddc4bbdb2ded63c75b95200cf8b2b19dc16e24e6a630af3a4ceef889d6bc6",
-        "closureDigest": "sha256:6e94bc59618870f6f376821e4f3afcec53d93520887a09eff0f9008caae9d752"
+        "closureDigest": "sha256:1ee5cd308bec5fbf90a57b4ed7a371034d3c77ab5605d66a27861fae989d0fa7"
       },
       {
         "id": "identify_credit_eligible_sessions",
@@ -17673,7 +17160,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:c87a1063c1a17beab6619f8cf910332fae7e7d623e5ed3d113393f8cedda4a28",
-        "closureDigest": "sha256:286fdab667b287afb0c9cb4dced6eccc8054f76a422abb7344f53cba5d64a21f"
+        "closureDigest": "sha256:f5109c2251abfea2d0c0459ba6817533ca0d2dbae012efcf8bacb4d9549845e4"
       },
       {
         "id": "build_activity_witness_indexes",
@@ -17786,7 +17273,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:1bdebda839e35be2be41c70addc5ca9f74e9a36b1cc1bc6ed7766bdf4e3313a4",
-        "closureDigest": "sha256:bea64dafe597aced3f317a2691a6f9809ea5b141abaa4d4155d2b5789a25cb9b"
+        "closureDigest": "sha256:f80bb6348dfe4f59b6b3b13bc2d820ee6e978e463c5929f61e91bab33e730702"
       },
       {
         "id": "summarize_daily_apps",
@@ -17840,7 +17327,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:5d46b2af51375df7fbd8cc4d1536c1add3cc8325207344f26fdfe4da8590b63b",
-        "closureDigest": "sha256:dd7d826512a9ac94961681e324350d9bfad1a9709293956b74e1bef470061c52"
+        "closureDigest": "sha256:8a728e8f6a2976bf1e1e89d0644122ccfaa1e101f04b58aee7725b3f726281fd"
       },
       {
         "id": "derive_credited_intervals",
@@ -17917,7 +17404,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:ac66082a410ce6bad87feda332ed0e6296a74fde08671ab5b06a29fe0c7bded1",
-        "closureDigest": "sha256:97e6b572bd7c13b45642f3113827469e875ae76ea27a65ec059aacfbdfad6d7a"
+        "closureDigest": "sha256:abfb1f69f3e47af4037a7a57f99e6a1cdd89ff43c9c41f3ee489ba41f370c4b0"
       },
       {
         "id": "materialize_credited_rows",
@@ -18133,7 +17620,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:d4b69e76dd340209b8047fac9ac197052e88a77324e6517baa189fd172ef8c6e",
-        "closureDigest": "sha256:c3ef5f54fde1ca7080407a9acf5261e86921e404b12302287db9f8c89d2b44cf"
+        "closureDigest": "sha256:0c6a7ae8be9dc037a0a779e3785a5cc550b87de915b1b9593ffba99cf1155cf0"
       },
       {
         "id": "assemble_credit_outputs",
@@ -18187,7 +17674,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:8a05e01771e554ab226872db86e6be581508dc2d916817da0bbadcf02dae4efc",
-        "closureDigest": "sha256:54d266bd185fb4a391011ad9269301470b3e59ab56766ac1a3cb73e4aea5fb0e"
+        "closureDigest": "sha256:ca3148b7c94ba52776d39f089fcdf2ff61e15fae65a872157a98371c5deae71b"
       },
       {
         "id": "select_notification_events",
@@ -18306,7 +17793,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:1b0e8bf5c838a531a46ef5e0e7e524219db40c1270b30d994d9b52b56e4d593f",
-        "closureDigest": "sha256:58c9a3109aabe5867dd76c871af240541d1f1127910aeea6141db0340a21e09a"
+        "closureDigest": "sha256:e894360aa281fb1249b04305406057e63c05d50d66a7c8414103f16aeb3ab9e5"
       },
       {
         "id": "classify_notification_contacts",
@@ -18365,7 +17852,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:0ef486ddd492af4c9104b11745bf2190aedbf55e33d6cd267a78783bc9e8ce07",
-        "closureDigest": "sha256:cc443351af88663e5b4735536f3fdb2fa3e9f17eb9a3b3f0dd2914fd32466583"
+        "closureDigest": "sha256:d0ec105a89e26998e9990d949fd4e60b4126feff6281f9e528e28fd4af977c7e"
       },
       {
         "id": "assemble_notification_contact_outputs",
@@ -18382,11 +17869,31 @@
           "use_app_codebook"
         ],
         "sourceRoles": [
-          "app_codebook_file"
+          "app_codebook_file",
+          "app_codebook_schema_file"
         ],
         "sourceRoleBindings": [
           {
             "role": "app_codebook_file",
+            "whenAll": [
+              {
+                "operator": "boolean_equals",
+                "request_field": "use_app_codebook",
+                "value": true
+              },
+              {
+                "operator": "string_one_of",
+                "request_field": "notification_proxy_rule",
+                "values": [
+                  "seen_contact_v1",
+                  "interruption_contact_v1",
+                  "any_notification_contact_v1"
+                ]
+              }
+            ]
+          },
+          {
+            "role": "app_codebook_schema_file",
             "whenAll": [
               {
                 "operator": "boolean_equals",
@@ -18411,41 +17918,8 @@
           "codebook_fields",
           "codebook_genre_fields_cleared",
           "genre_id_scraped",
-          "app_codebook_file.app_package_name",
-          "app_codebook_file.application_label",
-          "app_codebook_file.bcm_play_store_genreId",
-          "app_codebook_file.bcm_play_store_genre",
-          "app_codebook_file.bcm_play_store_broad_app_category",
-          "app_codebook_file.bcm_play_store_developer",
-          "app_codebook_file.bcm_play_store_free",
-          "app_codebook_file.bcm_play_store_rating",
-          "app_codebook_file.bcm_play_store_downloads",
-          "app_codebook_file.usc_broad_app_category",
-          "app_codebook_file.usc_genreId",
-          "app_codebook_file.umich_child_app_category_code",
-          "app_codebook_file.umich_child_app_category",
-          "app_codebook_file.umich_adult_app_category_code",
-          "app_codebook_file.umich_adult_app_category",
-          "app_codebook_file.umich_free",
-          "app_codebook_file.umich_gambling_app",
-          "app_codebook_file.umich_inappropriate_app",
-          "app_codebook_file.babyemu_genreId_scraped",
-          "app_codebook_file.babyemu_genreId_manual",
-          "app_codebook_file.babyemu_broad_app_category",
-          "app_codebook_file.babyemu_medium_app_category",
-          "app_codebook_file.babyemu_fine_app_category",
-          "app_codebook_file.babyemu_alternate_fine_app_category",
-          "app_codebook_file.babyemu_kids",
-          "app_codebook_file.bcm_cnrc_heuristic_category",
-          "app_codebook_file.bcm_cnrc_categorization_source",
-          "app_codebook_file.bluelight_play_store_genreId",
-          "app_codebook_file.bluelight_play_store_genre",
-          "app_codebook_file.bluelight_play_store_broad_app_category",
-          "app_codebook_file.bluelight_play_store_developer",
-          "app_codebook_file.bluelight_play_store_free",
-          "app_codebook_file.bluelight_play_store_rating",
-          "app_codebook_file.bluelight_play_store_downloads",
-          "app_codebook_file.dataset"
+          "app_codebook_file.*",
+          "app_codebook_schema_file.*"
         ],
         "fieldWrites": [
           "broad_app_category",
@@ -18462,41 +17936,8 @@
               "codebook_fields",
               "codebook_genre_fields_cleared",
               "genre_id_scraped",
-              "app_codebook_file.app_package_name",
-              "app_codebook_file.application_label",
-              "app_codebook_file.bcm_play_store_genreId",
-              "app_codebook_file.bcm_play_store_genre",
-              "app_codebook_file.bcm_play_store_broad_app_category",
-              "app_codebook_file.bcm_play_store_developer",
-              "app_codebook_file.bcm_play_store_free",
-              "app_codebook_file.bcm_play_store_rating",
-              "app_codebook_file.bcm_play_store_downloads",
-              "app_codebook_file.usc_broad_app_category",
-              "app_codebook_file.usc_genreId",
-              "app_codebook_file.umich_child_app_category_code",
-              "app_codebook_file.umich_child_app_category",
-              "app_codebook_file.umich_adult_app_category_code",
-              "app_codebook_file.umich_adult_app_category",
-              "app_codebook_file.umich_free",
-              "app_codebook_file.umich_gambling_app",
-              "app_codebook_file.umich_inappropriate_app",
-              "app_codebook_file.babyemu_genreId_scraped",
-              "app_codebook_file.babyemu_genreId_manual",
-              "app_codebook_file.babyemu_broad_app_category",
-              "app_codebook_file.babyemu_medium_app_category",
-              "app_codebook_file.babyemu_fine_app_category",
-              "app_codebook_file.babyemu_alternate_fine_app_category",
-              "app_codebook_file.babyemu_kids",
-              "app_codebook_file.bcm_cnrc_heuristic_category",
-              "app_codebook_file.bcm_cnrc_categorization_source",
-              "app_codebook_file.bluelight_play_store_genreId",
-              "app_codebook_file.bluelight_play_store_genre",
-              "app_codebook_file.bluelight_play_store_broad_app_category",
-              "app_codebook_file.bluelight_play_store_developer",
-              "app_codebook_file.bluelight_play_store_free",
-              "app_codebook_file.bluelight_play_store_rating",
-              "app_codebook_file.bluelight_play_store_downloads",
-              "app_codebook_file.dataset"
+              "app_codebook_file.*",
+              "app_codebook_schema_file.*"
             ]
           },
           {
@@ -18507,41 +17948,8 @@
               "codebook_fields",
               "codebook_genre_fields_cleared",
               "genre_id_scraped",
-              "app_codebook_file.app_package_name",
-              "app_codebook_file.application_label",
-              "app_codebook_file.bcm_play_store_genreId",
-              "app_codebook_file.bcm_play_store_genre",
-              "app_codebook_file.bcm_play_store_broad_app_category",
-              "app_codebook_file.bcm_play_store_developer",
-              "app_codebook_file.bcm_play_store_free",
-              "app_codebook_file.bcm_play_store_rating",
-              "app_codebook_file.bcm_play_store_downloads",
-              "app_codebook_file.usc_broad_app_category",
-              "app_codebook_file.usc_genreId",
-              "app_codebook_file.umich_child_app_category_code",
-              "app_codebook_file.umich_child_app_category",
-              "app_codebook_file.umich_adult_app_category_code",
-              "app_codebook_file.umich_adult_app_category",
-              "app_codebook_file.umich_free",
-              "app_codebook_file.umich_gambling_app",
-              "app_codebook_file.umich_inappropriate_app",
-              "app_codebook_file.babyemu_genreId_scraped",
-              "app_codebook_file.babyemu_genreId_manual",
-              "app_codebook_file.babyemu_broad_app_category",
-              "app_codebook_file.babyemu_medium_app_category",
-              "app_codebook_file.babyemu_fine_app_category",
-              "app_codebook_file.babyemu_alternate_fine_app_category",
-              "app_codebook_file.babyemu_kids",
-              "app_codebook_file.bcm_cnrc_heuristic_category",
-              "app_codebook_file.bcm_cnrc_categorization_source",
-              "app_codebook_file.bluelight_play_store_genreId",
-              "app_codebook_file.bluelight_play_store_genre",
-              "app_codebook_file.bluelight_play_store_broad_app_category",
-              "app_codebook_file.bluelight_play_store_developer",
-              "app_codebook_file.bluelight_play_store_free",
-              "app_codebook_file.bluelight_play_store_rating",
-              "app_codebook_file.bluelight_play_store_downloads",
-              "app_codebook_file.dataset"
+              "app_codebook_file.*",
+              "app_codebook_schema_file.*"
             ]
           },
           {
@@ -18552,41 +17960,8 @@
               "codebook_fields",
               "codebook_genre_fields_cleared",
               "genre_id_scraped",
-              "app_codebook_file.app_package_name",
-              "app_codebook_file.application_label",
-              "app_codebook_file.bcm_play_store_genreId",
-              "app_codebook_file.bcm_play_store_genre",
-              "app_codebook_file.bcm_play_store_broad_app_category",
-              "app_codebook_file.bcm_play_store_developer",
-              "app_codebook_file.bcm_play_store_free",
-              "app_codebook_file.bcm_play_store_rating",
-              "app_codebook_file.bcm_play_store_downloads",
-              "app_codebook_file.usc_broad_app_category",
-              "app_codebook_file.usc_genreId",
-              "app_codebook_file.umich_child_app_category_code",
-              "app_codebook_file.umich_child_app_category",
-              "app_codebook_file.umich_adult_app_category_code",
-              "app_codebook_file.umich_adult_app_category",
-              "app_codebook_file.umich_free",
-              "app_codebook_file.umich_gambling_app",
-              "app_codebook_file.umich_inappropriate_app",
-              "app_codebook_file.babyemu_genreId_scraped",
-              "app_codebook_file.babyemu_genreId_manual",
-              "app_codebook_file.babyemu_broad_app_category",
-              "app_codebook_file.babyemu_medium_app_category",
-              "app_codebook_file.babyemu_fine_app_category",
-              "app_codebook_file.babyemu_alternate_fine_app_category",
-              "app_codebook_file.babyemu_kids",
-              "app_codebook_file.bcm_cnrc_heuristic_category",
-              "app_codebook_file.bcm_cnrc_categorization_source",
-              "app_codebook_file.bluelight_play_store_genreId",
-              "app_codebook_file.bluelight_play_store_genre",
-              "app_codebook_file.bluelight_play_store_broad_app_category",
-              "app_codebook_file.bluelight_play_store_developer",
-              "app_codebook_file.bluelight_play_store_free",
-              "app_codebook_file.bluelight_play_store_rating",
-              "app_codebook_file.bluelight_play_store_downloads",
-              "app_codebook_file.dataset"
+              "app_codebook_file.*",
+              "app_codebook_schema_file.*"
             ]
           },
           {
@@ -18597,41 +17972,8 @@
               "codebook_fields",
               "codebook_genre_fields_cleared",
               "genre_id_scraped",
-              "app_codebook_file.app_package_name",
-              "app_codebook_file.application_label",
-              "app_codebook_file.bcm_play_store_genreId",
-              "app_codebook_file.bcm_play_store_genre",
-              "app_codebook_file.bcm_play_store_broad_app_category",
-              "app_codebook_file.bcm_play_store_developer",
-              "app_codebook_file.bcm_play_store_free",
-              "app_codebook_file.bcm_play_store_rating",
-              "app_codebook_file.bcm_play_store_downloads",
-              "app_codebook_file.usc_broad_app_category",
-              "app_codebook_file.usc_genreId",
-              "app_codebook_file.umich_child_app_category_code",
-              "app_codebook_file.umich_child_app_category",
-              "app_codebook_file.umich_adult_app_category_code",
-              "app_codebook_file.umich_adult_app_category",
-              "app_codebook_file.umich_free",
-              "app_codebook_file.umich_gambling_app",
-              "app_codebook_file.umich_inappropriate_app",
-              "app_codebook_file.babyemu_genreId_scraped",
-              "app_codebook_file.babyemu_genreId_manual",
-              "app_codebook_file.babyemu_broad_app_category",
-              "app_codebook_file.babyemu_medium_app_category",
-              "app_codebook_file.babyemu_fine_app_category",
-              "app_codebook_file.babyemu_alternate_fine_app_category",
-              "app_codebook_file.babyemu_kids",
-              "app_codebook_file.bcm_cnrc_heuristic_category",
-              "app_codebook_file.bcm_cnrc_categorization_source",
-              "app_codebook_file.bluelight_play_store_genreId",
-              "app_codebook_file.bluelight_play_store_genre",
-              "app_codebook_file.bluelight_play_store_broad_app_category",
-              "app_codebook_file.bluelight_play_store_developer",
-              "app_codebook_file.bluelight_play_store_free",
-              "app_codebook_file.bluelight_play_store_rating",
-              "app_codebook_file.bluelight_play_store_downloads",
-              "app_codebook_file.dataset"
+              "app_codebook_file.*",
+              "app_codebook_schema_file.*"
             ]
           }
         ],
@@ -18653,8 +17995,8 @@
           ]
         },
         "canBypass": true,
-        "definitionDigest": "sha256:c507474cdbaa3112975b12e1a21b49bea69574f87a9fec9a66b1ff1f084107c8",
-        "closureDigest": "sha256:27283fd7867b25d5e22d99f308c9f1d88bf8cc44f5fd636cec2f1f0e444a55ea"
+        "definitionDigest": "sha256:e7b1b881753ebc2ecd345904ea5dcf0956a0dc7e69a0403fe9994f7fb223039f",
+        "closureDigest": "sha256:28503932c23165f28cdb0bed11094f9fdaa7cb08094df5f341bd96eedd0d2bab"
       },
       {
         "id": "sample_polled_timeline",
@@ -18707,7 +18049,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:c12e93c0e0150aa56a154df3cfab5b3c37a559797b608fa3f9fcfda70b05c244",
-        "closureDigest": "sha256:d0b6b8f109d44f1cef298a6092d35706b6cf8df8c8820f5da9bf21383833c228"
+        "closureDigest": "sha256:32d4fa0982f5e1b0b3726216686e712ba7be8131bf086edc7e20d9630bee7e3f"
       },
       {
         "id": "group_polled_runs",
@@ -18762,7 +18104,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:bdb510df1238e9cb0cd814038e45878a5a2c797b9fbe42ca67e9df44709f503c",
-        "closureDigest": "sha256:f1ca9a97795fbf26a15445fe6fa20fbb1ba4d9732b7fa954a8bcf1b72d1c5a36"
+        "closureDigest": "sha256:e1b34fb99dd4c642bb31410110d1d98f8eae45aba695966bc3e4ea25cbf05270"
       },
       {
         "id": "materialize_polled_rows",
@@ -18857,7 +18199,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:936320bc5c53dd161c0d9d71d688408cded201548a13773bd3f0898e3802169c",
-        "closureDigest": "sha256:4d1e031ce92066db62e9f5f693caffc868df096fa00dff6fe91552933aaeb763"
+        "closureDigest": "sha256:1d59b3b0319b691d68dd2fc7f7a3bff2ff4bab418c4b16f17eb600528634632d"
       },
       {
         "id": "assemble_polled_emulation_outputs",
@@ -18874,11 +18216,30 @@
           "use_app_codebook"
         ],
         "sourceRoles": [
-          "app_codebook_file"
+          "app_codebook_file",
+          "app_codebook_schema_file"
         ],
         "sourceRoleBindings": [
           {
             "role": "app_codebook_file",
+            "whenAll": [
+              {
+                "operator": "boolean_equals",
+                "request_field": "use_app_codebook",
+                "value": true
+              },
+              {
+                "operator": "string_one_of",
+                "request_field": "polled_emulation_method",
+                "values": [
+                  "ross_2025_sampled_gap_v1",
+                  "cerit_2025_sample_count_v1"
+                ]
+              }
+            ]
+          },
+          {
+            "role": "app_codebook_schema_file",
             "whenAll": [
               {
                 "operator": "boolean_equals",
@@ -18902,41 +18263,8 @@
           "codebook_fields",
           "codebook_genre_fields_cleared",
           "genre_id_scraped",
-          "app_codebook_file.app_package_name",
-          "app_codebook_file.application_label",
-          "app_codebook_file.bcm_play_store_genreId",
-          "app_codebook_file.bcm_play_store_genre",
-          "app_codebook_file.bcm_play_store_broad_app_category",
-          "app_codebook_file.bcm_play_store_developer",
-          "app_codebook_file.bcm_play_store_free",
-          "app_codebook_file.bcm_play_store_rating",
-          "app_codebook_file.bcm_play_store_downloads",
-          "app_codebook_file.usc_broad_app_category",
-          "app_codebook_file.usc_genreId",
-          "app_codebook_file.umich_child_app_category_code",
-          "app_codebook_file.umich_child_app_category",
-          "app_codebook_file.umich_adult_app_category_code",
-          "app_codebook_file.umich_adult_app_category",
-          "app_codebook_file.umich_free",
-          "app_codebook_file.umich_gambling_app",
-          "app_codebook_file.umich_inappropriate_app",
-          "app_codebook_file.babyemu_genreId_scraped",
-          "app_codebook_file.babyemu_genreId_manual",
-          "app_codebook_file.babyemu_broad_app_category",
-          "app_codebook_file.babyemu_medium_app_category",
-          "app_codebook_file.babyemu_fine_app_category",
-          "app_codebook_file.babyemu_alternate_fine_app_category",
-          "app_codebook_file.babyemu_kids",
-          "app_codebook_file.bcm_cnrc_heuristic_category",
-          "app_codebook_file.bcm_cnrc_categorization_source",
-          "app_codebook_file.bluelight_play_store_genreId",
-          "app_codebook_file.bluelight_play_store_genre",
-          "app_codebook_file.bluelight_play_store_broad_app_category",
-          "app_codebook_file.bluelight_play_store_developer",
-          "app_codebook_file.bluelight_play_store_free",
-          "app_codebook_file.bluelight_play_store_rating",
-          "app_codebook_file.bluelight_play_store_downloads",
-          "app_codebook_file.dataset"
+          "app_codebook_file.*",
+          "app_codebook_schema_file.*"
         ],
         "fieldWrites": [
           "broad_app_category",
@@ -18953,41 +18281,8 @@
               "codebook_fields",
               "codebook_genre_fields_cleared",
               "genre_id_scraped",
-              "app_codebook_file.app_package_name",
-              "app_codebook_file.application_label",
-              "app_codebook_file.bcm_play_store_genreId",
-              "app_codebook_file.bcm_play_store_genre",
-              "app_codebook_file.bcm_play_store_broad_app_category",
-              "app_codebook_file.bcm_play_store_developer",
-              "app_codebook_file.bcm_play_store_free",
-              "app_codebook_file.bcm_play_store_rating",
-              "app_codebook_file.bcm_play_store_downloads",
-              "app_codebook_file.usc_broad_app_category",
-              "app_codebook_file.usc_genreId",
-              "app_codebook_file.umich_child_app_category_code",
-              "app_codebook_file.umich_child_app_category",
-              "app_codebook_file.umich_adult_app_category_code",
-              "app_codebook_file.umich_adult_app_category",
-              "app_codebook_file.umich_free",
-              "app_codebook_file.umich_gambling_app",
-              "app_codebook_file.umich_inappropriate_app",
-              "app_codebook_file.babyemu_genreId_scraped",
-              "app_codebook_file.babyemu_genreId_manual",
-              "app_codebook_file.babyemu_broad_app_category",
-              "app_codebook_file.babyemu_medium_app_category",
-              "app_codebook_file.babyemu_fine_app_category",
-              "app_codebook_file.babyemu_alternate_fine_app_category",
-              "app_codebook_file.babyemu_kids",
-              "app_codebook_file.bcm_cnrc_heuristic_category",
-              "app_codebook_file.bcm_cnrc_categorization_source",
-              "app_codebook_file.bluelight_play_store_genreId",
-              "app_codebook_file.bluelight_play_store_genre",
-              "app_codebook_file.bluelight_play_store_broad_app_category",
-              "app_codebook_file.bluelight_play_store_developer",
-              "app_codebook_file.bluelight_play_store_free",
-              "app_codebook_file.bluelight_play_store_rating",
-              "app_codebook_file.bluelight_play_store_downloads",
-              "app_codebook_file.dataset"
+              "app_codebook_file.*",
+              "app_codebook_schema_file.*"
             ]
           },
           {
@@ -18998,41 +18293,8 @@
               "codebook_fields",
               "codebook_genre_fields_cleared",
               "genre_id_scraped",
-              "app_codebook_file.app_package_name",
-              "app_codebook_file.application_label",
-              "app_codebook_file.bcm_play_store_genreId",
-              "app_codebook_file.bcm_play_store_genre",
-              "app_codebook_file.bcm_play_store_broad_app_category",
-              "app_codebook_file.bcm_play_store_developer",
-              "app_codebook_file.bcm_play_store_free",
-              "app_codebook_file.bcm_play_store_rating",
-              "app_codebook_file.bcm_play_store_downloads",
-              "app_codebook_file.usc_broad_app_category",
-              "app_codebook_file.usc_genreId",
-              "app_codebook_file.umich_child_app_category_code",
-              "app_codebook_file.umich_child_app_category",
-              "app_codebook_file.umich_adult_app_category_code",
-              "app_codebook_file.umich_adult_app_category",
-              "app_codebook_file.umich_free",
-              "app_codebook_file.umich_gambling_app",
-              "app_codebook_file.umich_inappropriate_app",
-              "app_codebook_file.babyemu_genreId_scraped",
-              "app_codebook_file.babyemu_genreId_manual",
-              "app_codebook_file.babyemu_broad_app_category",
-              "app_codebook_file.babyemu_medium_app_category",
-              "app_codebook_file.babyemu_fine_app_category",
-              "app_codebook_file.babyemu_alternate_fine_app_category",
-              "app_codebook_file.babyemu_kids",
-              "app_codebook_file.bcm_cnrc_heuristic_category",
-              "app_codebook_file.bcm_cnrc_categorization_source",
-              "app_codebook_file.bluelight_play_store_genreId",
-              "app_codebook_file.bluelight_play_store_genre",
-              "app_codebook_file.bluelight_play_store_broad_app_category",
-              "app_codebook_file.bluelight_play_store_developer",
-              "app_codebook_file.bluelight_play_store_free",
-              "app_codebook_file.bluelight_play_store_rating",
-              "app_codebook_file.bluelight_play_store_downloads",
-              "app_codebook_file.dataset"
+              "app_codebook_file.*",
+              "app_codebook_schema_file.*"
             ]
           },
           {
@@ -19043,41 +18305,8 @@
               "codebook_fields",
               "codebook_genre_fields_cleared",
               "genre_id_scraped",
-              "app_codebook_file.app_package_name",
-              "app_codebook_file.application_label",
-              "app_codebook_file.bcm_play_store_genreId",
-              "app_codebook_file.bcm_play_store_genre",
-              "app_codebook_file.bcm_play_store_broad_app_category",
-              "app_codebook_file.bcm_play_store_developer",
-              "app_codebook_file.bcm_play_store_free",
-              "app_codebook_file.bcm_play_store_rating",
-              "app_codebook_file.bcm_play_store_downloads",
-              "app_codebook_file.usc_broad_app_category",
-              "app_codebook_file.usc_genreId",
-              "app_codebook_file.umich_child_app_category_code",
-              "app_codebook_file.umich_child_app_category",
-              "app_codebook_file.umich_adult_app_category_code",
-              "app_codebook_file.umich_adult_app_category",
-              "app_codebook_file.umich_free",
-              "app_codebook_file.umich_gambling_app",
-              "app_codebook_file.umich_inappropriate_app",
-              "app_codebook_file.babyemu_genreId_scraped",
-              "app_codebook_file.babyemu_genreId_manual",
-              "app_codebook_file.babyemu_broad_app_category",
-              "app_codebook_file.babyemu_medium_app_category",
-              "app_codebook_file.babyemu_fine_app_category",
-              "app_codebook_file.babyemu_alternate_fine_app_category",
-              "app_codebook_file.babyemu_kids",
-              "app_codebook_file.bcm_cnrc_heuristic_category",
-              "app_codebook_file.bcm_cnrc_categorization_source",
-              "app_codebook_file.bluelight_play_store_genreId",
-              "app_codebook_file.bluelight_play_store_genre",
-              "app_codebook_file.bluelight_play_store_broad_app_category",
-              "app_codebook_file.bluelight_play_store_developer",
-              "app_codebook_file.bluelight_play_store_free",
-              "app_codebook_file.bluelight_play_store_rating",
-              "app_codebook_file.bluelight_play_store_downloads",
-              "app_codebook_file.dataset"
+              "app_codebook_file.*",
+              "app_codebook_schema_file.*"
             ]
           },
           {
@@ -19088,41 +18317,8 @@
               "codebook_fields",
               "codebook_genre_fields_cleared",
               "genre_id_scraped",
-              "app_codebook_file.app_package_name",
-              "app_codebook_file.application_label",
-              "app_codebook_file.bcm_play_store_genreId",
-              "app_codebook_file.bcm_play_store_genre",
-              "app_codebook_file.bcm_play_store_broad_app_category",
-              "app_codebook_file.bcm_play_store_developer",
-              "app_codebook_file.bcm_play_store_free",
-              "app_codebook_file.bcm_play_store_rating",
-              "app_codebook_file.bcm_play_store_downloads",
-              "app_codebook_file.usc_broad_app_category",
-              "app_codebook_file.usc_genreId",
-              "app_codebook_file.umich_child_app_category_code",
-              "app_codebook_file.umich_child_app_category",
-              "app_codebook_file.umich_adult_app_category_code",
-              "app_codebook_file.umich_adult_app_category",
-              "app_codebook_file.umich_free",
-              "app_codebook_file.umich_gambling_app",
-              "app_codebook_file.umich_inappropriate_app",
-              "app_codebook_file.babyemu_genreId_scraped",
-              "app_codebook_file.babyemu_genreId_manual",
-              "app_codebook_file.babyemu_broad_app_category",
-              "app_codebook_file.babyemu_medium_app_category",
-              "app_codebook_file.babyemu_fine_app_category",
-              "app_codebook_file.babyemu_alternate_fine_app_category",
-              "app_codebook_file.babyemu_kids",
-              "app_codebook_file.bcm_cnrc_heuristic_category",
-              "app_codebook_file.bcm_cnrc_categorization_source",
-              "app_codebook_file.bluelight_play_store_genreId",
-              "app_codebook_file.bluelight_play_store_genre",
-              "app_codebook_file.bluelight_play_store_broad_app_category",
-              "app_codebook_file.bluelight_play_store_developer",
-              "app_codebook_file.bluelight_play_store_free",
-              "app_codebook_file.bluelight_play_store_rating",
-              "app_codebook_file.bluelight_play_store_downloads",
-              "app_codebook_file.dataset"
+              "app_codebook_file.*",
+              "app_codebook_schema_file.*"
             ]
           }
         ],
@@ -19144,8 +18340,8 @@
           ]
         },
         "canBypass": true,
-        "definitionDigest": "sha256:743986e985f78932f7722fed548a0e71ff254fa6f3299caafef33c40c4e8c6f5",
-        "closureDigest": "sha256:e8c52525371fe1a9825318b275b60a33eeeecdb3eca8c768533c55afad37d95c"
+        "definitionDigest": "sha256:86e9732ee15cd9f933b0dd8c007bb23448bf5a81689b28dfe94926eeb308c56b",
+        "closureDigest": "sha256:84334055c34685c4c0bcf658577df810302caec94c340c4c1d5fab0842195a3d"
       },
       {
         "id": "resolve_participant_windows",
@@ -19215,7 +18411,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:114c7c5c5ae02ca45ff12f877ab61732fde8787f7f31a3d9210b2e70b19f35ac",
-        "closureDigest": "sha256:d4b94deb0b38d60d89c25dac71f12ac2a188308ace66df21de410bcd0ce6b0c0"
+        "closureDigest": "sha256:c9f48c7cc91a8c066fd04b5cd01070a46c2d6b8cf627631b8ade8305a05e103d"
       },
       {
         "id": "apply_participant_windows",
@@ -19297,7 +18493,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:7d8ca95e14a1bdde008a40ed8270494c6492301929c6bddde034217bc2949ac0",
-        "closureDigest": "sha256:001ed337f81ce5e00e6fc3f71fb6844d9287292939279e883b82225af6a8d890"
+        "closureDigest": "sha256:769b6529ceb0fd0325dff014aab8231c54982ca98d18a1307e5e486940635d21"
       },
       {
         "id": "resolve_sharing_status",
@@ -19355,7 +18551,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:acf057ca36c14bcfa02ae93930d65b951cb01a0e6cac46d534c38ecc0f6c0fb5",
-        "closureDigest": "sha256:bc5b2aabf00ac3e80d0910d1e82258dd76579425dd5d570d567c5a1a5557e212"
+        "closureDigest": "sha256:fdfcd1738c6d0a11dceea18ea616ac50177300143a0d2c0421ccc5ba20561afa"
       },
       {
         "id": "index_survey_responses",
@@ -19483,7 +18679,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:086fab24e51a9a342f8454be62805215498f0622f43e9ba0b6d3d56409ddad30",
-        "closureDigest": "sha256:b39aab1df7d7b24135fba7c2ff0d3f3a9bab789d839f1332d200f76f1df8c3ba"
+        "closureDigest": "sha256:92f069e7629fd22b0a8431b393e696845f2b41c3ddfedb3942aa5e9b7d0329cd"
       },
       {
         "id": "divide_sessions_at_day_boundary",
@@ -19675,7 +18871,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:ae4366fdad439320bc8b96539474d573e329f9fa3f309605734fe03cab6549d8",
-        "closureDigest": "sha256:e7e707df48a9aeedee36d30fac5b8aed67a8e4c737603ca77b93d8936e517fd9"
+        "closureDigest": "sha256:ee8429ccf9ca8994813cfef5ca76c4b95bd3c66f9a70376c60a7119cee0a7046"
       },
       {
         "id": "synthesize_placeholder_rows",
@@ -19906,7 +19102,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:b0bf503660d4403a94eba2d02ea27e42f1237cfc4a5faec6b1226359ff8d8acc",
-        "closureDigest": "sha256:aa2f00011c55c5472e8b96a8caab76667c38a4767d23e5ca4c1973b7df770d6a"
+        "closureDigest": "sha256:de90af88726dee233f44bc864f7533d2a0bf750686d6ed4399f6a0159176a76f"
       },
       {
         "id": "index_raw_dates",
@@ -20035,7 +19231,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:18c2be5866d90d1d316effd132ef69bb2eb5ed10f38f37ec65049aff73710e38",
-        "closureDigest": "sha256:623e9a248db703e1b9f8d17c6d4e82dcf009c8432dcae1a3b77c84eda7456320"
+        "closureDigest": "sha256:87489c4151fa59d03ae5a6a5f010531119fa843745fbf161a9a0ccec4c394d2c"
       },
       {
         "id": "aggregate_attribution_minutes",
@@ -20093,7 +19289,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:d2e2e061ae61bb43306e9e8cc3a3e3b177c3eaac091a4eb369ec0814931b4caf",
-        "closureDigest": "sha256:7e2725f752f0f4f47b646f2c0fea73127998852fbe113dc8c09daaadf2247625"
+        "closureDigest": "sha256:7959dd88e1e04d867486bbac1a7e645ad87e6571c3c0349bbf3b888ef5ad5647"
       },
       {
         "id": "compute_attribution_completeness",
@@ -20144,7 +19340,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:4cabe9b061a855dcba32a55d7bc7ed2327c83ac22749dc5434759a7f5fc24254",
-        "closureDigest": "sha256:89f880e25b9a8a4e7872386ad37311230b39fb4c9aca5009b39e56b7df2adff7"
+        "closureDigest": "sha256:9d3ec040283b8c32beee764018a6a7619273362e0417034c5b0efb19cfcf7eca"
       },
       {
         "id": "classify_compliance_days",
@@ -20198,7 +19394,7 @@
         },
         "canBypass": true,
         "definitionDigest": "sha256:e784b72b9b7ea95aa43e49188a2c68ff5b71055b122d8cc6565b770beaf26f5c",
-        "closureDigest": "sha256:e25be6e19146cf0ade8debdae075832ecaebddb6303e46595c61df13e484d27a"
+        "closureDigest": "sha256:1153d646b36177ca2201539e75d2c54779aff7f3de76711457f4899dc047b1f2"
       },
       {
         "id": "bind_processing_timestamp",
@@ -20415,11 +19611,22 @@
           "use_filter_file"
         ],
         "sourceRoles": [
+          "app_codebook_schema_file",
           "enrolled_devices_file",
           "raw_chronicle_csv",
           "study_dates_file"
         ],
         "sourceRoleBindings": [
+          {
+            "role": "app_codebook_schema_file",
+            "whenAll": [
+              {
+                "operator": "boolean_equals",
+                "request_field": "use_app_codebook",
+                "value": true
+              }
+            ]
+          },
           {
             "role": "enrolled_devices_file",
             "whenAll": [
@@ -20552,7 +19759,8 @@
           "study_dates_file.end_date",
           "study_dates_file.exclusion_start_date",
           "study_dates_file.exclusion_end_date",
-          "study_dates_file.exclusion_label"
+          "study_dates_file.exclusion_label",
+          "app_codebook_schema_file.*"
         ],
         "fieldWrites": [
           "any_app_usage_flags",
@@ -20649,7 +19857,8 @@
               "study_dates_file.end_date",
               "study_dates_file.exclusion_start_date",
               "study_dates_file.exclusion_end_date",
-              "study_dates_file.exclusion_label"
+              "study_dates_file.exclusion_label",
+              "app_codebook_schema_file.*"
             ]
           },
           {
@@ -20730,7 +19939,8 @@
               "study_dates_file.end_date",
               "study_dates_file.exclusion_start_date",
               "study_dates_file.exclusion_end_date",
-              "study_dates_file.exclusion_label"
+              "study_dates_file.exclusion_label",
+              "app_codebook_schema_file.*"
             ]
           },
           {
@@ -20811,7 +20021,8 @@
               "study_dates_file.end_date",
               "study_dates_file.exclusion_start_date",
               "study_dates_file.exclusion_end_date",
-              "study_dates_file.exclusion_label"
+              "study_dates_file.exclusion_label",
+              "app_codebook_schema_file.*"
             ]
           },
           {
@@ -20892,7 +20103,8 @@
               "study_dates_file.end_date",
               "study_dates_file.exclusion_start_date",
               "study_dates_file.exclusion_end_date",
-              "study_dates_file.exclusion_label"
+              "study_dates_file.exclusion_label",
+              "app_codebook_schema_file.*"
             ]
           },
           {
@@ -20973,7 +20185,8 @@
               "study_dates_file.end_date",
               "study_dates_file.exclusion_start_date",
               "study_dates_file.exclusion_end_date",
-              "study_dates_file.exclusion_label"
+              "study_dates_file.exclusion_label",
+              "app_codebook_schema_file.*"
             ]
           },
           {
@@ -21054,7 +20267,8 @@
               "study_dates_file.end_date",
               "study_dates_file.exclusion_start_date",
               "study_dates_file.exclusion_end_date",
-              "study_dates_file.exclusion_label"
+              "study_dates_file.exclusion_label",
+              "app_codebook_schema_file.*"
             ]
           },
           {
@@ -21135,7 +20349,8 @@
               "study_dates_file.end_date",
               "study_dates_file.exclusion_start_date",
               "study_dates_file.exclusion_end_date",
-              "study_dates_file.exclusion_label"
+              "study_dates_file.exclusion_label",
+              "app_codebook_schema_file.*"
             ]
           },
           {
@@ -21216,7 +20431,8 @@
               "study_dates_file.end_date",
               "study_dates_file.exclusion_start_date",
               "study_dates_file.exclusion_end_date",
-              "study_dates_file.exclusion_label"
+              "study_dates_file.exclusion_label",
+              "app_codebook_schema_file.*"
             ]
           },
           {
@@ -21297,7 +20513,8 @@
               "study_dates_file.end_date",
               "study_dates_file.exclusion_start_date",
               "study_dates_file.exclusion_end_date",
-              "study_dates_file.exclusion_label"
+              "study_dates_file.exclusion_label",
+              "app_codebook_schema_file.*"
             ]
           },
           {
@@ -21378,7 +20595,8 @@
               "study_dates_file.end_date",
               "study_dates_file.exclusion_start_date",
               "study_dates_file.exclusion_end_date",
-              "study_dates_file.exclusion_label"
+              "study_dates_file.exclusion_label",
+              "app_codebook_schema_file.*"
             ]
           },
           {
@@ -21459,7 +20677,8 @@
               "study_dates_file.end_date",
               "study_dates_file.exclusion_start_date",
               "study_dates_file.exclusion_end_date",
-              "study_dates_file.exclusion_label"
+              "study_dates_file.exclusion_label",
+              "app_codebook_schema_file.*"
             ]
           },
           {
@@ -21540,7 +20759,8 @@
               "study_dates_file.end_date",
               "study_dates_file.exclusion_start_date",
               "study_dates_file.exclusion_end_date",
-              "study_dates_file.exclusion_label"
+              "study_dates_file.exclusion_label",
+              "app_codebook_schema_file.*"
             ]
           },
           {
@@ -21621,7 +20841,8 @@
               "study_dates_file.end_date",
               "study_dates_file.exclusion_start_date",
               "study_dates_file.exclusion_end_date",
-              "study_dates_file.exclusion_label"
+              "study_dates_file.exclusion_label",
+              "app_codebook_schema_file.*"
             ]
           },
           {
@@ -21702,7 +20923,8 @@
               "study_dates_file.end_date",
               "study_dates_file.exclusion_start_date",
               "study_dates_file.exclusion_end_date",
-              "study_dates_file.exclusion_label"
+              "study_dates_file.exclusion_label",
+              "app_codebook_schema_file.*"
             ]
           }
         ],
@@ -21710,8 +20932,8 @@
           "kind": "always"
         },
         "canBypass": false,
-        "definitionDigest": "sha256:a5170423002c7394411353eeb61bb02a63f4a04ad295293c5d9e58b6ddc57deb",
-        "closureDigest": "sha256:93cdd6d2044165958e75e0aa892de7fc6beffd47db61f7201c157c853f10ac00"
+        "definitionDigest": "sha256:5da28e147abe350272597a4e012a31c7c6d9d7aeef39569c0c4341db4c4deeeb",
+        "closureDigest": "sha256:bd634f5f992294d0346da1f04c8075deabc466c357635ccb653d855fe4a5fcc8"
       }
     ]
   },
@@ -21748,11 +20970,11 @@
     ]
   },
   "digests": {
-    "semantic": "sha256:12f02dbf746dcd34db273a03899e0ca79426c22e66a26646b346cdc93a5de4bd",
-    "presentation": "sha256:03d7b3d3aabedac0d2d7232977644d6d317568ca5dcb577d928964bd057545ef",
-    "execution": "sha256:9377bdfd53f93027c885446d5032e116af3edf72a8c24777300f596a10489b36",
+    "semantic": "sha256:a1d4ea3ff9ac5c682c5b65ce7cc24dd06bf37f7bfbdb2168f8cd9710ecda7d48",
+    "presentation": "sha256:e2103856c03b91267b80b355c6e8debb18532922b4bbc92f677daf63ec6706b1",
+    "execution": "sha256:a8ca949e5ba608a61a649ea319555362c663e050c82dd38cb738e6e6b9aaca88",
     "checkpointPolicy": "sha256:8d73c8e6d90979c8a0ab149d3d1c1a1d720d62fdfcb68af3233e8fd7106addff",
     "evidence": "sha256:0389bfbc144d9ebf5778f904bbebbd2bbd9b38ac9072e0a3ce697a551e918ff4",
-    "workspaceCompatibility": "sha256:457f0202f236b35e5d2d2d9ac0f419d52fc1fbb5eaa2f229d014f181ed4c2a19"
+    "workspaceCompatibility": "sha256:5a50297201041522a4efb26c25024b1e975cf0e443dfc489960ba5a71c899087"
   }
 }
