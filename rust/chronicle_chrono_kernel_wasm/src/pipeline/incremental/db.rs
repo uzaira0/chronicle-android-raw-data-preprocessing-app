@@ -539,6 +539,7 @@ use super::{
         ) -> Result<B05SchoedelPreflightResult, String> {
             let csv_bytes = raw_csv.as_slice();
             validate_pipeline_v2_options(options).map_err(|error| error.to_string())?;
+            crate::pipeline_v2::validate_codebook_support(options, &support)?;
             validate_verified_request_options_digest(support.verified_request_options_digest)?;
             let source_screen_active = matches!(
                 options.usage_session_mode,
@@ -765,6 +766,7 @@ use super::{
         ) -> Result<TrackedExecution, String> {
             let csv_bytes = raw_csv.as_slice();
             validate_pipeline_v2_options(options).map_err(|error| error.to_string())?;
+            crate::pipeline_v2::validate_codebook_support(options, &support)?;
             validate_verified_request_options_digest(support.verified_request_options_digest)?;
             let eyes_partition_preflight =
                 executable_eyes_partition_preflight(csv_bytes, options, support)?;
@@ -853,6 +855,7 @@ use super::{
             materialize_full_outputs: bool,
         ) -> Result<TrackedExecution, String> {
             validate_pipeline_v2_options(options).map_err(|error| error.to_string())?;
+            crate::pipeline_v2::validate_codebook_support(options, &support)?;
             validate_verified_request_options_digest(support.verified_request_options_digest)?;
             parse_sha256_digest(&input_sha256, "verified raw input digest")?;
             let eyes_partition_preflight =
@@ -952,6 +955,7 @@ use super::{
             materialize_full_outputs: bool,
         ) -> Result<TrackedExecution, String> {
             validate_pipeline_v2_options(options).map_err(|error| error.to_string())?;
+            crate::pipeline_v2::validate_codebook_support(options, &support)?;
             validate_verified_request_options_digest(support.verified_request_options_digest)?;
             parse_sha256_digest(&input_sha256, "verified raw input digest")?;
             let inputs = self

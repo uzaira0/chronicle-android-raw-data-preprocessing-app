@@ -2,7 +2,7 @@
   "protocol_version": "chronicle-dependency-certificate/v1",
   "certificate_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:dependency-certificate/v1",
   "structural_contract": {
-    "plan_digest": "sha256:be8258e89e2896c83c9af93e3f016ab90c4d4561353d36b9123d373becb21c22",
+    "plan_digest": "sha256:003f8eae723ac97dd56ed82fcda9f6a59c6786c60e0829c5e8e583a77c4f6af4",
     "configuration_axes": {
       "computational": [
         "add_no_activity_placeholder_days",
@@ -205,6 +205,7 @@
     ],
     "role_ids": [
       "app_codebook_file",
+      "app_codebook_schema_file",
       "apps_forcing_screen_open_file",
       "background_apps_file",
       "device_sharing_file",
@@ -850,6 +851,12 @@
             "query_group_id": "categorize_apps"
           }
         ],
+        "app_codebook_schema_file": [
+          {
+            "kind": "support-input",
+            "query_group_id": "categorize_apps"
+          }
+        ],
         "apps_forcing_screen_open_file": [
           {
             "kind": "support-input",
@@ -924,7 +931,7 @@
         ]
       }
     },
-    "binding_surface_digest": "sha256:e76e54304e36674cf7169e4e88dd266871c7a427e50c997250f6912db1699f4e",
+    "binding_surface_digest": "sha256:641d0469f115d2bd3cb83b123c3954ae32bc13bd29ced9afe2f8e7c8a7761ecf",
     "unclassified_option_keys": [],
     "unbound_role_ids": []
   },

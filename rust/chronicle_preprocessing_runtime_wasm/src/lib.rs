@@ -4682,6 +4682,30 @@ impl RuntimeSupportFiles {
                         },
                     );
                 }
+                // The codebook's key column is named by its schema, so the
+                // codebook is checked against a schema that parsed.
+                let schema = resolved
+                    .files
+                    .get("app_codebook_schema_file")
+                    .filter(|file| file.content_validation_error.is_none())
+                    .and_then(|file| {
+                        chronicle_chrono_kernel_wasm::pipeline_v2::parse_codebook_schema(
+                            &file.pipeline_csv,
+                        )
+                        .ok()
+                    });
+                if let (Some(schema), Some(codebook)) =
+                    (schema, resolved.files.get_mut("app_codebook_file"))
+                {
+                    if codebook.content_validation_error.is_none() {
+                        codebook.content_validation_error =
+                            chronicle_chrono_kernel_wasm::pipeline_v2::validate_codebook_csv(
+                                &codebook.pipeline_csv,
+                                &schema,
+                            )
+                            .err();
+                    }
+                }
                 Ok(Arc::new(resolved))
             })
             .clone()

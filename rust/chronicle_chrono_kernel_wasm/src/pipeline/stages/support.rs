@@ -1,4 +1,6 @@
 use crate::pipeline_v2::FilterMatchField;
+use crate::pipeline_v2::{PipelineV2Options, PipelineV2SupportFiles};
+use super::output::{MISSING_CODEBOOK_SCHEMA_ERROR, is_kernel_app_output_column};
 use crate::pipeline_v2::{
     AHashSet, Arc, BTreeMap, BTreeSet, CodebookEntry, CodebookSchema, CsvReader, HashMap,
     NaiveDate, PackageExclusionPreset, ReadFieldResult, SharingEntry, SharingStatus, StudyWindow, StudyWindowExclusion,
@@ -228,7 +230,9 @@ pub fn validate_support_csv(role: &str, bytes: &[u8]) -> Result<(), String> {
         "apps_forcing_screen_open_file" | "background_apps_file" => {
             require_one(&["package_name", "app_package_name"])
         }
-        "app_codebook_file" => require(&["app_package_name"]),
+        // Its key column is named by the codebook schema, so the header is
+        // checked against that schema (`validate_codebook_csv`).
+        "app_codebook_file" => Ok(()),
         "study_dates_file" => {
             require(&["participant_id", "start_date", "end_date"])?;
             let windows = parse_study_windows(bytes)?;
@@ -458,11 +462,53 @@ pub(crate) fn parse_codebook_csv(
     map
 }
 
+/// The codebook CSV against its schema: the header must carry the schema's
+/// key column, or every row would be skipped and no app annotated.
+pub fn validate_codebook_csv(bytes: &[u8], schema: &CodebookSchema) -> Result<(), String> {
+    validate_support_csv("app_codebook_file", bytes)?;
+    let mut reader = csv::ReaderBuilder::new().has_headers(true).flexible(true).from_reader(bytes);
+    let has_key = reader
+        .headers()
+        .map_err(|error| format!("app_codebook_file: unreadable CSV header: {error}"))?
+        .iter()
+        .any(|header| header.trim().trim_start_matches('\u{feff}') == schema.key_column);
+    if has_key {
+        Ok(())
+    } else {
+        Err(format!(
+            "app_codebook_file: missing required column(s) {} (the key column its schema names)",
+            schema.key_column
+        ))
+    }
+}
+
+/// Everything a codebook-on run needs from its codebook inputs, checked before
+/// any stage runs: a schema that parses, and a codebook CSV (when supplied)
+/// that carries the schema's key column. Nothing is checked with the codebook
+/// off, where both inputs are ignored like any other unused support file.
+pub(crate) fn validate_codebook_support(
+    opts: &PipelineV2Options,
+    support: &PipelineV2SupportFiles<'_>,
+) -> Result<(), String> {
+    if !opts.use_app_codebook {
+        return Ok(());
+    }
+    if support.codebook_schema_json.is_empty() {
+        return Err(MISSING_CODEBOOK_SCHEMA_ERROR.into());
+    }
+    let schema = parse_codebook_schema(support.codebook_schema_json)?;
+    if !support.codebook_csv.is_empty() {
+        validate_codebook_csv(support.codebook_csv, &schema)?;
+    }
+    Ok(())
+}
+
 /// Parse and validate the `app_codebook_schema_file` JSON. Everything the
 /// kernel later indexes by is checked here, so a bad schema is refused before
 /// any row is touched: the version, a non-blank key column, at least one
 /// column with non-blank, untrimmed-free names, no repeated output column, and
-/// precedence and genre lists that name output columns exactly once.
+/// precedence and genre lists that name output columns exactly once. No output
+/// column may take the name of a column the app CSV writes itself.
 pub fn parse_codebook_schema(bytes: &[u8]) -> Result<CodebookSchema, String> {
     #[derive(serde::Deserialize)]
     #[serde(deny_unknown_fields)]
@@ -509,6 +555,12 @@ pub fn parse_codebook_schema(bytes: &[u8]) -> Result<CodebookSchema, String> {
         named("output_column", &column.output_column)?;
         if columns.iter().any(|(_, output): &(String, String)| *output == column.output_column) {
             return Err(refuse(format!("output_column {:?} is repeated", column.output_column)));
+        }
+        if is_kernel_app_output_column(&column.output_column) {
+            return Err(refuse(format!(
+                "output_column {:?} is a column the app CSV already writes",
+                column.output_column
+            )));
         }
         columns.push((column.source_column, column.output_column));
     }

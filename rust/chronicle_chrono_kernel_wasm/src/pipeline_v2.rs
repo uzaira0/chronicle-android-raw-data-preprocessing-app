@@ -269,8 +269,10 @@ use source::{
 mod support;
 pub use support::{
     validate_supplied_communication_relationships,
-    parse_codebook_schema, validate_filter_file_for_preset, validate_support_csv,
+    parse_codebook_schema, validate_codebook_csv, validate_filter_file_for_preset,
+    validate_support_csv,
 };
+pub(crate) use support::validate_codebook_support;
 use support::{
     parse_apps_forcing_csv, parse_background_apps_csv, parse_codebook_csv,
     parse_csv_to_records_with_physical_rows, parse_device_sharing, parse_enrolled_devices,
@@ -4158,12 +4160,8 @@ mod tests {
                 b"unrelated\ncom.example.sync\n",
                 "requires one of columns",
             ),
-            (
-                "app_codebook_file",
-                b"app_package_name,bcm_play_store_broad_app_category\ncom.example.chat,Social\n",
-                b"package_name,bcm_play_store_broad_app_category\ncom.example.chat,Social\n",
-                "missing required column(s) app_package_name",
-            ),
+            // app_codebook_file's key column comes from its schema:
+            // `a_codebook_csv_without_its_schema_key_column_is_refused`.
             (
                 "study_dates_file",
                 b"participant_id,start_date,end_date\nP01,2026-03-07,2026-03-08\n",
@@ -14962,6 +14960,57 @@ mod output_contract {
     }
 
     #[test]
+    fn a_codebook_csv_without_its_schema_key_column_is_refused() {
+        let schema = parse_codebook_schema(
+            br#"{"schema_version":1,"key_column":"package","codebook_columns":[{"source_column":"label","output_column":"label_a","column_description":"a"}],"broad_category_precedence":[],"genre_sources":[]}"#,
+        )
+        .expect("a valid schema");
+        assert!(validate_codebook_csv(b"package,label\ncom.example.chat,Chat\n", &schema).is_ok());
+        let error = validate_codebook_csv(b"app_package_name,label\ncom.example.chat,Chat\n", &schema)
+            .expect_err("a codebook without the schema's key column was accepted");
+        assert!(error.contains("missing required column(s) package"), "{error}");
+
+        let mut options = contract_options();
+        options.use_app_codebook = true;
+        let refused = run_pipeline_v2_with_supports(
+            FIXTURE_CSV.as_bytes(),
+            &options,
+            PipelineV2SupportFiles {
+                // The bundled schema keys on app_package_name.
+                codebook_csv: b"package_name,bcm_play_store_broad_app_category\ncom.example.chat,Social\n",
+                codebook_schema_json: TEST_CODEBOOK_SCHEMA_JSON,
+                ..PipelineV2SupportFiles::default()
+            },
+        )
+        .err()
+        .expect("a codebook without its key column was run");
+        assert!(refused.contains("missing required column(s) app_package_name"), "{refused}");
+    }
+
+    #[test]
+    fn a_codebook_output_column_may_not_take_a_kernel_column_name() {
+        let schema = |output: &str| {
+            format!(
+                r#"{{"schema_version":1,"key_column":"app_package_name","codebook_columns":[{{"source_column":"x","output_column":"{output}","column_description":"d"}}],"broad_category_precedence":[],"genre_sources":[]}}"#
+            )
+        };
+        for kernel_column in [
+            "duration_seconds",
+            "broad_app_category",
+            "genreId_scraped",
+            "usage_layer",
+            "schoedel_completion",
+            "maximum_duration_trimmed_seconds",
+            "valid_app_new_engage_custom_45s",
+        ] {
+            let error = parse_codebook_schema(schema(kernel_column).as_bytes())
+                .expect_err(&format!("{kernel_column} was accepted as a codebook column"));
+            assert!(error.contains("already writes"), "{kernel_column}: {error}");
+        }
+        assert!(parse_codebook_schema(schema("codebook_duration_seconds").as_bytes()).is_ok());
+    }
+
+    #[test]
     fn an_invalid_codebook_schema_is_refused_before_any_row_is_touched() {
         let column = |source: &str, output: &str| {
             format!(r#"{{"source_column":"{source}","output_column":"{output}","column_description":"d"}}"#)
@@ -15008,6 +15057,21 @@ mod output_contract {
         .err()
         .expect("an enabled codebook with no schema was accepted");
         assert!(refused.contains("app_codebook_schema_file"), "{refused}");
+
+        // Refused at entry, before any stage: a screen-only run never reaches
+        // the codebook join, yet a malformed schema still stops it.
+        options.usage_session_mode = UsageSessionMode::ScreenUsage;
+        let refused = run_pipeline_v2_with_supports(
+            FIXTURE_CSV.as_bytes(),
+            &options,
+            PipelineV2SupportFiles {
+                codebook_schema_json: b"{not json",
+                ..PipelineV2SupportFiles::default()
+            },
+        )
+        .err()
+        .expect("a malformed schema was accepted on a screen-only run");
+        assert!(refused.starts_with("app_codebook_schema_file is invalid: "), "{refused}");
     }
 
     /// `run_pipeline_v2` and `run_pipeline_v2_with_background` are the entry

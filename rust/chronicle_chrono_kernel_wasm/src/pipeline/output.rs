@@ -1664,6 +1664,31 @@ pub(super) fn app_csv_codebook<'a>(
     }
 }
 
+/// Whether `name` is a column the app-CSV writers emit outside a codebook's own
+/// block under some option: the declared header with every column-adding
+/// option on. The custom-engagement columns carry the duration in their name,
+/// so they match whatever duration a request sets.
+pub(super) fn is_kernel_app_output_column(name: &str) -> bool {
+    let no_columns = CodebookSchema {
+        key_column: String::new(),
+        columns: Vec::new(),
+        broad_indices: Vec::new(),
+        genre_indices: Arc::default(),
+        empty_fields: Arc::default(),
+    };
+    let duration_marker = format_custom_dur(f64::NAN);
+    let mut columns = declared_app_output_columns(Some(&no_columns), true, true, f64::NAN, true, true);
+    insert_conditional_app_output_columns(&mut columns, true, true, true, true);
+    columns.iter().any(|column| match column.split_once(duration_marker.as_str()) {
+        Some((prefix, suffix)) => {
+            name.len() > prefix.len() + suffix.len()
+                && name.starts_with(prefix)
+                && name.ends_with(suffix)
+        }
+        None => column == name,
+    })
+}
+
 pub(super) const MISSING_CODEBOOK_SCHEMA_ERROR: &str =
     "use_app_codebook requires an app_codebook_schema_file";
 

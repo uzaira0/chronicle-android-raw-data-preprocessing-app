@@ -42,7 +42,8 @@ use crate::pipeline_v2::{
     seconds_to_ns_floor, session_grouping_checkpoint_payload, sha256_wire,
     source, split_sessions_at_local_midnight,
     timezone_retained_source_rows_digest, timezone_stage_digest,
-    validate_foundational_semantics_evidence_for_options, validate_pipeline_v2_options,
+    validate_codebook_support, validate_foundational_semantics_evidence_for_options,
+    validate_pipeline_v2_options,
     validate_prepared_b05_schoedel_with_raw_digest, validate_verified_request_options_digest,
     value_fingerprint, workflow_checkpoint, workflow_checkpoint_with_parts,
     workflow_rows_checkpoint,
@@ -915,6 +916,7 @@ pub(crate) fn prepare_sequential_run_with_verified_digest_and_dependencies(
     support: PipelineV2SupportFiles<'_>,
 ) -> Result<PreparedSequentialRun, String> {
     validate_pipeline_v2_options(opts).map_err(|error| error.to_string())?;
+    validate_codebook_support(opts, &support)?;
     let prepared = scientific::prepare_b05_schoedel_with_raw_digest_with_stages(
         &stages,
         csv_bytes,
@@ -982,6 +984,7 @@ pub(crate) fn sequential_scientific_preflight_with_verified_digest_and_stages(
     support: PipelineV2SupportFiles<'_>,
 ) -> Result<(B05SchoedelPreflightResult, EyesInputPartitionPreflightResult), String> {
     validate_pipeline_v2_options(opts).map_err(|error| error.to_string())?;
+    validate_codebook_support(opts, &support)?;
     validate_verified_request_options_digest(support.verified_request_options_digest)?;
     let b05_schoedel =
         sequential_b05_schoedel_preflight(stages, csv_bytes, &raw_input_sha256, opts, support)?;
@@ -1132,6 +1135,7 @@ pub(crate) fn prepare_sequential_run_with_prepared_b05_and_dependencies(
     computed_raw_input_sha256: Option<String>,
 ) -> Result<PreparedSequentialRun, String> {
     validate_pipeline_v2_options(opts).map_err(|error| error.to_string())?;
+    validate_codebook_support(opts, &support)?;
     if eyes_complement_is_active(opts) && csv_bytes.is_empty() {
         return Err(EYES_RETAINED_RAW_INPUT_REQUIRED_ERROR.into());
     }
