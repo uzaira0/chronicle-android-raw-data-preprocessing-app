@@ -8,7 +8,7 @@ import type {
   SyntheticChronicleCorpus,
 } from "@/testSupport/syntheticChronicleCorpus";
 import { buildCodebookSlice } from "@/testSupport/syntheticChronicleCorpus";
-import codebookSchemaJson from "@/assets/defaults/unified_app_codebook.schema.json?raw";
+import codebookSchemaJson from "@/testSupport/fixtures/synthetic-catalog-app-codebook.schema.json?raw";
 
 type CsvRow = Record<string, string>;
 
