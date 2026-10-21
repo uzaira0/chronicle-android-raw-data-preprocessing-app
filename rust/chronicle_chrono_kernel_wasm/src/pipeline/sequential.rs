@@ -5,7 +5,7 @@ use super::checkpoint::{PreviousRowState, reusable_row_components_from_parts, wo
 use crate::pipeline_v2::{
     AHashSet, Arc, B05ComputationPhase, B05PreparedExecutionError, B05SchoedelPreflightResult,
     B05SchoedelPreparedInput, B05_RETAINED_RAW_INPUT_REQUIRED_ERROR,
-    BTreeMap, BTreeSet, BoundSchoedelReconstruction, CodebookEntry,
+    BTreeMap, BTreeSet, BoundSchoedelReconstruction, CodebookEntry, CodebookSchema,
     Digest, EYES_RETAINED_RAW_INPUT_REQUIRED_ERROR,
     EyesInputPartitionPreflightResult, EyesTaggedFauValidationContext,
     FoundationalSemanticsEvidence, HashMap, MicroUseClassificationPolicy,
@@ -31,7 +31,8 @@ use crate::pipeline_v2::{
     label_filtered_apps, mark_app_usage_flags, materialize_b05_screen_rows,
     materialize_schoedel_candidate_rows, maximum_duration_evidence_for_rows,
     maximum_duration_row_stage, neutral_b05_screen_construction_checkpoint, notification,
-    parse_apps_forcing_csv, parse_background_apps_csv, parse_codebook_csv, parse_device_sharing,
+    parse_apps_forcing_csv, parse_background_apps_csv, parse_codebook_csv, parse_codebook_schema,
+    parse_device_sharing,
     parse_enrolled_devices, parse_filter_csv, parse_schoedel_capability_evidence,
     parse_study_windows, parse_survey_lookup, participant_event_timestamps,
     participant_input_boundary_from_support, polled,
@@ -41,7 +42,8 @@ use crate::pipeline_v2::{
     seconds_to_ns_floor, session_grouping_checkpoint_payload, sha256_wire,
     source, split_sessions_at_local_midnight,
     timezone_retained_source_rows_digest, timezone_stage_digest,
-    validate_foundational_semantics_evidence_for_options, validate_pipeline_v2_options,
+    validate_codebook_support, validate_foundational_semantics_evidence_for_options,
+    validate_pipeline_v2_options,
     validate_prepared_b05_schoedel_with_raw_digest, validate_verified_request_options_digest,
     value_fingerprint, workflow_checkpoint, workflow_checkpoint_with_parts,
     workflow_rows_checkpoint,
@@ -490,16 +492,17 @@ fn write_app_csv_payload<'a>(
     rows: impl Iterator<Item = &'a Row>,
     opts: &PipelineV2Options,
     include_aliases: bool,
+    codebook: Option<&CodebookSchema>,
     store: &PayloadStore,
 ) -> Result<PayloadBytes, String> {
     let writer = PayloadByteWriter::with_store(store.clone());
     if opts.neutralize_spreadsheet_formulas {
         let mut filter = output::SpreadsheetFormulaNeutralizer::new(writer);
-        output::write_app_csv_to(rows, opts, include_aliases, &mut filter)?;
+        output::write_app_csv_to(rows, opts, include_aliases, codebook, &mut filter)?;
         Ok(filter.finish().map_err(|error| error.to_string())?.finish())
     } else {
         let mut writer = writer;
-        output::write_app_csv_to(rows, opts, include_aliases, &mut writer)?;
+        output::write_app_csv_to(rows, opts, include_aliases, codebook, &mut writer)?;
         Ok(writer.finish())
     }
 }
@@ -510,6 +513,7 @@ pub(crate) fn apply_screen_gated_credit_incremental(
     substrate: Result<ScreenCreditSubstrate, String>,
     opts: &PipelineV2Options,
     include_aliases: bool,
+    codebook: Option<&CodebookSchema>,
     input_row_parts: Option<&[RowCheckpointParts]>,
     store: &PayloadStore,
     query_checkpoints: &mut QueryCheckpointRecorder<'_>,
@@ -578,7 +582,7 @@ pub(crate) fn apply_screen_gated_credit_incremental(
     );
     let row_count = u32::try_from(result.rows.len())
         .map_err(|_| "credited app row count exceeds u32".to_string())?;
-    let csv_bytes = write_app_csv_payload(result.rows.iter(), opts, include_aliases, store)?;
+    let csv_bytes = write_app_csv_payload(result.rows.iter(), opts, include_aliases, codebook, store)?;
     let row_lineage =
         build_row_lineage_from_iter("credited-app-csv", "effective_usage", result.rows.iter());
     Ok(ScreenCreditOutput {
@@ -601,10 +605,12 @@ pub(crate) fn apply_screen_gated_credit_incremental(
 /// The four steps below are the same functions the tracked queries call, so
 /// this sequential path stays a real independent oracle rather than a second
 /// implementation that could drift.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn derive_notification_contacts_incremental(
     app_rows: &[Row],
     mut contacts: Vec<Row>,
     opts: &PipelineV2Options,
+    codebook: Option<&CodebookSchema>,
     codebook_map: &HashMap<String, CodebookEntry>,
     include_aliases: bool,
     store: &PayloadStore,
@@ -625,7 +631,7 @@ pub(crate) fn derive_notification_contacts_incremental(
 
     // The same enrichment every app row receives, from the same owner. A proxy
     // channel with blank category columns would be a second, poorer join.
-    annotations::enrich_codebook_rows(&mut contacts, opts.use_app_codebook, codebook_map);
+    annotations::enrich_codebook_rows(&mut contacts, codebook, codebook_map);
     query_checkpoints.rows_and_value(
         "assemble_notification_contact_outputs",
         &contacts,
@@ -648,7 +654,7 @@ pub(crate) fn derive_notification_contacts_incremental(
     );
     let row_count = u32::try_from(contacts.len())
         .map_err(|_| "notification contact row count exceeds u32".to_string())?;
-    let csv_bytes = write_app_csv_payload(contacts.iter(), opts, include_aliases, store)?;
+    let csv_bytes = write_app_csv_payload(contacts.iter(), opts, include_aliases, codebook, store)?;
     let row_lineage = build_row_lineage_from_iter(
         "notification-contact-csv",
         "notification_proxy",
@@ -676,6 +682,7 @@ pub(crate) fn derive_notification_contacts_incremental(
 pub(crate) fn derive_polled_emulation_incremental(
     app_rows: &[Row],
     opts: &PipelineV2Options,
+    codebook: Option<&CodebookSchema>,
     codebook_map: &HashMap<String, CodebookEntry>,
     include_aliases: bool,
     store: &PayloadStore,
@@ -700,7 +707,7 @@ pub(crate) fn derive_polled_emulation_incremental(
     query_checkpoints.rows_and_value("materialize_polled_rows", &emulated, &counts)?;
 
     // The same enrichment every app row receives, from the same owner.
-    annotations::enrich_codebook_rows(&mut emulated, opts.use_app_codebook, codebook_map);
+    annotations::enrich_codebook_rows(&mut emulated, codebook, codebook_map);
     query_checkpoints.rows_and_value(
         "assemble_polled_emulation_outputs",
         &emulated,
@@ -723,7 +730,7 @@ pub(crate) fn derive_polled_emulation_incremental(
     );
     let row_count = u32::try_from(emulated.len())
         .map_err(|_| "polled emulation row count exceeds u32".to_string())?;
-    let csv_bytes = write_app_csv_payload(emulated.iter(), opts, include_aliases, store)?;
+    let csv_bytes = write_app_csv_payload(emulated.iter(), opts, include_aliases, codebook, store)?;
     let row_lineage = build_row_lineage_from_iter(
         "polled-emulation-csv",
         "polled_emulation",
@@ -739,6 +746,9 @@ pub(crate) fn derive_polled_emulation_incremental(
 
 // ---- main runner --------------------------------------------------------
 
+/// Test-only convenience runner: a codebook needs its column-layout schema,
+/// which these narrow signatures cannot carry, so they supply the bundled one.
+#[cfg(test)]
 pub fn run_pipeline_v2(
     csv_bytes: &[u8],
     opts: &PipelineV2Options,
@@ -753,11 +763,15 @@ pub fn run_pipeline_v2(
             filter_csv,
             apps_forcing_csv,
             codebook_csv,
+            codebook_schema_json: crate::pipeline_v2::TEST_CODEBOOK_SCHEMA_JSON,
             ..PipelineV2SupportFiles::default()
         },
     )
 }
 
+/// Test-only convenience runner: a codebook needs its column-layout schema,
+/// which these narrow signatures cannot carry, so they supply the bundled one.
+#[cfg(test)]
 pub fn run_pipeline_v2_with_background(
     csv_bytes: &[u8],
     opts: &PipelineV2Options,
@@ -774,6 +788,7 @@ pub fn run_pipeline_v2_with_background(
             apps_forcing_csv,
             background_apps_csv,
             codebook_csv,
+            codebook_schema_json: crate::pipeline_v2::TEST_CODEBOOK_SCHEMA_JSON,
             ..PipelineV2SupportFiles::default()
         },
     )
@@ -901,6 +916,7 @@ pub(crate) fn prepare_sequential_run_with_verified_digest_and_dependencies(
     support: PipelineV2SupportFiles<'_>,
 ) -> Result<PreparedSequentialRun, String> {
     validate_pipeline_v2_options(opts).map_err(|error| error.to_string())?;
+    validate_codebook_support(opts, &support)?;
     let prepared = scientific::prepare_b05_schoedel_with_raw_digest_with_stages(
         &stages,
         csv_bytes,
@@ -968,6 +984,7 @@ pub(crate) fn sequential_scientific_preflight_with_verified_digest_and_stages(
     support: PipelineV2SupportFiles<'_>,
 ) -> Result<(B05SchoedelPreflightResult, EyesInputPartitionPreflightResult), String> {
     validate_pipeline_v2_options(opts).map_err(|error| error.to_string())?;
+    validate_codebook_support(opts, &support)?;
     validate_verified_request_options_digest(support.verified_request_options_digest)?;
     let b05_schoedel =
         sequential_b05_schoedel_preflight(stages, csv_bytes, &raw_input_sha256, opts, support)?;
@@ -1118,6 +1135,7 @@ pub(crate) fn prepare_sequential_run_with_prepared_b05_and_dependencies(
     computed_raw_input_sha256: Option<String>,
 ) -> Result<PreparedSequentialRun, String> {
     validate_pipeline_v2_options(opts).map_err(|error| error.to_string())?;
+    validate_codebook_support(opts, &support)?;
     if eyes_complement_is_active(opts) && csv_bytes.is_empty() {
         return Err(EYES_RETAINED_RAW_INPUT_REQUIRED_ERROR.into());
     }
@@ -1772,24 +1790,31 @@ pub fn run_prepared_sequential(
         );
 
         // 7. codebook
-        let codebook_map = if opts.use_app_codebook && !support.codebook_csv.is_empty() {
-            parse_codebook_csv(support.codebook_csv)
+        let codebook_schema = if opts.use_app_codebook {
+            Some(parse_codebook_schema(support.codebook_schema_json)?)
         } else {
-            HashMap::new()
+            None
+        };
+        let codebook_schema = codebook_schema.as_ref();
+        let codebook_map = match codebook_schema {
+            Some(schema) if !support.codebook_csv.is_empty() => {
+                parse_codebook_csv(support.codebook_csv, schema)
+            }
+            _ => HashMap::new(),
         };
         let include_aliases =
             annotations::include_codebook_aliases(opts.use_app_codebook, codebook_map.is_empty(), opts.include_category_column);
 
         // 8. enrich
-        join_codebook(&mut rows, opts.use_app_codebook, &codebook_map);
+        join_codebook(&mut rows, codebook_schema, &codebook_map);
         query_checkpoints.rows_and_value(
             "join_app_codebook",
             &rows,
             &annotations::codebook_checkpoint_payload(codebook_map.is_empty()),
         )?;
-        derive_broad_category(&mut rows, opts.use_app_codebook);
+        derive_broad_category(&mut rows, codebook_schema);
         query_checkpoints.rows("derive_broad_category", &rows);
-        collapse_app_genre(&mut rows, opts.use_app_codebook);
+        collapse_app_genre(&mut rows, codebook_schema);
         query_checkpoints.rows("collapse_app_genre", &rows);
         record_workflow_checkpoint(
             &mut workflow_query_group_digests,
@@ -1853,6 +1878,7 @@ pub fn run_prepared_sequential(
                     .expect("the credit substrate is taken whenever crediting runs"),
                 opts,
                 include_aliases,
+                codebook_schema,
                 credit_input_parts.as_deref(),
                 &store,
                 &mut query_checkpoints,
@@ -1899,6 +1925,7 @@ pub fn run_prepared_sequential(
                     .take()
                     .expect("notification events are selected whenever contacts are emitted"),
                 opts,
+                codebook_schema,
                 &codebook_map,
                 include_aliases,
                 &store,
@@ -1939,6 +1966,7 @@ pub fn run_prepared_sequential(
             let emulated = derive_polled_emulation_incremental(
                 &rows,
                 opts,
+                codebook_schema,
                 &codebook_map,
                 include_aliases,
                 &store,
@@ -1974,7 +2002,7 @@ pub fn run_prepared_sequential(
             interval_expansion_row_count = u32::try_from(expanded.len())
                 .map_err(|_| "interval expansion row count exceeds u32".to_string())?;
             interval_expansion_csv_bytes =
-                write_app_csv_payload(expanded.iter(), opts, include_aliases, &store)?;
+                write_app_csv_payload(expanded.iter(), opts, include_aliases, codebook_schema, &store)?;
             interval_expansion_row_lineage = build_row_lineage_from_iter("interval-expansion-csv", "outputs", expanded.iter());
         } else {
             interval_expansion_csv_bytes = PayloadBytes::default();
@@ -2157,7 +2185,7 @@ pub fn run_prepared_sequential(
         // while the later outputs are built, instead of sitting whole beside
         // the row table. Neutralized here, the one place it is written.
         app_csv_bytes = if opts.include_app_output {
-            write_app_csv_payload(rows.iter(), opts, include_aliases, &store)?
+            write_app_csv_payload(rows.iter(), opts, include_aliases, codebook_schema, &store)?
         } else {
             PayloadBytes::default()
         };

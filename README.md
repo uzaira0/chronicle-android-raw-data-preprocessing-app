@@ -51,13 +51,13 @@ The companion
 [artifact dependency tomography](docs/semantic-federation/artifact-dependency-tomography.md)
 holds configuration constant while changing every raw column, raw row shape,
 and support-artifact role one at a time across all six synthetic corpora. Its
-checked 192-case ledger compares all warm checkpoints and outputs with cold
+checked 204-case ledger compares all warm checkpoints and outputs with cold
 Rust targets, records context-dependent convergence, and separates
 computational equivalence from exact source/correspondence identity. A second
 162-case boundary ledger probes 21 adjacent timestamp gaps and six calendar/DST
 joints across those same corpora. Compressed digest-bound sidecars retain the
-974,719 exact canonical CSV/JSON cell addresses changed by those controlled
-interventions in the recorded 2026-10-02 campaign; those revision-bound receipts
+978,057 exact canonical CSV/JSON cell addresses changed by those controlled
+interventions in the recorded 2026-10-20 campaign; those revision-bound receipts
 do not establish final merged-source application acceptance.
 A model-mutation gate also deletes or reverses every declared
 DAG edge and deletes every recorded option and input-role binding; all 116

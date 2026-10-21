@@ -1,7 +1,8 @@
 use super::{
-    AHashMap, AHashSet, Arc, BTreeMap, CODEBOOK_RENAME_PAIRS, LineageSearchDigest,
+    AHashMap, AHashSet, Arc, BTreeMap, CodebookGenreFields, LineageSearchDigest,
     LineageSearchEvidence, OnceLock, PipelineRowLineage, RefCell, Row, RowData, RowInner,
     ScreenIntervalLineage, SharedString, SmallVec, SourceDataRowRange, SourceDataRows,
+    UNJOINED_CODEBOOK_FIELD_COUNT,
 };
 
 #[derive(serde::Serialize)]
@@ -206,6 +207,7 @@ thread_local! {
     static ROW_LINEAGE_POOL: RefCell<RowArcPool<SmallVec<[LineageSearchEvidence; 1]>>> = RefCell::default();
     static ROW_SOURCE_POOL: RefCell<RowArcPool<SmallVec<[SourceDataRowRange; 2]>>> = RefCell::default();
     static ROW_CODEBOOK_POOL: RefCell<RowArcPool<Vec<Option<String>>>> = RefCell::default();
+    static ROW_GENRE_FIELDS_POOL: RefCell<RowArcPool<Vec<usize>>> = RefCell::default();
     static ROW_INNER_POOL: RefCell<RowInnerPool> = RefCell::new(AHashMap::new());
 }
 
@@ -219,6 +221,7 @@ impl Drop for DeserializedRowStringPoolGuard {
         ROW_LINEAGE_POOL.with(|pool| *pool.borrow_mut() = RowArcPool::default());
         ROW_SOURCE_POOL.with(|pool| *pool.borrow_mut() = RowArcPool::default());
         ROW_CODEBOOK_POOL.with(|pool| *pool.borrow_mut() = RowArcPool::default());
+        ROW_GENRE_FIELDS_POOL.with(|pool| *pool.borrow_mut() = RowArcPool::default());
         ROW_INNER_POOL.with(|pool| *pool.borrow_mut() = AHashMap::new());
     }
 }
@@ -233,6 +236,7 @@ pub(crate) fn with_deserialized_row_string_pool<T>(decode: impl FnOnce() -> T) -
     ROW_LINEAGE_POOL.with(|pool| pool.borrow_mut().prune());
     ROW_SOURCE_POOL.with(|pool| pool.borrow_mut().prune());
     ROW_CODEBOOK_POOL.with(|pool| pool.borrow_mut().prune());
+    ROW_GENRE_FIELDS_POOL.with(|pool| pool.borrow_mut().prune());
     DESERIALIZED_ROW_STRING_POOL.with(|slot| {
         let previous = slot.borrow_mut().replace(SharedStringPool::default());
         assert!(previous.is_none(), "row string deserialization pool nested");
@@ -401,6 +405,20 @@ where
     serde::Serialize::serialize(value, serializer)
 }
 
+/// The cleared genre positions are one shared vector per codebook schema;
+/// decoding restores that sharing instead of allocating one per row.
+pub(super) fn deserialize_codebook_genre_fields<'de, D>(
+    deserializer: D,
+) -> Result<Option<CodebookGenreFields>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let fields: Option<Vec<usize>> = serde::Deserialize::deserialize(deserializer)?;
+    Ok(fields.map(|fields| {
+        ROW_GENRE_FIELDS_POOL.with(|pool| pool.borrow_mut().intern(Arc::new(fields)))
+    }))
+}
+
 pub(super) fn deserialize_codebook_fields<'de, D>(
     deserializer: D,
 ) -> Result<Arc<Vec<Option<String>>>, D::Error>
@@ -424,7 +442,7 @@ where
             while let Some(field) = sequence.next_element()? {
                 fields.push(field);
             }
-            if fields.len() == CODEBOOK_RENAME_PAIRS.len() && fields.iter().all(Option::is_none) {
+            if fields.len() == UNJOINED_CODEBOOK_FIELD_COUNT && fields.iter().all(Option::is_none) {
                 Ok(empty_codebook_fields())
             } else {
                 let mut fields = fields.into_vec();
@@ -705,7 +723,7 @@ impl<'de> serde::Deserialize<'de> for SourceDataRows {
 
 pub(super) fn empty_codebook_fields_ref() -> &'static Arc<Vec<Option<String>>> {
     static EMPTY: OnceLock<Arc<Vec<Option<String>>>> = OnceLock::new();
-    EMPTY.get_or_init(|| Arc::new(vec![None; CODEBOOK_RENAME_PAIRS.len()]))
+    EMPTY.get_or_init(|| Arc::new(vec![None; UNJOINED_CODEBOOK_FIELD_COUNT]))
 }
 
 pub(super) fn empty_codebook_fields() -> Arc<Vec<Option<String>>> {

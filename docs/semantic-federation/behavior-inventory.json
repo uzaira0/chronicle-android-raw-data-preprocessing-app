@@ -8,14 +8,14 @@
   "sources": {
     "rust_workflow_contract": {
       "path": "rust/chronicle_chrono_kernel_wasm/src/workflow_contract.rs",
-      "digest": "sha256:25e90aebd1424c1089a12de54e85811362779d138f51113d126a8840c3dcea16",
+      "digest": "sha256:5f22ae91f0786bb93196edc90bbc164d2491afbd81c4058b9b2caef1fa4c4a26",
       "executable": false,
       "production_authority": true,
       "purpose": "declares the Rust query registry and dependency edges"
     },
     "structural_projection": {
       "path": "web/schema/chronicle-workflow.yaml",
-      "digest": "sha256:d5935acb839b7dd9b459e556e6890e83a96b1b0ab379764105cec11665413748",
+      "digest": "sha256:4cea54c6606e148daa218ee83a32c19482dcd9c4c992534a98b5359a1c023ec3",
       "executable": false
     },
     "rust_migration_base": {
@@ -49,7 +49,7 @@
         "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "rust/chronicle_chrono_kernel_wasm/src/workflow_contract.rs"
       ],
-      "digest": "sha256:eef6363aca9c2dcc467514f2fce635aa6017a444598bacaf68708c3a2e522c51",
+      "digest": "sha256:e1b44544695fce4ef884349f115b296fe9934bd17771fbdf478bf463b148e2d2",
       "coverage": "active-query-registry-plus-fused-cold-test-oracle"
     },
     "rust_product_runtime": {
@@ -60,7 +60,7 @@
         "rust/chronicle_preprocessing_runtime_wasm/src/execution/state.rs",
         "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs"
       ],
-      "digest": "sha256:a6d5e21a6446b007ee8f0b3817f9d7b2e2698095f11b4d9561842834079693a7",
+      "digest": "sha256:67303fe3f91b691db292b888e5f975644b582b5f13ee3a6367c46cbfb18aa614",
       "coverage": "production-worker-authority"
     }
   },
@@ -92,7 +92,7 @@
     "dependency_surface": {
       "cache_relevant_options": 86,
       "excluded_options": 7,
-      "root_roles": 11,
+      "root_roles": 12,
       "unclassified_options": 0,
       "unbound_roles": 0
     }
@@ -420,7 +420,7 @@
   "runtime_authority_surface_count": 24,
   "dependency_certificate": {
     "path": ".semantic-federation/proofs/dependency-certificate.json",
-    "digest": "sha256:e96c4816a0b64355996c08c7387330632ca42673c1232a62e3d29ffef5061840",
+    "digest": "sha256:81d537a47d63e0ff35f8d8bd2f7cf7dc8fc599d411e6ee5ca4775c4c25c183b7",
     "fallback": "full-logical-recompute"
   },
   "resolved_baseline_findings": [

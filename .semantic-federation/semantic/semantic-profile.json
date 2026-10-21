@@ -74,7 +74,7 @@
       "path": "capability-bindings.json",
       "media_type": "application/json",
       "role": "binding-source",
-      "digest": "sha256:8491cd1333a47c202377cc454ac2f73f763282b986534e0d46d330b9efba5bcf"
+      "digest": "sha256:e4f170b53f0bbcd923165d30d4fae244f0e5486a010643ea595002c316302984"
     },
     {
       "path": "families/incremental-dataflow/contract.json",
@@ -86,7 +86,7 @@
       "path": "resources/chronicle.plan.json",
       "media_type": "application/json",
       "role": "binding-source",
-      "digest": "sha256:be8258e89e2896c83c9af93e3f016ab90c4d4561353d36b9123d373becb21c22"
+      "digest": "sha256:003f8eae723ac97dd56ed82fcda9f6a59c6786c60e0829c5e8e583a77c4f6af4"
     },
     {
       "path": "resources/runtime-authority.json",

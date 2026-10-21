@@ -1,0 +1,2379 @@
+{
+  "protocolVersion": "chronicle-mixed-artifact-configuration-ledger/v1",
+  "claimBoundary": "Exhaustive value-level pair coverage between every non-compound computational configuration alternate and one empirically branch-activating intervention for the selected raw/support source role. Its activation context is selected deterministically from the six existing synthetic corpora. Raw-role alternates that activate Parry/Zhu/Schoedel and therefore rebind the capability sidecar are explicitly excluded and unestimated as compound raw+capability mutations; the configuration-space sourceSensitiveScientificCells domain proves only the generic LF-sidecar to CRLF-raw Parry rebind mechanism. Capability representative discovery preserves exact typed refusal receipts with executeCalls=0 while selecting an executable intervention. Input-dependent structural outcomes are recorded with their exact phase and error but cannot enter manifest-to-manifest transition equality because they produce no workspace manifest. Every remaining pair's two transition orders must equal an independent cold Rust/WASM target at every workflow checkpoint, output artifact, and canonical output cell. The ten independently recycled generic role shards form the aggregate role/value proof; one representative mutation does not exhaust every record- or field-level interaction.",
+  "plan": {
+    "id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:plan/raw-data/v1",
+    "revision": "0.1.0"
+  },
+  "implementationReceipt": {
+    "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
+    "implementationDigest": "sha256:518f7ad6e9cab0ad124a6dbd408981178ffe7a94f82ab5c0b1bad28454b75d4f",
+    "planDigest": "sha256:003f8eae723ac97dd56ed82fcda9f6a59c6786c60e0829c5e8e583a77c4f6af4",
+    "profileDigest": "sha256:12d91882f067119057b8f577f162f869561d76662e833a5490cf1555b6816b12",
+    "profileLockDigest": "sha256:74c3447887347f2794a4cf350801bad26c07ca165956dccc9ef9daf9c61da2b7",
+    "runtimeAuthorityDigest": "sha256:7807fe99a35b4ede2c85d8e8868ec3dcb2accb22e8265c4643966eb9840ce4e4",
+    "productContractDigest": "sha256:dd9769b844e3ee831182093bc0bf7a9cf78731d78653df42c7e7b44adc28c9e6"
+  },
+  "roleRepresentatives": {
+    "app_codebook_schema_file": {
+      "corpusId": "catalog-random",
+      "seed": 12648430,
+      "rowCount": 186,
+      "injectedFeatures": [
+        "catalog-derived-apps",
+        "mixed-timezone-rows",
+        "remappable-interaction-types",
+        "removable-interaction-types",
+        "screen-and-keyguard-events"
+      ],
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "mutationClass": "field-edit",
+      "changedComponents": [
+        "app_codebook_schema_file.codebook_columns[0].output_column"
+      ]
+    }
+  },
+  "invalidVariants": [
+    {
+      "variantId": "selectedTimezone=none",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    }
+  ],
+  "inputDependentStructuralOutcomes": [],
+  "capabilityRefusalWitnesses": [],
+  "coverage": {
+    "sourceRoles": 1,
+    "computationalAxes": 84,
+    "declaredAlternateValues": 125,
+    "directlyCrossedAlternateValues": 125,
+    "sourceSensitiveCompoundVariants": [],
+    "validConfigurationVariants": 124,
+    "invalidConfigurationVariants": 1,
+    "inputDependentStructuralOutcomes": 0,
+    "scientificRefusalExecutionsAvoided": 0,
+    "validRoleValuePairs": 124,
+    "coldExecutions": 250,
+    "incrementalExecutions": 744,
+    "totalRustExecutions": 994,
+    "warmColdComparisons": 744,
+    "nonAdditiveOrMaskedPairs": 33
+  },
+  "interactions": [
+    {
+      "caseId": "app_codebook_schema_file:support:codebook-schema-rename-output-column×processAppUsage=false",
+      "roleId": "app_codebook_schema_file",
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "optionKey": "processAppUsage",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataActualSteps": [
+        "apply_participant_windows",
+        "assemble_result_manifest",
+        "resolve_participant_windows"
+      ],
+      "configAfterDataDeactivatedSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "assemble_credit_outputs",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_activity_witness_indexes",
+        "build_app_event_index",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "index_raw_dates",
+        "index_survey_responses",
+        "join_app_codebook",
+        "mask_excluded_app_events",
+        "match_app_episodes",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_excluded_packages",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "dataAfterConfigActualSteps": [],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": [
+          "outputs.payloadDigest"
+        ]
+      },
+      "configCellConditioning": {
+        "introducedCount": 427,
+        "maskedCount": 427,
+        "introducedDigest": "sha256:ccb68c262f80df571d606c7a298cb86bab14e1c076a3d72856015977263c65a6",
+        "maskedDigest": "sha256:b0f737b42a51bcd8b4e872dad056fc1ce6feb0903596570c47498f56134db7fb"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 856,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:cfdd2d61ae86b7f0a73a208564d275b0c648bf94012dd6981003ffe94fc5b1f5"
+      }
+    },
+    {
+      "caseId": "app_codebook_schema_file:support:codebook-schema-rename-output-column×eventRetentionSet=parrytoth7",
+      "roleId": "app_codebook_schema_file",
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "optionKey": "eventRetentionSet",
+      "alternate": {
+        "label": "parrytoth7",
+        "value": "parry_toth_7"
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_app_event_index",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "join_app_codebook",
+        "mask_excluded_app_events",
+        "match_app_episodes",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 338,
+        "maskedCount": 338,
+        "introducedDigest": "sha256:5cf2f735a06c5fbf826c5f7f4db2f18ab95b4354d5928d63d1f11c18893233b7",
+        "maskedDigest": "sha256:2e77d6f60ed6136f3c95fc70d5d08e4cff9e954d4fe7f1675242e284e5307d06"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 252,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:acd99c45f2c6860238fe683d7716ab1adedf6b42e6508bb7e98d39f2445d063d"
+      }
+    },
+    {
+      "caseId": "app_codebook_schema_file:support:codebook-schema-rename-output-column×eventRetentionSet=usagelogger5",
+      "roleId": "app_codebook_schema_file",
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "optionKey": "eventRetentionSet",
+      "alternate": {
+        "label": "usagelogger5",
+        "value": "usage_logger_5"
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_app_event_index",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "join_app_codebook",
+        "mask_excluded_app_events",
+        "match_app_episodes",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 342,
+        "maskedCount": 342,
+        "introducedDigest": "sha256:ace99710ff69d2d659d33bddf2cf66643e20efce1a05ced4145b9529c372edc7",
+        "maskedDigest": "sha256:6993b7d0bf9e443943aba176d11d8dffcad005ff3f1b8f2e9f479b23bcac0a62"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 244,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:812c828dc4f7da2ac7b787f7bb05d035b1d26d0ce6fd71cad98134665a9c4a55"
+      }
+    },
+    {
+      "caseId": "app_codebook_schema_file:support:codebook-schema-rename-output-column×eventRetentionSet=tothtrifonova",
+      "roleId": "app_codebook_schema_file",
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "optionKey": "eventRetentionSet",
+      "alternate": {
+        "label": "tothtrifonova",
+        "value": "toth_trifonova_app"
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_app_event_index",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "join_app_codebook",
+        "mask_excluded_app_events",
+        "match_app_episodes",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 342,
+        "maskedCount": 342,
+        "introducedDigest": "sha256:ace99710ff69d2d659d33bddf2cf66643e20efce1a05ced4145b9529c372edc7",
+        "maskedDigest": "sha256:6993b7d0bf9e443943aba176d11d8dffcad005ff3f1b8f2e9f479b23bcac0a62"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 244,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:812c828dc4f7da2ac7b787f7bb05d035b1d26d0ce6fd71cad98134665a9c4a55"
+      }
+    },
+    {
+      "caseId": "app_codebook_schema_file:support:codebook-schema-rename-output-column×eventRetentionSet=fgbgonly",
+      "roleId": "app_codebook_schema_file",
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "optionKey": "eventRetentionSet",
+      "alternate": {
+        "label": "fgbgonly",
+        "value": "foreground_background_only"
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_app_event_index",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "join_app_codebook",
+        "mask_excluded_app_events",
+        "match_app_episodes",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 343,
+        "maskedCount": 343,
+        "introducedDigest": "sha256:d8a21b100521b3014215977183a4f0cd620bc6b08798efb0f50d4bb645dfbcab",
+        "maskedDigest": "sha256:7349073303e8b8b69f810337d961a1164e301cb62f66ffbdabb98ba318cb1707"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 252,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:acd99c45f2c6860238fe683d7716ab1adedf6b42e6508bb7e98d39f2445d063d"
+      }
+    },
+    {
+      "caseId": "app_codebook_schema_file:support:codebook-schema-rename-output-column×episodeReconstructionStrategy=forward",
+      "roleId": "app_codebook_schema_file",
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "optionKey": "episodeReconstructionStrategy",
+      "alternate": {
+        "label": "forward",
+        "value": "parry_toth_forward_pairing"
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "join_app_codebook",
+        "match_app_episodes",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 337,
+        "maskedCount": 337,
+        "introducedDigest": "sha256:635d01a31a729c0702e02896338781ca78936f420d3921e7585a934531352f98",
+        "maskedDigest": "sha256:177201abfe311ec5fa707926201d5e35e777ef6c687b21076d129713c42fe642"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 360,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:c9cdd84761237a5f22c579fc03c61558b07f73cf38e67b93840fccca189e1918"
+      }
+    },
+    {
+      "caseId": "app_codebook_schema_file:support:codebook-schema-rename-output-column×episodeReconstructionStrategy=eyes",
+      "roleId": "app_codebook_schema_file",
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "optionKey": "episodeReconstructionStrategy",
+      "alternate": {
+        "label": "eyes",
+        "value": "eyes_complement"
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "join_app_codebook",
+        "match_app_episodes",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 343,
+        "maskedCount": 343,
+        "introducedDigest": "sha256:abefeb30ec756764c73fc3d034c1ccd305cc3af73d0c92a30a6b40e10e2123c9",
+        "maskedDigest": "sha256:455cca75a66d46af33237c632d5c5ad0624a45364f0ce7bcc9ea9cd5eaee5df0"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 332,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:a9350f12dc43c721f8f39bc3b50a1c3cd1113892c6a185faf2261e52718f493f"
+      }
+    },
+    {
+      "caseId": "app_codebook_schema_file:support:codebook-schema-rename-output-column×episodeReconstructionStrategy=gesis",
+      "roleId": "app_codebook_schema_file",
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "optionKey": "episodeReconstructionStrategy",
+      "alternate": {
+        "label": "gesis",
+        "value": "gesis_start_stop_repair"
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "join_app_codebook",
+        "match_app_episodes",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 337,
+        "maskedCount": 337,
+        "introducedDigest": "sha256:635d01a31a729c0702e02896338781ca78936f420d3921e7585a934531352f98",
+        "maskedDigest": "sha256:177201abfe311ec5fa707926201d5e35e777ef6c687b21076d129713c42fe642"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 360,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:c9cdd84761237a5f22c579fc03c61558b07f73cf38e67b93840fccca189e1918"
+      }
+    },
+    {
+      "caseId": "app_codebook_schema_file:support:codebook-schema-rename-output-column×episodeReconstructionStrategy=schoedelprose",
+      "roleId": "app_codebook_schema_file",
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "optionKey": "episodeReconstructionStrategy",
+      "alternate": {
+        "label": "schoedelprose",
+        "value": "schoedel_2026_app_within_screen_prose_v1"
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "join_app_codebook",
+        "match_app_episodes",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 383,
+        "maskedCount": 383,
+        "introducedDigest": "sha256:b1f3e29c54f3f65d8bd259399e0c205031b7444edd0a27959889f9240d2c2699",
+        "maskedDigest": "sha256:0750d515e4a67c246bce01ac78bf5d9ff7637f20dbd47ac069ff66d449cd3ad6"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 580,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:ae7b3e7cd360180839fdffd754d357e5a0a201039fe675300cae606f050a8812"
+      }
+    },
+    {
+      "caseId": "app_codebook_schema_file:support:codebook-schema-rename-output-column×useActivityStoppedAsFallback=false",
+      "roleId": "app_codebook_schema_file",
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "optionKey": "useActivityStoppedAsFallback",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "join_app_codebook",
+        "match_app_episodes",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 290,
+        "maskedCount": 290,
+        "introducedDigest": "sha256:d2cfd0617a47b54f26c5b4bf83115862d683cb70bf0e8e09a64271ddd05d4405",
+        "maskedDigest": "sha256:8266897af571e2f6e076c227f5564635a78d11c351a86346bbe77b21a1537a0f"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 44,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:5b97d55d0511c70bc835265cc68abc38bd7dc2b60be8b14f6557d4e5192b2eb2"
+      }
+    },
+    {
+      "caseId": "app_codebook_schema_file:support:codebook-schema-rename-output-column×longDurationThresholdHours=h1",
+      "roleId": "app_codebook_schema_file",
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "optionKey": "longDurationThresholdHours",
+      "alternate": {
+        "label": "h1",
+        "value": 1
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "join_app_codebook",
+        "match_app_episodes",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 338,
+        "maskedCount": 338,
+        "introducedDigest": "sha256:6cab05f0c6bf9b2a48c9182605cdef44237020373f923a2383018c3b5db53f9b",
+        "maskedDigest": "sha256:fae68058c074152c6d236b0f2a9af090eb13a0b49cf4e60b0eb4fdf059f57e6e"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 360,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:c9cdd84761237a5f22c579fc03c61558b07f73cf38e67b93840fccca189e1918"
+      }
+    },
+    {
+      "caseId": "app_codebook_schema_file:support:codebook-schema-rename-output-column×correctDuplicateEventTimestamps=false",
+      "roleId": "app_codebook_schema_file",
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "optionKey": "correctDuplicateEventTimestamps",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_activity_witness_indexes",
+        "build_app_event_index",
+        "build_participant_day_coverage",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "classify_screen_sessions",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "construct_screen_intervals",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "derive_time_gap_evidence",
+        "disambiguate_duplicate_timestamps",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "index_keyguard_events",
+        "index_raw_dates",
+        "infer_screen_session_skeletons",
+        "join_app_codebook",
+        "mark_app_policy_matches",
+        "mask_excluded_app_events",
+        "match_app_episodes",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_excluded_packages",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 222,
+        "maskedCount": 222,
+        "introducedDigest": "sha256:27b11cb11a986851c666a491d59f703d45a8ee6fd0f8098e3e6e599abcc2d45e",
+        "maskedDigest": "sha256:2d7881833e8c76257ed2906f362476da21bd817cd77b5779cb63f215ab17c739"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 40,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:f3484fad387a6073277857534778a3004e56f5244d080c44d3b46bb3c0cdec69"
+      }
+    },
+    {
+      "caseId": "app_codebook_schema_file:support:codebook-schema-rename-output-column×selectedTimezone=america_new_york",
+      "roleId": "app_codebook_schema_file",
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "optionKey": "selectedTimezone",
+      "alternate": {
+        "label": "america_new_york",
+        "value": "America/New_York"
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_activity_witness_indexes",
+        "build_app_event_index",
+        "build_participant_day_coverage",
+        "canonicalize_source_rows",
+        "classify_compliance_days",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "classify_screen_sessions",
+        "coalesce_duplicate_event_keys",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "construct_screen_intervals",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "derive_time_gap_evidence",
+        "disambiguate_duplicate_timestamps",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "index_keyguard_events",
+        "index_raw_dates",
+        "infer_screen_session_skeletons",
+        "join_app_codebook",
+        "mark_app_policy_matches",
+        "mask_excluded_app_events",
+        "match_app_episodes",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_excluded_packages",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "resolve_timezone_strategy",
+        "segment_concurrent_usage",
+        "standardize_event_clock",
+        "summarize_daily_apps",
+        "summarize_duplicate_groups",
+        "summarize_row_selection",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 87,
+        "maskedCount": 87,
+        "introducedDigest": "sha256:c9b19ad22a0db2fa430db532e8cea174ca43056c503e56bbe5fd0ad93fb37ee4",
+        "maskedDigest": "sha256:46868b669224186e697e37ff120f9de7ccb0d9c602a8b11ff8c9484f2680afab"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 2,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:ff653d9e40d11b3b251b53ff6520d235df9031f808a597c1f0cd8d0e1da0fc62"
+      }
+    },
+    {
+      "caseId": "app_codebook_schema_file:support:codebook-schema-rename-output-column×timezoneHandling=selected_filter",
+      "roleId": "app_codebook_schema_file",
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "optionKey": "timezoneHandling",
+      "alternate": {
+        "label": "selected_filter",
+        "value": "selected-filter"
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_activity_witness_indexes",
+        "build_app_event_index",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "classify_screen_sessions",
+        "coalesce_duplicate_event_keys",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "construct_screen_intervals",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "derive_time_gap_evidence",
+        "disambiguate_duplicate_timestamps",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "index_keyguard_events",
+        "index_raw_dates",
+        "infer_screen_session_skeletons",
+        "join_app_codebook",
+        "mark_app_policy_matches",
+        "mask_excluded_app_events",
+        "match_app_episodes",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_excluded_packages",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "resolve_timezone_strategy",
+        "segment_concurrent_usage",
+        "standardize_event_clock",
+        "summarize_daily_apps",
+        "summarize_duplicate_groups",
+        "summarize_row_selection",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 321,
+        "maskedCount": 321,
+        "introducedDigest": "sha256:14290d66afef534d301d9e2efe669d1eb662a9fdd1c1ed47b6ff4e29d559c56d",
+        "maskedDigest": "sha256:75ea8b7d49c29fcf11c43ca2ff78496472e8a3a7d38ab787dafe10206f4d9968"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 368,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:3f25ba4cdadeb7d71e786e69a814b0f7db509e06f69a838214e430bea0eb71c7"
+      }
+    },
+    {
+      "caseId": "app_codebook_schema_file:support:codebook-schema-rename-output-column×timezoneHandling=primary_filter",
+      "roleId": "app_codebook_schema_file",
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "optionKey": "timezoneHandling",
+      "alternate": {
+        "label": "primary_filter",
+        "value": "primary-filter"
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_activity_witness_indexes",
+        "build_app_event_index",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "classify_screen_sessions",
+        "coalesce_duplicate_event_keys",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "construct_screen_intervals",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "derive_time_gap_evidence",
+        "disambiguate_duplicate_timestamps",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "index_keyguard_events",
+        "index_raw_dates",
+        "infer_screen_session_skeletons",
+        "join_app_codebook",
+        "mark_app_policy_matches",
+        "mask_excluded_app_events",
+        "match_app_episodes",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_excluded_packages",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "resolve_timezone_strategy",
+        "segment_concurrent_usage",
+        "standardize_event_clock",
+        "summarize_daily_apps",
+        "summarize_duplicate_groups",
+        "summarize_row_selection",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 321,
+        "maskedCount": 321,
+        "introducedDigest": "sha256:14290d66afef534d301d9e2efe669d1eb662a9fdd1c1ed47b6ff4e29d559c56d",
+        "maskedDigest": "sha256:75ea8b7d49c29fcf11c43ca2ff78496472e8a3a7d38ab787dafe10206f4d9968"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 368,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:3f25ba4cdadeb7d71e786e69a814b0f7db509e06f69a838214e430bea0eb71c7"
+      }
+    },
+    {
+      "caseId": "app_codebook_schema_file:support:codebook-schema-rename-output-column×useFilterFile=false",
+      "roleId": "app_codebook_schema_file",
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "optionKey": "useFilterFile",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_activity_witness_indexes",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "index_raw_dates",
+        "join_app_codebook",
+        "mark_app_policy_matches",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_excluded_packages",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 369,
+        "maskedCount": 369,
+        "introducedDigest": "sha256:0777f899a70c55f5499712ef033dd9e0fbd45ff70fe390609b3e51ed2694f3c9",
+        "maskedDigest": "sha256:cfe06c196e63abfc51ec08564d7bed5c344916a9216f692edcf0eaeaf7c613b3"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 96,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:b34e105036907a7942f845502b2fa63037f380265756ce8ee37c96a40a605636",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "caseId": "app_codebook_schema_file:support:codebook-schema-rename-output-column×filterMatchField=application_label",
+      "roleId": "app_codebook_schema_file",
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "optionKey": "filterMatchField",
+      "alternate": {
+        "label": "application_label",
+        "value": "application_label"
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_activity_witness_indexes",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "index_raw_dates",
+        "join_app_codebook",
+        "mark_app_policy_matches",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_excluded_packages",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 369,
+        "maskedCount": 369,
+        "introducedDigest": "sha256:0777f899a70c55f5499712ef033dd9e0fbd45ff70fe390609b3e51ed2694f3c9",
+        "maskedDigest": "sha256:cfe06c196e63abfc51ec08564d7bed5c344916a9216f692edcf0eaeaf7c613b3"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 96,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:b34e105036907a7942f845502b2fa63037f380265756ce8ee37c96a40a605636",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "caseId": "app_codebook_schema_file:support:codebook-schema-rename-output-column×applicationLabelExclusions=unknown_app",
+      "roleId": "app_codebook_schema_file",
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "optionKey": "applicationLabelExclusions",
+      "alternate": {
+        "label": "unknown_app",
+        "value": [
+          "Uncatalogued Research App"
+        ]
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "join_app_codebook",
+        "mark_app_policy_matches",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 247,
+        "maskedCount": 247,
+        "introducedDigest": "sha256:26a872335c0aca09239545b4ea26cae33da6aa4b48dd003c9d2caa84996694ae",
+        "maskedDigest": "sha256:8cbb57d94748822861f8f66957ffff20dfde7814e633c0c3b8cb33ca97190873"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 96,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:7a87514f4e9ba5dde17933631a4844c9e41c8ba790c6ec39e3b8e53ba6ece192"
+      }
+    },
+    {
+      "caseId": "app_codebook_schema_file:support:codebook-schema-rename-output-column×packageExclusionPreset=systemscopeonly",
+      "roleId": "app_codebook_schema_file",
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "optionKey": "packageExclusionPreset",
+      "alternate": {
+        "label": "systemscopeonly",
+        "value": "system_scope_only"
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_activity_witness_indexes",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "index_raw_dates",
+        "join_app_codebook",
+        "mark_app_policy_matches",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_excluded_packages",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 362,
+        "maskedCount": 362,
+        "introducedDigest": "sha256:bf45a36caa5edef4c8b37bd225ad60298f04a6f9047e05bf5bb90e91efa7e3d4",
+        "maskedDigest": "sha256:10c7d3f1aef9486d98cf02651b7776cea49b86f84859dbbddc4e90777317bb4f"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 88,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:993d96c80b76e1b3d76ab18dc2a6776c4706ca9d0ea5846ceb03e0fc4700bb8f",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "caseId": "app_codebook_schema_file:support:codebook-schema-rename-output-column×useBackgroundAppsFile=false",
+      "roleId": "app_codebook_schema_file",
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "optionKey": "useBackgroundAppsFile",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_app_event_index",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "join_app_codebook",
+        "match_app_episodes",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 337,
+        "maskedCount": 337,
+        "introducedDigest": "sha256:635d01a31a729c0702e02896338781ca78936f420d3921e7585a934531352f98",
+        "maskedDigest": "sha256:177201abfe311ec5fa707926201d5e35e777ef6c687b21076d129713c42fe642"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 360,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:c9cdd84761237a5f22c579fc03c61558b07f73cf38e67b93840fccca189e1918"
+      }
+    },
+    {
+      "caseId": "app_codebook_schema_file:support:codebook-schema-rename-output-column×useAppCodebook=false",
+      "roleId": "app_codebook_schema_file",
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "optionKey": "useAppCodebook",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_participant_day_coverage",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "join_app_codebook",
+        "materialize_credited_rows",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": [
+          "outputs.payloadDigest"
+        ]
+      },
+      "configCellConditioning": {
+        "introducedCount": 427,
+        "maskedCount": 427,
+        "introducedDigest": "sha256:ccb68c262f80df571d606c7a298cb86bab14e1c076a3d72856015977263c65a6",
+        "maskedDigest": "sha256:b0f737b42a51bcd8b4e872dad056fc1ce6feb0903596570c47498f56134db7fb"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 856,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:cfdd2d61ae86b7f0a73a208564d275b0c648bf94012dd6981003ffe94fc5b1f5"
+      }
+    },
+    {
+      "caseId": "app_codebook_schema_file:support:codebook-schema-rename-output-column×minimumUsageDuration=s60",
+      "roleId": "app_codebook_schema_file",
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "optionKey": "minimumUsageDuration",
+      "alternate": {
+        "label": "s60",
+        "value": 60
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "join_app_codebook",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 116,
+        "maskedCount": 116,
+        "introducedDigest": "sha256:0f1d1e1388f59bb9cd2ccd0437a37cc2ee2892a08e43b417258b650d992791a2",
+        "maskedDigest": "sha256:f4efddb7c20cfe56be385bf5c823c46865d2475c7aeefb6a45ed8898dbc5a4e1"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "caseId": "app_codebook_schema_file:support:codebook-schema-rename-output-column×intervalQualityPolicy=culverhouse",
+      "roleId": "app_codebook_schema_file",
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "optionKey": "intervalQualityPolicy",
+      "alternate": {
+        "label": "culverhouse",
+        "value": "culverhouse_trim_and_log"
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_person_attribution",
+        "compute_attribution_completeness",
+        "derive_credited_intervals",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "materialize_credited_rows",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 199,
+        "maskedCount": 199,
+        "introducedDigest": "sha256:4ced670771be1fb399c0a733925b902ede45308ce0bf82359dc33dda507c0514",
+        "maskedDigest": "sha256:f582540064f40e2e8c171628b07f7420eee11f1d99575ed12161138695527487"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 32,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:af6b0319dbb903d59bf1d76b43af385b7c16e41603870e17d94e652155833351"
+      }
+    },
+    {
+      "caseId": "app_codebook_schema_file:support:codebook-schema-rename-output-column×screenSessionMaximumDurationDisposition=exclude_participant",
+      "roleId": "app_codebook_schema_file",
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "optionKey": "screenSessionMaximumDurationDisposition",
+      "alternate": {
+        "label": "exclude_participant",
+        "value": "exclude_participant"
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_activity_witness_indexes",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_person_attribution",
+        "classify_screen_sessions",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "index_raw_dates",
+        "join_app_codebook",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 427,
+        "maskedCount": 427,
+        "introducedDigest": "sha256:ccb68c262f80df571d606c7a298cb86bab14e1c076a3d72856015977263c65a6",
+        "maskedDigest": "sha256:b0f737b42a51bcd8b4e872dad056fc1ce6feb0903596570c47498f56134db7fb"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 854,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:7bb5dd68794c78f7e56bb8f79bdc4613a285144fe88fe9f96b6104455e92a499"
+      }
+    },
+    {
+      "caseId": "app_codebook_schema_file:support:codebook-schema-rename-output-column×lockedScreenAudioDisposition=exclude_from_phone_and_app_sessions",
+      "roleId": "app_codebook_schema_file",
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "optionKey": "lockedScreenAudioDisposition",
+      "alternate": {
+        "label": "exclude_from_phone_and_app_sessions",
+        "value": "exclude_from_phone_and_app_sessions"
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_person_attribution",
+        "classify_screen_sessions",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "join_app_codebook",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 359,
+        "maskedCount": 359,
+        "introducedDigest": "sha256:8eaa0b21428c7a7978118556c238b8d1c331d24f55dbd3dc4df327c78e94a194",
+        "maskedDigest": "sha256:cdf78652e3bf692743f784224432c7894bc158294db53c91bc4ba0a462e88fae"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 520,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:7e48bbe45b494787b1fd7a0acdecdb8fe22ccd4b263ccaee3bdc4c7ffda76f59"
+      }
+    },
+    {
+      "caseId": "app_codebook_schema_file:support:codebook-schema-rename-output-column×sameAppInteractionTypesToStopUsageAt=empty",
+      "roleId": "app_codebook_schema_file",
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "optionKey": "sameAppInteractionTypesToStopUsageAt",
+      "alternate": {
+        "label": "empty",
+        "value": []
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_app_event_index",
+        "build_participant_day_coverage",
+        "classify_compliance_days",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "collapse_app_genre",
+        "compute_attribution_completeness",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "disambiguate_duplicate_timestamps",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "join_app_codebook",
+        "match_app_episodes",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "segment_concurrent_usage",
+        "summarize_daily_apps",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 298,
+        "maskedCount": 298,
+        "introducedDigest": "sha256:c551308a337deb6a6ca9ebff03797b8deca4138462c4915312e5ad05a22ca87b",
+        "maskedDigest": "sha256:59619be4d8288cca3a3502c16648ded704f0e0dd5f23ebeda601e65cb1da535e"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 132,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:f17d1c3bce50903731f8f446ebaac29d9d0963ff937b7e07d99e9948e1125d48"
+      }
+    },
+    {
+      "caseId": "app_codebook_schema_file:support:codebook-schema-rename-output-column×interactionTypesToRemove=none",
+      "roleId": "app_codebook_schema_file",
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "optionKey": "interactionTypesToRemove",
+      "alternate": {
+        "label": "none",
+        "value": []
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_participant_day_coverage",
+        "classify_person_attribution",
+        "compute_attribution_completeness",
+        "derive_credited_intervals",
+        "divide_sessions_at_day_boundary",
+        "identify_credit_eligible_sessions",
+        "materialize_credited_rows",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "summarize_daily_apps",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 167,
+        "maskedCount": 167,
+        "introducedDigest": "sha256:9f9019889cd56c9b55fc94a9c533865ee8b9a324982465c7f09b0c556f89fd9f",
+        "maskedDigest": "sha256:423c0892a2e52aac237ee5c9ff4d69b6ca8f9c9f34ce8900272b5f1cc1ffcd01"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 24,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:3280aea42096c0dcb3030f922cd79ab4b68abaefbf020cd8bf2a3a41854664dd",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "caseId": "app_codebook_schema_file:support:codebook-schema-rename-output-column×interactionTypeRemap=custom",
+      "roleId": "app_codebook_schema_file",
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "optionKey": "interactionTypeRemap",
+      "alternate": {
+        "label": "custom",
+        "value": [
+          "Custom Foreground => Activity Resumed"
+        ]
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "apply_app_inclusion_policy",
+        "apply_episode_flags",
+        "apply_participant_windows",
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "assess_screen_evidence_capability",
+        "assign_usage_session_ids",
+        "build_activity_witness_indexes",
+        "build_app_event_index",
+        "build_participant_day_coverage",
+        "canonicalize_source_rows",
+        "classify_compliance_days",
+        "classify_episode_durations",
+        "classify_person_attribution",
+        "classify_screen_sessions",
+        "coalesce_duplicate_event_keys",
+        "collapse_app_genre",
+        "collect_timezone_observations",
+        "compute_attribution_completeness",
+        "construct_screen_intervals",
+        "derive_broad_category",
+        "derive_credited_intervals",
+        "derive_engagement_basis",
+        "derive_time_gap_evidence",
+        "disambiguate_duplicate_timestamps",
+        "divide_sessions_at_day_boundary",
+        "estimate_dominant_timezone",
+        "identify_credit_eligible_sessions",
+        "index_keyguard_events",
+        "index_raw_dates",
+        "infer_screen_session_skeletons",
+        "join_app_codebook",
+        "mark_app_policy_matches",
+        "mask_excluded_app_events",
+        "match_app_episodes",
+        "materialize_candidate_episodes",
+        "materialize_credited_rows",
+        "order_app_episodes",
+        "order_source_records",
+        "remove_selected_interaction_types",
+        "remove_zero_duration_rows",
+        "resolve_excluded_packages",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "resolve_timezone_strategy",
+        "segment_concurrent_usage",
+        "standardize_event_clock",
+        "summarize_daily_apps",
+        "summarize_duplicate_groups",
+        "summarize_row_selection",
+        "suppress_excluded_timing",
+        "synthesize_placeholder_rows",
+        "validate_remap_rules"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 211,
+        "maskedCount": 211,
+        "introducedDigest": "sha256:5fb549e26ed6306c85e503c702624b8370a0f10df3e981b298607a6d34f3ffbf",
+        "maskedDigest": "sha256:640b0ba0058c0fec33e183c50917afdb71e4d7ba82de8110a50e2d3481d5635e"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 12,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:cac73a7a3dfcfe7b23b76395da2f621a0d602a75495d819231b5bd213c826fcd",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "caseId": "app_codebook_schema_file:support:codebook-schema-rename-output-column×addNoActivityPlaceholderDays=false",
+      "roleId": "app_codebook_schema_file",
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "optionKey": "addNoActivityPlaceholderDays",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataActualSteps": [
+        "aggregate_attribution_minutes",
+        "assemble_result_manifest",
+        "build_participant_day_coverage",
+        "compute_attribution_completeness",
+        "synthesize_placeholder_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 87,
+        "maskedCount": 87,
+        "introducedDigest": "sha256:c9b19ad22a0db2fa430db532e8cea174ca43056c503e56bbe5fd0ad93fb37ee4",
+        "maskedDigest": "sha256:46868b669224186e697e37ff120f9de7ccb0d9c602a8b11ff8c9484f2680afab"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 2,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:ff653d9e40d11b3b251b53ff6520d235df9031f808a597c1f0cd8d0e1da0fc62"
+      }
+    },
+    {
+      "caseId": "app_codebook_schema_file:support:codebook-schema-rename-output-column×enableScreenGatedCrediting=false",
+      "roleId": "app_codebook_schema_file",
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "optionKey": "enableScreenGatedCrediting",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataActualSteps": [
+        "assemble_result_manifest"
+      ],
+      "configAfterDataDeactivatedSteps": [
+        "assemble_credit_outputs",
+        "assess_screen_evidence_capability",
+        "build_activity_witness_indexes",
+        "derive_credited_intervals",
+        "identify_credit_eligible_sessions",
+        "materialize_credited_rows",
+        "summarize_daily_apps"
+      ],
+      "dataAfterConfigActualSteps": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 213,
+        "maskedCount": 213,
+        "introducedDigest": "sha256:11f879bb6f01a22cfc00c125a6bd094be5cdf73a2e050e52ab063774ab479cbd",
+        "maskedDigest": "sha256:3b235a6cceb463a1494467f9c8702be9d4d92a714cf49e10c98ed67d1aa1ebfc"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 427,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:d61c98c50a2636e1c2cd4c9f67b6ceea3574cc58285b1195cd24ca3a731b6402"
+      }
+    },
+    {
+      "caseId": "app_codebook_schema_file:support:codebook-schema-rename-output-column×creditedSessionCapMinutes=m0",
+      "roleId": "app_codebook_schema_file",
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "optionKey": "creditedSessionCapMinutes",
+      "alternate": {
+        "label": "m0",
+        "value": 0
+      },
+      "configAfterDataActualSteps": [
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "derive_credited_intervals",
+        "materialize_credited_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 204,
+        "maskedCount": 204,
+        "introducedDigest": "sha256:17d0c1620afdb046092414fbac75152ad49112236f9d02ef2d3f73a6854f7be6",
+        "maskedDigest": "sha256:89b113329da3b3268fb73f663c798bff2c84c87dab9bccb703598a4dd9b09e6f"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 294,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:d4c6c2ea2587488824c079baebe42dbe5adaa64385ff503526fd7e842aa4739e"
+      }
+    },
+    {
+      "caseId": "app_codebook_schema_file:support:codebook-schema-rename-output-column×deviceLivenessGapToleranceMinutes=m0",
+      "roleId": "app_codebook_schema_file",
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "optionKey": "deviceLivenessGapToleranceMinutes",
+      "alternate": {
+        "label": "m0",
+        "value": 0
+      },
+      "configAfterDataActualSteps": [
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "derive_credited_intervals",
+        "materialize_credited_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 204,
+        "maskedCount": 204,
+        "introducedDigest": "sha256:17d0c1620afdb046092414fbac75152ad49112236f9d02ef2d3f73a6854f7be6",
+        "maskedDigest": "sha256:89b113329da3b3268fb73f663c798bff2c84c87dab9bccb703598a4dd9b09e6f"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 294,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:d4c6c2ea2587488824c079baebe42dbe5adaa64385ff503526fd7e842aa4739e"
+      }
+    },
+    {
+      "caseId": "app_codebook_schema_file:support:codebook-schema-rename-output-column×autoLockBridgeSeconds=s0",
+      "roleId": "app_codebook_schema_file",
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "optionKey": "autoLockBridgeSeconds",
+      "alternate": {
+        "label": "s0",
+        "value": 0
+      },
+      "configAfterDataActualSteps": [
+        "assemble_credit_outputs",
+        "assemble_result_manifest",
+        "derive_credited_intervals",
+        "materialize_credited_rows"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigActualSteps": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 91,
+        "maskedCount": 91,
+        "introducedDigest": "sha256:108e6d061f340a5603c80253aa41fa9badf6de27d700a703a7ab8d0242e3d9b5",
+        "maskedDigest": "sha256:0b12125e60e99e961fd9f14e42bfc4a622b6c155c56ecf0fcc7203feb04cc347"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 14,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:e09efc016e0b11a4e146235914d3407f1c11858caf8d5b3d6555be1ae9839458",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  ],
+  "caseSetDigest": "sha256:4bb1095cdbc9514fef60d19898e4e3f9e1f2cc5e6aca8d85f6eb12ed9b6c0d53"
+}

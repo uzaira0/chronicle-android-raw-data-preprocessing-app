@@ -15,6 +15,7 @@ import { requireDefined } from "@/lib/invariant";
 import type { ParticipantPartitionTransport } from "@/lib/fileInspection";
 import type { RuntimeIdentity } from "@/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm";
 import defaultAppCodebookUrl from "@/assets/defaults/unified_app_codebook.csv?url";
+import defaultAppCodebookSchemaUrl from "@/assets/defaults/unified_app_codebook.schema.json?url";
 import defaultAppsToFilterUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv?url";
 import defaultAppsForcingScreenOpenUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv?url";
 import defaultBackgroundAppsUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_background_apps.csv?url";
@@ -4118,7 +4119,7 @@ async function collectRuntimeIngress(
   ingressBytesByRole: Map<string, Uint8Array>;
   supportNameByRole: Map<string, string>;
 }> {
-  const [filterBytes, forcingBytes, backgroundBytes, codebookBytes] =
+  const [filterBytes, forcingBytes, backgroundBytes, codebookBytes, codebookSchemaBytes] =
     await Promise.all([
       supportBytes(
         options.useFilterFile,
@@ -4139,6 +4140,12 @@ async function collectRuntimeIngress(
         options.useAppCodebook,
         supportFiles?.appCodebookFile,
         defaultAppCodebookUrl,
+      ),
+      // The codebook's column layout always comes from the bundled schema.
+      supportBytes(
+        options.useAppCodebook,
+        undefined,
+        defaultAppCodebookSchemaUrl,
       ),
     ]);
   const studyDatesBytes = options.enableStudyWindowFilter
@@ -4183,6 +4190,7 @@ async function collectRuntimeIngress(
     ["apps_forcing_screen_open_file", forcingBytes],
     ["background_apps_file", backgroundBytes],
     ["app_codebook_file", codebookBytes],
+    ["app_codebook_schema_file", codebookSchemaBytes],
     ["study_dates_file", studyDatesBytes],
     ["device_sharing_file", deviceSharingBytes],
     ["survey_attribution_file", surveyAttributionBytes],
@@ -4219,6 +4227,7 @@ async function collectRuntimeIngress(
       "app_codebook_file",
       supportFiles?.appCodebookFile?.name ?? "unified_app_codebook.csv",
     ],
+    ["app_codebook_schema_file", "unified_app_codebook.schema.json"],
     [
       "study_dates_file",
       supportFiles?.studyDatesFile?.name ?? "study_dates.csv",

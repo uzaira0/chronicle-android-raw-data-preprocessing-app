@@ -93,9 +93,11 @@ use super::{
     // v17: B06 row fields (maximum_duration_*, effective_endpoint_reason).
     // v18 removes the output-only preprocessing timestamp checkpoint and key.
     // v19 adds interval-wide app-observation evidence to serialized RowData.
-    pub(crate) const REVIEW_BASE_PROTOCOL: &str = "chronicle-review-base/v20";
+    // v21: `codebook_genre_fields_cleared` carries the cleared genre positions
+    // of the request's codebook schema instead of a flag.
+    pub(crate) const REVIEW_BASE_PROTOCOL: &str = "chronicle-review-base/v21";
 
-    pub(crate) const REVIEW_BASE_MAGIC: &[u8; 8] = b"CHRRB020";
+    pub(crate) const REVIEW_BASE_MAGIC: &[u8; 8] = b"CHRRB021";
 
     pub(crate) const REVIEW_BASE_HEADER_BYTES: usize = REVIEW_BASE_MAGIC.len() + 4 + 32 + 32 + 32;
 
@@ -109,9 +111,11 @@ use super::{
     // v23: B06 row fields, binding request, and the optional B06 receipt.
     // v24 carries the v18 early metadata without an output timestamp.
     // v25 adds interval-wide app-observation evidence to serialized RowData.
-    pub(crate) const RECONSTRUCTION_BASE_PROTOCOL: &str = "chronicle-reconstruction-base/v26";
+    // v27: serialized RowData carries the cleared codebook genre positions,
+    // and the annotation checkpoint key binds the codebook schema.
+    pub(crate) const RECONSTRUCTION_BASE_PROTOCOL: &str = "chronicle-reconstruction-base/v27";
 
-    pub(crate) const RECONSTRUCTION_BASE_MAGIC: &[u8; 8] = b"CHRRX026";
+    pub(crate) const RECONSTRUCTION_BASE_MAGIC: &[u8; 8] = b"CHRRX027";
 
     pub(crate) const RECONSTRUCTION_BASE_HEADER_BYTES: usize = RECONSTRUCTION_BASE_MAGIC.len() + 4 + 32 + 32;
 
@@ -620,6 +624,7 @@ use super::{
         pub(crate) protocol_version: &'static str,
         pub(crate) use_app_codebook: bool,
         pub(crate) codebook_digest: String,
+        pub(crate) codebook_schema_digest: String,
         pub(crate) custom_app_engagement_duration_bits: u64,
         pub(crate) long_data_time_gap_threshold_bits: Vec<u64>,
         pub(crate) long_usage_duration_threshold_bits: Vec<u64>,
@@ -865,11 +870,17 @@ use super::{
             // v1 -> v2 when interval_quality_policy joined the key; v2 -> v3
             // when the (now-retired) hidden Culverhouse re-floor joined; v4
             // removes that scientifically invalid dependency without allowing
-            // a v3 annotation base to alias the corrected semantics.
-            protocol_version: "chronicle-review-annotation-checkpoint/v4",
+            // a v3 annotation base to alias the corrected semantics; v5 binds
+            // the codebook schema, which decides the annotated codebook columns.
+            protocol_version: "chronicle-review-annotation-checkpoint/v5",
             use_app_codebook,
             codebook_digest: if use_app_codebook {
                 digest_bytes(&support.codebook_csv(db))
+            } else {
+                digest_bytes(&[])
+            },
+            codebook_schema_digest: if use_app_codebook {
+                digest_bytes(&support.codebook_schema_json(db))
             } else {
                 digest_bytes(&[])
             },

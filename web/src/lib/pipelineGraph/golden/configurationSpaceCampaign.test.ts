@@ -7,6 +7,7 @@ import filterCsv from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor
 import forcingCsv from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv?raw";
 import backgroundCsv from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_background_apps.csv?raw";
 import codebookCsv from "@/testSupport/fixtures/synthetic-catalog-app-codebook.csv?raw";
+import codebookSchemaJson from "@/testSupport/fixtures/synthetic-catalog-app-codebook.schema.json?raw";
 import {
   ANNOTATION_BROWSER_OPTION_KEYS,
   BROWSER_PROCESSING_OPTION_KEYS,
@@ -403,6 +404,10 @@ function supportCsv(
                 name: "catalog-derived-codebook.csv",
                 csv: buildCodebookSlice(catalog, corpus.usedPackages),
               },
+            ] as const,
+            [
+              "app_codebook_schema_file",
+              { name: "catalog-codebook.schema.json", csv: codebookSchemaJson },
             ] as const,
           ]
         : []),
@@ -1521,6 +1526,7 @@ describe("Rust/WASM configuration-space campaign", () => {
       "apps_forcing_screen_open_file",
       "background_apps_file",
       "app_codebook_file",
+      "app_codebook_schema_file",
       "study_dates_file",
       "device_sharing_file",
     ];

@@ -139,7 +139,7 @@ describe("derived semantic index WASM boundary", () => {
       first,
       "requirement-traces",
     );
-    expect(requirements.rows).toHaveLength(11);
+    expect(requirements.rows).toHaveLength(12);
     expect(requirements.rows?.some((row) => row["?state"]?.includes("satisfied"))).toBe(
       true,
     );

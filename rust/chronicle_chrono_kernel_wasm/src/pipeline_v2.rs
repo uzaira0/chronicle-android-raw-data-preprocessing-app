@@ -116,7 +116,7 @@ pub use model::{
     B05SchoedelPreflightResult, B05SchoedelPreparedInput, B05SchoedelValidationReceipt,
     B05SchoedelValidationStatus, B05ScreenPreparedSubstrate,
     B05_RETAINED_RAW_INPUT_REQUIRED_ERROR, B05_SCHOEDEL_PREFLIGHT_PROTOCOL_VERSION,
-    B05_SCHOEDEL_VALIDATION_RECEIPT_PROTOCOL_VERSION, CodebookEntry,
+    B05_SCHOEDEL_VALIDATION_RECEIPT_PROTOCOL_VERSION, CodebookEntry, CodebookSchema,
     ConcurrentSubintervalFloorReceipt, EYES_INPUT_PARTITION_PREFLIGHT_PROTOCOL_VERSION,
     EYES_RETAINED_RAW_INPUT_REQUIRED_ERROR, EYES_TAGGED_FAU_VALIDATION_RECEIPT_PROTOCOL_VERSION,
     EyesInputPartitionOptionsDigestOrigin, EyesInputPartitionPreflightError,
@@ -134,8 +134,8 @@ use model::{
     EpisodeTiming, RowEpisodeTiming, ACTIVITY_PAUSED, ACTIVITY_RESUMED, ACTIVITY_STOPPED, AMAZON_APPS, ANDROID_PSEUDO_PACKAGE,
     APP_USAGE, AttributedRows, AttributionCompleteness, AttributionCompletenessDay,
     AttributionMinutes, AttributionReport, B05RouterOptionsIdentity,
-    B05SchoedelValidationContext, B05ScreenOptionsIdentity, BROAD_CATEGORY_COLUMNS,
-    CODEBOOK_RENAME_PAIRS, COLLAPSED_GENRE_FIELD_INDICES, GENRE_ID_COLUMNS, CULVERHOUSE_BAD_APP_CAP_FLAG, CULVERHOUSE_BAD_APP_CAP_NS,
+    B05SchoedelValidationContext, B05ScreenOptionsIdentity, CodebookGenreFields,
+    UNJOINED_CODEBOOK_FIELD_COUNT, CULVERHOUSE_BAD_APP_CAP_FLAG, CULVERHOUSE_BAD_APP_CAP_NS,
     CULVERHOUSE_COLLAPSED_FLAG, CULVERHOUSE_DST_DAY_FLAG, CULVERHOUSE_LONG_3H_FLAG,
     CULVERHOUSE_LONG_3H_NS, CULVERHOUSE_LONG_6H_FLAG, CULVERHOUSE_LONG_6H_NS,
     CULVERHOUSE_PARTIAL_DAY_FLAG, CULVERHOUSE_PARTIAL_DAY_GAP_HOURS,
@@ -170,9 +170,10 @@ pub(crate) use row_codec::{
     with_deserialized_row_string_pool, with_serialized_row_string_table,
 };
 use row_codec::{
-    SharedStringPool, deserialize_codebook_fields, deserialize_lineage_searches,
+    SharedStringPool, deserialize_codebook_fields, deserialize_codebook_genre_fields,
+    deserialize_lineage_searches,
     deserialize_screen_lineage, deserialize_shared_arc_string, empty_codebook_fields,
-    empty_codebook_fields_ref, empty_lineage_searches, serialize_codebook_fields,
+    empty_lineage_searches, serialize_codebook_fields,
     serialize_lineage_searches, serialize_shared_arc_string, shared_lineage_text,
 };
 
@@ -193,14 +194,14 @@ use checkpoint::{
 #[path = "pipeline/output.rs"]
 mod output;
 pub use output::{
-    codebook_column_renames, declared_app_output_columns, declared_screen_output_columns,
+    declared_app_output_columns, declared_screen_output_columns,
     declared_screen_output_columns_for_strategy, insert_conditional_app_output_columns,
     normalize_float_string,
 };
 use output::{
     LocalDateMemo, build_review_summary, build_row_lineage,
     build_row_lineage_from_iter, build_screen_row_lineage, build_visualization_data,
-    codebook_col_indices, csv_escape_value, ecma_round_fixed_f64,
+    csv_escape_value, ecma_round_fixed_f64,
     fmt_session_timestamp, format_cadence_seconds, format_threshold,
     foundational_output_projection, headline_eligible_app_rows, js_number_to_string,
     participant_event_timestamps, ts_to_local, write_selected_screen_csv,
@@ -209,8 +210,20 @@ use output::{
 use output::{write_app_csv, write_app_csv_from_iter};
 #[cfg(any(test, feature = "incremental-v2"))]
 use output::{compliance_csv};
+
+/// The bundled default codebook schema's exact bytes, for kernel tests that
+/// run with the codebook on. Test-only: the kernel never carries a schema.
 #[cfg(test)]
-use output::codebook_col_index;
+pub(crate) const TEST_CODEBOOK_SCHEMA_JSON: &[u8] =
+    include_bytes!("../../../web/src/assets/defaults/unified_app_codebook.schema.json");
+
+#[cfg(test)]
+use row_codec::empty_codebook_fields_ref;
+
+#[cfg(test)]
+pub(crate) fn test_codebook_schema() -> CodebookSchema {
+    parse_codebook_schema(TEST_CODEBOOK_SCHEMA_JSON).expect("the bundled codebook schema parses")
+}
 
 #[cfg(test)]
 use support::{
@@ -256,8 +269,10 @@ use source::{
 mod support;
 pub use support::{
     validate_supplied_communication_relationships,
-    validate_filter_file_for_preset, validate_support_csv,
+    parse_codebook_schema, validate_codebook_csv, validate_filter_file_for_preset,
+    validate_support_csv,
 };
+pub(crate) use support::validate_codebook_support;
 use support::{
     parse_apps_forcing_csv, parse_background_apps_csv, parse_codebook_csv,
     parse_csv_to_records_with_physical_rows, parse_device_sharing, parse_enrolled_devices,
@@ -426,11 +441,12 @@ pub use sequential::{
     prepare_sequential_run_with_verified_input_and_dependencies,
     sequential_scientific_preflight_with_stages,
     sequential_scientific_preflight_with_verified_input_and_stages, VerifiedRawInput,
-    PreparedSequentialRun, prepare_sequential_run, run_pipeline_v2,
-    run_pipeline_v2_with_background, run_pipeline_v2_with_prepared_b05,
+    PreparedSequentialRun, prepare_sequential_run, run_pipeline_v2_with_prepared_b05,
     run_pipeline_v2_with_supports, run_prepared_sequential, sequential_scientific_preflight,
 };
 use sequential::{QueryCheckpointRecorder};
+#[cfg(test)]
+pub use sequential::{run_pipeline_v2, run_pipeline_v2_with_background};
 
 #[path = "pipeline_v2_aggregates.rs"]
 pub mod aggregates;
@@ -4144,12 +4160,8 @@ mod tests {
                 b"unrelated\ncom.example.sync\n",
                 "requires one of columns",
             ),
-            (
-                "app_codebook_file",
-                b"app_package_name,bcm_play_store_broad_app_category\ncom.example.chat,Social\n",
-                b"package_name,bcm_play_store_broad_app_category\ncom.example.chat,Social\n",
-                "missing required column(s) app_package_name",
-            ),
+            // app_codebook_file's key column comes from its schema:
+            // `a_codebook_csv_without_its_schema_key_column_is_refused`.
             (
                 "study_dates_file",
                 b"participant_id,start_date,end_date\nP01,2026-03-07,2026-03-08\n",
@@ -4613,6 +4625,7 @@ mod tests {
 
     #[test]
     fn codebook_parsing_keeps_the_first_row_per_package_and_drops_blank_cells() {
+        let schema = test_codebook_schema();
         let parsed = parse_codebook_csv(
             concat!(
                 "app_package_name,bcm_play_store_broad_app_category\n",
@@ -4622,12 +4635,10 @@ mod tests {
                 "com.example.blank, \n",
             )
             .as_bytes(),
+            &schema,
         );
         assert_eq!(parsed.len(), 2, "blank packages never become codebook keys");
-        let category = CODEBOOK_RENAME_PAIRS
-            .iter()
-            .position(|(source, _)| *source == "bcm_play_store_broad_app_category")
-            .expect("the broad category column is a declared codebook field");
+        let category = schema.output_index("bcm_play_store_broad_app_category");
         assert_eq!(
             parsed["com.example.chat"].fields[category].as_deref(),
             Some("Social"),
@@ -5154,7 +5165,7 @@ mod tests {
                 .fields
         }
 
-        let width = CODEBOOK_RENAME_PAIRS.len();
+        let width = UNJOINED_CODEBOOK_FIELD_COUNT;
         let blank = vec![None; width];
         assert!(
             Arc::ptr_eq(&codebook(&blank), empty_codebook_fields_ref()),
@@ -8026,7 +8037,7 @@ mod tests {
         csv_options.micro_use_classification_policy_explicit = true;
         let mut csv_rows = app_rows.clone();
         csv_rows.push(screen_rows[0].clone());
-        let csv = write_app_csv(&csv_rows, &csv_options, false);
+        let csv = write_app_csv(&csv_rows, &csv_options, false, None);
         let records = parse_csv_to_records_with_physical_rows(&csv);
         assert_eq!(records[0].1["micro_use_classification"], "micro_use");
         assert_eq!(records[1].1["micro_use_classification"], "not_applicable");
@@ -10650,7 +10661,7 @@ mod tests {
             data.genre_id_scraped = Some("Social".into());
             data.broad_app_category = Some("COMMUNICATION".into());
             data.codebook_fields = Arc::new(
-                (0..CODEBOOK_RENAME_PAIRS.len())
+                (0..test_codebook_schema().columns.len())
                     .map(|index| Some(format!("field{index}")))
                     .collect(),
             );
@@ -10681,10 +10692,13 @@ mod tests {
                              background={use_background_apps_file}"
                         );
 
-                        let written = write_app_csv_from_iter(rows.iter(), &opts, include_aliases);
+                        let schema = test_codebook_schema();
+                        let codebook = use_app_codebook.then_some(&schema);
+                        let written =
+                            write_app_csv_from_iter(rows.iter(), &opts, include_aliases, codebook);
                         let lines = csv_lines(&written);
                         let declared = declared_app_output_columns(
-                            use_app_codebook,
+                            codebook,
                             include_aliases,
                             model_concurrent_usage || use_background_apps_file,
                             opts.custom_app_engagement_duration,
@@ -10725,7 +10739,7 @@ mod tests {
     #[test]
     fn foundational_semantics_columns_are_opt_in_and_line_up_with_their_values() {
         let mut options = test_options();
-        let default_columns = build_app_columns(&options, false);
+        let default_columns = build_app_columns(&options, false, None);
         for column in [
             "micro_use_classification",
             "raw_episode_duration_seconds",
@@ -10757,9 +10771,9 @@ mod tests {
             &[],
             &b06::MaximumDurationRowStage::omitted(),
         ).expect("classification with the omitted B06 shape never refuses");
-        let lines = csv_lines(&write_app_csv_from_iter(classified.iter(), &options, false));
+        let lines = csv_lines(&write_app_csv_from_iter(classified.iter(), &options, false, None));
         assert_eq!(lines.len(), 2);
-        let columns = build_app_columns(&options, false);
+        let columns = build_app_columns(&options, false, None);
         assert_eq!(lines[0], columns);
         let value = |column: &str| {
             let index = columns
@@ -10839,6 +10853,7 @@ mod tests {
     /// columns are blanked only on rows that actually had them collapsed.
     #[test]
     fn exported_rows_use_their_own_timezone_and_collapse_only_where_marked() {
+        let schema = test_codebook_schema();
         let mut rows = app_csv_rows();
         // The same instant in two zones, so the exported local timestamps can
         // only differ if each row is rendered in its own timezone.
@@ -10848,7 +10863,7 @@ mod tests {
             let data = rows[1].edit_all();
             data.timezone = "America/New_York".into();
             data.event_timestamp_ns = instant;
-            data.codebook_genre_fields_cleared = true;
+            data.codebook_genre_fields_cleared = Some(Arc::clone(&schema.genre_indices));
             true
         };
         assert!(collapsed);
@@ -10856,7 +10871,7 @@ mod tests {
         let mut opts = test_options();
         opts.timezone = "UTC".into();
         opts.use_app_codebook = true;
-        let written = write_app_csv_from_iter(rows.iter(), &opts, false);
+        let written = write_app_csv_from_iter(rows.iter(), &opts, false, Some(&schema));
         let lines = csv_lines(&written);
         let column = |name: &str| {
             lines[0]
@@ -10874,14 +10889,15 @@ mod tests {
         assert_eq!(lines[1][column("timezone")], "UTC");
         assert_eq!(lines[2][column("timezone")], "America/New_York");
 
-        for (index, (_, exported)) in CODEBOOK_RENAME_PAIRS.iter().enumerate() {
+        let schema = test_codebook_schema();
+        for (index, exported) in schema.output_columns().enumerate() {
             let value = column(exported);
             assert_eq!(
                 lines[1][value],
                 format!("field{index}"),
                 "a row with no collapsed genre columns lost {exported}",
             );
-            let expected = if COLLAPSED_GENRE_FIELD_INDICES.contains(&index) {
+            let expected = if schema.genre_indices.contains(&index) {
                 String::new()
             } else {
                 format!("field{index}")
@@ -11164,52 +11180,54 @@ mod tests {
     /// Blue Light Play Store category ranks right after BCM's.
     #[test]
     fn collapsed_genre_positions_and_category_precedence_match_the_codebook() {
-        let mut genre = codebook_col_indices(GENRE_ID_COLUMNS);
+        let schema = test_codebook_schema();
+        let mut genre = schema.genre_indices.to_vec();
         genre.sort_unstable();
-        assert_eq!(genre, COLLAPSED_GENRE_FIELD_INDICES);
+        assert_eq!(genre, [1, 9, 17, 18, 26]);
         assert_eq!(
-            BROAD_CATEGORY_COLUMNS[..2],
+            schema.broad_indices[..2],
             [
-                "bcm_play_store_broad_app_category",
-                "bluelight_play_store_broad_app_category",
+                schema.output_index("bcm_play_store_broad_app_category"),
+                schema.output_index("bluelight_play_store_broad_app_category"),
             ],
         );
         let mut row = app_csv_rows().remove(0);
         {
             let data = row.edit_all();
-            let mut fields = vec![None; CODEBOOK_RENAME_PAIRS.len()];
-            fields[codebook_col_index("bluelight_play_store_broad_app_category").unwrap()] =
+            let mut fields = vec![None; schema.columns.len()];
+            fields[schema.output_index("bluelight_play_store_broad_app_category")] =
                 Some("Education".to_owned());
-            fields[codebook_col_index("bcm_cnrc_heuristic_category").unwrap()] =
+            fields[schema.output_index("bcm_cnrc_heuristic_category")] =
                 Some("Utilities".to_owned());
             data.codebook_fields = Arc::new(fields);
             data.broad_app_category = None;
         }
-        derive_broad_category_row(&mut row, codebook_col_indices(BROAD_CATEGORY_COLUMNS), &mut SharedStringPool::default());
+        derive_broad_category_row(&mut row, &schema.broad_indices, &mut SharedStringPool::default());
         assert_eq!(row.broad_app_category.as_deref(), Some("Education"));
     }
 
     #[test]
     fn genre_columns_collapse_to_one_answer_and_correct_a_stale_one() {
-        let indices = codebook_col_indices(GENRE_ID_COLUMNS);
+        let schema = test_codebook_schema();
+        let indices = &schema.genre_indices;
         let collapse = |values: [Option<&str>; 5], genre: Option<&str>, cleared: bool| {
             let mut row = app_csv_rows().remove(0);
             {
                 let data = row.edit_all();
-                let mut fields = vec![None; CODEBOOK_RENAME_PAIRS.len()];
+                let mut fields = vec![None; schema.columns.len()];
                 for (slot, value) in indices.iter().zip(values) {
                     fields[*slot] = value.map(str::to_owned);
                 }
                 data.codebook_fields = Arc::new(fields);
                 data.genre_id_scraped = genre.map(SharedString::from);
-                data.codebook_genre_fields_cleared = cleared;
+                data.codebook_genre_fields_cleared = cleared.then(|| Arc::clone(indices));
             }
             collapse_app_genre_row(&mut row, indices, &mut SharedStringPool::default());
             (
                 row.genre_id_scraped
                     .as_ref()
                     .map(|genre| genre.as_str().to_owned()),
-                row.codebook_genre_fields_cleared,
+                row.codebook_genre_fields_cleared.is_some(),
             )
         };
 
@@ -14483,22 +14501,24 @@ P01,2026-03-02,2026-03-31,2026-03-08,2026-03-08,exam_week_8\n";
     /// digests. A row whose columns were not consumed still commits them.
     #[test]
     fn the_classification_checkpoint_masks_exactly_the_consumed_genre_columns() {
+        let schema = test_codebook_schema();
         let classification = |value: Option<&str>, cleared: bool, slot: usize| {
             let mut row = app_csv_rows().remove(0);
             {
                 let data = row.edit_all();
-                let mut fields = vec![None; CODEBOOK_RENAME_PAIRS.len()];
+                let mut fields = vec![None; schema.columns.len()];
                 fields[slot] = value.map(str::to_owned);
                 data.codebook_fields = Arc::new(fields);
-                data.codebook_genre_fields_cleared = cleared;
+                data.codebook_genre_fields_cleared =
+                    cleared.then(|| Arc::clone(&schema.genre_indices));
             }
             let mut scratch = RowCheckpointScratch::default();
             row_checkpoint_parts(&row, &mut scratch).classification
         };
 
-        let consumed = COLLAPSED_GENRE_FIELD_INDICES[0];
-        let untouched = (0..CODEBOOK_RENAME_PAIRS.len())
-            .find(|index| !COLLAPSED_GENRE_FIELD_INDICES.contains(index))
+        let consumed = schema.genre_indices[0];
+        let untouched = (0..schema.columns.len())
+            .find(|index| !schema.genre_indices.contains(index))
             .expect("a codebook column outside the genre collapse");
 
         assert_eq!(
@@ -14702,6 +14722,7 @@ mod output_contract {
             apps_forcing_csv: APPS_FORCING_CSV,
             background_apps_csv: BACKGROUND_APPS_CSV,
             codebook_csv: CODEBOOK_CSV,
+            codebook_schema_json: crate::pipeline_v2::TEST_CODEBOOK_SCHEMA_JSON,
             study_dates_csv: STUDY_DATES_CSV,
             device_sharing_csv: DEVICE_SHARING_CSV,
             survey_attribution_csv: SURVEY_ATTRIBUTION_CSV,
@@ -14847,7 +14868,7 @@ mod output_contract {
         assert_eq!(
             header_of(&without_codebook.app_csv_bytes.to_vec()),
             declared_app_output_columns(
-                true,
+                Some(&test_codebook_schema()),
                 true,
                 usage_layer_active,
                 options.custom_app_engagement_duration,
@@ -14863,7 +14884,7 @@ mod output_contract {
         assert_eq!(
             header_of(&with_codebook.app_csv_bytes.to_vec()),
             declared_app_output_columns(
-                true,
+                Some(&test_codebook_schema()),
                 false,
                 usage_layer_active,
                 options.custom_app_engagement_duration,
@@ -14872,6 +14893,185 @@ mod output_contract {
             ),
             "a joined codebook still emitted the alias columns",
         );
+    }
+
+    /// The codebook's column layout is injected data: a two-column schema
+    /// names the only codebook columns written, and its precedence list alone
+    /// picks `broad_app_category`.
+    #[test]
+    fn an_injected_codebook_schema_alone_decides_the_codebook_columns_and_category() {
+        let mut options = contract_options();
+        options.enable_study_window_filter = false;
+        options.enable_person_attribution = false;
+        options.enable_day_coverage = false;
+        options.enable_compliance_scoring = false;
+        options.add_no_activity_placeholder_days = false;
+        options.use_app_codebook = true;
+        options.include_category_column = true;
+        let schema = concat!(
+            r#"{"schema_version":1,"key_column":"package","#,
+            r#""codebook_columns":["#,
+            r#"{"source_column":"first","output_column":"label_a","column_description":"a"},"#,
+            r#"{"source_column":"second","output_column":"label_b","column_description":"b"}],"#,
+            r#""broad_category_precedence":["label_b","label_a"],"genre_sources":[]}"#,
+        );
+        let codebook = concat!(
+            "package,first,second,bcm_play_store_broad_app_category\n",
+            "com.example.chat,Social,Messaging,Ignored\n",
+            "com.example.music,Audio,,Ignored\n",
+        );
+        let output = run_pipeline_v2_with_supports(
+            FIXTURE_CSV.as_bytes(),
+            &options,
+            PipelineV2SupportFiles {
+                codebook_csv: codebook.as_bytes(),
+                codebook_schema_json: schema.as_bytes(),
+                ..PipelineV2SupportFiles::default()
+            },
+        )
+        .expect("the fixture preprocesses with an injected two-column schema");
+        let records = parse_csv_to_records_with_physical_rows(&output.app_csv_bytes.to_vec());
+        let app_csv = String::from_utf8(output.app_csv_bytes.to_vec()).expect("the app csv is utf-8");
+        let header: Vec<&str> = app_csv.lines().next().unwrap_or_default().split(',').collect();
+        assert!(header.contains(&"label_a") && header.contains(&"label_b"), "{header:?}");
+        assert!(
+            !header.iter().any(|column| column.starts_with("bcm_play_store")
+                || column.starts_with("codebook_")),
+            "a column the injected schema does not name was written: {header:?}",
+        );
+        let row = |package: &str| {
+            &records
+                .iter()
+                .find(|(_, row)| row["app_package_name"] == package)
+                .unwrap_or_else(|| panic!("{package} has no app row"))
+                .1
+        };
+        let chat = row("com.example.chat");
+        assert_eq!(
+            (chat["label_a"].as_str(), chat["label_b"].as_str(), chat["broad_app_category"].as_str()),
+            ("Social", "Messaging", "Messaging"),
+        );
+        let music = row("com.example.music");
+        assert_eq!(
+            (music["label_b"].as_str(), music["broad_app_category"].as_str()),
+            ("", "Audio"),
+            "an empty first-precedence column falls through to the next",
+        );
+    }
+
+    #[test]
+    fn a_codebook_csv_without_its_schema_key_column_is_refused() {
+        let schema = parse_codebook_schema(
+            br#"{"schema_version":1,"key_column":"package","codebook_columns":[{"source_column":"label","output_column":"label_a","column_description":"a"}],"broad_category_precedence":[],"genre_sources":[]}"#,
+        )
+        .expect("a valid schema");
+        assert!(validate_codebook_csv(b"package,label\ncom.example.chat,Chat\n", &schema).is_ok());
+        let error = validate_codebook_csv(b"app_package_name,label\ncom.example.chat,Chat\n", &schema)
+            .expect_err("a codebook without the schema's key column was accepted");
+        assert!(error.contains("missing required column(s) package"), "{error}");
+
+        let mut options = contract_options();
+        options.use_app_codebook = true;
+        let refused = run_pipeline_v2_with_supports(
+            FIXTURE_CSV.as_bytes(),
+            &options,
+            PipelineV2SupportFiles {
+                // The bundled schema keys on app_package_name.
+                codebook_csv: b"package_name,bcm_play_store_broad_app_category\ncom.example.chat,Social\n",
+                codebook_schema_json: TEST_CODEBOOK_SCHEMA_JSON,
+                ..PipelineV2SupportFiles::default()
+            },
+        )
+        .err()
+        .expect("a codebook without its key column was run");
+        assert!(refused.contains("missing required column(s) app_package_name"), "{refused}");
+    }
+
+    #[test]
+    fn a_codebook_output_column_may_not_take_a_kernel_column_name() {
+        let schema = |output: &str| {
+            format!(
+                r#"{{"schema_version":1,"key_column":"app_package_name","codebook_columns":[{{"source_column":"x","output_column":"{output}","column_description":"d"}}],"broad_category_precedence":[],"genre_sources":[]}}"#
+            )
+        };
+        for kernel_column in [
+            "duration_seconds",
+            "broad_app_category",
+            "genreId_scraped",
+            "usage_layer",
+            "schoedel_completion",
+            "maximum_duration_trimmed_seconds",
+            "valid_app_new_engage_custom_45s",
+        ] {
+            let error = parse_codebook_schema(schema(kernel_column).as_bytes())
+                .expect_err(&format!("{kernel_column} was accepted as a codebook column"));
+            assert!(error.contains("already writes"), "{kernel_column}: {error}");
+        }
+        assert!(parse_codebook_schema(schema("codebook_duration_seconds").as_bytes()).is_ok());
+    }
+
+    #[test]
+    fn an_invalid_codebook_schema_is_refused_before_any_row_is_touched() {
+        let column = |source: &str, output: &str| {
+            format!(r#"{{"source_column":"{source}","output_column":"{output}","column_description":"d"}}"#)
+        };
+        let document = |key: &str, columns: &[String], broad: &str, genre: &str| {
+            format!(
+                r#"{{"schema_version":1,"key_column":"{key}","codebook_columns":[{}],"broad_category_precedence":[{broad}],"genre_sources":[{genre}]}}"#,
+                columns.join(",")
+            )
+        };
+        let good = [column("a", "out_a"), column("b", "out_b")];
+        assert!(parse_codebook_schema(document("pkg", &good, r#""out_a""#, r#""out_b""#).as_bytes()).is_ok());
+        for (reason, bytes) in [
+            ("not JSON", "not json".to_owned()),
+            ("unknown key", document("pkg", &good, "", "").replacen('{', r#"{"extra":1,"#, 1)),
+            ("version", document("pkg", &good, "", "").replace(r#""schema_version":1"#, r#""schema_version":2"#)),
+            ("blank key", document(" ", &good, "", "")),
+            ("no columns", document("pkg", &[], "", "")),
+            ("padded source", document("pkg", &[column(" a", "out_a")], "", "")),
+            ("repeated output", document("pkg", &[column("a", "out"), column("b", "out")], "", "")),
+            ("unknown precedence", document("pkg", &good, r#""a""#, "")),
+            ("repeated genre", document("pkg", &good, "", r#""out_a","out_a""#)),
+        ] {
+            let error = parse_codebook_schema(bytes.as_bytes())
+                .expect_err(&format!("a schema with {reason} was accepted"));
+            assert!(error.starts_with("app_codebook_schema_file is invalid: "), "{reason}: {error}");
+        }
+
+        let mut options = contract_options();
+        options.enable_study_window_filter = false;
+        options.enable_person_attribution = false;
+        options.enable_day_coverage = false;
+        options.enable_compliance_scoring = false;
+        options.add_no_activity_placeholder_days = false;
+        options.use_app_codebook = true;
+        let refused = run_pipeline_v2_with_supports(
+            FIXTURE_CSV.as_bytes(),
+            &options,
+            PipelineV2SupportFiles {
+                codebook_csv: CODEBOOK_CSV,
+                ..PipelineV2SupportFiles::default()
+            },
+        )
+        .err()
+        .expect("an enabled codebook with no schema was accepted");
+        assert!(refused.contains("app_codebook_schema_file"), "{refused}");
+
+        // Refused at entry, before any stage: a screen-only run never reaches
+        // the codebook join, yet a malformed schema still stops it.
+        options.usage_session_mode = UsageSessionMode::ScreenUsage;
+        let refused = run_pipeline_v2_with_supports(
+            FIXTURE_CSV.as_bytes(),
+            &options,
+            PipelineV2SupportFiles {
+                codebook_schema_json: b"{not json",
+                ..PipelineV2SupportFiles::default()
+            },
+        )
+        .err()
+        .expect("a malformed schema was accepted on a screen-only run");
+        assert!(refused.starts_with("app_codebook_schema_file is invalid: "), "{refused}");
     }
 
     /// `run_pipeline_v2` and `run_pipeline_v2_with_background` are the entry
@@ -14974,6 +15174,7 @@ mod output_contract {
                 apps_forcing_csv: APPS_FORCING_CSV,
                 background_apps_csv: BACKGROUND_APPS_CSV,
                 codebook_csv: CODEBOOK_CSV,
+                codebook_schema_json: crate::pipeline_v2::TEST_CODEBOOK_SCHEMA_JSON,
                 ..PipelineV2SupportFiles::default()
             },
         )
