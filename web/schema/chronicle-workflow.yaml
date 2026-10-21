@@ -1676,6 +1676,13 @@ workflow_artifacts:
     workflow_producer_id: null
     workflow_consumer_ids:
       - context.join_app_codebook
+  - workflow_id: source.app_codebook_schema_file
+    workflow_label: app codebook schema file
+    workflow_producer_id: null
+    workflow_consumer_ids:
+      - context.collapse_app_genre
+      - context.derive_broad_category
+      - context.join_app_codebook
   - workflow_id: source.apps_forcing_screen_open_file
     workflow_label: apps forcing screen open file
     workflow_producer_id: null

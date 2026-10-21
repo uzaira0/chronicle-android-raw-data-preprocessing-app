@@ -36,7 +36,7 @@
     "refresh:dependency-evidence": "node scripts/refresh_dependency_evidence.mjs",
     "test:coverage": "node scripts/run-clean-env.mjs vitest run --coverage --exclude src/lib/pipelineGraph/golden/configurationSpaceCampaign.test.ts --exclude src/lib/pipelineGraph/golden/artifactInterventionCampaign.test.ts --exclude src/lib/pipelineGraph/golden/rawBoundaryTomography.test.ts --exclude src/lib/pipelineGraph/golden/interactionTomography.test.ts",
     "check:contract": "python3 ../scripts/check_workflow_count_neutrality.py && node scripts/run-clean-env.mjs vite-node scripts/generate_contract_artifacts.mts --check && node scripts/run-clean-env.mjs vite-node scripts/check_contract_consistency.mts && node scripts/run-clean-env.mjs vite-node scripts/generate_workflow_artifacts.mts --check && npm run check:workflow-schema && node scripts/run-clean-env.mjs vite-node scripts/generate_output_codebook_artifacts.mts --check && node scripts/run-clean-env.mjs vite-node scripts/check_contract_compat.mts && node scripts/run-clean-env.mjs vite-node scripts/check_no_typescript_authority.mts",
-    "check:workflow-schema": "make -C schema validate-workflow",
+    "check:workflow-schema": "make -C schema validate-workflow validate-app-codebook-schema",
     "check:contract-compat": "node scripts/run-clean-env.mjs vite-node scripts/check_contract_compat.mts",
     "check:authority-boundary": "node scripts/run-clean-env.mjs vite-node scripts/check_no_typescript_authority.mts",
     "check:axis-completeness": "node scripts/run-clean-env.mjs vite-node scripts/check_axis_completeness.mts",

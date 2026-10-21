@@ -361,6 +361,9 @@ fn support<'a>(codebook_csv: &'a [u8], filter_csv: &'a [u8]) -> PipelineV2Suppor
         apps_forcing_csv: APPS_FORCING_CSV,
         background_apps_csv: BACKGROUND_APPS_CSV,
         codebook_csv,
+        codebook_schema_json: include_bytes!(
+            "../../../web/src/assets/defaults/unified_app_codebook.schema.json"
+        ),
         ..PipelineV2SupportFiles::default()
     }
 }

@@ -1827,6 +1827,9 @@ pub struct PipelineV2SupportFiles<'a> {
     pub apps_forcing_csv: &'a [u8],
     pub background_apps_csv: &'a [u8],
     pub codebook_csv: &'a [u8],
+    /// Exact bytes of the app-codebook schema JSON (`app_codebook_schema_file`).
+    /// Required whenever `use_app_codebook` is on; never read otherwise.
+    pub codebook_schema_json: &'a [u8],
     pub study_dates_csv: &'a [u8],
     pub device_sharing_csv: &'a [u8],
     pub survey_attribution_csv: &'a [u8],

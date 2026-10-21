@@ -5,7 +5,7 @@ use super::{
     MinimumDurationComparator, MinimumDurationDisposition, OnceLock, OpenerSet,
     OpenerSetApplicability, PayloadBytes, PipelineV2OptionsValidationError,
     ScreenSessionConstructionStrategyId, SmallVec, aggregates, b05, b06, default_true,
-    deserialize_codebook_fields, deserialize_lineage_searches, deserialize_screen_lineage,
+    deserialize_codebook_fields, deserialize_codebook_genre_fields, deserialize_lineage_searches, deserialize_screen_lineage,
     deserialize_shared_arc_string, encode_blake3_digest, serialize_codebook_fields,
     serialize_lineage_searches, serialize_shared_arc_string, sha256_wire,
 };
@@ -184,85 +184,55 @@ pub(super) const AMAZON_APPS: &[&str] = &[
     "com.amazon.media.session.monitor",
 ];
 
-// Codebook column rename map. Matches CODEBOOK_COLUMN_RENAME_MAP in TS.
-// Order MUST match TS Object.values order — JS preserves insertion order.
-pub(super) const CODEBOOK_RENAME_PAIRS: &[(&str, &str)] = &[
-    ("application_label", "codebook_application_label"),
-    ("bcm_play_store_genreId", "bcm_play_store_genreId"),
-    ("bcm_play_store_genre", "bcm_play_store_genre"),
-    (
-        "bcm_play_store_broad_app_category",
-        "bcm_play_store_broad_app_category",
-    ),
-    ("bcm_play_store_developer", "bcm_play_store_developer"),
-    ("bcm_play_store_free", "bcm_play_store_free"),
-    ("bcm_play_store_rating", "bcm_play_store_rating"),
-    ("bcm_play_store_downloads", "bcm_play_store_downloads"),
-    ("usc_broad_app_category", "usc_broad_app_category"),
-    ("usc_genreId", "usc_genreId"),
-    (
-        "umich_child_app_category_code",
-        "umich_child_app_category_code",
-    ),
-    ("umich_child_app_category", "umich_child_app_category"),
-    (
-        "umich_adult_app_category_code",
-        "umich_adult_app_category_code",
-    ),
-    ("umich_adult_app_category", "umich_adult_app_category"),
-    ("umich_free", "umich_free"),
-    ("umich_gambling_app", "umich_gambling_app"),
-    ("umich_inappropriate_app", "umich_inappropriate_app"),
-    ("babyemu_genreId_scraped", "babyemu_genreId_scraped"),
-    ("babyemu_genreId_manual", "babyemu_genreId_manual"),
-    ("babyemu_broad_app_category", "babyemu_broad_app_category"),
-    ("babyemu_medium_app_category", "babyemu_medium_app_category"),
-    ("babyemu_fine_app_category", "babyemu_fine_app_category"),
-    (
-        "babyemu_alternate_fine_app_category",
-        "babyemu_alternate_fine_app_category",
-    ),
-    ("babyemu_kids", "babyemu_kids"),
-    ("bcm_cnrc_heuristic_category", "bcm_cnrc_heuristic_category"),
-    (
-        "bcm_cnrc_categorization_source",
-        "bcm_cnrc_categorization_source",
-    ),
-    ("bluelight_play_store_genreId", "bluelight_play_store_genreId"),
-    ("bluelight_play_store_genre", "bluelight_play_store_genre"),
-    (
-        "bluelight_play_store_broad_app_category",
-        "bluelight_play_store_broad_app_category",
-    ),
-    ("bluelight_play_store_developer", "bluelight_play_store_developer"),
-    ("bluelight_play_store_free", "bluelight_play_store_free"),
-    ("bluelight_play_store_rating", "bluelight_play_store_rating"),
-    ("bluelight_play_store_downloads", "bluelight_play_store_downloads"),
-    ("dataset", "codebook_dataset"),
-];
+/// Absent-field count carried by rows that never met a codebook join (the
+/// codebook toggle is off, or the row precedes the join). It is the column
+/// count from before the codebook layout became request data, frozen so the
+/// checkpoint encoding of codebook-free rows keeps its exact bytes. It says
+/// nothing about any codebook schema: a joined row carries its schema's width.
+pub(super) const UNJOINED_CODEBOOK_FIELD_COUNT: usize = 34;
 
-/// Codebook output columns whose first non-blank value becomes
-/// `broad_app_category`, highest precedence first.
-pub(super) const BROAD_CATEGORY_COLUMNS: [&str; 5] = [
-    "bcm_play_store_broad_app_category",
-    "bluelight_play_store_broad_app_category",
-    "usc_broad_app_category",
-    "babyemu_broad_app_category",
-    "bcm_cnrc_heuristic_category",
-];
+/// Positions of the collapsed genre-id fields in a row's codebook fields,
+/// shared by every row joined under one codebook schema.
+pub(super) type CodebookGenreFields = Arc<Vec<usize>>;
 
-/// Codebook genre-id columns `collapse_app_genre` collapses into
-/// `genre_id_scraped` when every non-blank one agrees.
-pub(super) const GENRE_ID_COLUMNS: [&str; 5] = [
-    "babyemu_genreId_scraped",
-    "babyemu_genreId_manual",
-    "bcm_play_store_genreId",
-    "usc_genreId",
-    "bluelight_play_store_genreId",
-];
+/// The app codebook's column layout, parsed and validated from the
+/// `app_codebook_schema_file` role by `parse_codebook_schema`. It owns what
+/// used to be compiled in: which supplied columns the join copies onto rows
+/// and under which output names (in output order), which of them decide
+/// `broad_app_category`, and which genre ids collapse into `genre_id_scraped`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CodebookSchema {
+    pub(super) key_column: String,
+    /// `(source column, output column)`, in output order.
+    pub(super) columns: Vec<(String, String)>,
+    /// Field positions of `broad_category_precedence`, highest first.
+    pub(super) broad_indices: Vec<usize>,
+    /// Field positions of `genre_sources`.
+    pub(super) genre_indices: CodebookGenreFields,
+    /// The one all-absent field vector rows of this schema share.
+    pub(super) empty_fields: Arc<Vec<Option<String>>>,
+}
 
-/// Positions of `GENRE_ID_COLUMNS` in `CODEBOOK_RENAME_PAIRS` (pinned by a test).
-pub(super) const COLLAPSED_GENRE_FIELD_INDICES: [usize; 5] = [1, 9, 17, 18, 26];
+impl CodebookSchema {
+    pub fn output_columns(&self) -> impl Iterator<Item = &str> + '_ {
+        self.columns.iter().map(|(_, output)| output.as_str())
+    }
+
+    pub fn source_columns(&self) -> impl Iterator<Item = &str> + '_ {
+        self.columns.iter().map(|(source, _)| source.as_str())
+    }
+
+    pub(super) fn empty_fields(&self) -> Arc<Vec<Option<String>>> {
+        Arc::clone(&self.empty_fields)
+    }
+
+    #[cfg(test)]
+    pub(super) fn output_index(&self, output: &str) -> usize {
+        self.output_columns()
+            .position(|name| name == output)
+            .unwrap_or_else(|| panic!("{output} is not a codebook output column"))
+    }
+}
 
 pub(super) const FOUNDATIONAL_SEMANTICS_CHECKPOINT: &str = "episode_materialized_pre_concurrency";
 
@@ -436,7 +406,7 @@ impl Default for OpenerSetEvidence {
 
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct CodebookEntry {
-    /// Indexed by codebook_col_index() output name (e.g. "codebook_application_label", "bcm_play_store_genreId"…)
+    /// Parallel to the codebook schema's columns.
     pub fields: Arc<Vec<Option<String>>>,
 }
 
@@ -767,9 +737,11 @@ pub struct RowData {
     pub(super) any_app_usage_time_gap_hours: f64,
     pub(super) genre_id_scraped: Option<SharedString>,
     pub(super) broad_app_category: Option<SharedString>,
-    /// Per-codebook column values (Option<String>) parallel to CODEBOOK_RENAME_PAIRS.
+    /// Per-codebook column values, parallel to the joined schema's columns.
     pub(super) codebook_fields: Arc<Vec<Option<String>>>,
-    pub(super) codebook_genre_fields_cleared: bool,
+    /// The genre-id field positions that read as blank once
+    /// `collapse_app_genre` has moved their agreed value to `genre_id_scraped`.
+    pub(super) codebook_genre_fields_cleared: Option<CodebookGenreFields>,
     pub(super) index: usize,
     /// Present only when `model_concurrent_usage` is true. Value is "primary"
     /// or "secondary". None when the flag is off (column absent from output).
@@ -959,7 +931,8 @@ struct RowDataWire {
         deserialize_with = "deserialize_codebook_fields"
     )]
     codebook_fields: Arc<Vec<Option<String>>>,
-    codebook_genre_fields_cleared: bool,
+    #[serde(deserialize_with = "deserialize_codebook_genre_fields")]
+    codebook_genre_fields_cleared: Option<CodebookGenreFields>,
     index: usize,
     usage_layer: Option<SharedString>,
 }
@@ -1176,7 +1149,7 @@ pub(super) struct RowClassificationView<'a> {
     pub(super) genre_id_scraped: &'a mut Option<SharedString>,
     pub(super) broad_app_category: &'a mut Option<SharedString>,
     pub(super) codebook_fields: &'a mut Arc<Vec<Option<String>>>,
-    pub(super) codebook_genre_fields_cleared: &'a mut bool,
+    pub(super) codebook_genre_fields_cleared: &'a mut Option<CodebookGenreFields>,
     pub(super) usage_layer: &'a mut Option<SharedString>,
     pub(super) micro_use_classification: &'a mut Option<MicroUseClassification>,
 }

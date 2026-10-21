@@ -193,6 +193,8 @@ use super::{
         #[returns(clone)]
         pub(crate) codebook_csv: Arc<Vec<u8>>,
         #[returns(clone)]
+        pub(crate) codebook_schema_json: Arc<Vec<u8>>,
+        #[returns(clone)]
         pub(crate) apps_forcing_csv: Arc<Vec<u8>>,
         #[returns(clone)]
         pub(crate) input_capability_evidence_csv: Arc<Vec<u8>>,
@@ -434,6 +436,7 @@ use super::{
                     Arc::new(support.filter_csv.to_vec()),
                     Arc::new(support.background_apps_csv.to_vec()),
                     Arc::new(support.codebook_csv.to_vec()),
+                    Arc::new(support.codebook_schema_json.to_vec()),
                     Arc::new(support.apps_forcing_csv.to_vec()),
                     Arc::new(support.input_capability_evidence_csv.to_vec()),
                     support.verified_request_options_digest.map(str::to_owned),
@@ -966,6 +969,13 @@ use super::{
                 set_codebook_csv,
                 support.codebook_csv,
                 support.codebook_csv.to_vec()
+            );
+            set_arc_vec_if_changed!(
+                self.usage_support,
+                codebook_schema_json,
+                set_codebook_schema_json,
+                support.codebook_schema_json,
+                support.codebook_schema_json.to_vec()
             );
             set_arc_vec_if_changed!(
                 self.usage_support,

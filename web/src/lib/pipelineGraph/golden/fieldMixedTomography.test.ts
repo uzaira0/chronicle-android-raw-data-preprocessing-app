@@ -179,7 +179,9 @@ function reachableFields(seed: string): Set<string> {
   const edges = workflowContract.execution.queries.flatMap(
     (query) => query.fieldEdges,
   );
-  const reached = new Set([seed]);
+  // A role whose columns are named by request data (the app codebook, via its
+  // injected schema) declares one `role.*` family for all of them.
+  const reached = new Set([seed, `${seed.split(".")[0] ?? ""}.*`]);
   let grew = true;
   while (grew) {
     grew = false;

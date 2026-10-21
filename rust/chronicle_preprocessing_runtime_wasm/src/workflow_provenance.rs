@@ -745,9 +745,13 @@ mod tests {
         // that move with them.
         // Refreshed 2026-10-17 for the plain-language step labels and
         // descriptions; only wording and the presentation digest moved.
+        // Refreshed 2026-10-20 for the injected app-codebook schema: the
+        // app_codebook_schema_file root role, its bindings and field reads,
+        // the `app_codebook_file.*` read family and the one wildcard codebook
+        // output-cell family.
         assert_eq!(
             sha256(&bytes),
-            "sha256:ea658c1a4cb3e352fa7152c3a7d078a10a7392a82dec034bfb27c8ad1ae14073"
+            "sha256:a61d43bde925c59a6bb73cd4aed10588b2a4db3d1e83fc0a31720aa302566346"
         );
     }
 }

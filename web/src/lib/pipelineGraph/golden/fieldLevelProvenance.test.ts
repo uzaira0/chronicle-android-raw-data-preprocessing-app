@@ -118,6 +118,17 @@ describe("field-level provenance reconciliation", () => {
    * the "could this input have changed that field" question the empirical
    * changed-cell evidence answers.
    */
+  /**
+   * The declared field a supplied column belongs to: itself, or its role's
+   * `role.*` family when the columns are named by request data (the app
+   * codebook's columns come from its injected schema).
+   */
+  function declaredFieldOf(field: string): string | undefined {
+    if (declaredFields.has(field)) return field;
+    const family = `${field.split(".")[0] ?? ""}.*`;
+    return field.includes(".") && declaredFields.has(family) ? family : undefined;
+  }
+
   function reachableFields(seed: readonly string[]): Set<string> {
     const reached = new Set(seed);
     let grew = true;
@@ -184,17 +195,19 @@ describe("field-level provenance reconciliation", () => {
         addressCount += entry.changedOutputCellAddresses.length;
         for (const field of entry.sourceFields) {
           const role = field.split(".")[0] ?? "";
-          if (!declaredFields.has(field) && !knownRoles.has(role)) {
+          if (declaredFieldOf(field) === undefined && !knownRoles.has(role)) {
             unknownSourceFields.push(
               `${entry.caseId}: ${field} names neither a declared field nor a known source role`,
             );
           }
         }
-        const seed = entry.sourceFields.filter((field) =>
-          declaredFields.has(field),
-        );
+        const seed = [
+          ...new Set(
+            entry.sourceFields.flatMap((field) => declaredFieldOf(field) ?? []),
+          ),
+        ];
         for (const field of entry.sourceFields) {
-          if (declaredFields.has(field) || !field.includes(".")) continue;
+          if (declaredFieldOf(field) !== undefined || !field.includes(".")) continue;
           unreadColumns.set(field, (unreadColumns.get(field) ?? 0) + 1);
         }
         for (const field of seed) {

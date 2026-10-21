@@ -4755,17 +4755,30 @@ pub(super) mod tracked {
         })
     }
 
+    /// The codebook's column layout, or `None` when the codebook is off. A
+    /// schema the kernel cannot use fails every query that reads it.
+    #[salsa::tracked(returns(clone))]
+    fn parsed_codebook_schema(
+        db: &dyn EarlyStepDb,
+        support: UsageSupportInput,
+    ) -> Result<Option<Arc<CodebookSchema>>, String> {
+        db.record_internal_query_body("parsed_codebook_schema");
+        if !support.use_app_codebook(db) {
+            return Ok(None);
+        }
+        parse_codebook_schema(&support.codebook_schema_json(db)).map(|schema| Some(Arc::new(schema)))
+    }
+
     #[salsa::tracked(returns(clone))]
     fn parsed_codebook(
         db: &dyn EarlyStepDb,
         support: UsageSupportInput,
-    ) -> Arc<HashMap<String, CodebookEntry>> {
+    ) -> Result<Arc<HashMap<String, CodebookEntry>>, String> {
         db.record_internal_query_body("parsed_codebook");
-        Arc::new(if support.use_app_codebook(db) {
-            parse_codebook_csv(&support.codebook_csv(db))
-        } else {
-            HashMap::new()
-        })
+        Ok(Arc::new(match parsed_codebook_schema(db, support)? {
+            Some(schema) => parse_codebook_csv(&support.codebook_csv(db), &schema),
+            None => HashMap::new(),
+        }))
     }
 
     #[salsa::tracked(returns(clone))]
@@ -5895,12 +5908,13 @@ pub(super) mod tracked {
         }
 
         let enabled = support.use_app_codebook(db);
-        let codebook_csv = if enabled {
-            support.codebook_csv(db)
+        let (codebook_csv, codebook_schema_json) = if enabled {
+            (support.codebook_csv(db), support.codebook_schema_json(db))
         } else {
-            Arc::default()
+            (Arc::default(), Arc::default())
         };
-        let codebook = parsed_codebook(db, support);
+        let codebook_schema = parsed_codebook_schema(db, support)?;
+        let codebook = parsed_codebook(db, support)?;
         let long_gap_thresholds = config.long_data_time_gap_thresholds(db);
         let long_usage_thresholds = config.long_usage_duration_thresholds(db);
         let custom_engagement_duration = config.custom_app_engagement_duration(db);
@@ -5928,6 +5942,7 @@ pub(super) mod tracked {
                 "filteredPackages": prepared.filtered_packages,
                 "useAppCodebook": enabled,
                 "codebookDigest": digest_bytes(&codebook_csv),
+                "codebookSchemaDigest": digest_bytes(&codebook_schema_json),
                 "customAppEngagementDuration": custom_engagement_duration,
                 "longDataTimeGapThresholds": long_gap_thresholds,
                 "longUsageDurationThresholds": long_usage_thresholds,
@@ -5965,7 +5980,7 @@ pub(super) mod tracked {
         super::apply_static_review_annotations_fused(
             &mut rows,
             &prepared.filtered_packages,
-            enabled,
+            codebook_schema.as_deref(),
             &codebook,
             custom_engagement_duration,
             &long_gap_thresholds,
@@ -6823,10 +6838,11 @@ pub(super) mod tracked {
                 None,
             );
         }
-        let codebook = parsed_codebook(db, support);
+        let codebook_schema = parsed_codebook_schema(db, support)?;
+        let codebook = parsed_codebook(db, support)?;
         let codebook_is_empty = codebook.is_empty();
         let mut next_rows = (*rows_payload).clone();
-        super::join_codebook(&mut next_rows, true, &codebook);
+        super::join_codebook(&mut next_rows, codebook_schema.as_deref(), &codebook);
         let payload = annotations::codebook_checkpoint_payload(codebook_is_empty);
         let exact_same_rows = next_rows.len() == rows.value.len()
             && next_rows
@@ -6873,12 +6889,13 @@ pub(super) mod tracked {
                 None,
             );
         }
+        let codebook_schema = parsed_codebook_schema(db, support)?;
         rows_step_reusing(db.payload_store(),
             "derive_broad_category",
             &rows,
             super::derive_broad_category_step(
                 (*rows_payload).clone(),
-                support.use_app_codebook(db),
+                codebook_schema.as_deref(),
             ),
         )
     }
@@ -6909,13 +6926,14 @@ pub(super) mod tracked {
                 Some("categorize_apps"),
             );
         }
+        let codebook_schema = parsed_codebook_schema(db, support)?;
         Ok(with_logical_rows(
             rows_step_reusing(db.payload_store(),
                 "collapse_app_genre",
                 &rows,
                 super::collapse_app_genre_step(
                     (*rows_payload).clone(),
-                    support.use_app_codebook(db),
+                    codebook_schema.as_deref(),
                 ),
             )?,
             "categorize_apps",
@@ -7034,12 +7052,13 @@ pub(super) mod tracked {
             });
         }
         let enabled = support.use_app_codebook(db);
-        let codebook_csv = if enabled {
-            support.codebook_csv(db)
+        let (codebook_csv, codebook_schema_json) = if enabled {
+            (support.codebook_csv(db), support.codebook_schema_json(db))
         } else {
-            Arc::default()
+            (Arc::default(), Arc::default())
         };
-        let codebook = parsed_codebook(db, support);
+        let codebook_schema = parsed_codebook_schema(db, support)?;
+        let codebook = parsed_codebook(db, support)?;
         let use_static_annotations = !config.model_concurrent_usage(db)
             && background_apps(db, config, support).is_empty()
             // Locked-screen exclusion can drop or truncate app rows before
@@ -7197,7 +7216,7 @@ pub(super) mod tracked {
         } else {
             let mut rows = (*upstream.rows.lease()?).clone();
             let timer = QueryTimer::start("review_annotations_apply_codebook");
-            super::apply_codebook_annotations(&mut rows, enabled, &codebook);
+            super::apply_codebook_annotations(&mut rows, codebook_schema.as_deref(), &codebook);
             timer.finish();
             rows
         };
@@ -7207,6 +7226,7 @@ pub(super) mod tracked {
             &serde_json::json!({
                 "enabled": enabled,
                 "codebookDigest": digest_bytes(&codebook_csv),
+                "codebookSchemaDigest": digest_bytes(&codebook_schema_json),
                 "codebookIsEmpty": codebook.is_empty(),
             }),
         )?;
@@ -8006,16 +8026,16 @@ pub(super) mod tracked {
                 .shared()
         };
         let enabled = !matches!(rule, NotificationProxyRule::None) && support.use_app_codebook(db);
-        let codebook = if enabled {
-            parsed_codebook(db, support)
+        let (codebook_schema, codebook) = if enabled {
+            (parsed_codebook_schema(db, support)?, parsed_codebook(db, support)?)
         } else {
-            Arc::default()
+            (None, Arc::default())
         };
         let mut contacts = (*classified).clone();
         // The same enrichment every app row receives, from the same owner. A
         // proxy channel with blank category columns would be a second, poorer
         // join.
-        annotations::enrich_codebook_rows(&mut contacts, enabled, &codebook);
+        annotations::enrich_codebook_rows(&mut contacts, codebook_schema.as_deref(), &codebook);
         let payload = annotations::codebook_checkpoint_payload(codebook.is_empty());
         let checkpoint = rows_and_value_checkpoint(
             "assemble_notification_contact_outputs",
@@ -8169,13 +8189,13 @@ pub(super) mod tracked {
             Arc::new(Vec::new())
         };
         let enabled = method.emits_emulation() && support.use_app_codebook(db);
-        let codebook = if enabled {
-            parsed_codebook(db, support)
+        let (codebook_schema, codebook) = if enabled {
+            (parsed_codebook_schema(db, support)?, parsed_codebook(db, support)?)
         } else {
-            Arc::default()
+            (None, Arc::default())
         };
         let mut emulated = (*materialized).clone();
-        annotations::enrich_codebook_rows(&mut emulated, enabled, &codebook);
+        annotations::enrich_codebook_rows(&mut emulated, codebook_schema.as_deref(), &codebook);
         let payload = annotations::codebook_checkpoint_payload(codebook.is_empty());
         let checkpoint = rows_and_value_checkpoint(
             "assemble_polled_emulation_outputs",
@@ -8747,7 +8767,7 @@ pub(super) mod tracked {
         support: UsageSupportInput,
     ) -> Result<QueryValue<bool>, String> {
         db.record_internal_query_body("codebook_is_empty");
-        value_step(db.payload_store(), "codebook_is_empty", parsed_codebook(db, support).is_empty())
+        value_step(db.payload_store(), "codebook_is_empty", parsed_codebook(db, support)?.is_empty())
     }
 
 
@@ -9183,6 +9203,18 @@ pub(super) mod tracked {
                 .then(|| index_raw_dates(db, raw, early, config, support))
                 .transpose()?;
 
+        // The app-shaped CSVs take their codebook columns from the schema.
+        let codebook_schema = if options.use_app_codebook {
+            parsed_codebook_schema(db, support)?
+        } else {
+            None
+        };
+        let codebook_schema_digest = if options.use_app_codebook {
+            digest_bytes(&support.codebook_schema_json(db))
+        } else {
+            "none".to_string()
+        };
+
         // Every salsa read above is also a cache-key component, so a hit and
         // a miss register the identical dependency set for this memo. The
         // remaining work below is pure serialization of those inputs.
@@ -9198,7 +9230,7 @@ pub(super) mod tracked {
         let screen_rows_fingerprint = super::value_fingerprint(&*screen_rows)
             .map_err(|error| format!("serialize selected screen rows identity: {error}"))?;
         let cache_key = format!(
-            "{options:?}|full={materialize_full_outputs}|aliases={include_aliases}|app={}|screen={}|window={}|selectedScreen={}|credited={}|contacts={}|emulation={}|policy={}|rawDates={}|foundational={}|micro={}",
+            "{options:?}|full={materialize_full_outputs}|aliases={include_aliases}|app={}|screen={}|window={}|selectedScreen={}|credited={}|contacts={}|emulation={}|policy={}|rawDates={}|foundational={}|micro={}|codebookSchema={codebook_schema_digest}",
             step_digest(&app_step),
             step_digest(&screen_step),
             step_digest(&screen_window_step),
@@ -9224,7 +9256,7 @@ pub(super) mod tracked {
         }
 
         let app_csv_bytes = if materialize_full_outputs && app_mode && options.include_app_output {
-            app_csv_payload(db.payload_store(), app_rows.iter(), &options, include_aliases)?
+            app_csv_payload(db.payload_store(), app_rows.iter(), &options, include_aliases, codebook_schema.as_deref())?
         } else {
             PayloadBytes::default()
         };
@@ -9242,6 +9274,7 @@ pub(super) mod tracked {
                     credited.value.lease()?.rows.iter(),
                     &options,
                     include_aliases,
+                    codebook_schema.as_deref(),
                 )?
             } else {
                 PayloadBytes::default()
@@ -9254,6 +9287,7 @@ pub(super) mod tracked {
                 contacts.value.lease()?.iter(),
                 &options,
                 include_aliases,
+                codebook_schema.as_deref(),
             )?,
             _ => PayloadBytes::default(),
         };
@@ -9263,6 +9297,7 @@ pub(super) mod tracked {
                 emulated.value.lease()?.iter(),
                 &options,
                 include_aliases,
+                codebook_schema.as_deref(),
             )?,
             _ => PayloadBytes::default(),
         };
@@ -9274,7 +9309,7 @@ pub(super) mod tracked {
             };
         let interval_expansion_csv_bytes = interval_expansion_rows
             .as_ref()
-            .map(|rows| app_csv_payload(db.payload_store(), rows.iter(), &options, include_aliases))
+            .map(|rows| app_csv_payload(db.payload_store(), rows.iter(), &options, include_aliases, codebook_schema.as_deref()))
             .transpose()?
             .unwrap_or_default();
         let interval_expansion_row_count = interval_expansion_rows
@@ -11162,6 +11197,7 @@ pub(super) mod tracked {
                     30.0,
                     30.0,
                     2.0,
+                    Arc::default(),
                     Arc::default(),
                     Arc::default(),
                     Arc::default(),
@@ -14847,10 +14883,12 @@ pub(super) mod tracked {
             codebook_options.use_app_codebook = true;
             let codebook_support_lf = PipelineV2SupportFiles {
                 codebook_csv: &codebook_lf,
+                codebook_schema_json: crate::pipeline_v2::TEST_CODEBOOK_SCHEMA_JSON,
                 ..support
             };
             let codebook_support_crlf = PipelineV2SupportFiles {
                 codebook_csv: &codebook_crlf,
+                codebook_schema_json: crate::pipeline_v2::TEST_CODEBOOK_SCHEMA_JSON,
                 ..support
             };
             let mut codebook_engine = TrackedEngine::default();
@@ -19236,6 +19274,7 @@ pub(super) mod tracked {
             .as_bytes();
             let support = PipelineV2SupportFiles {
                 codebook_csv: codebook,
+                codebook_schema_json: crate::pipeline_v2::TEST_CODEBOOK_SCHEMA_JSON,
                 ..PipelineV2SupportFiles::default()
             };
             let mut full_engine = TrackedEngine::default();
@@ -19882,6 +19921,7 @@ pub(super) mod tracked {
             let codebook = b"app_package_name,application_label,bcm_play_store_genreId,bcm_play_store_broad_app_category,dataset\ncom.example.chat,Chat,Social,Communication,test\n".to_vec();
             let support = PipelineV2SupportFiles {
                 codebook_csv: &codebook,
+                codebook_schema_json: crate::pipeline_v2::TEST_CODEBOOK_SCHEMA_JSON,
                 ..PipelineV2SupportFiles::default()
             };
 
@@ -20626,6 +20666,7 @@ pub(super) mod tracked {
                         };
                         let support = PipelineV2SupportFiles {
                             codebook_csv: codebook,
+                            codebook_schema_json: crate::pipeline_v2::TEST_CODEBOOK_SCHEMA_JSON,
                             ..PipelineV2SupportFiles::default()
                         };
                         let mut options = pipeline_options();
@@ -21269,6 +21310,7 @@ pub(super) mod tracked {
                     let db = EarlyDatabase::default();
                     let support = PipelineV2SupportFiles {
                         codebook_csv,
+                        codebook_schema_json: crate::pipeline_v2::TEST_CODEBOOK_SCHEMA_JSON,
                         ..PipelineV2SupportFiles::default()
                     };
                     let inputs = TrackedInputs::new(
@@ -22325,6 +22367,7 @@ pub(super) mod tracked {
             let codebook = b"app_package_name,application_label,bcm_play_store_genreId,bcm_play_store_broad_app_category,dataset\ncom.example.chat,Chat,Social,Communication,test\n".to_vec();
             let support = PipelineV2SupportFiles {
                 codebook_csv: &codebook,
+                codebook_schema_json: crate::pipeline_v2::TEST_CODEBOOK_SCHEMA_JSON,
                 study_dates_csv: &study_dates,
                 device_sharing_csv: &device_sharing,
                 survey_attribution_csv: &survey_attribution,
@@ -23131,6 +23174,7 @@ pub(super) mod tracked {
                 apps_forcing_csv: &apps_forcing,
                 background_apps_csv: &background_apps,
                 codebook_csv: &codebook,
+                codebook_schema_json: crate::pipeline_v2::TEST_CODEBOOK_SCHEMA_JSON,
                 study_dates_csv: &study_dates,
                 device_sharing_csv: &device_sharing,
                 survey_attribution_csv: &survey_attribution,
@@ -23471,6 +23515,7 @@ pub(super) mod tracked {
                 apps_forcing_csv: &apps_forcing,
                 background_apps_csv: &background_apps,
                 codebook_csv: &codebook,
+                codebook_schema_json: crate::pipeline_v2::TEST_CODEBOOK_SCHEMA_JSON,
                 study_dates_csv: &study_dates,
                 device_sharing_csv: &device_sharing,
                 survey_attribution_csv: &survey_attribution,
@@ -23788,6 +23833,7 @@ pub(super) mod tracked {
                 apps_forcing_csv: &apps_forcing,
                 background_apps_csv: &background_apps,
                 codebook_csv: &codebook,
+                codebook_schema_json: crate::pipeline_v2::TEST_CODEBOOK_SCHEMA_JSON,
                 study_dates_csv: &study_dates,
                 device_sharing_csv: &device_sharing,
                 survey_attribution_csv: &survey_attribution,
@@ -24116,6 +24162,7 @@ pub(super) mod tracked {
                 apps_forcing_csv: &empty,
                 background_apps_csv: &empty,
                 codebook_csv: &empty,
+                codebook_schema_json: crate::pipeline_v2::TEST_CODEBOOK_SCHEMA_JSON,
                 study_dates_csv: &empty,
                 device_sharing_csv: &empty,
                 survey_attribution_csv: &empty,
@@ -24413,6 +24460,7 @@ pub(super) mod tracked {
                 apps_forcing_csv: &apps_forcing,
                 background_apps_csv: &background_apps,
                 codebook_csv: &codebook,
+                codebook_schema_json: crate::pipeline_v2::TEST_CODEBOOK_SCHEMA_JSON,
                 study_dates_csv: &study_dates,
                 device_sharing_csv: &device_sharing,
                 survey_attribution_csv: &survey_attribution,
@@ -24644,6 +24692,7 @@ pub(super) mod tracked {
             let base_support = PipelineV2SupportFiles {
                 filter_csv: &filter,
                 codebook_csv: &codebook,
+                codebook_schema_json: crate::pipeline_v2::TEST_CODEBOOK_SCHEMA_JSON,
                 ..PipelineV2SupportFiles::default()
             };
 
@@ -24674,6 +24723,7 @@ pub(super) mod tracked {
                     csv(),
                     PipelineV2SupportFiles {
                         codebook_csv: &other_codebook,
+                        codebook_schema_json: crate::pipeline_v2::TEST_CODEBOOK_SCHEMA_JSON,
                         ..base_support
                     },
                 ),

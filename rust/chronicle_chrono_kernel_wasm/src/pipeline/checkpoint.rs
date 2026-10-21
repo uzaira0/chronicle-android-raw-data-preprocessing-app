@@ -1,10 +1,10 @@
 use super::SCREEN_USAGE;
 use super::{
-    Arc, BTreeMap, BTreeSet, CODEBOOK_RENAME_PAIRS, COLLAPSED_GENRE_FIELD_INDICES,
+    BTreeMap, BTreeSet,
     CheckpointHasher, Digest, PipelineV2Options, QueryCheckpointRecorder, Row, RowData, RowEpisodeTiming,
     ScreenSessionConstructionStrategyId, SessionBoundaryScope, SessionGapBasis,
     SessionGroupingPolicy, SessionGroupingRules, Sha256, WorkflowCheckpoint, Xxh3, b05,
-    b05_screen_options_digest, b06, empty_codebook_fields_ref, xxh3_128,
+    b05_screen_options_digest, b06, xxh3_128,
 };
 
 pub(super) trait CheckpointSink {
@@ -962,21 +962,26 @@ pub(super) fn encode_row_checkpoint_parts<I: CheckpointSink, T: CheckpointSink, 
     }
     checkpoint_digest_optional_string(classification, genre_id_scraped.as_deref());
     checkpoint_digest_optional_string(classification, broad_app_category.as_deref());
-    if Arc::ptr_eq(codebook_fields, empty_codebook_fields_ref()) {
-        // The overwhelmingly common no-codebook case has a fixed exact
-        // encoding: the u64 sequence length followed by one zero tag per
-        // absent field. Append it as one block instead of one write per field.
-        let mut encoded = [0_u8; 8 + CODEBOOK_RENAME_PAIRS.len()];
-        encoded[..8].copy_from_slice(&(CODEBOOK_RENAME_PAIRS.len() as u64).to_le_bytes());
-        checkpoint_update(classification, &encoded);
+    checkpoint_update(
+        classification,
+        &(codebook_fields.len() as u64).to_le_bytes(),
+    );
+    if codebook_fields.iter().all(Option::is_none) {
+        // The overwhelmingly common no-codebook-value case has a fixed exact
+        // encoding: one zero tag per absent field. Append it in blocks instead
+        // of one write per field.
+        const ABSENT: [u8; 64] = [0; 64];
+        let mut remaining = codebook_fields.len();
+        while remaining > 0 {
+            let block = remaining.min(ABSENT.len());
+            checkpoint_update(classification, &ABSENT[..block]);
+            remaining -= block;
+        }
     } else {
-        checkpoint_update(
-            classification,
-            &(codebook_fields.len() as u64).to_le_bytes(),
-        );
         for (field_index, value) in codebook_fields.iter().enumerate() {
-            let value = if *codebook_genre_fields_cleared
-                && COLLAPSED_GENRE_FIELD_INDICES.contains(&field_index)
+            let value = if codebook_genre_fields_cleared
+                .as_ref()
+                .is_some_and(|cleared| cleared.contains(&field_index))
             {
                 None
             } else {

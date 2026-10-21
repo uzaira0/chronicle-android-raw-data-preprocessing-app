@@ -3,19 +3,30 @@ use std::collections::BTreeSet;
 use chronicle_chrono_kernel_wasm::b05_foundational_semantics::ScreenSessionConstructionStrategyId;
 use chronicle_chrono_kernel_wasm::pipeline_v2::{
     declared_app_output_columns, declared_screen_output_columns_for_strategy,
-    insert_conditional_app_output_columns,
+    insert_conditional_app_output_columns, parse_codebook_schema,
 };
 use serde_json::json;
 
+/// The bundled default codebook schema: the codebook columns are data, so the
+/// emitted app columns with a codebook are the ones this schema names.
+const BUNDLED_CODEBOOK_SCHEMA: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../web/src/assets/defaults/unified_app_codebook.schema.json"
+);
+
 fn main() {
+    let schema_bytes = std::fs::read(BUNDLED_CODEBOOK_SCHEMA)
+        .unwrap_or_else(|error| panic!("read {BUNDLED_CODEBOOK_SCHEMA}: {error}"));
+    let codebook_schema = parse_codebook_schema(&schema_bytes)
+        .unwrap_or_else(|error| panic!("{BUNDLED_CODEBOOK_SCHEMA}: {error}"));
     let mut app = BTreeSet::new();
-    for include_codebook in [false, true] {
+    for codebook in [None, Some(&codebook_schema)] {
         for include_aliases in [false, true] {
             for usage_layer_active in [false, true] {
                 for include_end_reason in [false, true] {
                     for include_session_id in [false, true] {
                         let base = declared_app_output_columns(
-                            include_codebook,
+                            codebook,
                             include_aliases,
                             usage_layer_active,
                             30.0,

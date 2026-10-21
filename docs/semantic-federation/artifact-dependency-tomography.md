@@ -23,12 +23,12 @@ meaning of each checkpoint remain Chronicle-owned.
 
 ## Checked scope
 
-The checked catalog contains 32 intervention kinds applied independently to
-all six synthetic corpus profiles (192 source/target cases):
+The checked catalog contains 34 intervention kinds applied independently to
+all six synthetic corpus profiles (204 source/target cases):
 
 - all eleven supplied raw columns;
 - raw row addition, removal, exact duplication, and reordering;
-- one branch-activating substantive mutation for each of the eight support
+- one branch-activating substantive mutation for each of the nine support
   roles;
 - byte-different CRLF controls for raw input and every support role.
 
@@ -230,7 +230,7 @@ The ledger also commits to the compressed
 `artifact-output-cell-correspondence.json.gz` sidecar. For every intervention,
 that sidecar maps the named changed raw/support component to every changed cell
 address in the canonical Rust-produced CSV and JSON outputs. The checked
-2026-10-09 replay contains 246,069 changed-cell addresses across the 192 cases. The ledger retains a
+2026-10-20 replay contains 249,407 changed-cell addresses across the 204 cases. The ledger retains a
 per-case address digest and a compact wildcarded column/path scope so it stays
 human-reviewable. Parquet, SPSS, and Arrow remain byte/digest-verified derived
 artifacts; they are not falsely decoded as independent semantic cell surfaces.

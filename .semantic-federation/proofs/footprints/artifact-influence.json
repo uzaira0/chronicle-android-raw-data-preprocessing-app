@@ -36,11 +36,11 @@
     },
     {
       "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
-      "digest": "sha256:7ab694056f8bd541afb0c689f8b372b4969da047005b181ad9618fb4b630c751"
+      "digest": "sha256:b9383e19514615056cff32ee853019dc782bd5ef0f2f757bdade7ec71b10a556"
     },
     {
       "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/checkpoint.rs",
-      "digest": "sha256:080b6e0cd16ff73485d7944014c6e9b94e0b29954d86c05784c310e52e429eb2"
+      "digest": "sha256:13b2796864937a353c157c59116b1d626cc4544856d8b509ed523374dcb17a16"
     },
     {
       "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/execution.rs",
@@ -52,35 +52,35 @@
     },
     {
       "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/incremental/db.rs",
-      "digest": "sha256:56a837a22f66e1162968e41767ab492485b9e5b06938651061f035bde1adafc9"
+      "digest": "sha256:423f4ee8e4105decbab6b171ee53b368ba402044608e9d1303d3b8f85ee477f5"
     },
     {
       "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/incremental/inputs.rs",
-      "digest": "sha256:471d1f4c36c87acf66cb074b8813c04ab2cfc49f4fe8eb40c575f9e336e5bb1e"
+      "digest": "sha256:0ad41fc729f10d0448a02fecf91801e5a0929c156716ee86be3af95db119df46"
     },
     {
       "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/incremental/persistence.rs",
-      "digest": "sha256:0d1cb45f019285d9d5c4681bc0bec57558556cf8f4b339de82112fb016394778"
+      "digest": "sha256:1ad5aede57f04ad07b1d7e0cf21cb8c739d19bfdd4e42e6d430d3a4de29a6bf8"
     },
     {
       "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/model.rs",
-      "digest": "sha256:99dff82f8dcdd3cab0952bec24b8f07990b4d5b6478b372ae1660a767ee34824"
+      "digest": "sha256:a8a2b40a8fda746a7f61f7de9f0e7841b993363afc7126466a684b08067aab34"
     },
     {
       "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/options.rs",
-      "digest": "sha256:f47e7e5ce1f61cc2b7a4d40c67e51cdd943ab19173f626754c809fb473537dda"
+      "digest": "sha256:b2dfa4ae9e88c6665160558ca2c2c54d9b1c4abf7bab13ce335c581bf5b57544"
     },
     {
       "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/output.rs",
-      "digest": "sha256:e8e84cc6e7d138e35ca8298a315833f55f49703b936989fb6d07b6aef4e7237e"
+      "digest": "sha256:6a32a7bc80a27e35b137c4a475e6f393b05cb71675c33f37c9af7ecf0c8f24f5"
     },
     {
       "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/payload.rs",
-      "digest": "sha256:042a9b7d2957209d57a2ab624fcfcad1845beafae67eeb0d87f6f4203398ee41"
+      "digest": "sha256:7212d302507f668db336ed7ea19c14f565602a055c24e1b2fe1be120d1e5427a"
     },
     {
       "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/row_codec.rs",
-      "digest": "sha256:0b6b5e97c1b1c2878ab5cb3368a173fdc94512234ef0ee2a9effc3833aeb5340"
+      "digest": "sha256:e6faf4562586e02fc70469f42a7eb59706c33bdcbc7921a5ee5543335d539a14"
     },
     {
       "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/scientific.rs",
@@ -88,7 +88,7 @@
     },
     {
       "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/sequential.rs",
-      "digest": "sha256:027d793afe22406284a56cb05df1d4c1b4fac1e2d1fb769135ce3a9abf14e16c"
+      "digest": "sha256:d0fee803e2ea148b4bd8e06781eedd452f8174fdb0d1b05d76cf744ccfdcd008"
     },
     {
       "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/stage_functions.rs",
@@ -96,7 +96,7 @@
     },
     {
       "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/stages/annotations.rs",
-      "digest": "sha256:f1d4d61aaf2eb8152fd9d7ff58ba52cc970a079332150b18bae794bb5957c1aa"
+      "digest": "sha256:73fab18094acbfc2519e75a08eac1d03ecabe68a0a28e60adb41fc651b9833d5"
     },
     {
       "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/stages/attribution.rs",
@@ -116,15 +116,15 @@
     },
     {
       "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/stages/source.rs",
-      "digest": "sha256:25c0095498bbda9cf2c295b434b5ea19be5920f7c628e0219bd9e19807174836"
+      "digest": "sha256:87f3da2408374a1cbe57e55163739d237e7273bb1357f1049f0b0bba4023d7ac"
     },
     {
       "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline/stages/support.rs",
-      "digest": "sha256:d708f0ab5238354f771460aceb1794b60b4ecff29a4ba6e6153acb0048fc9fca"
+      "digest": "sha256:d6bfa55691e428ba1e300f0ec950e02d62dc5f362b0a88ceb1c5b6963d9d60cf"
     },
     {
       "path": "rust/chronicle_chrono_kernel_wasm/src/workflow_contract.rs",
-      "digest": "sha256:567a663b31493c9f2bfcbca8c74c521946b84e3a8fe636f8b6f26c7be7b791d6"
+      "digest": "sha256:9b979763f6bce2db954a5182c15ec3ca3d6598286f0a1b9e2654acf699dca9bc"
     },
     {
       "path": "rust/chronicle_preprocessing_runtime_wasm/src/binary_exports.rs",
@@ -144,7 +144,7 @@
     },
     {
       "path": "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",
-      "digest": "sha256:4f198326195cef8e3349f220ad455bab71922748769f2164c6bbd6b71c5b5d8a"
+      "digest": "sha256:cfc491644d0818807d9a3a05702ca52281f88203c8c54477e3303547c4e383a0"
     },
     {
       "path": "rust/chronicle_preprocessing_runtime_wasm/src/literature_input_adapters.rs",
@@ -194,8 +194,8 @@
     ]
   },
   "manifestClosureDigest": "sha256:6345434a58b7c94e5a1906df68989b12fe6e23bf752bb977b8d58dcc14177196",
-  "harnessDigest": "sha256:ac463276e6f2274e2b1dea62e1df117d77c748b919cfa3c46a139650f3e4e3bf",
-  "contractDigest": "sha256:b91d2f351d0df86f8a961723ab59bc3aaea285eeb680eca8dd49834eba7d8c5b",
+  "harnessDigest": "sha256:4e931b2f59790643362666a63e34658b0ad9a2d94c831c054ee9c715fa629709",
+  "contractDigest": "sha256:9cad33ec9f0b8ed46252f120cb5eea4e6dc5118b6afb22f2413ed390c0a1351e",
   "toolchain": "rustc 1.97.0-nightly (913e4bea8 2026-04-22) | binary: rustc",
   "claimBoundary": "Executed-production-file set for this record-mode campaign under LLVM coverage; each file pinned by the digest of its test-stripped normalized source. Conditions the right to inherit this campaign's committed ledger payload without re-measuring; never consulted for runtime invalidation."
 }

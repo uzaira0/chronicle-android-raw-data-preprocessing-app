@@ -8,19 +8,19 @@
   },
   "implementationReceipt": {
     "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
-    "implementationDigest": "sha256:fe6fb1c65b68959f70f41571150c30611b372ce0672383bc64e7d59b0b7c8f7c",
-    "planDigest": "sha256:be8258e89e2896c83c9af93e3f016ab90c4d4561353d36b9123d373becb21c22",
-    "profileDigest": "sha256:d7d619f99a0e3106f185b994234092062ca3e7840e9fd29995f864148acd576a",
-    "profileLockDigest": "sha256:df2771b5ccf62edf9e2a9911d1c9f7ce79eebec2f83628940bc8ef554f9ed201",
+    "implementationDigest": "sha256:518f7ad6e9cab0ad124a6dbd408981178ffe7a94f82ab5c0b1bad28454b75d4f",
+    "planDigest": "sha256:003f8eae723ac97dd56ed82fcda9f6a59c6786c60e0829c5e8e583a77c4f6af4",
+    "profileDigest": "sha256:12d91882f067119057b8f577f162f869561d76662e833a5490cf1555b6816b12",
+    "profileLockDigest": "sha256:74c3447887347f2794a4cf350801bad26c07ca165956dccc9ef9daf9c61da2b7",
     "runtimeAuthorityDigest": "sha256:7807fe99a35b4ede2c85d8e8868ec3dcb2accb22e8265c4643966eb9840ce4e4",
-    "productContractDigest": "sha256:d64fb721d6a8b5a2f04c567dcc3fd17a259672901e7ffad419a6d5a04854bb0c"
+    "productContractDigest": "sha256:dd9769b844e3ee831182093bc0bf7a9cf78731d78653df42c7e7b44adc28c9e6"
   },
   "cellEvidence": {
     "protocolVersion": "chronicle-output-cell-correspondence/v2",
     "path": "artifact-output-cell-correspondence.json.gz",
-    "contentDigest": "sha256:ef5e257c11f3dc789c08b1eeaccfd783fe29b1b57da5f0c22f69c251fb68dd1a",
-    "cases": 192,
-    "changedCellAddresses": 246069
+    "contentDigest": "sha256:f4f75ee61b56b046b771594f7694bf9b747847dec08ee3f0a86964b3dca9cf23",
+    "cases": 204,
+    "changedCellAddresses": 249407
   },
   "fixtures": [
     {
@@ -40,6 +40,7 @@
         "apps_forcing_screen_open_file": "sha256:a9a7df7c765ce08495bc1c3f330ec13fe8601bb7c008de3d5fc8c673779243c3",
         "background_apps_file": "sha256:8acc3cdf8523624d4aa142b5498f0f4936ef08f757538d4787d384ab0c2d7720",
         "app_codebook_file": "sha256:cd8f53b2f2a44812eee161784313117f731ee0c2eb0c42abc26c13824a99b9b1",
+        "app_codebook_schema_file": "sha256:27dc7e4eb31a1e18ae9b5f9c945b4359f4ac7d651da86dfc82ef69c7161edfea",
         "study_dates_file": "sha256:aecbac53c5bf237f217b439d06fee846c180179b40a30b565afecce3f1458a45",
         "device_sharing_file": "sha256:3ab59f18b048e4c82f35b8bcf7a968640afc60561b8e8cdfd27b2bf56848673f",
         "survey_attribution_file": "sha256:074014ebf04d00e3945ed63954f6fe58d7ce3a155ac68e58f2fcaacea5d0acb3",
@@ -66,6 +67,7 @@
         "apps_forcing_screen_open_file": "sha256:a9a7df7c765ce08495bc1c3f330ec13fe8601bb7c008de3d5fc8c673779243c3",
         "background_apps_file": "sha256:8acc3cdf8523624d4aa142b5498f0f4936ef08f757538d4787d384ab0c2d7720",
         "app_codebook_file": "sha256:ae126e8ec5d09449795a378a49997d4d269db872aa673ef0fa788d2b466a7d12",
+        "app_codebook_schema_file": "sha256:27dc7e4eb31a1e18ae9b5f9c945b4359f4ac7d651da86dfc82ef69c7161edfea",
         "study_dates_file": "sha256:97cfc5642ec9d660141e21d3dbb40f22ac7d2c4cc80a4fd4be708c61c4630bc3",
         "device_sharing_file": "sha256:2d3a521e0e704598058b24c62969429d08c9872236b8a15eb84b6c99b6d491cc",
         "survey_attribution_file": "sha256:62dcdf1ca6271448b8c512110fbeb994ffd9229f7cdcd6a4593b5cf3649884f3",
@@ -96,6 +98,7 @@
         "apps_forcing_screen_open_file": "sha256:a9a7df7c765ce08495bc1c3f330ec13fe8601bb7c008de3d5fc8c673779243c3",
         "background_apps_file": "sha256:8acc3cdf8523624d4aa142b5498f0f4936ef08f757538d4787d384ab0c2d7720",
         "app_codebook_file": "sha256:0d81bfc6767b51dabf7906cda7b9c2de1aef6fe2f2fa08a49835ed4c6560ec0a",
+        "app_codebook_schema_file": "sha256:27dc7e4eb31a1e18ae9b5f9c945b4359f4ac7d651da86dfc82ef69c7161edfea",
         "study_dates_file": "sha256:1c92f525d854ea2f219cf87297621ac8cba85a28297287b14b0991da00d8e54e",
         "device_sharing_file": "sha256:bf1c217d56e3922e873d9ea2708c9c83dea83db52aad8c0b059a6ebe7bce8b26",
         "survey_attribution_file": "sha256:d602b58cf24e4d58dbbbab87e8d57a8feba2ca51ac6236c677d58e577db9f980",
@@ -126,6 +129,7 @@
         "apps_forcing_screen_open_file": "sha256:a9a7df7c765ce08495bc1c3f330ec13fe8601bb7c008de3d5fc8c673779243c3",
         "background_apps_file": "sha256:8acc3cdf8523624d4aa142b5498f0f4936ef08f757538d4787d384ab0c2d7720",
         "app_codebook_file": "sha256:c18b2cd17f857c89aec58f1b9f3724fecfe04e4ffb4e9c768da0a808aa358537",
+        "app_codebook_schema_file": "sha256:27dc7e4eb31a1e18ae9b5f9c945b4359f4ac7d651da86dfc82ef69c7161edfea",
         "study_dates_file": "sha256:5f4fe8fc7ce6d345f972c9fc19bec362be98548defce7fab0644bb1a23e1c2d1",
         "device_sharing_file": "sha256:9b785c553de402b00fc77c5fe7ff3ffd96621879ee8fb46a1a9c823fb38de7de",
         "survey_attribution_file": "sha256:d8f74cd0fb8f4c0e300081b3f4f43ccbf616809771a99dceffe4af3e81f8c453",
@@ -155,6 +159,7 @@
         "apps_forcing_screen_open_file": "sha256:a9a7df7c765ce08495bc1c3f330ec13fe8601bb7c008de3d5fc8c673779243c3",
         "background_apps_file": "sha256:8acc3cdf8523624d4aa142b5498f0f4936ef08f757538d4787d384ab0c2d7720",
         "app_codebook_file": "sha256:0bf6b22a0606d7403ee1906e459ff67c3df85d5b7c113d38c63c078aacc079e9",
+        "app_codebook_schema_file": "sha256:27dc7e4eb31a1e18ae9b5f9c945b4359f4ac7d651da86dfc82ef69c7161edfea",
         "study_dates_file": "sha256:9ade46c4dad07a13ab55baed56edf657a60e1bf0b052a6973922b0867ba0f167",
         "device_sharing_file": "sha256:728df58d397b51719adab60416ac2a6a50f4ea116f7d9ab1611caead744f4aa8",
         "survey_attribution_file": "sha256:46961c7ca7716ba5fe8453470fc1c7f91310182352f0152b6e78ab9489bd6b1c",
@@ -187,6 +192,7 @@
         "apps_forcing_screen_open_file": "sha256:a9a7df7c765ce08495bc1c3f330ec13fe8601bb7c008de3d5fc8c673779243c3",
         "background_apps_file": "sha256:8acc3cdf8523624d4aa142b5498f0f4936ef08f757538d4787d384ab0c2d7720",
         "app_codebook_file": "sha256:cc200451c1af2292ef8f1c000631e55b91576a1525af78329b309c8d1aaa881d",
+        "app_codebook_schema_file": "sha256:27dc7e4eb31a1e18ae9b5f9c945b4359f4ac7d651da86dfc82ef69c7161edfea",
         "study_dates_file": "sha256:76941a49b2c527b45ccb87c83d7682d15855d8c8fc548d2669258482e7c11a77",
         "device_sharing_file": "sha256:701072346c9fa8ad1e6e7c7ce0ca50e07f6397c07f154a90a3ab409b24cee826",
         "survey_attribution_file": "sha256:ae59796803cefbff163c5e846c8608c8cdfd45bb3b8b18097f846fe7a8a79070",
@@ -206,6 +212,7 @@
     ],
     "sourceRoles": [
       "app_codebook_file",
+      "app_codebook_schema_file",
       "apps_forcing_screen_open_file",
       "background_apps_file",
       "device_sharing_file",
@@ -236,6 +243,7 @@
     ],
     "supportSubstantiveMutations": [
       "app_codebook_file",
+      "app_codebook_schema_file",
       "apps_forcing_screen_open_file",
       "background_apps_file",
       "device_sharing_file",
@@ -246,6 +254,7 @@
     ],
     "representationControls": [
       "app_codebook_file",
+      "app_codebook_schema_file",
       "apps_forcing_screen_open_file",
       "background_apps_file",
       "device_sharing_file",
@@ -414,6 +423,17 @@
       ],
       "convergedCorpora": []
     },
+    "support:codebook-schema-rename-output-column": {
+      "activeCorpora": [
+        "catalog-random",
+        "configuration-influence-probes",
+        "interaction-pathologies",
+        "support-intersections",
+        "temporal-pathologies",
+        "threshold-boundaries"
+      ],
+      "convergedCorpora": []
+    },
     "support:enrollment-one-to-two-devices": {
       "activeCorpora": [
         "catalog-random",
@@ -482,19 +502,19 @@
     }
   },
   "executionCounts": {
-    "interventions": 192,
-    "coldExecutions": 384,
-    "incrementalExecutions": 384,
-    "totalRustExecutions": 768,
-    "semanticEffects": 120,
+    "interventions": 204,
+    "coldExecutions": 408,
+    "incrementalExecutions": 408,
+    "totalRustExecutions": 816,
+    "semanticEffects": 126,
     "contextualConvergences": 0,
-    "exactEquivalences": 72,
-    "workflowCheckpointComparisons": 192,
-    "workflowQueryCheckpointComparisons": 12864,
-    "typedCheckpointDecompositionComparisons": 192,
-    "exactQualificationCorrespondenceComparisons": 192,
-    "exactRequirementCorrespondenceComparisons": 192,
-    "exactOutputCellComparisons": 384
+    "exactEquivalences": 78,
+    "workflowCheckpointComparisons": 204,
+    "workflowQueryCheckpointComparisons": 13668,
+    "typedCheckpointDecompositionComparisons": 204,
+    "exactQualificationCorrespondenceComparisons": 204,
+    "exactRequirementCorrespondenceComparisons": 204,
+    "exactOutputCellComparisons": 408
   },
   "interventions": [
     {
@@ -8544,6 +8564,153 @@
     },
     {
       "corpusId": "catalog-random",
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "roleId": "app_codebook_schema_file",
+      "mutationClass": "field-edit",
+      "changedComponents": [
+        "app_codebook_schema_file.codebook_columns[0].output_column"
+      ],
+      "description": "Rename the first codebook output column in the schema",
+      "expectedSemanticEffect": "required",
+      "observedSemanticEffect": true,
+      "directBindingQueries": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "changedQualificationRoles": [
+        "app_codebook_schema_file"
+      ],
+      "changedRequirementRoles": [
+        "app_codebook_schema_file"
+      ],
+      "changedSemanticNodes": [
+        "outputs"
+      ],
+      "checkpointComponentChanges": {
+        "outputs": [
+          "payloadDigest"
+        ]
+      },
+      "changedQueries": [
+        "assemble_result_manifest"
+      ],
+      "queryCheckpointComponentChanges": {
+        "assemble_result_manifest": [
+          "payloadDigest"
+        ]
+      },
+      "actualExecutedQueries": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "deactivatedQueries": [],
+      "changedOutputArtifactKinds": [
+        "app-csv",
+        "credited-app-csv",
+        "result-cell-correspondence-arrow",
+        "source-coordinate-index-arrow",
+        "source-result-influence-arrow"
+      ],
+      "changedOutputCellCount": 856,
+      "changedOutputCellAddressDigest": "sha256:cfdd2d61ae86b7f0a73a208564d275b0c648bf94012dd6981003ffe94fc5b1f5",
+      "changedOutputCellScopesByArtifact": {
+        "app-csv": [
+          "/rows/*/artifact_intervention_codebook_column",
+          "/rows/*/codebook_application_label",
+          "/shape/columns"
+        ],
+        "credited-app-csv": [
+          "/rows/*/artifact_intervention_codebook_column",
+          "/rows/*/codebook_application_label",
+          "/shape/columns"
+        ]
+      },
+      "changedCountFields": [],
+      "changedProcessingSummaryFields": [
+        "provenanceDigest",
+        "publishedOutputsDigest",
+        "workflowQueryCheckpoints",
+        "workflowQueryDigests",
+        "workflowQueryGroupCheckpoints",
+        "workflowQueryGroupDigests"
+      ],
+      "displayGroupStatuses": [
+        {
+          "nodeId": "parse_events",
+          "status": "cached"
+        },
+        {
+          "nodeId": "normalize_timezones",
+          "status": "cached"
+        },
+        {
+          "nodeId": "dedup_and_order",
+          "status": "cached"
+        },
+        {
+          "nodeId": "app_policy",
+          "status": "cached"
+        },
+        {
+          "nodeId": "device_state_timeline",
+          "status": "cached"
+        },
+        {
+          "nodeId": "reconstruct_episodes",
+          "status": "cached"
+        },
+        {
+          "nodeId": "categorize_apps",
+          "status": "recomputed"
+        },
+        {
+          "nodeId": "episode_annotations",
+          "status": "cached"
+        },
+        {
+          "nodeId": "interval_cleaning",
+          "status": "cached"
+        },
+        {
+          "nodeId": "effective_usage",
+          "status": "cached"
+        },
+        {
+          "nodeId": "notification_proxy",
+          "status": "bypassed"
+        },
+        {
+          "nodeId": "polled_emulation",
+          "status": "bypassed"
+        },
+        {
+          "nodeId": "observation_window",
+          "status": "cached"
+        },
+        {
+          "nodeId": "attribute_person",
+          "status": "cached"
+        },
+        {
+          "nodeId": "day_coverage",
+          "status": "cached"
+        },
+        {
+          "nodeId": "score_compliance",
+          "status": "cached"
+        },
+        {
+          "nodeId": "outputs",
+          "status": "recomputed"
+        }
+      ]
+    },
+    {
+      "corpusId": "catalog-random",
       "interventionId": "support:study-window-narrow",
       "roleId": "study_dates_file",
       "mutationClass": "record-edit",
@@ -9890,6 +10057,114 @@
       ],
       "changedRequirementRoles": [
         "app_codebook_file"
+      ],
+      "changedSemanticNodes": [],
+      "checkpointComponentChanges": {},
+      "changedQueries": [],
+      "queryCheckpointComponentChanges": {},
+      "actualExecutedQueries": [],
+      "deactivatedQueries": [],
+      "changedOutputArtifactKinds": [
+        "source-coordinate-index-arrow"
+      ],
+      "changedOutputCellCount": 0,
+      "changedOutputCellAddressDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "changedOutputCellScopesByArtifact": {},
+      "changedCountFields": [],
+      "changedProcessingSummaryFields": [],
+      "displayGroupStatuses": [
+        {
+          "nodeId": "parse_events",
+          "status": "cached"
+        },
+        {
+          "nodeId": "normalize_timezones",
+          "status": "cached"
+        },
+        {
+          "nodeId": "dedup_and_order",
+          "status": "cached"
+        },
+        {
+          "nodeId": "app_policy",
+          "status": "cached"
+        },
+        {
+          "nodeId": "device_state_timeline",
+          "status": "cached"
+        },
+        {
+          "nodeId": "reconstruct_episodes",
+          "status": "cached"
+        },
+        {
+          "nodeId": "categorize_apps",
+          "status": "cached"
+        },
+        {
+          "nodeId": "episode_annotations",
+          "status": "cached"
+        },
+        {
+          "nodeId": "interval_cleaning",
+          "status": "cached"
+        },
+        {
+          "nodeId": "effective_usage",
+          "status": "cached"
+        },
+        {
+          "nodeId": "notification_proxy",
+          "status": "bypassed"
+        },
+        {
+          "nodeId": "polled_emulation",
+          "status": "bypassed"
+        },
+        {
+          "nodeId": "observation_window",
+          "status": "cached"
+        },
+        {
+          "nodeId": "attribute_person",
+          "status": "cached"
+        },
+        {
+          "nodeId": "day_coverage",
+          "status": "cached"
+        },
+        {
+          "nodeId": "score_compliance",
+          "status": "cached"
+        },
+        {
+          "nodeId": "outputs",
+          "status": "cached"
+        }
+      ]
+    },
+    {
+      "corpusId": "catalog-random",
+      "interventionId": "support-representation:app_codebook_schema_file:crlf",
+      "roleId": "app_codebook_schema_file",
+      "mutationClass": "representation-only",
+      "changedComponents": [
+        "app_codebook_schema_file.line_endings"
+      ],
+      "description": "Replace app_codebook_schema_file LF record separators with CRLF",
+      "expectedSemanticEffect": "equivalent",
+      "observedSemanticEffect": false,
+      "directBindingQueries": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "changedQualificationRoles": [
+        "app_codebook_schema_file"
+      ],
+      "changedRequirementRoles": [
+        "app_codebook_schema_file"
       ],
       "changedSemanticNodes": [],
       "checkpointComponentChanges": {},
@@ -18439,6 +18714,153 @@
     },
     {
       "corpusId": "support-intersections",
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "roleId": "app_codebook_schema_file",
+      "mutationClass": "field-edit",
+      "changedComponents": [
+        "app_codebook_schema_file.codebook_columns[0].output_column"
+      ],
+      "description": "Rename the first codebook output column in the schema",
+      "expectedSemanticEffect": "required",
+      "observedSemanticEffect": true,
+      "directBindingQueries": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "changedQualificationRoles": [
+        "app_codebook_schema_file"
+      ],
+      "changedRequirementRoles": [
+        "app_codebook_schema_file"
+      ],
+      "changedSemanticNodes": [
+        "outputs"
+      ],
+      "checkpointComponentChanges": {
+        "outputs": [
+          "payloadDigest"
+        ]
+      },
+      "changedQueries": [
+        "assemble_result_manifest"
+      ],
+      "queryCheckpointComponentChanges": {
+        "assemble_result_manifest": [
+          "payloadDigest"
+        ]
+      },
+      "actualExecutedQueries": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "deactivatedQueries": [],
+      "changedOutputArtifactKinds": [
+        "app-csv",
+        "credited-app-csv",
+        "result-cell-correspondence-arrow",
+        "source-coordinate-index-arrow",
+        "source-result-influence-arrow"
+      ],
+      "changedOutputCellCount": 542,
+      "changedOutputCellAddressDigest": "sha256:3a1e0467641b9390703eda2bf3ad2ec404caccafe5b4f7e3ddab3ce5b6492fc4",
+      "changedOutputCellScopesByArtifact": {
+        "app-csv": [
+          "/rows/*/artifact_intervention_codebook_column",
+          "/rows/*/codebook_application_label",
+          "/shape/columns"
+        ],
+        "credited-app-csv": [
+          "/rows/*/artifact_intervention_codebook_column",
+          "/rows/*/codebook_application_label",
+          "/shape/columns"
+        ]
+      },
+      "changedCountFields": [],
+      "changedProcessingSummaryFields": [
+        "provenanceDigest",
+        "publishedOutputsDigest",
+        "workflowQueryCheckpoints",
+        "workflowQueryDigests",
+        "workflowQueryGroupCheckpoints",
+        "workflowQueryGroupDigests"
+      ],
+      "displayGroupStatuses": [
+        {
+          "nodeId": "parse_events",
+          "status": "cached"
+        },
+        {
+          "nodeId": "normalize_timezones",
+          "status": "cached"
+        },
+        {
+          "nodeId": "dedup_and_order",
+          "status": "cached"
+        },
+        {
+          "nodeId": "app_policy",
+          "status": "cached"
+        },
+        {
+          "nodeId": "device_state_timeline",
+          "status": "cached"
+        },
+        {
+          "nodeId": "reconstruct_episodes",
+          "status": "cached"
+        },
+        {
+          "nodeId": "categorize_apps",
+          "status": "recomputed"
+        },
+        {
+          "nodeId": "episode_annotations",
+          "status": "cached"
+        },
+        {
+          "nodeId": "interval_cleaning",
+          "status": "cached"
+        },
+        {
+          "nodeId": "effective_usage",
+          "status": "cached"
+        },
+        {
+          "nodeId": "notification_proxy",
+          "status": "bypassed"
+        },
+        {
+          "nodeId": "polled_emulation",
+          "status": "bypassed"
+        },
+        {
+          "nodeId": "observation_window",
+          "status": "cached"
+        },
+        {
+          "nodeId": "attribute_person",
+          "status": "cached"
+        },
+        {
+          "nodeId": "day_coverage",
+          "status": "cached"
+        },
+        {
+          "nodeId": "score_compliance",
+          "status": "cached"
+        },
+        {
+          "nodeId": "outputs",
+          "status": "recomputed"
+        }
+      ]
+    },
+    {
+      "corpusId": "support-intersections",
       "interventionId": "support:study-window-narrow",
       "roleId": "study_dates_file",
       "mutationClass": "record-edit",
@@ -19569,6 +19991,114 @@
       ],
       "changedRequirementRoles": [
         "app_codebook_file"
+      ],
+      "changedSemanticNodes": [],
+      "checkpointComponentChanges": {},
+      "changedQueries": [],
+      "queryCheckpointComponentChanges": {},
+      "actualExecutedQueries": [],
+      "deactivatedQueries": [],
+      "changedOutputArtifactKinds": [
+        "source-coordinate-index-arrow"
+      ],
+      "changedOutputCellCount": 0,
+      "changedOutputCellAddressDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "changedOutputCellScopesByArtifact": {},
+      "changedCountFields": [],
+      "changedProcessingSummaryFields": [],
+      "displayGroupStatuses": [
+        {
+          "nodeId": "parse_events",
+          "status": "cached"
+        },
+        {
+          "nodeId": "normalize_timezones",
+          "status": "cached"
+        },
+        {
+          "nodeId": "dedup_and_order",
+          "status": "cached"
+        },
+        {
+          "nodeId": "app_policy",
+          "status": "cached"
+        },
+        {
+          "nodeId": "device_state_timeline",
+          "status": "cached"
+        },
+        {
+          "nodeId": "reconstruct_episodes",
+          "status": "cached"
+        },
+        {
+          "nodeId": "categorize_apps",
+          "status": "cached"
+        },
+        {
+          "nodeId": "episode_annotations",
+          "status": "cached"
+        },
+        {
+          "nodeId": "interval_cleaning",
+          "status": "cached"
+        },
+        {
+          "nodeId": "effective_usage",
+          "status": "cached"
+        },
+        {
+          "nodeId": "notification_proxy",
+          "status": "bypassed"
+        },
+        {
+          "nodeId": "polled_emulation",
+          "status": "bypassed"
+        },
+        {
+          "nodeId": "observation_window",
+          "status": "cached"
+        },
+        {
+          "nodeId": "attribute_person",
+          "status": "cached"
+        },
+        {
+          "nodeId": "day_coverage",
+          "status": "cached"
+        },
+        {
+          "nodeId": "score_compliance",
+          "status": "cached"
+        },
+        {
+          "nodeId": "outputs",
+          "status": "cached"
+        }
+      ]
+    },
+    {
+      "corpusId": "support-intersections",
+      "interventionId": "support-representation:app_codebook_schema_file:crlf",
+      "roleId": "app_codebook_schema_file",
+      "mutationClass": "representation-only",
+      "changedComponents": [
+        "app_codebook_schema_file.line_endings"
+      ],
+      "description": "Replace app_codebook_schema_file LF record separators with CRLF",
+      "expectedSemanticEffect": "equivalent",
+      "observedSemanticEffect": false,
+      "directBindingQueries": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "changedQualificationRoles": [
+        "app_codebook_schema_file"
+      ],
+      "changedRequirementRoles": [
+        "app_codebook_schema_file"
       ],
       "changedSemanticNodes": [],
       "checkpointComponentChanges": {},
@@ -27468,6 +27998,153 @@
     },
     {
       "corpusId": "temporal-pathologies",
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "roleId": "app_codebook_schema_file",
+      "mutationClass": "field-edit",
+      "changedComponents": [
+        "app_codebook_schema_file.codebook_columns[0].output_column"
+      ],
+      "description": "Rename the first codebook output column in the schema",
+      "expectedSemanticEffect": "required",
+      "observedSemanticEffect": true,
+      "directBindingQueries": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "changedQualificationRoles": [
+        "app_codebook_schema_file"
+      ],
+      "changedRequirementRoles": [
+        "app_codebook_schema_file"
+      ],
+      "changedSemanticNodes": [
+        "outputs"
+      ],
+      "checkpointComponentChanges": {
+        "outputs": [
+          "payloadDigest"
+        ]
+      },
+      "changedQueries": [
+        "assemble_result_manifest"
+      ],
+      "queryCheckpointComponentChanges": {
+        "assemble_result_manifest": [
+          "payloadDigest"
+        ]
+      },
+      "actualExecutedQueries": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "deactivatedQueries": [],
+      "changedOutputArtifactKinds": [
+        "app-csv",
+        "credited-app-csv",
+        "result-cell-correspondence-arrow",
+        "source-coordinate-index-arrow",
+        "source-result-influence-arrow"
+      ],
+      "changedOutputCellCount": 516,
+      "changedOutputCellAddressDigest": "sha256:dc7da7eedeb6017d5da2e4884133fd4c4a8d8bcb82d6d7bea346d9f543a8e26b",
+      "changedOutputCellScopesByArtifact": {
+        "app-csv": [
+          "/rows/*/artifact_intervention_codebook_column",
+          "/rows/*/codebook_application_label",
+          "/shape/columns"
+        ],
+        "credited-app-csv": [
+          "/rows/*/artifact_intervention_codebook_column",
+          "/rows/*/codebook_application_label",
+          "/shape/columns"
+        ]
+      },
+      "changedCountFields": [],
+      "changedProcessingSummaryFields": [
+        "provenanceDigest",
+        "publishedOutputsDigest",
+        "workflowQueryCheckpoints",
+        "workflowQueryDigests",
+        "workflowQueryGroupCheckpoints",
+        "workflowQueryGroupDigests"
+      ],
+      "displayGroupStatuses": [
+        {
+          "nodeId": "parse_events",
+          "status": "cached"
+        },
+        {
+          "nodeId": "normalize_timezones",
+          "status": "cached"
+        },
+        {
+          "nodeId": "dedup_and_order",
+          "status": "cached"
+        },
+        {
+          "nodeId": "app_policy",
+          "status": "cached"
+        },
+        {
+          "nodeId": "device_state_timeline",
+          "status": "cached"
+        },
+        {
+          "nodeId": "reconstruct_episodes",
+          "status": "cached"
+        },
+        {
+          "nodeId": "categorize_apps",
+          "status": "recomputed"
+        },
+        {
+          "nodeId": "episode_annotations",
+          "status": "cached"
+        },
+        {
+          "nodeId": "interval_cleaning",
+          "status": "cached"
+        },
+        {
+          "nodeId": "effective_usage",
+          "status": "cached"
+        },
+        {
+          "nodeId": "notification_proxy",
+          "status": "bypassed"
+        },
+        {
+          "nodeId": "polled_emulation",
+          "status": "bypassed"
+        },
+        {
+          "nodeId": "observation_window",
+          "status": "cached"
+        },
+        {
+          "nodeId": "attribute_person",
+          "status": "cached"
+        },
+        {
+          "nodeId": "day_coverage",
+          "status": "cached"
+        },
+        {
+          "nodeId": "score_compliance",
+          "status": "cached"
+        },
+        {
+          "nodeId": "outputs",
+          "status": "recomputed"
+        }
+      ]
+    },
+    {
+      "corpusId": "temporal-pathologies",
       "interventionId": "support:study-window-narrow",
       "roleId": "study_dates_file",
       "mutationClass": "record-edit",
@@ -28916,6 +29593,114 @@
       ],
       "changedRequirementRoles": [
         "app_codebook_file"
+      ],
+      "changedSemanticNodes": [],
+      "checkpointComponentChanges": {},
+      "changedQueries": [],
+      "queryCheckpointComponentChanges": {},
+      "actualExecutedQueries": [],
+      "deactivatedQueries": [],
+      "changedOutputArtifactKinds": [
+        "source-coordinate-index-arrow"
+      ],
+      "changedOutputCellCount": 0,
+      "changedOutputCellAddressDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "changedOutputCellScopesByArtifact": {},
+      "changedCountFields": [],
+      "changedProcessingSummaryFields": [],
+      "displayGroupStatuses": [
+        {
+          "nodeId": "parse_events",
+          "status": "cached"
+        },
+        {
+          "nodeId": "normalize_timezones",
+          "status": "cached"
+        },
+        {
+          "nodeId": "dedup_and_order",
+          "status": "cached"
+        },
+        {
+          "nodeId": "app_policy",
+          "status": "cached"
+        },
+        {
+          "nodeId": "device_state_timeline",
+          "status": "cached"
+        },
+        {
+          "nodeId": "reconstruct_episodes",
+          "status": "cached"
+        },
+        {
+          "nodeId": "categorize_apps",
+          "status": "cached"
+        },
+        {
+          "nodeId": "episode_annotations",
+          "status": "cached"
+        },
+        {
+          "nodeId": "interval_cleaning",
+          "status": "cached"
+        },
+        {
+          "nodeId": "effective_usage",
+          "status": "cached"
+        },
+        {
+          "nodeId": "notification_proxy",
+          "status": "bypassed"
+        },
+        {
+          "nodeId": "polled_emulation",
+          "status": "bypassed"
+        },
+        {
+          "nodeId": "observation_window",
+          "status": "cached"
+        },
+        {
+          "nodeId": "attribute_person",
+          "status": "cached"
+        },
+        {
+          "nodeId": "day_coverage",
+          "status": "cached"
+        },
+        {
+          "nodeId": "score_compliance",
+          "status": "cached"
+        },
+        {
+          "nodeId": "outputs",
+          "status": "cached"
+        }
+      ]
+    },
+    {
+      "corpusId": "temporal-pathologies",
+      "interventionId": "support-representation:app_codebook_schema_file:crlf",
+      "roleId": "app_codebook_schema_file",
+      "mutationClass": "representation-only",
+      "changedComponents": [
+        "app_codebook_schema_file.line_endings"
+      ],
+      "description": "Replace app_codebook_schema_file LF record separators with CRLF",
+      "expectedSemanticEffect": "equivalent",
+      "observedSemanticEffect": false,
+      "directBindingQueries": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "changedQualificationRoles": [
+        "app_codebook_schema_file"
+      ],
+      "changedRequirementRoles": [
+        "app_codebook_schema_file"
       ],
       "changedSemanticNodes": [],
       "checkpointComponentChanges": {},
@@ -36875,6 +37660,153 @@
     },
     {
       "corpusId": "interaction-pathologies",
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "roleId": "app_codebook_schema_file",
+      "mutationClass": "field-edit",
+      "changedComponents": [
+        "app_codebook_schema_file.codebook_columns[0].output_column"
+      ],
+      "description": "Rename the first codebook output column in the schema",
+      "expectedSemanticEffect": "required",
+      "observedSemanticEffect": true,
+      "directBindingQueries": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "changedQualificationRoles": [
+        "app_codebook_schema_file"
+      ],
+      "changedRequirementRoles": [
+        "app_codebook_schema_file"
+      ],
+      "changedSemanticNodes": [
+        "outputs"
+      ],
+      "checkpointComponentChanges": {
+        "outputs": [
+          "payloadDigest"
+        ]
+      },
+      "changedQueries": [
+        "assemble_result_manifest"
+      ],
+      "queryCheckpointComponentChanges": {
+        "assemble_result_manifest": [
+          "payloadDigest"
+        ]
+      },
+      "actualExecutedQueries": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "deactivatedQueries": [],
+      "changedOutputArtifactKinds": [
+        "app-csv",
+        "credited-app-csv",
+        "result-cell-correspondence-arrow",
+        "source-coordinate-index-arrow",
+        "source-result-influence-arrow"
+      ],
+      "changedOutputCellCount": 602,
+      "changedOutputCellAddressDigest": "sha256:1d59efca113225aabd3f9786c36e0fff442856829e1c0e17e520e053d6784400",
+      "changedOutputCellScopesByArtifact": {
+        "app-csv": [
+          "/rows/*/artifact_intervention_codebook_column",
+          "/rows/*/codebook_application_label",
+          "/shape/columns"
+        ],
+        "credited-app-csv": [
+          "/rows/*/artifact_intervention_codebook_column",
+          "/rows/*/codebook_application_label",
+          "/shape/columns"
+        ]
+      },
+      "changedCountFields": [],
+      "changedProcessingSummaryFields": [
+        "provenanceDigest",
+        "publishedOutputsDigest",
+        "workflowQueryCheckpoints",
+        "workflowQueryDigests",
+        "workflowQueryGroupCheckpoints",
+        "workflowQueryGroupDigests"
+      ],
+      "displayGroupStatuses": [
+        {
+          "nodeId": "parse_events",
+          "status": "cached"
+        },
+        {
+          "nodeId": "normalize_timezones",
+          "status": "cached"
+        },
+        {
+          "nodeId": "dedup_and_order",
+          "status": "cached"
+        },
+        {
+          "nodeId": "app_policy",
+          "status": "cached"
+        },
+        {
+          "nodeId": "device_state_timeline",
+          "status": "cached"
+        },
+        {
+          "nodeId": "reconstruct_episodes",
+          "status": "cached"
+        },
+        {
+          "nodeId": "categorize_apps",
+          "status": "recomputed"
+        },
+        {
+          "nodeId": "episode_annotations",
+          "status": "cached"
+        },
+        {
+          "nodeId": "interval_cleaning",
+          "status": "cached"
+        },
+        {
+          "nodeId": "effective_usage",
+          "status": "cached"
+        },
+        {
+          "nodeId": "notification_proxy",
+          "status": "bypassed"
+        },
+        {
+          "nodeId": "polled_emulation",
+          "status": "bypassed"
+        },
+        {
+          "nodeId": "observation_window",
+          "status": "cached"
+        },
+        {
+          "nodeId": "attribute_person",
+          "status": "cached"
+        },
+        {
+          "nodeId": "day_coverage",
+          "status": "cached"
+        },
+        {
+          "nodeId": "score_compliance",
+          "status": "cached"
+        },
+        {
+          "nodeId": "outputs",
+          "status": "recomputed"
+        }
+      ]
+    },
+    {
+      "corpusId": "interaction-pathologies",
       "interventionId": "support:study-window-narrow",
       "roleId": "study_dates_file",
       "mutationClass": "record-edit",
@@ -38327,6 +39259,114 @@
       ],
       "changedRequirementRoles": [
         "app_codebook_file"
+      ],
+      "changedSemanticNodes": [],
+      "checkpointComponentChanges": {},
+      "changedQueries": [],
+      "queryCheckpointComponentChanges": {},
+      "actualExecutedQueries": [],
+      "deactivatedQueries": [],
+      "changedOutputArtifactKinds": [
+        "source-coordinate-index-arrow"
+      ],
+      "changedOutputCellCount": 0,
+      "changedOutputCellAddressDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "changedOutputCellScopesByArtifact": {},
+      "changedCountFields": [],
+      "changedProcessingSummaryFields": [],
+      "displayGroupStatuses": [
+        {
+          "nodeId": "parse_events",
+          "status": "cached"
+        },
+        {
+          "nodeId": "normalize_timezones",
+          "status": "cached"
+        },
+        {
+          "nodeId": "dedup_and_order",
+          "status": "cached"
+        },
+        {
+          "nodeId": "app_policy",
+          "status": "cached"
+        },
+        {
+          "nodeId": "device_state_timeline",
+          "status": "cached"
+        },
+        {
+          "nodeId": "reconstruct_episodes",
+          "status": "cached"
+        },
+        {
+          "nodeId": "categorize_apps",
+          "status": "cached"
+        },
+        {
+          "nodeId": "episode_annotations",
+          "status": "cached"
+        },
+        {
+          "nodeId": "interval_cleaning",
+          "status": "cached"
+        },
+        {
+          "nodeId": "effective_usage",
+          "status": "cached"
+        },
+        {
+          "nodeId": "notification_proxy",
+          "status": "bypassed"
+        },
+        {
+          "nodeId": "polled_emulation",
+          "status": "bypassed"
+        },
+        {
+          "nodeId": "observation_window",
+          "status": "cached"
+        },
+        {
+          "nodeId": "attribute_person",
+          "status": "cached"
+        },
+        {
+          "nodeId": "day_coverage",
+          "status": "cached"
+        },
+        {
+          "nodeId": "score_compliance",
+          "status": "cached"
+        },
+        {
+          "nodeId": "outputs",
+          "status": "cached"
+        }
+      ]
+    },
+    {
+      "corpusId": "interaction-pathologies",
+      "interventionId": "support-representation:app_codebook_schema_file:crlf",
+      "roleId": "app_codebook_schema_file",
+      "mutationClass": "representation-only",
+      "changedComponents": [
+        "app_codebook_schema_file.line_endings"
+      ],
+      "description": "Replace app_codebook_schema_file LF record separators with CRLF",
+      "expectedSemanticEffect": "equivalent",
+      "observedSemanticEffect": false,
+      "directBindingQueries": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "changedQualificationRoles": [
+        "app_codebook_schema_file"
+      ],
+      "changedRequirementRoles": [
+        "app_codebook_schema_file"
       ],
       "changedSemanticNodes": [],
       "checkpointComponentChanges": {},
@@ -46366,6 +47406,153 @@
     },
     {
       "corpusId": "threshold-boundaries",
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "roleId": "app_codebook_schema_file",
+      "mutationClass": "field-edit",
+      "changedComponents": [
+        "app_codebook_schema_file.codebook_columns[0].output_column"
+      ],
+      "description": "Rename the first codebook output column in the schema",
+      "expectedSemanticEffect": "required",
+      "observedSemanticEffect": true,
+      "directBindingQueries": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "changedQualificationRoles": [
+        "app_codebook_schema_file"
+      ],
+      "changedRequirementRoles": [
+        "app_codebook_schema_file"
+      ],
+      "changedSemanticNodes": [
+        "outputs"
+      ],
+      "checkpointComponentChanges": {
+        "outputs": [
+          "payloadDigest"
+        ]
+      },
+      "changedQueries": [
+        "assemble_result_manifest"
+      ],
+      "queryCheckpointComponentChanges": {
+        "assemble_result_manifest": [
+          "payloadDigest"
+        ]
+      },
+      "actualExecutedQueries": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "deactivatedQueries": [],
+      "changedOutputArtifactKinds": [
+        "app-csv",
+        "credited-app-csv",
+        "result-cell-correspondence-arrow",
+        "source-coordinate-index-arrow",
+        "source-result-influence-arrow"
+      ],
+      "changedOutputCellCount": 594,
+      "changedOutputCellAddressDigest": "sha256:dd2e4e472cab371dcce6d97b0b1b8096a16267d5e54af2f258d90b564e31e644",
+      "changedOutputCellScopesByArtifact": {
+        "app-csv": [
+          "/rows/*/artifact_intervention_codebook_column",
+          "/rows/*/codebook_application_label",
+          "/shape/columns"
+        ],
+        "credited-app-csv": [
+          "/rows/*/artifact_intervention_codebook_column",
+          "/rows/*/codebook_application_label",
+          "/shape/columns"
+        ]
+      },
+      "changedCountFields": [],
+      "changedProcessingSummaryFields": [
+        "provenanceDigest",
+        "publishedOutputsDigest",
+        "workflowQueryCheckpoints",
+        "workflowQueryDigests",
+        "workflowQueryGroupCheckpoints",
+        "workflowQueryGroupDigests"
+      ],
+      "displayGroupStatuses": [
+        {
+          "nodeId": "parse_events",
+          "status": "cached"
+        },
+        {
+          "nodeId": "normalize_timezones",
+          "status": "cached"
+        },
+        {
+          "nodeId": "dedup_and_order",
+          "status": "cached"
+        },
+        {
+          "nodeId": "app_policy",
+          "status": "cached"
+        },
+        {
+          "nodeId": "device_state_timeline",
+          "status": "cached"
+        },
+        {
+          "nodeId": "reconstruct_episodes",
+          "status": "cached"
+        },
+        {
+          "nodeId": "categorize_apps",
+          "status": "recomputed"
+        },
+        {
+          "nodeId": "episode_annotations",
+          "status": "cached"
+        },
+        {
+          "nodeId": "interval_cleaning",
+          "status": "cached"
+        },
+        {
+          "nodeId": "effective_usage",
+          "status": "cached"
+        },
+        {
+          "nodeId": "notification_proxy",
+          "status": "bypassed"
+        },
+        {
+          "nodeId": "polled_emulation",
+          "status": "bypassed"
+        },
+        {
+          "nodeId": "observation_window",
+          "status": "cached"
+        },
+        {
+          "nodeId": "attribute_person",
+          "status": "cached"
+        },
+        {
+          "nodeId": "day_coverage",
+          "status": "cached"
+        },
+        {
+          "nodeId": "score_compliance",
+          "status": "cached"
+        },
+        {
+          "nodeId": "outputs",
+          "status": "recomputed"
+        }
+      ]
+    },
+    {
+      "corpusId": "threshold-boundaries",
       "interventionId": "support:study-window-narrow",
       "roleId": "study_dates_file",
       "mutationClass": "record-edit",
@@ -47813,6 +49000,114 @@
       ],
       "changedRequirementRoles": [
         "app_codebook_file"
+      ],
+      "changedSemanticNodes": [],
+      "checkpointComponentChanges": {},
+      "changedQueries": [],
+      "queryCheckpointComponentChanges": {},
+      "actualExecutedQueries": [],
+      "deactivatedQueries": [],
+      "changedOutputArtifactKinds": [
+        "source-coordinate-index-arrow"
+      ],
+      "changedOutputCellCount": 0,
+      "changedOutputCellAddressDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "changedOutputCellScopesByArtifact": {},
+      "changedCountFields": [],
+      "changedProcessingSummaryFields": [],
+      "displayGroupStatuses": [
+        {
+          "nodeId": "parse_events",
+          "status": "cached"
+        },
+        {
+          "nodeId": "normalize_timezones",
+          "status": "cached"
+        },
+        {
+          "nodeId": "dedup_and_order",
+          "status": "cached"
+        },
+        {
+          "nodeId": "app_policy",
+          "status": "cached"
+        },
+        {
+          "nodeId": "device_state_timeline",
+          "status": "cached"
+        },
+        {
+          "nodeId": "reconstruct_episodes",
+          "status": "cached"
+        },
+        {
+          "nodeId": "categorize_apps",
+          "status": "cached"
+        },
+        {
+          "nodeId": "episode_annotations",
+          "status": "cached"
+        },
+        {
+          "nodeId": "interval_cleaning",
+          "status": "cached"
+        },
+        {
+          "nodeId": "effective_usage",
+          "status": "cached"
+        },
+        {
+          "nodeId": "notification_proxy",
+          "status": "bypassed"
+        },
+        {
+          "nodeId": "polled_emulation",
+          "status": "bypassed"
+        },
+        {
+          "nodeId": "observation_window",
+          "status": "cached"
+        },
+        {
+          "nodeId": "attribute_person",
+          "status": "cached"
+        },
+        {
+          "nodeId": "day_coverage",
+          "status": "cached"
+        },
+        {
+          "nodeId": "score_compliance",
+          "status": "cached"
+        },
+        {
+          "nodeId": "outputs",
+          "status": "cached"
+        }
+      ]
+    },
+    {
+      "corpusId": "threshold-boundaries",
+      "interventionId": "support-representation:app_codebook_schema_file:crlf",
+      "roleId": "app_codebook_schema_file",
+      "mutationClass": "representation-only",
+      "changedComponents": [
+        "app_codebook_schema_file.line_endings"
+      ],
+      "description": "Replace app_codebook_schema_file LF record separators with CRLF",
+      "expectedSemanticEffect": "equivalent",
+      "observedSemanticEffect": false,
+      "directBindingQueries": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "changedQualificationRoles": [
+        "app_codebook_schema_file"
+      ],
+      "changedRequirementRoles": [
+        "app_codebook_schema_file"
       ],
       "changedSemanticNodes": [],
       "checkpointComponentChanges": {},
@@ -56247,6 +57542,153 @@
     },
     {
       "corpusId": "configuration-influence-probes",
+      "interventionId": "support:codebook-schema-rename-output-column",
+      "roleId": "app_codebook_schema_file",
+      "mutationClass": "field-edit",
+      "changedComponents": [
+        "app_codebook_schema_file.codebook_columns[0].output_column"
+      ],
+      "description": "Rename the first codebook output column in the schema",
+      "expectedSemanticEffect": "required",
+      "observedSemanticEffect": true,
+      "directBindingQueries": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "changedQualificationRoles": [
+        "app_codebook_schema_file"
+      ],
+      "changedRequirementRoles": [
+        "app_codebook_schema_file"
+      ],
+      "changedSemanticNodes": [
+        "outputs"
+      ],
+      "checkpointComponentChanges": {
+        "outputs": [
+          "payloadDigest"
+        ]
+      },
+      "changedQueries": [
+        "assemble_result_manifest"
+      ],
+      "queryCheckpointComponentChanges": {
+        "assemble_result_manifest": [
+          "payloadDigest"
+        ]
+      },
+      "actualExecutedQueries": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "deactivatedQueries": [],
+      "changedOutputArtifactKinds": [
+        "app-csv",
+        "credited-app-csv",
+        "result-cell-correspondence-arrow",
+        "source-coordinate-index-arrow",
+        "source-result-influence-arrow"
+      ],
+      "changedOutputCellCount": 228,
+      "changedOutputCellAddressDigest": "sha256:fd26811b0391b3bb11c666979e23d1af73e59e256edcd1a54e033c218444c566",
+      "changedOutputCellScopesByArtifact": {
+        "app-csv": [
+          "/rows/*/artifact_intervention_codebook_column",
+          "/rows/*/codebook_application_label",
+          "/shape/columns"
+        ],
+        "credited-app-csv": [
+          "/rows/*/artifact_intervention_codebook_column",
+          "/rows/*/codebook_application_label",
+          "/shape/columns"
+        ]
+      },
+      "changedCountFields": [],
+      "changedProcessingSummaryFields": [
+        "provenanceDigest",
+        "publishedOutputsDigest",
+        "workflowQueryCheckpoints",
+        "workflowQueryDigests",
+        "workflowQueryGroupCheckpoints",
+        "workflowQueryGroupDigests"
+      ],
+      "displayGroupStatuses": [
+        {
+          "nodeId": "parse_events",
+          "status": "cached"
+        },
+        {
+          "nodeId": "normalize_timezones",
+          "status": "cached"
+        },
+        {
+          "nodeId": "dedup_and_order",
+          "status": "cached"
+        },
+        {
+          "nodeId": "app_policy",
+          "status": "cached"
+        },
+        {
+          "nodeId": "device_state_timeline",
+          "status": "cached"
+        },
+        {
+          "nodeId": "reconstruct_episodes",
+          "status": "cached"
+        },
+        {
+          "nodeId": "categorize_apps",
+          "status": "recomputed"
+        },
+        {
+          "nodeId": "episode_annotations",
+          "status": "cached"
+        },
+        {
+          "nodeId": "interval_cleaning",
+          "status": "cached"
+        },
+        {
+          "nodeId": "effective_usage",
+          "status": "cached"
+        },
+        {
+          "nodeId": "notification_proxy",
+          "status": "bypassed"
+        },
+        {
+          "nodeId": "polled_emulation",
+          "status": "bypassed"
+        },
+        {
+          "nodeId": "observation_window",
+          "status": "cached"
+        },
+        {
+          "nodeId": "attribute_person",
+          "status": "cached"
+        },
+        {
+          "nodeId": "day_coverage",
+          "status": "cached"
+        },
+        {
+          "nodeId": "score_compliance",
+          "status": "cached"
+        },
+        {
+          "nodeId": "outputs",
+          "status": "recomputed"
+        }
+      ]
+    },
+    {
+      "corpusId": "configuration-influence-probes",
       "interventionId": "support:study-window-narrow",
       "roleId": "study_dates_file",
       "mutationClass": "record-edit",
@@ -57788,6 +59230,114 @@
     },
     {
       "corpusId": "configuration-influence-probes",
+      "interventionId": "support-representation:app_codebook_schema_file:crlf",
+      "roleId": "app_codebook_schema_file",
+      "mutationClass": "representation-only",
+      "changedComponents": [
+        "app_codebook_schema_file.line_endings"
+      ],
+      "description": "Replace app_codebook_schema_file LF record separators with CRLF",
+      "expectedSemanticEffect": "equivalent",
+      "observedSemanticEffect": false,
+      "directBindingQueries": [
+        "assemble_result_manifest",
+        "collapse_app_genre",
+        "derive_broad_category",
+        "join_app_codebook"
+      ],
+      "changedQualificationRoles": [
+        "app_codebook_schema_file"
+      ],
+      "changedRequirementRoles": [
+        "app_codebook_schema_file"
+      ],
+      "changedSemanticNodes": [],
+      "checkpointComponentChanges": {},
+      "changedQueries": [],
+      "queryCheckpointComponentChanges": {},
+      "actualExecutedQueries": [],
+      "deactivatedQueries": [],
+      "changedOutputArtifactKinds": [
+        "source-coordinate-index-arrow"
+      ],
+      "changedOutputCellCount": 0,
+      "changedOutputCellAddressDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "changedOutputCellScopesByArtifact": {},
+      "changedCountFields": [],
+      "changedProcessingSummaryFields": [],
+      "displayGroupStatuses": [
+        {
+          "nodeId": "parse_events",
+          "status": "cached"
+        },
+        {
+          "nodeId": "normalize_timezones",
+          "status": "cached"
+        },
+        {
+          "nodeId": "dedup_and_order",
+          "status": "cached"
+        },
+        {
+          "nodeId": "app_policy",
+          "status": "cached"
+        },
+        {
+          "nodeId": "device_state_timeline",
+          "status": "cached"
+        },
+        {
+          "nodeId": "reconstruct_episodes",
+          "status": "cached"
+        },
+        {
+          "nodeId": "categorize_apps",
+          "status": "cached"
+        },
+        {
+          "nodeId": "episode_annotations",
+          "status": "cached"
+        },
+        {
+          "nodeId": "interval_cleaning",
+          "status": "cached"
+        },
+        {
+          "nodeId": "effective_usage",
+          "status": "cached"
+        },
+        {
+          "nodeId": "notification_proxy",
+          "status": "bypassed"
+        },
+        {
+          "nodeId": "polled_emulation",
+          "status": "bypassed"
+        },
+        {
+          "nodeId": "observation_window",
+          "status": "cached"
+        },
+        {
+          "nodeId": "attribute_person",
+          "status": "cached"
+        },
+        {
+          "nodeId": "day_coverage",
+          "status": "cached"
+        },
+        {
+          "nodeId": "score_compliance",
+          "status": "cached"
+        },
+        {
+          "nodeId": "outputs",
+          "status": "cached"
+        }
+      ]
+    },
+    {
+      "corpusId": "configuration-influence-probes",
       "interventionId": "support-representation:study_dates_file:crlf",
       "roleId": "study_dates_file",
       "mutationClass": "representation-only",
@@ -58210,5 +59760,5 @@
       ]
     }
   ],
-  "caseSetDigest": "sha256:49d2012d4301dcfbb3323411d2d870354aabbc68eedf631a83e0d5c41e49e96a"
+  "caseSetDigest": "sha256:b96e3514fdabddb565dba2787d9a3d768baadf8e6ad95a4254da4ea7c0198ad1"
 }

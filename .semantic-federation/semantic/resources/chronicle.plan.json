@@ -133,6 +133,21 @@
       }
     },
     {
+      "role_id": "app_codebook_schema_file",
+      "cardinality": {
+        "minimum": 0,
+        "maximum": 1
+      },
+      "media_types": [
+        "application/json"
+      ],
+      "required": false,
+      "required_when": {
+        "kind": "option-true",
+        "option_key": "use_app_codebook"
+      }
+    },
+    {
       "role_id": "study_dates_file",
       "cardinality": {
         "minimum": 0,
@@ -588,7 +603,8 @@
         }
       ],
       "support_roles": [
-        "app_codebook_file"
+        "app_codebook_file",
+        "app_codebook_schema_file"
       ],
       "applicability": {
         "kind": "all",
@@ -2181,6 +2197,16 @@
               "value": true
             }
           ]
+        },
+        {
+          "role": "app_codebook_schema_file",
+          "when_all": [
+            {
+              "operator": "boolean_equals",
+              "request_field": "use_app_codebook",
+              "value": true
+            }
+          ]
         }
       ],
       "applicability": {
@@ -2207,7 +2233,18 @@
       "request_fields": [
         "use_app_codebook"
       ],
-      "source_role_bindings": [],
+      "source_role_bindings": [
+        {
+          "role": "app_codebook_schema_file",
+          "when_all": [
+            {
+              "operator": "boolean_equals",
+              "request_field": "use_app_codebook",
+              "value": true
+            }
+          ]
+        }
+      ],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_app_usage"
@@ -2232,7 +2269,18 @@
       "request_fields": [
         "use_app_codebook"
       ],
-      "source_role_bindings": [],
+      "source_role_bindings": [
+        {
+          "role": "app_codebook_schema_file",
+          "when_all": [
+            {
+              "operator": "boolean_equals",
+              "request_field": "use_app_codebook",
+              "value": true
+            }
+          ]
+        }
+      ],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_app_usage"
@@ -2794,6 +2842,25 @@
               ]
             }
           ]
+        },
+        {
+          "role": "app_codebook_schema_file",
+          "when_all": [
+            {
+              "operator": "boolean_equals",
+              "request_field": "use_app_codebook",
+              "value": true
+            },
+            {
+              "operator": "string_one_of",
+              "request_field": "notification_proxy_rule",
+              "values": [
+                "seen_contact_v1",
+                "interruption_contact_v1",
+                "any_notification_contact_v1"
+              ]
+            }
+          ]
         }
       ],
       "applicability": {
@@ -2958,6 +3025,24 @@
       "source_role_bindings": [
         {
           "role": "app_codebook_file",
+          "when_all": [
+            {
+              "operator": "boolean_equals",
+              "request_field": "use_app_codebook",
+              "value": true
+            },
+            {
+              "operator": "string_one_of",
+              "request_field": "polled_emulation_method",
+              "values": [
+                "ross_2025_sampled_gap_v1",
+                "cerit_2025_sample_count_v1"
+              ]
+            }
+          ]
+        },
+        {
+          "role": "app_codebook_schema_file",
           "when_all": [
             {
               "operator": "boolean_equals",
@@ -3592,6 +3677,16 @@
         "use_filter_file"
       ],
       "source_role_bindings": [
+        {
+          "role": "app_codebook_schema_file",
+          "when_all": [
+            {
+              "operator": "boolean_equals",
+              "request_field": "use_app_codebook",
+              "value": true
+            }
+          ]
+        },
         {
           "role": "enrolled_devices_file",
           "when_all": [

@@ -6,7 +6,8 @@
 //
 // The emit-order SSOT is exported directly by the Rust pipeline.
 // web/schema/chronicle-output-columns.yaml is the hand-authored
-// semantics layer. This script enforces the bijection between the two and
+// semantics layer, with the codebook columns taken from the bundled codebook
+// schema (scripts/output_column_catalog.mts). This script enforces the bijection between the two and
 // renders docs/researcher-output-codebook.md from the catalog.
 
 import { readFile, writeFile } from "node:fs/promises";
@@ -15,26 +16,17 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
-import { parse as parseYaml } from "yaml";
+import {
+  loadOutputColumnCatalog as loadCatalog,
+  type OutputColumnCatalogEntry as CatalogEntry,
+} from "./output_column_catalog.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const CATALOG_PATH = path.resolve(HERE, "../schema/chronicle-output-columns.yaml");
 const CODEBOOK_PATH = path.resolve(HERE, "../../docs/researcher-output-codebook.md");
 const RUST_MANIFEST_PATH = path.resolve(
   HERE,
   "../../rust/chronicle_chrono_kernel_wasm/Cargo.toml",
 );
-
-type CatalogEntry = {
-  column_name: string;
-  column_outputs: string[];
-  value_type: string;
-  units?: string;
-  column_description: string;
-  present_when?: string;
-  filter_dependent?: boolean;
-  vocabulary_alignment?: string;
-};
 
 /** Replace the option-stamped header suffix with its catalog placeholder. */
 function normalizeColumnName(column: string): string {
@@ -70,12 +62,6 @@ function rustOutputColumns(): { app: Set<string>; screen: Set<string> } {
     app: new Set(contract.app.map(normalizeColumnName)),
     screen: new Set(contract.screen),
   };
-}
-
-async function loadCatalog(): Promise<CatalogEntry[]> {
-  const doc = parseYaml(await readFile(CATALOG_PATH, "utf-8")) as { output_columns: CatalogEntry[] };
-  if (!Array.isArray(doc.output_columns)) throw new Error("catalog missing output_columns list");
-  return doc.output_columns;
 }
 
 function checkBijection(catalog: CatalogEntry[]): void {

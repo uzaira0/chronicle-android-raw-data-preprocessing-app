@@ -2093,7 +2093,7 @@ pub fn query_group_support_roles(group_id: &str) -> &'static [&'static str] {
             "input_capability_evidence_file",
         ],
         "reconstruct_episodes" => &["background_apps_file", "input_capability_evidence_file"],
-        "categorize_apps" => &["app_codebook_file"],
+        "categorize_apps" => &["app_codebook_file", "app_codebook_schema_file"],
         "observation_window" | "day_coverage" => &["study_dates_file"],
         "attribute_person" => &["device_sharing_file", "survey_attribution_file"],
         "score_compliance" => &["device_sharing_file", "enrolled_devices_file"],
@@ -2382,6 +2382,19 @@ pub fn root_role_contract() -> Vec<WorkflowRootRoleDefinition> {
             minimum: 0,
             maximum: 1,
             media_types: support_media,
+            required: false,
+            required_when: Some(option_true("use_app_codebook")),
+            qualification: None,
+        },
+        // The codebook's column layout: which supplied columns the join copies
+        // and under which output names, and which of them decide the broad
+        // category and the collapsed genre. Data, so a layout change is not a
+        // kernel change.
+        WorkflowRootRoleDefinition {
+            role_id: "app_codebook_schema_file",
+            minimum: 0,
+            maximum: 1,
+            media_types: &["application/json"],
             required: false,
             required_when: Some(option_true("use_app_codebook")),
             qualification: None,
@@ -3339,13 +3352,19 @@ pub fn query_source_roles(query_id: &str) -> &'static [&'static str] {
         "apply_app_inclusion_policy" => &["background_apps_file", "filter_file"],
         "join_app_codebook"
         | "assemble_notification_contact_outputs"
-        | "assemble_polled_emulation_outputs" => &["app_codebook_file"],
+        | "assemble_polled_emulation_outputs" => &["app_codebook_file", "app_codebook_schema_file"],
+        "derive_broad_category" | "collapse_app_genre" => &["app_codebook_schema_file"],
         "resolve_participant_windows"
         | "apply_participant_windows"
         | "build_participant_day_coverage" => &["study_dates_file"],
         "resolve_sharing_status" => &["device_sharing_file"],
         "index_survey_responses" => &["survey_attribution_file"],
-        "assemble_result_manifest" => &["enrolled_devices_file", "raw_chronicle_csv", "study_dates_file"],
+        "assemble_result_manifest" => &[
+            "app_codebook_schema_file",
+            "enrolled_devices_file",
+            "raw_chronicle_csv",
+            "study_dates_file",
+        ],
         _ => &[],
     }
 }
@@ -3397,13 +3416,21 @@ pub fn query_source_role_bindings(query_id: &str) -> Vec<QuerySourceRoleBinding>
             binding("background_apps_file", USE_BACKGROUND_APPS_FILE),
             binding("filter_file", USE_FILTER_FILE),
         ],
-        "join_app_codebook" => vec![binding("app_codebook_file", USE_APP_CODEBOOK)],
-        "assemble_notification_contact_outputs" => {
-            vec![binding("app_codebook_file", NOTIFICATION_CONTACT_CODEBOOK)]
+        "join_app_codebook" => vec![
+            binding("app_codebook_file", USE_APP_CODEBOOK),
+            binding("app_codebook_schema_file", USE_APP_CODEBOOK),
+        ],
+        "derive_broad_category" | "collapse_app_genre" => {
+            vec![binding("app_codebook_schema_file", USE_APP_CODEBOOK)]
         }
-        "assemble_polled_emulation_outputs" => {
-            vec![binding("app_codebook_file", POLLED_EMULATION_CODEBOOK)]
-        }
+        "assemble_notification_contact_outputs" => vec![
+            binding("app_codebook_file", NOTIFICATION_CONTACT_CODEBOOK),
+            binding("app_codebook_schema_file", NOTIFICATION_CONTACT_CODEBOOK),
+        ],
+        "assemble_polled_emulation_outputs" => vec![
+            binding("app_codebook_file", POLLED_EMULATION_CODEBOOK),
+            binding("app_codebook_schema_file", POLLED_EMULATION_CODEBOOK),
+        ],
         "resolve_participant_windows" | "build_participant_day_coverage" => {
             vec![binding("study_dates_file", &[])]
         }
@@ -3416,6 +3443,7 @@ pub fn query_source_role_bindings(query_id: &str) -> Vec<QuerySourceRoleBinding>
             ENABLE_PERSON_ATTRIBUTION,
         )],
         "assemble_result_manifest" => vec![
+            binding("app_codebook_schema_file", USE_APP_CODEBOOK),
             binding("enrolled_devices_file", APP_MODE_WITH_COMPLIANCE),
             binding("raw_chronicle_csv", APP_MODE_WITH_EYES_COMPLEMENT),
             binding("study_dates_file", COMBINED_MODE_WITH_STUDY_WINDOW_FILTER),
@@ -3714,11 +3742,16 @@ pub fn query_field_reads(query_id: &str) -> &'static [&'static str] {
             "background_apps_file.app_package_name",
         ],
         "join_app_codebook" => CODEBOOK_JOIN_FIELD_READS,
-        "derive_broad_category" => &["codebook_fields", "broad_app_category"],
+        "derive_broad_category" => &[
+            "codebook_fields",
+            "broad_app_category",
+            "app_codebook_schema_file.*",
+        ],
         "collapse_app_genre" => &[
             "codebook_fields",
             "codebook_genre_fields_cleared",
             "genre_id_scraped",
+            "app_codebook_schema_file.*",
         ],
         "derive_engagement_basis" => &[
             "app_package_name",
@@ -4382,41 +4415,8 @@ const CLASSIFY_SCREEN_SESSION_WRITES: &[&str] = &[
 const CODEBOOK_JOIN_FIELD_READS: &[&str] = &[
     "app_package_name",
     "codebook_fields",
-    "app_codebook_file.app_package_name",
-    "app_codebook_file.application_label",
-    "app_codebook_file.bcm_play_store_genreId",
-    "app_codebook_file.bcm_play_store_genre",
-    "app_codebook_file.bcm_play_store_broad_app_category",
-    "app_codebook_file.bcm_play_store_developer",
-    "app_codebook_file.bcm_play_store_free",
-    "app_codebook_file.bcm_play_store_rating",
-    "app_codebook_file.bcm_play_store_downloads",
-    "app_codebook_file.usc_broad_app_category",
-    "app_codebook_file.usc_genreId",
-    "app_codebook_file.umich_child_app_category_code",
-    "app_codebook_file.umich_child_app_category",
-    "app_codebook_file.umich_adult_app_category_code",
-    "app_codebook_file.umich_adult_app_category",
-    "app_codebook_file.umich_free",
-    "app_codebook_file.umich_gambling_app",
-    "app_codebook_file.umich_inappropriate_app",
-    "app_codebook_file.babyemu_genreId_scraped",
-    "app_codebook_file.babyemu_genreId_manual",
-    "app_codebook_file.babyemu_broad_app_category",
-    "app_codebook_file.babyemu_medium_app_category",
-    "app_codebook_file.babyemu_fine_app_category",
-    "app_codebook_file.babyemu_alternate_fine_app_category",
-    "app_codebook_file.babyemu_kids",
-    "app_codebook_file.bcm_cnrc_heuristic_category",
-    "app_codebook_file.bcm_cnrc_categorization_source",
-    "app_codebook_file.bluelight_play_store_genreId",
-    "app_codebook_file.bluelight_play_store_genre",
-    "app_codebook_file.bluelight_play_store_broad_app_category",
-    "app_codebook_file.bluelight_play_store_developer",
-    "app_codebook_file.bluelight_play_store_free",
-    "app_codebook_file.bluelight_play_store_rating",
-    "app_codebook_file.bluelight_play_store_downloads",
-    "app_codebook_file.dataset",
+    "app_codebook_file.*",
+    "app_codebook_schema_file.*",
 ];
 
 /// B08's and B09's assemblies run the SAME three enrichment functions the app path runs
@@ -4431,41 +4431,8 @@ const NOTIFICATION_CONTACT_ASSEMBLY_FIELD_READS: &[&str] = &[
     "codebook_fields",
     "codebook_genre_fields_cleared",
     "genre_id_scraped",
-    "app_codebook_file.app_package_name",
-    "app_codebook_file.application_label",
-    "app_codebook_file.bcm_play_store_genreId",
-    "app_codebook_file.bcm_play_store_genre",
-    "app_codebook_file.bcm_play_store_broad_app_category",
-    "app_codebook_file.bcm_play_store_developer",
-    "app_codebook_file.bcm_play_store_free",
-    "app_codebook_file.bcm_play_store_rating",
-    "app_codebook_file.bcm_play_store_downloads",
-    "app_codebook_file.usc_broad_app_category",
-    "app_codebook_file.usc_genreId",
-    "app_codebook_file.umich_child_app_category_code",
-    "app_codebook_file.umich_child_app_category",
-    "app_codebook_file.umich_adult_app_category_code",
-    "app_codebook_file.umich_adult_app_category",
-    "app_codebook_file.umich_free",
-    "app_codebook_file.umich_gambling_app",
-    "app_codebook_file.umich_inappropriate_app",
-    "app_codebook_file.babyemu_genreId_scraped",
-    "app_codebook_file.babyemu_genreId_manual",
-    "app_codebook_file.babyemu_broad_app_category",
-    "app_codebook_file.babyemu_medium_app_category",
-    "app_codebook_file.babyemu_fine_app_category",
-    "app_codebook_file.babyemu_alternate_fine_app_category",
-    "app_codebook_file.babyemu_kids",
-    "app_codebook_file.bcm_cnrc_heuristic_category",
-    "app_codebook_file.bcm_cnrc_categorization_source",
-    "app_codebook_file.bluelight_play_store_genreId",
-    "app_codebook_file.bluelight_play_store_genre",
-    "app_codebook_file.bluelight_play_store_broad_app_category",
-    "app_codebook_file.bluelight_play_store_developer",
-    "app_codebook_file.bluelight_play_store_free",
-    "app_codebook_file.bluelight_play_store_rating",
-    "app_codebook_file.bluelight_play_store_downloads",
-    "app_codebook_file.dataset",
+    "app_codebook_file.*",
+    "app_codebook_schema_file.*",
 ];
 
 /// `assemble_result_manifest` reads every rendered row field plus the enrolled-device
@@ -4547,6 +4514,8 @@ const ASSEMBLE_RESULT_FIELD_READS: &[&str] = &[
     "study_dates_file.exclusion_start_date",
     "study_dates_file.exclusion_end_date",
     "study_dates_file.exclusion_label",
+    // The codebook output headers come from the injected schema.
+    "app_codebook_schema_file.*",
 ];
 
 /// Steps whose produced fields are *not* each determined by every declared
@@ -5642,6 +5611,10 @@ pub const ROW_ADDRESSED_OUTPUT_KINDS: &[&str] = &[
     "aggregate-participant-amount-summary-csv",
 ];
 
+/// The cell family of the codebook output columns, whose names come from the
+/// request's codebook schema rather than from the kernel.
+pub const CODEBOOK_OUTPUT_COLUMN_FAMILY: &str = "*";
+
 /// Every declared canonical output cell family and the data fields that render
 /// it. `app-csv` and `credited-app-csv` share one writer; `credited-app-csv`
 /// rows are emitted by the screen-gated crediting layer.
@@ -5659,15 +5632,15 @@ pub fn output_cell_bindings() -> Vec<PipelineOutputCellBinding> {
                 from,
             });
         }
-        for (source, output) in crate::pipeline_v2::codebook_column_renames() {
-            let _ = source;
-            bindings.push(PipelineOutputCellBinding {
-                output_kind,
-                column: output,
-                emitting_query,
-                from: &["codebook_fields"],
-            });
-        }
+        // The codebook columns are named by the request's codebook schema,
+        // so they are one cell family whose column pattern matches any name.
+        // It is listed last: an exactly named binding always wins a lookup.
+        bindings.push(PipelineOutputCellBinding {
+            output_kind,
+            column: CODEBOOK_OUTPUT_COLUMN_FAMILY,
+            emitting_query,
+            from: &["codebook_fields"],
+        });
     }
     for (column, from) in SCREEN_ROW_COLUMNS {
         bindings.push(PipelineOutputCellBinding {
@@ -7179,6 +7152,10 @@ mod tests {
             "parsed_filter_rules",
             "parsed_apps_forcing_screen_open",
             "parsed_codebook",
+            "parsed_codebook_schema",
+            // The product output memo of `assemble_result_manifest`: its
+            // reads are that step's reads.
+            "assemble_primary_outputs",
             "parsed_study_windows",
             "parsed_device_sharing",
             "parsed_survey_attribution",
@@ -7256,6 +7233,7 @@ mod tests {
             ("apps_forcing_csv", "apps_forcing_screen_open_file"),
             ("background_apps_csv", "background_apps_file"),
             ("codebook_csv", "app_codebook_file"),
+            ("codebook_schema_json", "app_codebook_schema_file"),
             ("study_dates_csv", "study_dates_file"),
             ("device_sharing_csv", "device_sharing_file"),
             ("survey_attribution_csv", "survey_attribution_file"),
@@ -7512,8 +7490,14 @@ mod tests {
             );
         }
 
+        // Without a codebook: the codebook's own columns are schema data and
+        // fall to the one codebook family, which would match any name, so the
+        // kernel's columns are checked against the exactly named bindings.
         let mut declared_app =
-            crate::pipeline_v2::declared_app_output_columns(true, true, true, 300.0, true, true);
+            crate::pipeline_v2::declared_app_output_columns(None, true, true, 300.0, true, true);
+        // The two columns the codebook join derives are the kernel's, not the
+        // schema's, and exist only with a codebook.
+        declared_app.extend(["genreId_scraped", "broad_app_category"].map(String::from));
         // The foundational B03/B04 columns are inserted by `build_app_columns`
         // only under non-default options, so `declared_app_output_columns`
         // never lists them; without this they would escape binding coverage.
@@ -7536,9 +7520,19 @@ mod tests {
             for column in columns {
                 assert!(
                     bindings.iter().any(|binding| {
-                        binding.output_kind == kind && output_column_matches(binding.column, column)
+                        binding.output_kind == kind
+                            && binding.column != CODEBOOK_OUTPUT_COLUMN_FAMILY
+                            && output_column_matches(binding.column, column)
                     }),
                     "{kind} column {column} has no declared output cell binding"
+                );
+            }
+            if kind != "screen-csv" {
+                assert!(
+                    bindings.iter().any(|binding| binding.output_kind == kind
+                        && binding.column == CODEBOOK_OUTPUT_COLUMN_FAMILY
+                        && binding.from == ["codebook_fields"]),
+                    "{kind} has no codebook column family"
                 );
             }
         }
@@ -8554,6 +8548,7 @@ mod tests {
                 "apps_forcing_screen_open_file",
                 "background_apps_file",
                 "app_codebook_file",
+                "app_codebook_schema_file",
                 "input_capability_evidence_file",
                 "study_dates_file",
                 "device_sharing_file",

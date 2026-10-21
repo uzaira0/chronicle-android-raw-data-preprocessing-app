@@ -108,16 +108,16 @@ Notes:
   separate sequential Rust run is an independent scheduler comparison that
   shares the scientific stage functions; it is not an independent algorithm implementation.
 - The artifact dependency tomography ledger then holds the full configuration
-  constant across all eleven raw columns, four raw-row mutation classes, eight
-  substantive support-role mutations, and nine byte-different representation
-  controls. Its 32 intervention kinds are applied to all six synthetic corpora:
-  192 cases and 768 Rust/WASM executions require exact warm/cold checkpoint
+  constant across all eleven raw columns, four raw-row mutation classes, nine
+  substantive support-role mutations, and ten byte-different representation
+  controls. Its 34 intervention kinds are applied to all six synthetic corpora:
+  204 cases and 816 Rust/WASM executions require exact warm/cold checkpoint
   parity plus exact declared-versus-observed percolation. The companion raw
   boundary campaign adds 162 timestamp cases and 648 executions at adjacent-
   gap, calendar, and DST joints. Both campaigns also compare canonical
   Rust-produced CSV/JSON cells warm versus cold. Their compressed,
-  digest-addressed correspondence sidecars retain 974,719 exact changed-cell
-  addresses (221,609 artifact + 678,905 raw-boundary) in the recorded 2026-10-01 campaign,
+  digest-addressed correspondence sidecars retain 978,057 exact changed-cell
+  addresses (249,407 artifact + 728,650 raw-boundary) in the recorded 2026-10-20 campaign,
   without inflating the human-reviewable ledgers. These revision-bound receipts
   do not establish final merged-source application acceptance.
 - Exact two-factor tomography enumerates all 5,617 non-baseline value-level

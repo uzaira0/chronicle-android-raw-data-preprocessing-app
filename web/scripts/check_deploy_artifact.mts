@@ -51,6 +51,8 @@ type BundleBudget = {
   totalBytes: number;
   categories: Record<string, number>;
   filePrefixes?: Record<string, number>;
+  /** File prefixes held only to their own `filePrefixes` cap, not the total. */
+  outsideTotalPrefixes?: string[];
 };
 
 type DependencyCertificate = {
@@ -245,8 +247,13 @@ async function checkBundleBudget(artifactDir: string): Promise<Record<string, nu
   }
 
   const failures: string[] = [];
-  if (total > budget.totalBytes) {
-    failures.push(`total ${total.toLocaleString()} B exceeds budget ${budget.totalBytes.toLocaleString()} B`);
+  const budgetedTotal = files
+    .filter(({ name }) => !(budget.outsideTotalPrefixes ?? []).some((prefix) => name.startsWith(prefix)))
+    .reduce((sum, { bytes }) => sum + bytes, 0);
+  if (budgetedTotal > budget.totalBytes) {
+    failures.push(
+      `total ${budgetedTotal.toLocaleString()} B (excluding ${(budget.outsideTotalPrefixes ?? []).join(", ") || "nothing"}) exceeds budget ${budget.totalBytes.toLocaleString()} B`,
+    );
   }
   for (const [extension, limit] of Object.entries(budget.categories)) {
     const actual = byExtension[extension] ?? 0;

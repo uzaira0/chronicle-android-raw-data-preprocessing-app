@@ -1,14 +1,14 @@
 use crate::pipeline_v2::InteractionTypeRemovalMode;
 use chrono::Offset;
 use crate::pipeline_v2::{
-    ACTIVITY_STOPPED, AHashMap, AHashSet, APP_USAGE, BTreeSet, CleaningCounts, CULVERHOUSE_BAD_APP_CAP_FLAG,
+    ACTIVITY_STOPPED, AHashMap, AHashSet, APP_USAGE, Arc, BTreeSet, CleaningCounts, CULVERHOUSE_BAD_APP_CAP_FLAG,
     CULVERHOUSE_BAD_APP_CAP_NS, CULVERHOUSE_COLLAPSED_FLAG, CULVERHOUSE_DST_DAY_FLAG,
     CULVERHOUSE_LONG_3H_FLAG, CULVERHOUSE_LONG_3H_NS, CULVERHOUSE_LONG_6H_FLAG,
     CULVERHOUSE_LONG_6H_NS, CULVERHOUSE_PARTIAL_DAY_FLAG, CULVERHOUSE_PARTIAL_DAY_GAP_HOURS,
     CULVERHOUSE_SAME_APP_COLLAPSE_NS, CodebookEntry, DayBoundaryAttribution, FILTERED_APP_USAGE,
     FILTERED_STOPPED, HashMap, IntervalQualityPolicy, LocalDateMemo, NaiveDate, Row,
     SessionBoundaryScope, SessionGapBasis, SessionGapThreshold, SessionGroupingRules, SharedString, SharedStringPool,
-    TimeZone, Tz, BROAD_CATEGORY_COLUMNS, GENRE_ID_COLUMNS, codebook_col_indices, empty_codebook_fields, format_threshold, js_number_to_string,
+    TimeZone, Tz, CodebookGenreFields, CodebookSchema, format_threshold, js_number_to_string,
     populate_time_columns, ts_to_local,
 };
 
@@ -49,33 +49,42 @@ pub(crate) fn record_app_output_cleaning_counts(rows: &[Row], counts: &mut Clean
         .len() as u32;
 }
 
-pub(crate) fn join_codebook(rows: &mut [Row], enabled: bool, codebook_map: &HashMap<String, CodebookEntry>) {
-    if !enabled {
+/// `schema` is the codebook's layout when the codebook is on; `None` leaves
+/// the rows untouched.
+pub(crate) fn join_codebook(
+    rows: &mut [Row],
+    schema: Option<&CodebookSchema>,
+    codebook_map: &HashMap<String, CodebookEntry>,
+) {
+    let Some(schema) = schema else {
         return;
-    }
+    };
     for row in rows.iter_mut() {
-        join_codebook_row(row, codebook_map);
+        join_codebook_row(row, schema, codebook_map);
     }
 }
 
-pub(crate) fn join_codebook_row(row: &mut Row, codebook_map: &HashMap<String, CodebookEntry>) {
+pub(crate) fn join_codebook_row(
+    row: &mut Row,
+    schema: &CodebookSchema,
+    codebook_map: &HashMap<String, CodebookEntry>,
+) {
     let fields = codebook_map
         .get(row.app_package_name.as_str())
         .map(|entry| entry.fields.clone())
-        .unwrap_or_else(empty_codebook_fields);
+        .unwrap_or_else(|| schema.empty_fields());
     if row.codebook_fields != fields {
         *row.edit_classification().codebook_fields = fields;
     }
 }
 
-pub(crate) fn derive_broad_category(rows: &mut [Row], enabled: bool) {
-    if !enabled {
+pub(crate) fn derive_broad_category(rows: &mut [Row], schema: Option<&CodebookSchema>) {
+    let Some(schema) = schema else {
         return;
-    }
-    let indices = codebook_col_indices(BROAD_CATEGORY_COLUMNS);
+    };
     let mut strings = SharedStringPool::default();
     for row in rows.iter_mut() {
-        derive_broad_category_row(row, indices, &mut strings);
+        derive_broad_category_row(row, &schema.broad_indices, &mut strings);
     }
 }
 
@@ -83,12 +92,12 @@ pub(crate) fn derive_broad_category(rows: &mut [Row], enabled: bool) {
 /// fresh string per row cost ~40 bytes a row on a multi-million-row export.
 pub(crate) fn derive_broad_category_row(
     row: &mut Row,
-    indices: [usize; BROAD_CATEGORY_COLUMNS.len()],
+    indices: &[usize],
     strings: &mut SharedStringPool,
 ) {
     let chosen = indices
         .iter()
-        .map(|&index| row.codebook_fields[index].as_deref())
+        .map(|&index| row.codebook_fields.get(index).and_then(Option::as_deref))
         .chain(std::iter::once(row.broad_app_category.as_deref()))
         .find_map(|candidate| candidate.filter(|value| !value.trim().is_empty()))
         .unwrap_or("Unknown");
@@ -98,25 +107,24 @@ pub(crate) fn derive_broad_category_row(
     }
 }
 
-pub(crate) fn collapse_app_genre(rows: &mut [Row], enabled: bool) {
-    if !enabled {
+pub(crate) fn collapse_app_genre(rows: &mut [Row], schema: Option<&CodebookSchema>) {
+    let Some(schema) = schema else {
         return;
-    }
-    let indices = codebook_col_indices(GENRE_ID_COLUMNS);
+    };
     let mut strings = SharedStringPool::default();
     for row in rows.iter_mut() {
-        collapse_app_genre_row(row, indices, &mut strings);
+        collapse_app_genre_row(row, &schema.genre_indices, &mut strings);
     }
 }
 
 pub(crate) fn collapse_app_genre_row(
     row: &mut Row,
-    indices: [usize; GENRE_ID_COLUMNS.len()],
+    genre_fields: &CodebookGenreFields,
     strings: &mut SharedStringPool,
 ) {
-    let mut genre_values = indices
-        .into_iter()
-        .filter_map(|index| row.codebook_fields[index].as_deref())
+    let mut genre_values = genre_fields
+        .iter()
+        .filter_map(|&index| row.codebook_fields.get(index).and_then(Option::as_deref))
         .filter(|value| !value.trim().is_empty());
     let Some(first) = genre_values.next() else {
         if row.genre_id_scraped.as_deref() != Some("Unknown") {
@@ -126,33 +134,33 @@ pub(crate) fn collapse_app_genre_row(
     };
     if genre_values.all(|value| value == first) {
         let genre = strings.intern(first);
-        if row.genre_id_scraped.as_ref() != Some(&genre) || !row.codebook_genre_fields_cleared {
+        if row.genre_id_scraped.as_ref() != Some(&genre)
+            || row.codebook_genre_fields_cleared.as_ref() != Some(genre_fields)
+        {
             let data = row.edit_classification();
             *data.genre_id_scraped = Some(genre);
-            *data.codebook_genre_fields_cleared = true;
+            *data.codebook_genre_fields_cleared = Some(Arc::clone(genre_fields));
         }
-    } else if row.genre_id_scraped.is_some() || row.codebook_genre_fields_cleared {
+    } else if row.genre_id_scraped.is_some() || row.codebook_genre_fields_cleared.is_some() {
         let data = row.edit_classification();
         *data.genre_id_scraped = None;
-        *data.codebook_genre_fields_cleared = false;
+        *data.codebook_genre_fields_cleared = None;
     }
 }
 
 pub(crate) fn apply_codebook_annotations(
     rows: &mut [Row],
-    enabled: bool,
+    schema: Option<&CodebookSchema>,
     codebook_map: &HashMap<String, CodebookEntry>,
 ) {
-    if !enabled {
+    let Some(schema) = schema else {
         return;
-    }
-    let broad_indices = codebook_col_indices(BROAD_CATEGORY_COLUMNS);
-    let genre_indices = codebook_col_indices(GENRE_ID_COLUMNS);
+    };
     let mut strings = SharedStringPool::default();
     for row in rows {
-        join_codebook_row(row, codebook_map);
-        derive_broad_category_row(row, broad_indices, &mut strings);
-        collapse_app_genre_row(row, genre_indices, &mut strings);
+        join_codebook_row(row, schema, codebook_map);
+        derive_broad_category_row(row, &schema.broad_indices, &mut strings);
+        collapse_app_genre_row(row, &schema.genre_indices, &mut strings);
     }
 }
 
@@ -1278,7 +1286,7 @@ pub(crate) fn apply_review_annotations_one_pass(
 pub(crate) fn apply_static_review_annotations_fused(
     rows: &mut [Row],
     filtered_packages: &BTreeSet<String>,
-    codebook_enabled: bool,
+    codebook: Option<&CodebookSchema>,
     codebook_map: &HashMap<String, CodebookEntry>,
     custom_app_engagement_duration: f64,
     long_data_time_gap_thresholds: &[f64],
@@ -1291,8 +1299,6 @@ pub(crate) fn apply_static_review_annotations_fused(
     // carries sequential state (previous_any/previous_valid) across rows.
     // After each row's engagement columns are computed, flags + clear run.
     let has_junk = !filtered_packages.is_empty();
-    let broad_indices = codebook_enabled.then(|| codebook_col_indices(BROAD_CATEGORY_COLUMNS));
-    let genre_indices = codebook_enabled.then(|| codebook_col_indices(GENRE_ID_COLUMNS));
     let mut strings = SharedStringPool::default();
     let thresholds = prepare_usage_flags(
         long_data_time_gap_thresholds,
@@ -1327,10 +1333,10 @@ pub(crate) fn apply_static_review_annotations_fused(
                     temporal.episode_timing.duration_minutes = None;
                 }
             }
-            if let (Some(broad), Some(genre)) = (broad_indices, genre_indices) {
-                join_codebook_row(row, codebook_map);
-                derive_broad_category_row(row, broad, &mut strings);
-                collapse_app_genre_row(row, genre, &mut strings);
+            if let Some(schema) = codebook {
+                join_codebook_row(row, schema, codebook_map);
+                derive_broad_category_row(row, &schema.broad_indices, &mut strings);
+                collapse_app_genre_row(row, &schema.genre_indices, &mut strings);
             }
         },
         |row| {
@@ -1342,13 +1348,13 @@ pub(crate) fn apply_static_review_annotations_fused(
     );
 }
 
-pub(crate) fn derive_broad_category_step(mut rows: Vec<Row>, enabled: bool) -> Vec<Row> {
-    derive_broad_category(&mut rows, enabled);
+pub(crate) fn derive_broad_category_step(mut rows: Vec<Row>, schema: Option<&CodebookSchema>) -> Vec<Row> {
+    derive_broad_category(&mut rows, schema);
     rows
 }
 
-pub(crate) fn collapse_app_genre_step(mut rows: Vec<Row>, enabled: bool) -> Vec<Row> {
-    collapse_app_genre(&mut rows, enabled);
+pub(crate) fn collapse_app_genre_step(mut rows: Vec<Row>, schema: Option<&CodebookSchema>) -> Vec<Row> {
+    collapse_app_genre(&mut rows, schema);
     rows
 }
 
@@ -1444,12 +1450,12 @@ pub(crate) fn remove_zero_duration_rows(rows: Vec<Row>, enabled: bool) -> Vec<Ro
 
 pub(crate) fn enrich_codebook_rows(
     rows: &mut [Row],
-    enabled: bool,
+    schema: Option<&CodebookSchema>,
     codebook: &HashMap<String, CodebookEntry>,
 ) {
-    join_codebook(rows, enabled, codebook);
-    derive_broad_category(rows, enabled);
-    collapse_app_genre(rows, enabled);
+    join_codebook(rows, schema, codebook);
+    derive_broad_category(rows, schema);
+    collapse_app_genre(rows, schema);
 }
 
 pub(crate) fn codebook_checkpoint_payload(codebook_is_empty: bool) -> serde_json::Value {

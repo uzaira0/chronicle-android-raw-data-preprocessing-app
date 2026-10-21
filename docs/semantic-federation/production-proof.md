@@ -319,8 +319,8 @@ intervention per supplied source column.
 The artifact dependency tomography applies the same falsification protocol to
 source changes. It covers all eleven supplied raw columns, row
 addition/removal/duplication/reordering, one activated mutation for every
-support role, and byte-different representation controls. Across 32
-intervention kinds applied to all six synthetic corpora (192 cases and 768
+support role, and byte-different representation controls. Across 34
+intervention kinds applied to all six synthetic corpora (204 cases and 816
 Rust/WASM executions), every warm stage and output equals an independent cold
 target, every query observed to execute in a warm target is justified by
 plan-declared role ownership or a changed upstream checkpoint, and no query is
@@ -331,7 +331,7 @@ gap values and six calendar/DST joints; it also proved and fixed false coupling
 between row order, membership, and classification checkpoint components. See
 [the artifact dependency tomography proof](artifact-dependency-tomography.md).
 The two campaigns additionally compare canonical output cells on every warm
-and cold run. Digest-bound compressed sidecars retain 974,719 exact changed-cell
+and cold run. Digest-bound compressed sidecars retain 978,057 exact changed-cell
 addresses, yielding an empirical forward correspondence from each named
 raw/support mutation to affected CSV/JSON coordinates without turning large
 row/cell evidence into RDF or bloating the review ledger.
