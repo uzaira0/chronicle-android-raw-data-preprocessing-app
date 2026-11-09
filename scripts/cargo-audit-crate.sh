@@ -14,4 +14,6 @@ while IFS= read -r id; do
   ignores+=(--ignore "$id")
 done < <(grep -oE 'id = "RUSTSEC-[0-9]{4}-[0-9]{4}"' "$REPO_ROOT/.semantic-federation/quality/deny.toml" | grep -oE 'RUSTSEC-[0-9]{4}-[0-9]{4}')
 cd "$crate_dir"
-exec cargo audit "${ignores[@]}"
+# The list can be empty; `${a[@]+...}` keeps `set -u` from rejecting an empty
+# array on bash 3.2 (macOS /bin/bash).
+exec cargo audit ${ignores[@]+"${ignores[@]}"}

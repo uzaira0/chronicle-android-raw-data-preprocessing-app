@@ -73,9 +73,10 @@
   included. The native delegate, WASM build, and browser export path remain
   mandatory.
 - `quality/deny.toml` denies unknown registries and Git sources, allowlists the
-  two immutable Git dependencies, audits the complete license closure, and
-  grants only the documented `RUSTSEC-2024-0436` exception for `paste` through
-  `parquet 59.1.0` until an upstream replacement exists.
+  two immutable Git dependencies, and audits the complete license closure. It
+  grants no advisory exception: parquet 59.3.2 no longer pulls `paste`
+  (RUSTSEC-2024-0436), and calamine 0.38 moved to zip 9.5, which closed the
+  zip 8.6 advisories (2026-11-09).
 
 The authoritative implementation backlog and acceptance checks are in
 `docs/semantic-federation/incremental-runtime-plan.md`.
