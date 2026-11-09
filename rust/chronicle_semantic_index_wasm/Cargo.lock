@@ -1146,7 +1146,7 @@ dependencies = [
  "oxiri",
  "oxsdatatypes",
  "rand",
- "sha2 0.11.0",
+ "sha2 0.10.9",
  "thiserror",
 ]
 
@@ -1708,7 +1708,7 @@ dependencies = [
  "regex",
  "rustc-hash",
  "sha1",
- "sha2 0.11.0",
+ "sha2 0.10.9",
  "sparesults",
  "spargebra",
  "sparopt",
