@@ -1,5 +1,5 @@
 import "fake-indexeddb/auto";
-import { execFileSync } from "node:child_process";
+import { execFileSync } from "../testSupport/fileStdin";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";

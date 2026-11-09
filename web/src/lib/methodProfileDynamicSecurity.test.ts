@@ -1,5 +1,5 @@
 import "fake-indexeddb/auto";
-import { execFileSync } from "node:child_process";
+import { execFileSync } from "../testSupport/fileStdin";
 import { resolve } from "node:path";
 import { expect } from "vitest";
 import { itWithPrivateCorpus } from "@/testSupport/privateCorpusGates";
