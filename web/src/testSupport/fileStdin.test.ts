@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -11,15 +11,26 @@ const childReport = [
   "process.stdout.write(JSON.stringify({ file: stat.isFile(), fifo: stat.isFIFO(), socket: stat.isSocket(), body: fs.readFileSync(0, 'utf8') }));",
 ].join("\n");
 
-const leftovers = () => readdirSync(tmpdir()).filter((name) => name.startsWith("chronicle-stdin-"));
-
 describe("execFileSync with file-backed stdin", () => {
   it("hands input to the child as a regular file, not a pipe or socket, and removes it", () => {
-    const before = leftovers();
-    const input = JSON.stringify({ rows: Array.from({ length: 20_000 }, (_, id) => ({ id })) });
-    const report = JSON.parse(execFileSync(process.execPath, ["-e", childReport], { input, encoding: "utf8", timeout: 30_000 })) as unknown;
-    expect(report).toEqual({ file: true, fifo: false, socket: false, body: input });
-    expect(leftovers()).toEqual(before);
+    // Other test workers create and remove chronicle-stdin-* directories in the
+    // shared temp directory at the same time, so a before/after listing of it
+    // races. Point os.tmpdir() (it reads TMPDIR on every call) at a directory
+    // only this test uses; vitest's forks pool gives each worker its own env.
+    const privateTemp = mkdtempSync(join(tmpdir(), "chronicle-filestdin-test-"));
+    const savedTmpdir = process.env.TMPDIR;
+    process.env.TMPDIR = privateTemp;
+    try {
+      expect(tmpdir()).toBe(privateTemp);
+      const input = JSON.stringify({ rows: Array.from({ length: 20_000 }, (_, id) => ({ id })) });
+      const report = JSON.parse(execFileSync(process.execPath, ["-e", childReport], { input, encoding: "utf8", timeout: 30_000 })) as unknown;
+      expect(report).toEqual({ file: true, fifo: false, socket: false, body: input });
+      expect(readdirSync(privateTemp)).toEqual([]);
+    } finally {
+      if (savedTmpdir === undefined) delete process.env.TMPDIR;
+      else process.env.TMPDIR = savedTmpdir;
+      rmSync(privateTemp, { recursive: true, force: true });
+    }
   });
 
   it("passes calls without input straight through", () => {
