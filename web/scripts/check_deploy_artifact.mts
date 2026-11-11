@@ -291,10 +291,11 @@ function lockedCrateVersion(cargoLock: string, crate: string): string {
       if (version) versions.add(version);
     }
   }
-  if (versions.size !== 1) {
+  const [only, ...rest] = [...versions];
+  if (only === undefined || rest.length > 0) {
     throw new Error(`Cargo.lock has ${versions.size} versions of ${crate} (${[...versions].join(", ")}); expected exactly one`);
   }
-  return [...versions][0];
+  return only;
 }
 
 type SbomComponent = { name?: unknown; version?: unknown; purl?: unknown };
