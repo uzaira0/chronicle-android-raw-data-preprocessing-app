@@ -23,3 +23,17 @@ owner and drops its unused `lz4_flex` 0.14.0 resolution, retaining the existing
 0.13.1 resolution. No other locked package changes and no policy exceptions
 are introduced. Normal supply-chain checks still apply; this note does not
 claim a fresh advisory scan or author-runtime equivalence.
+
+## The package's own `Cargo.lock`
+
+The `Cargo.lock` shipped inside the crates.io archive is not used by any build
+here: the runtime and semantic-index crates resolve this path package through
+their own lockfiles, and `footprint_digest_core.rs` hashes only this package's
+`Cargo.toml` and `src/`. CI's `osv-scanner --recursive` still reads it, so on
+2026-11-10 it was refreshed with `cargo update --manifest-path Cargo.toml -p
+<crate> --precise <version>` for RUSTSEC-2026-0442 (arrow-data 59.3.2, which
+moves arrow-buffer and arrow-schema to 59.3.2 and num-bigint to 0.5.1),
+RUSTSEC-2026-0386 (tokio 1.53.3), RUSTSEC-2026-0391 (zstd 0.13.4),
+RUSTSEC-2026-0395 to -0406 (zstd-safe 7.4.0) and RUSTSEC-2026-0410
+(zstd-sys 2.1.2). Every chosen release was more than seven days old.
+`Cargo.toml` and `src/` are unchanged.
