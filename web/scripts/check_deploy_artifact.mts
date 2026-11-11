@@ -282,6 +282,21 @@ async function checkBundleBudget(artifactDir: string): Promise<Record<string, nu
   return { totalBytes: total, ...byExtension };
 }
 
+/** The one `version = "..."` of `[[package]] name = "<crate>"` in a Cargo.lock; throws if absent or ambiguous. */
+function lockedCrateVersion(cargoLock: string, crate: string): string {
+  const versions = new Set<string>();
+  for (const block of cargoLock.split(/^\[\[package\]\]$/m)) {
+    if (new RegExp(`^name = "${crate.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"$`, "m").test(block)) {
+      const version = /^version = "([^"]+)"$/m.exec(block)?.[1];
+      if (version) versions.add(version);
+    }
+  }
+  if (versions.size !== 1) {
+    throw new Error(`Cargo.lock has ${versions.size} versions of ${crate} (${[...versions].join(", ")}); expected exactly one`);
+  }
+  return [...versions][0];
+}
+
 type SbomComponent = { name?: unknown; version?: unknown; purl?: unknown };
 
 /**
@@ -402,13 +417,19 @@ async function main(): Promise<void> {
   // into the WASM (with the Apache NOTICE files Arrow/Parquet require), and the
   // ported MIT code (web/scripts/third_party_notices.mts).
   const notices = await readFile(path.join(artifactDir, "THIRD-PARTY-NOTICES.txt"), "utf-8");
+  // The NOTICE headings carry the linked crate versions, so read them from the
+  // runtime crate's lockfile: a hardcoded version goes stale on the next bump.
+  const runtimeLock = await readFile(
+    path.join(repositoryRoot, "rust/chronicle_preprocessing_runtime_wasm/Cargo.lock"),
+    "utf-8",
+  );
   for (const required of [
     "1. npm packages bundled into the JavaScript",
     "--- react ",
     "--- comlink ",
     "2. Rust crates linked into the WebAssembly packages",
-    "--- arrow-ipc 59.1.0: NOTICE",
-    "--- parquet 59.1.0: NOTICE",
+    `--- arrow-ipc ${lockedCrateVersion(runtimeLock, "arrow-ipc")}: NOTICE`,
+    `--- parquet ${lockedCrateVersion(runtimeLock, "parquet")}: NOTICE`,
     "3. Code and material ported from other projects",
     "Copyright (c) 2025 patrickzerrer",
   ]) {
