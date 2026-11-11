@@ -2,12 +2,12 @@
   "protocol_version": "0.1",
   "root_profile": "urn:uzaira0:semantic-federation:chronicle-preprocessing",
   "root_version": "0.1.0",
-  "root_manifest_digest": "sha256:12d91882f067119057b8f577f162f869561d76662e833a5490cf1555b6816b12",
+  "root_manifest_digest": "sha256:7216863a4dba28d96be4db4a1ba3441e6afbd3ab469201114e1e96268be60739",
   "entries": [
     {
       "profile_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing",
       "version": "0.1.0",
-      "manifest_digest": "sha256:12d91882f067119057b8f577f162f869561d76662e833a5490cf1555b6816b12",
+      "manifest_digest": "sha256:7216863a4dba28d96be4db4a1ba3441e6afbd3ab469201114e1e96268be60739",
       "resources": [
         {
           "path": "resources/identity-contract.json",
@@ -17,7 +17,7 @@
         },
         {
           "path": "capability-bindings.json",
-          "digest": "sha256:e4f170b53f0bbcd923165d30d4fae244f0e5486a010643ea595002c316302984",
+          "digest": "sha256:11454a369a279fdd1ba56042dc329fc44b0cc3bbcbe7e2a1f68ea3c6c3655150",
           "media_type": "application/json",
           "role": "binding-source"
         },
@@ -72,5 +72,5 @@
       ]
     }
   ],
-  "closure_digest": "sha256:53dcf748cdca66886f2dfa9b7d9f86c2758ec45802c224646be30c8daa9ec8b4"
+  "closure_digest": "sha256:ccc8af03f73f22f0a42ed9bb894a3822d6fc987d0fb5e612b94ed5c312191658"
 }
