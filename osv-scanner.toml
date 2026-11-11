@@ -2,7 +2,7 @@
 # .semantic-federation/quality/deny.toml, the cargo-deny half of the same
 # decision. An npm ID needs its reason here: no fixed version exists and the
 # vulnerable call is unreachable.
-
-[[IgnoredVulns]]
-id = "GHSA-hp3w-g68c-fv3c"
-reason = "sprintf-js has no fixed release (every version through 1.1.3 is affected). It reaches the tree only as dev tooling: @lhci/cli -> @lhci/utils -> js-yaml 3 -> argparse 1, and argparse calls sprintf with fixed format strings, so no caller controls the precision specifier the advisory needs. js-yaml 4 drops argparse 1 but removes safeLoad, which @lhci/utils calls, so it cannot be overridden. Nothing ships in the app."
+#
+# No exception is open. GHSA-hp3w-g68c-fv3c (sprintf-js) was removed on
+# 2026-11-10: @lhci/cli 0.16 reads YAML with js-yaml 5 -> argparse 3, so
+# sprintf-js is no longer in either web lockfile.
