@@ -37,3 +37,7 @@ RUSTSEC-2026-0386 (tokio 1.53.3), RUSTSEC-2026-0391 (zstd 0.13.4),
 RUSTSEC-2026-0395 to -0406 (zstd-safe 7.4.0) and RUSTSEC-2026-0410
 (zstd-sys 2.1.2). Every chosen release was more than seven days old.
 `Cargo.toml` and `src/` are unchanged.
+
+On 2026-11-11 osv-scanner reported RUSTSEC-2026-0486 against rustix 1.1.4 in
+this lockfile, and `cargo update --manifest-path Cargo.toml -p rustix --precise
+1.1.6` moved it to the fixed release (published 2026-10-27).
