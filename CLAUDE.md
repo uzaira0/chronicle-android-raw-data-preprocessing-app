@@ -344,3 +344,4 @@ credited-session cap — not an attention timeout — bounds the tail. See
 - **Never** `git stash` (any subcommand). To check whether errors are pre-existing, read with `git diff` — don't manipulate the working tree.
 - **Never** override commit authorship (`--author`, `GIT_AUTHOR_*`/`GIT_COMMITTER_*`, `git config user.*`) and **never** add `Co-Authored-By` lines. Commits use the user's git identity as-is.
 - Commit / push only when asked.
+- Dependency updates wait 7 days (14 for a major, 3 for a security fix) and new packages need a reviewed entry: see [dependency-age](https://github.com/uzaira0/agent-skills/blob/main/lib/dependency-age/README.md) (`~/agent-skills/lib/dependency-age/README.md`); the pre-push hook and `make check` run its gate (`make dependency-age`, base `CHECK_BASE`, `public/main` for production work in a two-remote clone).

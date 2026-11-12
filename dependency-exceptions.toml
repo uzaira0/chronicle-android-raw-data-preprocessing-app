@@ -1,0 +1,17 @@
+# Reviewed exceptions to the dependency waiting period (~/agent-skills/lib/dependency-age/README.md).
+#
+# check-dependency-age.py refuses a version younger than its wait. A version may enter early only
+# when a person has read the fix, confirmed the vulnerable code is reachable here, and recorded it
+# below. Each entry admits one exact version, expires no more than 30 days ahead, and fails the gate
+# once expired: remove it when the version has passed its normal wait. An OSV MAL- (malicious
+# package) advisory cannot be excepted.
+#
+# The file starts empty. Nothing is pre-approved.
+#
+# [[exception]]
+# ecosystem = "npm"            # npm, pypi, cargo, go, maven, swift, nix, oci, ...
+# name = "example"
+# version = "1.2.3"            # exactly as the gate's failure line prints it
+# reviewer = "who reviewed it"
+# note = "CVE id, why it is reachable, what in the diff was read"
+# expires = 2026-12-01         # a TOML date

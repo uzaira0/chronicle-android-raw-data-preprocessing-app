@@ -1,0 +1,21 @@
+# Reviewed new dependency names (~/agent-skills/lib/dependency-age/README.md).
+#
+# check-dependency-age.py fails any package name the base branch did not have until a row here says
+# who let it in and why. A package from outside its public registry (a git or tarball source, another
+# registry, a path outside the repository) needs a row naming that exact source, after someone has
+# read it; a different commit or URL is a new source. Rows stay as the record.
+#
+# The file starts empty. Nothing is pre-approved.
+#
+# [[addition]]
+# ecosystem = "cargo"          # npm, pypi, cargo, go, maven, swift, nix, oci, ...
+# name = "example"
+# reviewer = "who reviewed it"
+# reason = "what it is for, why this package"
+#
+# [[addition]]
+# ecosystem = "cargo-source"   # npm-source, pypi-source, cargo-source
+# name = "example"
+# source = "0.2.0 git+https://github.com/owner/example?rev=abc#abcdef"   # exactly as the gate prints it
+# reviewer = "who reviewed it"
+# reason = "read the source at abcdef"
