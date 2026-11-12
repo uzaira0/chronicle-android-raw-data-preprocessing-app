@@ -432,7 +432,7 @@ describe("compiled literature component browser boundary", () => {
     expect((await recoverRuntimeWorkspace(root))?.workspaceRootDigest).toBe(first.manifest.workspaceRootDigest);
     // The second result is still the one a restored page would show.
     await expect(exportPersistedRustWorkspace(workspaceId, second.manifest.workspaceRootDigest)).rejects.toMatchObject({
-      message: expect.stringContaining("The newest saved copy of this run could not be reopened, so this browser fell back to an earlier one."),
+      message: expect.stringContaining("The newest saved copy of this run could not be reopened, so this browser fell back to an earlier one.") as unknown,
       details: "fell back to generation 1",
     });
     // The recovered head itself exports.

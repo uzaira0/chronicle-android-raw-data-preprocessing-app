@@ -41,5 +41,5 @@ export function installUserFacingErrorTransport(): void {
         stack: original.stack,
       });
     },
-  } as Comlink.TransferHandler<Thrown, Wire>);
+  });
 }

@@ -96,7 +96,7 @@ describe("comparison failures", () => {
     const failure = comparisonFailure(["Raw P01.csv"], "disk went away");
     expect(failure).toMatchObject({
       fileNames: ["Raw P01.csv"],
-      message: expect.stringMatching(/^This file could not be compared\./),
+      message: expect.stringMatching(/^This file could not be compared\./) as unknown,
       details: "disk went away",
     });
     expect(failure.cause).toBeInstanceOf(Error);
