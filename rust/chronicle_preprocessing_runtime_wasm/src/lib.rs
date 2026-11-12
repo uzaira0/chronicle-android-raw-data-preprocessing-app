@@ -16254,6 +16254,57 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         );
     }
 
+    /// An OLE2 Compound File: a 512-byte header whose fields calamine's CFB
+    /// reader validates are well formed, followed by `sectors`.
+    fn compound_file(difat_start: u32, header_difat: u32, sectors: &[u8]) -> Vec<u8> {
+        let mut file = vec![0u8; 512];
+        file[..8].copy_from_slice(b"\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1");
+        file[24..26].copy_from_slice(&0x003Eu16.to_le_bytes());
+        file[26..28].copy_from_slice(&3u16.to_le_bytes());
+        file[28..30].copy_from_slice(&0xFFFEu16.to_le_bytes());
+        file[30..32].copy_from_slice(&9u16.to_le_bytes()); // 512-byte sectors
+        file[32..34].copy_from_slice(&6u16.to_le_bytes()); // 64-byte mini sectors
+        file[44..48].copy_from_slice(&1u32.to_le_bytes()); // one FAT sector
+        file[48..52].copy_from_slice(&1u32.to_le_bytes()); // directory at sector 1
+        file[56..60].copy_from_slice(&0x1000u32.to_le_bytes());
+        file[60..64].copy_from_slice(&0xFFFF_FFFEu32.to_le_bytes()); // no mini FAT
+        file[68..72].copy_from_slice(&difat_start.to_le_bytes());
+        for entry in file[76..512].chunks_mut(4) {
+            entry.copy_from_slice(&u32::MAX.to_le_bytes());
+        }
+        file[76..80].copy_from_slice(&header_difat.to_le_bytes());
+        file.extend_from_slice(sectors);
+        file
+    }
+
+    // RUSTSEC-2026-0436 (calamine < 0.38). `Xlsx::new` probes every input as an
+    // OLE2 Compound File before opening it as a zip, so a crafted support file
+    // reached the CFB parser's panic and unbounded DIFAT growth. Both inputs must
+    // come back as an ordinary error.
+    #[test]
+    fn truncated_ole2_directory_is_an_error_not_a_panic() {
+        // Sector 0 is the FAT; sector 1, the directory, is cut to 100 bytes by the
+        // end of the file. calamine 0.36 sliced `buf[116..120]` out of that
+        // 100-byte entry and panicked.
+        let mut sectors = vec![0u8; 512];
+        for entry in sectors.chunks_mut(4) {
+            entry.copy_from_slice(&u32::MAX.to_le_bytes());
+        }
+        sectors[0..4].copy_from_slice(&0xFFFF_FFFDu32.to_le_bytes()); // FAT sector
+        sectors[4..8].copy_from_slice(&0xFFFF_FFFEu32.to_le_bytes()); // end of chain
+        sectors.extend_from_slice(&[0u8; 100]);
+        let file = compound_file(0xFFFF_FFFE, 0, &sectors);
+        assert!(xlsx_to_csv(&file).is_err());
+    }
+
+    #[test]
+    fn self_referential_ole2_difat_is_an_error_not_unbounded_growth() {
+        // The DIFAT chain starts at sector 0, whose last entry points back at
+        // sector 0: calamine 0.36 appended 127 entries per pass and never stopped.
+        let file = compound_file(0, u32::MAX, &[0u8; 512]);
+        assert!(xlsx_to_csv(&file).is_err());
+    }
+
     #[test]
     fn xlsx_support_is_preserved_normalized_and_materialized() {
         let workbook = include_bytes!(concat!(

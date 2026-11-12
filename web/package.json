@@ -76,7 +76,7 @@
   "devDependencies": {
     "@axe-core/playwright": "^4.11.2",
     "@eslint/js": "^10.0.1",
-    "@lhci/cli": "^0.15.1",
+    "@lhci/cli": "^0.16.0",
     "@playwright/test": "^1.59.1",
     "@stryker-mutator/core": "^9.6.1",
     "@stryker-mutator/vitest-runner": "^9.6.1",
@@ -98,9 +98,9 @@
   },
   "overrides": {
     "esbuild": "^0.28.1",
-    "qs": "^6.16.0",
+    "qs": "^6.16.1",
     "brace-expansion": "^5.0.12",
-    "fast-uri": "^3.1.8",
+    "fast-uri": "^3.1.9",
     "postcss": "^8.5.24",
     "tmp": "^0.2.7",
     "uuid": "^11.1.1",
@@ -110,6 +110,21 @@
     "compression": "^1.8.2",
     "proxy-addr": "^2.0.8",
     "smol-toml": "^1.9.0",
-    "source-map-js": "^1.2.2"
+    "source-map-js": "^1.2.2",
+    "eslint": {
+      "minimatch": "^11.0.1"
+    },
+    "@eslint/config-array": {
+      "minimatch": "^11.0.1"
+    },
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "^11.0.1"
+    },
+    "@stryker-mutator/core": {
+      "minimatch": "^11.0.1"
+    },
+    "@sentry/bundler-plugins": {
+      "glob": "^14.0.3"
+    }
   }
 }
