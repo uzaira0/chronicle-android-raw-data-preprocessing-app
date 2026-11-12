@@ -3,25 +3,50 @@ version: 2
 # ecosystem (all bumps batched into a single PR). Keeps security currency
 # without the weekly per-package PR churn. All testing/builds are local
 # (see /Makefile); remote workflows are scanners, the canary, and the
-# manual-dispatch Pages deploy. npm gets security PRs only.
+# manual-dispatch Pages deploy.
 #
-# cooldown: a release must be 7 days old before a version-update PR proposes
-# it, so a compromised or yanked release has time to be caught upstream.
-# Security updates are not delayed. github-actions supports default-days only.
+# cooldown: the shared dependency waiting period
+# (~/agent-skills/lib/dependency-age/README.md): a release must be 7 days old
+# (14 for a major) before a version-update PR proposes it, so a compromised or
+# yanked release has time to be caught upstream. Security updates skip the
+# cooldown; the dependency-age gate (pre-push hook and make check) holds them
+# 3 days. github-actions supports default-days only.
 updates:
+  # Every crate is its own manifest and lockfile (no workspace).
   - package-ecosystem: "cargo"
-    directory: "/rust/chronicle_app_usage_matcher"
+    directories:
+      - "/rust/chronicle_app_usage_matcher"
+      - "/rust/chronicle_chrono_kernel_wasm"
+      - "/rust/chronicle_preprocessing_semantic_adapter"
+      - "/rust/chronicle_preprocessing_runtime_wasm"
+      - "/rust/chronicle_semantic_index_wasm"
     schedule:
       interval: "monthly"
     open-pull-requests-limit: 1
     cooldown:
       default-days: 7
+      semver-major-days: 14
     # minicov is pinned =0.3.8: later releases write profraws from a newer
     # LLVM than the dated nightly make dependency-evidence merges them with.
     ignore:
       - dependency-name: "minicov"
     groups:
       rust:
+        patterns: ["*"]
+
+  # web/package-lock.json. web/bun.lock resolves the same versions and is
+  # re-migrated from package-lock.json in the same PR (bun install
+  # --lockfile-only), as the npm commits in the history do.
+  - package-ecosystem: "npm"
+    directory: "/web"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 1
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+    groups:
+      npm:
         patterns: ["*"]
 
   - package-ecosystem: "github-actions"
