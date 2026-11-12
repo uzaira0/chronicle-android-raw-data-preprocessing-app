@@ -122,6 +122,18 @@ repos:
         stages: [pre-push]
         files: ^web/
 
+      # Shared dependency waiting period (~/agent-skills/lib/dependency-age/README.md). The base is the
+      # main branch of the remote being pushed to: in a two-remote clone `origin` is the preview
+      # repository and `public` production. --merge-base judges only what the branch changed since it
+      # left that main.
+      - id: dependency-age
+        name: Dependency waiting period (~/agent-skills/lib/dependency-age)
+        entry: sh -c 'exec python3 -I "${DEPENDENCY_AGE_GATE:-$HOME/.local/share/dependency-age/agent-skills/lib/dependency-age/check-dependency-age.py}" --base "${PRE_COMMIT_REMOTE_NAME:-origin}/main" --merge-base "$@"' dependency-age
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+
       - id: dependency-audit
         name: Dependency vulnerability audit (npm + Rust)
         language: script

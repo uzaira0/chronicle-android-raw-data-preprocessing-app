@@ -1,0 +1,5 @@
+# Shared dependency waiting period (~/agent-skills/lib/dependency-age/README.md, Install floors):
+# Bun installs only versions published at least this many seconds ago (7 days; bun.com/docs/runtime/bunfig,
+# install.minimumReleaseAge). The gate fails this file if it says anything but 604800.
+[install]
+minimumReleaseAge = 604800

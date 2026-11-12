@@ -31,6 +31,9 @@ PRODUCT_RUNTIME := rust/chronicle_preprocessing_runtime_wasm/Cargo.toml
 SEMANTIC_INDEX := rust/chronicle_semantic_index_wasm/Cargo.toml
 LOCAL_SEM_PROF_BIN := $(HOME)/semantic-profile-toolchain/target/debug/semprof
 SEM_PROF_BIN ?= $(if $(wildcard $(LOCAL_SEM_PROF_BIN)),$(LOCAL_SEM_PROF_BIN),semprof)
+# The shared dependency waiting-period gate (~/agent-skills/lib/dependency-age/README.md), run from its
+# reviewed runtime copy. A machine without the copy fails `make dependency-age`, never passes.
+DEPENDENCY_AGE_GATE ?= $(HOME)/.local/share/dependency-age/agent-skills/lib/dependency-age/check-dependency-age.py
 
 .PHONY: help check upgrade-check pin-figures wasm-fresh ci all security web \
         rust \
@@ -42,7 +45,7 @@ SEM_PROF_BIN ?= $(if $(wildcard $(LOCAL_SEM_PROF_BIN)),$(LOCAL_SEM_PROF_BIN),sem
         combinatorial gate-truth \
         mutation mutation-web mutation-rust coverage coverage-rust coverage-all \
         knip profile profile-current profile-many e2e deploy-artifact dependency-evidence \
-        bench-regression fuzz-sanity
+        bench-regression fuzz-sanity dependency-age
 
 help:
 	@echo 'Local CI (GitHub Actions carries CD only):'
@@ -65,6 +68,7 @@ help:
 	@echo '               knip profile profile-current profile-many combinatorial deploy-artifact dependency-evidence'
 	@echo '               bench-regression (criterion matcher benches vs benchmarks/baseline.json; local-only)'
 	@echo '               fuzz-sanity (bounded matcher, runtime ingestion + archive-journal cargo-fuzz targets; local-only)'
+	@echo '               dependency-age (7/14/3-day waiting period for changed lockfile entries vs CHECK_BASE)'
 
 # ---------- aggregates ----------
 ci: rust security udeps
@@ -170,6 +174,13 @@ udeps:
 ast-grep:
 	sg scan
 	sg test
+
+# Every new or changed lockfile entry since the branch left CHECK_BASE (default origin/main; set
+# CHECK_BASE=public/main for production work in a two-remote clone) must be past its wait: 7 days,
+# 14 for a major, 3 for a security fix. New package names need a reviewed dependency-additions.toml
+# row; dependency-exceptions.toml holds reviewed early admissions. Exit 2 = a lookup went unanswered.
+dependency-age:
+	python3 -I "$(DEPENDENCY_AGE_GATE)" --base "$${CHECK_BASE:-origin/main}" --merge-base
 
 cargo-audit:
 	scripts/cargo-audit-crate.sh rust/chronicle_app_usage_matcher

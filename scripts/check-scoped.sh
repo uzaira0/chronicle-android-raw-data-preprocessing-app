@@ -12,7 +12,9 @@
 #                    Rust suite or WASM rebuild: no product build reads them)
 #   *.sh          -> shellcheck on every tracked shell script
 #   web/ TS, .ast-grep/ -> ast-grep scan + rule tests
-#   always        -> gitleaks, published figures (drift is rewritten, not failed)
+#   always        -> gitleaks, dependency waiting period (changed lockfile entries
+#                    vs the merge base; install floors; OSV MAL-), published figures
+#                    (drift is rewritten, not failed)
 #
 # It verifies; it never regenerates evidence. A Rust change to the pipeline
 # still needs `make dependency-evidence` first — a stale certificate fails the
@@ -50,6 +52,9 @@ has '^web/' && web_changed=1
 
 step "gitleaks"
 make --no-print-directory gitleaks
+
+step "dependency waiting period (shared dependency-age gate)"
+CHECK_BASE="$base" make --no-print-directory dependency-age
 
 if has '(^|/)(Cargo\.lock|package-lock\.json|bun\.lock)$'; then
   step "dependency scanners (a lockfile changed)"
