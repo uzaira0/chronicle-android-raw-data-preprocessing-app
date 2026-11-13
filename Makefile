@@ -45,7 +45,7 @@ DEPENDENCY_AGE_GATE ?= $(HOME)/.local/share/dependency-age/agent-skills/lib/depe
         combinatorial gate-truth \
         mutation mutation-web mutation-rust coverage coverage-rust coverage-all \
         knip profile profile-current profile-many e2e deploy-artifact dependency-evidence \
-        bench-regression fuzz-sanity dependency-age
+        bench-regression fuzz-sanity dependency-age commit-identity commit-identity-test
 
 help:
 	@echo 'Local CI (GitHub Actions carries CD only):'
@@ -69,6 +69,8 @@ help:
 	@echo '               bench-regression (criterion matcher benches vs benchmarks/baseline.json; local-only)'
 	@echo '               fuzz-sanity (bounded matcher, runtime ingestion + archive-journal cargo-fuzz targets; local-only)'
 	@echo '               dependency-age (7/14/3-day waiting period for changed lockfile entries vs CHECK_BASE)'
+	@echo '               commit-identity (author/committer e-mails of CHECK_BASE..HEAD vs commit-identities.txt)'
+	@echo '               commit-identity-test (unit tests of scripts/check-commit-identity.py)'
 
 # ---------- aggregates ----------
 ci: rust security udeps
@@ -181,6 +183,14 @@ ast-grep:
 # row; dependency-exceptions.toml holds reviewed early admissions. Exit 2 = a lookup went unanswered.
 dependency-age:
 	python3 -I "$(DEPENDENCY_AGE_GATE)" --base "$${CHECK_BASE:-origin/main}" --merge-base
+
+# Every commit the branch adds over CHECK_BASE must carry an author and committer e-mail listed in
+# commit-identities.txt. The pre-push hook checks the pushed range; CI checks a pull request's commits.
+commit-identity:
+	python3 -I scripts/check-commit-identity.py --from "$${CHECK_BASE:-origin/main}" --to HEAD
+
+commit-identity-test:
+	python3 -I tests/test_commit_identity.py
 
 cargo-audit:
 	scripts/cargo-audit-crate.sh rust/chronicle_app_usage_matcher

@@ -1,0 +1,10 @@
+# Commit identities allowed in this repository (read by scripts/check-commit-identity.py, which the
+# pre-push hook, `make check` and the security workflow's commit-identity job run). A commit passes
+# only when its author e-mail and its committer e-mail are both listed here, exactly.
+#
+# To add an identity: put its e-mail alone on a new line with a comment saying whose it is and why it
+# commits here, in the same pull request that first needs it. Do not list an address that the
+# 2026-11-12 history rewrite removed.
+124936575+uzaira0@users.noreply.github.com          # uzaira0, the maintainer
+noreply@github.com                                  # GitHub's web committer (squash merges, web edits)
+49699333+dependabot[bot]@users.noreply.github.com   # Dependabot pull requests

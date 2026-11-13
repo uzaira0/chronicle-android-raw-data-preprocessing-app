@@ -13,8 +13,9 @@
 #   *.sh          -> shellcheck on every tracked shell script
 #   web/ TS, .ast-grep/ -> ast-grep scan + rule tests
 #   always        -> gitleaks, dependency waiting period (changed lockfile entries
-#                    vs the merge base; install floors; OSV MAL-), published figures
-#                    (drift is rewritten, not failed)
+#                    vs the merge base; install floors; OSV MAL-), commit identities
+#                    (base..HEAD vs commit-identities.txt; its unit tests when the check
+#                    changed), published figures (drift is rewritten, not failed)
 #
 # It verifies; it never regenerates evidence. A Rust change to the pipeline
 # still needs `make dependency-evidence` first — a stale certificate fails the
@@ -55,6 +56,12 @@ make --no-print-directory gitleaks
 
 step "dependency waiting period (shared dependency-age gate)"
 CHECK_BASE="$base" make --no-print-directory dependency-age
+
+step "commit identities (commit-identities.txt)"
+if has '^(scripts/check-commit-identity\.py|commit-identities\.txt|tests/test_commit_identity\.py)$'; then
+  make --no-print-directory commit-identity-test
+fi
+CHECK_BASE="$base" make --no-print-directory commit-identity
 
 if has '(^|/)(Cargo\.lock|package-lock\.json|bun\.lock)$'; then
   step "dependency scanners (a lockfile changed)"

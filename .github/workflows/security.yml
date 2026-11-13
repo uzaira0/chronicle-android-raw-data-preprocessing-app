@@ -27,6 +27,24 @@ jobs:
           # .gitleaks.toml and reports every ledger digest as a leak. Match the
           # version `make security` runs locally.
           GITLEAKS_VERSION: "8.30.1"
+  # The pull request's own commits (base..head, not GitHub's merge commit) must carry identities
+  # listed in commit-identities.txt; the same script runs in the pre-push hook and `make check`.
+  # Not a required check.
+  commit-identity:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: commit-identity unit tests
+        run: python3 -I tests/test_commit_identity.py
+      - name: pull request commit identities
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 -I scripts/check-commit-identity.py --from "$BASE_SHA" --to "$HEAD_SHA"
   # osv-scanner-action ships ONLY as a reusable workflow — its root action.yml is
   # branding-only (no `runs:`), and there is no `v1`/`v2` moving tag — so the
   # previous `uses: google/osv-scanner-action@v1` step never resolved. Call the

@@ -134,6 +134,18 @@ repos:
         always_run: true
         stages: [pre-push]
 
+      # Pushed commits carry only the identities in commit-identities.txt (the 2026-11-12 history
+      # rewrite removed the old ones; this keeps them from being pushed back). It checks the range
+      # pre-commit gives the push, or, for a branch sharing no commit with the remote, every commit no
+      # remote-tracking ref of that remote reaches.
+      - id: commit-identity
+        name: Commit identities (commit-identities.txt)
+        entry: python3 -I scripts/check-commit-identity.py --pre-push
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+
       - id: dependency-audit
         name: Dependency vulnerability audit (npm + Rust)
         language: script
